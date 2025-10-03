@@ -61,17 +61,28 @@ function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => voi
         }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error('Failed to send SMS');
+        const errorMsg = data.error || 'Failed to send SMS';
+        throw new Error(errorMsg);
       }
 
       setReplyMessage('');
       setShowSmsReply(false);
       await loadSmsConversations();
       alert('SMS sent successfully!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending SMS:', error);
-      alert('Failed to send SMS. Please try again.');
+      const errorMessage = error.message || 'Failed to send SMS. Please try again.';
+
+      if (errorMessage.includes('Twilio not configured')) {
+        alert('SMS cannot be sent: Twilio credentials are not configured. Please add your Twilio credentials in the Settings tab first.');
+      } else if (errorMessage.includes('Incomplete Twilio configuration')) {
+        alert('SMS cannot be sent: Twilio configuration is incomplete. Please check your Settings.');
+      } else {
+        alert(`Failed to send SMS: ${errorMessage}`);
+      }
     } finally {
       setSendingSms(false);
     }
