@@ -61,37 +61,26 @@ export function Setup() {
     setError('');
 
     try {
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
-        email: adminData.email,
-        password: adminData.password,
-        options: {
-          data: {
-            role: 'ADMIN'
-          }
-        }
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-admin-user`;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: adminData.email,
+          password: adminData.password,
+          twilioAccountSid: twilioData.accountSid || undefined,
+          twilioAuthToken: twilioData.authToken || undefined,
+          twilioFromNumber: twilioData.fromNumber || undefined
+        })
       });
 
-      if (signUpError) throw signUpError;
-      if (!authData.user) throw new Error('Failed to create user');
+      const result = await response.json();
 
-      await supabase.from('user_roles').insert({
-        user_id: authData.user.id,
-        role: 'ADMIN'
-      });
-
-      if (twilioData.accountSid && twilioData.authToken && twilioData.fromNumber) {
-        const updates = [
-          { key: 'twilio_account_sid', value: twilioData.accountSid },
-          { key: 'twilio_auth_token', value: twilioData.authToken },
-          { key: 'twilio_from_number', value: twilioData.fromNumber }
-        ];
-
-        for (const update of updates) {
-          await supabase
-            .from('admin_settings')
-            .update({ value: update.value })
-            .eq('key', update.key);
-        }
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create admin user');
       }
 
       setStep('complete');
