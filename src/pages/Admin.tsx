@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../lib/pricing';
 import { Package, DollarSign, FileText, Download, CreditCard as Edit2, Trash2, Plus } from 'lucide-react';
@@ -1040,12 +1040,5 @@ function AdminDashboard() {
 }
 
 export function Admin() {
-  return (
-    <Routes>
-      <Route index element={<AdminDashboard />} />
-      <Route path="inventory/new" element={<UnitForm />} />
-      <Route path="inventory/edit/:id" element={<UnitForm />} />
-      <Route path="pricing/edit" element={<PricingSettings />} />
-    </Routes>
-  );
+  return <AdminDashboard />;
 }
