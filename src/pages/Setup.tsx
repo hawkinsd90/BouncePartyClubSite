@@ -63,6 +63,8 @@ export function Setup() {
     try {
       const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-admin-user`;
 
+      console.log('Creating admin user via:', apiUrl);
+
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
@@ -77,9 +79,21 @@ export function Setup() {
         })
       });
 
-      const result = await response.json();
+      let result;
+      try {
+        result = await response.json();
+      } catch (parseErr) {
+        console.error('Failed to parse response:', parseErr);
+        throw new Error('Server returned invalid response');
+      }
+
+      console.log('Setup response:', response.status, result);
 
       if (!response.ok) {
+        throw new Error(result.error || `Server error: ${response.status}`);
+      }
+
+      if (!result.success) {
         throw new Error(result.error || 'Failed to create admin user');
       }
 
