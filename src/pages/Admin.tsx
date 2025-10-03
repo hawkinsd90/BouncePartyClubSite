@@ -16,6 +16,8 @@ function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => voi
   const [showSmsReply, setShowSmsReply] = useState(false);
   const [replyMessage, setReplyMessage] = useState('');
   const [sendingSms, setSendingSms] = useState(false);
+  const [showRejectionModal, setShowRejectionModal] = useState(false);
+  const [customRejectionReason, setCustomRejectionReason] = useState('');
 
   useEffect(() => {
     loadOrderItems();
@@ -39,13 +41,14 @@ function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => voi
     if (data) setSmsConversations(data);
   }
 
-  async function handleSendSms() {
-    if (!replyMessage.trim()) return;
+  async function handleSendSms(customMessage?: string) {
+    const messageToSend = customMessage || replyMessage;
+    if (!messageToSend.trim()) return;
 
     setSendingSms(true);
     try {
       const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
-      await fetch(apiUrl, {
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
@@ -53,10 +56,14 @@ function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => voi
         },
         body: JSON.stringify({
           to: order.customers?.phone,
-          message: replyMessage,
+          message: messageToSend,
           orderId: order.id,
         }),
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to send SMS');
+      }
 
       setReplyMessage('');
       setShowSmsReply(false);
@@ -70,17 +77,23 @@ function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => voi
     }
   }
 
-  const getStreetViewUrl = () => {
+  async function handleTestSms() {
+    const testMessage = `Hi ${order.customers?.first_name}, this is a test message from Bounce Party Club. Your order #${order.id.slice(0, 8).toUpperCase()} is confirmed!`;
+    await handleSendSms(testMessage);
+  }
+
+  const getStreetViewUrl = (heading: number = 0) => {
     const address = `${order.addresses?.line1}, ${order.addresses?.city}, ${order.addresses?.state} ${order.addresses?.zip}`;
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    return `https://maps.googleapis.com/maps/api/streetview?size=600x400&location=${encodeURIComponent(address)}&key=${apiKey}`;
+    return `https://maps.googleapis.com/maps/api/streetview?size=600x400&location=${encodeURIComponent(address)}&heading=${heading}&key=${apiKey}`;
   };
 
-  const getStreetViewMetadataUrl = () => {
-    const address = `${order.addresses?.line1}, ${order.addresses?.city}, ${order.addresses?.state} ${order.addresses?.zip}`;
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    return `https://maps.googleapis.com/maps/api/streetview/metadata?location=${encodeURIComponent(address)}&key=${apiKey}`;
-  };
+  const streetViewAngles = [
+    { heading: 0, label: 'North View' },
+    { heading: 90, label: 'East View' },
+    { heading: 180, label: 'South View' },
+    { heading: 270, label: 'West View' },
+  ];
 
   async function handleApprove() {
     if (!confirm('Approve this booking? Payment will be processed and customer will be notified.')) return;
@@ -137,9 +150,11 @@ function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => voi
     }
   }
 
-  async function handleReject() {
-    const reason = prompt('Enter rejection reason (will be sent to customer):');
-    if (!reason) return;
+  async function handleReject(reason?: string) {
+    if (!reason) {
+      setShowRejectionModal(true);
+      return;
+    }
 
     setProcessing(true);
     try {
@@ -156,7 +171,13 @@ function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => voi
         .eq('order_id', order.id)
         .eq('status', 'pending');
 
-      alert(`Booking rejected. Customer will be notified: ${reason}`);
+      const rejectionMessage = `Hi ${order.customers?.first_name}, unfortunately we cannot accommodate your booking for ${format(new Date(order.event_date), 'MMMM d, yyyy')}. Reason: ${reason}. Please contact us if you have questions.`;
+
+      await handleSendSms(rejectionMessage);
+
+      setShowRejectionModal(false);
+      setCustomRejectionReason('');
+      alert('Booking rejected and customer notified via SMS.');
       onUpdate();
     } catch (error) {
       console.error('Error rejecting order:', error);
@@ -165,6 +186,15 @@ function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => voi
       setProcessing(false);
     }
   }
+
+  const preGeneratedRejections = [
+    'Units not available for selected date',
+    'Location outside service area',
+    'Weather conditions unsafe for event',
+    'Insufficient setup space at location',
+    'Unable to verify venue permissions',
+    'Event date conflicts with existing booking',
+  ];
 
   return (
     <div className="border border-slate-200 rounded-lg p-6">
@@ -187,13 +217,37 @@ function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => voi
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-4 bg-slate-50 rounded-lg">
         <div>
-          <p className="text-sm font-medium text-slate-700">Event Date</p>
+          <p className="text-sm font-medium text-slate-700">Event Date & Time</p>
           <p className="text-slate-900">{format(new Date(order.event_date), 'EEEE, MMMM d, yyyy')}</p>
+          <p className="text-slate-600 text-sm">{order.start_window} - {order.end_window}</p>
+          {order.end_date && order.end_date !== order.event_date && (
+            <p className="text-slate-600 text-sm mt-1">Ends: {format(new Date(order.end_date), 'MMM d, yyyy')}</p>
+          )}
         </div>
         <div>
           <p className="text-sm font-medium text-slate-700">Event Location</p>
           <p className="text-slate-900">{order.addresses?.line1}</p>
           <p className="text-slate-600 text-sm">{order.addresses?.city}, {order.addresses?.state} {order.addresses?.zip}</p>
+          <p className="text-slate-600 text-sm capitalize mt-1">{order.location_type} • {order.surface}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        <div className="p-3 bg-white border border-slate-200 rounded-lg">
+          <p className="text-xs text-slate-600 mb-1">Generator</p>
+          <p className="text-sm font-semibold text-slate-900">{order.generator_selected ? 'Yes' : 'No'}</p>
+        </div>
+        <div className="p-3 bg-white border border-slate-200 rounded-lg">
+          <p className="text-xs text-slate-600 mb-1">Sandbags</p>
+          <p className="text-sm font-semibold text-slate-900">{!order.can_use_stakes ? 'Required' : 'Not Needed'}</p>
+        </div>
+        <div className="p-3 bg-white border border-slate-200 rounded-lg">
+          <p className="text-xs text-slate-600 mb-1">Pickup</p>
+          <p className="text-sm font-semibold text-slate-900">{order.overnight_allowed ? 'Next Day' : 'Same Day'}</p>
+        </div>
+        <div className="p-3 bg-white border border-slate-200 rounded-lg">
+          <p className="text-xs text-slate-600 mb-1">Pets</p>
+          <p className="text-sm font-semibold text-slate-900">{order.has_pets ? 'Yes' : 'No'}</p>
         </div>
       </div>
 
@@ -207,57 +261,99 @@ function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => voi
       {import.meta.env.VITE_GOOGLE_MAPS_API_KEY && (
         <div className="mb-4 border border-slate-200 rounded-lg overflow-hidden">
           <div className="bg-slate-100 px-4 py-2 border-b border-slate-200">
-            <p className="text-sm font-medium text-slate-700">Street View Assessment</p>
+            <p className="text-sm font-medium text-slate-700">Street View Assessment - Multiple Angles</p>
           </div>
-          <div className="relative">
-            {!streetViewError ? (
-              <>
-                <img
-                  src={getStreetViewUrl()}
-                  alt="Street View"
-                  className="w-full h-64 object-cover"
-                  onLoad={() => setStreetViewLoaded(true)}
-                  onError={() => setStreetViewError(true)}
-                />
-                {!streetViewLoaded && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-slate-100">
-                    <p className="text-slate-500 text-sm">Loading Street View...</p>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="w-full h-64 bg-slate-100 flex items-center justify-center">
-                <p className="text-slate-500 text-sm">Street View not available for this location</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+            {streetViewAngles.map(({ heading, label }) => (
+              <div key={heading} className="border border-slate-200 rounded-lg overflow-hidden">
+                <div className="bg-slate-50 px-3 py-2 border-b border-slate-200">
+                  <p className="text-xs font-medium text-slate-700">{label}</p>
+                </div>
+                <div className="relative">
+                  {!streetViewError ? (
+                    <img
+                      src={getStreetViewUrl(heading)}
+                      alt={label}
+                      className="w-full h-48 object-cover"
+                      onError={() => setStreetViewError(true)}
+                    />
+                  ) : (
+                    <div className="w-full h-48 bg-slate-100 flex items-center justify-center">
+                      <p className="text-slate-500 text-xs">Not available</p>
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
+            ))}
           </div>
-          <div className="bg-slate-50 px-4 py-2 text-xs text-slate-600">
+          <div className="bg-slate-50 px-4 py-2 border-t border-slate-200 text-xs text-slate-600">
             Note: Street View images may not reflect current conditions. Verify details during delivery.
           </div>
         </div>
       )}
 
-      <div className="mb-4">
-        <p className="text-sm font-medium text-slate-700 mb-2">Ordered Items:</p>
-        <ul className="space-y-1">
-          {orderItems.map((item) => (
-            <li key={item.id} className="text-sm text-slate-600">
-              • {item.units?.name} ({item.wet_or_dry === 'water' ? 'Water Mode' : 'Dry Mode'}) - {formatCurrency(item.unit_price_cents)}
-            </li>
-          ))}
-        </ul>
+      <div className="mb-4 border border-slate-200 rounded-lg overflow-hidden">
+        <div className="bg-slate-100 px-4 py-2 border-b border-slate-200">
+          <p className="text-sm font-medium text-slate-700">Complete Order Details</p>
+        </div>
+        <div className="p-4">
+          <div className="space-y-3">
+            {orderItems.map((item) => (
+              <div key={item.id} className="flex justify-between items-start pb-3 border-b border-slate-100 last:border-0 last:pb-0">
+                <div>
+                  <p className="font-medium text-slate-900">{item.units?.name}</p>
+                  <p className="text-sm text-slate-600">{item.wet_or_dry === 'water' ? 'Water Mode' : 'Dry Mode'} • Qty: {item.qty}</p>
+                </div>
+                <p className="font-semibold text-slate-900">{formatCurrency(item.unit_price_cents * item.qty)}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 pt-4 border-t border-slate-200 space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-600">Subtotal:</span>
+              <span className="font-semibold text-slate-900">{formatCurrency(order.subtotal_cents)}</span>
+            </div>
+            {order.travel_fee_cents > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-600">Travel Fee:</span>
+                <span className="font-semibold text-slate-900">{formatCurrency(order.travel_fee_cents)}</span>
+              </div>
+            )}
+            {order.surface_fee_cents > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-600">Surface Fee (Sandbags):</span>
+                <span className="font-semibold text-slate-900">{formatCurrency(order.surface_fee_cents)}</span>
+              </div>
+            )}
+            {order.same_day_pickup_fee_cents > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-600">Same Day Pickup Fee:</span>
+                <span className="font-semibold text-slate-900">{formatCurrency(order.same_day_pickup_fee_cents)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-600">Tax:</span>
+              <span className="font-semibold text-slate-900">{formatCurrency(order.tax_cents)}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="flex justify-between items-center p-4 bg-blue-50 rounded-lg mb-4">
-        <div>
-          <p className="text-sm text-slate-600">Total Amount</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm text-slate-600 mb-1">Total Order Amount</p>
           <p className="text-2xl font-bold text-slate-900">
             {formatCurrency(order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents)}
           </p>
         </div>
-        <div className="text-right">
-          <p className="text-sm text-slate-600">Payment Status</p>
-          <p className="text-sm font-semibold text-amber-600">Pending Approval</p>
+        <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+          <p className="text-sm text-slate-600 mb-1">Customer Plans to Pay</p>
+          <p className="text-2xl font-bold text-green-700">
+            {formatCurrency(order.deposit_due_cents)}
+          </p>
+          <p className="text-xs text-slate-600 mt-1">
+            Balance Due: {formatCurrency(order.balance_due_cents)}
+          </p>
         </div>
       </div>
 
@@ -328,6 +424,16 @@ function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => voi
         </div>
       )}
 
+      <div className="flex gap-3 mb-3">
+        <button
+          onClick={handleTestSms}
+          disabled={sendingSms}
+          className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+        >
+          {sendingSms ? 'Sending...' : 'Send Test SMS'}
+        </button>
+      </div>
+
       <div className="flex gap-3">
         <button
           onClick={handleApprove}
@@ -337,20 +443,69 @@ function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => voi
           {processing ? 'Processing...' : 'Approve & Process Payment'}
         </button>
         <button
-          onClick={handleReject}
+          onClick={() => handleReject()}
           disabled={processing}
           className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
         >
           {processing ? 'Processing...' : 'Reject Booking'}
         </button>
       </div>
+
+      {showRejectionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h3 className="text-lg font-bold text-slate-900 mb-4">Select Rejection Reason</h3>
+            <div className="space-y-2 mb-4">
+              {preGeneratedRejections.map((reason) => (
+                <button
+                  key={reason}
+                  onClick={() => handleReject(reason)}
+                  className="w-full text-left px-4 py-3 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors text-sm text-slate-700"
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
+            <div className="border-t border-slate-200 pt-4 mb-4">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Or write a custom reason:
+              </label>
+              <textarea
+                value={customRejectionReason}
+                onChange={(e) => setCustomRejectionReason(e.target.value)}
+                placeholder="Enter custom rejection reason..."
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm resize-none"
+                rows={3}
+              />
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => handleReject(customRejectionReason)}
+                disabled={!customRejectionReason.trim() || processing}
+                className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-slate-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+              >
+                Send Custom Reason
+              </button>
+              <button
+                onClick={() => {
+                  setShowRejectionModal(false);
+                  setCustomRejectionReason('');
+                }}
+                className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 px-4 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function AdminDashboard() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'overview' | 'pending' | 'inventory' | 'orders' | 'contacts' | 'invoices' | 'pricing' | 'settings'>('pending');
+  const [activeTab, setActiveTab] = useState<'overview' | 'pending' | 'inventory' | 'orders' | 'contacts' | 'invoices' | 'pricing' | 'settings' | 'sms_templates'>('pending');
   const [units, setUnits] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [pricingRules, setPricingRules] = useState<any>(null);
@@ -361,6 +516,9 @@ function AdminDashboard() {
     from_number: ''
   });
   const [savingTwilio, setSavingTwilio] = useState(false);
+  const [smsTemplates, setSmsTemplates] = useState<any[]>([]);
+  const [editingTemplate, setEditingTemplate] = useState<any>(null);
+  const [savingTemplate, setSavingTemplate] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -369,7 +527,7 @@ function AdminDashboard() {
   async function loadData() {
     setLoading(true);
     try {
-      const [unitsRes, ordersRes, pricingRes, settingsRes] = await Promise.all([
+      const [unitsRes, ordersRes, pricingRes, settingsRes, templatesRes] = await Promise.all([
         supabase.from('units').select('*').order('name'),
         supabase.from('orders').select(`
           *,
@@ -378,11 +536,13 @@ function AdminDashboard() {
         `).order('created_at', { ascending: false }).limit(20),
         supabase.from('pricing_rules').select('*').limit(1).maybeSingle(),
         supabase.from('admin_settings').select('*').in('key', ['twilio_account_sid', 'twilio_auth_token', 'twilio_from_number']),
+        supabase.from('sms_message_templates').select('*').order('template_name'),
       ]);
 
       if (unitsRes.data) setUnits(unitsRes.data);
       if (ordersRes.data) setOrders(ordersRes.data);
       if (pricingRes.data) setPricingRules(pricingRes.data);
+      if (templatesRes.data) setSmsTemplates(templatesRes.data);
 
       if (settingsRes.data) {
         const settings: any = {};
@@ -422,6 +582,29 @@ function AdminDashboard() {
       alert('Failed to save Twilio settings. Please try again.');
     } finally {
       setSavingTwilio(false);
+    }
+  }
+
+  async function handleSaveTemplate() {
+    if (!editingTemplate) return;
+
+    setSavingTemplate(true);
+    try {
+      const { error } = await supabase
+        .from('sms_message_templates')
+        .update({ message_template: editingTemplate.message_template })
+        .eq('id', editingTemplate.id);
+
+      if (error) throw error;
+
+      alert('Template saved successfully!');
+      setEditingTemplate(null);
+      await loadData();
+    } catch (error) {
+      console.error('Error saving template:', error);
+      alert('Failed to save template. Please try again.');
+    } finally {
+      setSavingTemplate(false);
     }
   }
 
@@ -553,6 +736,16 @@ function AdminDashboard() {
           }`}
         >
           Settings
+        </button>
+        <button
+          onClick={() => setActiveTab('sms_templates')}
+          className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
+            activeTab === 'sms_templates'
+              ? 'bg-blue-600 text-white'
+              : 'bg-white text-slate-700 border border-slate-300 hover:border-blue-600'
+          }`}
+        >
+          SMS Templates
         </button>
       </div>
 
@@ -1033,6 +1226,98 @@ function AdminDashboard() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {activeTab === 'sms_templates' && (
+        <div className="bg-white rounded-xl shadow-md p-6">
+          <h2 className="text-2xl font-bold text-slate-900 mb-6">SMS Message Templates</h2>
+
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-slate-700 mb-2">
+              Customize the SMS messages sent to customers. Use these variables in your templates:
+            </p>
+            <div className="flex flex-wrap gap-2 mt-3">
+              <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{customer_first_name}'}</code>
+              <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{customer_last_name}'}</code>
+              <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{customer_full_name}'}</code>
+              <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{order_id}'}</code>
+              <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{event_date}'}</code>
+              <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{total_amount}'}</code>
+              <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{balance_amount}'}</code>
+              <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{rejection_reason}'}</code>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {smsTemplates.map((template) => (
+              <div key={template.id} className="border border-slate-200 rounded-lg p-4">
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <h3 className="font-semibold text-slate-900">{template.template_name}</h3>
+                    <p className="text-sm text-slate-600">{template.description}</p>
+                  </div>
+                  <button
+                    onClick={() => setEditingTemplate(template)}
+                    className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                  >
+                    Edit
+                  </button>
+                </div>
+                <div className="mt-3 p-3 bg-slate-50 rounded border border-slate-200">
+                  <p className="text-sm text-slate-700 font-mono whitespace-pre-wrap">{template.message_template}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {editingTemplate && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+                <h3 className="text-lg font-bold text-slate-900 mb-4">Edit Template: {editingTemplate.template_name}</h3>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Message Template
+                  </label>
+                  <textarea
+                    value={editingTemplate.message_template}
+                    onChange={(e) => setEditingTemplate({ ...editingTemplate, message_template: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono resize-none"
+                    rows={6}
+                  />
+                </div>
+
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-xs font-medium text-slate-700 mb-2">Available Variables:</p>
+                  <div className="flex flex-wrap gap-2">
+                    <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{customer_first_name}'}</code>
+                    <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{customer_last_name}'}</code>
+                    <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{customer_full_name}'}</code>
+                    <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{order_id}'}</code>
+                    <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{event_date}'}</code>
+                    <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{total_amount}'}</code>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleSaveTemplate}
+                    disabled={savingTemplate}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                  >
+                    {savingTemplate ? 'Saving...' : 'Save Template'}
+                  </button>
+                  <button
+                    onClick={() => setEditingTemplate(null)}
+                    className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 px-4 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
