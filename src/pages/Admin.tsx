@@ -526,6 +526,7 @@ function AdminDashboard() {
     auth_token: '',
     from_number: ''
   });
+  const [adminEmail, setAdminEmail] = useState('');
   const [savingTwilio, setSavingTwilio] = useState(false);
   const [smsTemplates, setSmsTemplates] = useState<any[]>([]);
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
@@ -546,7 +547,7 @@ function AdminDashboard() {
           addresses (line1, city, state, zip)
         `).order('created_at', { ascending: false }).limit(20),
         supabase.from('pricing_rules').select('*').limit(1).maybeSingle(),
-        supabase.from('admin_settings').select('*').in('key', ['twilio_account_sid', 'twilio_auth_token', 'twilio_from_number']),
+        supabase.from('admin_settings').select('*').in('key', ['twilio_account_sid', 'twilio_auth_token', 'twilio_from_number', 'admin_email']),
         supabase.from('sms_message_templates').select('*').order('template_name'),
       ]);
 
@@ -561,6 +562,7 @@ function AdminDashboard() {
           if (s.key === 'twilio_account_sid') settings.account_sid = s.value;
           if (s.key === 'twilio_auth_token') settings.auth_token = s.value;
           if (s.key === 'twilio_from_number') settings.from_number = s.value;
+          if (s.key === 'admin_email') setAdminEmail(s.value);
         });
         setTwilioSettings(settings);
       }
@@ -578,6 +580,7 @@ function AdminDashboard() {
         { key: 'twilio_account_sid', value: twilioSettings.account_sid, description: 'Twilio Account SID for SMS notifications' },
         { key: 'twilio_auth_token', value: twilioSettings.auth_token, description: 'Twilio Auth Token for SMS notifications' },
         { key: 'twilio_from_number', value: twilioSettings.from_number, description: 'Twilio phone number to send SMS from (E.164 format)' },
+        { key: 'admin_email', value: adminEmail, description: 'Admin email address for error notifications and alerts' },
       ];
 
       for (const update of updates) {
@@ -592,15 +595,15 @@ function AdminDashboard() {
         }
       }
 
-      alert('Twilio settings saved successfully! SMS notifications are now enabled.');
+      alert('Settings saved successfully!');
     } catch (error: any) {
-      console.error('Error saving Twilio settings:', error);
-      const errorMessage = error.message || 'Failed to save Twilio settings. Please try again.';
+      console.error('Error saving settings:', error);
+      const errorMessage = error.message || 'Failed to save settings. Please try again.';
 
       if (errorMessage.includes('row-level security')) {
         alert('Permission denied: You must be logged in as an admin user to update settings. Please make sure you are logged in as admin@bouncepartyclub.com');
       } else {
-        alert(`Failed to save Twilio settings: ${errorMessage}`);
+        alert(`Failed to save settings: ${errorMessage}`);
       }
     } finally {
       setSavingTwilio(false);
@@ -1235,6 +1238,22 @@ function AdminDashboard() {
               />
               <p className="mt-1 text-xs text-slate-500">
                 Must be in E.164 format (e.g., +15551234567)
+              </p>
+            </div>
+
+            <div className="pt-4 border-t border-slate-200">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Admin Email for Error Notifications
+              </label>
+              <input
+                type="email"
+                value={adminEmail}
+                onChange={(e) => setAdminEmail(e.target.value)}
+                placeholder="admin@example.com"
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                All application errors will be sent to this email with detailed stack traces
               </p>
             </div>
 
