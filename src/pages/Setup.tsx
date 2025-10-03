@@ -61,41 +61,51 @@ export function Setup() {
     setError('');
 
     try {
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-admin-user`;
-
-      console.log('Creating admin user via:', apiUrl);
-
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: adminData.email,
-          password: adminData.password,
-          twilioAccountSid: twilioData.accountSid || undefined,
-          twilioAuthToken: twilioData.authToken || undefined,
-          twilioFromNumber: twilioData.fromNumber || undefined
-        })
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+        email: adminData.email,
+        password: adminData.password,
+        options: {
+          data: {
+            role: 'ADMIN'
+          },
+          emailRedirectTo: undefined
+        }
       });
 
-      let result;
-      try {
-        result = await response.json();
-      } catch (parseErr) {
-        console.error('Failed to parse response:', parseErr);
-        throw new Error('Server returned invalid response');
+      if (signUpError) {
+        console.error('Sign up error:', signUpError);
+        throw signUpError;
       }
 
-      console.log('Setup response:', response.status, result);
-
-      if (!response.ok) {
-        throw new Error(result.error || `Server error: ${response.status}`);
+      if (!authData.user) {
+        throw new Error('Failed to create user. The user may already exist or email confirmation is required.');
       }
 
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to create admin user');
+      const { error: roleError } = await supabase.from('user_roles').insert({
+        user_id: authData.user.id,
+        role: 'ADMIN'
+      });
+
+      if (roleError) {
+        console.error('Role insert error:', roleError);
       }
+
+      if (twilioData.accountSid && twilioData.authToken && twilioData.fromNumber) {
+        const updates = [
+          { key: 'twilio_account_sid', value: twilioData.accountSid },
+          { key: 'twilio_auth_token', value: twilioData.authToken },
+          { key: 'twilio_from_number', value: twilioData.fromNumber }
+        ];
+
+        for (const update of updates) {
+          await supabase
+            .from('admin_settings')
+            .update({ value: update.value })
+            .eq('key', update.key);
+        }
+      }
+
+      await supabase.auth.signOut();
 
       setStep('complete');
       setSetupComplete(true);
@@ -105,7 +115,7 @@ export function Setup() {
       }, 3000);
     } catch (err: any) {
       console.error('Setup error:', err);
-      setError(err.message || 'Failed to complete setup');
+      setError(err.message || 'Failed to complete setup. Check console for details.');
     } finally {
       setSaving(false);
     }
