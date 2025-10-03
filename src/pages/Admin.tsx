@@ -581,16 +581,27 @@ function AdminDashboard() {
       ];
 
       for (const update of updates) {
-        await supabase
+        const { error } = await supabase
           .from('admin_settings')
           .update({ value: update.value })
           .eq('key', update.key);
+
+        if (error) {
+          console.error('Error updating setting:', update.key, error);
+          throw new Error(`Failed to update ${update.key}: ${error.message}`);
+        }
       }
 
       alert('Twilio settings saved successfully! SMS notifications are now enabled.');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving Twilio settings:', error);
-      alert('Failed to save Twilio settings. Please try again.');
+      const errorMessage = error.message || 'Failed to save Twilio settings. Please try again.';
+
+      if (errorMessage.includes('row-level security')) {
+        alert('Permission denied: You must be logged in as an admin user to update settings. Please make sure you are logged in as admin@bouncepartyclub.com');
+      } else {
+        alert(`Failed to save Twilio settings: ${errorMessage}`);
+      }
     } finally {
       setSavingTwilio(false);
     }
