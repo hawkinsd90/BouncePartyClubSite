@@ -1,0 +1,53 @@
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { Layout } from './components/Layout';
+import { Home } from './pages/Home';
+import { Catalog } from './pages/Catalog';
+import { UnitDetail } from './pages/UnitDetail';
+import { Quote } from './pages/Quote';
+import { Contact } from './pages/Contact';
+import { Checkout } from './pages/Checkout';
+import { About } from './pages/About';
+import { Admin } from './pages/Admin';
+import { Crew } from './pages/Crew';
+import { Login } from './pages/Login';
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Home />} />
+            <Route path="catalog" element={<Catalog />} />
+            <Route path="units/:slug" element={<UnitDetail />} />
+            <Route path="quote" element={<Quote />} />
+            <Route path="contact" element={<Contact />} />
+            <Route path="checkout" element={<Checkout />} />
+            <Route path="about" element={<About />} />
+            <Route
+              path="admin/*"
+              element={
+                <ProtectedRoute allowedRoles={['ADMIN']}>
+                  <Admin />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="crew/*"
+              element={
+                <ProtectedRoute allowedRoles={['ADMIN', 'CREW']}>
+                  <Crew />
+                </ProtectedRoute>
+              }
+            />
+          </Route>
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}
+
+export default App;
