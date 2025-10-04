@@ -15,6 +15,7 @@ export function Checkout() {
   const [success, setSuccess] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(null);
   const [cardOnFileConsent, setCardOnFileConsent] = useState(false);
+  const [smsConsent, setSmsConsent] = useState(false);
   const [billingSameAsEvent, setBillingSameAsEvent] = useState(true);
   const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
   const [customAmount, setCustomAmount] = useState('');
@@ -78,6 +79,11 @@ export function Checkout() {
 
     if (!cardOnFileConsent) {
       alert('Please consent to card-on-file authorization.');
+      return;
+    }
+
+    if (!smsConsent) {
+      alert('Please consent to SMS notifications.');
       return;
     }
 
@@ -176,6 +182,9 @@ export function Checkout() {
           card_on_file_consent_text:
             'I authorize Bounce Party Club LLC to securely store my payment method and charge it for incidentals including damage, excess cleaning, or late fees as itemized in a receipt.',
           card_on_file_consented_at: new Date().toISOString(),
+          sms_consent_text:
+            'I consent to receive transactional SMS messages from Bounce Party Club LLC regarding my booking, including order confirmations, delivery updates, and service notifications. Message frequency varies. Message and data rates may apply. Reply STOP to opt-out.',
+          sms_consented_at: new Date().toISOString(),
           special_details: quoteData.special_details || null,
         })
         .select()
@@ -749,7 +758,7 @@ export function Checkout() {
                 photographic evidence and a detailed explanation.
               </p>
             </div>
-            <label className="flex items-start cursor-pointer">
+            <label className="flex items-start cursor-pointer mb-6">
               <input
                 type="checkbox"
                 checked={cardOnFileConsent}
@@ -759,6 +768,29 @@ export function Checkout() {
               />
               <span className="ml-3 text-sm text-slate-700">
                 I have read and agree to the card-on-file authorization terms above. *
+              </span>
+            </label>
+
+            <h3 className="font-bold text-slate-900 mb-3 text-lg">SMS Notifications Consent</h3>
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4">
+              <p className="text-sm text-slate-700 leading-relaxed">
+                By providing my phone number and checking the box below, I consent to receive
+                transactional SMS text messages from Bounce Party Club LLC at the phone number
+                provided. These messages may include order confirmations, delivery updates,
+                and service-related notifications about my booking. Message frequency varies.
+                Message and data rates may apply. You can reply STOP to opt-out at any time.
+              </p>
+            </div>
+            <label className="flex items-start cursor-pointer">
+              <input
+                type="checkbox"
+                checked={smsConsent}
+                onChange={(e) => setSmsConsent(e.target.checked)}
+                className="w-5 h-5 text-blue-600 border-slate-300 rounded focus:ring-blue-500 mt-0.5"
+                required
+              />
+              <span className="ml-3 text-sm text-slate-700">
+                I consent to receive SMS notifications about my booking and agree to the terms above. *
               </span>
             </label>
           </div>
@@ -877,7 +909,7 @@ export function Checkout() {
 
             <button
               type="submit"
-              disabled={processing || !cardOnFileConsent}
+              disabled={processing || !cardOnFileConsent || !smsConsent}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center"
             >
               {processing ? (

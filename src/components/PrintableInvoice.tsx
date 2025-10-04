@@ -243,6 +243,13 @@ export function PrintableInvoice({
               • Customer is responsible for any damage to equipment beyond normal wear and tear.
             </p>
           </div>
+
+          <h3 className="font-bold text-slate-900 mb-3 mt-6">SMS Notifications:</h3>
+          <div className="text-xs text-slate-600 space-y-2">
+            <p>
+              By completing this booking, you consent to receive transactional SMS text messages from Bounce Party Club LLC regarding your order, including confirmations, delivery updates, and service notifications. Message frequency varies. Message and data rates may apply. Reply STOP to opt-out at any time.
+            </p>
+          </div>
         </div>
 
         <div className="mt-8 text-center text-sm text-slate-500">
