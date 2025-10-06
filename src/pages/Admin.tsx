@@ -6,6 +6,7 @@ import { Package, DollarSign, FileText, Download, CreditCard as Edit2, Trash2, P
 import { format } from 'date-fns';
 import { ContactsList } from '../components/ContactsList';
 import { InvoicesList } from '../components/InvoicesList';
+import { PaymentManagement } from '../components/PaymentManagement';
 
 function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => void }) {
   const [processing, setProcessing] = useState(false);
@@ -18,10 +19,12 @@ function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => voi
   const [sendingSms, setSendingSms] = useState(false);
   const [showRejectionModal, setShowRejectionModal] = useState(false);
   const [customRejectionReason, setCustomRejectionReason] = useState('');
+  const [payments, setPayments] = useState<any[]>([]);
 
   useEffect(() => {
     loadOrderItems();
     loadSmsConversations();
+    loadPayments();
   }, [order.id]);
 
   async function loadOrderItems() {
@@ -39,6 +42,20 @@ function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => voi
       .eq('order_id', order.id)
       .order('created_at', { ascending: true });
     if (data) setSmsConversations(data);
+  }
+
+  async function loadPayments() {
+    const { data } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('order_id', order.id)
+      .order('created_at', { ascending: false });
+    if (data) setPayments(data);
+  }
+
+  async function handlePaymentRefresh() {
+    await loadPayments();
+    await onUpdate();
   }
 
   async function handleSendSms(customMessage?: string) {
@@ -453,6 +470,10 @@ function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => voi
           </div>
         </div>
       )}
+
+      <div className="mb-4">
+        <PaymentManagement order={order} payments={payments} onRefresh={handlePaymentRefresh} />
+      </div>
 
       <div className="flex gap-3 mb-3">
         <button

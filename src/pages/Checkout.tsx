@@ -5,6 +5,7 @@ import { formatCurrency } from '../lib/pricing';
 import { CreditCard, Shield, CheckCircle, Loader2, User, MapPin, DollarSign, FileText, Printer, X } from 'lucide-react';
 import { RentalTerms } from '../components/RentalTerms';
 import { PrintableInvoice } from '../components/PrintableInvoice';
+import { StripeCheckoutForm } from '../components/StripeCheckoutForm';
 
 export function Checkout() {
   const navigate = useNavigate();
@@ -20,6 +21,8 @@ export function Checkout() {
   const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
   const [customAmount, setCustomAmount] = useState('');
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [showStripeForm, setShowStripeForm] = useState(false);
+  const [tempOrderId, setTempOrderId] = useState<string | null>(null);
 
   const [contactData, setContactData] = useState({
     first_name: '',
@@ -209,21 +212,24 @@ export function Checkout() {
         if (itemError) throw itemError;
       }
 
-      const paymentCents = getPaymentAmountCents();
-      const paymentType = paymentCents >= priceBreakdown.total_cents ? 'full' : 'deposit';
+      setTempOrderId(order.id);
+      setShowStripeForm(true);
+      setProcessing(false);
+      return;
+    } catch (error: any) {
+      console.error('Error creating order:', error);
+      const errorMessage = error?.message || 'Unknown error';
+      alert(`There was an error processing your order: ${errorMessage}\n\nPlease try again or contact us at (313) 889-3860 for assistance.`);
+      setProcessing(false);
+    }
+  };
 
-      const { error: paymentError } = await supabase.from('payments').insert({
-        order_id: order.id,
-        type: paymentType,
-        amount_cents: paymentCents,
-        stripe_payment_intent_id: 'pi_pending_' + Date.now(),
-        status: 'pending',
-      });
+  const handlePaymentSuccess = async () => {
+    if (!tempOrderId) return;
 
-      if (paymentError) throw paymentError;
-
+    try {
       const { error: routeDropoffError } = await supabase.from('route_stops').insert({
-        order_id: order.id,
+        order_id: tempOrderId,
         type: 'dropoff',
         checkpoint: 'none',
       });
@@ -231,7 +237,7 @@ export function Checkout() {
       if (routeDropoffError) throw routeDropoffError;
 
       const { error: routePickupError } = await supabase.from('route_stops').insert({
-        order_id: order.id,
+        order_id: tempOrderId,
         type: 'pickup',
         checkpoint: 'none',
       });
@@ -239,7 +245,7 @@ export function Checkout() {
       if (routePickupError) throw routePickupError;
 
       const { error: messageError } = await supabase.from('messages').insert({
-        order_id: order.id,
+        order_id: tempOrderId,
         to_email: contactData.email,
         channel: 'email',
         template_key: 'deposit_receipt',
@@ -254,10 +260,9 @@ export function Checkout() {
 
       if (messageError) throw messageError;
 
-      // Add customer to contacts list (upsert - update if exists)
       try {
         await supabase.from('contacts').upsert({
-          customer_id: customer.id,
+          customer_id: contactData.email,
           first_name: contactData.first_name,
           last_name: contactData.last_name,
           email: contactData.email,
@@ -272,7 +277,6 @@ export function Checkout() {
         console.error('Error adding to contacts:', contactError);
       }
 
-      // Send SMS notification to admin
       try {
         const { data: adminSettings } = await supabase
           .from('admin_settings')
@@ -281,10 +285,10 @@ export function Checkout() {
           .maybeSingle();
 
         if (adminSettings?.value) {
-          const smsMessage = `🎈 NEW BOOKING! ${contactData.first_name} ${contactData.last_name} for ${quoteData.event_date}. Review at: https://yourdomain.com/admin Order #${order.id.slice(0, 8)}`;
+          const smsMessage = `🎈 NEW BOOKING! ${contactData.first_name} ${contactData.last_name} for ${quoteData.event_date}. Review at: https://yourdomain.com/admin Order #${tempOrderId.slice(0, 8)}`;
 
           const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
-          const smsResponse = await fetch(apiUrl, {
+          await fetch(apiUrl, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
@@ -293,39 +297,30 @@ export function Checkout() {
             body: JSON.stringify({
               to: adminSettings.value,
               message: smsMessage,
-              orderId: order.id,
+              orderId: tempOrderId,
             }),
           });
-
-          const smsResult = await smsResponse.json();
-          console.log('SMS notification result:', smsResult);
-
-          if (smsResult.mock) {
-            console.warn('SMS notification not sent - Twilio credentials not configured');
-          }
-        } else {
-          console.warn('No admin notification phone number configured');
         }
       } catch (smsError) {
         console.error('Error sending SMS notification:', smsError);
-        // Don't fail the order if SMS fails
       }
-
-      // Order remains in pending_review status for admin approval
 
       localStorage.removeItem('bpc_cart');
       localStorage.removeItem('bpc_quote_form');
       localStorage.removeItem('bpc_price_breakdown');
 
-      setOrderId(order.id);
+      setOrderId(tempOrderId);
       setSuccess(true);
+      setShowStripeForm(false);
     } catch (error: any) {
-      console.error('Error creating order:', error);
-      const errorMessage = error?.message || 'Unknown error';
-      alert(`There was an error processing your order: ${errorMessage}\n\nPlease try again or contact us at (313) 889-3860 for assistance.`);
-    } finally {
-      setProcessing(false);
+      console.error('Error finalizing order:', error);
+      alert('Payment succeeded but there was an error finalizing your order. Please contact us.');
     }
+  };
+
+  const handlePaymentError = (error: string) => {
+    alert(`Payment failed: ${error}\n\nPlease try again or contact us at (313) 889-3860 for assistance.`);
+    setShowStripeForm(false);
   };
 
   if (!quoteData || !priceBreakdown) {
@@ -696,57 +691,20 @@ export function Checkout() {
           <div className="bg-white rounded-xl shadow-md p-6">
             <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center">
               <CreditCard className="w-6 h-6 mr-2 text-blue-600" />
-              Payment Information
+              Secure Payment
             </h2>
             <p className="text-slate-600 mb-6">
-              In a production environment, this would integrate with Stripe for secure payment
-              processing. For this demo, the order will be created with mock payment data.
+              Your payment will be processed securely through Stripe. Payment information will be entered after your order is created.
             </p>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <h3 className="font-semibold text-blue-900 mb-2">Demo Mode Active</h3>
-              <p className="text-sm text-blue-800">
-                Clicking "Complete Booking" will create your order with simulated payment
-                processing. In production, you would enter real card details here.
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <h3 className="font-semibold text-green-900 mb-2 flex items-center">
+                <Shield className="w-5 h-5 mr-2" />
+                Stripe Payment Integration Active
+              </h3>
+              <p className="text-sm text-green-800">
+                Your payment information is processed by Stripe and never stored on our servers. Your card will be securely saved for any post-event charges (damages, late fees, etc.).
               </p>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Card Number (Demo)
-                </label>
-                <input
-                  type="text"
-                  placeholder="4242 4242 4242 4242"
-                  disabled
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50 text-slate-500"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Expiry (Demo)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="MM/YY"
-                    disabled
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50 text-slate-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    CVC (Demo)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="123"
-                    disabled
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50 text-slate-500"
-                  />
-                </div>
-              </div>
             </div>
           </div>
 
@@ -936,6 +894,25 @@ export function Checkout() {
           </div>
         </div>
       </form>
+
+      {showStripeForm && tempOrderId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h2 className="text-2xl font-bold text-slate-900 mb-4">Payment Information</h2>
+            <p className="text-slate-600 mb-6">
+              Enter your payment details below. Your card will be securely stored for future charges related to this booking.
+            </p>
+            <StripeCheckoutForm
+              orderId={tempOrderId}
+              depositCents={getPaymentAmountCents()}
+              customerEmail={contactData.email}
+              customerName={`${contactData.first_name} ${contactData.last_name}`}
+              onSuccess={handlePaymentSuccess}
+              onError={handlePaymentError}
+            />
+          </div>
+        </div>
+      )}
 
       {showInvoiceModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto">
