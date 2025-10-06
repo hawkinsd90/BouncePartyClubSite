@@ -40,6 +40,11 @@ export interface PriceCalculationInput {
 export interface PriceBreakdown {
   subtotal_cents: number;
   travel_fee_cents: number;
+  travel_total_miles: number;
+  travel_base_radius_miles: number;
+  travel_chargeable_miles: number;
+  travel_per_mile_cents: number;
+  travel_is_flat_fee: boolean;
   surface_fee_cents: number;
   same_day_pickup_fee_cents: number;
   tax_cents: number;
@@ -81,6 +86,12 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
   }
 
   let travel_fee_cents = 0;
+  let travel_total_miles = distance_miles;
+  let travel_base_radius_miles = rules.base_radius_miles;
+  let travel_chargeable_miles = 0;
+  let travel_per_mile_cents = rules.per_mile_after_base_cents;
+  let travel_is_flat_fee = false;
+
   const included_cities = rules.included_city_list_json || [];
   const is_included_city = included_cities.some(
     (c) => c.toLowerCase() === city.toLowerCase()
@@ -89,10 +100,12 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
   const zone_override = rules.zone_overrides_json?.find((z) => z.zip === zip);
   if (zone_override) {
     travel_fee_cents = zone_override.flat_cents;
+    travel_is_flat_fee = true;
   } else if (is_included_city) {
     travel_fee_cents = 0;
   } else if (distance_miles > rules.base_radius_miles) {
     const excess_miles = distance_miles - rules.base_radius_miles;
+    travel_chargeable_miles = excess_miles;
     travel_fee_cents = Math.round(excess_miles * rules.per_mile_after_base_cents);
   }
 
@@ -150,6 +163,11 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
   return {
     subtotal_cents,
     travel_fee_cents,
+    travel_total_miles,
+    travel_base_radius_miles,
+    travel_chargeable_miles,
+    travel_per_mile_cents,
+    travel_is_flat_fee,
     surface_fee_cents,
     same_day_pickup_fee_cents,
     generator_fee_cents,

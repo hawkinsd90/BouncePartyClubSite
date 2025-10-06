@@ -325,9 +325,22 @@ function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => voi
               <span className="font-semibold text-slate-900">{formatCurrency(order.subtotal_cents)}</span>
             </div>
             {order.travel_fee_cents > 0 && (
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-600">Travel Fee:</span>
-                <span className="font-semibold text-slate-900">{formatCurrency(order.travel_fee_cents)}</span>
+              <div className="space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600 font-semibold">Travel Fee:</span>
+                  <span className="font-semibold text-slate-900">{formatCurrency(order.travel_fee_cents)}</span>
+                </div>
+                {order.travel_is_flat_fee ? (
+                  <div className="ml-4 text-xs text-slate-500">
+                    Flat zone rate for {order.addresses?.zip}
+                  </div>
+                ) : (
+                  <div className="ml-4 text-xs text-slate-500 space-y-0.5">
+                    <div>Total distance: {order.travel_total_miles?.toFixed(1)} miles</div>
+                    <div>Free zone: {order.travel_base_radius_miles?.toFixed(1)} miles</div>
+                    <div>Charged miles: {order.travel_chargeable_miles?.toFixed(1)} miles × {formatCurrency(order.travel_per_mile_cents)}/mile</div>
+                  </div>
+                )}
               </div>
             )}
             {order.surface_fee_cents > 0 && (
