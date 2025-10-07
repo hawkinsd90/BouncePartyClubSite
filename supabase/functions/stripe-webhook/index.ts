@@ -21,23 +21,13 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const signature = req.headers.get("stripe-signature");
-    if (!signature) {
-      return new Response(
-        JSON.stringify({ error: "No signature" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
     const body = await req.text();
     const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
+    const signature = req.headers.get("stripe-signature");
 
     let event: Stripe.Event;
 
-    if (webhookSecret) {
+    if (webhookSecret && signature) {
       try {
         event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
       } catch (err) {
