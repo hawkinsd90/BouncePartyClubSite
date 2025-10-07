@@ -14,6 +14,7 @@
     "@stripe/react-stripe-js": "^5.0.0",
     "@stripe/stripe-js": "^8.0.0",
     "@supabase/supabase-js": "^2.57.4",
+    "caniuse-lite": "^1.0.30001748",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
