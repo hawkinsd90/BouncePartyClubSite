@@ -8,10 +8,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-  apiVersion: "2024-10-28.acacia",
-});
-
 interface CheckoutRequest {
   orderId: string;
   depositCents: number;
@@ -30,13 +26,28 @@ Deno.serve(async (req: Request) => {
   try {
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      {
-        global: {
-          headers: { Authorization: req.headers.get("Authorization")! },
-        },
-      }
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
+
+    const { data: stripeKeyData, error: keyError } = await supabaseClient
+      .from("admin_settings")
+      .select("value")
+      .eq("key", "stripe_secret_key")
+      .maybeSingle();
+
+    if (keyError || !stripeKeyData?.value) {
+      return new Response(
+        JSON.stringify({ error: "Stripe not configured. Please add your Stripe secret key in Admin Settings." }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const stripe = new Stripe(stripeKeyData.value, {
+      apiVersion: "2024-10-28.acacia",
+    });
 
     const { orderId, depositCents, customerEmail, customerName }: CheckoutRequest =
       await req.json();

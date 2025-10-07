@@ -566,8 +566,12 @@ function AdminDashboard() {
     auth_token: '',
     from_number: ''
   });
+  const [stripeSettings, setStripeSettings] = useState({
+    secret_key: ''
+  });
   const [adminEmail, setAdminEmail] = useState('');
   const [savingTwilio, setSavingTwilio] = useState(false);
+  const [savingStripe, setSavingStripe] = useState(false);
   const [smsTemplates, setSmsTemplates] = useState<any[]>([]);
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
   const [savingTemplate, setSavingTemplate] = useState(false);
@@ -587,7 +591,7 @@ function AdminDashboard() {
           addresses (line1, city, state, zip)
         `).order('created_at', { ascending: false }).limit(20),
         supabase.from('pricing_rules').select('*').limit(1).maybeSingle(),
-        supabase.from('admin_settings').select('*').in('key', ['twilio_account_sid', 'twilio_auth_token', 'twilio_from_number', 'admin_email']),
+        supabase.from('admin_settings').select('*').in('key', ['twilio_account_sid', 'twilio_auth_token', 'twilio_from_number', 'admin_email', 'stripe_secret_key']),
         supabase.from('sms_message_templates').select('*').order('template_name'),
       ]);
 
@@ -598,13 +602,16 @@ function AdminDashboard() {
 
       if (settingsRes.data) {
         const settings: any = {};
+        const stripeSet: any = {};
         settingsRes.data.forEach((s: any) => {
           if (s.key === 'twilio_account_sid') settings.account_sid = s.value;
           if (s.key === 'twilio_auth_token') settings.auth_token = s.value;
           if (s.key === 'twilio_from_number') settings.from_number = s.value;
           if (s.key === 'admin_email') setAdminEmail(s.value);
+          if (s.key === 'stripe_secret_key') stripeSet.secret_key = s.value;
         });
         setTwilioSettings(settings);
+        setStripeSettings(stripeSet);
       }
     } catch (error) {
       console.error('Error loading admin data:', error);
@@ -647,6 +654,46 @@ function AdminDashboard() {
       }
     } finally {
       setSavingTwilio(false);
+    }
+  }
+
+  async function handleSaveStripeSettings() {
+    setSavingStripe(true);
+    try {
+      const { error } = await supabase
+        .from('admin_settings')
+        .update({ value: stripeSettings.secret_key })
+        .eq('key', 'stripe_secret_key');
+
+      if (error) {
+        console.error('Error updating Stripe setting:', error);
+        throw new Error(`Failed to update Stripe secret key: ${error.message}`);
+      }
+
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`;
+      const testResponse = await fetch(apiUrl, {
+        method: 'OPTIONS',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+      });
+
+      if (testResponse.ok) {
+        alert('Stripe settings saved successfully! The payment system is now ready.');
+      } else {
+        alert('Stripe settings saved, but there may be an issue with the edge function. Please test a payment.');
+      }
+    } catch (error: any) {
+      console.error('Error saving Stripe settings:', error);
+      const errorMessage = error.message || 'Failed to save settings. Please try again.';
+
+      if (errorMessage.includes('row-level security')) {
+        alert('Permission denied: You must be logged in as an admin user to update settings.');
+      } else {
+        alert(`Failed to save Stripe settings: ${errorMessage}`);
+      }
+    } finally {
+      setSavingStripe(false);
     }
   }
 
@@ -1226,17 +1273,62 @@ function AdminDashboard() {
       {activeTab === 'invoices' && <InvoicesList />}
 
       {activeTab === 'settings' && (
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <h2 className="text-2xl font-bold text-slate-900 mb-6">SMS Notification Settings</h2>
+        <div className="space-y-6">
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <h2 className="text-2xl font-bold text-slate-900 mb-6">Stripe Payment Settings</h2>
 
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-sm text-slate-700 mb-2">
-              Configure your Twilio credentials to enable SMS notifications when customers book rentals.
-            </p>
-            <p className="text-sm text-slate-600">
-              Get your credentials from <a href="https://console.twilio.com/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 underline">Twilio Console</a>
-            </p>
+            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-sm text-slate-700 mb-2">
+                Configure your Stripe secret key to enable payment processing for bookings.
+              </p>
+              <p className="text-sm text-slate-600 mb-2">
+                Get your keys from <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 underline">Stripe Dashboard</a>
+              </p>
+              <p className="text-sm text-amber-700 font-medium">
+                Important: Use test keys (sk_test_...) for testing and live keys (sk_live_...) for production.
+              </p>
+            </div>
+
+            <div className="space-y-4 max-w-2xl">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Stripe Secret Key
+                </label>
+                <input
+                  type="password"
+                  value={stripeSettings.secret_key}
+                  onChange={(e) => setStripeSettings({ ...stripeSettings, secret_key: e.target.value })}
+                  placeholder="sk_test_... or sk_live_..."
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  This key is securely stored and used by the payment processing system
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={handleSaveStripeSettings}
+                  disabled={savingStripe || !stripeSettings.secret_key}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
+                >
+                  {savingStripe ? 'Saving...' : 'Save Stripe Settings'}
+                </button>
+              </div>
+            </div>
           </div>
+
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <h2 className="text-2xl font-bold text-slate-900 mb-6">SMS Notification Settings</h2>
+
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-slate-700 mb-2">
+                Configure your Twilio credentials to enable SMS notifications when customers book rentals.
+              </p>
+              <p className="text-sm text-slate-600">
+                Get your credentials from <a href="https://console.twilio.com/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 underline">Twilio Console</a>
+              </p>
+            </div>
 
           <div className="space-y-4 max-w-2xl">
             <div>
@@ -1307,6 +1399,7 @@ function AdminDashboard() {
               </button>
             </div>
           </div>
+        </div>
         </div>
       )}
 
