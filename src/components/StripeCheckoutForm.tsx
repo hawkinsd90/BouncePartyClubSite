@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { loadStripe } from '@stripe/stripe-js';
+import { loadStripe, Stripe } from '@stripe/stripe-js';
 import {
   Elements,
   PaymentElement,
@@ -8,7 +8,28 @@ import {
 } from '@stripe/react-stripe-js';
 import { Loader2 } from 'lucide-react';
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+let stripePromise: Promise<Stripe | null> | null = null;
+
+async function getStripePromise() {
+  if (stripePromise) return stripePromise;
+
+  try {
+    const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-stripe-publishable-key`;
+    const response = await fetch(apiUrl);
+    const data = await response.json();
+
+    if (data.publishableKey) {
+      stripePromise = loadStripe(data.publishableKey);
+    } else {
+      throw new Error('No publishable key configured');
+    }
+
+    return stripePromise;
+  } catch (error) {
+    console.error('Error loading Stripe:', error);
+    return null;
+  }
+}
 
 interface CheckoutFormProps {
   clientSecret: string;
@@ -91,10 +112,17 @@ export function StripeCheckoutForm({
 }: StripeCheckoutFormProps) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [stripe, setStripe] = useState<Stripe | null>(null);
 
   useEffect(() => {
-    const createPaymentIntent = async () => {
+    const initializePayment = async () => {
       try {
+        const stripeInstance = await getStripePromise();
+        if (!stripeInstance) {
+          throw new Error('Failed to load Stripe. Please check configuration.');
+        }
+        setStripe(stripeInstance);
+
         const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`;
         const response = await fetch(apiUrl, {
           method: 'POST',
@@ -111,7 +139,8 @@ export function StripeCheckoutForm({
         });
 
         if (!response.ok) {
-          throw new Error('Failed to create payment intent');
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to create payment intent');
         }
 
         const data = await response.json();
@@ -123,7 +152,7 @@ export function StripeCheckoutForm({
       }
     };
 
-    createPaymentIntent();
+    initializePayment();
   }, [orderId, depositCents, customerEmail, customerName, onError]);
 
   if (loading) {
@@ -134,7 +163,7 @@ export function StripeCheckoutForm({
     );
   }
 
-  if (!clientSecret) {
+  if (!clientSecret || !stripe) {
     return (
       <div className="text-center py-8 text-red-600">
         Failed to initialize payment. Please try again.
@@ -144,7 +173,7 @@ export function StripeCheckoutForm({
 
   return (
     <Elements
-      stripe={stripePromise}
+      stripe={stripe}
       options={{
         clientSecret,
         appearance: {

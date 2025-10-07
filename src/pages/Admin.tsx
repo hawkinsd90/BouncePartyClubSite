@@ -567,7 +567,8 @@ function AdminDashboard() {
     from_number: ''
   });
   const [stripeSettings, setStripeSettings] = useState({
-    secret_key: ''
+    secret_key: '',
+    publishable_key: ''
   });
   const [adminEmail, setAdminEmail] = useState('');
   const [savingTwilio, setSavingTwilio] = useState(false);
@@ -591,7 +592,7 @@ function AdminDashboard() {
           addresses (line1, city, state, zip)
         `).order('created_at', { ascending: false }).limit(20),
         supabase.from('pricing_rules').select('*').limit(1).maybeSingle(),
-        supabase.from('admin_settings').select('*').in('key', ['twilio_account_sid', 'twilio_auth_token', 'twilio_from_number', 'admin_email', 'stripe_secret_key']),
+        supabase.from('admin_settings').select('*').in('key', ['twilio_account_sid', 'twilio_auth_token', 'twilio_from_number', 'admin_email', 'stripe_secret_key', 'stripe_publishable_key']),
         supabase.from('sms_message_templates').select('*').order('template_name'),
       ]);
 
@@ -609,6 +610,7 @@ function AdminDashboard() {
           if (s.key === 'twilio_from_number') settings.from_number = s.value;
           if (s.key === 'admin_email') setAdminEmail(s.value);
           if (s.key === 'stripe_secret_key') stripeSet.secret_key = s.value;
+          if (s.key === 'stripe_publishable_key') stripeSet.publishable_key = s.value;
         });
         setTwilioSettings(settings);
         setStripeSettings(stripeSet);
@@ -660,14 +662,21 @@ function AdminDashboard() {
   async function handleSaveStripeSettings() {
     setSavingStripe(true);
     try {
-      const { error } = await supabase
-        .from('admin_settings')
-        .update({ value: stripeSettings.secret_key })
-        .eq('key', 'stripe_secret_key');
+      const updates = [
+        { key: 'stripe_secret_key', value: stripeSettings.secret_key },
+        { key: 'stripe_publishable_key', value: stripeSettings.publishable_key },
+      ];
 
-      if (error) {
-        console.error('Error updating Stripe setting:', error);
-        throw new Error(`Failed to update Stripe secret key: ${error.message}`);
+      for (const update of updates) {
+        const { error } = await supabase
+          .from('admin_settings')
+          .update({ value: update.value })
+          .eq('key', update.key);
+
+        if (error) {
+          console.error('Error updating Stripe setting:', update.key, error);
+          throw new Error(`Failed to update ${update.key}: ${error.message}`);
+        }
       }
 
       const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`;
@@ -1306,10 +1315,26 @@ function AdminDashboard() {
                 </p>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Stripe Publishable Key
+                </label>
+                <input
+                  type="text"
+                  value={stripeSettings.publishable_key}
+                  onChange={(e) => setStripeSettings({ ...stripeSettings, publishable_key: e.target.value })}
+                  placeholder="pk_test_... or pk_live_..."
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  This key is used on the frontend to display the payment form
+                </p>
+              </div>
+
               <div className="flex gap-3 pt-4">
                 <button
                   onClick={handleSaveStripeSettings}
-                  disabled={savingStripe || !stripeSettings.secret_key}
+                  disabled={savingStripe || !stripeSettings.secret_key || !stripeSettings.publishable_key}
                   className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
                 >
                   {savingStripe ? 'Saving...' : 'Save Stripe Settings'}
