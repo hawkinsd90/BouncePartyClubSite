@@ -41,16 +41,25 @@ export function AddressAutocomplete({
       return;
     }
 
-    if (!window.google) {
-      const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
-      script.async = true;
-      script.defer = true;
-      script.onload = initAutocomplete;
-      document.head.appendChild(script);
-    } else {
-      initAutocomplete();
+    // Remove any existing Google Maps scripts to force reload with new API key
+    const existingScripts = document.querySelectorAll('script[src*="maps.googleapis.com"]');
+    existingScripts.forEach(script => script.remove());
+
+    // Clear any existing Google Maps objects
+    if (window.google) {
+      delete (window as any).google;
     }
+
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+    script.async = true;
+    script.defer = true;
+    script.onload = initAutocomplete;
+    script.onerror = () => {
+      console.error('Failed to load Google Maps API. Please check your API key and enabled APIs.');
+      setError('Failed to load address autocomplete. Please refresh the page.');
+    };
+    document.head.appendChild(script);
 
     function initAutocomplete() {
       if (!inputRef.current || !window.google) return;
