@@ -259,7 +259,7 @@ export function PaymentManagement({ order, payments, onRefresh }: PaymentManagem
               <div key={payment.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
                 <div>
                   <div className="text-sm font-medium text-slate-900 capitalize">
-                    {payment.payment_type.replace('_', ' ')}
+                    {payment.payment_type?.replace('_', ' ') || 'Payment'}
                   </div>
                   {payment.description && (
                     <div className="text-xs text-slate-600">{payment.description}</div>
