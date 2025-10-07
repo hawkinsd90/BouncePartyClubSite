@@ -239,7 +239,8 @@ export function Quote() {
     const { data: availability, error: availError } = await supabase
       .rpc('check_unit_availability', {
         p_unit_ids: unitIds,
-        p_event_date: formData.event_date
+        p_start_date: formData.event_date,
+        p_end_date: formData.event_end_date || formData.event_date
       });
 
     if (availError) {
@@ -248,14 +249,11 @@ export function Quote() {
       return;
     }
 
-    const unavailable = availability?.filter((item: any) => !item.is_available);
+    const unavailable = availability?.filter((item: any) => !item.available);
     if (unavailable && unavailable.length > 0) {
-      const unavailableNames = unavailable.map((item: any) => {
-        const cartItem = cart.find(c => c.unit_id === item.unit_id);
-        return cartItem?.unit_name || 'Unknown unit';
-      }).join(', ');
+      const unavailableNames = unavailable.map((item: any) => item.unit_name).join(', ');
 
-      alert(`Sorry, the following units are not available on ${formData.event_date}: ${unavailableNames}. Please select a different date or remove these items from your cart.`);
+      alert(`Sorry, the following units are not available for your selected dates: ${unavailableNames}. Please select different dates or remove these items from your cart.`);
       return;
     }
 
