@@ -6,7 +6,6 @@ import { CreditCard, Shield, CheckCircle, Loader2, User, MapPin, DollarSign, Fil
 import { RentalTerms } from '../components/RentalTerms';
 import { PrintableInvoice } from '../components/PrintableInvoice';
 import { StripeCheckoutForm } from '../components/StripeCheckoutForm';
-import { createOrderAfterPayment } from '../lib/orderCreation';
 
 export function Checkout() {
   const navigate = useNavigate();
@@ -24,7 +23,6 @@ export function Checkout() {
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showStripeForm, setShowStripeForm] = useState(false);
   const [tempOrderId, setTempOrderId] = useState<string | null>(null);
-  const [checkingAvailability, setCheckingAvailability] = useState(false);
 
   const [contactData, setContactData] = useState({
     first_name: '',
@@ -98,78 +96,225 @@ export function Checkout() {
       return;
     }
 
-    // Check availability BEFORE showing payment form
-    setCheckingAvailability(true);
+    setProcessing(true);
 
     try {
-      const { data: availabilityData, error: availabilityError } = await supabase.rpc(
-        'check_unit_availability',
-        {
-          p_unit_ids: cart.map((item) => item.unit_id),
-          p_start_date: quoteData.event_date,
-          p_end_date: quoteData.event_end_date || quoteData.event_date,
-        }
-      );
+      let customer;
 
-      if (availabilityError) {
-        console.error('Availability check error:', availabilityError);
-        throw new Error('Unable to verify availability. Please try again.');
+      const { data: existingCustomer } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('email', contactData.email)
+        .maybeSingle();
+
+      if (existingCustomer) {
+        const { data: updatedCustomer, error: updateError } = await supabase
+          .from('customers')
+          .update({
+            first_name: contactData.first_name,
+            last_name: contactData.last_name,
+            phone: contactData.phone,
+          })
+          .eq('id', existingCustomer.id)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+        customer = updatedCustomer;
+      } else {
+        const { data: newCustomer, error: customerError } = await supabase
+          .from('customers')
+          .insert({
+            first_name: contactData.first_name,
+            last_name: contactData.last_name,
+            email: contactData.email,
+            phone: contactData.phone,
+          })
+          .select()
+          .single();
+
+        if (customerError) throw customerError;
+        customer = newCustomer;
       }
 
-      // Check if all units are available
-      const unavailable = availabilityData?.filter((item: any) => !item.available);
-      if (unavailable && unavailable.length > 0) {
-        const unitNames = unavailable.map((item: any) => item.unit_name).join(', ');
-        alert(
-          `Sorry, these units are no longer available for your selected dates: ${unitNames}\n\nPlease go back to the quote page and select different units or dates.`
-        );
-        setCheckingAvailability(false);
-        return;
+      const eventAddressData = billingSameAsEvent ? billingAddress : {
+        line1: quoteData.address_line1,
+        line2: quoteData.address_line2 || null,
+        city: quoteData.city,
+        state: quoteData.state,
+        zip: quoteData.zip,
+      };
+
+      const { data: address, error: addressError } = await supabase
+        .from('addresses')
+        .insert({
+          customer_id: customer.id,
+          ...eventAddressData,
+        })
+        .select()
+        .single();
+
+      if (addressError) throw addressError;
+
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          customer_id: customer.id,
+          status: 'pending_review',
+          location_type: quoteData.location_type,
+          surface: quoteData.can_stake ? 'grass' : 'cement',
+          event_date: quoteData.event_date,
+          start_date: quoteData.event_date,
+          end_date: quoteData.event_end_date || quoteData.event_date,
+          start_window: quoteData.start_window,
+          end_window: quoteData.end_window,
+          overnight_allowed: quoteData.pickup_preference === 'next_day',
+          can_use_stakes: quoteData.can_stake,
+          generator_selected: quoteData.has_generator,
+          has_pets: quoteData.has_pets || false,
+          address_id: address.id,
+          subtotal_cents: priceBreakdown.subtotal_cents,
+          travel_fee_cents: priceBreakdown.travel_fee_cents,
+          travel_total_miles: priceBreakdown.travel_total_miles,
+          travel_base_radius_miles: priceBreakdown.travel_base_radius_miles,
+          travel_chargeable_miles: priceBreakdown.travel_chargeable_miles,
+          travel_per_mile_cents: priceBreakdown.travel_per_mile_cents,
+          travel_is_flat_fee: priceBreakdown.travel_is_flat_fee,
+          surface_fee_cents: priceBreakdown.surface_fee_cents,
+          same_day_pickup_fee_cents: priceBreakdown.same_day_pickup_fee_cents || 0,
+          tax_cents: priceBreakdown.tax_cents,
+          deposit_due_cents: priceBreakdown.deposit_due_cents,
+          deposit_paid_cents: 0,
+          balance_due_cents: priceBreakdown.balance_due_cents,
+          payment_method_id: 'stripe_pm_mock_' + Date.now(),
+          card_on_file_consent_text:
+            'I authorize Bounce Party Club LLC to securely store my payment method and charge it for incidentals including damage, excess cleaning, or late fees as itemized in a receipt.',
+          card_on_file_consented_at: new Date().toISOString(),
+          sms_consent_text:
+            'I consent to receive transactional SMS messages from Bounce Party Club LLC regarding my booking, including order confirmations, delivery updates, and service notifications. Message frequency varies. Message and data rates may apply. Reply STOP to opt-out.',
+          sms_consented_at: new Date().toISOString(),
+          special_details: quoteData.special_details || null,
+        })
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      for (const item of cart) {
+        const { error: itemError } = await supabase.from('order_items').insert({
+          order_id: order.id,
+          unit_id: item.unit_id,
+          wet_or_dry: item.wet_or_dry,
+          unit_price_cents: item.unit_price_cents,
+          qty: item.qty || 1,
+        });
+
+        if (itemError) throw itemError;
       }
 
-      // All available - show payment form
+      setTempOrderId(order.id);
       setShowStripeForm(true);
-      setCheckingAvailability(false);
+      setProcessing(false);
+      return;
     } catch (error: any) {
-      console.error('Error checking availability:', error);
-      alert(
-        `Unable to verify availability: ${error.message}\n\nPlease try again or contact us at (313) 889-3860.`
-      );
-      setCheckingAvailability(false);
+      console.error('Error creating order:', error);
+      const errorMessage = error?.message || 'Unknown error';
+      alert(`There was an error processing your order: ${errorMessage}\n\nPlease try again or contact us at (313) 889-3860 for assistance.`);
+      setProcessing(false);
     }
   };
 
   const handlePaymentSuccess = async () => {
-    try {
-      setProcessing(true);
+    if (!tempOrderId) return;
 
-      // Payment succeeded - now create the order, customer, and contact
-      const createdOrderId = await createOrderAfterPayment({
-        contactData,
-        quoteData,
-        priceBreakdown,
-        cart,
-        billingAddress,
-        billingSameAsEvent,
-        smsConsent,
+    try {
+      const { error: routeDropoffError } = await supabase.from('route_stops').insert({
+        order_id: tempOrderId,
+        type: 'dropoff',
+        checkpoint: 'none',
       });
 
-      // Clear cart and redirect to success
+      if (routeDropoffError) throw routeDropoffError;
+
+      const { error: routePickupError } = await supabase.from('route_stops').insert({
+        order_id: tempOrderId,
+        type: 'pickup',
+        checkpoint: 'none',
+      });
+
+      if (routePickupError) throw routePickupError;
+
+      const { error: messageError } = await supabase.from('messages').insert({
+        order_id: tempOrderId,
+        to_email: contactData.email,
+        channel: 'email',
+        template_key: 'deposit_receipt',
+        payload_json: {
+          name: `${contactData.first_name} ${contactData.last_name}`,
+          units: cart.map((item) => item.unit_name).join(', '),
+          event_date: quoteData.event_date,
+          balance: formatCurrency(priceBreakdown.balance_due_cents),
+        },
+        status: 'pending',
+      });
+
+      if (messageError) throw messageError;
+
+      try {
+        await supabase.from('contacts').upsert({
+          customer_id: contactData.email,
+          first_name: contactData.first_name,
+          last_name: contactData.last_name,
+          email: contactData.email,
+          phone: contactData.phone,
+          source: 'booking',
+          opt_in_email: true,
+          opt_in_sms: true,
+        }, {
+          onConflict: 'email',
+        });
+      } catch (contactError) {
+        console.error('Error adding to contacts:', contactError);
+      }
+
+      try {
+        const { data: adminSettings } = await supabase
+          .from('admin_settings')
+          .select('value')
+          .eq('key', 'admin_notification_phone')
+          .maybeSingle();
+
+        if (adminSettings?.value) {
+          const smsMessage = `🎈 NEW BOOKING! ${contactData.first_name} ${contactData.last_name} for ${quoteData.event_date}. Review at: https://yourdomain.com/admin Order #${tempOrderId.slice(0, 8)}`;
+
+          const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
+          await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              to: adminSettings.value,
+              message: smsMessage,
+              orderId: tempOrderId,
+            }),
+          });
+        }
+      } catch (smsError) {
+        console.error('Error sending SMS notification:', smsError);
+      }
+
       localStorage.removeItem('bpc_cart');
       localStorage.removeItem('bpc_quote_form');
       localStorage.removeItem('bpc_price_breakdown');
 
-      setOrderId(createdOrderId);
+      setOrderId(tempOrderId);
       setSuccess(true);
       setShowStripeForm(false);
-      setProcessing(false);
     } catch (error: any) {
-      console.error('Error creating order after payment:', error);
-      alert(
-        `Payment succeeded but there was an error creating your order: ${error.message}\n\nPlease contact us immediately at (313) 889-3860 with your payment confirmation.`
-      );
-      setProcessing(false);
-      setShowStripeForm(false);
+      console.error('Error finalizing order:', error);
+      alert('Payment succeeded but there was an error finalizing your order. Please contact us.');
     }
   };
 
@@ -190,10 +335,10 @@ export function Checkout() {
             <CheckCircle className="w-10 h-10 text-green-600" />
           </div>
           <h1 className="text-3xl font-bold text-slate-900 mb-4">
-            Payment Successful!
+            Booking Submitted!
           </h1>
           <p className="text-lg text-slate-600 mb-6">
-            Thank you for choosing Bounce Party Club. Your deposit has been paid and your booking is now pending admin review for final confirmation.
+            Thank you for choosing Bounce Party Club. Your booking request has been submitted and is pending admin review. Payment will be processed once approved.
           </p>
           <div className="bg-slate-50 rounded-lg p-6 mb-6 text-left">
             <div className="grid grid-cols-2 gap-4 text-sm">
@@ -227,7 +372,7 @@ export function Checkout() {
               <span className="font-semibold text-slate-900">{contactData.email}</span>.
             </p>
             <p>
-              Our admin team will review your booking request and contact you within 24 hours to confirm your delivery time window and finalize your reservation details.
+              Our admin team will review your booking request and contact you within 24 hours to confirm availability and process payment. Once approved, you'll receive a confirmation with your delivery time window.
             </p>
           </div>
           <div className="border-t border-slate-200 pt-6 bg-blue-50 -mx-8 -mb-8 px-8 py-6 rounded-b-xl">
@@ -727,15 +872,10 @@ export function Checkout() {
 
             <button
               type="submit"
-              disabled={checkingAvailability || processing || !cardOnFileConsent || !smsConsent}
+              disabled={processing || !cardOnFileConsent || !smsConsent}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center"
             >
-              {checkingAvailability ? (
-                <>
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Checking Availability...
-                </>
-              ) : processing ? (
+              {processing ? (
                 <>
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                   Processing...
@@ -743,7 +883,7 @@ export function Checkout() {
               ) : (
                 <>
                   <Shield className="w-5 h-5 mr-2" />
-                  Proceed to Payment
+                  Complete Booking
                 </>
               )}
             </button>
@@ -755,21 +895,15 @@ export function Checkout() {
         </div>
       </form>
 
-      {showStripeForm && (
+      {showStripeForm && tempOrderId && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 relative">
-            <button
-              onClick={() => setShowStripeForm(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
-            >
-              <X className="w-5 h-5" />
-            </button>
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
             <h2 className="text-2xl font-bold text-slate-900 mb-4">Payment Information</h2>
             <p className="text-slate-600 mb-6">
               Enter your payment details below. Your card will be securely stored for future charges related to this booking.
             </p>
             <StripeCheckoutForm
-              orderId={`temp_${Date.now()}`}
+              orderId={tempOrderId}
               depositCents={getPaymentAmountCents()}
               customerEmail={contactData.email}
               customerName={`${contactData.first_name} ${contactData.last_name}`}
