@@ -65,10 +65,10 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     customer = newCustomer;
   }
 
-  // 2. Create contact
-  await supabase.from('contacts').upsert(
+  // 2. Create or update contact
+  const { error: contactError } = await supabase.from('contacts').upsert(
     {
-      customer_id: contactData.email,
+      customer_id: customer.id,
       first_name: contactData.first_name,
       last_name: contactData.last_name,
       email: contactData.email,
@@ -81,6 +81,10 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       onConflict: 'email',
     }
   );
+
+  if (contactError) {
+    console.error('Error creating contact:', contactError);
+  }
 
   // 3. Create address
   const eventAddressData = billingSameAsEvent
@@ -175,30 +179,6 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       checkpoint: 'none',
     },
   ]);
-
-  // 7. Send SMS with payment link if SMS consent given
-  if (smsConsent && contactData.phone) {
-    try {
-      const paymentLink = `${window.location.origin}/invoice/${order.id}`;
-      const smsMessage = `Hi ${contactData.first_name}! Your Bounce Party Club invoice is ready. Complete your booking by paying here: ${paymentLink}`;
-
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
-      await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          to: contactData.phone,
-          message: smsMessage,
-          orderId: order.id,
-        }),
-      });
-    } catch (smsError) {
-      console.error('Error sending payment link SMS:', smsError);
-    }
-  }
 
   return order.id;
 }
