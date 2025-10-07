@@ -104,12 +104,12 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
 
   if (addressError) throw addressError;
 
-  // 4. Create order with 'payment_pending' status
+  // 4. Create order with 'draft' status (unpaid invoice)
   const { data: order, error: orderError } = await supabase
     .from('orders')
     .insert({
       customer_id: customer.id,
-      status: 'payment_pending',
+      status: 'draft',
       location_type: quoteData.location_type,
       surface: quoteData.can_stake ? 'grass' : 'cement',
       event_date: quoteData.event_date,
@@ -174,6 +174,30 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       checkpoint: 'none',
     },
   ]);
+
+  // 7. Send SMS with payment link if SMS consent given
+  if (smsConsent && contactData.phone) {
+    try {
+      const paymentLink = `${window.location.origin}/invoice/${order.id}`;
+      const smsMessage = `Hi ${contactData.first_name}! Your Bounce Party Club invoice is ready. Complete your booking by paying here: ${paymentLink}`;
+
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
+      await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: contactData.phone,
+          message: smsMessage,
+          orderId: order.id,
+        }),
+      });
+    } catch (smsError) {
+      console.error('Error sending payment link SMS:', smsError);
+    }
+  }
 
   return order.id;
 }

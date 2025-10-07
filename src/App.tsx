@@ -13,6 +13,7 @@ import { Admin } from './pages/Admin';
 import { Crew } from './pages/Crew';
 import { Login } from './pages/Login';
 import { Setup } from './pages/Setup';
+import { Invoice } from './pages/Invoice';
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
         <Routes>
           <Route path="/setup" element={<Setup />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/invoice/:orderId" element={<Invoice />} />
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />
             <Route path="catalog" element={<Catalog />} />

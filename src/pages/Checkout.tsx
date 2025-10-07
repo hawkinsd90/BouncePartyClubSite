@@ -127,7 +127,7 @@ export function Checkout() {
         return;
       }
 
-      // All available - create order BEFORE payment
+      // All available - create draft order and redirect to invoice page
       const createdOrderId = await createOrderBeforePayment({
         contactData,
         quoteData,
@@ -138,9 +138,13 @@ export function Checkout() {
         smsConsent,
       });
 
-      setTempOrderId(createdOrderId);
-      setShowStripeForm(true);
-      setCheckingAvailability(false);
+      // Clear cart data
+      localStorage.removeItem('bpc_cart');
+      localStorage.removeItem('bpc_quote_form');
+      localStorage.removeItem('bpc_price_breakdown');
+
+      // Redirect to invoice payment page
+      navigate(`/invoice/${createdOrderId}`);
     } catch (error: any) {
       console.error('Error checking availability or creating order:', error);
       alert(
