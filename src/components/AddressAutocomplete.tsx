@@ -41,76 +41,89 @@ export function AddressAutocomplete({
       return;
     }
 
-    // Remove any existing Google Maps scripts to force reload with new API key
-    const existingScripts = document.querySelectorAll('script[src*="maps.googleapis.com"]');
-    existingScripts.forEach(script => script.remove());
+    function initAutocomplete() {
+      if (!inputRef.current || !window.google?.maps?.places?.Autocomplete) {
+        console.error('Google Maps Places API not loaded');
+        return;
+      }
 
-    // Clear any existing Google Maps objects
-    if (window.google) {
-      delete (window as any).google;
+      try {
+        const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
+          componentRestrictions: { country: 'us' },
+          fields: ['address_components', 'formatted_address', 'geometry'],
+        });
+
+        autocomplete.addListener('place_changed', () => {
+          const place = autocomplete.getPlace();
+
+          if (!place.geometry || !place.geometry.location) {
+            setError('Please select a valid address from the dropdown');
+            return;
+          }
+
+          const addressComponents = place.address_components || [];
+          const street_number =
+            addressComponents.find((c) => c.types.includes('street_number'))?.long_name || '';
+          const route =
+            addressComponents.find((c) => c.types.includes('route'))?.long_name || '';
+          const city =
+            addressComponents.find((c) => c.types.includes('locality'))?.long_name || '';
+          const state =
+            addressComponents.find((c) =>
+              c.types.includes('administrative_area_level_1')
+            )?.short_name || '';
+          const zip =
+            addressComponents.find((c) => c.types.includes('postal_code'))?.long_name || '';
+
+          const result: AddressResult = {
+            formatted_address: place.formatted_address || '',
+            street: `${street_number} ${route}`.trim(),
+            city,
+            state,
+            zip,
+            lat: place.geometry.location.lat(),
+            lng: place.geometry.location.lng(),
+          };
+
+          setInputValue(place.formatted_address || '');
+          setError('');
+          onSelect(result);
+        });
+
+        autocompleteRef.current = autocomplete;
+      } catch (error) {
+        console.error('Error initializing autocomplete:', error);
+        setError('Error loading address autocomplete');
+      }
     }
 
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
-    script.async = true;
-    script.defer = true;
-    script.onload = initAutocomplete;
-    script.onerror = () => {
-      console.error('Failed to load Google Maps API. Please check your API key and enabled APIs.');
-      setError('Failed to load address autocomplete. Please refresh the page.');
-    };
-    document.head.appendChild(script);
+    // Check if Google Maps is already loaded
+    if (window.google?.maps?.places?.Autocomplete) {
+      initAutocomplete();
+    } else {
+      // Check if script is already being loaded
+      const existingScript = document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]');
 
-    function initAutocomplete() {
-      if (!inputRef.current || !window.google) return;
-
-      const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
-        componentRestrictions: { country: 'us' },
-        fields: ['address_components', 'formatted_address', 'geometry'],
-      });
-
-      autocomplete.addListener('place_changed', () => {
-        const place = autocomplete.getPlace();
-
-        if (!place.geometry || !place.geometry.location) {
-          setError('Please select a valid address from the dropdown');
-          return;
-        }
-
-        const addressComponents = place.address_components || [];
-        const street_number =
-          addressComponents.find((c) => c.types.includes('street_number'))?.long_name || '';
-        const route =
-          addressComponents.find((c) => c.types.includes('route'))?.long_name || '';
-        const city =
-          addressComponents.find((c) => c.types.includes('locality'))?.long_name || '';
-        const state =
-          addressComponents.find((c) =>
-            c.types.includes('administrative_area_level_1')
-          )?.short_name || '';
-        const zip =
-          addressComponents.find((c) => c.types.includes('postal_code'))?.long_name || '';
-
-        const result: AddressResult = {
-          formatted_address: place.formatted_address || '',
-          street: `${street_number} ${route}`.trim(),
-          city,
-          state,
-          zip,
-          lat: place.geometry.location.lat(),
-          lng: place.geometry.location.lng(),
+      if (existingScript) {
+        // Wait for existing script to load
+        existingScript.addEventListener('load', initAutocomplete);
+      } else {
+        // Load the script
+        const script = document.createElement('script');
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+        script.async = true;
+        script.defer = true;
+        script.onload = initAutocomplete;
+        script.onerror = () => {
+          console.error('Failed to load Google Maps API. Check your API key and enabled APIs.');
+          setError('Failed to load address autocomplete');
         };
-
-        setInputValue(place.formatted_address || '');
-        setError('');
-        onSelect(result);
-      });
-
-      autocompleteRef.current = autocomplete;
+        document.head.appendChild(script);
+      }
     }
 
     return () => {
-      if (autocompleteRef.current) {
+      if (autocompleteRef.current && window.google?.maps?.event) {
         google.maps.event.clearInstanceListeners(autocompleteRef.current);
       }
     };
