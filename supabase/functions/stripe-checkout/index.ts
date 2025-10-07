@@ -52,7 +52,7 @@ Deno.serve(async (req: Request) => {
     const { orderId, depositCents, customerEmail, customerName }: CheckoutRequest =
       await req.json();
 
-    if (!depositCents || !customerEmail) {
+    if (!orderId || !depositCents || !customerEmail) {
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
         {
@@ -62,37 +62,31 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Check if this is a real order or a temporary one
-    const isRealOrder = orderId && !orderId.startsWith('temp_');
-    let customerId: string | null = null;
+    // Look up order to get customer ID if available
+    const { data: order } = await supabaseClient
+      .from("orders")
+      .select("stripe_customer_id")
+      .eq("id", orderId)
+      .maybeSingle();
 
-    if (isRealOrder) {
-      // Look up existing order to get customer ID if available
-      const { data: order } = await supabaseClient
-        .from("orders")
-        .select("stripe_customer_id")
-        .eq("id", orderId)
-        .maybeSingle();
-
-      customerId = order?.stripe_customer_id || null;
-    }
+    let customerId = order?.stripe_customer_id || null;
 
     // Create or reuse Stripe customer
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: customerEmail,
         name: customerName,
-        metadata: isRealOrder ? { order_id: orderId } : {},
+        metadata: {
+          order_id: orderId,
+        },
       });
       customerId = customer.id;
 
-      // If real order, update it with customer ID
-      if (isRealOrder) {
-        await supabaseClient
-          .from("orders")
-          .update({ stripe_customer_id: customerId })
-          .eq("id", orderId);
-      }
+      // Update order with customer ID
+      await supabaseClient
+        .from("orders")
+        .update({ stripe_customer_id: customerId })
+        .eq("id", orderId);
     }
 
     // Create payment intent
@@ -100,28 +94,23 @@ Deno.serve(async (req: Request) => {
       amount: depositCents,
       currency: "usd",
       customer: customerId,
-      description: isRealOrder ? `Deposit for order ${orderId}` : "Bounce Party Club deposit",
+      description: `Deposit for order ${orderId}`,
       setup_future_usage: "off_session",
-      metadata: isRealOrder ? {
+      metadata: {
         order_id: orderId,
         payment_type: "deposit",
-      } : {
-        payment_type: "deposit",
-        customer_email: customerEmail,
       },
     });
 
-    // Only create payment record if we have a real order
-    if (isRealOrder) {
-      await supabaseClient.from("payments").insert({
-        order_id: orderId,
-        stripe_payment_intent_id: paymentIntent.id,
-        amount_cents: depositCents,
-        payment_type: "deposit",
-        status: "pending",
-        description: `Deposit payment for order ${orderId}`,
-      });
-    }
+    // Create payment record
+    await supabaseClient.from("payments").insert({
+      order_id: orderId,
+      stripe_payment_intent_id: paymentIntent.id,
+      amount_cents: depositCents,
+      payment_type: "deposit",
+      status: "pending",
+      description: `Deposit payment for order ${orderId}`,
+    });
 
     return new Response(
       JSON.stringify({

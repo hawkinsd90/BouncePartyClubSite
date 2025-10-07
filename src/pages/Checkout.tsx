@@ -6,7 +6,7 @@ import { CreditCard, Shield, CheckCircle, Loader2, User, MapPin, DollarSign, Fil
 import { RentalTerms } from '../components/RentalTerms';
 import { PrintableInvoice } from '../components/PrintableInvoice';
 import { StripeCheckoutForm } from '../components/StripeCheckoutForm';
-import { createOrderAfterPayment } from '../lib/orderCreation';
+import { createOrderBeforePayment, completeOrderAfterPayment } from '../lib/orderCreation';
 
 export function Checkout() {
   const navigate = useNavigate();
@@ -127,24 +127,8 @@ export function Checkout() {
         return;
       }
 
-      // All available - show payment form
-      setShowStripeForm(true);
-      setCheckingAvailability(false);
-    } catch (error: any) {
-      console.error('Error checking availability:', error);
-      alert(
-        `Unable to verify availability: ${error.message}\n\nPlease try again or contact us at (313) 889-3860.`
-      );
-      setCheckingAvailability(false);
-    }
-  };
-
-  const handlePaymentSuccess = async () => {
-    try {
-      setProcessing(true);
-
-      // Payment succeeded - now create the order, customer, and contact
-      const createdOrderId = await createOrderAfterPayment({
+      // All available - create order BEFORE payment
+      const createdOrderId = await createOrderBeforePayment({
         contactData,
         quoteData,
         priceBreakdown,
@@ -154,19 +138,42 @@ export function Checkout() {
         smsConsent,
       });
 
+      setTempOrderId(createdOrderId);
+      setShowStripeForm(true);
+      setCheckingAvailability(false);
+    } catch (error: any) {
+      console.error('Error checking availability or creating order:', error);
+      alert(
+        `Unable to process booking: ${error.message}\n\nPlease try again or contact us at (313) 889-3860.`
+      );
+      setCheckingAvailability(false);
+    }
+  };
+
+  const handlePaymentSuccess = async () => {
+    try {
+      setProcessing(true);
+
+      if (!tempOrderId) {
+        throw new Error('Order ID not found');
+      }
+
+      // Payment succeeded - update order status and send notifications
+      await completeOrderAfterPayment(tempOrderId, 'payment_intent_id');
+
       // Clear cart and redirect to success
       localStorage.removeItem('bpc_cart');
       localStorage.removeItem('bpc_quote_form');
       localStorage.removeItem('bpc_price_breakdown');
 
-      setOrderId(createdOrderId);
+      setOrderId(tempOrderId);
       setSuccess(true);
       setShowStripeForm(false);
       setProcessing(false);
     } catch (error: any) {
-      console.error('Error creating order after payment:', error);
+      console.error('Error completing order:', error);
       alert(
-        `Payment succeeded but there was an error creating your order: ${error.message}\n\nPlease contact us immediately at (313) 889-3860 with your payment confirmation.`
+        `Payment succeeded but failed to finalize booking: ${error.message}\n\nPlease contact us at (313) 889-3860 with your order confirmation.`
       );
       setProcessing(false);
       setShowStripeForm(false);
@@ -769,7 +776,7 @@ export function Checkout() {
               Enter your payment details below. Your card will be securely stored for future charges related to this booking.
             </p>
             <StripeCheckoutForm
-              orderId={`temp_${Date.now()}`}
+              orderId={tempOrderId || ''}
               depositCents={getPaymentAmountCents()}
               customerEmail={contactData.email}
               customerName={`${contactData.first_name} ${contactData.last_name}`}
