@@ -104,12 +104,13 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
 
   if (addressError) throw addressError;
 
-  // 4. Create order with 'draft' status (unpaid invoice)
+  // 4. Create order with 'draft' status (unpaid invoice) and deposit_required = true
   const { data: order, error: orderError } = await supabase
     .from('orders')
     .insert({
       customer_id: customer.id,
       status: 'draft',
+      deposit_required: true,
       location_type: quoteData.location_type,
       surface: quoteData.can_stake ? 'grass' : 'cement',
       event_date: quoteData.event_date,

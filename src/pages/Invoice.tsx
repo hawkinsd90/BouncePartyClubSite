@@ -54,7 +54,14 @@ export function Invoice() {
         return;
       }
 
-      if (orderData.status !== 'draft' && orderData.deposit_paid_cents >= orderData.deposit_due_cents) {
+      // Check if deposit has been paid
+      // If deposit_required = true and deposit has been paid, show success
+      // If deposit_required = false, no payment needed (manual invoice)
+      const depositPaid = orderData.deposit_required
+        ? orderData.deposit_paid_cents >= orderData.deposit_due_cents
+        : true; // No deposit required means consider it "paid"
+
+      if (depositPaid && orderData.status !== 'draft') {
         setPaymentSuccess(true);
       }
 
@@ -332,32 +339,42 @@ export function Invoice() {
               </div>
             </div>
 
-            <div className="bg-blue-50 rounded-lg p-6 text-center">
-              <CreditCard className="w-12 h-12 text-blue-600 mx-auto mb-3" />
-              <h3 className="text-lg font-bold text-slate-900 mb-2">
-                Pay Deposit to Confirm Booking
-              </h3>
-              <p className="text-slate-600 mb-4">
-                Secure your reservation with a deposit payment of {formatCurrency(order.deposit_due_cents)}
-              </p>
-              <button
-                onClick={handlePayNow}
-                disabled={checkingAvailability}
-                className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-3 px-8 rounded-lg transition-colors inline-flex items-center"
-              >
-                {checkingAvailability ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Checking Availability...
-                  </>
-                ) : (
-                  <>
-                    <CreditCard className="w-5 h-5 mr-2" />
-                    Pay Now
-                  </>
-                )}
-              </button>
-            </div>
+            {order.deposit_required && order.deposit_paid_cents === 0 && (
+              <div className="bg-blue-50 rounded-lg p-6 text-center">
+                <CreditCard className="w-12 h-12 text-blue-600 mx-auto mb-3" />
+                <h3 className="text-lg font-bold text-slate-900 mb-2">
+                  Pay Deposit to Confirm Booking
+                </h3>
+                <p className="text-slate-600 mb-4">
+                  Secure your reservation with a deposit payment of {formatCurrency(order.deposit_due_cents)}
+                </p>
+                <button
+                  onClick={handlePayNow}
+                  disabled={checkingAvailability}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-3 px-8 rounded-lg transition-colors inline-flex items-center"
+                >
+                  {checkingAvailability ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Checking Availability...
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard className="w-5 h-5 mr-2" />
+                      Pay Now
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {!order.deposit_required && (
+              <div className="bg-slate-50 rounded-lg p-6 text-center">
+                <p className="text-slate-600">
+                  This is a manual invoice. No deposit payment required.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
