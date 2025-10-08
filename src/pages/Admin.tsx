@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { ContactsList } from '../components/ContactsList';
 import { InvoicesList } from '../components/InvoicesList';
 import { PaymentManagement } from '../components/PaymentManagement';
+import { OrdersManager } from '../components/OrdersManager';
 
 function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => void }) {
   const [processing, setProcessing] = useState(false);
@@ -1039,96 +1040,8 @@ function AdminDashboard() {
       )}
 
       {activeTab === 'orders' && (
-        <div className="bg-white rounded-xl shadow-md overflow-hidden">
-          <div className="p-6 border-b border-slate-200">
-            <h2 className="text-2xl font-bold text-slate-900">Recent Orders</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Order ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Customer
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Event Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Location
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Total
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-slate-200">
-                {orders.map((order: any) => (
-                  <tr key={order.id} className="hover:bg-slate-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-mono font-semibold text-slate-900">
-                        {order.id.slice(0, 8).toUpperCase()}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-slate-900">
-                        {order.customers?.first_name} {order.customers?.last_name}
-                      </div>
-                      <div className="text-sm text-slate-500">{order.customers?.phone}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-slate-900">
-                        {format(new Date(order.event_date), 'MMM d, yyyy')}
-                      </div>
-                      <div className="text-sm text-slate-500">
-                        {order.start_window} - {order.end_window}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-slate-900">
-                        {order.addresses?.city}, {order.addresses?.state}
-                      </div>
-                      <div className="text-sm text-slate-500 capitalize">
-                        {order.location_type}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-semibold text-slate-900">
-                        {formatCurrency(
-                          order.subtotal_cents +
-                            order.travel_fee_cents +
-                            order.surface_fee_cents +
-                            order.same_day_pickup_fee_cents +
-                            order.tax_cents
-                        )}
-                      </div>
-                      <div className="text-xs text-slate-500">
-                        Balance: {formatCurrency(order.balance_due_cents)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`inline-flex text-xs font-semibold px-2 py-1 rounded capitalize ${
-                          order.status === 'confirmed'
-                            ? 'bg-green-100 text-green-800'
-                            : order.status === 'pending_deposit'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-slate-100 text-slate-800'
-                        }`}
-                      >
-                        {order.status.replace('_', ' ')}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div className="bg-white rounded-xl shadow-md p-6">
+          <OrdersManager />
         </div>
       )}
 
