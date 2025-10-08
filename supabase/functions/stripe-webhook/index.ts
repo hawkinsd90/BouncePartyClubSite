@@ -50,6 +50,25 @@ Deno.serve(async (req: Request) => {
     );
 
     switch (event.type) {
+      case "checkout.session.completed": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const orderId = session.metadata?.order_id;
+
+        if (orderId) {
+          await supabaseClient
+            .from("orders")
+            .update({
+              stripe_payment_status: "paid",
+              stripe_payment_method_id: session.payment_method_id || session.setup_intent as string,
+              deposit_paid_cents: session.amount_total || 0,
+              status: "pending",
+            })
+            .eq("id", orderId);
+        }
+
+        break;
+      }
+
       case "payment_intent.succeeded": {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         const orderId = paymentIntent.metadata.order_id;
@@ -68,6 +87,7 @@ Deno.serve(async (req: Request) => {
             .update({
               stripe_payment_method_id: paymentMethodId,
               deposit_paid_cents: paymentIntent.amount,
+              stripe_payment_status: "paid",
             })
             .eq("id", orderId);
         }
