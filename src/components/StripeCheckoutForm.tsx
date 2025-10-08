@@ -66,22 +66,11 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
     console.log('[CheckoutForm] Component mounted at', now, ', stripe:', !!stripe, 'elements:', !!elements);
 
     if (stripe && elements) {
-      console.log('[CheckoutForm] Stripe and Elements available, waiting 300ms before rendering PaymentElement...');
-
-      if (timerRef.current) {
-        console.log('[CheckoutForm] Clearing previous timer');
-        clearTimeout(timerRef.current);
-      }
-
-      timerRef.current = setTimeout(() => {
-        if (mountTimeRef.current === now) {
-          const elapsed = Date.now() - now;
-          console.log('[CheckoutForm] Timer complete for mount', now, 'after', elapsed, 'ms - allowing PaymentElement render');
-          setCanRender(true);
-        } else {
-          console.log('[CheckoutForm] Timer complete but mount time changed (', mountTimeRef.current, 'vs', now, ') - ignoring');
-        }
-      }, 300);
+      console.log('[CheckoutForm] Stripe and Elements available, rendering PaymentElement immediately');
+      setCanRender(true);
+    } else {
+      console.log('[CheckoutForm] Waiting for Stripe (', !!stripe, ') and Elements (', !!elements, ')');
+      setCanRender(false);
     }
 
     return () => {
@@ -96,11 +85,13 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
   const handleLoaderStart = () => {
     const timeSinceMount = Date.now() - mountTimeRef.current;
     console.log('[CheckoutForm] ⟳ PaymentElement loader started (', timeSinceMount, 'ms since mount)');
+    console.log('[CheckoutForm] Current stripe:', !!stripe, 'elements:', !!elements, 'canRender:', canRender);
   };
 
   const handleReady = () => {
     const timeSinceMount = Date.now() - mountTimeRef.current;
     console.log('[CheckoutForm] ✓ PaymentElement is ready and can accept input (', timeSinceMount, 'ms since mount)');
+    console.log('[CheckoutForm] Setting isReady to true');
     setIsReady(true);
   };
 
@@ -289,15 +280,8 @@ export function StripeCheckoutForm({
             },
           });
 
-          console.log('[StripeCheckoutForm] Mount #', currentMount, '- Waiting 50ms before allowing render for stability');
-          setTimeout(() => {
-            if (mounted && currentMount === mountCountRef.current) {
-              console.log('[StripeCheckoutForm] Mount #', currentMount, '- Now ready to render Stripe components');
-              setReadyToRender(true);
-            } else {
-              console.log('[StripeCheckoutForm] Mount #', currentMount, '- Ready timeout ignored (unmounted or stale)');
-            }
-          }, 50);
+          console.log('[StripeCheckoutForm] Mount #', currentMount, '- Ready to render Stripe components');
+          setReadyToRender(true);
         }
       } catch (err: any) {
         console.error('[StripeCheckoutForm] Mount #', currentMount, '- Payment initialization error:', err);
@@ -396,17 +380,8 @@ function StripeElementsWrapper({ options, onSuccess, onError }: StripeElementsWr
         if (stripeInstance) {
           console.log('[StripeElementsWrapper] Mount #', currentMount, '- Stripe instance loaded successfully');
           setStripe(stripeInstance);
-          initializationTimeRef.current = Date.now();
-
-          setTimeout(() => {
-            if (mounted && currentMount === mountCountRef.current) {
-              const elapsed = Date.now() - initializationTimeRef.current;
-              console.log('[StripeElementsWrapper] Mount #', currentMount, '- Marking as initialized after', elapsed, 'ms');
-              setInitialized(true);
-            } else {
-              console.log('[StripeElementsWrapper] Mount #', currentMount, '- Initialization timeout ignored (stale mount or unmounted)');
-            }
-          }, 100);
+          setInitialized(true);
+          console.log('[StripeElementsWrapper] Mount #', currentMount, '- Marked as initialized');
         } else {
           console.error('[StripeElementsWrapper] Mount #', currentMount, '- Stripe instance is null');
           setError('Failed to load Stripe');
