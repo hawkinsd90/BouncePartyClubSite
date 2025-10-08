@@ -1,4 +1,8 @@
-import { X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Truck, MapPin, CheckCircle, MessageSquare, DollarSign, FileText, Calendar } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { format } from 'date-fns';
+import { formatCurrency } from '../lib/pricing';
 
 interface OrderDetailModalProps {
   order: any;
@@ -7,74 +11,350 @@ interface OrderDetailModalProps {
 }
 
 export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalProps) {
+  const [activeSection, setActiveSection] = useState<'details' | 'workflow' | 'notes'>('details');
+  const [orderItems, setOrderItems] = useState<any[]>([]);
+  const [notes, setNotes] = useState<any[]>([]);
+  const [workflowEvents, setWorkflowEvents] = useState<any[]>([]);
+  const [newNote, setNewNote] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+  const [eta, setEta] = useState('');
+
+  useEffect(() => {
+    loadOrderDetails();
+  }, [order.id]);
+
+  async function loadOrderDetails() {
+    try {
+      const [itemsRes, notesRes, eventsRes] = await Promise.all([
+        supabase.from('order_items').select('*, units(name)').eq('order_id', order.id),
+        supabase.from('order_notes').select('*, user:user_id(email)').eq('order_id', order.id).order('created_at', { ascending: false }),
+        supabase.from('order_workflow_events').select('*, user:user_id(email)').eq('order_id', order.id).order('created_at', { ascending: false }),
+      ]);
+
+      if (itemsRes.data) setOrderItems(itemsRes.data);
+      if (notesRes.data) setNotes(notesRes.data);
+      if (eventsRes.data) setWorkflowEvents(eventsRes.data);
+    } catch (error) {
+      console.error('Error loading order details:', error);
+    }
+  }
+
+  async function handleAddNote() {
+    if (!newNote.trim()) return;
+
+    setSavingNote(true);
+    try {
+      const { error } = await supabase.from('order_notes').insert({
+        order_id: order.id,
+        user_id: (await supabase.auth.getUser()).data.user?.id,
+        note: newNote,
+      });
+
+      if (error) throw error;
+
+      setNewNote('');
+      await loadOrderDetails();
+      alert('Note added successfully!');
+    } catch (error) {
+      console.error('Error adding note:', error);
+      alert('Failed to add note');
+    } finally {
+      setSavingNote(false);
+    }
+  }
+
+  async function handleWorkflowAction(action: 'on_the_way' | 'arrived' | 'setup_completed') {
+    try {
+      const user = (await supabase.auth.getUser()).data.user;
+
+      await supabase.from('order_workflow_events').insert({
+        order_id: order.id,
+        event_type: action,
+        user_id: user?.id,
+        eta: action === 'on_the_way' && eta ? new Date(eta).toISOString() : null,
+      });
+
+      let newWorkflowStatus = 'pending';
+      if (action === 'on_the_way') newWorkflowStatus = 'on_the_way';
+      if (action === 'arrived') newWorkflowStatus = 'arrived';
+      if (action === 'setup_completed') newWorkflowStatus = 'setup_completed';
+
+      await supabase.from('orders').update({
+        workflow_status: newWorkflowStatus,
+        current_eta: action === 'on_the_way' && eta ? new Date(eta).toISOString() : order.current_eta,
+      }).eq('id', order.id);
+
+      if (action === 'on_the_way') {
+        const portalLink = `${window.location.origin}/customer-portal/${order.id}`;
+        const message = `Hi ${order.customers?.first_name}, we're on our way! ETA: ${eta}. Complete any remaining steps here: ${portalLink}`;
+        await sendSMS(message);
+      }
+
+      if (action === 'arrived') {
+        const alerts = [];
+        if (order.has_pets) alerts.push('Please secure any pets');
+        if (order.balance_due_cents > order.balance_paid_cents) alerts.push('Remaining balance due');
+        if (!order.waiver_signed_at) alerts.push('Waiver not yet signed');
+        const alertText = alerts.length > 0 ? ` Reminders: ${alerts.join(', ')}` : '';
+        const message = `Hi ${order.customers?.first_name}, we've arrived!${alertText}`;
+        await sendSMS(message);
+      }
+
+      if (action === 'setup_completed') {
+        const message = order.overnight_allowed
+          ? `Setup complete! Pickup scheduled for tomorrow at ${order.start_window}. Please follow all safety rules.`
+          : `Setup complete! Enjoy your event. Pickup at ${order.end_window}. Thank you!`;
+        await sendSMS(message);
+      }
+
+      await loadOrderDetails();
+      onUpdate();
+      alert('Workflow action completed!');
+    } catch (error) {
+      console.error('Error processing workflow action:', error);
+      alert('Failed to process workflow action');
+    }
+  }
+
+  async function sendSMS(message: string) {
+    const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
+    await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: order.customers?.phone,
+        message,
+        orderId: order.id,
+      }),
+    });
+  }
+
+  const totalOrder = order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents;
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-slate-900">
-            Order #{order.id.slice(0, 8).toUpperCase()}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 transition-colors"
-          >
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white rounded-lg max-w-6xl w-full my-8">
+        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between rounded-t-lg">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900">
+              Order #{order.id.slice(0, 8).toUpperCase()}
+            </h2>
+            <p className="text-sm text-slate-600">
+              {order.customers?.first_name} {order.customers?.last_name} • {format(new Date(order.event_date), 'MMM d, yyyy')}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
             <X className="w-6 h-6" />
           </button>
         </div>
 
-        <div className="p-6">
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">Customer Information</h3>
-            <div className="bg-slate-50 rounded-lg p-4">
-              <p className="text-slate-900">
-                <span className="font-medium">Name:</span> {order.customers?.first_name} {order.customers?.last_name}
-              </p>
-              <p className="text-slate-900">
-                <span className="font-medium">Email:</span> {order.customers?.email}
-              </p>
-              <p className="text-slate-900">
-                <span className="font-medium">Phone:</span> {order.customers?.phone}
-              </p>
-            </div>
-          </div>
+        <div className="flex gap-2 px-6 py-4 border-b border-slate-200 overflow-x-auto">
+          {[
+            { key: 'details', label: 'Details', icon: FileText },
+            { key: 'workflow', label: 'Workflow', icon: Truck },
+            { key: 'notes', label: 'Notes', icon: MessageSquare },
+          ].map(section => (
+            <button
+              key={section.key}
+              onClick={() => setActiveSection(section.key as any)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium whitespace-nowrap ${
+                activeSection === section.key
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              <section.icon className="w-4 h-4" />
+              {section.label}
+            </button>
+          ))}
+        </div>
 
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">Event Details</h3>
-            <div className="bg-slate-50 rounded-lg p-4">
-              <p className="text-slate-900">
-                <span className="font-medium">Date:</span> {order.event_date}
-              </p>
-              <p className="text-slate-900">
-                <span className="font-medium">Time:</span> {order.start_window} - {order.end_window}
-              </p>
-              <p className="text-slate-900">
-                <span className="font-medium">Location:</span> {order.addresses?.line1}, {order.addresses?.city}, {order.addresses?.state} {order.addresses?.zip}
-              </p>
-            </div>
-          </div>
+        <div className="p-6 max-h-[calc(90vh-200px)] overflow-y-auto">
+          {activeSection === 'details' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-slate-50 rounded-lg p-4">
+                  <h3 className="font-semibold text-slate-900 mb-3">Customer Information</h3>
+                  <div className="space-y-2 text-sm">
+                    <p><span className="font-medium">Name:</span> {order.customers?.first_name} {order.customers?.last_name}</p>
+                    <p><span className="font-medium">Email:</span> {order.customers?.email}</p>
+                    <p><span className="font-medium">Phone:</span> {order.customers?.phone}</p>
+                  </div>
+                </div>
 
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">Status</h3>
-            <div className="flex gap-4">
-              <div className="bg-slate-50 rounded-lg p-4 flex-1">
-                <p className="text-sm text-slate-600 mb-1">Order Status</p>
-                <p className="text-lg font-semibold text-slate-900 capitalize">
-                  {order.status.replace('_', ' ')}
-                </p>
+                <div className="bg-slate-50 rounded-lg p-4">
+                  <h3 className="font-semibold text-slate-900 mb-3">Event Details</h3>
+                  <div className="space-y-2 text-sm">
+                    <p><span className="font-medium">Date:</span> {format(new Date(order.event_date), 'MMMM d, yyyy')}</p>
+                    <p><span className="font-medium">Time:</span> {order.start_window} - {order.end_window}</p>
+                    <p><span className="font-medium">Type:</span> {order.location_type} • {order.surface}</p>
+                  </div>
+                </div>
               </div>
-              <div className="bg-slate-50 rounded-lg p-4 flex-1">
-                <p className="text-sm text-slate-600 mb-1">Workflow Status</p>
-                <p className="text-lg font-semibold text-slate-900 capitalize">
-                  {order.workflow_status?.replace(/_/g, ' ') || 'Pending'}
-                </p>
+
+              <div className="bg-slate-50 rounded-lg p-4">
+                <h3 className="font-semibold text-slate-900 mb-3">Address</h3>
+                <p className="text-sm">{order.addresses?.line1}</p>
+                {order.addresses?.line2 && <p className="text-sm">{order.addresses.line2}</p>}
+                <p className="text-sm">{order.addresses?.city}, {order.addresses?.state} {order.addresses?.zip}</p>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-slate-900 mb-3">Order Items</h3>
+                <div className="space-y-2">
+                  {orderItems.map(item => (
+                    <div key={item.id} className="flex justify-between items-center bg-slate-50 rounded-lg p-3">
+                      <div>
+                        <p className="font-medium text-slate-900">{item.units?.name}</p>
+                        <p className="text-sm text-slate-600">{item.wet_or_dry === 'water' ? 'Water' : 'Dry'} • Qty: {item.qty}</p>
+                      </div>
+                      <p className="font-semibold">{formatCurrency(item.unit_price_cents * item.qty)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span className="font-semibold">{formatCurrency(order.subtotal_cents)}</span>
+                  </div>
+                  {order.travel_fee_cents > 0 && (
+                    <div className="flex justify-between">
+                      <span>Travel Fee:</span>
+                      <span className="font-semibold">{formatCurrency(order.travel_fee_cents)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between pt-2 border-t border-blue-300 text-lg">
+                    <span className="font-bold">Total:</span>
+                    <span className="font-bold">{formatCurrency(totalOrder)}</span>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          <div className="text-center py-8 text-slate-500">
-            <p>Full order workflow features coming soon...</p>
-            <p className="text-sm mt-2">This will include workflow buttons, notes, refunds, and more.</p>
-          </div>
+          {activeSection === 'workflow' && (
+            <div className="space-y-6">
+              {order.status === 'confirmed' && (
+                <div className="space-y-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h3 className="font-semibold text-slate-900 mb-4">Workflow Actions</h3>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          Set ETA (for On the Way notification)
+                        </label>
+                        <input
+                          type="datetime-local"
+                          value={eta}
+                          onChange={(e) => setEta(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <button
+                          onClick={() => handleWorkflowAction('on_the_way')}
+                          disabled={!eta}
+                          className="flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-400 text-white py-3 px-4 rounded-lg font-medium"
+                        >
+                          <Truck className="w-5 h-5" />
+                          On the Way
+                        </button>
+                        <button
+                          onClick={() => handleWorkflowAction('arrived')}
+                          className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg font-medium"
+                        >
+                          <MapPin className="w-5 h-5" />
+                          Arrived
+                        </button>
+                        <button
+                          onClick={() => handleWorkflowAction('setup_completed')}
+                          className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-medium"
+                        >
+                          <CheckCircle className="w-5 h-5" />
+                          Setup Complete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <h3 className="font-semibold text-slate-900 mb-3">Workflow History</h3>
+                {workflowEvents.length === 0 ? (
+                  <p className="text-slate-500 text-center py-8">No workflow events yet</p>
+                ) : (
+                  <div className="space-y-3">
+                    {workflowEvents.map(event => (
+                      <div key={event.id} className="bg-slate-50 rounded-lg p-4">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium text-slate-900 capitalize">
+                              {event.event_type.replace(/_/g, ' ')}
+                            </p>
+                            <p className="text-sm text-slate-600">By: {event.user?.email}</p>
+                            {event.eta && (
+                              <p className="text-sm text-slate-600">ETA: {format(new Date(event.eta), 'MMM d, h:mm a')}</p>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-500">{format(new Date(event.created_at), 'MMM d, h:mm a')}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeSection === 'notes' && (
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Add Note</label>
+                <textarea
+                  value={newNote}
+                  onChange={(e) => setNewNote(e.target.value)}
+                  placeholder="Enter notes about this order..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg resize-none"
+                  rows={3}
+                />
+                <button
+                  onClick={handleAddNote}
+                  disabled={savingNote || !newNote.trim()}
+                  className="mt-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white py-2 px-6 rounded-lg font-medium"
+                >
+                  {savingNote ? 'Saving...' : 'Add Note'}
+                </button>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-slate-900 mb-3">Notes History</h3>
+                {notes.length === 0 ? (
+                  <p className="text-slate-500 text-center py-8">No notes yet</p>
+                ) : (
+                  <div className="space-y-3">
+                    {notes.map(note => (
+                      <div key={note.id} className="bg-slate-50 rounded-lg p-4">
+                        <p className="text-slate-900 whitespace-pre-wrap">{note.note}</p>
+                        <div className="flex justify-between items-center mt-2 text-xs text-slate-500">
+                          <span>By: {note.user?.email}</span>
+                          <span>{format(new Date(note.created_at), 'MMM d, h:mm a')}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
