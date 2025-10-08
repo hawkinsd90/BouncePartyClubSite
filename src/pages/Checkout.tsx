@@ -21,8 +21,8 @@ export function Checkout() {
   const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
   const [customAmount, setCustomAmount] = useState('');
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [redirectingToStripe, setRedirectingToStripe] = useState(false);
-  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  const [awaitingPayment, setAwaitingPayment] = useState(false);
+  const [paymentCheckInterval, setPaymentCheckInterval] = useState<NodeJS.Timeout | null>(null);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
 
   const [contactData, setContactData] = useState({
@@ -41,51 +41,7 @@ export function Checkout() {
   });
 
   useEffect(() => {
-    // Check URL params FIRST
-    const urlParams = new URLSearchParams(window.location.search);
-    const sessionId = urlParams.get('session_id');
-    const successParam = urlParams.get('success');
-    const canceledParam = urlParams.get('canceled');
-
-    // Handle Stripe return
-    if (canceledParam) {
-      alert('Payment canceled. You can try again when ready.');
-      window.history.replaceState({}, '', '/checkout');
-      navigate('/quote');
-      return;
-    }
-
-    if (successParam && sessionId) {
-      // Payment succeeded! Restore order data and show success
-      const savedOrderId = localStorage.getItem('bpc_pending_order_id');
-      const savedContact = localStorage.getItem('bpc_pending_contact');
-      const savedQuote = localStorage.getItem('bpc_quote_form');
-      const savedBreakdown = localStorage.getItem('bpc_price_breakdown');
-
-      if (savedOrderId && savedContact && savedQuote && savedBreakdown) {
-        setOrderId(savedOrderId);
-        setContactData(JSON.parse(savedContact));
-        setQuoteData(JSON.parse(savedQuote));
-        setPriceBreakdown(JSON.parse(savedBreakdown));
-        setSuccess(true);
-
-        // Clean up
-        localStorage.removeItem('bpc_cart');
-        localStorage.removeItem('bpc_quote_form');
-        localStorage.removeItem('bpc_price_breakdown');
-        localStorage.removeItem('bpc_pending_order_id');
-        localStorage.removeItem('bpc_pending_contact');
-
-        // Clear URL params
-        window.history.replaceState({}, '', '/checkout');
-      } else {
-        // Missing data, redirect to quote
-        navigate('/quote');
-      }
-      return;
-    }
-
-    // Normal checkout flow - load cart data
+    // Load cart data for checkout
     const savedForm = localStorage.getItem('bpc_quote_form');
     const savedBreakdown = localStorage.getItem('bpc_price_breakdown');
     const savedCart = localStorage.getItem('bpc_cart');
@@ -108,6 +64,15 @@ export function Checkout() {
       zip: formData.zip || '',
     });
   }, [navigate]);
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (paymentCheckInterval) {
+        clearInterval(paymentCheckInterval);
+      }
+    };
+  }, [paymentCheckInterval]);
 
   const getPaymentAmountCents = () => {
     if (paymentAmount === 'full') {
@@ -182,9 +147,10 @@ export function Checkout() {
         smsConsent,
       });
 
-      // Redirect to Stripe Checkout
+      // Open Stripe Checkout in new tab and wait for payment
       setCheckingAvailability(false);
-      setRedirectingToStripe(true);
+      setAwaitingPayment(true);
+      setOrderId(createdOrderId);
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`,
@@ -209,19 +175,38 @@ export function Checkout() {
         throw new Error(data.error || 'Failed to create checkout session');
       }
 
-      // Save order ID to localStorage before redirecting
-      localStorage.setItem('bpc_pending_order_id', createdOrderId);
-      localStorage.setItem('bpc_pending_contact', JSON.stringify(contactData));
+      // Open Stripe in new tab
+      window.open(data.url, '_blank');
 
-      // Redirect to Stripe Checkout
-      window.location.href = data.url;
+      // Start polling for payment status
+      const interval = setInterval(async () => {
+        const { data: order } = await supabase
+          .from('orders')
+          .select('status, stripe_payment_status')
+          .eq('id', createdOrderId)
+          .maybeSingle();
+
+        if (order?.stripe_payment_status === 'paid') {
+          clearInterval(interval);
+          setAwaitingPayment(false);
+          setSuccess(true);
+          localStorage.removeItem('bpc_cart');
+          localStorage.removeItem('bpc_quote_form');
+          localStorage.removeItem('bpc_price_breakdown');
+        }
+      }, 2000); // Check every 2 seconds
+
+      setPaymentCheckInterval(interval);
     } catch (error: any) {
       console.error('Error checking availability or creating order:', error);
       alert(
         `Unable to process booking: ${error.message}\n\nPlease try again or contact us at (313) 889-3860.`
       );
       setCheckingAvailability(false);
-      setRedirectingToStripe(false);
+      setAwaitingPayment(false);
+      if (paymentCheckInterval) {
+        clearInterval(paymentCheckInterval);
+      }
     }
   };
 
@@ -288,6 +273,48 @@ export function Checkout() {
           >
             Back to Home
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (awaitingPayment) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="bg-white rounded-xl shadow-lg p-8 text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
+            <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900 mb-4">
+            Waiting for Payment
+          </h2>
+          <p className="text-slate-600 mb-6 text-lg">
+            Please complete your payment in the Stripe checkout window that just opened.
+          </p>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+            <p className="text-blue-900 font-medium mb-2">
+              Don't see the payment window?
+            </p>
+            <p className="text-blue-800 text-sm">
+              Check if your browser blocked the popup, or click below to try again.
+            </p>
+          </div>
+          <div className="flex gap-4 justify-center">
+            <button
+              onClick={() => {
+                if (paymentCheckInterval) {
+                  clearInterval(paymentCheckInterval);
+                }
+                setAwaitingPayment(false);
+              }}
+              className="px-6 py-3 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              Cancel Payment
+            </button>
+          </div>
+          <p className="text-slate-500 text-sm mt-6">
+            This page will automatically update once your payment is complete.
+          </p>
         </div>
       </div>
     );
