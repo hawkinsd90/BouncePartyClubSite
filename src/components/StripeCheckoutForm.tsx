@@ -48,10 +48,29 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    if (stripe && elements) {
-      setIsReady(true);
+    if (!elements) return;
+
+    const paymentElement = elements.getElement('payment');
+    if (!paymentElement) {
+      console.log('PaymentElement not yet available');
+      return;
     }
-  }, [stripe, elements]);
+
+    paymentElement.on('ready', () => {
+      console.log('PaymentElement is ready');
+      setIsReady(true);
+    });
+
+    paymentElement.on('loaderror', (event) => {
+      console.error('PaymentElement loader error:', event);
+      onError('Failed to load payment form. Please refresh and try again.');
+    });
+
+    return () => {
+      paymentElement.off('ready');
+      paymentElement.off('loaderror');
+    };
+  }, [elements, onError]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,18 +119,25 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
 
   return (
     <form onSubmit={handleSubmit}>
-      <PaymentElement />
+      <div className="mb-6">
+        <PaymentElement
+          options={{
+            layout: 'tabs',
+          }}
+        />
+      </div>
+      {!isReady && (
+        <div className="flex items-center justify-center py-4 text-slate-600">
+          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+          Loading payment form...
+        </div>
+      )}
       <button
         type="submit"
         disabled={!isReady || processing}
-        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center mt-6"
+        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center"
       >
-        {!isReady ? (
-          <>
-            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-            Loading Payment Form...
-          </>
-        ) : processing ? (
+        {processing ? (
           <>
             <Loader2 className="w-5 h-5 mr-2 animate-spin" />
             Processing Payment...
