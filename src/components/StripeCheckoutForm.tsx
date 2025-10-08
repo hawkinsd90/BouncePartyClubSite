@@ -45,6 +45,13 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [processing, setProcessing] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    if (stripe && elements) {
+      setIsReady(true);
+    }
+  }, [stripe, elements]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,10 +103,15 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
       <PaymentElement />
       <button
         type="submit"
-        disabled={!stripe || processing}
+        disabled={!isReady || processing}
         className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center mt-6"
       >
-        {processing ? (
+        {!isReady ? (
+          <>
+            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+            Loading Payment Form...
+          </>
+        ) : processing ? (
           <>
             <Loader2 className="w-5 h-5 mr-2 animate-spin" />
             Processing Payment...
@@ -192,6 +204,7 @@ export function StripeCheckoutForm({
 
   return (
     <Elements
+      key={clientSecret}
       stripe={stripe}
       options={{
         clientSecret,
