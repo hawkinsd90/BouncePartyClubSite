@@ -894,35 +894,6 @@ function AdminDashboard() {
         </div>
       )}
 
-      {activeTab === 'pending' && (
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-slate-900">Pending Review</h2>
-            <button
-              onClick={loadData}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-            >
-              Refresh
-            </button>
-          </div>
-
-          {orders.filter(o => o.status === 'pending_review').length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-slate-600 mb-2">No pending bookings</p>
-              <p className="text-sm text-slate-500">New bookings will appear here for review</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {orders
-                .filter(o => o.status === 'pending_review')
-                .map((order) => (
-                  <PendingOrderCard key={order.id} order={order} onUpdate={loadData} />
-                ))}
-            </div>
-          )}
-        </div>
-      )}
-
       {activeTab === 'inventory' && (
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
           <div className="p-6 border-b border-slate-200 flex items-center justify-between">
