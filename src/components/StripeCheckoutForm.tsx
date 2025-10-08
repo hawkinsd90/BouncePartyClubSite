@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { loadStripe, Stripe } from '@stripe/stripe-js';
 import {
   Elements,
@@ -287,20 +287,18 @@ export function StripeCheckoutForm({
     );
   }
 
-  const elementsOptions = useMemo(() => ({
-    clientSecret: clientSecret!,
-    appearance: {
-      theme: 'stripe' as const,
-      variables: {
-        colorPrimary: '#2563eb',
-      },
-    },
-  }), [clientSecret]);
-
   return (
     <Elements
       stripe={stripe}
-      options={elementsOptions}
+      options={{
+        clientSecret: clientSecret,
+        appearance: {
+          theme: 'stripe',
+          variables: {
+            colorPrimary: '#2563eb',
+          },
+        },
+      }}
     >
       <CheckoutForm
         onSuccess={onSuccess}
