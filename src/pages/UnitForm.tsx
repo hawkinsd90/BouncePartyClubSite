@@ -24,6 +24,8 @@ export function UnitForm() {
     active: true,
     quantity_available: 1,
   });
+  const [priceInput, setPriceInput] = useState('0.00');
+  const [priceWaterInput, setPriceWaterInput] = useState('');
 
   const [saving, setSaving] = useState(false);
 
@@ -42,6 +44,10 @@ export function UnitForm() {
 
     if (data) {
       setFormData(data);
+      setPriceInput((data.price_dry_cents / 100).toFixed(2));
+      if (data.price_water_cents) {
+        setPriceWaterInput((data.price_water_cents / 100).toFixed(2));
+      }
     }
   }
 
@@ -118,18 +124,6 @@ export function UnitForm() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                URL Slug *
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.slug}
-                onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -138,7 +132,14 @@ export function UnitForm() {
               <select
                 required
                 value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                onChange={(e) => {
+                  const newType = e.target.value;
+                  setFormData({ ...formData, type: newType, is_combo: newType === 'Combo' });
+                  if (newType !== 'Combo' && newType !== 'Water Slide') {
+                    setPriceWaterInput('');
+                    setFormData(prev => ({ ...prev, price_water_cents: 0 }));
+                  }
+                }}
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option>Bounce House</option>
@@ -146,6 +147,10 @@ export function UnitForm() {
                 <option>Combo</option>
                 <option>Obstacle Course</option>
                 <option>Interactive</option>
+                <option>Games</option>
+                <option>Tent</option>
+                <option>Table & Chairs</option>
+                <option>Concession</option>
               </select>
             </div>
 
@@ -165,32 +170,45 @@ export function UnitForm() {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
-                Price (Dry Mode) $ *
+                Rental Price $ *
               </label>
               <input
-                type="number"
+                type="text"
                 required
-                min="0"
-                step="0.01"
-                value={(formData.price_dry_cents / 100).toFixed(2)}
-                onChange={(e) => setFormData({ ...formData, price_dry_cents: Math.round(parseFloat(e.target.value) * 100) })}
+                value={priceInput}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (/^\d*\.?\d{0,2}$/.test(value)) {
+                    setPriceInput(value);
+                    setFormData({ ...formData, price_dry_cents: Math.round(parseFloat(value || '0') * 100) });
+                  }
+                }}
+                placeholder="0.00"
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Price (Water Mode) $
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={formData.price_water_cents ? (formData.price_water_cents / 100).toFixed(2) : ''}
-                onChange={(e) => setFormData({ ...formData, price_water_cents: e.target.value ? Math.round(parseFloat(e.target.value) * 100) : 0 })}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+            {(formData.type === 'Combo' || formData.type === 'Water Slide') && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Water Mode Price $ (optional)
+                </label>
+                <input
+                  type="text"
+                  value={priceWaterInput}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (/^\d*\.?\d{0,2}$/.test(value) || value === '') {
+                      setPriceWaterInput(value);
+                      setFormData({ ...formData, price_water_cents: value ? Math.round(parseFloat(value) * 100) : 0 });
+                    }
+                  }}
+                  placeholder="Leave empty if same as regular price"
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-slate-600 mt-1">Only fill this if water mode has a different price</p>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -208,30 +226,33 @@ export function UnitForm() {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
-                Footprint (sq ft) *
+                Footprint (sq ft)
               </label>
               <input
                 type="number"
-                required
                 min="0"
-                value={formData.footprint_sqft}
-                onChange={(e) => setFormData({ ...formData, footprint_sqft: parseInt(e.target.value) })}
+                value={formData.footprint_sqft || ''}
+                onChange={(e) => setFormData({ ...formData, footprint_sqft: parseInt(e.target.value) || 0 })}
+                placeholder="Optional - leave empty if unknown"
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
-                Power Circuits *
+                Blower HP (Horsepower) *
               </label>
               <input
                 type="number"
                 required
                 min="1"
+                step="0.5"
                 value={formData.power_circuits}
-                onChange={(e) => setFormData({ ...formData, power_circuits: parseInt(e.target.value) })}
+                onChange={(e) => setFormData({ ...formData, power_circuits: parseFloat(e.target.value) || 1 })}
+                placeholder="e.g., 1.5"
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              <p className="text-xs text-slate-600 mt-1">Blower motor horsepower needed to inflate</p>
             </div>
 
             <div>
@@ -253,21 +274,11 @@ export function UnitForm() {
             <label className="flex items-center">
               <input
                 type="checkbox"
-                checked={formData.is_combo}
-                onChange={(e) => setFormData({ ...formData, is_combo: e.target.checked })}
-                className="mr-2"
-              />
-              <span className="text-sm text-slate-700">Is Combo Unit</span>
-            </label>
-
-            <label className="flex items-center">
-              <input
-                type="checkbox"
                 checked={formData.indoor_ok}
                 onChange={(e) => setFormData({ ...formData, indoor_ok: e.target.checked })}
                 className="mr-2"
               />
-              <span className="text-sm text-slate-700">Indoor OK</span>
+              <span className="text-sm text-slate-700">Can be used indoors</span>
             </label>
 
             <label className="flex items-center">

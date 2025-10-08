@@ -37,6 +37,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   });
   const [discounts, setDiscounts] = useState<any[]>([]);
   const [newDiscount, setNewDiscount] = useState({ name: '', amount_cents: 0, percentage: 0 });
+  const [discountAmountInput, setDiscountAmountInput] = useState('0.00');
+  const [discountPercentInput, setDiscountPercentInput] = useState('0');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -320,6 +322,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
       await logChange('discount', '', `${newDiscount.name} (${newDiscount.amount_cents > 0 ? formatCurrency(newDiscount.amount_cents) : newDiscount.percentage + '%'})`, 'add');
       setNewDiscount({ name: '', amount_cents: 0, percentage: 0 });
+      setDiscountAmountInput('0.00');
+      setDiscountPercentInput('0');
       await loadOrderDetails();
       onUpdate();
     } catch (error) {
@@ -737,11 +741,17 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                         <div>
                           <label className="block text-xs font-medium text-slate-700 mb-1">Amount ($)</label>
                           <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={(newDiscount.amount_cents / 100).toFixed(2)}
-                            onChange={(e) => setNewDiscount({ ...newDiscount, amount_cents: Math.round(parseFloat(e.target.value) * 100) || 0, percentage: 0 })}
+                            type="text"
+                            value={discountAmountInput}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              if (/^\d*\.?\d{0,2}$/.test(value)) {
+                                setDiscountAmountInput(value);
+                                const cents = Math.round(parseFloat(value || '0') * 100);
+                                setNewDiscount({ ...newDiscount, amount_cents: cents, percentage: 0 });
+                                setDiscountPercentInput('0');
+                              }
+                            }}
                             className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
                             placeholder="0.00"
                           />
@@ -749,11 +759,19 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                         <div>
                           <label className="block text-xs font-medium text-slate-700 mb-1">Percentage (%)</label>
                           <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={newDiscount.percentage}
-                            onChange={(e) => setNewDiscount({ ...newDiscount, percentage: parseFloat(e.target.value) || 0, amount_cents: 0 })}
+                            type="text"
+                            value={discountPercentInput}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              if (/^\d*\.?\d{0,2}$/.test(value)) {
+                                setDiscountPercentInput(value);
+                                const percent = parseFloat(value || '0');
+                                if (percent <= 100) {
+                                  setNewDiscount({ ...newDiscount, percentage: percent, amount_cents: 0 });
+                                  setDiscountAmountInput('0.00');
+                                }
+                              }
+                            }}
                             className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
                             placeholder="0"
                           />
