@@ -262,9 +262,22 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               {order.customers?.first_name} {order.customers?.last_name} • {format(new Date(order.event_date), 'MMM d, yyyy')}
             </p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            <X className="w-6 h-6" />
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsEditing(!isEditing)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                isEditing
+                  ? 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              <Edit2 className="w-4 h-4" />
+              {isEditing ? 'View Mode' : 'Edit Mode'}
+            </button>
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+              <X className="w-6 h-6" />
+            </button>
+          </div>
         </div>
 
         <div className="flex gap-2 px-6 py-4 border-b border-slate-200 overflow-x-auto">
@@ -320,7 +333,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               </div>
 
               <div>
-                <h3 className="font-semibold text-slate-900 mb-3">Order Items</h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-slate-900">Order Items</h3>
+                  {isEditing && (
+                    <span className="text-xs text-slate-600 bg-yellow-100 px-2 py-1 rounded">Edit Mode Active</span>
+                  )}
+                </div>
                 <div className="space-y-2">
                   {orderItems.map(item => (
                     <div key={item.id} className="flex justify-between items-center bg-slate-50 rounded-lg p-3">
@@ -328,10 +346,52 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                         <p className="font-medium text-slate-900">{item.units?.name}</p>
                         <p className="text-sm text-slate-600">{item.wet_or_dry === 'water' ? 'Water' : 'Dry'} • Qty: {item.qty}</p>
                       </div>
-                      <p className="font-semibold">{formatCurrency(item.unit_price_cents * item.qty)}</p>
+                      <div className="flex items-center gap-3">
+                        <p className="font-semibold">{formatCurrency(item.unit_price_cents * item.qty)}</p>
+                        {isEditing && (
+                          <button
+                            onClick={() => removeItem(item.id, item.units?.name)}
+                            className="text-red-600 hover:text-red-800 p-1"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
+
+                {isEditing && (
+                  <div className="mt-4 border-t border-slate-200 pt-4">
+                    <h4 className="font-medium text-slate-900 mb-3 flex items-center gap-2">
+                      <Plus className="w-4 h-4" />
+                      Add Item
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
+                      {availableUnits.map(unit => (
+                        <div key={unit.id} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                          <p className="font-medium text-slate-900 mb-2">{unit.name}</p>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => addItem(unit, 'dry')}
+                              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 px-3 rounded"
+                            >
+                              Add Dry ({formatCurrency(unit.price_dry_cents)})
+                            </button>
+                            {unit.price_water_cents && (
+                              <button
+                                onClick={() => addItem(unit, 'water')}
+                                className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white text-xs py-2 px-3 rounded"
+                              >
+                                Add Water ({formatCurrency(unit.price_water_cents)})
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
