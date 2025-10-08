@@ -36,6 +36,10 @@ export function PaymentManagement({ order, payments, onRefresh }: PaymentManagem
   const [processing, setProcessing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  if (!order) {
+    return null;
+  }
+
   const hasPaymentMethod = order.stripe_customer_id && order.stripe_payment_method_id;
 
   const handleCharge = async (e: React.FormEvent) => {
