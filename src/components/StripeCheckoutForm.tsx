@@ -57,7 +57,8 @@ function CheckoutForm({ clientSecret, onSuccess, onError }: CheckoutFormProps) {
     setProcessing(true);
 
     try {
-      const { error } = await stripe.confirmPayment({
+      console.log('Starting payment confirmation...');
+      const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
         confirmParams: {
           return_url: window.location.origin + '/checkout',
@@ -65,12 +66,17 @@ function CheckoutForm({ clientSecret, onSuccess, onError }: CheckoutFormProps) {
         redirect: 'if_required',
       });
 
+      console.log('Payment confirmation result:', { error, paymentIntent });
+
       if (error) {
+        console.error('Payment error:', error);
         onError(error.message || 'Payment failed');
       } else {
+        console.log('Payment successful:', paymentIntent);
         onSuccess();
       }
     } catch (err: any) {
+      console.error('Payment exception:', err);
       onError(err.message || 'Payment failed');
     } finally {
       setProcessing(false);
