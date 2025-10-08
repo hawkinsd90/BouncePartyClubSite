@@ -66,16 +66,8 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
     console.log('[CheckoutForm] Component mounted at', now, ', stripe:', !!stripe, 'elements:', !!elements);
 
     if (stripe && elements) {
-      console.log('[CheckoutForm] Stripe and Elements available, waiting 1000ms for Elements to stabilize...');
-
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-      }
-
-      timerRef.current = setTimeout(() => {
-        console.log('[CheckoutForm] 1000ms passed, rendering PaymentElement now');
-        setCanRender(true);
-      }, 1000);
+      console.log('[CheckoutForm] Stripe and Elements available, rendering PaymentElement');
+      setCanRender(true);
     } else {
       console.log('[CheckoutForm] Waiting for Stripe (', !!stripe, ') and Elements (', !!elements, ')');
       setCanRender(false);
@@ -280,12 +272,6 @@ export function StripeCheckoutForm({
           console.log('[StripeCheckoutForm] Mount #', currentMount, '- Setting options with clientSecret');
           setOptions({
             clientSecret: data.clientSecret,
-            appearance: {
-              theme: 'stripe',
-              variables: {
-                colorPrimary: '#2563eb',
-              },
-            },
           });
 
           console.log('[StripeCheckoutForm] Mount #', currentMount, '- Ready to render Stripe components');
