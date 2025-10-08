@@ -47,30 +47,15 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
   const [processing, setProcessing] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
-  useEffect(() => {
-    if (!elements) return;
+  const handleReady = () => {
+    console.log('PaymentElement is ready');
+    setIsReady(true);
+  };
 
-    const paymentElement = elements.getElement('payment');
-    if (!paymentElement) {
-      console.log('PaymentElement not yet available');
-      return;
-    }
-
-    paymentElement.on('ready', () => {
-      console.log('PaymentElement is ready');
-      setIsReady(true);
-    });
-
-    paymentElement.on('loaderror', (event) => {
-      console.error('PaymentElement loader error:', event);
-      onError('Failed to load payment form. Please refresh and try again.');
-    });
-
-    return () => {
-      paymentElement.off('ready');
-      paymentElement.off('loaderror');
-    };
-  }, [elements, onError]);
+  const handleLoadError = (event: any) => {
+    console.error('PaymentElement loader error:', event);
+    onError('Failed to load payment form. Please refresh and try again.');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,6 +106,8 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
     <form onSubmit={handleSubmit}>
       <div className="mb-6">
         <PaymentElement
+          onReady={handleReady}
+          onLoadError={handleLoadError}
           options={{
             layout: 'tabs',
           }}
@@ -134,7 +121,7 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
       )}
       <button
         type="submit"
-        disabled={!isReady || processing}
+        disabled={!stripe || !isReady || processing}
         className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center"
       >
         {processing ? (
