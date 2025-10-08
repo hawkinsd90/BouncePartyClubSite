@@ -56,29 +56,16 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
   const elements = useElements();
   const [processing, setProcessing] = useState(false);
   const [isReady, setIsReady] = useState(false);
-  const [canRender, setCanRender] = useState(false);
-  const [renderAttempt, setRenderAttempt] = useState(0);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     console.log('[CheckoutForm] Component mounted, stripe:', !!stripe, 'elements:', !!elements);
-
-    if (stripe && elements) {
-      console.log('[CheckoutForm] Stripe and Elements ready, waiting 500ms for frame initialization...');
-
-      const timer = setTimeout(() => {
-        console.log('[CheckoutForm] Frame wait complete, allowing PaymentElement to render (attempt:', renderAttempt + 1, ')');
-        setCanRender(true);
-        setRenderAttempt(prev => prev + 1);
-      }, 500);
-
-      return () => {
-        console.log('[CheckoutForm] Cleanup: clearing timer');
-        clearTimeout(timer);
-      };
-    } else {
-      console.log('[CheckoutForm] Waiting for stripe/elements. stripe:', !!stripe, 'elements:', !!elements);
-    }
-  }, [stripe, elements]);
+    setMounted(true);
+    return () => {
+      console.log('[CheckoutForm] Component unmounted');
+      setMounted(false);
+    };
+  }, []);
 
   const handleReady = () => {
     console.log('[CheckoutForm] ✓ PaymentElement is ready and can accept input');
@@ -133,8 +120,8 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
     }
   };
 
-  if (!stripe || !elements || !canRender) {
-    console.log('[CheckoutForm] Waiting - stripe:', !!stripe, 'elements:', !!elements, 'canRender:', canRender);
+  if (!stripe || !elements || !mounted) {
+    console.log('[CheckoutForm] Waiting - stripe:', !!stripe, 'elements:', !!elements, 'mounted:', mounted);
     return (
       <div className="flex items-center justify-center py-8">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -143,7 +130,7 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
     );
   }
 
-  console.log('[CheckoutForm] >>> Rendering PaymentElement now. isReady:', isReady, 'renderAttempt:', renderAttempt);
+  console.log('[CheckoutForm] >>> Rendering PaymentElement now. isReady:', isReady, 'mounted:', mounted);
 
   return (
     <form onSubmit={handleSubmit}>
@@ -315,23 +302,42 @@ interface StripeElementsWrapperProps {
 function StripeElementsWrapper({ options, onSuccess, onError }: StripeElementsWrapperProps) {
   const [stripe, setStripe] = useState<Stripe | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
+    let mounted = true;
     console.log('[StripeElementsWrapper] Starting Stripe initialization...');
+
     getStripeInstance()
       .then((stripeInstance) => {
+        if (!mounted) {
+          console.log('[StripeElementsWrapper] Component unmounted, ignoring Stripe instance');
+          return;
+        }
         if (stripeInstance) {
           console.log('[StripeElementsWrapper] Stripe instance loaded successfully');
           setStripe(stripeInstance);
+          setTimeout(() => {
+            if (mounted) {
+              console.log('[StripeElementsWrapper] Marking as initialized after delay');
+              setInitialized(true);
+            }
+          }, 100);
         } else {
           console.error('[StripeElementsWrapper] Stripe instance is null');
           setError('Failed to load Stripe');
         }
       })
       .catch((err) => {
+        if (!mounted) return;
         console.error('[StripeElementsWrapper] Error loading Stripe:', err);
         setError(err.message || 'Failed to load Stripe');
       });
+
+    return () => {
+      console.log('[StripeElementsWrapper] Cleanup - component unmounting');
+      mounted = false;
+    };
   }, []);
 
   if (error) {
@@ -348,8 +354,8 @@ function StripeElementsWrapper({ options, onSuccess, onError }: StripeElementsWr
     );
   }
 
-  if (!stripe) {
-    console.log('[StripeElementsWrapper] Waiting for Stripe instance...');
+  if (!stripe || !initialized) {
+    console.log('[StripeElementsWrapper] Waiting for Stripe instance. stripe:', !!stripe, 'initialized:', initialized);
     return (
       <div className="flex items-center justify-center py-8">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
