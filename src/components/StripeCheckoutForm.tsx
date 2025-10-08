@@ -157,11 +157,17 @@ export function StripeCheckoutForm({
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [stripe, setStripe] = useState<Stripe | null>(null);
+  const [mountKey, setMountKey] = useState(0);
 
   useEffect(() => {
     let mounted = true;
 
     const initializePayment = async () => {
+      // Reset state
+      setLoading(true);
+      setClientSecret(null);
+      setStripe(null);
+
       try {
         console.log('Initializing Stripe payment...');
         const stripeInstance = await getStripePromise();
@@ -170,7 +176,6 @@ export function StripeCheckoutForm({
         if (!stripeInstance) {
           throw new Error('Failed to load Stripe. Please check configuration.');
         }
-        setStripe(stripeInstance);
         console.log('Stripe instance loaded');
 
         const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`;
@@ -197,7 +202,14 @@ export function StripeCheckoutForm({
 
         const data = await response.json();
         console.log('Payment intent created');
-        setClientSecret(data.clientSecret);
+
+        // Set both at the same time to ensure Elements has everything it needs
+        if (mounted) {
+          setStripe(stripeInstance);
+          setClientSecret(data.clientSecret);
+          // Force remount of Elements component
+          setMountKey(prev => prev + 1);
+        }
       } catch (err: any) {
         console.error('Payment initialization error:', err);
         if (mounted) {
@@ -235,6 +247,7 @@ export function StripeCheckoutForm({
 
   return (
     <Elements
+      key={mountKey}
       stripe={stripe}
       options={{
         clientSecret,
