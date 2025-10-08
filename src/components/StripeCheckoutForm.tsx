@@ -56,14 +56,22 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
     }
     console.log('Stripe and Elements are ready');
 
-    // Delay to ensure Stripe's iframe is fully initialized
-    const timer = setTimeout(() => {
-      setCanRender(true);
-      console.log('PaymentElement can now render');
-    }, 300);
+    // Use requestAnimationFrame for better timing with DOM readiness
+    let cancelled = false;
+    requestAnimationFrame(() => {
+      if (!cancelled) {
+        // Additional delay to ensure Stripe's iframe is fully ready
+        setTimeout(() => {
+          if (!cancelled) {
+            setCanRender(true);
+            console.log('PaymentElement can now render');
+          }
+        }, 500);
+      }
+    });
 
     return () => {
-      clearTimeout(timer);
+      cancelled = true;
       setCanRender(false);
     };
   }, [stripe, elements]);
