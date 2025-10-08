@@ -175,6 +175,7 @@ export function StripeCheckoutForm({
   const [loading, setLoading] = useState(true);
   const [stripe, setStripe] = useState<Stripe | null>(null);
   const [mountKey, setMountKey] = useState(0);
+  const [initError, setInitError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -184,6 +185,7 @@ export function StripeCheckoutForm({
       setLoading(true);
       setClientSecret(null);
       setStripe(null);
+      setInitError(null);
 
       try {
         console.log('Initializing Stripe payment...');
@@ -218,19 +220,26 @@ export function StripeCheckoutForm({
         }
 
         const data = await response.json();
-        console.log('Payment intent created');
+        console.log('Payment intent created', { hasClientSecret: !!data.clientSecret });
+
+        if (!data.clientSecret) {
+          throw new Error('No client secret returned from server');
+        }
 
         // Set both at the same time to ensure Elements has everything it needs
         if (mounted) {
+          console.log('Setting stripe and clientSecret');
           setStripe(stripeInstance);
           setClientSecret(data.clientSecret);
           // Force remount of Elements component
           setMountKey(prev => prev + 1);
+          console.log('State updated, Elements should mount now');
         }
       } catch (err: any) {
         console.error('Payment initialization error:', err);
         if (mounted) {
-          onError(err.message || 'Failed to initialize payment');
+          setInitError(err.message || 'Failed to initialize payment');
+          setLoading(false);
         }
       } finally {
         if (mounted) {
@@ -254,10 +263,16 @@ export function StripeCheckoutForm({
     );
   }
 
-  if (!clientSecret || !stripe) {
+  if (initError || !clientSecret || !stripe) {
     return (
-      <div className="text-center py-8 text-red-600">
-        Failed to initialize payment. Please try again.
+      <div className="text-center py-8">
+        <p className="text-red-600 mb-4">{initError || 'Failed to initialize payment'}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="text-blue-600 hover:underline"
+        >
+          Reload page to try again
+        </button>
       </div>
     );
   }
@@ -267,7 +282,7 @@ export function StripeCheckoutForm({
       key={mountKey}
       stripe={stripe}
       options={{
-        clientSecret,
+        clientSecret: clientSecret!,
         appearance: {
           theme: 'stripe',
           variables: {
