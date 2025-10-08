@@ -61,7 +61,7 @@ Deno.serve(async (req: Request) => {
               stripe_payment_status: "paid",
               stripe_payment_method_id: session.payment_method as string,
               deposit_paid_cents: session.amount_total || 0,
-              status: "pending",
+              status: "pending_review",
             })
             .eq("id", orderId);
 
