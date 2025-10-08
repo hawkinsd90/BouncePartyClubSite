@@ -182,24 +182,38 @@ export function Checkout() {
         'width=600,height=800,left=200,top=100'
       );
 
-      // Poll the order status to detect when payment is complete
+      // Poll the payment status by calling our edge function
       console.log('Starting payment polling for order:', createdOrderId);
       const checkInterval = setInterval(async () => {
-        console.log('Polling order status for ID:', createdOrderId);
-        const { data: order, error: orderError } = await supabase
-          .from('orders')
-          .select('stripe_payment_status, status, id')
-          .eq('id', createdOrderId)
-          .maybeSingle();
+        console.log('Polling payment status for ID:', createdOrderId);
 
-        console.log('Order status check:', {
-          queriedId: createdOrderId,
-          order,
-          orderError,
-          windowClosed: stripeWindow?.closed
-        });
+        try {
+          // Call edge function to check Stripe directly
+          const statusResponse = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/check-payment-status`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              },
+              body: JSON.stringify({ orderId: createdOrderId }),
+            }
+          );
 
-        if (order?.stripe_payment_status === 'paid') {
+          const statusData = await statusResponse.json();
+          console.log('Payment status from Stripe check:', statusData);
+
+          // Also check database to get latest order data
+          const { data: order } = await supabase
+            .from('orders')
+            .select('stripe_payment_status, status, id')
+            .eq('id', createdOrderId)
+            .maybeSingle();
+
+          console.log('Order from DB:', order);
+
+        if (order?.stripe_payment_status === 'paid' || statusData?.status === 'paid') {
           console.log('Payment detected as paid! Closing popup and showing success...');
           clearInterval(checkInterval);
           setPaymentCheckInterval(null);
@@ -246,13 +260,16 @@ export function Checkout() {
           localStorage.removeItem('bpc_price_breakdown');
         }
 
-        // Check if user closed the popup without paying
-        if (stripeWindow && stripeWindow.closed && order?.stripe_payment_status !== 'paid') {
-          console.log('Popup closed without payment');
-          clearInterval(checkInterval);
-          setPaymentCheckInterval(null);
-          setAwaitingPayment(false);
-          alert('Payment window was closed. Your order has been saved as a draft. You can contact us to complete the payment.');
+          // Check if user closed the popup without paying
+          if (stripeWindow && stripeWindow.closed && order?.stripe_payment_status !== 'paid') {
+            console.log('Popup closed without payment');
+            clearInterval(checkInterval);
+            setPaymentCheckInterval(null);
+            setAwaitingPayment(false);
+            alert('Payment window was closed. Your order has been saved as a draft. You can contact us to complete the payment.');
+          }
+        } catch (pollError) {
+          console.error('Error during polling:', pollError);
         }
       }, 2000); // Check every 2 seconds
 
