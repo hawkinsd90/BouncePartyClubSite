@@ -75,12 +75,13 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
 
       timerRef.current = setTimeout(() => {
         if (mountTimeRef.current === now) {
-          console.log('[CheckoutForm] Timer complete for mount', now, '- allowing PaymentElement render');
+          const elapsed = Date.now() - now;
+          console.log('[CheckoutForm] Timer complete for mount', now, 'after', elapsed, 'ms - allowing PaymentElement render');
           setCanRender(true);
         } else {
           console.log('[CheckoutForm] Timer complete but mount time changed (', mountTimeRef.current, 'vs', now, ') - ignoring');
         }
-      }, 200);
+      }, 400);
     }
 
     return () => {
@@ -92,6 +93,11 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
     };
   }, [stripe, elements]);
 
+  const handleLoaderStart = () => {
+    const timeSinceMount = Date.now() - mountTimeRef.current;
+    console.log('[CheckoutForm] ⟳ PaymentElement loader started (', timeSinceMount, 'ms since mount)');
+  };
+
   const handleReady = () => {
     const timeSinceMount = Date.now() - mountTimeRef.current;
     console.log('[CheckoutForm] ✓ PaymentElement is ready and can accept input (', timeSinceMount, 'ms since mount)');
@@ -102,6 +108,7 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
     const timeSinceMount = Date.now() - mountTimeRef.current;
     console.error('[CheckoutForm] ✗ PaymentElement loader error after', timeSinceMount, 'ms:', event);
     console.error('[CheckoutForm] Error details:', JSON.stringify(event, null, 2));
+    console.error('[CheckoutForm] Error elementType:', event?.elementType);
     console.error('[CheckoutForm] Current state - mountTime:', mountTimeRef.current, 'canRender:', canRender, 'stripe:', !!stripe, 'elements:', !!elements);
     onError('Failed to load payment form. Please refresh and try again.');
   };
@@ -164,6 +171,7 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
     <form onSubmit={handleSubmit}>
       <div className="mb-6">
         <PaymentElement
+          onLoaderStart={handleLoaderStart}
           onReady={handleReady}
           onLoadError={handleLoadError}
           onChange={handleChange}
@@ -331,39 +339,52 @@ function StripeElementsWrapper({ options, onSuccess, onError }: StripeElementsWr
   const [stripe, setStripe] = useState<Stripe | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const mountCountRef = useRef(0);
+  const initializationTimeRef = useRef<number>(0);
 
   useEffect(() => {
     let mounted = true;
-    console.log('[StripeElementsWrapper] Starting Stripe initialization...');
+    mountCountRef.current += 1;
+    const currentMount = mountCountRef.current;
+    console.log('[StripeElementsWrapper] Starting Stripe initialization (mount #', currentMount, ')...');
 
     getStripeInstance()
       .then((stripeInstance) => {
         if (!mounted) {
-          console.log('[StripeElementsWrapper] Component unmounted, ignoring Stripe instance');
+          console.log('[StripeElementsWrapper] Mount #', currentMount, '- Component unmounted, ignoring Stripe instance');
+          return;
+        }
+        if (currentMount !== mountCountRef.current) {
+          console.log('[StripeElementsWrapper] Mount #', currentMount, '- Stale mount (now at', mountCountRef.current, '), ignoring');
           return;
         }
         if (stripeInstance) {
-          console.log('[StripeElementsWrapper] Stripe instance loaded successfully');
+          console.log('[StripeElementsWrapper] Mount #', currentMount, '- Stripe instance loaded successfully');
           setStripe(stripeInstance);
+          initializationTimeRef.current = Date.now();
+
           setTimeout(() => {
-            if (mounted) {
-              console.log('[StripeElementsWrapper] Marking as initialized after delay');
+            if (mounted && currentMount === mountCountRef.current) {
+              const elapsed = Date.now() - initializationTimeRef.current;
+              console.log('[StripeElementsWrapper] Mount #', currentMount, '- Marking as initialized after', elapsed, 'ms');
               setInitialized(true);
+            } else {
+              console.log('[StripeElementsWrapper] Mount #', currentMount, '- Initialization timeout ignored (stale mount or unmounted)');
             }
-          }, 100);
+          }, 300);
         } else {
-          console.error('[StripeElementsWrapper] Stripe instance is null');
+          console.error('[StripeElementsWrapper] Mount #', currentMount, '- Stripe instance is null');
           setError('Failed to load Stripe');
         }
       })
       .catch((err) => {
-        if (!mounted) return;
-        console.error('[StripeElementsWrapper] Error loading Stripe:', err);
+        if (!mounted || currentMount !== mountCountRef.current) return;
+        console.error('[StripeElementsWrapper] Mount #', currentMount, '- Error loading Stripe:', err);
         setError(err.message || 'Failed to load Stripe');
       });
 
     return () => {
-      console.log('[StripeElementsWrapper] Cleanup - component unmounting');
+      console.log('[StripeElementsWrapper] Mount #', currentMount, '- Cleanup, component unmounting');
       mounted = false;
     };
   }, []);
