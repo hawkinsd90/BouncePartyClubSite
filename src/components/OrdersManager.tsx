@@ -50,14 +50,11 @@ export function OrdersManager() {
   }
 
   function determineDefaultTab() {
-    const draft = orders.filter(o => o.status === 'draft').length;
     const pendingReview = orders.filter(o => o.status === 'pending_review').length;
     const current = orders.filter(o => isToday(new Date(o.event_date)) && o.status !== 'cancelled' && o.status !== 'pending_review' && o.status !== 'draft').length;
     const upcoming = orders.filter(o => isFuture(new Date(o.event_date)) && o.status !== 'cancelled' && o.status !== 'pending_review' && o.status !== 'draft').length;
 
-    if (draft > 0) {
-      setActiveTab('draft');
-    } else if (pendingReview > 0) {
+    if (pendingReview > 0) {
       setActiveTab('pending_review');
     } else if (current > 0) {
       setActiveTab('current');

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../lib/pricing';
 import { CreditCard, Shield, CheckCircle, Loader2, User, MapPin, DollarSign, FileText, Printer, X } from 'lucide-react';
@@ -9,6 +9,7 @@ import { createOrderBeforePayment, completeOrderAfterPayment } from '../lib/orde
 
 export function Checkout() {
   const navigate = useNavigate();
+  const { orderId: urlOrderId } = useParams<{ orderId: string }>();
   const [quoteData, setQuoteData] = useState<any>(null);
   const [priceBreakdown, setPriceBreakdown] = useState<any>(null);
   const [cart, setCart] = useState<any[]>([]);
@@ -41,7 +42,121 @@ export function Checkout() {
   });
 
   useEffect(() => {
-    // Load cart data for checkout
+    if (urlOrderId) {
+      loadExistingOrder(urlOrderId);
+    } else {
+      loadNewCheckout();
+    }
+  }, [navigate, urlOrderId]);
+
+  async function loadExistingOrder(id: string) {
+    setCheckingAvailability(true);
+    try {
+      const { data: order, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          customers (*),
+          addresses (*),
+          order_items (*, units(*))
+        `)
+        .eq('id', id)
+        .maybeSingle();
+
+      if (error || !order) {
+        alert('Order not found');
+        navigate('/');
+        return;
+      }
+
+      if (order.status === 'void') {
+        alert('This order has been voided and is no longer valid.');
+        window.close();
+        return;
+      }
+
+      if (order.status !== 'draft') {
+        alert('This order has already been processed.');
+        window.close();
+        return;
+      }
+
+      const unitIds = order.order_items.map((item: any) => item.unit_id);
+      const { data: availabilityCheck, error: availError } = await supabase.rpc('check_unit_availability', {
+        p_unit_ids: unitIds,
+        p_start_date: order.start_date || order.event_date,
+        p_end_date: order.end_date || order.event_date,
+      });
+
+      if (availError) throw availError;
+
+      const allAvailable = availabilityCheck?.every((check: any) => check.is_available) || false;
+
+      if (!allAvailable) {
+        await supabase
+          .from('orders')
+          .update({ status: 'void' })
+          .eq('id', id);
+
+        alert('Sorry, one or more items in this order are no longer available. This order has been voided.');
+        window.close();
+        return;
+      }
+
+      setOrderId(id);
+      setCart(order.order_items);
+      setContactData({
+        first_name: order.customers.first_name,
+        last_name: order.customers.last_name,
+        email: order.customers.email,
+        phone: order.customers.phone,
+      });
+
+      const formData = {
+        event_date: order.event_date,
+        start_window: order.start_window,
+        end_window: order.end_window,
+        address_line1: order.addresses.line1,
+        address_line2: order.addresses.line2,
+        city: order.addresses.city,
+        state: order.addresses.state,
+        zip: order.addresses.zip,
+        surface: order.surface,
+        setup_location: order.setup_location,
+        generator_required: order.generator_required,
+        has_pets: order.has_pets,
+        special_details: order.special_details,
+      };
+
+      setQuoteData(formData);
+      setPriceBreakdown({
+        subtotal_cents: order.subtotal_cents,
+        travel_fee_cents: order.travel_fee_cents,
+        surface_fee_cents: order.surface_fee_cents,
+        same_day_pickup_fee_cents: order.same_day_pickup_fee_cents,
+        tax_cents: order.tax_cents,
+        total_cents: order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents,
+        deposit_due_cents: order.deposit_due_cents,
+        balance_due_cents: order.balance_due_cents,
+      });
+
+      setBillingAddress({
+        line1: order.addresses.line1,
+        line2: order.addresses.line2 || '',
+        city: order.addresses.city,
+        state: order.addresses.state,
+        zip: order.addresses.zip,
+      });
+    } catch (error) {
+      console.error('Error loading order:', error);
+      alert('Error loading order. Please try again.');
+      navigate('/');
+    } finally {
+      setCheckingAvailability(false);
+    }
+  }
+
+  function loadNewCheckout() {
     const savedForm = localStorage.getItem('bpc_quote_form');
     const savedBreakdown = localStorage.getItem('bpc_price_breakdown');
     const savedCart = localStorage.getItem('bpc_cart');
@@ -63,7 +178,7 @@ export function Checkout() {
       state: formData.state || '',
       zip: formData.zip || '',
     });
-  }, [navigate]);
+  }
 
   // Cleanup interval on unmount
   useEffect(() => {
@@ -392,6 +507,17 @@ export function Checkout() {
           <p className="text-slate-500 text-sm mt-6">
             This page will automatically update once your payment is complete.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (checkingAvailability) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-lg text-slate-700">Checking availability...</p>
         </div>
       </div>
     );

@@ -219,8 +219,26 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
     'Event date conflicts with existing booking',
   ];
 
+  const isDraft = order.status === 'draft';
+  const paymentUrl = `${window.location.origin}/checkout/${order.id}`;
+
+  async function handleCopyPaymentLink() {
+    try {
+      await navigator.clipboard.writeText(paymentUrl);
+      alert('Payment link copied to clipboard!');
+    } catch (error) {
+      console.error('Failed to copy:', error);
+      alert(`Payment link: ${paymentUrl}`);
+    }
+  }
+
+  async function handleSendPaymentLink() {
+    const message = `Hi ${order.customers?.first_name}, your invoice is ready! Please complete payment to secure your booking: ${paymentUrl}`;
+    await handleSendSms(message);
+  }
+
   return (
-    <div className="border border-amber-300 bg-amber-50 rounded-lg p-6">
+    <div className={`border rounded-lg p-6 ${isDraft ? 'border-blue-300 bg-blue-50' : 'border-amber-300 bg-amber-50'}`}>
       <div className="flex justify-between items-start mb-4">
         <div>
           <h3 className="text-lg font-semibold text-slate-900">
@@ -235,6 +253,11 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
           <p className="text-xs text-slate-500 mt-1">
             {format(new Date(order.created_at), 'MMM d, yyyy h:mm a')}
           </p>
+          <div className="mt-2">
+            <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${isDraft ? 'bg-blue-600 text-white' : 'bg-amber-600 text-white'}`}>
+              {isDraft ? 'DRAFT - Needs Deposit' : 'PENDING REVIEW'}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -416,22 +439,59 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
         />
       </div>
 
-      <div className="flex gap-3">
-        <button
-          onClick={handleApprove}
-          disabled={processing}
-          className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-        >
-          {processing ? 'Processing...' : 'Accept'}
-        </button>
-        <button
-          onClick={() => handleReject()}
-          disabled={processing}
-          className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-        >
-          Reject
-        </button>
-      </div>
+      {isDraft ? (
+        <div className="space-y-3">
+          <div className="p-4 bg-white rounded-lg border border-blue-200">
+            <h4 className="text-sm font-semibold text-slate-700 mb-2">Payment Link</h4>
+            <p className="text-xs text-slate-600 mb-3">Send this link to the customer to collect deposit payment:</p>
+            <div className="flex gap-2 mb-2">
+              <input
+                type="text"
+                value={paymentUrl}
+                readOnly
+                className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-slate-50"
+              />
+              <button
+                onClick={handleCopyPaymentLink}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+              >
+                Copy Link
+              </button>
+            </div>
+            <button
+              onClick={handleSendPaymentLink}
+              disabled={sendingSms}
+              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+            >
+              {sendingSms ? 'Sending...' : 'Send Payment Link via SMS'}
+            </button>
+          </div>
+          <button
+            onClick={() => handleReject()}
+            disabled={processing}
+            className="w-full bg-red-600 hover:bg-red-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+          >
+            Cancel Order
+          </button>
+        </div>
+      ) : (
+        <div className="flex gap-3">
+          <button
+            onClick={handleApprove}
+            disabled={processing}
+            className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+          >
+            {processing ? 'Processing...' : 'Accept'}
+          </button>
+          <button
+            onClick={() => handleReject()}
+            disabled={processing}
+            className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+          >
+            Reject
+          </button>
+        </div>
+      )}
 
       {showRejectionModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
