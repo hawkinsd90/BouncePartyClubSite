@@ -1,0 +1,482 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import { formatCurrency } from '../lib/pricing';
+import { format } from 'date-fns';
+import { PaymentManagement } from './PaymentManagement';
+
+export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => void }) {
+  const [processing, setProcessing] = useState(false);
+  const [orderItems, setOrderItems] = useState<any[]>([]);
+  const [streetViewLoaded, setStreetViewLoaded] = useState(false);
+  const [streetViewError, setStreetViewError] = useState(false);
+  const [smsConversations, setSmsConversations] = useState<any[]>([]);
+  const [showSmsReply, setShowSmsReply] = useState(false);
+  const [replyMessage, setReplyMessage] = useState('');
+  const [sendingSms, setSendingSms] = useState(false);
+  const [showRejectionModal, setShowRejectionModal] = useState(false);
+  const [customRejectionReason, setCustomRejectionReason] = useState('');
+  const [payments, setPayments] = useState<any[]>([]);
+
+  useEffect(() => {
+    loadOrderItems();
+    loadSmsConversations();
+    loadPayments();
+  }, [order.id]);
+
+  async function loadOrderItems() {
+    const { data } = await supabase
+      .from('order_items')
+      .select('*, units(name)')
+      .eq('order_id', order.id);
+    if (data) setOrderItems(data);
+  }
+
+  async function loadSmsConversations() {
+    const { data } = await supabase
+      .from('sms_conversations')
+      .select('*')
+      .eq('order_id', order.id)
+      .order('created_at', { ascending: true });
+    if (data) setSmsConversations(data);
+  }
+
+  async function loadPayments() {
+    const { data } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('order_id', order.id)
+      .order('created_at', { ascending: false });
+    if (data) setPayments(data);
+  }
+
+  async function handlePaymentRefresh() {
+    await loadPayments();
+    await onUpdate();
+  }
+
+  async function handleSendSms(customMessage?: string) {
+    const messageToSend = customMessage || replyMessage;
+    if (!messageToSend.trim()) return;
+
+    setSendingSms(true);
+    try {
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: order.customers?.phone,
+          message: messageToSend,
+          orderId: order.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMsg = data.error || 'Failed to send SMS';
+        throw new Error(errorMsg);
+      }
+
+      setReplyMessage('');
+      setShowSmsReply(false);
+      await loadSmsConversations();
+      alert('SMS sent successfully!');
+    } catch (error: any) {
+      console.error('Error sending SMS:', error);
+      const errorMessage = error.message || 'Failed to send SMS. Please try again.';
+
+      if (errorMessage.includes('Twilio not configured')) {
+        alert('SMS cannot be sent: Twilio credentials are not configured. Please add your Twilio credentials in the Settings tab first.');
+      } else if (errorMessage.includes('Incomplete Twilio configuration')) {
+        alert('SMS cannot be sent: Twilio configuration is incomplete. Please check your Settings.');
+      } else {
+        alert(`Failed to send SMS: ${errorMessage}`);
+      }
+    } finally {
+      setSendingSms(false);
+    }
+  }
+
+  async function handleTestSms() {
+    const testMessage = `Hi ${order.customers?.first_name}, this is a test message from Bounce Party Club. Your order #${order.id.slice(0, 8).toUpperCase()} is confirmed!`;
+    await handleSendSms(testMessage);
+  }
+
+  const getStreetViewUrl = (heading: number = 0) => {
+    const address = `${order.addresses?.line1}, ${order.addresses?.city}, ${order.addresses?.state} ${order.addresses?.zip}`;
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    return `https://maps.googleapis.com/maps/api/streetview?size=600x400&location=${encodeURIComponent(address)}&heading=${heading}&key=${apiKey}`;
+  };
+
+  const streetViewAngles = [
+    { heading: 0, label: 'North View' },
+    { heading: 90, label: 'East View' },
+    { heading: 180, label: 'South View' },
+    { heading: 270, label: 'West View' },
+  ];
+
+  async function handleApprove() {
+    if (!confirm('Approve this booking? Payment will be processed and customer will be notified.')) return;
+
+    setProcessing(true);
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          status: 'confirmed',
+          deposit_paid_cents: order.deposit_due_cents
+        })
+        .eq('id', order.id);
+
+      if (error) throw error;
+
+      await supabase
+        .from('payments')
+        .update({ status: 'succeeded' })
+        .eq('order_id', order.id)
+        .eq('status', 'pending');
+
+      const { data: invoiceNumberData } = await supabase.rpc('generate_invoice_number');
+      const invoiceNumber = invoiceNumberData || `INV-${Date.now()}`;
+
+      const totalCents = order.subtotal_cents + order.travel_fee_cents +
+                        order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents;
+
+      await supabase.from('invoices').insert({
+        invoice_number: invoiceNumber,
+        order_id: order.id,
+        customer_id: order.customer_id,
+        invoice_date: new Date().toISOString().split('T')[0],
+        due_date: order.event_date,
+        status: 'sent',
+        subtotal_cents: order.subtotal_cents,
+        tax_cents: order.tax_cents,
+        travel_fee_cents: order.travel_fee_cents,
+        surface_fee_cents: order.surface_fee_cents,
+        same_day_pickup_fee_cents: order.same_day_pickup_fee_cents,
+        total_cents: totalCents,
+        paid_amount_cents: order.deposit_paid_cents || 0,
+        payment_method: 'card',
+      });
+
+      alert('Booking approved! Invoice generated. Customer will receive confirmation.');
+      onUpdate();
+    } catch (error) {
+      console.error('Error approving order:', error);
+      alert('Error approving order. Please try again.');
+    } finally {
+      setProcessing(false);
+    }
+  }
+
+  async function handleReject(reason?: string) {
+    if (!reason) {
+      setShowRejectionModal(true);
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: 'cancelled' })
+        .eq('id', order.id);
+
+      if (error) throw error;
+
+      await supabase
+        .from('payments')
+        .update({ status: 'cancelled' })
+        .eq('order_id', order.id)
+        .eq('status', 'pending');
+
+      const rejectionMessage = `Hi ${order.customers?.first_name}, unfortunately we cannot accommodate your booking for ${format(new Date(order.event_date), 'MMMM d, yyyy')}. Reason: ${reason}. Please contact us if you have questions.`;
+
+      await handleSendSms(rejectionMessage);
+
+      setShowRejectionModal(false);
+      setCustomRejectionReason('');
+      alert('Booking rejected and customer notified via SMS.');
+      onUpdate();
+    } catch (error) {
+      console.error('Error rejecting order:', error);
+      alert('Error rejecting order. Please try again.');
+    } finally {
+      setProcessing(false);
+    }
+  }
+
+  const preGeneratedRejections = [
+    'Units not available for selected date',
+    'Location outside service area',
+    'Weather conditions unsafe for event',
+    'Insufficient setup space at location',
+    'Unable to verify venue permissions',
+    'Event date conflicts with existing booking',
+  ];
+
+  return (
+    <div className="border border-amber-300 bg-amber-50 rounded-lg p-6">
+      <div className="flex justify-between items-start mb-4">
+        <div>
+          <h3 className="text-lg font-semibold text-slate-900">
+            {order.customers?.first_name} {order.customers?.last_name}
+          </h3>
+          <p className="text-sm text-slate-600">{order.customers?.email}</p>
+          <p className="text-sm text-slate-600">{order.customers?.phone}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-sm text-slate-600">Order ID</p>
+          <p className="font-mono text-sm font-semibold">{order.id.slice(0, 8).toUpperCase()}</p>
+          <p className="text-xs text-slate-500 mt-1">
+            {format(new Date(order.created_at), 'MMM d, yyyy h:mm a')}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-4 bg-white rounded-lg">
+        <div>
+          <h4 className="text-sm font-semibold text-slate-700 mb-2">Event Date & Time</h4>
+          <p className="text-sm text-slate-900 font-medium">
+            {format(new Date(order.event_date), 'MMMM d, yyyy')}
+          </p>
+          <p className="text-sm text-slate-600">
+            {order.start_window} - {order.end_window}
+          </p>
+        </div>
+        <div>
+          <h4 className="text-sm font-semibold text-slate-700 mb-2">Event Location</h4>
+          <p className="text-sm text-slate-900">
+            {order.addresses?.line1}
+            {order.addresses?.line2 && `, ${order.addresses.line2}`}
+          </p>
+          <p className="text-sm text-slate-600">
+            {order.addresses?.city}, {order.addresses?.state} {order.addresses?.zip}
+          </p>
+        </div>
+      </div>
+
+      <div className="mb-4 p-4 bg-white rounded-lg">
+        <h4 className="text-sm font-semibold text-slate-700 mb-2">Guest Info & Event Details</h4>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <span className="text-slate-600">Generator:</span>
+            <span className="ml-2 font-medium text-slate-900">{order.generator_required ? 'Yes' : 'No'}</span>
+          </div>
+          <div>
+            <span className="text-slate-600">Surface:</span>
+            <span className="ml-2 font-medium text-slate-900">{order.surface || 'Not Specified'}</span>
+          </div>
+          <div>
+            <span className="text-slate-600">Setup:</span>
+            <span className="ml-2 font-medium text-slate-900">{order.setup_location || 'Not Specified'}</span>
+          </div>
+          <div>
+            <span className="text-slate-600">Pets:</span>
+            <span className="ml-2 font-medium text-slate-900">{order.has_pets ? 'Yes' : 'No'}</span>
+          </div>
+        </div>
+        {order.special_details && (
+          <div className="mt-3 pt-3 border-t border-slate-200">
+            <span className="text-slate-600 text-sm">Special Details:</span>
+            <p className="mt-1 text-sm text-slate-900">{order.special_details}</p>
+          </div>
+        )}
+      </div>
+
+      <div className="mb-4 p-4 bg-white rounded-lg">
+        <h4 className="text-sm font-semibold text-slate-700 mb-2">Street View Assessment - Multiple Angles</h4>
+        <div className="text-xs text-slate-500 mb-2">Non-client test message may still display during delivery. Walk down during delivery.</div>
+        <div className="grid grid-cols-2 gap-2">
+          {streetViewAngles.map(angle => (
+            <div key={angle.heading} className="border border-slate-200 rounded">
+              <div className="bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 border-b">{angle.label}</div>
+              <img
+                src={getStreetViewUrl(angle.heading)}
+                alt={angle.label}
+                className="w-full h-40 object-cover"
+                onLoad={() => setStreetViewLoaded(true)}
+                onError={() => setStreetViewError(true)}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mb-4 p-4 bg-white rounded-lg">
+        <h4 className="text-sm font-semibold text-slate-700 mb-3">Complete Order Details</h4>
+        <div className="space-y-2 text-sm">
+          {orderItems.map(item => (
+            <div key={item.id} className="flex justify-between py-1">
+              <span className="text-slate-700">• {item.units?.name} ({item.wet_or_dry}) x{item.qty}</span>
+              <span className="font-medium text-slate-900">{formatCurrency(item.unit_price_cents * item.qty)}</span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 pt-3 border-t border-slate-200 space-y-1 text-sm">
+          <div className="flex justify-between">
+            <span className="text-slate-600">Subtotal</span>
+            <span className="font-medium">{formatCurrency(order.subtotal_cents)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-600">Travel Fee</span>
+            <span className="font-medium">{formatCurrency(order.travel_fee_cents)}</span>
+          </div>
+          {order.surface_fee_cents > 0 && (
+            <div className="flex justify-between">
+              <span className="text-slate-600">Surface Fee: {order.surface}</span>
+              <span className="font-medium">{formatCurrency(order.surface_fee_cents)}</span>
+            </div>
+          )}
+          {order.same_day_pickup_fee_cents > 0 && (
+            <div className="flex justify-between">
+              <span className="text-slate-600">Same Day Pickup Fee</span>
+              <span className="font-medium">{formatCurrency(order.same_day_pickup_fee_cents)}</span>
+          </div>
+          )}
+          <div className="flex justify-between">
+            <span className="text-slate-600">Tax</span>
+            <span className="font-medium">{formatCurrency(order.tax_cents)}</span>
+          </div>
+          <div className="flex justify-between pt-2 border-t border-slate-300 font-bold">
+            <span>Total</span>
+            <span>{formatCurrency(order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents)}</span>
+          </div>
+        </div>
+      </div>
+
+      {smsConversations.length > 0 && (
+        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <h4 className="text-sm font-semibold text-blue-900 mb-2">SMS Conversation</h4>
+          <div className="space-y-2 max-h-40 overflow-y-auto">
+            {smsConversations.map(msg => (
+              <div key={msg.id} className={`text-sm ${msg.direction === 'inbound' ? 'text-blue-900' : 'text-slate-700'}`}>
+                <span className="font-medium">{msg.direction === 'inbound' ? 'Customer' : 'You'}:</span> {msg.message_body}
+                <div className="text-xs text-slate-500">{format(new Date(msg.created_at), 'MMM d, h:mm a')}</div>
+              </div>
+            ))}
+          </div>
+          {!showSmsReply && (
+            <button
+              onClick={() => setShowSmsReply(true)}
+              className="mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Reply via SMS
+            </button>
+          )}
+          {showSmsReply && (
+            <div className="mt-3">
+              <textarea
+                value={replyMessage}
+                onChange={(e) => setReplyMessage(e.target.value)}
+                placeholder="Type your message..."
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                rows={3}
+              />
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => handleSendSms()}
+                  disabled={sendingSms || !replyMessage.trim()}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white px-4 py-1 rounded text-sm font-medium"
+                >
+                  {sendingSms ? 'Sending...' : 'Send'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSmsReply(false);
+                    setReplyMessage('');
+                  }}
+                  className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-1 rounded text-sm font-medium"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+          <button
+            onClick={handleTestSms}
+            disabled={sendingSms}
+            className="mt-2 text-sm text-slate-600 hover:text-slate-800 underline"
+          >
+            Send test SMS
+          </button>
+        </div>
+      )}
+
+      <div className="mb-4">
+        <PaymentManagement
+          orderId={order.id}
+          depositDueCents={order.deposit_due_cents}
+          balanceDueCents={order.balance_due_cents}
+          onRefresh={handlePaymentRefresh}
+        />
+      </div>
+
+      <div className="flex gap-3">
+        <button
+          onClick={handleApprove}
+          disabled={processing}
+          className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+        >
+          {processing ? 'Processing...' : 'Accept'}
+        </button>
+        <button
+          onClick={() => handleReject()}
+          disabled={processing}
+          className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+        >
+          Reject
+        </button>
+      </div>
+
+      {showRejectionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-lg font-bold text-slate-900 mb-4">Reject Booking</h3>
+            <p className="text-sm text-slate-600 mb-4">Select a reason or enter custom:</p>
+            <div className="space-y-2 mb-4">
+              {preGeneratedRejections.map(reason => (
+                <button
+                  key={reason}
+                  onClick={() => handleReject(reason)}
+                  className="w-full text-left px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded text-sm text-slate-700"
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={customRejectionReason}
+              onChange={(e) => setCustomRejectionReason(e.target.value)}
+              placeholder="Or enter custom reason..."
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm mb-4"
+              rows={3}
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => customRejectionReason.trim() && handleReject(customRejectionReason)}
+                disabled={!customRejectionReason.trim()}
+                className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-slate-400 text-white font-semibold py-2 px-4 rounded-lg"
+              >
+                Reject with Custom
+              </button>
+              <button
+                onClick={() => {
+                  setShowRejectionModal(false);
+                  setCustomRejectionReason('');
+                }}
+                className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 px-4 rounded-lg"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

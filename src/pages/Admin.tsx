@@ -558,7 +558,7 @@ function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => voi
 
 function AdminDashboard() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'overview' | 'pending' | 'inventory' | 'orders' | 'contacts' | 'invoices' | 'settings' | 'changelog' | 'calculator'>('pending');
+  const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'orders' | 'contacts' | 'invoices' | 'settings' | 'changelog' | 'calculator'>('orders');
   const [units, setUnits] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [pricingRules, setPricingRules] = useState<any>(null);
@@ -786,21 +786,6 @@ function AdminDashboard() {
           Overview
         </button>
         <button
-          onClick={() => setActiveTab('pending')}
-          className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors relative ${
-            activeTab === 'pending'
-              ? 'bg-amber-600 text-white'
-              : 'bg-white text-slate-700 border border-slate-300 hover:border-amber-600'
-          }`}
-        >
-          Pending Review
-          {orders.filter(o => o.status === 'pending_review').length > 0 && (
-            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
-              {orders.filter(o => o.status === 'pending_review').length}
-            </span>
-          )}
-        </button>
-        <button
           onClick={() => setActiveTab('inventory')}
           className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
             activeTab === 'inventory'
@@ -909,34 +894,6 @@ function AdminDashboard() {
         </div>
       )}
 
-      {activeTab === 'pending' && (
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-slate-900">Pending Review</h2>
-            <button
-              onClick={loadData}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-            >
-              Refresh
-            </button>
-          </div>
-
-          {orders.filter(o => o.status === 'pending_review').length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-slate-600 mb-2">No pending bookings</p>
-              <p className="text-sm text-slate-500">New bookings will appear here for review</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {orders
-                .filter(o => o.status === 'pending_review')
-                .map((order) => (
-                  <PendingOrderCard key={order.id} order={order} onUpdate={loadData} />
-                ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {activeTab === 'inventory' && (
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
