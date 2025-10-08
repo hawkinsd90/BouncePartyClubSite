@@ -12,8 +12,10 @@ let stripePromise: Promise<Stripe | null> | null = null;
 
 async function getStripeInstance(): Promise<Stripe | null> {
   if (!stripePromise) {
+    console.log('[getStripeInstance] Creating new Stripe promise');
     stripePromise = (async () => {
       try {
+        console.log('[getStripeInstance] Fetching publishable key...');
         const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-stripe-publishable-key`;
         const response = await fetch(apiUrl, {
           headers: {
@@ -22,17 +24,24 @@ async function getStripeInstance(): Promise<Stripe | null> {
           },
         });
         const data = await response.json();
+        console.log('[getStripeInstance] Received publishable key response');
 
         if (data.publishableKey) {
-          return await loadStripe(data.publishableKey);
+          console.log('[getStripeInstance] Loading Stripe with publishable key...');
+          const stripeInstance = await loadStripe(data.publishableKey);
+          console.log('[getStripeInstance] Stripe loaded:', !!stripeInstance);
+          return stripeInstance;
         } else {
+          console.error('[getStripeInstance] No publishable key in response');
           throw new Error('No publishable key configured');
         }
       } catch (error) {
-        console.error('Error loading Stripe:', error);
+        console.error('[getStripeInstance] Error loading Stripe:', error);
         return null;
       }
     })();
+  } else {
+    console.log('[getStripeInstance] Reusing existing Stripe promise');
   }
   return stripePromise;
 }
@@ -48,13 +57,17 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
   const [processing, setProcessing] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
+  useEffect(() => {
+    console.log('[CheckoutForm] Component mounted, stripe:', !!stripe, 'elements:', !!elements);
+  }, [stripe, elements]);
+
   const handleReady = () => {
-    console.log('PaymentElement is ready');
+    console.log('[CheckoutForm] PaymentElement is ready');
     setIsReady(true);
   };
 
   const handleLoadError = (event: any) => {
-    console.error('PaymentElement loader error:', event);
+    console.error('[CheckoutForm] PaymentElement loader error:', event);
     onError('Failed to load payment form. Please refresh and try again.');
   };
 
@@ -97,6 +110,7 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
   };
 
   if (!stripe || !elements) {
+    console.log('[CheckoutForm] Waiting for stripe/elements to be ready...');
     return (
       <div className="flex items-center justify-center py-8">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -104,6 +118,8 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
       </div>
     );
   }
+
+  console.log('[CheckoutForm] Rendering form, isReady:', isReady);
 
   return (
     <form onSubmit={handleSubmit}>
@@ -170,7 +186,7 @@ export function StripeCheckoutForm({
       setInitError(null);
 
       try {
-        console.log('Creating payment intent...');
+        console.log('[StripeCheckoutForm] Creating payment intent for order:', orderId);
 
         const paymentResponse = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`,
@@ -197,13 +213,14 @@ export function StripeCheckoutForm({
         }
 
         const data = await paymentResponse.json();
-        console.log('Payment intent created');
+        console.log('[StripeCheckoutForm] Payment intent created, clientSecret:', !!data.clientSecret);
 
         if (!data.clientSecret) {
           throw new Error('No client secret returned from server');
         }
 
         if (mounted) {
+          console.log('[StripeCheckoutForm] Setting options with clientSecret');
           setOptions({
             clientSecret: data.clientSecret,
             appearance: {
@@ -215,7 +232,7 @@ export function StripeCheckoutForm({
           });
         }
       } catch (err: any) {
-        console.error('Payment initialization error:', err);
+        console.error('[StripeCheckoutForm] Payment initialization error:', err);
         if (mounted) {
           setInitError(err.message || 'Failed to initialize payment');
         }
@@ -272,18 +289,54 @@ interface StripeElementsWrapperProps {
 
 function StripeElementsWrapper({ options, onSuccess, onError }: StripeElementsWrapperProps) {
   const [stripe, setStripe] = useState<Stripe | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getStripeInstance().then(setStripe);
+    console.log('[StripeElementsWrapper] Starting Stripe initialization...');
+    getStripeInstance()
+      .then((stripeInstance) => {
+        if (stripeInstance) {
+          console.log('[StripeElementsWrapper] Stripe instance loaded successfully');
+          setStripe(stripeInstance);
+        } else {
+          console.error('[StripeElementsWrapper] Stripe instance is null');
+          setError('Failed to load Stripe');
+        }
+      })
+      .catch((err) => {
+        console.error('[StripeElementsWrapper] Error loading Stripe:', err);
+        setError(err.message || 'Failed to load Stripe');
+      });
   }, []);
 
-  if (!stripe) {
+  if (error) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      <div className="text-center py-8">
+        <p className="text-red-600 mb-4">{error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="text-blue-600 hover:underline"
+        >
+          Reload page to try again
+        </button>
       </div>
     );
   }
+
+  if (!stripe) {
+    console.log('[StripeElementsWrapper] Waiting for Stripe instance...');
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        <span className="ml-2 text-slate-600">Loading Stripe...</span>
+      </div>
+    );
+  }
+
+  console.log('[StripeElementsWrapper] Rendering Elements component with options:', {
+    hasClientSecret: !!options.clientSecret,
+    appearance: options.appearance
+  });
 
   return (
     <Elements stripe={stripe} options={options}>
