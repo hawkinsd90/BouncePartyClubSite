@@ -261,46 +261,48 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-4 bg-white rounded-lg">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4 p-4 bg-white rounded-lg">
         <div>
-          <h4 className="text-sm font-semibold text-slate-700 mb-2">Event Date & Time</h4>
-          <p className="text-sm text-slate-900 font-medium">
-            {format(new Date(order.event_date), 'MMMM d, yyyy')}
+          <h4 className="text-sm font-medium text-slate-500 mb-1">Event Date & Time</h4>
+          <p className="text-base text-slate-900 font-medium">
+            {format(new Date(order.event_date), 'EEEE, MMMM d, yyyy')}
           </p>
           <p className="text-sm text-slate-600">
             {order.start_window} - {order.end_window}
           </p>
         </div>
         <div>
-          <h4 className="text-sm font-semibold text-slate-700 mb-2">Event Location</h4>
-          <p className="text-sm text-slate-900">
+          <h4 className="text-sm font-medium text-slate-500 mb-1">Event Location</h4>
+          <p className="text-base text-slate-900">
             {order.addresses?.line1}
             {order.addresses?.line2 && `, ${order.addresses.line2}`}
           </p>
           <p className="text-sm text-slate-600">
             {order.addresses?.city}, {order.addresses?.state} {order.addresses?.zip}
           </p>
+          <p className="text-sm text-slate-600 capitalize">
+            {order.location_type} + {order.surface || 'Not Specified'}
+          </p>
         </div>
       </div>
 
-      <div className="mb-4 p-4 bg-white rounded-lg">
-        <h4 className="text-sm font-semibold text-slate-700 mb-2">Guest Info & Event Details</h4>
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <span className="text-slate-600">Generator:</span>
-            <span className="ml-2 font-medium text-slate-900">{order.generator_required ? 'Yes' : 'No'}</span>
+      <div className="mb-4 p-3 bg-white rounded-lg border border-slate-200">
+        <div className="grid grid-cols-4 gap-4 text-sm">
+          <div className="text-center">
+            <div className="text-xs text-slate-500 mb-1">Generator</div>
+            <div className="font-medium text-slate-900">{order.generator_required ? 'Yes' : 'No'}</div>
           </div>
-          <div>
-            <span className="text-slate-600">Surface:</span>
-            <span className="ml-2 font-medium text-slate-900">{order.surface || 'Not Specified'}</span>
+          <div className="text-center">
+            <div className="text-xs text-slate-500 mb-1">Surface</div>
+            <div className="font-medium text-slate-900 capitalize">{order.surface || 'Not Needed'}</div>
           </div>
-          <div>
-            <span className="text-slate-600">Setup:</span>
-            <span className="ml-2 font-medium text-slate-900">{order.setup_location || 'Not Specified'}</span>
+          <div className="text-center">
+            <div className="text-xs text-slate-500 mb-1">Pickup</div>
+            <div className="font-medium text-slate-900">{order.same_day_pickup_fee_cents > 0 ? 'Same Day' : 'Not Specified'}</div>
           </div>
-          <div>
-            <span className="text-slate-600">Pets:</span>
-            <span className="ml-2 font-medium text-slate-900">{order.has_pets ? 'Yes' : 'No'}</span>
+          <div className="text-center">
+            <div className="text-xs text-slate-500 mb-1">Pets</div>
+            <div className="font-medium text-slate-900">{order.has_pets ? 'Yes' : 'No'}</div>
           </div>
         </div>
         {order.special_details && (
@@ -313,15 +315,17 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
 
       <div className="mb-4 p-4 bg-white rounded-lg">
         <h4 className="text-sm font-semibold text-slate-700 mb-2">Street View Assessment - Multiple Angles</h4>
-        <div className="text-xs text-slate-500 mb-2">Non-client test message may still display during delivery. Walk down during delivery.</div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="text-xs text-slate-500 mb-3">
+          Non-client test message may still display during delivery. Walk down during delivery.
+        </div>
+        <div className="grid grid-cols-2 gap-3">
           {streetViewAngles.map(angle => (
-            <div key={angle.heading} className="border border-slate-200 rounded">
-              <div className="bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 border-b">{angle.label}</div>
+            <div key={angle.heading} className="border border-slate-200 rounded overflow-hidden">
+              <div className="bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">{angle.label}</div>
               <img
                 src={getStreetViewUrl(angle.heading)}
                 alt={angle.label}
-                className="w-full h-40 object-cover"
+                className="w-full h-48 object-cover"
                 onLoad={() => setStreetViewLoaded(true)}
                 onError={() => setStreetViewError(true)}
               />
@@ -345,9 +349,17 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
             <span className="text-slate-600">Subtotal</span>
             <span className="font-medium">{formatCurrency(order.subtotal_cents)}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-slate-600">Travel Fee</span>
-            <span className="font-medium">{formatCurrency(order.travel_fee_cents)}</span>
+          <div>
+            <div className="flex justify-between">
+              <span className="text-slate-600">Travel Fee</span>
+              <span className="font-medium">{formatCurrency(order.travel_fee_cents)}</span>
+            </div>
+            {order.travel_fee_breakdown && (
+              <div className="ml-4 mt-1 space-y-0.5 text-xs text-slate-500">
+                <div>Total distance: {order.travel_fee_breakdown.total_distance_miles} miles</div>
+                <div>Charge miles: {order.travel_fee_breakdown.chargeable_miles} miles × ${(order.travel_fee_breakdown.rate_per_mile / 100).toFixed(2)}/mile</div>
+              </div>
+            )}
           </div>
           {order.surface_fee_cents > 0 && (
             <div className="flex justify-between">
