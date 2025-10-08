@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, Upload, X, Image as ImageIcon } from 'lucide-react';
 
 export function UnitForm() {
   const navigate = useNavigate();
@@ -26,7 +26,8 @@ export function UnitForm() {
   });
   const [priceInput, setPriceInput] = useState('0.00');
   const [priceWaterInput, setPriceWaterInput] = useState('');
-
+  const [images, setImages] = useState<Array<{ id?: string; url: string; alt: string; file?: File }>>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -36,18 +37,25 @@ export function UnitForm() {
   }, [id]);
 
   async function loadUnit() {
-    const { data, error } = await supabase
-      .from('units')
-      .select('*')
-      .eq('id', id)
-      .single();
+    const [unitRes, mediaRes] = await Promise.all([
+      supabase.from('units').select('*').eq('id', id).single(),
+      supabase.from('unit_media').select('*').eq('unit_id', id).order('sort'),
+    ]);
 
-    if (data) {
-      setFormData(data);
-      setPriceInput((data.price_dry_cents / 100).toFixed(2));
-      if (data.price_water_cents) {
-        setPriceWaterInput((data.price_water_cents / 100).toFixed(2));
+    if (unitRes.data) {
+      setFormData(unitRes.data);
+      setPriceInput((unitRes.data.price_dry_cents / 100).toFixed(2));
+      if (unitRes.data.price_water_cents) {
+        setPriceWaterInput((unitRes.data.price_water_cents / 100).toFixed(2));
       }
+    }
+
+    if (mediaRes.data) {
+      setImages(mediaRes.data.map((img: any) => ({
+        id: img.id,
+        url: img.url,
+        alt: img.alt,
+      })));
     }
   }
 
@@ -58,15 +66,69 @@ export function UnitForm() {
       .replace(/(^-|-$)/g, '');
   }
 
+  async function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const newImages = Array.from(files).map(file => ({
+      url: URL.createObjectURL(file),
+      alt: formData.name || 'Unit image',
+      file,
+    }));
+
+    setImages([...images, ...newImages]);
+  }
+
+  function removeImage(index: number) {
+    const newImages = [...images];
+    if (newImages[index].url.startsWith('blob:')) {
+      URL.revokeObjectURL(newImages[index].url);
+    }
+    newImages.splice(index, 1);
+    setImages(newImages);
+  }
+
+  async function uploadImages(unitId: string) {
+    const imagesToUpload = images.filter(img => img.file);
+    const uploadedUrls: Array<{ url: string; alt: string }> = [];
+
+    for (const img of imagesToUpload) {
+      if (!img.file) continue;
+
+      const fileExt = img.file.name.split('.').pop();
+      const fileName = `${unitId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('unit-images')
+        .upload(fileName, img.file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('unit-images').getPublicUrl(fileName);
+      uploadedUrls.push({ url: data.publicUrl, alt: img.alt });
+    }
+
+    return uploadedUrls;
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    if (images.length === 0) {
+      alert('Please add at least one image for this unit');
+      return;
+    }
+
     setSaving(true);
+    setUploadingImages(true);
 
     try {
       const dataToSave = {
         ...formData,
         slug: formData.slug || generateSlug(formData.name),
       };
+
+      let unitId = id;
 
       if (isEdit) {
         const { error } = await supabase
@@ -75,22 +137,42 @@ export function UnitForm() {
           .eq('id', id);
 
         if (error) throw error;
-        alert('Unit updated successfully!');
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('units')
-          .insert([dataToSave]);
+          .insert([dataToSave])
+          .select()
+          .single();
 
         if (error) throw error;
-        alert('Unit created successfully!');
+        unitId = data.id;
       }
 
+      const uploadedUrls = await uploadImages(unitId!);
+
+      if (uploadedUrls.length > 0) {
+        const mediaRecords = uploadedUrls.map((img, index) => ({
+          unit_id: unitId,
+          url: img.url,
+          alt: img.alt,
+          sort: images.length + index,
+        }));
+
+        const { error: mediaError } = await supabase
+          .from('unit_media')
+          .insert(mediaRecords);
+
+        if (mediaError) throw mediaError;
+      }
+
+      alert(isEdit ? 'Unit updated successfully!' : 'Unit created successfully!');
       navigate('/admin');
     } catch (error: any) {
       console.error('Error saving unit:', error);
       alert(`Failed to save unit: ${error.message}`);
     } finally {
       setSaving(false);
+      setUploadingImages(false);
     }
   }
 
@@ -302,14 +384,61 @@ export function UnitForm() {
             </label>
           </div>
 
+          <div className="border-t pt-6">
+            <label className="block text-sm font-medium text-slate-700 mb-4">
+              Unit Images * (Required - Add at least one image)
+            </label>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              {images.map((img, index) => (
+                <div key={index} className="relative group">
+                  <img
+                    src={img.url}
+                    alt={img.alt}
+                    className="w-full h-32 object-cover rounded-lg border-2 border-slate-300"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(index)}
+                    className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-center w-full">
+              <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100">
+                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                  <Upload className="w-10 h-10 mb-3 text-slate-400" />
+                  <p className="mb-2 text-sm text-slate-600">
+                    <span className="font-semibold">Click to upload</span> or drag and drop
+                  </p>
+                  <p className="text-xs text-slate-500">PNG, JPG, GIF up to 10MB</p>
+                </div>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                />
+              </label>
+            </div>
+            {images.length === 0 && (
+              <p className="text-sm text-red-600 mt-2">At least one image is required</p>
+            )}
+          </div>
+
           <div className="flex gap-4 pt-6">
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || images.length === 0}
               className="flex-1 flex items-center justify-center bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
             >
               {saving ? (
-                <>Saving...</>
+                <>{uploadingImages ? 'Uploading images...' : 'Saving...'}</>
               ) : (
                 <>
                   <Save className="w-5 h-5 mr-2" />
