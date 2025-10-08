@@ -248,9 +248,9 @@ function AdminDashboard() {
           }`}
         >
           Pending Review
-          {orders.filter(o => o.status === 'pending_review').length > 0 && (
+          {orders.filter(o => o.status === 'pending_review' || o.status === 'draft').length > 0 && (
             <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
-              {orders.filter(o => o.status === 'pending_review').length}
+              {orders.filter(o => o.status === 'pending_review' || o.status === 'draft').length}
             </span>
           )}
         </button>
