@@ -14,6 +14,8 @@ import { Crew } from './pages/Crew';
 import { Login } from './pages/Login';
 import { Setup } from './pages/Setup';
 import { Invoice } from './pages/Invoice';
+import { PaymentSuccess } from './pages/PaymentSuccess';
+import { PaymentCanceled } from './pages/PaymentCanceled';
 
 function App() {
   return (
@@ -23,6 +25,8 @@ function App() {
           <Route path="/setup" element={<Setup />} />
           <Route path="/login" element={<Login />} />
           <Route path="/invoice/:orderId" element={<Invoice />} />
+          <Route path="/checkout/payment-success" element={<PaymentSuccess />} />
+          <Route path="/checkout/payment-canceled" element={<PaymentCanceled />} />
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />
             <Route path="catalog" element={<Catalog />} />
