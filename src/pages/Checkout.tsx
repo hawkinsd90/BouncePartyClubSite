@@ -41,52 +41,81 @@ export function Checkout() {
   });
 
   useEffect(() => {
-    // Load cart data for checkout first
-    const savedForm = localStorage.getItem('bpc_quote_form');
-    const savedBreakdown = localStorage.getItem('bpc_price_breakdown');
-    const savedCart = localStorage.getItem('bpc_cart');
+    const initPage = async () => {
+      // Check if returning from Stripe checkout
+      const urlParams = new URLSearchParams(window.location.search);
+      const sessionId = urlParams.get('session_id');
+      const successParam = urlParams.get('success');
+      const returnedOrderId = urlParams.get('order_id');
 
-    // Check if returning from Stripe checkout
-    const urlParams = new URLSearchParams(window.location.search);
-    const sessionId = urlParams.get('session_id');
-    const successParam = urlParams.get('success');
+      if (sessionId && successParam === 'true' && returnedOrderId) {
+        // User returned from successful payment
+        // Fetch the order details from the database
+        const { data: order } = await supabase
+          .from('orders')
+          .select('*, order_items(*, units(name, category))')
+          .eq('id', returnedOrderId)
+          .maybeSingle();
 
-    if (sessionId && successParam === 'true') {
-      // User returned from successful payment
-      // Load the data before showing success so the success screen has the info
-      if (savedForm && savedBreakdown && savedCart) {
-        const formData = JSON.parse(savedForm);
-        setQuoteData(formData);
-        setPriceBreakdown(JSON.parse(savedBreakdown));
-        setCart(JSON.parse(savedCart));
+        if (order) {
+          // Reconstruct the data needed for the success screen
+          setOrderId(returnedOrderId);
+          setQuoteData({
+            event_date: order.event_start_date,
+            event_end_date: order.event_end_date,
+            address_line1: order.event_address_line1,
+            address_line2: order.event_address_line2,
+            city: order.event_city,
+            state: order.event_state,
+            zip: order.event_zip,
+          });
+          setPriceBreakdown({
+            subtotal_cents: order.subtotal_cents,
+            travel_fee_cents: order.travel_fee_cents,
+            same_day_pickup_fee_cents: order.same_day_pickup_fee_cents,
+            generator_fee_cents: order.generator_fee_cents || 0,
+            tax_cents: order.tax_cents,
+            total_cents: order.total_cents,
+            deposit_due_cents: order.deposit_paid_cents,
+            balance_due_cents: order.balance_due_cents,
+          });
+          setCart(order.order_items);
+        }
+
+        setSuccess(true);
+        localStorage.removeItem('bpc_cart');
+        localStorage.removeItem('bpc_quote_form');
+        localStorage.removeItem('bpc_price_breakdown');
+        // Clean up URL
+        window.history.replaceState({}, document.title, '/checkout');
+        return;
       }
 
-      setSuccess(true);
-      localStorage.removeItem('bpc_cart');
-      localStorage.removeItem('bpc_quote_form');
-      localStorage.removeItem('bpc_price_breakdown');
-      // Clean up URL
-      window.history.replaceState({}, document.title, '/checkout');
-      return;
-    }
+      // Load cart data for checkout
+      const savedForm = localStorage.getItem('bpc_quote_form');
+      const savedBreakdown = localStorage.getItem('bpc_price_breakdown');
+      const savedCart = localStorage.getItem('bpc_cart');
 
-    if (!savedForm || !savedBreakdown || !savedCart) {
-      navigate('/quote');
-      return;
-    }
+      if (!savedForm || !savedBreakdown || !savedCart) {
+        navigate('/quote');
+        return;
+      }
 
-    const formData = JSON.parse(savedForm);
-    setQuoteData(formData);
-    setPriceBreakdown(JSON.parse(savedBreakdown));
-    setCart(JSON.parse(savedCart));
+      const formData = JSON.parse(savedForm);
+      setQuoteData(formData);
+      setPriceBreakdown(JSON.parse(savedBreakdown));
+      setCart(JSON.parse(savedCart));
 
-    setBillingAddress({
-      line1: formData.address_line1 || '',
-      line2: formData.address_line2 || '',
-      city: formData.city || '',
-      state: formData.state || '',
-      zip: formData.zip || '',
-    });
+      setBillingAddress({
+        line1: formData.address_line1 || '',
+        line2: formData.address_line2 || '',
+        city: formData.city || '',
+        state: formData.state || '',
+        zip: formData.zip || '',
+      });
+    };
+
+    initPage();
   }, [navigate]);
 
   // Cleanup interval on unmount
