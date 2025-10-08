@@ -22,6 +22,7 @@ export function Checkout() {
   const [customAmount, setCustomAmount] = useState('');
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [redirectingToStripe, setRedirectingToStripe] = useState(false);
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
 
   const [contactData, setContactData] = useState({
@@ -40,6 +41,15 @@ export function Checkout() {
   });
 
   useEffect(() => {
+    // Check if we're returning from Stripe first
+    const urlParams = new URLSearchParams(window.location.search);
+    const isReturningFromStripe = urlParams.get('success') || urlParams.get('canceled');
+
+    // If returning from Stripe, don't load cart data (will be handled by success handler)
+    if (isReturningFromStripe) {
+      return;
+    }
+
     const savedForm = localStorage.getItem('bpc_quote_form');
     const savedBreakdown = localStorage.getItem('bpc_price_breakdown');
     const savedCart = localStorage.getItem('bpc_cart');
@@ -163,6 +173,10 @@ export function Checkout() {
         throw new Error(data.error || 'Failed to create checkout session');
       }
 
+      // Save order ID to localStorage before redirecting
+      localStorage.setItem('bpc_pending_order_id', createdOrderId);
+      localStorage.setItem('bpc_pending_contact', JSON.stringify(contactData));
+
       // Redirect to Stripe Checkout
       window.location.href = data.url;
     } catch (error: any) {
@@ -176,7 +190,7 @@ export function Checkout() {
   };
 
   useEffect(() => {
-    // Check for Stripe success/cancel in URL
+    // Check for Stripe success/cancel in URL FIRST
     const urlParams = new URLSearchParams(window.location.search);
     const sessionId = urlParams.get('session_id');
     const successParam = urlParams.get('success');
@@ -184,18 +198,34 @@ export function Checkout() {
 
     if (canceledParam) {
       alert('Payment canceled. You can try again when ready.');
-      // Clear URL params
       window.history.replaceState({}, '', '/checkout');
       return;
     }
 
     if (successParam && sessionId) {
-      // Payment succeeded! Show success message
-      // Note: webhook will handle order completion
-      setSuccess(true);
-      localStorage.removeItem('bpc_cart');
-      localStorage.removeItem('bpc_quote_form');
-      localStorage.removeItem('bpc_price_breakdown');
+      // Payment succeeded! Restore order data and show success
+      const savedOrderId = localStorage.getItem('bpc_pending_order_id');
+      const savedContact = localStorage.getItem('bpc_pending_contact');
+      const savedQuote = localStorage.getItem('bpc_quote_form');
+      const savedBreakdown = localStorage.getItem('bpc_price_breakdown');
+
+      if (savedOrderId && savedContact && savedQuote && savedBreakdown) {
+        setOrderId(savedOrderId);
+        setContactData(JSON.parse(savedContact));
+        setQuoteData(JSON.parse(savedQuote));
+        setPriceBreakdown(JSON.parse(savedBreakdown));
+        setSuccess(true);
+
+        // Clean up
+        localStorage.removeItem('bpc_cart');
+        localStorage.removeItem('bpc_quote_form');
+        localStorage.removeItem('bpc_price_breakdown');
+        localStorage.removeItem('bpc_pending_order_id');
+        localStorage.removeItem('bpc_pending_contact');
+
+        // Clear URL params
+        window.history.replaceState({}, '', '/checkout');
+      }
     }
   }, []);
 
