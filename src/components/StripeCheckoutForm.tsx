@@ -51,6 +51,7 @@ function CheckoutForm({ clientSecret, onSuccess, onError }: CheckoutFormProps) {
     e.preventDefault();
 
     if (!stripe || !elements) {
+      onError('Payment system not ready. Please refresh and try again.');
       return;
     }
 
@@ -58,13 +59,21 @@ function CheckoutForm({ clientSecret, onSuccess, onError }: CheckoutFormProps) {
 
     try {
       console.log('Starting payment confirmation...');
-      const { error, paymentIntent } = await stripe.confirmPayment({
+
+      // Add timeout to prevent infinite loading
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Payment request timed out. Please try again.')), 30000)
+      );
+
+      const paymentPromise = stripe.confirmPayment({
         elements,
         confirmParams: {
           return_url: window.location.origin + '/checkout',
         },
         redirect: 'if_required',
       });
+
+      const { error, paymentIntent } = await Promise.race([paymentPromise, timeoutPromise]) as any;
 
       console.log('Payment confirmation result:', { error, paymentIntent });
 
@@ -77,7 +86,7 @@ function CheckoutForm({ clientSecret, onSuccess, onError }: CheckoutFormProps) {
       }
     } catch (err: any) {
       console.error('Payment exception:', err);
-      onError(err.message || 'Payment failed');
+      onError(err.message || 'Payment failed. Please check your payment details and try again.');
     } finally {
       setProcessing(false);
     }
