@@ -48,14 +48,19 @@ export function Checkout() {
       const successParam = urlParams.get('success');
       const returnedOrderId = urlParams.get('order_id');
 
+      console.log('Checkout page init - URL params:', { sessionId, successParam, returnedOrderId });
+
       if (sessionId && successParam === 'true' && returnedOrderId) {
+        console.log('Returning from Stripe - fetching order:', returnedOrderId);
         // User returned from successful payment
         // Fetch the order details from the database
-        const { data: order } = await supabase
+        const { data: order, error: orderError } = await supabase
           .from('orders')
           .select('*, order_items(*, units(name, category))')
           .eq('id', returnedOrderId)
           .maybeSingle();
+
+        console.log('Order fetch result:', { order, orderError });
 
         if (order) {
           // Reconstruct the data needed for the success screen
@@ -80,15 +85,16 @@ export function Checkout() {
             balance_due_cents: order.balance_due_cents,
           });
           setCart(order.order_items);
-        }
 
-        setSuccess(true);
-        localStorage.removeItem('bpc_cart');
-        localStorage.removeItem('bpc_quote_form');
-        localStorage.removeItem('bpc_price_breakdown');
-        // Clean up URL
-        window.history.replaceState({}, document.title, '/checkout');
-        return;
+          console.log('Setting success to true');
+          setSuccess(true);
+          localStorage.removeItem('bpc_cart');
+          localStorage.removeItem('bpc_quote_form');
+          localStorage.removeItem('bpc_price_breakdown');
+          // Clean up URL
+          window.history.replaceState({}, document.title, '/checkout');
+          return;
+        }
       }
 
       // Load cart data for checkout
@@ -96,7 +102,14 @@ export function Checkout() {
       const savedBreakdown = localStorage.getItem('bpc_price_breakdown');
       const savedCart = localStorage.getItem('bpc_cart');
 
+      console.log('Loading checkout data from localStorage:', {
+        hasForm: !!savedForm,
+        hasBreakdown: !!savedBreakdown,
+        hasCart: !!savedCart
+      });
+
       if (!savedForm || !savedBreakdown || !savedCart) {
+        console.log('Missing checkout data - redirecting to quote');
         navigate('/quote');
         return;
       }
