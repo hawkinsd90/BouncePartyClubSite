@@ -325,7 +325,12 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
       </div>
 
       <div className="mb-4 p-4 bg-white rounded-lg">
-        <h4 className="text-sm font-semibold text-slate-700 mb-2">Street View Assessment - Multiple Angles</h4>
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-sm font-semibold text-slate-700">Street View Assessment - Multiple Angles</h4>
+          <span className="text-xs text-slate-500">
+            Order Created: {format(new Date(order.created_at), 'MMM d, yyyy h:mm a')}
+          </span>
+        </div>
         <div className="text-xs text-slate-500 mb-3">
           Non-client test message may still display during delivery. Walk down during delivery.
         </div>

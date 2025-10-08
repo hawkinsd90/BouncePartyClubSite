@@ -20,8 +20,23 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [newNote, setNewNote] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [eta, setEta] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedOrder, setEditedOrder] = useState<any>(null);
+  const [isEditing, setIsEditing] = useState(true);
+  const [editedOrder, setEditedOrder] = useState<any>({
+    location_type: order.location_type,
+    surface: order.surface,
+    generator_qty: order.generator_qty || 0,
+    start_window: order.start_window,
+    end_window: order.end_window,
+    event_date: order.event_date,
+    discount_amount_cents: order.discount_amount_cents || 0,
+    discount_percentage: order.discount_percentage || 0,
+    address_line1: order.addresses?.line1 || '',
+    address_line2: order.addresses?.line2 || '',
+    address_city: order.addresses?.city || '',
+    address_state: order.addresses?.state || '',
+    address_zip: order.addresses?.zip || '',
+  });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadOrderDetails();
@@ -152,6 +167,137 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     } catch (error) {
       console.error('Error logging change:', error);
     }
+  }
+
+  async function handleSaveChanges() {
+    setSaving(true);
+    try {
+      const changes: any = {};
+      const logs = [];
+
+      if (editedOrder.location_type !== order.location_type) {
+        changes.location_type = editedOrder.location_type;
+        logs.push(['location_type', order.location_type, editedOrder.location_type]);
+      }
+      if (editedOrder.surface !== order.surface) {
+        changes.surface = editedOrder.surface;
+        logs.push(['surface', order.surface, editedOrder.surface]);
+      }
+      if (editedOrder.generator_qty !== (order.generator_qty || 0)) {
+        changes.generator_qty = editedOrder.generator_qty;
+        logs.push(['generator_qty', order.generator_qty || 0, editedOrder.generator_qty]);
+      }
+      if (editedOrder.start_window !== order.start_window) {
+        changes.start_window = editedOrder.start_window;
+        logs.push(['start_window', order.start_window, editedOrder.start_window]);
+      }
+      if (editedOrder.end_window !== order.end_window) {
+        changes.end_window = editedOrder.end_window;
+        logs.push(['end_window', order.end_window, editedOrder.end_window]);
+      }
+      if (editedOrder.event_date !== order.event_date) {
+        changes.event_date = editedOrder.event_date;
+        logs.push(['event_date', order.event_date, editedOrder.event_date]);
+      }
+      if (editedOrder.discount_amount_cents !== (order.discount_amount_cents || 0)) {
+        changes.discount_amount_cents = editedOrder.discount_amount_cents;
+        logs.push(['discount_amount_cents', order.discount_amount_cents || 0, editedOrder.discount_amount_cents]);
+      }
+      if (editedOrder.discount_percentage !== (order.discount_percentage || 0)) {
+        changes.discount_percentage = editedOrder.discount_percentage;
+        logs.push(['discount_percentage', order.discount_percentage || 0, editedOrder.discount_percentage]);
+      }
+
+      const addressChanged =
+        editedOrder.address_line1 !== (order.addresses?.line1 || '') ||
+        editedOrder.address_city !== (order.addresses?.city || '') ||
+        editedOrder.address_state !== (order.addresses?.state || '') ||
+        editedOrder.address_zip !== (order.addresses?.zip || '');
+
+      if (addressChanged) {
+        await supabase.from('addresses').update({
+          line1: editedOrder.address_line1,
+          line2: editedOrder.address_line2,
+          city: editedOrder.address_city,
+          state: editedOrder.address_state,
+          zip: editedOrder.address_zip,
+        }).eq('id', order.address_id);
+
+        logs.push(['address',
+          `${order.addresses?.line1}, ${order.addresses?.city}, ${order.addresses?.state}`,
+          `${editedOrder.address_line1}, ${editedOrder.address_city}, ${editedOrder.address_state}`
+        ]);
+
+        const { data: settings } = await supabase.from('admin_settings').select('*').single();
+        if (settings) {
+          const homeBase = { lat: settings.home_base_lat, lng: settings.home_base_lng };
+          const destination = `${editedOrder.address_line1}, ${editedOrder.address_city}, ${editedOrder.address_state} ${editedOrder.address_zip}`;
+
+          const distance = await calculateDistance(homeBase, destination);
+          const travelFee = calculateTravelFee(distance, settings);
+
+          changes.travel_fee_cents = travelFee;
+          changes.distance_miles = distance;
+          logs.push(['travel_fee', order.travel_fee_cents, travelFee]);
+        }
+      }
+
+      if (Object.keys(changes).length > 0) {
+        await supabase.from('orders').update(changes).eq('id', order.id);
+
+        for (const [field, oldVal, newVal] of logs) {
+          await logChange(field, oldVal, newVal);
+        }
+      }
+
+      await loadOrderDetails();
+      onUpdate();
+      alert('Changes saved successfully!');
+    } catch (error) {
+      console.error('Error saving changes:', error);
+      alert('Failed to save changes');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function calculateDistance(origin: { lat: number; lng: number }, destination: string): Promise<number> {
+    return new Promise((resolve) => {
+      const service = new google.maps.DistanceMatrixService();
+      service.getDistanceMatrix(
+        {
+          origins: [new google.maps.LatLng(origin.lat, origin.lng)],
+          destinations: [destination],
+          travelMode: google.maps.TravelMode.DRIVING,
+          unitSystem: google.maps.UnitSystem.IMPERIAL,
+        },
+        (response, status) => {
+          if (status === 'OK' && response?.rows[0]?.elements[0]?.distance) {
+            const distanceInMeters = response.rows[0].elements[0].distance.value;
+            resolve(distanceInMeters / 1609.34);
+          } else {
+            resolve(0);
+          }
+        }
+      );
+    });
+  }
+
+  function calculateTravelFee(distance: number, settings: any): number {
+    const freeRadius = settings.travel_free_radius_miles || 0;
+    const perMile = settings.travel_fee_per_mile_cents || 0;
+    const minFee = settings.travel_min_fee_cents || 0;
+    const maxFee = settings.travel_max_fee_cents || 999999;
+
+    if (distance <= freeRadius) return 0;
+
+    const chargeableMiles = distance - freeRadius;
+    let fee = Math.round(chargeableMiles * perMile);
+
+    if (fee < minFee) fee = minFee;
+    if (fee > maxFee) fee = maxFee;
+
+    return fee;
   }
 
   function startEditing() {
@@ -317,19 +463,143 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
                 <div className="bg-slate-50 rounded-lg p-4">
                   <h3 className="font-semibold text-slate-900 mb-3">Event Details</h3>
-                  <div className="space-y-2 text-sm">
-                    <p><span className="font-medium">Date:</span> {format(new Date(order.event_date), 'MMMM d, yyyy')}</p>
-                    <p><span className="font-medium">Time:</span> {order.start_window} - {order.end_window}</p>
-                    <p><span className="font-medium">Type:</span> {order.location_type} • {order.surface}</p>
-                  </div>
+                  {isEditing ? (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Event Date</label>
+                        <input
+                          type="date"
+                          value={editedOrder.event_date}
+                          onChange={(e) => setEditedOrder({ ...editedOrder, event_date: e.target.value })}
+                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-1">Start Time</label>
+                          <input
+                            type="time"
+                            value={editedOrder.start_window}
+                            onChange={(e) => setEditedOrder({ ...editedOrder, start_window: e.target.value })}
+                            className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-1">End Time</label>
+                          <input
+                            type="time"
+                            value={editedOrder.end_window}
+                            onChange={(e) => setEditedOrder({ ...editedOrder, end_window: e.target.value })}
+                            className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Location Type</label>
+                        <select
+                          value={editedOrder.location_type}
+                          onChange={(e) => setEditedOrder({ ...editedOrder, location_type: e.target.value })}
+                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                        >
+                          <option value="commercial">Commercial</option>
+                          <option value="home">Home</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Surface</label>
+                        <select
+                          value={editedOrder.surface}
+                          onChange={(e) => setEditedOrder({ ...editedOrder, surface: e.target.value })}
+                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                        >
+                          <option value="grass">Grass</option>
+                          <option value="concrete">Concrete</option>
+                          <option value="asphalt">Asphalt</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Generator Quantity</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={editedOrder.generator_qty}
+                          onChange={(e) => setEditedOrder({ ...editedOrder, generator_qty: parseInt(e.target.value) || 0 })}
+                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 text-sm">
+                      <p><span className="font-medium">Date:</span> {format(new Date(order.event_date), 'MMMM d, yyyy')}</p>
+                      <p><span className="font-medium">Time:</span> {order.start_window} - {order.end_window}</p>
+                      <p><span className="font-medium">Type:</span> {order.location_type} • {order.surface}</p>
+                      <p><span className="font-medium">Generators:</span> {order.generator_qty || 0}</p>
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div className="bg-slate-50 rounded-lg p-4">
                 <h3 className="font-semibold text-slate-900 mb-3">Address</h3>
-                <p className="text-sm">{order.addresses?.line1}</p>
-                {order.addresses?.line2 && <p className="text-sm">{order.addresses.line2}</p>}
-                <p className="text-sm">{order.addresses?.city}, {order.addresses?.state} {order.addresses?.zip}</p>
+                {isEditing ? (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Street Address</label>
+                      <input
+                        type="text"
+                        value={editedOrder.address_line1}
+                        onChange={(e) => setEditedOrder({ ...editedOrder, address_line1: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Address Line 2 (optional)</label>
+                      <input
+                        type="text"
+                        value={editedOrder.address_line2}
+                        onChange={(e) => setEditedOrder({ ...editedOrder, address_line2: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                      />
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="col-span-1">
+                        <label className="block text-xs font-medium text-slate-700 mb-1">City</label>
+                        <input
+                          type="text"
+                          value={editedOrder.address_city}
+                          onChange={(e) => setEditedOrder({ ...editedOrder, address_city: e.target.value })}
+                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">State</label>
+                        <input
+                          type="text"
+                          value={editedOrder.address_state}
+                          onChange={(e) => setEditedOrder({ ...editedOrder, address_state: e.target.value })}
+                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                          maxLength={2}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">ZIP</label>
+                        <input
+                          type="text"
+                          value={editedOrder.address_zip}
+                          onChange={(e) => setEditedOrder({ ...editedOrder, address_zip: e.target.value })}
+                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-amber-600">Address changes will recalculate travel fees</p>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-sm">{order.addresses?.line1}</p>
+                    {order.addresses?.line2 && <p className="text-sm">{order.addresses.line2}</p>}
+                    <p className="text-sm">{order.addresses?.city}, {order.addresses?.state} {order.addresses?.zip}</p>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -394,6 +664,39 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 )}
               </div>
 
+              {isEditing && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <h3 className="font-semibold text-slate-900 mb-3">Discount</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Discount Amount ($)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={(editedOrder.discount_amount_cents / 100).toFixed(2)}
+                        onChange={(e) => setEditedOrder({ ...editedOrder, discount_amount_cents: Math.round(parseFloat(e.target.value) * 100) || 0, discount_percentage: 0 })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Discount Percentage (%)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={editedOrder.discount_percentage}
+                        onChange={(e) => setEditedOrder({ ...editedOrder, discount_percentage: parseFloat(e.target.value) || 0, discount_amount_cents: 0 })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-2">Enter either a dollar amount or percentage (not both)</p>
+                </div>
+              )}
+
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
@@ -406,12 +709,39 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                       <span className="font-semibold">{formatCurrency(order.travel_fee_cents)}</span>
                     </div>
                   )}
+                  {(order.discount_amount_cents > 0 || order.discount_percentage > 0) && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Discount:</span>
+                      <span className="font-semibold">
+                        -{formatCurrency(order.discount_amount_cents || Math.round(order.subtotal_cents * (order.discount_percentage / 100)))}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between pt-2 border-t border-blue-300 text-lg">
                     <span className="font-bold">Total:</span>
                     <span className="font-bold">{formatCurrency(totalOrder)}</span>
                   </div>
                 </div>
               </div>
+
+              {isEditing && (
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setIsEditing(false)}
+                    className="px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveChanges}
+                    disabled={saving}
+                    className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white font-semibold rounded-lg transition-colors"
+                  >
+                    <Save className="w-5 h-5" />
+                    {saving ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
