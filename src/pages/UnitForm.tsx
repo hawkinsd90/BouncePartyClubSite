@@ -16,6 +16,7 @@ export function UnitForm() {
     price_dry_cents: 0,
     price_water_cents: 0,
     dimensions: '',
+    dimensions_water: '',
     footprint_sqft: 0,
     power_circuits: 1,
     capacity: 0,
@@ -26,7 +27,9 @@ export function UnitForm() {
   });
   const [priceInput, setPriceInput] = useState('0.00');
   const [priceWaterInput, setPriceWaterInput] = useState('');
-  const [images, setImages] = useState<Array<{ id?: string; url: string; alt: string; file?: File }>>([]);
+  const [dryImages, setDryImages] = useState<Array<{ id?: string; url: string; alt: string; file?: File; mode?: string }>>([]);
+  const [wetImages, setWetImages] = useState<Array<{ id?: string; url: string; alt: string; file?: File; mode?: string }>>([]);
+  const [useWetSameAsDry, setUseWetSameAsDry] = useState(true);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -48,14 +51,29 @@ export function UnitForm() {
       if (unitRes.data.price_water_cents) {
         setPriceWaterInput((unitRes.data.price_water_cents / 100).toFixed(2));
       }
+      if (unitRes.data.dimensions_water) {
+        setUseWetSameAsDry(false);
+      }
     }
 
     if (mediaRes.data) {
-      setImages(mediaRes.data.map((img: any) => ({
+      const dryMedia = mediaRes.data.filter((img: any) => img.mode === 'dry').map((img: any) => ({
         id: img.id,
         url: img.url,
         alt: img.alt,
-      })));
+        mode: img.mode,
+      }));
+      const wetMedia = mediaRes.data.filter((img: any) => img.mode === 'water').map((img: any) => ({
+        id: img.id,
+        url: img.url,
+        alt: img.alt,
+        mode: img.mode,
+      }));
+      setDryImages(dryMedia);
+      setWetImages(wetMedia);
+      if (wetMedia.length > 0) {
+        setUseWetSameAsDry(false);
+      }
     }
   }
 
@@ -66,7 +84,7 @@ export function UnitForm() {
       .replace(/(^-|-$)/g, '');
   }
 
-  async function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleDryImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -74,23 +92,48 @@ export function UnitForm() {
       url: URL.createObjectURL(file),
       alt: formData.name || 'Unit image',
       file,
+      mode: 'dry',
     }));
 
-    setImages([...images, ...newImages]);
+    setDryImages([...dryImages, ...newImages]);
   }
 
-  function removeImage(index: number) {
-    const newImages = [...images];
+  async function handleWetImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const newImages = Array.from(files).map(file => ({
+      url: URL.createObjectURL(file),
+      alt: formData.name || 'Unit image',
+      file,
+      mode: 'water',
+    }));
+
+    setWetImages([...wetImages, ...newImages]);
+  }
+
+  function removeDryImage(index: number) {
+    const newImages = [...dryImages];
     if (newImages[index].url.startsWith('blob:')) {
       URL.revokeObjectURL(newImages[index].url);
     }
     newImages.splice(index, 1);
-    setImages(newImages);
+    setDryImages(newImages);
+  }
+
+  function removeWetImage(index: number) {
+    const newImages = [...wetImages];
+    if (newImages[index].url.startsWith('blob:')) {
+      URL.revokeObjectURL(newImages[index].url);
+    }
+    newImages.splice(index, 1);
+    setWetImages(newImages);
   }
 
   async function uploadImages(unitId: string) {
-    const imagesToUpload = images.filter(img => img.file);
-    const uploadedUrls: Array<{ url: string; alt: string }> = [];
+    const allImages = [...dryImages, ...(useWetSameAsDry ? [] : wetImages)];
+    const imagesToUpload = allImages.filter(img => img.file);
+    const uploadedUrls: Array<{ url: string; alt: string; mode: string }> = [];
 
     for (const img of imagesToUpload) {
       if (!img.file) continue;
@@ -105,7 +148,7 @@ export function UnitForm() {
       if (uploadError) throw uploadError;
 
       const { data } = supabase.storage.from('unit-images').getPublicUrl(fileName);
-      uploadedUrls.push({ url: data.publicUrl, alt: img.alt });
+      uploadedUrls.push({ url: data.publicUrl, alt: img.alt, mode: img.mode || 'dry' });
     }
 
     return uploadedUrls;
@@ -114,8 +157,15 @@ export function UnitForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (images.length === 0) {
-      alert('Please add at least one image for this unit');
+    const isComboOrWaterSlide = formData.type === 'Combo' || formData.type === 'Water Slide';
+
+    if (dryImages.length === 0) {
+      alert('Please add at least one image for dry mode');
+      return;
+    }
+
+    if (isComboOrWaterSlide && !useWetSameAsDry && wetImages.length === 0) {
+      alert('Please add at least one image for wet mode, or check "Same as dry"');
       return;
     }
 
@@ -126,6 +176,7 @@ export function UnitForm() {
       const dataToSave = {
         ...formData,
         slug: formData.slug || generateSlug(formData.name),
+        dimensions_water: useWetSameAsDry ? null : (formData.dimensions_water || null),
       };
 
       let unitId = id;
@@ -151,11 +202,13 @@ export function UnitForm() {
       const uploadedUrls = await uploadImages(unitId!);
 
       if (uploadedUrls.length > 0) {
+        const existingCount = dryImages.filter(img => img.id).length + wetImages.filter(img => img.id).length;
         const mediaRecords = uploadedUrls.map((img, index) => ({
           unit_id: unitId,
           url: img.url,
           alt: img.alt,
-          sort: images.length + index,
+          mode: img.mode,
+          sort: existingCount + index,
         }));
 
         const { error: mediaError } = await supabase
@@ -166,7 +219,7 @@ export function UnitForm() {
       }
 
       alert(isEdit ? 'Unit updated successfully!' : 'Unit created successfully!');
-      navigate('/admin');
+      navigate('/admin?tab=inventory');
     } catch (error: any) {
       console.error('Error saving unit:', error);
       alert(`Failed to save unit: ${error.message}`);
@@ -294,7 +347,7 @@ export function UnitForm() {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
-                Dimensions *
+                Dimensions (Dry Mode) *
               </label>
               <input
                 type="text"
@@ -305,6 +358,21 @@ export function UnitForm() {
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+
+            {(formData.type === 'Combo' || formData.type === 'Water Slide') && !useWetSameAsDry && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Dimensions (Wet Mode)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., 20' L x 15' W x 15' H"
+                  value={formData.dimensions_water || ''}
+                  onChange={(e) => setFormData({ ...formData, dimensions_water: e.target.value })}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -386,11 +454,11 @@ export function UnitForm() {
 
           <div className="border-t pt-6">
             <label className="block text-sm font-medium text-slate-700 mb-4">
-              Unit Images * (Required - Add at least one image)
+              Dry Mode Images * (Required)
             </label>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-              {images.map((img, index) => (
+              {dryImages.map((img, index) => (
                 <div key={index} className="relative group">
                   <img
                     src={img.url}
@@ -399,7 +467,7 @@ export function UnitForm() {
                   />
                   <button
                     type="button"
-                    onClick={() => removeImage(index)}
+                    onClick={() => removeDryImage(index)}
                     className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                   >
                     <X className="w-4 h-4" />
@@ -413,7 +481,7 @@ export function UnitForm() {
                 <div className="flex flex-col items-center justify-center pt-5 pb-6">
                   <Upload className="w-10 h-10 mb-3 text-slate-400" />
                   <p className="mb-2 text-sm text-slate-600">
-                    <span className="font-semibold">Click to upload</span> or drag and drop
+                    <span className="font-semibold">Click to upload</span> dry mode images
                   </p>
                   <p className="text-xs text-slate-500">PNG, JPG, GIF up to 10MB</p>
                 </div>
@@ -421,20 +489,84 @@ export function UnitForm() {
                   type="file"
                   multiple
                   accept="image/*"
-                  onChange={handleImageSelect}
+                  onChange={handleDryImageSelect}
                   className="hidden"
                 />
               </label>
             </div>
-            {images.length === 0 && (
-              <p className="text-sm text-red-600 mt-2">At least one image is required</p>
+            {dryImages.length === 0 && (
+              <p className="text-sm text-red-600 mt-2">At least one dry mode image is required</p>
             )}
           </div>
+
+          {(formData.type === 'Combo' || formData.type === 'Water Slide') && (
+            <div className="border-t pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <label className="block text-sm font-medium text-slate-700">
+                  Wet Mode Images & Dimensions
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={useWetSameAsDry}
+                    onChange={(e) => setUseWetSameAsDry(e.target.checked)}
+                    className="mr-2"
+                  />
+                  <span className="text-sm text-slate-700">Same as dry mode</span>
+                </label>
+              </div>
+
+              {!useWetSameAsDry && (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    {wetImages.map((img, index) => (
+                      <div key={index} className="relative group">
+                        <img
+                          src={img.url}
+                          alt={img.alt}
+                          className="w-full h-32 object-cover rounded-lg border-2 border-blue-300"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeWetImage(index)}
+                          className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center justify-center w-full">
+                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-blue-300 border-dashed rounded-lg cursor-pointer bg-blue-50 hover:bg-blue-100">
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                        <Upload className="w-10 h-10 mb-3 text-blue-400" />
+                        <p className="mb-2 text-sm text-blue-600">
+                          <span className="font-semibold">Click to upload</span> wet mode images
+                        </p>
+                        <p className="text-xs text-blue-500">PNG, JPG, GIF up to 10MB</p>
+                      </div>
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        onChange={handleWetImageSelect}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                  {wetImages.length === 0 && (
+                    <p className="text-sm text-red-600 mt-2">At least one wet mode image is required</p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           <div className="flex gap-4 pt-6">
             <button
               type="submit"
-              disabled={saving || images.length === 0}
+              disabled={saving || dryImages.length === 0}
               className="flex-1 flex items-center justify-center bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
             >
               {saving ? (

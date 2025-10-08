@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../lib/pricing';
 import { Package, DollarSign, FileText, Download, CreditCard as Edit2, Trash2, Plus } from 'lucide-react';
@@ -12,7 +12,9 @@ import { PendingOrderCard } from '../components/PendingOrderCard';
 
 function AdminDashboard() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'overview' | 'pending' | 'inventory' | 'orders' | 'contacts' | 'invoices' | 'settings' | 'changelog' | 'calculator'>('pending');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get('tab') as 'overview' | 'pending' | 'inventory' | 'orders' | 'contacts' | 'invoices' | 'settings' | 'changelog' | 'calculator' | null;
+  const [activeTab, setActiveTab] = useState<'overview' | 'pending' | 'inventory' | 'orders' | 'contacts' | 'invoices' | 'settings' | 'changelog' | 'calculator'>(tabFromUrl || 'pending');
   const [units, setUnits] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [pricingRules, setPricingRules] = useState<any>(null);
@@ -36,6 +38,17 @@ function AdminDashboard() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (tabFromUrl && tabFromUrl !== activeTab) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [tabFromUrl]);
+
+  function changeTab(tab: 'overview' | 'pending' | 'inventory' | 'orders' | 'contacts' | 'invoices' | 'settings' | 'changelog' | 'calculator') {
+    setActiveTab(tab);
+    setSearchParams({ tab });
+  }
 
   async function loadData() {
     setLoading(true);
@@ -230,7 +243,7 @@ function AdminDashboard() {
 
       <div className="flex gap-2 mb-8 overflow-x-auto">
         <button
-          onClick={() => setActiveTab('overview')}
+          onClick={() => changeTab('overview')}
           className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
             activeTab === 'overview'
               ? 'bg-blue-600 text-white'
@@ -240,7 +253,7 @@ function AdminDashboard() {
           Overview
         </button>
         <button
-          onClick={() => setActiveTab('pending')}
+          onClick={() => changeTab('pending')}
           className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors relative ${
             activeTab === 'pending'
               ? 'bg-amber-600 text-white'
@@ -255,7 +268,7 @@ function AdminDashboard() {
           )}
         </button>
         <button
-          onClick={() => setActiveTab('inventory')}
+          onClick={() => changeTab('inventory')}
           className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
             activeTab === 'inventory'
               ? 'bg-blue-600 text-white'
@@ -265,7 +278,7 @@ function AdminDashboard() {
           Inventory
         </button>
         <button
-          onClick={() => setActiveTab('orders')}
+          onClick={() => changeTab('orders')}
           className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
             activeTab === 'orders'
               ? 'bg-blue-600 text-white'
@@ -275,7 +288,7 @@ function AdminDashboard() {
           Orders
         </button>
         <button
-          onClick={() => setActiveTab('contacts')}
+          onClick={() => changeTab('contacts')}
           className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
             activeTab === 'contacts'
               ? 'bg-blue-600 text-white'
@@ -285,7 +298,7 @@ function AdminDashboard() {
           Contacts
         </button>
         <button
-          onClick={() => setActiveTab('invoices')}
+          onClick={() => changeTab('invoices')}
           className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
             activeTab === 'invoices'
               ? 'bg-blue-600 text-white'
@@ -295,7 +308,7 @@ function AdminDashboard() {
           Invoices
         </button>
         <button
-          onClick={() => setActiveTab('settings')}
+          onClick={() => changeTab('settings')}
           className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
             activeTab === 'settings'
               ? 'bg-blue-600 text-white'
@@ -305,7 +318,7 @@ function AdminDashboard() {
           Settings
         </button>
         <button
-          onClick={() => setActiveTab('changelog')}
+          onClick={() => changeTab('changelog')}
           className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
             activeTab === 'changelog'
               ? 'bg-blue-600 text-white'
@@ -315,7 +328,7 @@ function AdminDashboard() {
           Changelog
         </button>
         <button
-          onClick={() => setActiveTab('calculator')}
+          onClick={() => changeTab('calculator')}
           className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
             activeTab === 'calculator'
               ? 'bg-blue-600 text-white'
