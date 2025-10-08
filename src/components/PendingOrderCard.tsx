@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../lib/pricing';
 import { format } from 'date-fns';
+import { OrderDetailModal } from './OrderDetailModal';
+import { Edit2 } from 'lucide-react';
 
 export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => void }) {
   const [processing, setProcessing] = useState(false);
@@ -15,6 +17,7 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
   const [showRejectionModal, setShowRejectionModal] = useState(false);
   const [customRejectionReason, setCustomRejectionReason] = useState('');
   const [payments, setPayments] = useState<any[]>([]);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
     loadOrderItems();
@@ -237,7 +240,7 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
   }
 
   return (
-    <div className={`border rounded-lg p-6 ${isDraft ? 'border-blue-300 bg-blue-50' : 'border-amber-300 bg-amber-50'}`}>
+    <div className="border border-blue-300 bg-blue-50 rounded-lg p-6">
       <div className="flex justify-between items-start mb-4">
         <div>
           <h3 className="text-lg font-semibold text-slate-900">
@@ -247,14 +250,23 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
           <p className="text-sm text-slate-600">{order.customers?.phone}</p>
         </div>
         <div className="text-right">
+          <div className="flex items-center justify-end gap-2 mb-2">
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="flex items-center gap-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium transition-colors"
+            >
+              <Edit2 className="w-3 h-3" />
+              Edit Order
+            </button>
+          </div>
           <p className="text-sm text-slate-600">Order ID</p>
           <p className="font-mono text-sm font-semibold">{order.id.slice(0, 8).toUpperCase()}</p>
           <p className="text-xs text-slate-500 mt-1">
             {format(new Date(order.created_at), 'MMM d, yyyy h:mm a')}
           </p>
           <div className="mt-2">
-            <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${isDraft ? 'bg-blue-600 text-white' : 'bg-amber-600 text-white'}`}>
-              {isDraft ? 'DRAFT - Needs Deposit' : 'PENDING REVIEW'}
+            <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-orange-600 text-white">
+              {isDraft ? 'DRAFT - NEEDS DEPOSIT' : 'PENDING REVIEW'}
             </span>
           </div>
         </div>
@@ -611,6 +623,17 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
             </div>
           </div>
         </div>
+      )}
+
+      {showEditModal && (
+        <OrderDetailModal
+          order={order}
+          onClose={() => setShowEditModal(false)}
+          onUpdate={() => {
+            setShowEditModal(false);
+            onUpdate();
+          }}
+        />
       )}
     </div>
   );
