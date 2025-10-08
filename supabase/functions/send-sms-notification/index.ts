@@ -104,6 +104,13 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Ensure phone number has country code
+    if (toPhone && !toPhone.startsWith('+')) {
+      // Assume US number if no country code
+      toPhone = '+1' + toPhone.replace(/\D/g, '');
+      console.log("[send-sms-notification] Added country code to phone:", toPhone);
+    }
+
     console.log("[send-sms-notification] Sending to:", toPhone);
 
     const { data: settings } = await supabase

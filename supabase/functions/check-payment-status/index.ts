@@ -109,14 +109,24 @@ Deno.serve(async (req: Request) => {
 
       if (completedSession) {
         console.log("[check-payment-status] Found completed session:", completedSession.id);
+
+        // Retrieve full session with payment method details
+        const fullSession = await stripe.checkout.sessions.retrieve(completedSession.id, {
+          expand: ['payment_method']
+        });
+        console.log("[check-payment-status] Payment method ID:", fullSession.payment_method);
         
-        // Update order status
+        // Update order status with payment method from full session
+        const paymentMethodId = typeof fullSession.payment_method === 'string'
+          ? fullSession.payment_method
+          : fullSession.payment_method?.id;
+
         const { error: updateError } = await supabaseClient
           .from("orders")
           .update({
             stripe_payment_status: "paid",
-            stripe_payment_method_id: completedSession.payment_method as string,
-            deposit_paid_cents: completedSession.amount_total || 0,
+            stripe_payment_method_id: paymentMethodId || null,
+            deposit_paid_cents: fullSession.amount_total || 0,
             status: "pending_review",
           })
           .eq("id", orderId);
