@@ -59,11 +59,30 @@ Deno.serve(async (req: Request) => {
             .from("orders")
             .update({
               stripe_payment_status: "paid",
-              stripe_payment_method_id: session.payment_method_id || session.setup_intent as string,
+              stripe_payment_method_id: session.payment_method as string,
               deposit_paid_cents: session.amount_total || 0,
               status: "pending",
             })
             .eq("id", orderId);
+
+          // Send SMS notification to admin
+          try {
+            const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+            await fetch(`${supabaseUrl}/functions/v1/send-sms-notification`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              },
+              body: JSON.stringify({
+                orderId: orderId,
+                templateKey: "booking_received_admin",
+              }),
+            });
+          } catch (smsError) {
+            console.error("Failed to send SMS notification:", smsError);
+            // Don't fail the webhook if SMS fails
+          }
         }
 
         break;

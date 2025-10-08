@@ -41,6 +41,22 @@ export function Checkout() {
   });
 
   useEffect(() => {
+    // Check if returning from Stripe checkout
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('session_id');
+    const successParam = urlParams.get('success');
+
+    if (sessionId && successParam === 'true') {
+      // User returned from successful payment
+      setSuccess(true);
+      localStorage.removeItem('bpc_cart');
+      localStorage.removeItem('bpc_quote_form');
+      localStorage.removeItem('bpc_price_breakdown');
+      // Clean up URL
+      window.history.replaceState({}, document.title, '/checkout');
+      return;
+    }
+
     // Load cart data for checkout
     const savedForm = localStorage.getItem('bpc_quote_form');
     const savedBreakdown = localStorage.getItem('bpc_price_breakdown');
@@ -175,28 +191,8 @@ export function Checkout() {
         throw new Error(data.error || 'Failed to create checkout session');
       }
 
-      // Open Stripe in new tab
-      window.open(data.url, '_blank');
-
-      // Start polling for payment status
-      const interval = setInterval(async () => {
-        const { data: order } = await supabase
-          .from('orders')
-          .select('status, stripe_payment_status')
-          .eq('id', createdOrderId)
-          .maybeSingle();
-
-        if (order?.stripe_payment_status === 'paid') {
-          clearInterval(interval);
-          setAwaitingPayment(false);
-          setSuccess(true);
-          localStorage.removeItem('bpc_cart');
-          localStorage.removeItem('bpc_quote_form');
-          localStorage.removeItem('bpc_price_breakdown');
-        }
-      }, 2000); // Check every 2 seconds
-
-      setPaymentCheckInterval(interval);
+      // Redirect to Stripe checkout (will return to this page on success)
+      window.location.href = data.url;
     } catch (error: any) {
       console.error('Error checking availability or creating order:', error);
       alert(
