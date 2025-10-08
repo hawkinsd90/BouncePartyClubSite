@@ -46,6 +46,7 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
   const elements = useElements();
   const [processing, setProcessing] = useState(false);
   const [isReady, setIsReady] = useState(false);
+  const [canRender, setCanRender] = useState(false);
 
   useEffect(() => {
     if (!stripe || !elements) {
@@ -53,6 +54,14 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
       return;
     }
     console.log('Stripe and Elements are ready');
+
+    // Small delay to ensure Stripe's iframe is fully initialized
+    const timer = setTimeout(() => {
+      setCanRender(true);
+      console.log('PaymentElement can now render');
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, [stripe, elements]);
 
   const handleReady = () => {
@@ -110,7 +119,7 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
     }
   };
 
-  if (!stripe || !elements) {
+  if (!stripe || !elements || !canRender) {
     return (
       <div className="flex items-center justify-center py-8 text-slate-600">
         <Loader2 className="w-5 h-5 mr-2 animate-spin" />
