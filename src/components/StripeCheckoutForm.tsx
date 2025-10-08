@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { loadStripe, Stripe } from '@stripe/stripe-js';
 import {
   Elements,
@@ -51,17 +51,21 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
   useEffect(() => {
     if (!stripe || !elements) {
       console.log('Stripe or Elements not ready yet');
+      setCanRender(false);
       return;
     }
     console.log('Stripe and Elements are ready');
 
-    // Small delay to ensure Stripe's iframe is fully initialized
+    // Delay to ensure Stripe's iframe is fully initialized
     const timer = setTimeout(() => {
       setCanRender(true);
       console.log('PaymentElement can now render');
-    }, 100);
+    }, 300);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      setCanRender(false);
+    };
   }, [stripe, elements]);
 
   const handleReady = () => {
@@ -283,18 +287,20 @@ export function StripeCheckoutForm({
     );
   }
 
+  const elementsOptions = useMemo(() => ({
+    clientSecret: clientSecret!,
+    appearance: {
+      theme: 'stripe' as const,
+      variables: {
+        colorPrimary: '#2563eb',
+      },
+    },
+  }), [clientSecret]);
+
   return (
     <Elements
       stripe={stripe}
-      options={{
-        clientSecret: clientSecret!,
-        appearance: {
-          theme: 'stripe',
-          variables: {
-            colorPrimary: '#2563eb',
-          },
-        },
-      }}
+      options={elementsOptions}
     >
       <CheckoutForm
         onSuccess={onSuccess}
