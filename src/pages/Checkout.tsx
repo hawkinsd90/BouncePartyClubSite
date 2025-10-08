@@ -185,14 +185,19 @@ export function Checkout() {
       // Poll the order status to detect when payment is complete
       console.log('Starting payment polling for order:', createdOrderId);
       const checkInterval = setInterval(async () => {
-        console.log('Polling order status...');
+        console.log('Polling order status for ID:', createdOrderId);
         const { data: order, error: orderError } = await supabase
           .from('orders')
-          .select('stripe_payment_status, status')
+          .select('stripe_payment_status, status, id')
           .eq('id', createdOrderId)
           .maybeSingle();
 
-        console.log('Order status check:', { order, orderError, windowClosed: stripeWindow?.closed });
+        console.log('Order status check:', {
+          queriedId: createdOrderId,
+          order,
+          orderError,
+          windowClosed: stripeWindow?.closed
+        });
 
         if (order?.stripe_payment_status === 'paid') {
           console.log('Payment detected as paid! Closing popup and showing success...');
