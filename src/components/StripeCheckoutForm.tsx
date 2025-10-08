@@ -66,7 +66,7 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
     console.log('[CheckoutForm] Component mounted at', now, ', stripe:', !!stripe, 'elements:', !!elements);
 
     if (stripe && elements) {
-      console.log('[CheckoutForm] Stripe and Elements available, waiting 600ms before rendering PaymentElement...');
+      console.log('[CheckoutForm] Stripe and Elements available, waiting 300ms before rendering PaymentElement...');
 
       if (timerRef.current) {
         console.log('[CheckoutForm] Clearing previous timer');
@@ -81,7 +81,7 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
         } else {
           console.log('[CheckoutForm] Timer complete but mount time changed (', mountTimeRef.current, 'vs', now, ') - ignoring');
         }
-      }, 600);
+      }, 300);
     }
 
     return () => {
@@ -289,7 +289,7 @@ export function StripeCheckoutForm({
             },
           });
 
-          console.log('[StripeCheckoutForm] Mount #', currentMount, '- Waiting 150ms before allowing render to avoid Strict Mode issues');
+          console.log('[StripeCheckoutForm] Mount #', currentMount, '- Waiting 50ms before allowing render for stability');
           setTimeout(() => {
             if (mounted && currentMount === mountCountRef.current) {
               console.log('[StripeCheckoutForm] Mount #', currentMount, '- Now ready to render Stripe components');
@@ -297,7 +297,7 @@ export function StripeCheckoutForm({
             } else {
               console.log('[StripeCheckoutForm] Mount #', currentMount, '- Ready timeout ignored (unmounted or stale)');
             }
-          }, 150);
+          }, 50);
         }
       } catch (err: any) {
         console.error('[StripeCheckoutForm] Mount #', currentMount, '- Payment initialization error:', err);
@@ -406,7 +406,7 @@ function StripeElementsWrapper({ options, onSuccess, onError }: StripeElementsWr
             } else {
               console.log('[StripeElementsWrapper] Mount #', currentMount, '- Initialization timeout ignored (stale mount or unmounted)');
             }
-          }, 300);
+          }, 100);
         } else {
           console.error('[StripeElementsWrapper] Mount #', currentMount, '- Stripe instance is null');
           setError('Failed to load Stripe');
