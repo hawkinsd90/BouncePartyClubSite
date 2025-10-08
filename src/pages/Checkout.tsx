@@ -41,15 +41,51 @@ export function Checkout() {
   });
 
   useEffect(() => {
-    // Check if we're returning from Stripe first
+    // Check URL params FIRST
     const urlParams = new URLSearchParams(window.location.search);
-    const isReturningFromStripe = urlParams.get('success') || urlParams.get('canceled');
+    const sessionId = urlParams.get('session_id');
+    const successParam = urlParams.get('success');
+    const canceledParam = urlParams.get('canceled');
 
-    // If returning from Stripe, don't load cart data (will be handled by success handler)
-    if (isReturningFromStripe) {
+    // Handle Stripe return
+    if (canceledParam) {
+      alert('Payment canceled. You can try again when ready.');
+      window.history.replaceState({}, '', '/checkout');
+      navigate('/quote');
       return;
     }
 
+    if (successParam && sessionId) {
+      // Payment succeeded! Restore order data and show success
+      const savedOrderId = localStorage.getItem('bpc_pending_order_id');
+      const savedContact = localStorage.getItem('bpc_pending_contact');
+      const savedQuote = localStorage.getItem('bpc_quote_form');
+      const savedBreakdown = localStorage.getItem('bpc_price_breakdown');
+
+      if (savedOrderId && savedContact && savedQuote && savedBreakdown) {
+        setOrderId(savedOrderId);
+        setContactData(JSON.parse(savedContact));
+        setQuoteData(JSON.parse(savedQuote));
+        setPriceBreakdown(JSON.parse(savedBreakdown));
+        setSuccess(true);
+
+        // Clean up
+        localStorage.removeItem('bpc_cart');
+        localStorage.removeItem('bpc_quote_form');
+        localStorage.removeItem('bpc_price_breakdown');
+        localStorage.removeItem('bpc_pending_order_id');
+        localStorage.removeItem('bpc_pending_contact');
+
+        // Clear URL params
+        window.history.replaceState({}, '', '/checkout');
+      } else {
+        // Missing data, redirect to quote
+        navigate('/quote');
+      }
+      return;
+    }
+
+    // Normal checkout flow - load cart data
     const savedForm = localStorage.getItem('bpc_quote_form');
     const savedBreakdown = localStorage.getItem('bpc_price_breakdown');
     const savedCart = localStorage.getItem('bpc_cart');
@@ -189,50 +225,6 @@ export function Checkout() {
     }
   };
 
-  useEffect(() => {
-    // Check for Stripe success/cancel in URL FIRST
-    const urlParams = new URLSearchParams(window.location.search);
-    const sessionId = urlParams.get('session_id');
-    const successParam = urlParams.get('success');
-    const canceledParam = urlParams.get('canceled');
-
-    if (canceledParam) {
-      alert('Payment canceled. You can try again when ready.');
-      window.history.replaceState({}, '', '/checkout');
-      return;
-    }
-
-    if (successParam && sessionId) {
-      // Payment succeeded! Restore order data and show success
-      const savedOrderId = localStorage.getItem('bpc_pending_order_id');
-      const savedContact = localStorage.getItem('bpc_pending_contact');
-      const savedQuote = localStorage.getItem('bpc_quote_form');
-      const savedBreakdown = localStorage.getItem('bpc_price_breakdown');
-
-      if (savedOrderId && savedContact && savedQuote && savedBreakdown) {
-        setOrderId(savedOrderId);
-        setContactData(JSON.parse(savedContact));
-        setQuoteData(JSON.parse(savedQuote));
-        setPriceBreakdown(JSON.parse(savedBreakdown));
-        setSuccess(true);
-
-        // Clean up
-        localStorage.removeItem('bpc_cart');
-        localStorage.removeItem('bpc_quote_form');
-        localStorage.removeItem('bpc_price_breakdown');
-        localStorage.removeItem('bpc_pending_order_id');
-        localStorage.removeItem('bpc_pending_contact');
-
-        // Clear URL params
-        window.history.replaceState({}, '', '/checkout');
-      }
-    }
-  }, []);
-
-  if (!quoteData || !priceBreakdown) {
-    return null;
-  }
-
   if (success) {
     return (
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -299,6 +291,10 @@ export function Checkout() {
         </div>
       </div>
     );
+  }
+
+  if (!quoteData || !priceBreakdown) {
+    return null;
   }
 
   return (
