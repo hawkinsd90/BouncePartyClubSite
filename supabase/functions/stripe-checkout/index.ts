@@ -95,6 +95,10 @@ Deno.serve(async (req: Request) => {
       currency: "usd",
       customer: customerId,
       description: `Deposit for order ${orderId}`,
+      automatic_payment_methods: {
+        enabled: true,
+        allow_redirects: "never",
+      },
       setup_future_usage: "off_session",
       metadata: {
         order_id: orderId,
