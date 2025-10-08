@@ -41,6 +41,11 @@ export function Checkout() {
   });
 
   useEffect(() => {
+    // Load cart data for checkout first
+    const savedForm = localStorage.getItem('bpc_quote_form');
+    const savedBreakdown = localStorage.getItem('bpc_price_breakdown');
+    const savedCart = localStorage.getItem('bpc_cart');
+
     // Check if returning from Stripe checkout
     const urlParams = new URLSearchParams(window.location.search);
     const sessionId = urlParams.get('session_id');
@@ -48,6 +53,14 @@ export function Checkout() {
 
     if (sessionId && successParam === 'true') {
       // User returned from successful payment
+      // Load the data before showing success so the success screen has the info
+      if (savedForm && savedBreakdown && savedCart) {
+        const formData = JSON.parse(savedForm);
+        setQuoteData(formData);
+        setPriceBreakdown(JSON.parse(savedBreakdown));
+        setCart(JSON.parse(savedCart));
+      }
+
       setSuccess(true);
       localStorage.removeItem('bpc_cart');
       localStorage.removeItem('bpc_quote_form');
@@ -56,11 +69,6 @@ export function Checkout() {
       window.history.replaceState({}, document.title, '/checkout');
       return;
     }
-
-    // Load cart data for checkout
-    const savedForm = localStorage.getItem('bpc_quote_form');
-    const savedBreakdown = localStorage.getItem('bpc_price_breakdown');
-    const savedCart = localStorage.getItem('bpc_cart');
 
     if (!savedForm || !savedBreakdown || !savedCart) {
       navigate('/quote');
