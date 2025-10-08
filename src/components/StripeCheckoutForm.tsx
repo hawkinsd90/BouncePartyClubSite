@@ -66,16 +66,16 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
     console.log('[CheckoutForm] Component mounted at', now, ', stripe:', !!stripe, 'elements:', !!elements);
 
     if (stripe && elements) {
-      console.log('[CheckoutForm] Stripe and Elements available, waiting 100ms for Elements to stabilize...');
+      console.log('[CheckoutForm] Stripe and Elements available, waiting 1000ms for Elements to stabilize...');
 
       if (timerRef.current) {
         clearTimeout(timerRef.current);
       }
 
       timerRef.current = setTimeout(() => {
-        console.log('[CheckoutForm] 100ms passed, rendering PaymentElement now');
+        console.log('[CheckoutForm] 1000ms passed, rendering PaymentElement now');
         setCanRender(true);
-      }, 100);
+      }, 1000);
     } else {
       console.log('[CheckoutForm] Waiting for Stripe (', !!stripe, ') and Elements (', !!elements, ')');
       setCanRender(false);
