@@ -56,9 +56,20 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
   const elements = useElements();
   const [processing, setProcessing] = useState(false);
   const [isReady, setIsReady] = useState(false);
+  const [canRender, setCanRender] = useState(false);
 
   useEffect(() => {
     console.log('[CheckoutForm] Component mounted, stripe:', !!stripe, 'elements:', !!elements);
+
+    if (stripe && elements) {
+      console.log('[CheckoutForm] Stripe and Elements ready, waiting 100ms for frame initialization...');
+      const timer = setTimeout(() => {
+        console.log('[CheckoutForm] Allowing PaymentElement to render');
+        setCanRender(true);
+      }, 100);
+
+      return () => clearTimeout(timer);
+    }
   }, [stripe, elements]);
 
   const handleReady = () => {
@@ -109,17 +120,17 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
     }
   };
 
-  if (!stripe || !elements) {
-    console.log('[CheckoutForm] Waiting for stripe/elements to be ready...');
+  if (!stripe || !elements || !canRender) {
+    console.log('[CheckoutForm] Waiting - stripe:', !!stripe, 'elements:', !!elements, 'canRender:', canRender);
     return (
       <div className="flex items-center justify-center py-8">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-        <span className="ml-2 text-slate-600">Initializing payment system...</span>
+        <span className="ml-2 text-slate-600">Loading payment form...</span>
       </div>
     );
   }
 
-  console.log('[CheckoutForm] Rendering form, isReady:', isReady);
+  console.log('[CheckoutForm] Rendering PaymentElement, isReady:', isReady);
 
   return (
     <form onSubmit={handleSubmit}>
