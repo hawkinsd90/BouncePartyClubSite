@@ -5,7 +5,6 @@ import { formatCurrency } from '../lib/pricing';
 import { CreditCard, Shield, CheckCircle, Loader2, User, MapPin, DollarSign, FileText, Printer, X } from 'lucide-react';
 import { RentalTerms } from '../components/RentalTerms';
 import { PrintableInvoice } from '../components/PrintableInvoice';
-import { StripeCheckoutForm } from '../components/StripeCheckoutForm';
 import { createOrderBeforePayment, completeOrderAfterPayment } from '../lib/orderCreation';
 
 export function Checkout() {
@@ -22,8 +21,7 @@ export function Checkout() {
   const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
   const [customAmount, setCustomAmount] = useState('');
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [showStripeForm, setShowStripeForm] = useState(false);
-  const [tempOrderId, setTempOrderId] = useState<string | null>(null);
+  const [redirectingToStripe, setRedirectingToStripe] = useState(false);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
 
   const [contactData, setContactData] = useState({
@@ -138,52 +136,68 @@ export function Checkout() {
         smsConsent,
       });
 
-      setTempOrderId(createdOrderId);
-      setShowStripeForm(true);
+      // Redirect to Stripe Checkout
       setCheckingAvailability(false);
+      setRedirectingToStripe(true);
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            orderId: createdOrderId,
+            depositCents: paymentCents,
+            customerEmail: contactData.email,
+            customerName: `${contactData.first_name} ${contactData.last_name}`,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.url) {
+        throw new Error(data.error || 'Failed to create checkout session');
+      }
+
+      // Redirect to Stripe Checkout
+      window.location.href = data.url;
     } catch (error: any) {
       console.error('Error checking availability or creating order:', error);
       alert(
         `Unable to process booking: ${error.message}\n\nPlease try again or contact us at (313) 889-3860.`
       );
       setCheckingAvailability(false);
+      setRedirectingToStripe(false);
     }
   };
 
-  const handlePaymentSuccess = async () => {
-    try {
-      setProcessing(true);
+  useEffect(() => {
+    // Check for Stripe success/cancel in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('session_id');
+    const successParam = urlParams.get('success');
+    const canceledParam = urlParams.get('canceled');
 
-      if (!tempOrderId) {
-        throw new Error('Order ID not found');
-      }
+    if (canceledParam) {
+      alert('Payment canceled. You can try again when ready.');
+      // Clear URL params
+      window.history.replaceState({}, '', '/checkout');
+      return;
+    }
 
-      // Payment succeeded - update order status and send notifications
-      await completeOrderAfterPayment(tempOrderId, 'payment_intent_id');
-
-      // Clear cart and redirect to success
+    if (successParam && sessionId) {
+      // Payment succeeded! Show success message
+      // Note: webhook will handle order completion
+      setSuccess(true);
       localStorage.removeItem('bpc_cart');
       localStorage.removeItem('bpc_quote_form');
       localStorage.removeItem('bpc_price_breakdown');
-
-      setOrderId(tempOrderId);
-      setSuccess(true);
-      setShowStripeForm(false);
-      setProcessing(false);
-    } catch (error: any) {
-      console.error('Error completing order:', error);
-      alert(
-        `Payment succeeded but failed to finalize booking: ${error.message}\n\nPlease contact us at (313) 889-3860 with your order confirmation.`
-      );
-      setProcessing(false);
-      setShowStripeForm(false);
     }
-  };
-
-  const handlePaymentError = (error: string) => {
-    alert(`Payment failed: ${error}\n\nPlease try again or contact us at (313) 889-3860 for assistance.`);
-    setShowStripeForm(false);
-  };
+  }, []);
 
   if (!quoteData || !priceBreakdown) {
     return null;
@@ -734,7 +748,7 @@ export function Checkout() {
 
             <button
               type="submit"
-              disabled={checkingAvailability || processing || !cardOnFileConsent || !smsConsent}
+              disabled={checkingAvailability || redirectingToStripe || !cardOnFileConsent || !smsConsent}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center"
             >
               {checkingAvailability ? (
@@ -742,10 +756,10 @@ export function Checkout() {
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                   Checking Availability...
                 </>
-              ) : processing ? (
+              ) : redirectingToStripe ? (
                 <>
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Processing...
+                  Redirecting to Stripe...
                 </>
               ) : (
                 <>
@@ -762,32 +776,7 @@ export function Checkout() {
         </div>
       </form>
 
-      {showStripeForm && tempOrderId && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 relative">
-            <button
-              onClick={() => setShowStripeForm(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <h2 className="text-2xl font-bold text-slate-900 mb-4">Payment Information</h2>
-            <p className="text-slate-600 mb-6">
-              Enter your payment details below. Your card will be securely stored for future charges related to this booking.
-            </p>
-            <StripeCheckoutForm
-              orderId={tempOrderId}
-              depositCents={getPaymentAmountCents()}
-              customerEmail={contactData.email}
-              customerName={`${contactData.first_name} ${contactData.last_name}`}
-              onSuccess={handlePaymentSuccess}
-              onError={handlePaymentError}
-            />
-          </div>
-        </div>
-      )}
-
-      {showInvoiceModal && (
+{showInvoiceModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-lg max-w-5xl w-full max-h-[90vh] overflow-y-auto relative">
             <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex justify-between items-center z-10 no-print">

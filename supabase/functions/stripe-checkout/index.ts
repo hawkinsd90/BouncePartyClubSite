@@ -89,27 +89,44 @@ Deno.serve(async (req: Request) => {
         .eq("id", orderId);
     }
 
-    // Create payment intent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: depositCents,
-      currency: "usd",
+    // Get the current origin from the request
+    const origin = req.headers.get("origin") || "https://bolt.new";
+
+    // Create Checkout Session (hosted Stripe page)
+    const session = await stripe.checkout.sessions.create({
       customer: customerId,
-      description: `Deposit for order ${orderId}`,
-      automatic_payment_methods: {
-        enabled: true,
-        allow_redirects: "never",
+      line_items: [
+        {
+          price_data: {
+            currency: "usd",
+            unit_amount: depositCents,
+            product_data: {
+              name: `Deposit for Order ${orderId.slice(0, 8).toUpperCase()}`,
+              description: "Bounce Party Club rental deposit",
+            },
+          },
+          quantity: 1,
+        },
+      ],
+      mode: "payment",
+      payment_intent_data: {
+        setup_future_usage: "off_session",
+        metadata: {
+          order_id: orderId,
+          payment_type: "deposit",
+        },
       },
-      setup_future_usage: "off_session",
+      success_url: `${origin}/checkout?session_id={CHECKOUT_SESSION_ID}&success=true`,
+      cancel_url: `${origin}/checkout?canceled=true`,
       metadata: {
         order_id: orderId,
-        payment_type: "deposit",
       },
     });
 
     // Create payment record
     await supabaseClient.from("payments").insert({
       order_id: orderId,
-      stripe_payment_intent_id: paymentIntent.id,
+      stripe_payment_intent_id: session.payment_intent as string,
       amount_cents: depositCents,
       payment_type: "deposit",
       status: "pending",
@@ -118,7 +135,8 @@ Deno.serve(async (req: Request) => {
 
     return new Response(
       JSON.stringify({
-        clientSecret: paymentIntent.client_secret,
+        sessionId: session.id,
+        url: session.url,
         customerId: customerId,
       }),
       {
