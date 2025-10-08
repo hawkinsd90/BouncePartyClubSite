@@ -801,7 +801,7 @@ export function Checkout() {
 
             <button
               type="submit"
-              disabled={checkingAvailability || redirectingToStripe || !cardOnFileConsent || !smsConsent}
+              disabled={checkingAvailability || awaitingPayment || !cardOnFileConsent || !smsConsent}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center"
             >
               {checkingAvailability ? (
@@ -809,10 +809,10 @@ export function Checkout() {
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                   Checking Availability...
                 </>
-              ) : redirectingToStripe ? (
+              ) : awaitingPayment ? (
                 <>
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Redirecting to Stripe...
+                  Opening Payment...
                 </>
               ) : (
                 <>
