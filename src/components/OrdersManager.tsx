@@ -6,10 +6,10 @@ import { OrderDetailModal } from './OrderDetailModal';
 import { PendingOrderCard } from './PendingOrderCard';
 
 
-type OrderTab = 'pending_review' | 'current' | 'upcoming' | 'all' | 'past' | 'cancelled';
+type OrderTab = 'draft' | 'pending_review' | 'current' | 'upcoming' | 'all' | 'past' | 'cancelled';
 
 export function OrdersManager() {
-  const [activeTab, setActiveTab] = useState<OrderTab>('pending_review');
+  const [activeTab, setActiveTab] = useState<OrderTab>('draft');
   const [orders, setOrders] = useState<any[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,11 +50,14 @@ export function OrdersManager() {
   }
 
   function determineDefaultTab() {
-    const pendingReview = orders.filter(o => o.status === 'pending_review' || o.status === 'draft').length;
+    const draft = orders.filter(o => o.status === 'draft').length;
+    const pendingReview = orders.filter(o => o.status === 'pending_review').length;
     const current = orders.filter(o => isToday(new Date(o.event_date)) && o.status !== 'cancelled' && o.status !== 'pending_review' && o.status !== 'draft').length;
     const upcoming = orders.filter(o => isFuture(new Date(o.event_date)) && o.status !== 'cancelled' && o.status !== 'pending_review' && o.status !== 'draft').length;
 
-    if (pendingReview > 0) {
+    if (draft > 0) {
+      setActiveTab('draft');
+    } else if (pendingReview > 0) {
       setActiveTab('pending_review');
     } else if (current > 0) {
       setActiveTab('current');
@@ -86,8 +89,11 @@ export function OrdersManager() {
     }
 
     switch (activeTab) {
+      case 'draft':
+        filtered = filtered.filter(o => o.status === 'draft');
+        break;
       case 'pending_review':
-        filtered = filtered.filter(o => o.status === 'pending_review' || o.status === 'draft');
+        filtered = filtered.filter(o => o.status === 'pending_review');
         break;
       case 'current':
         filtered = filtered.filter(o => {
@@ -117,8 +123,10 @@ export function OrdersManager() {
 
   function getTabCount(tab: OrderTab): number {
     switch (tab) {
+      case 'draft':
+        return orders.filter(o => o.status === 'draft').length;
       case 'pending_review':
-        return orders.filter(o => o.status === 'pending_review' || o.status === 'draft').length;
+        return orders.filter(o => o.status === 'pending_review').length;
       case 'current':
         return orders.filter(o => isToday(new Date(o.event_date)) && o.status !== 'cancelled' && o.status !== 'pending_review' && o.status !== 'draft').length;
       case 'upcoming':
@@ -138,6 +146,7 @@ export function OrdersManager() {
   }
 
   const tabs: { key: OrderTab; label: string }[] = [
+    { key: 'draft', label: 'Draft (Needs Deposit)' },
     { key: 'pending_review', label: 'Pending Review' },
     { key: 'current', label: 'Current (Today)' },
     { key: 'upcoming', label: 'Upcoming' },
