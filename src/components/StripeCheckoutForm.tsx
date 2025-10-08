@@ -37,12 +37,11 @@ async function getStripePromise() {
 }
 
 interface CheckoutFormProps {
-  clientSecret: string;
   onSuccess: () => void;
   onError: (error: string) => void;
 }
 
-function CheckoutForm({ clientSecret, onSuccess, onError }: CheckoutFormProps) {
+function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [processing, setProcessing] = useState(false);
@@ -205,7 +204,6 @@ export function StripeCheckoutForm({
       }}
     >
       <CheckoutForm
-        clientSecret={clientSecret}
         onSuccess={onSuccess}
         onError={onError}
       />
