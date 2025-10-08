@@ -41,94 +41,28 @@ export function Checkout() {
   });
 
   useEffect(() => {
-    const initPage = async () => {
-      // Check if returning from Stripe checkout
-      const urlParams = new URLSearchParams(window.location.search);
-      const sessionId = urlParams.get('session_id');
-      const successParam = urlParams.get('success');
-      const returnedOrderId = urlParams.get('order_id');
+    // Load cart data for checkout
+    const savedForm = localStorage.getItem('bpc_quote_form');
+    const savedBreakdown = localStorage.getItem('bpc_price_breakdown');
+    const savedCart = localStorage.getItem('bpc_cart');
 
-      console.log('Checkout page init - URL params:', { sessionId, successParam, returnedOrderId });
+    if (!savedForm || !savedBreakdown || !savedCart) {
+      navigate('/quote');
+      return;
+    }
 
-      if (sessionId && successParam === 'true' && returnedOrderId) {
-        console.log('Returning from Stripe - fetching order:', returnedOrderId);
-        // User returned from successful payment
-        // Fetch the order details from the database
-        const { data: order, error: orderError } = await supabase
-          .from('orders')
-          .select('*, order_items(*, units(name, category))')
-          .eq('id', returnedOrderId)
-          .maybeSingle();
+    const formData = JSON.parse(savedForm);
+    setQuoteData(formData);
+    setPriceBreakdown(JSON.parse(savedBreakdown));
+    setCart(JSON.parse(savedCart));
 
-        console.log('Order fetch result:', { order, orderError });
-
-        if (order) {
-          // Reconstruct the data needed for the success screen
-          setOrderId(returnedOrderId);
-          setQuoteData({
-            event_date: order.event_start_date,
-            event_end_date: order.event_end_date,
-            address_line1: order.event_address_line1,
-            address_line2: order.event_address_line2,
-            city: order.event_city,
-            state: order.event_state,
-            zip: order.event_zip,
-          });
-          setPriceBreakdown({
-            subtotal_cents: order.subtotal_cents,
-            travel_fee_cents: order.travel_fee_cents,
-            same_day_pickup_fee_cents: order.same_day_pickup_fee_cents,
-            generator_fee_cents: order.generator_fee_cents || 0,
-            tax_cents: order.tax_cents,
-            total_cents: order.total_cents,
-            deposit_due_cents: order.deposit_paid_cents,
-            balance_due_cents: order.balance_due_cents,
-          });
-          setCart(order.order_items);
-
-          console.log('Setting success to true');
-          setSuccess(true);
-          localStorage.removeItem('bpc_cart');
-          localStorage.removeItem('bpc_quote_form');
-          localStorage.removeItem('bpc_price_breakdown');
-          // Clean up URL
-          window.history.replaceState({}, document.title, '/checkout');
-          return;
-        }
-      }
-
-      // Load cart data for checkout
-      const savedForm = localStorage.getItem('bpc_quote_form');
-      const savedBreakdown = localStorage.getItem('bpc_price_breakdown');
-      const savedCart = localStorage.getItem('bpc_cart');
-
-      console.log('Loading checkout data from localStorage:', {
-        hasForm: !!savedForm,
-        hasBreakdown: !!savedBreakdown,
-        hasCart: !!savedCart
-      });
-
-      if (!savedForm || !savedBreakdown || !savedCart) {
-        console.log('Missing checkout data - redirecting to quote');
-        navigate('/quote');
-        return;
-      }
-
-      const formData = JSON.parse(savedForm);
-      setQuoteData(formData);
-      setPriceBreakdown(JSON.parse(savedBreakdown));
-      setCart(JSON.parse(savedCart));
-
-      setBillingAddress({
-        line1: formData.address_line1 || '',
-        line2: formData.address_line2 || '',
-        city: formData.city || '',
-        state: formData.state || '',
-        zip: formData.zip || '',
-      });
-    };
-
-    initPage();
+    setBillingAddress({
+      line1: formData.address_line1 || '',
+      line2: formData.address_line2 || '',
+      city: formData.city || '',
+      state: formData.state || '',
+      zip: formData.zip || '',
+    });
   }, [navigate]);
 
   // Cleanup interval on unmount
@@ -241,8 +175,77 @@ export function Checkout() {
         throw new Error(data.error || 'Failed to create checkout session');
       }
 
-      // Redirect to Stripe checkout (will return to this page on success)
-      window.location.href = data.url;
+      // Open Stripe in a popup window
+      const stripeWindow = window.open(
+        data.url,
+        'stripe-checkout',
+        'width=600,height=800,left=200,top=100'
+      );
+
+      // Poll the order status to detect when payment is complete
+      const checkInterval = setInterval(async () => {
+        const { data: order } = await supabase
+          .from('orders')
+          .select('stripe_payment_status, status')
+          .eq('id', createdOrderId)
+          .maybeSingle();
+
+        if (order?.stripe_payment_status === 'paid') {
+          clearInterval(checkInterval);
+          setPaymentCheckInterval(null);
+
+          // Close the Stripe popup if still open
+          if (stripeWindow && !stripeWindow.closed) {
+            stripeWindow.close();
+          }
+
+          // Load order details for success screen
+          const { data: fullOrder } = await supabase
+            .from('orders')
+            .select('*, order_items(*, units(name, category))')
+            .eq('id', createdOrderId)
+            .maybeSingle();
+
+          if (fullOrder) {
+            setQuoteData({
+              event_date: fullOrder.event_start_date,
+              event_end_date: fullOrder.event_end_date,
+              address_line1: fullOrder.event_address_line1,
+              address_line2: fullOrder.event_address_line2,
+              city: fullOrder.event_city,
+              state: fullOrder.event_state,
+              zip: fullOrder.event_zip,
+            });
+            setPriceBreakdown({
+              subtotal_cents: fullOrder.subtotal_cents,
+              travel_fee_cents: fullOrder.travel_fee_cents,
+              same_day_pickup_fee_cents: fullOrder.same_day_pickup_fee_cents,
+              generator_fee_cents: fullOrder.generator_fee_cents || 0,
+              tax_cents: fullOrder.tax_cents,
+              total_cents: fullOrder.total_cents,
+              deposit_due_cents: fullOrder.deposit_paid_cents,
+              balance_due_cents: fullOrder.balance_due_cents,
+            });
+            setCart(fullOrder.order_items);
+          }
+
+          setAwaitingPayment(false);
+          setSuccess(true);
+          localStorage.removeItem('bpc_cart');
+          localStorage.removeItem('bpc_quote_form');
+          localStorage.removeItem('bpc_price_breakdown');
+        }
+
+        // Check if user closed the popup without paying
+        if (stripeWindow && stripeWindow.closed && order?.stripe_payment_status !== 'paid') {
+          clearInterval(checkInterval);
+          setPaymentCheckInterval(null);
+          setAwaitingPayment(false);
+          alert('Payment window was closed. Your order has been saved as a draft. You can contact us to complete the payment.');
+        }
+      }, 2000); // Check every 2 seconds
+
+      setPaymentCheckInterval(checkInterval);
     } catch (error: any) {
       console.error('Error checking availability or creating order:', error);
       alert(
