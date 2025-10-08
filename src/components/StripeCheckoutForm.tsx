@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { loadStripe, Stripe } from '@stripe/stripe-js';
+import { loadStripe, Stripe, StripeElementsOptions } from '@stripe/stripe-js';
 import {
   Elements,
   PaymentElement,
@@ -10,31 +10,30 @@ import { Loader2 } from 'lucide-react';
 
 let stripePromise: Promise<Stripe | null> | null = null;
 
-function getStripePromise() {
-  if (stripePromise) return stripePromise;
+async function getStripeInstance(): Promise<Stripe | null> {
+  if (!stripePromise) {
+    stripePromise = (async () => {
+      try {
+        const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-stripe-publishable-key`;
+        const response = await fetch(apiUrl, {
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        const data = await response.json();
 
-  stripePromise = (async () => {
-    try {
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-stripe-publishable-key`;
-      const response = await fetch(apiUrl, {
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      const data = await response.json();
-
-      if (data.publishableKey) {
-        return loadStripe(data.publishableKey);
-      } else {
-        throw new Error('No publishable key configured');
+        if (data.publishableKey) {
+          return await loadStripe(data.publishableKey);
+        } else {
+          throw new Error('No publishable key configured');
+        }
+      } catch (error) {
+        console.error('Error loading Stripe:', error);
+        return null;
       }
-    } catch (error) {
-      console.error('Error loading Stripe:', error);
-      return null;
-    }
-  })();
-
+    })();
+  }
   return stripePromise;
 }
 
@@ -149,8 +148,7 @@ export function StripeCheckoutForm({
   onSuccess,
   onError,
 }: StripeCheckoutFormProps) {
-  const [clientSecret, setClientSecret] = useState<string | null>(null);
-  const [stripeInstance, setStripeInstance] = useState<Stripe | null>(null);
+  const [options, setOptions] = useState<StripeElementsOptions | null>(null);
   const [loading, setLoading] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
 
@@ -159,16 +157,15 @@ export function StripeCheckoutForm({
 
     const initialize = async () => {
       setLoading(true);
-      setClientSecret(null);
-      setStripeInstance(null);
+      setOptions(null);
       setInitError(null);
 
       try {
-        console.log('Loading Stripe and creating payment intent...');
+        console.log('Creating payment intent...');
 
-        const [stripe, paymentResponse] = await Promise.all([
-          getStripePromise(),
-          fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`, {
+        const paymentResponse = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`,
+          {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
@@ -180,14 +177,10 @@ export function StripeCheckoutForm({
               customerEmail,
               customerName,
             }),
-          }),
-        ]);
+          }
+        );
 
         if (!mounted) return;
-
-        if (!stripe) {
-          throw new Error('Failed to load Stripe');
-        }
 
         if (!paymentResponse.ok) {
           const errorData = await paymentResponse.json();
@@ -195,15 +188,22 @@ export function StripeCheckoutForm({
         }
 
         const data = await paymentResponse.json();
-        console.log('Stripe loaded and payment intent created');
+        console.log('Payment intent created');
 
         if (!data.clientSecret) {
           throw new Error('No client secret returned from server');
         }
 
         if (mounted) {
-          setStripeInstance(stripe);
-          setClientSecret(data.clientSecret);
+          setOptions({
+            clientSecret: data.clientSecret,
+            appearance: {
+              theme: 'stripe',
+              variables: {
+                colorPrimary: '#2563eb',
+              },
+            },
+          });
         }
       } catch (err: any) {
         console.error('Payment initialization error:', err);
@@ -232,7 +232,7 @@ export function StripeCheckoutForm({
     );
   }
 
-  if (initError || !clientSecret || !stripeInstance) {
+  if (initError || !options) {
     return (
       <div className="text-center py-8">
         <p className="text-red-600 mb-4">{initError || 'Failed to initialize payment'}</p>
@@ -247,22 +247,38 @@ export function StripeCheckoutForm({
   }
 
   return (
-    <Elements
-      stripe={stripeInstance}
-      options={{
-        clientSecret: clientSecret,
-        appearance: {
-          theme: 'stripe',
-          variables: {
-            colorPrimary: '#2563eb',
-          },
-        },
-      }}
-    >
-      <CheckoutForm
-        onSuccess={onSuccess}
-        onError={onError}
-      />
+    <StripeElementsWrapper
+      options={options}
+      onSuccess={onSuccess}
+      onError={onError}
+    />
+  );
+}
+
+interface StripeElementsWrapperProps {
+  options: StripeElementsOptions;
+  onSuccess: () => void;
+  onError: (error: string) => void;
+}
+
+function StripeElementsWrapper({ options, onSuccess, onError }: StripeElementsWrapperProps) {
+  const [stripe, setStripe] = useState<Stripe | null>(null);
+
+  useEffect(() => {
+    getStripeInstance().then(setStripe);
+  }, []);
+
+  if (!stripe) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  return (
+    <Elements stripe={stripe} options={options}>
+      <CheckoutForm onSuccess={onSuccess} onError={onError} />
     </Elements>
   );
 }
