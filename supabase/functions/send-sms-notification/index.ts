@@ -8,9 +8,10 @@ const corsHeaders = {
 };
 
 interface SmsRequest {
-  to: string;
-  message: string;
+  to?: string;
+  message?: string;
   orderId?: string;
+  templateKey?: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -22,9 +23,75 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { to, message, orderId }: SmsRequest = await req.json();
+    const requestBody: SmsRequest = await req.json();
+    console.log("[send-sms-notification] Request:", { ...requestBody, message: requestBody.message ? '[redacted]' : undefined });
 
-    if (!to || !message) {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    let toPhone = requestBody.to;
+    let messageBody = requestBody.message;
+    const orderId = requestBody.orderId;
+    const templateKey = requestBody.templateKey;
+
+    // Handle template-based messages
+    if (templateKey && orderId) {
+      console.log("[send-sms-notification] Looking up template:", templateKey);
+      
+      // Get the template
+      const { data: template } = await supabase
+        .from("sms_message_templates")
+        .select("message_template")
+        .eq("template_key", templateKey)
+        .maybeSingle();
+
+      if (!template) {
+        console.error("[send-sms-notification] Template not found:", templateKey);
+        throw new Error(`Template '${templateKey}' not found`);
+      }
+
+      // Get order details
+      const { data: order } = await supabase
+        .from("orders")
+        .select("*, customers(*)")
+        .eq("id", orderId)
+        .maybeSingle();
+
+      if (!order) {
+        console.error("[send-sms-notification] Order not found:", orderId);
+        throw new Error(`Order '${orderId}' not found`);
+      }
+
+      // Get admin phone for admin notifications
+      if (templateKey === "booking_received_admin") {
+        const { data: adminPhoneSetting } = await supabase
+          .from("admin_settings")
+          .select("value")
+          .eq("key", "admin_phone")
+          .maybeSingle();
+
+        if (!adminPhoneSetting?.value) {
+          console.error("[send-sms-notification] Admin phone not configured");
+          throw new Error("Admin phone not configured. Please add it in Admin Settings.");
+        }
+
+        toPhone = adminPhoneSetting.value;
+      } else {
+        // Customer notification
+        toPhone = order.customers?.phone;
+      }
+
+      // Replace placeholders in template
+      messageBody = template.message_template
+        .replace("{customer_name}", `${order.customers?.first_name || ''} ${order.customers?.last_name || ''}`)
+        .replace("{order_id}", order.id.slice(0, 8).toUpperCase())
+        .replace("{event_date}", order.event_date || '')
+        .replace("{event_address}", order.event_address_line1 || '');
+    }
+
+    if (!toPhone || !messageBody) {
+      console.error("[send-sms-notification] Missing required fields:", { toPhone: !!toPhone, messageBody: !!messageBody });
       return new Response(
         JSON.stringify({ error: "Missing 'to' or 'message' parameter" }),
         {
@@ -37,9 +104,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    console.log("[send-sms-notification] Sending to:", toPhone);
 
     const { data: settings } = await supabase
       .from("admin_settings")
@@ -47,7 +112,7 @@ Deno.serve(async (req: Request) => {
       .in("key", ["twilio_account_sid", "twilio_auth_token", "twilio_from_number"]);
 
     if (!settings || settings.length !== 3) {
-      console.warn("Twilio credentials not configured in database. SMS sending disabled.");
+      console.warn("[send-sms-notification] Twilio credentials not configured");
       return new Response(
         JSON.stringify({
           success: false,
@@ -71,6 +136,7 @@ Deno.serve(async (req: Request) => {
     });
 
     if (!twilioConfig.accountSid || !twilioConfig.authToken || !twilioConfig.fromNumber) {
+      console.error("[send-sms-notification] Incomplete Twilio config");
       return new Response(
         JSON.stringify({
           success: false,
@@ -90,10 +156,11 @@ Deno.serve(async (req: Request) => {
     const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioConfig.accountSid}/Messages.json`;
 
     const formData = new URLSearchParams();
-    formData.append("To", to);
+    formData.append("To", toPhone);
     formData.append("From", twilioConfig.fromNumber);
-    formData.append("Body", message);
+    formData.append("Body", messageBody);
 
+    console.log("[send-sms-notification] Calling Twilio API");
     const twilioResponse = await fetch(twilioUrl, {
       method: "POST",
       headers: {
@@ -105,17 +172,18 @@ Deno.serve(async (req: Request) => {
 
     if (!twilioResponse.ok) {
       const errorData = await twilioResponse.json();
-      console.error("Twilio error:", errorData);
+      console.error("[send-sms-notification] Twilio error:", errorData);
       throw new Error(`Twilio API error: ${errorData.message || 'Unknown error'}`);
     }
 
     const data = await twilioResponse.json();
+    console.log("[send-sms-notification] Twilio response:", { sid: data.sid, status: data.status });
 
     await supabase.from("sms_conversations").insert({
       order_id: orderId || null,
       from_phone: twilioConfig.fromNumber,
-      to_phone: to,
-      message_body: message,
+      to_phone: toPhone,
+      message_body: messageBody,
       direction: "outbound",
       twilio_message_sid: data.sid,
       status: data.status,
@@ -136,7 +204,7 @@ Deno.serve(async (req: Request) => {
       }
     );
   } catch (error) {
-    console.error("Error sending SMS:", error);
+    console.error("[send-sms-notification] Error:", error);
     return new Response(
       JSON.stringify({
         error: error.message || "Failed to send SMS",
