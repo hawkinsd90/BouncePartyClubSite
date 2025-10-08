@@ -17,6 +17,7 @@ import { Invoice } from './pages/Invoice';
 import { PaymentSuccess } from './pages/PaymentSuccess';
 import { PaymentCanceled } from './pages/PaymentCanceled';
 import { UnitForm } from './pages/UnitForm';
+import { CustomerPortal } from './pages/CustomerPortal';
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
           <Route path="/setup" element={<Setup />} />
           <Route path="/login" element={<Login />} />
           <Route path="/invoice/:orderId" element={<Invoice />} />
+          <Route path="/customer-portal/:orderId" element={<CustomerPortal />} />
           <Route path="/checkout/payment-success" element={<PaymentSuccess />} />
           <Route path="/checkout/payment-canceled" element={<PaymentCanceled />} />
           <Route path="/" element={<Layout />}>

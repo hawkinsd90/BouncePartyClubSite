@@ -8,6 +8,7 @@ import { ContactsList } from '../components/ContactsList';
 import { InvoicesList } from '../components/InvoicesList';
 import { PaymentManagement } from '../components/PaymentManagement';
 import { OrdersManager } from '../components/OrdersManager';
+import { InvoiceBuilder } from '../components/InvoiceBuilder';
 
 function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => void }) {
   const [processing, setProcessing] = useState(false);
@@ -557,7 +558,7 @@ function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => voi
 
 function AdminDashboard() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'overview' | 'pending' | 'inventory' | 'orders' | 'contacts' | 'invoices' | 'pricing' | 'settings' | 'sms_templates'>('pending');
+  const [activeTab, setActiveTab] = useState<'overview' | 'pending' | 'inventory' | 'orders' | 'contacts' | 'invoices' | 'settings' | 'changelog' | 'calculator'>('pending');
   const [units, setUnits] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [pricingRules, setPricingRules] = useState<any>(null);
@@ -840,16 +841,6 @@ function AdminDashboard() {
           Invoices
         </button>
         <button
-          onClick={() => setActiveTab('pricing')}
-          className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
-            activeTab === 'pricing'
-              ? 'bg-blue-600 text-white'
-              : 'bg-white text-slate-700 border border-slate-300 hover:border-blue-600'
-          }`}
-        >
-          Pricing Rules
-        </button>
-        <button
           onClick={() => setActiveTab('settings')}
           className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
             activeTab === 'settings'
@@ -860,14 +851,24 @@ function AdminDashboard() {
           Settings
         </button>
         <button
-          onClick={() => setActiveTab('sms_templates')}
+          onClick={() => setActiveTab('changelog')}
           className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
-            activeTab === 'sms_templates'
+            activeTab === 'changelog'
               ? 'bg-blue-600 text-white'
               : 'bg-white text-slate-700 border border-slate-300 hover:border-blue-600'
           }`}
         >
-          SMS Templates
+          Changelog
+        </button>
+        <button
+          onClick={() => setActiveTab('calculator')}
+          className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
+            activeTab === 'calculator'
+              ? 'bg-blue-600 text-white'
+              : 'bg-white text-slate-700 border border-slate-300 hover:border-blue-600'
+          }`}
+        >
+          Travel Calculator
         </button>
       </div>
 
@@ -1045,6 +1046,32 @@ function AdminDashboard() {
         </div>
       )}
 
+      {activeTab === 'changelog' && (
+        <div className="bg-white rounded-xl shadow-md p-6">
+          <h2 className="text-2xl font-bold text-slate-900 mb-6">Admin Settings Changelog</h2>
+          <p className="text-slate-600 mb-4">
+            View all changes made to admin settings, including who made the changes and when.
+          </p>
+          <div className="text-center py-12 text-slate-500">
+            <p>Changelog feature coming soon...</p>
+            <p className="text-sm mt-2">Will display all admin setting changes with timestamps and user tracking</p>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'calculator' && (
+        <div className="bg-white rounded-xl shadow-md p-6">
+          <h2 className="text-2xl font-bold text-slate-900 mb-6">Travel Fee Calculator</h2>
+          <p className="text-slate-600 mb-4">
+            Calculate travel fees for phone estimates by entering a customer address.
+          </p>
+          <div className="text-center py-12 text-slate-500">
+            <p>Travel fee calculator coming soon...</p>
+            <p className="text-sm mt-2">Will show distance calculation and fee breakdown</p>
+          </div>
+        </div>
+      )}
+
       {activeTab === 'pricing' && pricingRules && (
         <div className="bg-white rounded-xl shadow-md p-6">
           <h2 className="text-2xl font-bold text-slate-900 mb-6">Pricing Configuration</h2>
@@ -1192,7 +1219,12 @@ function AdminDashboard() {
 
       {activeTab === 'contacts' && <ContactsList />}
 
-      {activeTab === 'invoices' && <InvoicesList />}
+      {activeTab === 'invoices' && (
+        <div className="space-y-8">
+          <InvoiceBuilder />
+          <InvoicesList />
+        </div>
+      )}
 
       {activeTab === 'settings' && (
         <div className="space-y-6">
