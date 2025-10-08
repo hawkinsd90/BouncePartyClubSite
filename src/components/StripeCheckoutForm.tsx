@@ -183,7 +183,6 @@ export function StripeCheckoutForm({
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [stripe, setStripe] = useState<Stripe | null>(null);
-  const [mountKey, setMountKey] = useState(0);
   const [initError, setInitError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -240,8 +239,6 @@ export function StripeCheckoutForm({
           console.log('Setting stripe and clientSecret');
           setStripe(stripeInstance);
           setClientSecret(data.clientSecret);
-          // Force remount of Elements component
-          setMountKey(prev => prev + 1);
           console.log('State updated, Elements should mount now');
         }
       } catch (err: any) {
@@ -288,7 +285,6 @@ export function StripeCheckoutForm({
 
   return (
     <Elements
-      key={mountKey}
       stripe={stripe}
       options={{
         clientSecret: clientSecret!,
