@@ -3,6 +3,7 @@ import { X, Truck, MapPin, CheckCircle, MessageSquare, DollarSign, FileText, Cal
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
 import { formatCurrency } from '../lib/pricing';
+import { AddressAutocomplete } from './AddressAutocomplete';
 
 interface OrderDetailModalProps {
   order: any;
@@ -28,14 +29,14 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     start_window: order.start_window,
     end_window: order.end_window,
     event_date: order.event_date,
-    discount_amount_cents: order.discount_amount_cents || 0,
-    discount_percentage: order.discount_percentage || 0,
     address_line1: order.addresses?.line1 || '',
     address_line2: order.addresses?.line2 || '',
     address_city: order.addresses?.city || '',
     address_state: order.addresses?.state || '',
     address_zip: order.addresses?.zip || '',
   });
+  const [discounts, setDiscounts] = useState<any[]>([]);
+  const [newDiscount, setNewDiscount] = useState({ name: '', amount_cents: 0, percentage: 0 });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -44,12 +45,13 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
   async function loadOrderDetails() {
     try {
-      const [itemsRes, notesRes, eventsRes, changelogRes, unitsRes] = await Promise.all([
+      const [itemsRes, notesRes, eventsRes, changelogRes, unitsRes, discountsRes] = await Promise.all([
         supabase.from('order_items').select('*, units(name, price_dry_cents, price_water_cents)').eq('order_id', order.id),
         supabase.from('order_notes').select('*, user:user_id(email)').eq('order_id', order.id).order('created_at', { ascending: false }),
         supabase.from('order_workflow_events').select('*, user:user_id(email)').eq('order_id', order.id).order('created_at', { ascending: false }),
         supabase.from('order_changelog').select('*, user:user_id(email)').eq('order_id', order.id).order('created_at', { ascending: false }),
         supabase.from('units').select('*').eq('active', true).order('name'),
+        supabase.from('order_discounts').select('*').eq('order_id', order.id).order('created_at', { ascending: false }),
       ]);
 
       if (itemsRes.data) setOrderItems(itemsRes.data);
@@ -57,6 +59,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       if (eventsRes.data) setWorkflowEvents(eventsRes.data);
       if (changelogRes.data) setChangelog(changelogRes.data);
       if (unitsRes.data) setAvailableUnits(unitsRes.data);
+      if (discountsRes.data) setDiscounts(discountsRes.data);
     } catch (error) {
       console.error('Error loading order details:', error);
     }
@@ -199,14 +202,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         changes.event_date = editedOrder.event_date;
         logs.push(['event_date', order.event_date, editedOrder.event_date]);
       }
-      if (editedOrder.discount_amount_cents !== (order.discount_amount_cents || 0)) {
-        changes.discount_amount_cents = editedOrder.discount_amount_cents;
-        logs.push(['discount_amount_cents', order.discount_amount_cents || 0, editedOrder.discount_amount_cents]);
-      }
-      if (editedOrder.discount_percentage !== (order.discount_percentage || 0)) {
-        changes.discount_percentage = editedOrder.discount_percentage;
-        logs.push(['discount_percentage', order.discount_percentage || 0, editedOrder.discount_percentage]);
-      }
 
       const addressChanged =
         editedOrder.address_line1 !== (order.addresses?.line1 || '') ||
@@ -298,6 +293,53 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     if (fee > maxFee) fee = maxFee;
 
     return fee;
+  }
+
+  async function handleAddDiscount() {
+    if (!newDiscount.name.trim()) {
+      alert('Please enter a discount name');
+      return;
+    }
+
+    if (newDiscount.amount_cents === 0 && newDiscount.percentage === 0) {
+      alert('Please enter either an amount or percentage');
+      return;
+    }
+
+    try {
+      const user = (await supabase.auth.getUser()).data.user;
+      const { error } = await supabase.from('order_discounts').insert({
+        order_id: order.id,
+        name: newDiscount.name,
+        amount_cents: newDiscount.amount_cents,
+        percentage: newDiscount.percentage,
+        created_by: user?.id,
+      });
+
+      if (error) throw error;
+
+      await logChange('discount', '', `${newDiscount.name} (${newDiscount.amount_cents > 0 ? formatCurrency(newDiscount.amount_cents) : newDiscount.percentage + '%'})`, 'add');
+      setNewDiscount({ name: '', amount_cents: 0, percentage: 0 });
+      await loadOrderDetails();
+      onUpdate();
+    } catch (error) {
+      console.error('Error adding discount:', error);
+      alert('Failed to add discount');
+    }
+  }
+
+  async function handleRemoveDiscount(discountId: string, discountName: string) {
+    if (!confirm(`Remove discount "${discountName}"?`)) return;
+
+    try {
+      await supabase.from('order_discounts').delete().eq('id', discountId);
+      await logChange('discount', discountName, 'removed', 'remove');
+      await loadOrderDetails();
+      onUpdate();
+    } catch (error) {
+      console.error('Error removing discount:', error);
+      alert('Failed to remove discount');
+    }
   }
 
   function startEditing() {
@@ -544,12 +586,19 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 {isEditing ? (
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Street Address</label>
-                      <input
-                        type="text"
-                        value={editedOrder.address_line1}
-                        onChange={(e) => setEditedOrder({ ...editedOrder, address_line1: e.target.value })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                      <label className="block text-xs font-medium text-slate-700 mb-2">Street Address</label>
+                      <AddressAutocomplete
+                        value={`${editedOrder.address_line1}, ${editedOrder.address_city}, ${editedOrder.address_state} ${editedOrder.address_zip}`}
+                        onSelect={(result) => {
+                          setEditedOrder({
+                            ...editedOrder,
+                            address_line1: result.street,
+                            address_city: result.city,
+                            address_state: result.state,
+                            address_zip: result.zip,
+                          });
+                        }}
+                        placeholder="Enter event address"
                       />
                     </div>
                     <div>
@@ -559,39 +608,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                         value={editedOrder.address_line2}
                         onChange={(e) => setEditedOrder({ ...editedOrder, address_line2: e.target.value })}
                         className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                        placeholder="Apt, Suite, Unit, etc."
                       />
                     </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="col-span-1">
-                        <label className="block text-xs font-medium text-slate-700 mb-1">City</label>
-                        <input
-                          type="text"
-                          value={editedOrder.address_city}
-                          onChange={(e) => setEditedOrder({ ...editedOrder, address_city: e.target.value })}
-                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-700 mb-1">State</label>
-                        <input
-                          type="text"
-                          value={editedOrder.address_state}
-                          onChange={(e) => setEditedOrder({ ...editedOrder, address_state: e.target.value })}
-                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                          maxLength={2}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-700 mb-1">ZIP</label>
-                        <input
-                          type="text"
-                          value={editedOrder.address_zip}
-                          onChange={(e) => setEditedOrder({ ...editedOrder, address_zip: e.target.value })}
-                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                        />
-                      </div>
-                    </div>
-                    <p className="text-xs text-amber-600">Address changes will recalculate travel fees</p>
+                    <p className="text-xs text-amber-600">Address changes will recalculate travel fees when saved</p>
                   </div>
                 ) : (
                   <div>
@@ -664,38 +684,93 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 )}
               </div>
 
-              {isEditing && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <h3 className="font-semibold text-slate-900 mb-3">Discount</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Discount Amount ($)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={(editedOrder.discount_amount_cents / 100).toFixed(2)}
-                        onChange={(e) => setEditedOrder({ ...editedOrder, discount_amount_cents: Math.round(parseFloat(e.target.value) * 100) || 0, discount_percentage: 0 })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                        placeholder="0.00"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Discount Percentage (%)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={editedOrder.discount_percentage}
-                        onChange={(e) => setEditedOrder({ ...editedOrder, discount_percentage: parseFloat(e.target.value) || 0, discount_amount_cents: 0 })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                        placeholder="0"
-                      />
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <h3 className="font-semibold text-slate-900 mb-3">Discounts</h3>
+
+                {discounts.length > 0 && (
+                  <div className="space-y-2 mb-4">
+                    {discounts.map(discount => (
+                      <div key={discount.id} className="flex justify-between items-center bg-white rounded p-3">
+                        <div>
+                          <p className="font-medium text-slate-900">{discount.name}</p>
+                          <p className="text-xs text-slate-600">
+                            {discount.amount_cents > 0
+                              ? formatCurrency(discount.amount_cents)
+                              : `${discount.percentage}%`}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-semibold text-green-600">
+                            -{discount.amount_cents > 0
+                              ? formatCurrency(discount.amount_cents)
+                              : formatCurrency(Math.round(order.subtotal_cents * (discount.percentage / 100)))}
+                          </span>
+                          {isEditing && (
+                            <button
+                              onClick={() => handleRemoveDiscount(discount.id, discount.name)}
+                              className="text-red-600 hover:text-red-800 p-1"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {isEditing && (
+                  <div className="border-t border-green-300 pt-4">
+                    <h4 className="text-sm font-medium text-slate-900 mb-3">Add Discount</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Discount Name</label>
+                        <input
+                          type="text"
+                          value={newDiscount.name}
+                          onChange={(e) => setNewDiscount({ ...newDiscount, name: e.target.value })}
+                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                          placeholder="e.g., Military Discount, SAVE20"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-1">Amount ($)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={(newDiscount.amount_cents / 100).toFixed(2)}
+                            onChange={(e) => setNewDiscount({ ...newDiscount, amount_cents: Math.round(parseFloat(e.target.value) * 100) || 0, percentage: 0 })}
+                            className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-1">Percentage (%)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={newDiscount.percentage}
+                            onChange={(e) => setNewDiscount({ ...newDiscount, percentage: parseFloat(e.target.value) || 0, amount_cents: 0 })}
+                            className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleAddDiscount}
+                        className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded font-medium"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add Discount
+                      </button>
+                      <p className="text-xs text-slate-600">Enter either a dollar amount OR percentage (not both)</p>
                     </div>
                   </div>
-                  <p className="text-xs text-slate-600 mt-2">Enter either a dollar amount or percentage (not both)</p>
-                </div>
-              )}
+                )}
+              </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <div className="space-y-2 text-sm">
@@ -709,17 +784,19 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                       <span className="font-semibold">{formatCurrency(order.travel_fee_cents)}</span>
                     </div>
                   )}
-                  {(order.discount_amount_cents > 0 || order.discount_percentage > 0) && (
-                    <div className="flex justify-between text-green-600">
-                      <span>Discount:</span>
+                  {discounts.length > 0 && discounts.map(discount => (
+                    <div key={discount.id} className="flex justify-between text-green-600">
+                      <span>{discount.name}:</span>
                       <span className="font-semibold">
-                        -{formatCurrency(order.discount_amount_cents || Math.round(order.subtotal_cents * (order.discount_percentage / 100)))}
+                        -{discount.amount_cents > 0
+                          ? formatCurrency(discount.amount_cents)
+                          : formatCurrency(Math.round(order.subtotal_cents * (discount.percentage / 100)))}
                       </span>
                     </div>
-                  )}
+                  ))}
                   <div className="flex justify-between pt-2 border-t border-blue-300 text-lg">
                     <span className="font-bold">Total:</span>
-                    <span className="font-bold">{formatCurrency(totalOrder)}</span>
+                    <span className="font-bold">{formatCurrency(totalOrder - discounts.reduce((sum, d) => sum + (d.amount_cents > 0 ? d.amount_cents : Math.round(order.subtotal_cents * (d.percentage / 100))), 0))}</span>
                   </div>
                 </div>
               </div>
