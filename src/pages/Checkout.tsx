@@ -340,16 +340,16 @@ export function Checkout() {
             <p className="text-blue-800 leading-relaxed mb-2">
               Thank you for choosing Bounce Party Club to bring energy and excitement to your event! We're honored to help make your celebration unforgettable.
             </p>
-            <p className="text-blue-800">
+            <p className="text-blue-800 mb-4">
               If you have any questions, contact us at <strong>(313) 889-3860</strong> or visit us at <strong>4426 Woodward St, Wayne, MI 48184</strong>.
             </p>
+            <button
+              onClick={() => navigate('/')}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors"
+            >
+              Back to Home
+            </button>
           </div>
-          <button
-            onClick={() => navigate('/')}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors"
-          >
-            Back to Home
-          </button>
         </div>
       </div>
     );
