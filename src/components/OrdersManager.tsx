@@ -220,6 +220,7 @@ export function OrdersManager() {
             <thead className="bg-slate-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Order ID</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Created</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Customer</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Event Date</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Location</th>
@@ -238,8 +239,13 @@ export function OrdersManager() {
                     <div className="text-sm font-mono font-semibold text-blue-600">
                       {order.id.slice(0, 8).toUpperCase()}
                     </div>
-                    <div className="text-xs text-slate-500">
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-slate-900">
                       {format(new Date(order.created_at), 'MMM d, yyyy')}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {format(new Date(order.created_at), 'h:mm a')}
                     </div>
                   </td>
                   <td className="px-6 py-4">
