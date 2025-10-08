@@ -207,25 +207,34 @@ export async function calculateDrivingDistance(
   destLat: number,
   destLng: number
 ): Promise<number> {
-  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-
-  if (!apiKey) {
-    console.warn('Google Maps API key not configured, falling back to straight-line distance with 1.4x multiplier');
-    return calculateDistance(originLat, originLng, destLat, destLng) * 1.4;
-  }
-
   try {
-    const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${originLat},${originLng}&destinations=${destLat},${destLng}&units=imperial&key=${apiKey}`;
+    const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-maps-distance`;
 
-    const response = await fetch(url);
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        originLat,
+        originLng,
+        destLat,
+        destLng,
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn('Distance API error, falling back to straight-line × 1.4');
+      return calculateDistance(originLat, originLng, destLat, destLng) * 1.4;
+    }
+
     const data = await response.json();
 
-    if (data.status === 'OK' && data.rows[0]?.elements[0]?.status === 'OK') {
-      const distanceMeters = data.rows[0].elements[0].distance.value;
-      const distanceMiles = distanceMeters * 0.000621371;
-      return distanceMiles;
+    if (data.distanceMiles) {
+      return data.distanceMiles;
     } else {
-      console.warn('Distance Matrix API error:', data.status, 'falling back to straight-line × 1.4');
+      console.warn('No distance in response, falling back to straight-line × 1.4');
       return calculateDistance(originLat, originLng, destLat, destLng) * 1.4;
     }
   } catch (error) {
