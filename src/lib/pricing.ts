@@ -225,7 +225,12 @@ export async function calculateDrivingDistance(
     });
 
     if (!response.ok) {
-      console.warn('Distance API error, falling back to straight-line × 1.4');
+      const errorData = await response.json().catch(() => ({}));
+      if (errorData.error && errorData.error.includes('not configured')) {
+        console.log('Google Maps API not configured, using straight-line distance × 1.4');
+      } else {
+        console.warn('Distance API error, falling back to straight-line × 1.4');
+      }
       return calculateDistance(originLat, originLng, destLat, destLng) * 1.4;
     }
 

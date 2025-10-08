@@ -762,7 +762,7 @@ export function Checkout() {
         </div>
       </form>
 
-      {showStripeForm && (
+      {showStripeForm && tempOrderId && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 relative">
             <button
@@ -776,7 +776,8 @@ export function Checkout() {
               Enter your payment details below. Your card will be securely stored for future charges related to this booking.
             </p>
             <StripeCheckoutForm
-              orderId={tempOrderId || ''}
+              key={tempOrderId}
+              orderId={tempOrderId}
               depositCents={getPaymentAmountCents()}
               customerEmail={contactData.email}
               customerName={`${contactData.first_name} ${contactData.last_name}`}
