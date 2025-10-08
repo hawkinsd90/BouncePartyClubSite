@@ -47,6 +47,14 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
   const [processing, setProcessing] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
+  useEffect(() => {
+    if (!stripe || !elements) {
+      console.log('Stripe or Elements not ready yet');
+      return;
+    }
+    console.log('Stripe and Elements are ready');
+  }, [stripe, elements]);
+
   const handleReady = () => {
     console.log('PaymentElement is ready');
     setIsReady(true);
@@ -101,6 +109,15 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
       setProcessing(false);
     }
   };
+
+  if (!stripe || !elements) {
+    return (
+      <div className="flex items-center justify-center py-8 text-slate-600">
+        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+        Initializing payment form...
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit}>
