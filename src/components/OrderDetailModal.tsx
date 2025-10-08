@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Truck, MapPin, CheckCircle, MessageSquare, DollarSign, FileText, Calendar } from 'lucide-react';
+import { X, Truck, MapPin, CheckCircle, MessageSquare, DollarSign, FileText, Calendar, Edit2, History, Save, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
 import { formatCurrency } from '../lib/pricing';
@@ -11,13 +11,17 @@ interface OrderDetailModalProps {
 }
 
 export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalProps) {
-  const [activeSection, setActiveSection] = useState<'details' | 'workflow' | 'notes'>('details');
+  const [activeSection, setActiveSection] = useState<'details' | 'workflow' | 'notes' | 'changelog'>('details');
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [notes, setNotes] = useState<any[]>([]);
   const [workflowEvents, setWorkflowEvents] = useState<any[]>([]);
+  const [changelog, setChangelog] = useState<any[]>([]);
+  const [availableUnits, setAvailableUnits] = useState<any[]>([]);
   const [newNote, setNewNote] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [eta, setEta] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedOrder, setEditedOrder] = useState<any>(null);
 
   useEffect(() => {
     loadOrderDetails();
@@ -25,15 +29,19 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
   async function loadOrderDetails() {
     try {
-      const [itemsRes, notesRes, eventsRes] = await Promise.all([
-        supabase.from('order_items').select('*, units(name)').eq('order_id', order.id),
+      const [itemsRes, notesRes, eventsRes, changelogRes, unitsRes] = await Promise.all([
+        supabase.from('order_items').select('*, units(name, price_dry_cents, price_water_cents)').eq('order_id', order.id),
         supabase.from('order_notes').select('*, user:user_id(email)').eq('order_id', order.id).order('created_at', { ascending: false }),
         supabase.from('order_workflow_events').select('*, user:user_id(email)').eq('order_id', order.id).order('created_at', { ascending: false }),
+        supabase.from('order_changelog').select('*, user:user_id(email)').eq('order_id', order.id).order('created_at', { ascending: false }),
+        supabase.from('units').select('*').eq('active', true).order('name'),
       ]);
 
       if (itemsRes.data) setOrderItems(itemsRes.data);
       if (notesRes.data) setNotes(notesRes.data);
       if (eventsRes.data) setWorkflowEvents(eventsRes.data);
+      if (changelogRes.data) setChangelog(changelogRes.data);
+      if (unitsRes.data) setAvailableUnits(unitsRes.data);
     } catch (error) {
       console.error('Error loading order details:', error);
     }
@@ -63,7 +71,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
   }
 
-  async function handleWorkflowAction(action: 'on_the_way' | 'arrived' | 'setup_completed') {
+  async function handleWorkflowAction(action: 'on_the_way' | 'arrived' | 'setup_completed' | 'pickup_completed') {
     try {
       const user = (await supabase.auth.getUser()).data.user;
 
@@ -75,12 +83,19 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       });
 
       let newWorkflowStatus = 'pending';
+      let orderStatus = order.status;
+
       if (action === 'on_the_way') newWorkflowStatus = 'on_the_way';
       if (action === 'arrived') newWorkflowStatus = 'arrived';
       if (action === 'setup_completed') newWorkflowStatus = 'setup_completed';
+      if (action === 'pickup_completed') {
+        newWorkflowStatus = 'completed';
+        orderStatus = 'completed';
+      }
 
       await supabase.from('orders').update({
         workflow_status: newWorkflowStatus,
+        status: orderStatus,
         current_eta: action === 'on_the_way' && eta ? new Date(eta).toISOString() : order.current_eta,
       }).eq('id', order.id);
 
@@ -107,12 +122,113 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         await sendSMS(message);
       }
 
+      if (action === 'pickup_completed') {
+        const message = `Thank you for choosing Bounce Party Club! We hope you had a great event. We'd love to hear your feedback!`;
+        await sendSMS(message);
+
+        await logChange('order_status', order.status, 'completed', 'status_change');
+      }
+
       await loadOrderDetails();
       onUpdate();
       alert('Workflow action completed!');
     } catch (error) {
       console.error('Error processing workflow action:', error);
       alert('Failed to process workflow action');
+    }
+  }
+
+  async function logChange(field: string, oldVal: any, newVal: any, changeType: string = 'edit') {
+    try {
+      const user = (await supabase.auth.getUser()).data.user;
+      await supabase.from('order_changelog').insert({
+        order_id: order.id,
+        user_id: user?.id,
+        field_changed: field,
+        old_value: String(oldVal),
+        new_value: String(newVal),
+        change_type: changeType,
+      });
+    } catch (error) {
+      console.error('Error logging change:', error);
+    }
+  }
+
+  function startEditing() {
+    setEditedOrder({
+      event_date: order.event_date,
+      start_window: order.start_window,
+      end_window: order.end_window,
+    });
+    setIsEditing(true);
+  }
+
+  async function saveEdits() {
+    try {
+      const user = (await supabase.auth.getUser()).data.user;
+      const changes: any = {};
+
+      if (editedOrder.event_date !== order.event_date) {
+        changes.event_date = editedOrder.event_date;
+        await logChange('event_date', order.event_date, editedOrder.event_date);
+      }
+      if (editedOrder.start_window !== order.start_window) {
+        changes.start_window = editedOrder.start_window;
+        await logChange('start_window', order.start_window, editedOrder.start_window);
+      }
+      if (editedOrder.end_window !== order.end_window) {
+        changes.end_window = editedOrder.end_window;
+        await logChange('end_window', order.end_window, editedOrder.end_window);
+      }
+
+      if (Object.keys(changes).length > 0) {
+        await supabase.from('orders').update(changes).eq('id', order.id);
+      }
+
+      setIsEditing(false);
+      await loadOrderDetails();
+      onUpdate();
+      alert('Changes saved successfully!');
+    } catch (error) {
+      console.error('Error saving edits:', error);
+      alert('Failed to save changes');
+    }
+  }
+
+  async function removeItem(itemId: string, itemName: string) {
+    if (!confirm(`Remove ${itemName} from this order?`)) return;
+
+    try {
+      await supabase.from('order_items').delete().eq('id', itemId);
+      await logChange('order_items', itemName, 'removed', 'remove');
+      await loadOrderDetails();
+      onUpdate();
+      alert('Item removed successfully!');
+    } catch (error) {
+      console.error('Error removing item:', error);
+      alert('Failed to remove item');
+    }
+  }
+
+  async function addItem(unit: any, mode: 'dry' | 'water') {
+    try {
+      const price = mode === 'water' && unit.price_water_cents ? unit.price_water_cents : unit.price_dry_cents;
+
+      await supabase.from('order_items').insert({
+        order_id: order.id,
+        unit_id: unit.id,
+        qty: 1,
+        wet_or_dry: mode,
+        unit_price_cents: price,
+      });
+
+      await logChange('order_items', '', `${unit.name} (${mode})`, 'add');
+      await loadOrderDetails();
+      onUpdate();
+      alert('Item added successfully!');
+    } catch (error) {
+      console.error('Error adding item:', error);
+      alert('Failed to add item');
     }
   }
 
@@ -156,6 +272,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
             { key: 'details', label: 'Details', icon: FileText },
             { key: 'workflow', label: 'Workflow', icon: Truck },
             { key: 'notes', label: 'Notes', icon: MessageSquare },
+            { key: 'changelog', label: 'Changelog', icon: History },
           ].map(section => (
             <button
               key={section.key}

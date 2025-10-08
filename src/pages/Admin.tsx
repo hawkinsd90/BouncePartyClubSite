@@ -558,7 +558,7 @@ function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => voi
 
 function AdminDashboard() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'overview' | 'pending' | 'inventory' | 'orders' | 'contacts' | 'invoices' | 'settings' | 'changelog' | 'calculator'>('pending');
+  const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'orders' | 'contacts' | 'invoices' | 'settings' | 'changelog' | 'calculator'>('orders');
   const [units, setUnits] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [pricingRules, setPricingRules] = useState<any>(null);
@@ -784,21 +784,6 @@ function AdminDashboard() {
           }`}
         >
           Overview
-        </button>
-        <button
-          onClick={() => setActiveTab('pending')}
-          className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors relative ${
-            activeTab === 'pending'
-              ? 'bg-amber-600 text-white'
-              : 'bg-white text-slate-700 border border-slate-300 hover:border-amber-600'
-          }`}
-        >
-          Pending Review
-          {orders.filter(o => o.status === 'pending_review').length > 0 && (
-            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
-              {orders.filter(o => o.status === 'pending_review').length}
-            </span>
-          )}
         </button>
         <button
           onClick={() => setActiveTab('inventory')}
