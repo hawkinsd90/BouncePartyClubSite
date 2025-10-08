@@ -159,13 +159,19 @@ export function StripeCheckoutForm({
   const [stripe, setStripe] = useState<Stripe | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+
     const initializePayment = async () => {
       try {
+        console.log('Initializing Stripe payment...');
         const stripeInstance = await getStripePromise();
+        if (!mounted) return;
+
         if (!stripeInstance) {
           throw new Error('Failed to load Stripe. Please check configuration.');
         }
         setStripe(stripeInstance);
+        console.log('Stripe instance loaded');
 
         const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`;
         const response = await fetch(apiUrl, {
@@ -182,21 +188,33 @@ export function StripeCheckoutForm({
           }),
         });
 
+        if (!mounted) return;
+
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.error || 'Failed to create payment intent');
         }
 
         const data = await response.json();
+        console.log('Payment intent created');
         setClientSecret(data.clientSecret);
       } catch (err: any) {
-        onError(err.message || 'Failed to initialize payment');
+        console.error('Payment initialization error:', err);
+        if (mounted) {
+          onError(err.message || 'Failed to initialize payment');
+        }
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
     initializePayment();
+
+    return () => {
+      mounted = false;
+    };
   }, [orderId, depositCents, customerEmail, customerName, onError]);
 
   if (loading) {
@@ -217,7 +235,6 @@ export function StripeCheckoutForm({
 
   return (
     <Elements
-      key={clientSecret}
       stripe={stripe}
       options={{
         clientSecret,

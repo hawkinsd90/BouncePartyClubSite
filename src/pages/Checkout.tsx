@@ -776,7 +776,6 @@ export function Checkout() {
               Enter your payment details below. Your card will be securely stored for future charges related to this booking.
             </p>
             <StripeCheckoutForm
-              key={tempOrderId}
               orderId={tempOrderId}
               depositCents={getPaymentAmountCents()}
               customerEmail={contactData.email}
