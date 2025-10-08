@@ -57,29 +57,42 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
   const [processing, setProcessing] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [canRender, setCanRender] = useState(false);
+  const [renderAttempt, setRenderAttempt] = useState(0);
 
   useEffect(() => {
     console.log('[CheckoutForm] Component mounted, stripe:', !!stripe, 'elements:', !!elements);
 
     if (stripe && elements) {
-      console.log('[CheckoutForm] Stripe and Elements ready, waiting 100ms for frame initialization...');
-      const timer = setTimeout(() => {
-        console.log('[CheckoutForm] Allowing PaymentElement to render');
-        setCanRender(true);
-      }, 100);
+      console.log('[CheckoutForm] Stripe and Elements ready, waiting 500ms for frame initialization...');
 
-      return () => clearTimeout(timer);
+      const timer = setTimeout(() => {
+        console.log('[CheckoutForm] Frame wait complete, allowing PaymentElement to render (attempt:', renderAttempt + 1, ')');
+        setCanRender(true);
+        setRenderAttempt(prev => prev + 1);
+      }, 500);
+
+      return () => {
+        console.log('[CheckoutForm] Cleanup: clearing timer');
+        clearTimeout(timer);
+      };
+    } else {
+      console.log('[CheckoutForm] Waiting for stripe/elements. stripe:', !!stripe, 'elements:', !!elements);
     }
   }, [stripe, elements]);
 
   const handleReady = () => {
-    console.log('[CheckoutForm] PaymentElement is ready');
+    console.log('[CheckoutForm] ✓ PaymentElement is ready and can accept input');
     setIsReady(true);
   };
 
   const handleLoadError = (event: any) => {
-    console.error('[CheckoutForm] PaymentElement loader error:', event);
+    console.error('[CheckoutForm] ✗ PaymentElement loader error:', event);
+    console.error('[CheckoutForm] Error details:', JSON.stringify(event, null, 2));
     onError('Failed to load payment form. Please refresh and try again.');
+  };
+
+  const handleChange = (event: any) => {
+    console.log('[CheckoutForm] PaymentElement changed:', event);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -130,7 +143,7 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
     );
   }
 
-  console.log('[CheckoutForm] Rendering PaymentElement, isReady:', isReady);
+  console.log('[CheckoutForm] >>> Rendering PaymentElement now. isReady:', isReady, 'renderAttempt:', renderAttempt);
 
   return (
     <form onSubmit={handleSubmit}>
@@ -138,6 +151,7 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
         <PaymentElement
           onReady={handleReady}
           onLoadError={handleLoadError}
+          onChange={handleChange}
           options={{
             layout: 'tabs',
           }}
@@ -344,13 +358,19 @@ function StripeElementsWrapper({ options, onSuccess, onError }: StripeElementsWr
     );
   }
 
-  console.log('[StripeElementsWrapper] Rendering Elements component with options:', {
+  console.log('[StripeElementsWrapper] >>> Creating Elements component with:', {
+    hasStripe: !!stripe,
     hasClientSecret: !!options.clientSecret,
+    clientSecretPrefix: options.clientSecret?.substring(0, 20) + '...',
     appearance: options.appearance
   });
 
   return (
-    <Elements stripe={stripe} options={options}>
+    <Elements
+      stripe={stripe}
+      options={options}
+      key={options.clientSecret}
+    >
       <CheckoutForm onSuccess={onSuccess} onError={onError} />
     </Elements>
   );
