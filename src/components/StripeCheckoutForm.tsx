@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { loadStripe, Stripe, StripeElementsOptions } from '@stripe/stripe-js';
 import {
   Elements,
@@ -56,30 +56,58 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
   const elements = useElements();
   const [processing, setProcessing] = useState(false);
   const [isReady, setIsReady] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const [canRender, setCanRender] = useState(false);
+  const mountTimeRef = useRef<number>(0);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    console.log('[CheckoutForm] Component mounted, stripe:', !!stripe, 'elements:', !!elements);
-    setMounted(true);
+    const now = Date.now();
+    mountTimeRef.current = now;
+    console.log('[CheckoutForm] Component mounted at', now, ', stripe:', !!stripe, 'elements:', !!elements);
+
+    if (stripe && elements) {
+      console.log('[CheckoutForm] Stripe and Elements available, waiting 200ms before rendering PaymentElement...');
+
+      if (timerRef.current) {
+        console.log('[CheckoutForm] Clearing previous timer');
+        clearTimeout(timerRef.current);
+      }
+
+      timerRef.current = setTimeout(() => {
+        if (mountTimeRef.current === now) {
+          console.log('[CheckoutForm] Timer complete for mount', now, '- allowing PaymentElement render');
+          setCanRender(true);
+        } else {
+          console.log('[CheckoutForm] Timer complete but mount time changed (', mountTimeRef.current, 'vs', now, ') - ignoring');
+        }
+      }, 200);
+    }
+
     return () => {
-      console.log('[CheckoutForm] Component unmounted');
-      setMounted(false);
+      console.log('[CheckoutForm] Component unmounting (was mounted at', now, ')');
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
     };
-  }, []);
+  }, [stripe, elements]);
 
   const handleReady = () => {
-    console.log('[CheckoutForm] ✓ PaymentElement is ready and can accept input');
+    const timeSinceMount = Date.now() - mountTimeRef.current;
+    console.log('[CheckoutForm] ✓ PaymentElement is ready and can accept input (', timeSinceMount, 'ms since mount)');
     setIsReady(true);
   };
 
   const handleLoadError = (event: any) => {
-    console.error('[CheckoutForm] ✗ PaymentElement loader error:', event);
+    const timeSinceMount = Date.now() - mountTimeRef.current;
+    console.error('[CheckoutForm] ✗ PaymentElement loader error after', timeSinceMount, 'ms:', event);
     console.error('[CheckoutForm] Error details:', JSON.stringify(event, null, 2));
+    console.error('[CheckoutForm] Current state - mountTime:', mountTimeRef.current, 'canRender:', canRender, 'stripe:', !!stripe, 'elements:', !!elements);
     onError('Failed to load payment form. Please refresh and try again.');
   };
 
   const handleChange = (event: any) => {
-    console.log('[CheckoutForm] PaymentElement changed:', event);
+    console.log('[CheckoutForm] PaymentElement changed:', event.elementType, 'complete:', event.complete);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -120,8 +148,8 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
     }
   };
 
-  if (!stripe || !elements || !mounted) {
-    console.log('[CheckoutForm] Waiting - stripe:', !!stripe, 'elements:', !!elements, 'mounted:', mounted);
+  if (!stripe || !elements || !canRender) {
+    console.log('[CheckoutForm] Waiting - stripe:', !!stripe, 'elements:', !!elements, 'canRender:', canRender, 'mountTime:', mountTimeRef.current);
     return (
       <div className="flex items-center justify-center py-8">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -130,7 +158,7 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
     );
   }
 
-  console.log('[CheckoutForm] >>> Rendering PaymentElement now. isReady:', isReady, 'mounted:', mounted);
+  console.log('[CheckoutForm] >>> Rendering PaymentElement now. isReady:', isReady, 'canRender:', canRender, 'mountTime:', mountTimeRef.current);
 
   return (
     <form onSubmit={handleSubmit}>
