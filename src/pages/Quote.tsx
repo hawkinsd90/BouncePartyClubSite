@@ -146,6 +146,25 @@ export function Quote() {
   function loadCart() {
     const savedCart = JSON.parse(localStorage.getItem('bpc_cart') || '[]');
     setCart(savedCart);
+
+    // Also restore form data from localStorage if it exists
+    const savedFormData = localStorage.getItem('bpc_quote_form');
+    if (savedFormData) {
+      try {
+        const parsedFormData = JSON.parse(savedFormData);
+        setFormData(prev => ({
+          ...prev,
+          ...parsedFormData,
+        }));
+
+        // Also restore the address input if available
+        if (parsedFormData.address_line1) {
+          setAddressInput(`${parsedFormData.address_line1}, ${parsedFormData.city}, ${parsedFormData.state} ${parsedFormData.zip}`);
+        }
+      } catch (error) {
+        console.error('Error loading saved form data:', error);
+      }
+    }
   }
 
   async function loadPricingRules() {
