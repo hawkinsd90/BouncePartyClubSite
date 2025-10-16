@@ -16,7 +16,6 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // Parse incoming Twilio status callback data (application/x-www-form-urlencoded)
     const formData = await req.formData();
     
     const messageSid = formData.get("MessageSid") as string;
@@ -38,12 +37,10 @@ Deno.serve(async (req: Request) => {
       return new Response(null, { status: 200 });
     }
 
-    // Initialize Supabase client with service role key
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Update SMS conversation status in database
     const { error: updateError } = await supabase
       .from("sms_conversations")
       .update({
@@ -57,19 +54,16 @@ Deno.serve(async (req: Request) => {
       console.log(`Updated message ${messageSid} to status: ${messageStatus}`);
     }
 
-    // If there's an error code, log it for debugging
     if (errorCode) {
       console.error(`SMS Error for ${messageSid}: Error code ${errorCode}`);
     }
 
-    // Return success (empty response)
     return new Response(null, {
       status: 200,
     });
   } catch (error) {
     console.error("Error processing status callback:", error);
     
-    // Return success even on error so Twilio doesn't retry
     return new Response(null, {
       status: 200,
     });

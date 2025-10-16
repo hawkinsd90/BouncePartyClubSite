@@ -35,7 +35,6 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    // Get Stripe secret key
     const { data: stripeKeyData, error: keyError } = await supabaseClient
       .from("admin_settings")
       .select("value")
@@ -57,7 +56,6 @@ Deno.serve(async (req: Request) => {
       apiVersion: "2024-10-28.acacia",
     });
 
-    // Get order with payment info
     const { data: order, error: orderError } = await supabaseClient
       .from("orders")
       .select("stripe_payment_status, stripe_customer_id")
@@ -80,7 +78,6 @@ Deno.serve(async (req: Request) => {
       stripe_customer_id: order.stripe_customer_id,
     });
 
-    // If already marked as paid, return immediately
     if (order.stripe_payment_status === "paid") {
       console.log("[check-payment-status] Order already marked as paid");
       return new Response(
@@ -92,7 +89,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Check Stripe for recent successful checkout sessions
     if (order.stripe_customer_id) {
       console.log("[check-payment-status] Checking Stripe for customer:", order.stripe_customer_id);
       const sessions = await stripe.checkout.sessions.list({
@@ -102,7 +98,6 @@ Deno.serve(async (req: Request) => {
 
       console.log("[check-payment-status] Found", sessions.data.length, "sessions");
 
-      // Find a completed session for this order
       const completedSession = sessions.data.find(
         (s) => s.metadata?.order_id === orderId && s.payment_status === "paid"
       );
@@ -110,13 +105,11 @@ Deno.serve(async (req: Request) => {
       if (completedSession) {
         console.log("[check-payment-status] Found completed session:", completedSession.id);
 
-        // Retrieve full session with payment method details
         const fullSession = await stripe.checkout.sessions.retrieve(completedSession.id, {
           expand: ['payment_method']
         });
         console.log("[check-payment-status] Payment method ID:", fullSession.payment_method);
         
-        // Update order status with payment method from full session
         const paymentMethodId = typeof fullSession.payment_method === 'string'
           ? fullSession.payment_method
           : fullSession.payment_method?.id;
@@ -137,7 +130,6 @@ Deno.serve(async (req: Request) => {
           console.log("[check-payment-status] Order updated successfully");
         }
 
-        // Send SMS notification
         try {
           console.log("[check-payment-status] Sending SMS notification");
           const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";

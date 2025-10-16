@@ -35,7 +35,6 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    // Get Stripe secret key
     const { data: stripeKeyData, error: keyError } = await supabaseClient
       .from("admin_settings")
       .select("value")
@@ -57,7 +56,6 @@ Deno.serve(async (req: Request) => {
       apiVersion: "2024-10-28.acacia",
     });
 
-    // Get order
     const { data: order, error: orderError } = await supabaseClient
       .from("orders")
       .select("stripe_customer_id")
@@ -87,7 +85,6 @@ Deno.serve(async (req: Request) => {
 
     console.log("[fix-payment-method] Looking for sessions for customer:", order.stripe_customer_id);
 
-    // Get all sessions for this customer
     const sessions = await stripe.checkout.sessions.list({
       customer: order.stripe_customer_id,
       limit: 20,
@@ -95,7 +92,6 @@ Deno.serve(async (req: Request) => {
 
     console.log("[fix-payment-method] Found", sessions.data.length, "sessions");
 
-    // Find the session for this order
     const orderSession = sessions.data.find(
       (s) => s.metadata?.order_id === orderId
     );
@@ -112,7 +108,6 @@ Deno.serve(async (req: Request) => {
 
     console.log("[fix-payment-method] Found session:", orderSession.id);
 
-    // Retrieve full session with payment method
     const fullSession = await stripe.checkout.sessions.retrieve(orderSession.id, {
       expand: ['payment_intent', 'payment_intent.payment_method'],
     });
@@ -121,14 +116,12 @@ Deno.serve(async (req: Request) => {
 
     let paymentMethodId: string | null = null;
 
-    // Try to get payment method from the session
     if (typeof fullSession.payment_method === 'string') {
       paymentMethodId = fullSession.payment_method;
     } else if (fullSession.payment_method?.id) {
       paymentMethodId = fullSession.payment_method.id;
     }
 
-    // If not found, try from payment intent
     if (!paymentMethodId && fullSession.payment_intent) {
       const paymentIntent = fullSession.payment_intent;
       if (typeof paymentIntent === 'object' && paymentIntent.payment_method) {
@@ -152,7 +145,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Update the order
     const { error: updateError } = await supabaseClient
       .from("orders")
       .update({

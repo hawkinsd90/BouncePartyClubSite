@@ -62,7 +62,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Look up order to get customer ID if available
     const { data: order } = await supabaseClient
       .from("orders")
       .select("stripe_customer_id")
@@ -71,7 +70,6 @@ Deno.serve(async (req: Request) => {
 
     let customerId = order?.stripe_customer_id || null;
 
-    // Create or reuse Stripe customer
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: customerEmail,
@@ -82,17 +80,14 @@ Deno.serve(async (req: Request) => {
       });
       customerId = customer.id;
 
-      // Update order with customer ID
       await supabaseClient
         .from("orders")
         .update({ stripe_customer_id: customerId })
         .eq("id", orderId);
     }
 
-    // Get the current origin from the request
     const origin = req.headers.get("origin") || "https://bolt.new";
 
-    // Create Checkout Session (hosted Stripe page)
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       line_items: [
@@ -123,7 +118,6 @@ Deno.serve(async (req: Request) => {
       },
     });
 
-    // Create payment record
     await supabaseClient.from("payments").insert({
       order_id: orderId,
       stripe_payment_intent_id: session.payment_intent as string,

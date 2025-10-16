@@ -35,11 +35,9 @@ Deno.serve(async (req: Request) => {
     const orderId = requestBody.orderId;
     const templateKey = requestBody.templateKey;
 
-    // Handle template-based messages
     if (templateKey && orderId) {
       console.log("[send-sms-notification] Looking up template:", templateKey);
       
-      // Get the template
       const { data: template } = await supabase
         .from("sms_message_templates")
         .select("message_template")
@@ -51,7 +49,6 @@ Deno.serve(async (req: Request) => {
         throw new Error(`Template '${templateKey}' not found`);
       }
 
-      // Get order details
       const { data: order } = await supabase
         .from("orders")
         .select("*, customers(*)")
@@ -63,7 +60,6 @@ Deno.serve(async (req: Request) => {
         throw new Error(`Order '${orderId}' not found`);
       }
 
-      // Get admin phone for admin notifications
       if (templateKey === "booking_received_admin") {
         const { data: adminPhoneSetting } = await supabase
           .from("admin_settings")
@@ -78,11 +74,9 @@ Deno.serve(async (req: Request) => {
 
         toPhone = adminPhoneSetting.value;
       } else {
-        // Customer notification
         toPhone = order.customers?.phone;
       }
 
-      // Replace placeholders in template
       messageBody = template.message_template
         .replace("{customer_name}", `${order.customers?.first_name || ''} ${order.customers?.last_name || ''}`)
         .replace("{order_id}", order.id.slice(0, 8).toUpperCase())
@@ -104,9 +98,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Ensure phone number has country code
     if (toPhone && !toPhone.startsWith('+')) {
-      // Assume US number if no country code
       toPhone = '+1' + toPhone.replace(/\D/g, '');
       console.log("[send-sms-notification] Added country code to phone:", toPhone);
     }
