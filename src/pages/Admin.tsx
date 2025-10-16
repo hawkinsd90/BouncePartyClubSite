@@ -29,10 +29,8 @@ function AdminDashboard() {
     publishable_key: ''
   });
   const [adminEmail, setAdminEmail] = useState('');
-  const [productionUrl, setProductionUrl] = useState('');
   const [savingTwilio, setSavingTwilio] = useState(false);
   const [savingStripe, setSavingStripe] = useState(false);
-  const [savingProductionUrl, setSavingProductionUrl] = useState(false);
   const [smsTemplates, setSmsTemplates] = useState<any[]>([]);
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
   const [savingTemplate, setSavingTemplate] = useState(false);
@@ -63,7 +61,7 @@ function AdminDashboard() {
           addresses (line1, city, state, zip)
         `).in('status', ['pending_review', 'draft', 'confirmed']).order('created_at', { ascending: false }).limit(50),
         supabase.from('pricing_rules').select('*').limit(1).maybeSingle(),
-        supabase.from('admin_settings').select('*').in('key', ['twilio_account_sid', 'twilio_auth_token', 'twilio_from_number', 'admin_email', 'stripe_secret_key', 'stripe_publishable_key', 'production_url']),
+        supabase.from('admin_settings').select('*').in('key', ['twilio_account_sid', 'twilio_auth_token', 'twilio_from_number', 'admin_email', 'stripe_secret_key', 'stripe_publishable_key']),
         supabase.from('sms_message_templates').select('*').order('template_name'),
       ]);
 
@@ -80,7 +78,6 @@ function AdminDashboard() {
           if (s.key === 'twilio_auth_token') settings.auth_token = s.value;
           if (s.key === 'twilio_from_number') settings.from_number = s.value;
           if (s.key === 'admin_email') setAdminEmail(s.value);
-          if (s.key === 'production_url') setProductionUrl(s.value);
           if (s.key === 'stripe_secret_key') stripeSet.secret_key = s.value;
           if (s.key === 'stripe_publishable_key') stripeSet.publishable_key = s.value;
         });
@@ -175,30 +172,6 @@ function AdminDashboard() {
       }
     } finally {
       setSavingStripe(false);
-    }
-  }
-
-  async function handleSaveProductionUrl() {
-    setSavingProductionUrl(true);
-    try {
-      const { error } = await supabase
-        .from('admin_settings')
-        .upsert({
-          key: 'production_url',
-          value: productionUrl,
-          description: 'Production URL for Stripe redirect URLs'
-        }, {
-          onConflict: 'key'
-        });
-
-      if (error) throw error;
-
-      alert('Production URL saved successfully! This will be used for Stripe payment redirects.');
-    } catch (error: any) {
-      console.error('Error saving production URL:', error);
-      alert(`Failed to save production URL: ${error.message || 'Please try again.'}`);
-    } finally {
-      setSavingProductionUrl(false);
     }
   }
 
@@ -777,47 +750,6 @@ function AdminDashboard() {
                   className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
                 >
                   {savingStripe ? 'Saving...' : 'Save Stripe Settings'}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="text-2xl font-bold text-slate-900 mb-6">Production URL</h2>
-
-            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-sm text-slate-700 mb-2">
-                Set your production URL so Stripe can redirect customers back to your site after payment.
-              </p>
-              <p className="text-sm text-slate-600">
-                Use your Bolt.new preview URL (e.g., https://bolt.new/~/sb1-xxxxx) or your custom domain once deployed.
-              </p>
-            </div>
-
-            <div className="space-y-4 max-w-2xl">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Production URL
-                </label>
-                <input
-                  type="url"
-                  value={productionUrl}
-                  onChange={(e) => setProductionUrl(e.target.value)}
-                  placeholder="https://bolt.new/~/sb1-xxxxx or https://yourdomain.com"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="mt-1 text-xs text-slate-500">
-                  Customers will be redirected to {productionUrl || '[your URL]'}/checkout/payment-success after completing payment
-                </p>
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={handleSaveProductionUrl}
-                  disabled={savingProductionUrl || !productionUrl}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
-                >
-                  {savingProductionUrl ? 'Saving...' : 'Save Production URL'}
                 </button>
               </div>
             </div>

@@ -29,26 +29,14 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    // Get Stripe key and production URL from settings
-    const { data: settings, error: settingsError } = await supabaseClient
+    // Get Stripe key from settings
+    const { data: stripeKeyData, error: keyError } = await supabaseClient
       .from("admin_settings")
-      .select("key, value")
-      .in("key", ["stripe_secret_key", "production_url"]);
+      .select("value")
+      .eq("key", "stripe_secret_key")
+      .maybeSingle();
 
-    if (settingsError) {
-      return new Response(
-        JSON.stringify({ error: "Failed to load settings" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    const stripeKey = settings?.find(s => s.key === "stripe_secret_key")?.value;
-    const productionUrl = settings?.find(s => s.key === "production_url")?.value;
-
-    if (!stripeKey) {
+    if (keyError || !stripeKeyData?.value) {
       return new Response(
         JSON.stringify({ error: "Stripe not configured. Please add your Stripe secret key in Admin Settings." }),
         {
@@ -57,6 +45,8 @@ Deno.serve(async (req: Request) => {
         }
       );
     }
+
+    const stripeKey = stripeKeyData.value;
 
     const stripe = new Stripe(stripeKey, {
       apiVersion: "2024-10-28.acacia",
@@ -99,8 +89,24 @@ Deno.serve(async (req: Request) => {
         .eq("id", orderId);
     }
 
-    // Use production URL from settings, fallback to origin header
-    const origin = productionUrl || req.headers.get("origin") || "https://bounceparty.club";
+    // Get the origin from referer header (more reliable for popup windows)
+    const referer = req.headers.get("referer");
+    let origin = req.headers.get("origin");
+
+    // If origin is localhost or webcontainer, try to extract from referer
+    if (referer && (origin?.includes("localhost") || origin?.includes("webcontainer"))) {
+      try {
+        const refererUrl = new URL(referer);
+        origin = refererUrl.origin;
+      } catch (e) {
+        // Fallback if URL parsing fails
+      }
+    }
+
+    // Final fallback
+    if (!origin || origin.includes("localhost") || origin.includes("webcontainer")) {
+      origin = "https://bolt.new";
+    }
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
