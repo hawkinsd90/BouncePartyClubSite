@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Truck, MapPin, CheckCircle, MessageSquare, DollarSign, FileText, Calendar, Edit2, History, Save, Plus, Trash2 } from 'lucide-react';
+import { X, Truck, MapPin, CheckCircle, MessageSquare, FileText, Edit2, History, Save, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
 import { formatCurrency } from '../lib/pricing';

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../lib/pricing';
-import { Plus, Trash2, DollarSign, Percent, Save } from 'lucide-react';
+import { Trash2, DollarSign, Percent, Save } from 'lucide-react';
 
 export function InvoiceBuilder() {
   const [customers, setCustomers] = useState<any[]>([]);
