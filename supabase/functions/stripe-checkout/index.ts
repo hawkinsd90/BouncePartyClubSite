@@ -29,13 +29,26 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    const { data: stripeKeyData, error: keyError } = await supabaseClient
+    // Get Stripe key and production URL from settings
+    const { data: settings, error: settingsError } = await supabaseClient
       .from("admin_settings")
-      .select("value")
-      .eq("key", "stripe_secret_key")
-      .maybeSingle();
+      .select("key, value")
+      .in("key", ["stripe_secret_key", "production_url"]);
 
-    if (keyError || !stripeKeyData?.value) {
+    if (settingsError) {
+      return new Response(
+        JSON.stringify({ error: "Failed to load settings" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const stripeKey = settings?.find(s => s.key === "stripe_secret_key")?.value;
+    const productionUrl = settings?.find(s => s.key === "production_url")?.value;
+
+    if (!stripeKey) {
       return new Response(
         JSON.stringify({ error: "Stripe not configured. Please add your Stripe secret key in Admin Settings." }),
         {
@@ -45,7 +58,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const stripe = new Stripe(stripeKeyData.value, {
+    const stripe = new Stripe(stripeKey, {
       apiVersion: "2024-10-28.acacia",
     });
 
@@ -86,7 +99,8 @@ Deno.serve(async (req: Request) => {
         .eq("id", orderId);
     }
 
-    const origin = req.headers.get("origin") || "https://bolt.new";
+    // Use production URL from settings, fallback to origin header
+    const origin = productionUrl || req.headers.get("origin") || "https://bounceparty.club";
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
