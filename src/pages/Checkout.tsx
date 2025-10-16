@@ -280,6 +280,7 @@ export function Checkout() {
             depositCents: paymentCents,
             customerEmail: contactData.email,
             customerName: `${contactData.first_name} ${contactData.last_name}`,
+            redirectBaseUrl: window.location.origin,
           }),
         }
       );

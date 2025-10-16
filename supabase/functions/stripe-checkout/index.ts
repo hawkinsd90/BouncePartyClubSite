@@ -13,6 +13,7 @@ interface CheckoutRequest {
   depositCents: number;
   customerEmail: string;
   customerName: string;
+  redirectBaseUrl?: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -52,7 +53,7 @@ Deno.serve(async (req: Request) => {
       apiVersion: "2024-10-28.acacia",
     });
 
-    const { orderId, depositCents, customerEmail, customerName }: CheckoutRequest =
+    const { orderId, depositCents, customerEmail, customerName, redirectBaseUrl }: CheckoutRequest =
       await req.json();
 
     if (!orderId || !depositCents || !customerEmail) {
@@ -64,6 +65,8 @@ Deno.serve(async (req: Request) => {
         }
       );
     }
+
+    console.log("Received redirectBaseUrl from frontend:", redirectBaseUrl);
 
     const { data: order } = await supabaseClient
       .from("orders")
@@ -89,17 +92,21 @@ Deno.serve(async (req: Request) => {
         .eq("id", orderId);
     }
 
-    // Get the base URL from referer header
-    const referer = req.headers.get("referer");
-    let baseUrl = "https://bolt.new";
+    // Use the redirectBaseUrl from the frontend, fallback to referer header
+    let baseUrl = redirectBaseUrl;
 
-    if (referer) {
-      try {
-        const refererUrl = new URL(referer);
-        // Use the full origin from referer
-        baseUrl = refererUrl.origin;
-      } catch (e) {
-        console.error("Failed to parse referer URL:", e);
+    if (!baseUrl) {
+      const referer = req.headers.get("referer");
+      if (referer) {
+        try {
+          const refererUrl = new URL(referer);
+          baseUrl = refererUrl.origin;
+        } catch (e) {
+          console.error("Failed to parse referer URL:", e);
+          baseUrl = "https://bolt.new";
+        }
+      } else {
+        baseUrl = "https://bolt.new";
       }
     }
 
