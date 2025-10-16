@@ -59,7 +59,7 @@ function AdminDashboard() {
           *,
           customers (first_name, last_name, email, phone),
           addresses (line1, city, state, zip)
-        `).order('created_at', { ascending: false }).limit(20),
+        `).in('status', ['pending_review', 'draft', 'confirmed']).order('created_at', { ascending: false }).limit(50),
         supabase.from('pricing_rules').select('*').limit(1).maybeSingle(),
         supabase.from('admin_settings').select('*').in('key', ['twilio_account_sid', 'twilio_auth_token', 'twilio_from_number', 'admin_email', 'stripe_secret_key', 'stripe_publishable_key']),
         supabase.from('sms_message_templates').select('*').order('template_name'),
