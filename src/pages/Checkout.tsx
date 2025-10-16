@@ -267,6 +267,27 @@ export function Checkout() {
       setAwaitingPayment(true);
       setOrderId(createdOrderId);
 
+      // Extract the actual user-facing URL (bolt.new preview URL)
+      // In Bolt.new, window.location.origin might be the webcontainer URL
+      // We need to extract the actual preview URL from the page
+      let redirectUrl = window.location.origin;
+
+      // Check if we're in a webcontainer environment
+      if (redirectUrl.includes('webcontainer')) {
+        // Try to get the actual preview URL from the top window or parent
+        try {
+          if (window.top && window.top !== window) {
+            redirectUrl = window.top.location.origin;
+          }
+        } catch (e) {
+          // Cross-origin restriction - use bolt.new as fallback
+          console.log('Cannot access parent origin, will use backend fallback');
+          redirectUrl = ''; // Let backend handle it
+        }
+      }
+
+      console.log('Using redirect URL:', redirectUrl);
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`,
         {
@@ -280,7 +301,7 @@ export function Checkout() {
             depositCents: paymentCents,
             customerEmail: contactData.email,
             customerName: `${contactData.first_name} ${contactData.last_name}`,
-            redirectBaseUrl: window.location.origin,
+            redirectBaseUrl: redirectUrl || undefined,
           }),
         }
       );
