@@ -135,8 +135,8 @@ Deno.serve(async (req: Request) => {
           payment_type: "deposit",
         },
       },
-      success_url: `${baseUrl}/checkout/payment-success`,
-      cancel_url: `${baseUrl}/checkout/payment-canceled`,
+      success_url: `${baseUrl}/checkout/payment-success?orderId=${orderId}`,
+      cancel_url: `${baseUrl}/checkout/payment-canceled?orderId=${orderId}`,
       metadata: {
         order_id: orderId,
       },
