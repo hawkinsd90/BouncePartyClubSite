@@ -89,24 +89,21 @@ Deno.serve(async (req: Request) => {
         .eq("id", orderId);
     }
 
-    // Get the origin from referer header (more reliable for popup windows)
+    // Get the base URL from referer header
     const referer = req.headers.get("referer");
-    let origin = req.headers.get("origin");
+    let baseUrl = "https://bolt.new";
 
-    // If origin is localhost or webcontainer, try to extract from referer
-    if (referer && (origin?.includes("localhost") || origin?.includes("webcontainer"))) {
+    if (referer) {
       try {
         const refererUrl = new URL(referer);
-        origin = refererUrl.origin;
+        // Use the full origin from referer
+        baseUrl = refererUrl.origin;
       } catch (e) {
-        // Fallback if URL parsing fails
+        console.error("Failed to parse referer URL:", e);
       }
     }
 
-    // Final fallback
-    if (!origin || origin.includes("localhost") || origin.includes("webcontainer")) {
-      origin = "https://bolt.new";
-    }
+    console.log("Using base URL for redirects:", baseUrl);
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
@@ -131,8 +128,8 @@ Deno.serve(async (req: Request) => {
           payment_type: "deposit",
         },
       },
-      success_url: `${origin}/checkout/payment-success`,
-      cancel_url: `${origin}/checkout/payment-canceled`,
+      success_url: `${baseUrl}/checkout/payment-success`,
+      cancel_url: `${baseUrl}/checkout/payment-canceled`,
       metadata: {
         order_id: orderId,
       },
