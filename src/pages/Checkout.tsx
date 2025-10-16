@@ -25,6 +25,7 @@ export function Checkout() {
   const [awaitingPayment, setAwaitingPayment] = useState(false);
   const [paymentCheckInterval, setPaymentCheckInterval] = useState<NodeJS.Timeout | null>(null);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
+  const [stripePopupWindow, setStripePopupWindow] = useState<Window | null>(null);
 
   const [contactData, setContactData] = useState({
     first_name: '',
@@ -48,6 +49,113 @@ export function Checkout() {
       loadNewCheckout();
     }
   }, [navigate, urlOrderId]);
+
+  // Listen for messages from the payment popup window
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      console.log('Received message from popup:', event.data);
+
+      if (event.data?.type === 'PAYMENT_SUCCESS') {
+        console.log('Payment success message received from popup!');
+        // Trigger immediate payment check
+        if (orderId) {
+          checkPaymentStatus(orderId);
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [orderId]);
+
+  // Helper function to check payment status
+  const checkPaymentStatus = async (checkOrderId: string) => {
+    console.log('Checking payment status for order:', checkOrderId);
+
+    try {
+      // Call edge function to check Stripe directly
+      const statusResponse = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/check-payment-status`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ orderId: checkOrderId }),
+        }
+      );
+
+      const statusData = await statusResponse.json();
+      console.log('Payment status from Stripe check:', statusData);
+
+      // Also check database to get latest order data
+      const { data: order } = await supabase
+        .from('orders')
+        .select('stripe_payment_status, status, id')
+        .eq('id', checkOrderId)
+        .maybeSingle();
+
+      console.log('Order from DB:', order);
+
+      if (order?.stripe_payment_status === 'paid' || statusData?.status === 'paid') {
+        console.log('Payment detected as paid! Closing popup and showing success...');
+
+        // Clear polling interval
+        if (paymentCheckInterval) {
+          clearInterval(paymentCheckInterval);
+          setPaymentCheckInterval(null);
+        }
+
+        // Close the Stripe popup if still open
+        if (stripePopupWindow && !stripePopupWindow.closed) {
+          stripePopupWindow.close();
+        }
+
+        // Load order details for success screen
+        const { data: fullOrder } = await supabase
+          .from('orders')
+          .select('*, order_items(*, units(name, category))')
+          .eq('id', checkOrderId)
+          .maybeSingle();
+
+        if (fullOrder) {
+          setQuoteData({
+            event_date: fullOrder.event_start_date,
+            event_end_date: fullOrder.event_end_date,
+            address_line1: fullOrder.event_address_line1,
+            address_line2: fullOrder.event_address_line2,
+            city: fullOrder.event_city,
+            state: fullOrder.event_state,
+            zip: fullOrder.event_zip,
+          });
+          setPriceBreakdown({
+            subtotal_cents: fullOrder.subtotal_cents,
+            travel_fee_cents: fullOrder.travel_fee_cents,
+            same_day_pickup_fee_cents: fullOrder.same_day_pickup_fee_cents,
+            generator_fee_cents: fullOrder.generator_fee_cents || 0,
+            tax_cents: fullOrder.tax_cents,
+            total_cents: fullOrder.total_cents,
+            deposit_due_cents: fullOrder.deposit_paid_cents,
+            balance_due_cents: fullOrder.balance_due_cents,
+          });
+          setCart(fullOrder.order_items);
+        }
+
+        setAwaitingPayment(false);
+        setSuccess(true);
+        localStorage.removeItem('bpc_cart');
+        localStorage.removeItem('bpc_quote_form');
+        localStorage.removeItem('bpc_price_breakdown');
+
+        return true; // Payment found
+      }
+    } catch (error) {
+      console.error('Error checking payment status:', error);
+    }
+
+    return false; // Payment not found yet
+  };
 
   async function loadExistingOrder(id: string) {
     setCheckingAvailability(true);
@@ -319,91 +427,31 @@ export function Checkout() {
         'width=600,height=800,left=200,top=100'
       );
 
+      setStripePopupWindow(stripeWindow);
+
       // Poll the payment status by calling our edge function
       console.log('Starting payment polling for order:', createdOrderId);
       const checkInterval = setInterval(async () => {
-        console.log('Polling payment status for ID:', createdOrderId);
+        console.log('Polling payment status...');
 
         try {
-          // Call edge function to check Stripe directly
-          const statusResponse = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/check-payment-status`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-              },
-              body: JSON.stringify({ orderId: createdOrderId }),
-            }
-          );
-
-          const statusData = await statusResponse.json();
-          console.log('Payment status from Stripe check:', statusData);
-
-          // Also check database to get latest order data
-          const { data: order } = await supabase
-            .from('orders')
-            .select('stripe_payment_status, status, id')
-            .eq('id', createdOrderId)
-            .maybeSingle();
-
-          console.log('Order from DB:', order);
-
-        if (order?.stripe_payment_status === 'paid' || statusData?.status === 'paid') {
-          console.log('Payment detected as paid! Closing popup and showing success...');
-          clearInterval(checkInterval);
-          setPaymentCheckInterval(null);
-
-          // Close the Stripe popup if still open
-          if (stripeWindow && !stripeWindow.closed) {
-            stripeWindow.close();
-          }
-
-          // Load order details for success screen
-          const { data: fullOrder } = await supabase
-            .from('orders')
-            .select('*, order_items(*, units(name, category))')
-            .eq('id', createdOrderId)
-            .maybeSingle();
-
-          if (fullOrder) {
-            setQuoteData({
-              event_date: fullOrder.event_start_date,
-              event_end_date: fullOrder.event_end_date,
-              address_line1: fullOrder.event_address_line1,
-              address_line2: fullOrder.event_address_line2,
-              city: fullOrder.event_city,
-              state: fullOrder.event_state,
-              zip: fullOrder.event_zip,
-            });
-            setPriceBreakdown({
-              subtotal_cents: fullOrder.subtotal_cents,
-              travel_fee_cents: fullOrder.travel_fee_cents,
-              same_day_pickup_fee_cents: fullOrder.same_day_pickup_fee_cents,
-              generator_fee_cents: fullOrder.generator_fee_cents || 0,
-              tax_cents: fullOrder.tax_cents,
-              total_cents: fullOrder.total_cents,
-              deposit_due_cents: fullOrder.deposit_paid_cents,
-              balance_due_cents: fullOrder.balance_due_cents,
-            });
-            setCart(fullOrder.order_items);
-          }
-
-          setAwaitingPayment(false);
-          setSuccess(true);
-          localStorage.removeItem('bpc_cart');
-          localStorage.removeItem('bpc_quote_form');
-          localStorage.removeItem('bpc_price_breakdown');
-        }
-
           // Check if user closed the popup without paying
-          if (stripeWindow && stripeWindow.closed && order?.stripe_payment_status !== 'paid') {
-            console.log('Popup closed without payment');
-            clearInterval(checkInterval);
-            setPaymentCheckInterval(null);
-            setAwaitingPayment(false);
-            alert('Payment window was closed. Your order has been saved as a draft. You can contact us to complete the payment.');
+          if (stripeWindow && stripeWindow.closed) {
+            console.log('Popup closed - checking if payment was completed');
+
+            // Do one final check
+            const paid = await checkPaymentStatus(createdOrderId);
+
+            if (!paid) {
+              console.log('Popup closed without payment');
+              clearInterval(checkInterval);
+              setPaymentCheckInterval(null);
+              setAwaitingPayment(false);
+              alert('Payment window was closed. Your order has been saved as a draft. You can contact us to complete the payment.');
+            }
+          } else {
+            // Popup still open, check payment status
+            await checkPaymentStatus(createdOrderId);
           }
         } catch (pollError) {
           console.error('Error during polling:', pollError);
