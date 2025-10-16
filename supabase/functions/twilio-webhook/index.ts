@@ -15,6 +15,18 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  if (req.method === "GET") {
+    return new Response(
+      '<?xml version="1.0" encoding="UTF-8"?><Response><Message>Webhook is active</Message></Response>',
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "text/xml",
+        },
+      }
+    );
+  }
+
   try {
     const formData = await req.formData();
     
@@ -28,12 +40,11 @@ Deno.serve(async (req: Request) => {
 
     if (!messageSid || !from || !to || !body) {
       return new Response(
-        JSON.stringify({ error: "Missing required Twilio parameters" }),
+        '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
         {
-          status: 400,
+          status: 200,
           headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
+            "Content-Type": "text/xml",
           },
         }
       );
