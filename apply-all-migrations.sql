@@ -1504,7 +1504,7 @@ BEGIN
 
   INSERT INTO public.user_roles (user_id, role)
   VALUES (admin_user_id, 'ADMIN')
-  ON CONFLICT (user_id) DO NOTHING;
+  ON CONFLICT (user_id, role) DO NOTHING;
   
 END $$;
 
