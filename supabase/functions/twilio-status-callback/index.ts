@@ -21,20 +21,20 @@ Deno.serve(async (req: Request) => {
     const messageSid = formData.get("MessageSid") as string;
     const messageStatus = formData.get("MessageStatus") as string;
     const errorCode = formData.get("ErrorCode") as string;
-    const to = formData.get("To") as string;
-    const from = formData.get("From") as string;
 
-    console.log("Status callback received:", {
-      messageSid,
-      messageStatus,
-      errorCode,
-      to,
-      from,
-    });
+    console.log("Status callback:", { messageSid, messageStatus, errorCode });
 
     if (!messageSid || !messageStatus) {
-      console.warn("Missing required parameters");
-      return new Response(null, { status: 200 });
+      return new Response(
+        JSON.stringify({ error: "Missing required parameters" }),
+        {
+          status: 400,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -45,27 +45,37 @@ Deno.serve(async (req: Request) => {
       .from("sms_conversations")
       .update({
         status: messageStatus,
+        error_code: errorCode || null,
       })
       .eq("twilio_message_sid", messageSid);
 
     if (updateError) {
       console.error("Error updating SMS status:", updateError);
-    } else {
-      console.log(`Updated message ${messageSid} to status: ${messageStatus}`);
+      throw updateError;
     }
 
-    if (errorCode) {
-      console.error(`SMS Error for ${messageSid}: Error code ${errorCode}`);
-    }
-
-    return new Response(null, {
-      status: 200,
-    });
+    return new Response(
+      JSON.stringify({ success: true }),
+      {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+        },
+      }
+    );
   } catch (error) {
     console.error("Error processing status callback:", error);
     
-    return new Response(null, {
-      status: 200,
-    });
+    return new Response(
+      JSON.stringify({ error: "Internal server error" }),
+      {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+        },
+      }
+    );
   }
 });
