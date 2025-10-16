@@ -24,6 +24,140 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  // Handle GET requests for success/cancel pages
+  if (req.method === "GET") {
+    const url = new URL(req.url);
+    const action = url.searchParams.get("action");
+    const orderId = url.searchParams.get("orderId");
+
+    if (action === "success") {
+      return new Response(
+        `<!DOCTYPE html>
+        <html>
+        <head>
+          <title>Payment Complete</title>
+          <style>
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              min-height: 100vh;
+              margin: 0;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            }
+            .container {
+              background: white;
+              padding: 3rem;
+              border-radius: 1rem;
+              box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+              text-align: center;
+              max-width: 400px;
+            }
+            .checkmark {
+              font-size: 4rem;
+              color: #10b981;
+              margin-bottom: 1rem;
+            }
+            h1 { color: #1f2937; margin: 0 0 0.5rem 0; }
+            p { color: #6b7280; margin: 0 0 1.5rem 0; }
+            button {
+              background: #667eea;
+              color: white;
+              border: none;
+              padding: 0.75rem 2rem;
+              border-radius: 0.5rem;
+              font-size: 1rem;
+              cursor: pointer;
+              font-weight: 600;
+            }
+            button:hover { background: #5568d3; }
+          </style>
+          <script>
+            // Try to notify parent and close
+            if (window.opener) {
+              window.opener.postMessage({ type: 'PAYMENT_SUCCESS', orderId: '${orderId}' }, '*');
+              setTimeout(() => window.close(), 1000);
+            }
+          </script>
+        </head>
+        <body>
+          <div class="container">
+            <div class="checkmark">✓</div>
+            <h1>Payment Complete!</h1>
+            <p>Your payment has been processed successfully.</p>
+            <p style="font-size: 0.875rem;">This window will close automatically...</p>
+            <button onclick="window.close()">Close Window</button>
+          </div>
+        </body>
+        </html>`,
+        {
+          status: 200,
+          headers: { "Content-Type": "text/html" },
+        }
+      );
+    }
+
+    if (action === "cancel") {
+      return new Response(
+        `<!DOCTYPE html>
+        <html>
+        <head>
+          <title>Payment Canceled</title>
+          <style>
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              min-height: 100vh;
+              margin: 0;
+              background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+            }
+            .container {
+              background: white;
+              padding: 3rem;
+              border-radius: 1rem;
+              box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+              text-align: center;
+              max-width: 400px;
+            }
+            .icon { font-size: 4rem; margin-bottom: 1rem; }
+            h1 { color: #1f2937; margin: 0 0 0.5rem 0; }
+            p { color: #6b7280; margin: 0 0 1.5rem 0; }
+            button {
+              background: #ef4444;
+              color: white;
+              border: none;
+              padding: 0.75rem 2rem;
+              border-radius: 0.5rem;
+              font-size: 1rem;
+              cursor: pointer;
+              font-weight: 600;
+            }
+            button:hover { background: #dc2626; }
+          </style>
+          <script>
+            setTimeout(() => window.close(), 2000);
+          </script>
+        </head>
+        <body>
+          <div class="container">
+            <div class="icon">✕</div>
+            <h1>Payment Canceled</h1>
+            <p>Your payment was not completed.</p>
+            <button onclick="window.close()">Close Window</button>
+          </div>
+        </body>
+        </html>`,
+        {
+          status: 200,
+          headers: { "Content-Type": "text/html" },
+        }
+      );
+    }
+  }
+
   try {
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -92,26 +226,6 @@ Deno.serve(async (req: Request) => {
         .eq("id", orderId);
     }
 
-    // Use the redirectBaseUrl from the frontend, fallback to referer header
-    let baseUrl = redirectBaseUrl;
-
-    if (!baseUrl) {
-      const referer = req.headers.get("referer");
-      if (referer) {
-        try {
-          const refererUrl = new URL(referer);
-          baseUrl = refererUrl.origin;
-        } catch (e) {
-          console.error("Failed to parse referer URL:", e);
-          baseUrl = "https://bolt.new";
-        }
-      } else {
-        baseUrl = "https://bolt.new";
-      }
-    }
-
-    console.log("Using base URL for redirects:", baseUrl);
-
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       line_items: [
@@ -135,8 +249,8 @@ Deno.serve(async (req: Request) => {
           payment_type: "deposit",
         },
       },
-      success_url: `${baseUrl}/checkout/payment-success?orderId=${orderId}`,
-      cancel_url: `${baseUrl}/checkout/payment-canceled?orderId=${orderId}`,
+      success_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/stripe-checkout?action=success&orderId=${orderId}`,
+      cancel_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/stripe-checkout?action=cancel&orderId=${orderId}`,
       metadata: {
         order_id: orderId,
       },
