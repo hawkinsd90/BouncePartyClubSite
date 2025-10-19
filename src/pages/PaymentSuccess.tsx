@@ -4,16 +4,26 @@ import { useSearchParams } from 'react-router-dom';
 export function PaymentSuccess() {
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get('orderId');
+  const sessionId = searchParams.get('session_id');
   const [processing, setProcessing] = useState(true);
 
   useEffect(() => {
     async function processPayment() {
-      if (!orderId) {
+      if (!orderId || !sessionId) {
         setProcessing(false);
         return;
       }
 
       try {
+        // Call the webhook to update the order in the database
+        const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout?action=webhook&orderId=${orderId}&session_id=${sessionId}`;
+        await fetch(webhookUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+        });
+
         // Notify parent window immediately
         if (window.opener) {
           window.opener.postMessage({ type: 'PAYMENT_SUCCESS', orderId }, '*');
@@ -32,7 +42,7 @@ export function PaymentSuccess() {
     }
 
     processPayment();
-  }, [orderId]);
+  }, [orderId, sessionId]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center p-4">
