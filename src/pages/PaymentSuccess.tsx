@@ -31,13 +31,24 @@ export function PaymentSuccess() {
 
         setProcessing(false);
 
-        // Auto-close after a brief delay
+        // Try multiple approaches to close the window
+        // Approach 1: Try to close immediately
+        window.close();
+
+        // Approach 2: If still open after 500ms, try again
         setTimeout(() => {
           window.close();
-        }, 1500);
+        }, 500);
+
+        // Approach 3: If still open after 1s, try one more time
+        setTimeout(() => {
+          window.close();
+        }, 1000);
       } catch (error) {
         console.error('Error processing payment success:', error);
         setProcessing(false);
+        // Still try to close even on error
+        setTimeout(() => window.close(), 500);
       }
     }
 

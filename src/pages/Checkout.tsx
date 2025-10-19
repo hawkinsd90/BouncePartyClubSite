@@ -431,8 +431,45 @@ export function Checkout() {
         throw new Error(data.error || 'Failed to create checkout session');
       }
 
-      // Redirect to Stripe checkout
-      window.location.href = data.url;
+      // Open Stripe in a popup window
+      const stripeWindow = window.open(
+        data.url,
+        'stripe-checkout',
+        'width=600,height=800,left=200,top=100'
+      );
+
+      setStripePopupWindow(stripeWindow);
+
+      // Poll the payment status by calling our edge function
+      console.log('Starting payment polling for order:', createdOrderId);
+      const checkInterval = setInterval(async () => {
+        console.log('Polling payment status...');
+
+        try {
+          // Check if user closed the popup without paying
+          if (stripeWindow && stripeWindow.closed) {
+            console.log('Popup closed - checking if payment was completed');
+
+            // Do one final check
+            const paid = await checkPaymentStatus(createdOrderId);
+
+            if (!paid) {
+              console.log('Popup closed without payment');
+              clearInterval(checkInterval);
+              setPaymentCheckInterval(null);
+              setAwaitingPayment(false);
+              alert('Payment window was closed. Your order has been saved as a draft. You can contact us to complete the payment.');
+            }
+          } else {
+            // Popup still open, check payment status
+            await checkPaymentStatus(createdOrderId);
+          }
+        } catch (pollError) {
+          console.error('Error during polling:', pollError);
+        }
+      }, 2000); // Check every 2 seconds
+
+      setPaymentCheckInterval(checkInterval);
     } catch (error: any) {
       console.error('Error checking availability or creating order:', error);
       alert(
