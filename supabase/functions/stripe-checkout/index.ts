@@ -18,7 +18,6 @@ interface CheckoutRequest {
 }
 
 Deno.serve(async (req: Request) => {
-  // Always handle OPTIONS first with proper CORS
   if (req.method === "OPTIONS") {
     return new Response(null, {
       status: 200,
@@ -27,7 +26,6 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // Handle GET requests for success/cancel pages
     if (req.method === "GET") {
       const url = new URL(req.url);
       const action = url.searchParams.get("action");
@@ -36,7 +34,6 @@ Deno.serve(async (req: Request) => {
       if (action === "success") {
         const sessionId = url.searchParams.get("session_id");
 
-        // Update the database immediately when success page loads
         if (orderId && sessionId) {
           try {
             const supabaseClient = createClient(
@@ -44,7 +41,6 @@ Deno.serve(async (req: Request) => {
               Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
             );
 
-            // Get Stripe key from settings
             const { data: stripeKeyData } = await supabaseClient
               .from("admin_settings")
               .select("value")
@@ -56,27 +52,22 @@ Deno.serve(async (req: Request) => {
                 apiVersion: "2024-10-28.acacia",
               });
 
-              // Retrieve the checkout session to get payment details
               const session = await stripe.checkout.sessions.retrieve(sessionId);
 
               if (session.payment_status === "paid" && session.payment_intent) {
-                // Extract tip from metadata
                 const tipCents = parseInt(session.metadata?.tip_cents || '0', 10);
                 const paymentAmountCents = (session.amount_total || 0) - tipCents;
 
-                // Update order in database
                 await supabaseClient
                   .from("orders")
                   .update({
                     stripe_payment_status: "paid",
                     stripe_payment_method_id: session.payment_method as string,
                     deposit_paid_cents: paymentAmountCents,
-                    tip_cents: tipCents,
                     status: "pending_review",
                   })
                   .eq("id", orderId);
 
-                // Update payment record
                 if (typeof session.payment_intent === 'string') {
                   await supabaseClient
                     .from("payments")
@@ -84,11 +75,11 @@ Deno.serve(async (req: Request) => {
                     .eq("stripe_payment_intent_id", session.payment_intent);
                 }
 
-                console.log(`Payment successful for order ${orderId} (Payment: $${paymentAmountCents/100}, Tip: $${tipCents/100})`);
+                console.log(`Payment successful for order ${orderId}`);
               }
             }
           } catch (error) {
-            console.error("Error updating order after payment:", error);
+            console.error("Error updating order:", error);
           }
         }
 
@@ -97,6 +88,8 @@ Deno.serve(async (req: Request) => {
           <html>
           <head>
             <title>Payment Complete</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
               body {
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -135,12 +128,11 @@ Deno.serve(async (req: Request) => {
               button:hover { background: #5568d3; }
             </style>
             <script>
-              // Notify parent window and close
               if (window.opener) {
+                console.log('Notifying opener window...');
                 window.opener.postMessage({ type: 'PAYMENT_SUCCESS', orderId: '${orderId}' }, '*');
-                setTimeout(() => window.close(), 1000);
+                setTimeout(() => window.close(), 1500);
               } else {
-                // If no opener, close after delay
                 setTimeout(() => window.close(), 3000);
               }
             </script>
@@ -157,7 +149,7 @@ Deno.serve(async (req: Request) => {
           </html>`,
           {
             status: 200,
-            headers: { "Content-Type": "text/html" },
+            headers: { "Content-Type": "text/html; charset=utf-8" },
           }
         );
       }
@@ -168,6 +160,8 @@ Deno.serve(async (req: Request) => {
           <html>
           <head>
             <title>Payment Canceled</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
               body {
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -216,10 +210,18 @@ Deno.serve(async (req: Request) => {
           </html>`,
           {
             status: 200,
-            headers: { "Content-Type": "text/html" },
+            headers: { "Content-Type": "text/html; charset=utf-8" },
           }
         );
       }
+
+      return new Response(
+        JSON.stringify({ error: "Invalid action" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     const supabaseClient = createClient(
@@ -227,7 +229,6 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    // Get Stripe key from settings
     const { data: stripeKeyData, error: keyError } = await supabaseClient
       .from("admin_settings")
       .select("value")
@@ -236,7 +237,7 @@ Deno.serve(async (req: Request) => {
 
     if (keyError || !stripeKeyData?.value) {
       return new Response(
-        JSON.stringify({ error: "Stripe not configured. Please add your Stripe secret key in Admin Settings." }),
+        JSON.stringify({ error: "Stripe not configured." }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -245,12 +246,11 @@ Deno.serve(async (req: Request) => {
     }
 
     const stripeKey = stripeKeyData.value;
-
     const stripe = new Stripe(stripeKey, {
       apiVersion: "2024-10-28.acacia",
     });
 
-    const { orderId, depositCents, tipCents = 0, customerEmail, customerName, redirectBaseUrl }: CheckoutRequest =
+    const { orderId, depositCents, tipCents = 0, customerEmail, customerName }: CheckoutRequest =
       await req.json();
 
     if (!orderId || !depositCents || !customerEmail) {
@@ -262,11 +262,6 @@ Deno.serve(async (req: Request) => {
         }
       );
     }
-
-    console.log("Received redirectBaseUrl from frontend:", redirectBaseUrl);
-    console.log("Tip amount:", tipCents);
-
-    const totalAmountCents = depositCents + tipCents;
 
     const { data: order } = await supabaseClient
       .from("orders")
@@ -280,9 +275,7 @@ Deno.serve(async (req: Request) => {
       const customer = await stripe.customers.create({
         email: customerEmail,
         name: customerName,
-        metadata: {
-          order_id: orderId,
-        },
+        metadata: { order_id: orderId },
       });
       customerId = customer.id;
 
@@ -292,7 +285,6 @@ Deno.serve(async (req: Request) => {
         .eq("id", orderId);
     }
 
-    // Build line items - separate payment and tip
     const lineItems = [
       {
         price_data: {
@@ -307,7 +299,6 @@ Deno.serve(async (req: Request) => {
       },
     ];
 
-    // Add tip as separate line item if provided
     if (tipCents > 0) {
       lineItems.push({
         price_data: {
@@ -350,14 +341,6 @@ Deno.serve(async (req: Request) => {
       status: "pending",
       description: `Payment for order ${orderId}${tipCents > 0 ? ` (includes $${(tipCents / 100).toFixed(2)} tip)` : ''}`,
     });
-
-    // Update order with tip amount if provided
-    if (tipCents > 0) {
-      await supabaseClient
-        .from("orders")
-        .update({ tip_cents: tipCents })
-        .eq("id", orderId);
-    }
 
     return new Response(
       JSON.stringify({
