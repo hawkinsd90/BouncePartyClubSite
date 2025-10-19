@@ -265,7 +265,7 @@ export function Checkout() {
     }
   }
 
-  function loadNewCheckout() {
+  async function loadNewCheckout() {
     const savedForm = localStorage.getItem('bpc_quote_form');
     const savedBreakdown = localStorage.getItem('bpc_price_breakdown');
     const savedCart = localStorage.getItem('bpc_cart');
@@ -276,9 +276,31 @@ export function Checkout() {
     }
 
     const formData = JSON.parse(savedForm);
+    const parsedCart = JSON.parse(savedCart);
+
+    // Validate cart unit IDs exist in database (handles migration from old DB)
+    if (parsedCart.length > 0) {
+      const unitIds = parsedCart.map((item: any) => item.unit_id);
+      const { data: validUnits, error } = await supabase
+        .from('units')
+        .select('id')
+        .in('id', unitIds);
+
+      if (error || !validUnits || validUnits.length !== unitIds.length) {
+        // Cart contains invalid unit IDs - clear it and redirect
+        console.warn('Cart contains invalid unit IDs from old database. Clearing cart.');
+        localStorage.removeItem('bpc_cart');
+        localStorage.removeItem('bpc_quote_form');
+        localStorage.removeItem('bpc_price_breakdown');
+        alert('Your cart has been cleared due to a database update. Please add items again.');
+        navigate('/catalog');
+        return;
+      }
+    }
+
     setQuoteData(formData);
     setPriceBreakdown(JSON.parse(savedBreakdown));
-    setCart(JSON.parse(savedCart));
+    setCart(parsedCart);
 
     setBillingAddress({
       line1: formData.address_line1 || '',
