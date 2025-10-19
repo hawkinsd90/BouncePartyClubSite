@@ -31,6 +31,59 @@ Deno.serve(async (req: Request) => {
     const orderId = url.searchParams.get("orderId");
 
     if (action === "success") {
+      const sessionId = url.searchParams.get("session_id");
+
+      // Update the database immediately when success page loads
+      if (orderId && sessionId) {
+        try {
+          const supabaseClient = createClient(
+            Deno.env.get("SUPABASE_URL") ?? "",
+            Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+          );
+
+          // Get Stripe key from settings
+          const { data: stripeKeyData } = await supabaseClient
+            .from("admin_settings")
+            .select("value")
+            .eq("key", "stripe_secret_key")
+            .maybeSingle();
+
+          if (stripeKeyData?.value) {
+            const stripe = new Stripe(stripeKeyData.value, {
+              apiVersion: "2024-10-28.acacia",
+            });
+
+            // Retrieve the checkout session to get payment details
+            const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+            if (session.payment_status === "paid" && session.payment_intent) {
+              // Update order in database
+              await supabaseClient
+                .from("orders")
+                .update({
+                  stripe_payment_status: "paid",
+                  stripe_payment_method_id: session.payment_method as string,
+                  deposit_paid_cents: session.amount_total || 0,
+                  status: "pending_review",
+                })
+                .eq("id", orderId);
+
+              // Update payment record
+              if (typeof session.payment_intent === 'string') {
+                await supabaseClient
+                  .from("payments")
+                  .update({ status: "succeeded" })
+                  .eq("stripe_payment_intent_id", session.payment_intent);
+              }
+
+              console.log(`Payment successful for order ${orderId}`);
+            }
+          }
+        } catch (error) {
+          console.error("Error updating order after payment:", error);
+        }
+      }
+
       return new Response(
         `<!DOCTYPE html>
         <html>
@@ -74,10 +127,13 @@ Deno.serve(async (req: Request) => {
             button:hover { background: #5568d3; }
           </style>
           <script>
-            // Try to notify parent and close
+            // Notify parent window and close
             if (window.opener) {
               window.opener.postMessage({ type: 'PAYMENT_SUCCESS', orderId: '${orderId}' }, '*');
               setTimeout(() => window.close(), 1000);
+            } else {
+              // If no opener, close after delay
+              setTimeout(() => window.close(), 3000);
             }
           </script>
         </head>
@@ -249,7 +305,7 @@ Deno.serve(async (req: Request) => {
           payment_type: "deposit",
         },
       },
-      success_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/stripe-checkout?action=success&orderId=${orderId}`,
+      success_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/stripe-checkout?action=success&orderId=${orderId}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/stripe-checkout?action=cancel&orderId=${orderId}`,
       metadata: {
         order_id: orderId,
