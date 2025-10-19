@@ -400,10 +400,10 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
         </div>
       </div>
 
-      {smsConversations.length > 0 && (
-        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <h4 className="text-sm font-semibold text-blue-900 mb-2">SMS Conversation</h4>
-          <div className="space-y-2 max-h-40 overflow-y-auto">
+      <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <h4 className="text-sm font-semibold text-blue-900 mb-2">SMS Conversation</h4>
+        {smsConversations.length > 0 ? (
+          <div className="space-y-2 max-h-40 overflow-y-auto mb-3">
             {smsConversations.map(msg => (
               <div key={msg.id} className={`text-sm ${msg.direction === 'inbound' ? 'text-blue-900' : 'text-slate-700'}`}>
                 <span className="font-medium">{msg.direction === 'inbound' ? 'Customer' : 'You'}:</span> {msg.message_body}
@@ -411,52 +411,54 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
               </div>
             ))}
           </div>
-          {!showSmsReply && (
-            <button
-              onClick={() => setShowSmsReply(true)}
-              className="mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium"
-            >
-              Reply via SMS
-            </button>
-          )}
-          {showSmsReply && (
-            <div className="mt-3">
-              <textarea
-                value={replyMessage}
-                onChange={(e) => setReplyMessage(e.target.value)}
-                placeholder="Type your message..."
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                rows={3}
-              />
-              <div className="flex gap-2 mt-2">
-                <button
-                  onClick={() => handleSendSms()}
-                  disabled={sendingSms || !replyMessage.trim()}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white px-4 py-1 rounded text-sm font-medium"
-                >
-                  {sendingSms ? 'Sending...' : 'Send'}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowSmsReply(false);
-                    setReplyMessage('');
-                  }}
-                  className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-1 rounded text-sm font-medium"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
+        ) : (
+          <p className="text-sm text-blue-800 mb-3">No messages yet</p>
+        )}
+        {!showSmsReply && (
           <button
-            onClick={handleTestSms}
-            disabled={sendingSms}
-            className="mt-2 text-sm text-slate-600 hover:text-slate-800 underline"
+            onClick={() => setShowSmsReply(true)}
+            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
           >
-            Send test SMS
+            Reply via SMS
           </button>
-        </div>
-      )}
+        )}
+        {showSmsReply && (
+          <div className="mt-3">
+            <textarea
+              value={replyMessage}
+              onChange={(e) => setReplyMessage(e.target.value)}
+              placeholder="Type your message..."
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              rows={3}
+            />
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={() => handleSendSms()}
+                disabled={sendingSms || !replyMessage.trim()}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white px-4 py-1 rounded text-sm font-medium"
+              >
+                {sendingSms ? 'Sending...' : 'Send'}
+              </button>
+              <button
+                onClick={() => {
+                  setShowSmsReply(false);
+                  setReplyMessage('');
+                }}
+                className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-1 rounded text-sm font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+        <button
+          onClick={handleTestSms}
+          disabled={sendingSms}
+          className="mt-2 text-sm text-slate-600 hover:text-slate-800 underline"
+        >
+          Send test SMS
+        </button>
+      </div>
 
       <div className="mb-4 p-4 bg-white rounded-lg border border-slate-200">
         <h4 className="text-sm font-semibold text-slate-700 mb-3 flex items-center">
