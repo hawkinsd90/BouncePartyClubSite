@@ -21,6 +21,7 @@ export function Checkout() {
   const [billingSameAsEvent, setBillingSameAsEvent] = useState(true);
   const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
   const [customAmount, setCustomAmount] = useState('');
+  const [tipAmount, setTipAmount] = useState('');
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [awaitingPayment, setAwaitingPayment] = useState(false);
   const [paymentCheckInterval, setPaymentCheckInterval] = useState<NodeJS.Timeout | null>(null);
@@ -307,6 +308,10 @@ export function Checkout() {
     return priceBreakdown.deposit_due_cents;
   };
 
+  const getTipCents = () => {
+    return Math.round(parseFloat(tipAmount || '0') * 100);
+  };
+
   const handlePrintInvoice = () => {
     window.print();
   };
@@ -407,6 +412,7 @@ export function Checkout() {
           body: JSON.stringify({
             orderId: createdOrderId,
             depositCents: paymentCents,
+            tipCents: getTipCents(),
             customerEmail: contactData.email,
             customerName: `${contactData.first_name} ${contactData.last_name}`,
             redirectBaseUrl: redirectUrl || undefined,
@@ -876,11 +882,32 @@ export function Checkout() {
                 </div>
               )}
 
+              <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Add a Tip (Optional)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2 text-slate-600">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={tipAmount}
+                    onChange={(e) => setTipAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full pl-8 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+                <p className="text-xs text-slate-500 mt-2">
+                  Show your appreciation for our crew! Tips do not reduce your remaining balance.
+                </p>
+              </div>
+
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-900 font-medium mb-1">
-                  {paymentAmount === 'deposit' && `Pay ${formatCurrency(priceBreakdown.deposit_due_cents)} now, ${formatCurrency(priceBreakdown.balance_due_cents)} at event`}
-                  {paymentAmount === 'full' && `Pay ${formatCurrency(priceBreakdown.total_cents)} now, nothing at event`}
-                  {paymentAmount === 'custom' && customAmount && `Pay $${customAmount} now, ${formatCurrency(priceBreakdown.total_cents - Math.round(parseFloat(customAmount) * 100))} at event`}
+                  {paymentAmount === 'deposit' && `Pay ${formatCurrency(priceBreakdown.deposit_due_cents)}${tipAmount ? ` + $${tipAmount} tip` : ''} now, ${formatCurrency(priceBreakdown.balance_due_cents)} at event`}
+                  {paymentAmount === 'full' && `Pay ${formatCurrency(priceBreakdown.total_cents)}${tipAmount ? ` + $${tipAmount} tip` : ''} now, nothing at event`}
+                  {paymentAmount === 'custom' && customAmount && `Pay $${customAmount}${tipAmount ? ` + $${tipAmount} tip` : ''} now, ${formatCurrency(priceBreakdown.total_cents - Math.round(parseFloat(customAmount) * 100))} at event`}
                   {paymentAmount === 'custom' && !customAmount && 'Enter amount to see payment breakdown'}
                 </p>
                 <p className="text-xs text-blue-700">

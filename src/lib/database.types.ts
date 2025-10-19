@@ -532,6 +532,7 @@ export interface Database {
           balance_paid_cents: number
           damage_charged_cents: number
           total_refunded_cents: number
+          tip_cents: number
           stripe_payment_status: string
           workflow_status: string
           current_eta: string | null
@@ -579,6 +580,7 @@ export interface Database {
           balance_paid_cents?: number
           damage_charged_cents?: number
           total_refunded_cents?: number
+          tip_cents?: number
           stripe_payment_status?: string
           workflow_status?: string
           current_eta?: string | null
@@ -626,6 +628,7 @@ export interface Database {
           balance_paid_cents?: number
           damage_charged_cents?: number
           total_refunded_cents?: number
+          tip_cents?: number
           stripe_payment_status?: string
           workflow_status?: string
           current_eta?: string | null

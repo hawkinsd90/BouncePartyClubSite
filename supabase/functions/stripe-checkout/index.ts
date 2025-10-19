@@ -11,6 +11,7 @@ const corsHeaders = {
 interface CheckoutRequest {
   orderId: string;
   depositCents: number;
+  tipCents?: number;
   customerEmail: string;
   customerName: string;
   redirectBaseUrl?: string;
@@ -57,13 +58,18 @@ Deno.serve(async (req: Request) => {
             const session = await stripe.checkout.sessions.retrieve(sessionId);
 
             if (session.payment_status === "paid" && session.payment_intent) {
+              // Extract tip from metadata
+              const tipCents = parseInt(session.metadata?.tip_cents || '0', 10);
+              const paymentAmountCents = (session.amount_total || 0) - tipCents;
+
               // Update order in database
               await supabaseClient
                 .from("orders")
                 .update({
                   stripe_payment_status: "paid",
                   stripe_payment_method_id: session.payment_method as string,
-                  deposit_paid_cents: session.amount_total || 0,
+                  deposit_paid_cents: paymentAmountCents,
+                  tip_cents: tipCents,
                   status: "pending_review",
                 })
                 .eq("id", orderId);
@@ -76,7 +82,7 @@ Deno.serve(async (req: Request) => {
                   .eq("stripe_payment_intent_id", session.payment_intent);
               }
 
-              console.log(`Payment successful for order ${orderId}`);
+              console.log(`Payment successful for order ${orderId} (Payment: $${paymentAmountCents/100}, Tip: $${tipCents/100})`);
             }
           }
         } catch (error) {
@@ -243,7 +249,7 @@ Deno.serve(async (req: Request) => {
       apiVersion: "2024-10-28.acacia",
     });
 
-    const { orderId, depositCents, customerEmail, customerName, redirectBaseUrl }: CheckoutRequest =
+    const { orderId, depositCents, tipCents = 0, customerEmail, customerName, redirectBaseUrl }: CheckoutRequest =
       await req.json();
 
     if (!orderId || !depositCents || !customerEmail) {
@@ -257,6 +263,9 @@ Deno.serve(async (req: Request) => {
     }
 
     console.log("Received redirectBaseUrl from frontend:", redirectBaseUrl);
+    console.log("Tip amount:", tipCents);
+
+    const totalAmountCents = depositCents + tipCents;
 
     const { data: order } = await supabaseClient
       .from("orders")
@@ -282,33 +291,53 @@ Deno.serve(async (req: Request) => {
         .eq("id", orderId);
     }
 
+    // Build line items - separate payment and tip
+    const lineItems = [
+      {
+        price_data: {
+          currency: "usd",
+          unit_amount: depositCents,
+          product_data: {
+            name: `Payment for Order ${orderId.slice(0, 8).toUpperCase()}`,
+            description: "Bounce Party Club rental payment",
+          },
+        },
+        quantity: 1,
+      },
+    ];
+
+    // Add tip as separate line item if provided
+    if (tipCents > 0) {
+      lineItems.push({
+        price_data: {
+          currency: "usd",
+          unit_amount: tipCents,
+          product_data: {
+            name: "Tip for Crew",
+            description: "Gratuity for service",
+          },
+        },
+        quantity: 1,
+      });
+    }
+
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            unit_amount: depositCents,
-            product_data: {
-              name: `Deposit for Order ${orderId.slice(0, 8).toUpperCase()}`,
-              description: "Bounce Party Club rental deposit",
-            },
-          },
-          quantity: 1,
-        },
-      ],
+      line_items: lineItems,
       mode: "payment",
       payment_intent_data: {
         setup_future_usage: "off_session",
         metadata: {
           order_id: orderId,
           payment_type: "deposit",
+          tip_cents: tipCents.toString(),
         },
       },
       success_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/stripe-checkout?action=success&orderId=${orderId}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/stripe-checkout?action=cancel&orderId=${orderId}`,
       metadata: {
         order_id: orderId,
+        tip_cents: tipCents.toString(),
       },
     });
 
@@ -318,8 +347,16 @@ Deno.serve(async (req: Request) => {
       amount_cents: depositCents,
       payment_type: "deposit",
       status: "pending",
-      description: `Deposit payment for order ${orderId}`,
+      description: `Payment for order ${orderId}${tipCents > 0 ? ` (includes $${(tipCents / 100).toFixed(2)} tip)` : ''}`,
     });
+
+    // Update order with tip amount if provided
+    if (tipCents > 0) {
+      await supabaseClient
+        .from("orders")
+        .update({ tip_cents: tipCents })
+        .eq("id", orderId);
+    }
 
     return new Response(
       JSON.stringify({
