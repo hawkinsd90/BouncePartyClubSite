@@ -18,6 +18,7 @@ interface CheckoutRequest {
 }
 
 Deno.serve(async (req: Request) => {
+  // Always handle OPTIONS first with proper CORS
   if (req.method === "OPTIONS") {
     return new Response(null, {
       status: 200,
@@ -25,202 +26,202 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // Handle GET requests for success/cancel pages
-  if (req.method === "GET") {
-    const url = new URL(req.url);
-    const action = url.searchParams.get("action");
-    const orderId = url.searchParams.get("orderId");
+  try {
+    // Handle GET requests for success/cancel pages
+    if (req.method === "GET") {
+      const url = new URL(req.url);
+      const action = url.searchParams.get("action");
+      const orderId = url.searchParams.get("orderId");
 
-    if (action === "success") {
-      const sessionId = url.searchParams.get("session_id");
+      if (action === "success") {
+        const sessionId = url.searchParams.get("session_id");
 
-      // Update the database immediately when success page loads
-      if (orderId && sessionId) {
-        try {
-          const supabaseClient = createClient(
-            Deno.env.get("SUPABASE_URL") ?? "",
-            Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-          );
+        // Update the database immediately when success page loads
+        if (orderId && sessionId) {
+          try {
+            const supabaseClient = createClient(
+              Deno.env.get("SUPABASE_URL") ?? "",
+              Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+            );
 
-          // Get Stripe key from settings
-          const { data: stripeKeyData } = await supabaseClient
-            .from("admin_settings")
-            .select("value")
-            .eq("key", "stripe_secret_key")
-            .maybeSingle();
+            // Get Stripe key from settings
+            const { data: stripeKeyData } = await supabaseClient
+              .from("admin_settings")
+              .select("value")
+              .eq("key", "stripe_secret_key")
+              .maybeSingle();
 
-          if (stripeKeyData?.value) {
-            const stripe = new Stripe(stripeKeyData.value, {
-              apiVersion: "2024-10-28.acacia",
-            });
+            if (stripeKeyData?.value) {
+              const stripe = new Stripe(stripeKeyData.value, {
+                apiVersion: "2024-10-28.acacia",
+              });
 
-            // Retrieve the checkout session to get payment details
-            const session = await stripe.checkout.sessions.retrieve(sessionId);
+              // Retrieve the checkout session to get payment details
+              const session = await stripe.checkout.sessions.retrieve(sessionId);
 
-            if (session.payment_status === "paid" && session.payment_intent) {
-              // Extract tip from metadata
-              const tipCents = parseInt(session.metadata?.tip_cents || '0', 10);
-              const paymentAmountCents = (session.amount_total || 0) - tipCents;
+              if (session.payment_status === "paid" && session.payment_intent) {
+                // Extract tip from metadata
+                const tipCents = parseInt(session.metadata?.tip_cents || '0', 10);
+                const paymentAmountCents = (session.amount_total || 0) - tipCents;
 
-              // Update order in database
-              await supabaseClient
-                .from("orders")
-                .update({
-                  stripe_payment_status: "paid",
-                  stripe_payment_method_id: session.payment_method as string,
-                  deposit_paid_cents: paymentAmountCents,
-                  tip_cents: tipCents,
-                  status: "pending_review",
-                })
-                .eq("id", orderId);
-
-              // Update payment record
-              if (typeof session.payment_intent === 'string') {
+                // Update order in database
                 await supabaseClient
-                  .from("payments")
-                  .update({ status: "succeeded" })
-                  .eq("stripe_payment_intent_id", session.payment_intent);
-              }
+                  .from("orders")
+                  .update({
+                    stripe_payment_status: "paid",
+                    stripe_payment_method_id: session.payment_method as string,
+                    deposit_paid_cents: paymentAmountCents,
+                    tip_cents: tipCents,
+                    status: "pending_review",
+                  })
+                  .eq("id", orderId);
 
-              console.log(`Payment successful for order ${orderId} (Payment: $${paymentAmountCents/100}, Tip: $${tipCents/100})`);
+                // Update payment record
+                if (typeof session.payment_intent === 'string') {
+                  await supabaseClient
+                    .from("payments")
+                    .update({ status: "succeeded" })
+                    .eq("stripe_payment_intent_id", session.payment_intent);
+                }
+
+                console.log(`Payment successful for order ${orderId} (Payment: $${paymentAmountCents/100}, Tip: $${tipCents/100})`);
+              }
             }
+          } catch (error) {
+            console.error("Error updating order after payment:", error);
           }
-        } catch (error) {
-          console.error("Error updating order after payment:", error);
         }
+
+        return new Response(
+          `<!DOCTYPE html>
+          <html>
+          <head>
+            <title>Payment Complete</title>
+            <style>
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                margin: 0;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              }
+              .container {
+                background: white;
+                padding: 3rem;
+                border-radius: 1rem;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                text-align: center;
+                max-width: 400px;
+              }
+              .checkmark {
+                font-size: 4rem;
+                color: #10b981;
+                margin-bottom: 1rem;
+              }
+              h1 { color: #1f2937; margin: 0 0 0.5rem 0; }
+              p { color: #6b7280; margin: 0 0 1.5rem 0; }
+              button {
+                background: #667eea;
+                color: white;
+                border: none;
+                padding: 0.75rem 2rem;
+                border-radius: 0.5rem;
+                font-size: 1rem;
+                cursor: pointer;
+                font-weight: 600;
+              }
+              button:hover { background: #5568d3; }
+            </style>
+            <script>
+              // Notify parent window and close
+              if (window.opener) {
+                window.opener.postMessage({ type: 'PAYMENT_SUCCESS', orderId: '${orderId}' }, '*');
+                setTimeout(() => window.close(), 1000);
+              } else {
+                // If no opener, close after delay
+                setTimeout(() => window.close(), 3000);
+              }
+            </script>
+          </head>
+          <body>
+            <div class="container">
+              <div class="checkmark">✓</div>
+              <h1>Payment Complete!</h1>
+              <p>Your payment has been processed successfully.</p>
+              <p style="font-size: 0.875rem;">This window will close automatically...</p>
+              <button onclick="window.close()">Close Window</button>
+            </div>
+          </body>
+          </html>`,
+          {
+            status: 200,
+            headers: { "Content-Type": "text/html" },
+          }
+        );
       }
 
-      return new Response(
-        `<!DOCTYPE html>
-        <html>
-        <head>
-          <title>Payment Complete</title>
-          <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              min-height: 100vh;
-              margin: 0;
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            }
-            .container {
-              background: white;
-              padding: 3rem;
-              border-radius: 1rem;
-              box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-              text-align: center;
-              max-width: 400px;
-            }
-            .checkmark {
-              font-size: 4rem;
-              color: #10b981;
-              margin-bottom: 1rem;
-            }
-            h1 { color: #1f2937; margin: 0 0 0.5rem 0; }
-            p { color: #6b7280; margin: 0 0 1.5rem 0; }
-            button {
-              background: #667eea;
-              color: white;
-              border: none;
-              padding: 0.75rem 2rem;
-              border-radius: 0.5rem;
-              font-size: 1rem;
-              cursor: pointer;
-              font-weight: 600;
-            }
-            button:hover { background: #5568d3; }
-          </style>
-          <script>
-            // Notify parent window and close
-            if (window.opener) {
-              window.opener.postMessage({ type: 'PAYMENT_SUCCESS', orderId: '${orderId}' }, '*');
-              setTimeout(() => window.close(), 1000);
-            } else {
-              // If no opener, close after delay
-              setTimeout(() => window.close(), 3000);
-            }
-          </script>
-        </head>
-        <body>
-          <div class="container">
-            <div class="checkmark">✓</div>
-            <h1>Payment Complete!</h1>
-            <p>Your payment has been processed successfully.</p>
-            <p style="font-size: 0.875rem;">This window will close automatically...</p>
-            <button onclick="window.close()">Close Window</button>
-          </div>
-        </body>
-        </html>`,
-        {
-          status: 200,
-          headers: { "Content-Type": "text/html" },
-        }
-      );
+      if (action === "cancel") {
+        return new Response(
+          `<!DOCTYPE html>
+          <html>
+          <head>
+            <title>Payment Canceled</title>
+            <style>
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                margin: 0;
+                background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+              }
+              .container {
+                background: white;
+                padding: 3rem;
+                border-radius: 1rem;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                text-align: center;
+                max-width: 400px;
+              }
+              .icon { font-size: 4rem; margin-bottom: 1rem; }
+              h1 { color: #1f2937; margin: 0 0 0.5rem 0; }
+              p { color: #6b7280; margin: 0 0 1.5rem 0; }
+              button {
+                background: #ef4444;
+                color: white;
+                border: none;
+                padding: 0.75rem 2rem;
+                border-radius: 0.5rem;
+                font-size: 1rem;
+                cursor: pointer;
+                font-weight: 600;
+              }
+              button:hover { background: #dc2626; }
+            </style>
+            <script>
+              setTimeout(() => window.close(), 2000);
+            </script>
+          </head>
+          <body>
+            <div class="container">
+              <div class="icon">✕</div>
+              <h1>Payment Canceled</h1>
+              <p>Your payment was not completed.</p>
+              <button onclick="window.close()">Close Window</button>
+            </div>
+          </body>
+          </html>`,
+          {
+            status: 200,
+            headers: { "Content-Type": "text/html" },
+          }
+        );
+      }
     }
 
-    if (action === "cancel") {
-      return new Response(
-        `<!DOCTYPE html>
-        <html>
-        <head>
-          <title>Payment Canceled</title>
-          <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              min-height: 100vh;
-              margin: 0;
-              background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
-            }
-            .container {
-              background: white;
-              padding: 3rem;
-              border-radius: 1rem;
-              box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-              text-align: center;
-              max-width: 400px;
-            }
-            .icon { font-size: 4rem; margin-bottom: 1rem; }
-            h1 { color: #1f2937; margin: 0 0 0.5rem 0; }
-            p { color: #6b7280; margin: 0 0 1.5rem 0; }
-            button {
-              background: #ef4444;
-              color: white;
-              border: none;
-              padding: 0.75rem 2rem;
-              border-radius: 0.5rem;
-              font-size: 1rem;
-              cursor: pointer;
-              font-weight: 600;
-            }
-            button:hover { background: #dc2626; }
-          </style>
-          <script>
-            setTimeout(() => window.close(), 2000);
-          </script>
-        </head>
-        <body>
-          <div class="container">
-            <div class="icon">✕</div>
-            <h1>Payment Canceled</h1>
-            <p>Your payment was not completed.</p>
-            <button onclick="window.close()">Close Window</button>
-          </div>
-        </body>
-        </html>`,
-        {
-          status: 200,
-          headers: { "Content-Type": "text/html" },
-        }
-      );
-    }
-  }
-
-  try {
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
