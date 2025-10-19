@@ -152,9 +152,11 @@ export function Quote() {
     if (savedFormData) {
       try {
         const parsedFormData = JSON.parse(savedFormData);
+        // Exclude same_day_responsibility_accepted - user must re-check each time
+        const { same_day_responsibility_accepted, ...safeFormData } = parsedFormData;
         setFormData(prev => ({
           ...prev,
-          ...parsedFormData,
+          ...safeFormData,
         }));
 
         // Also restore the address input if available
