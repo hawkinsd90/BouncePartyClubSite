@@ -406,6 +406,10 @@ export function Checkout() {
       const appBaseUrl = window.location.origin;
       console.log('Using app base URL for Stripe redirects:', appBaseUrl);
 
+      // Store env vars in window so the popup can access them
+      (window as any).__SUPABASE_URL__ = import.meta.env.VITE_SUPABASE_URL;
+      (window as any).__SUPABASE_ANON_KEY__ = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`,
         {
