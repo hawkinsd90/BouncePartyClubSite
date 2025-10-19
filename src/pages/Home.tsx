@@ -40,7 +40,7 @@ export function Home() {
   return (
     <div>
       {/* TEMPORARY DEV DISPLAY - REMOVE THIS BLOCK AFTER CONFIRMING URL */}
-      <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 fixed top-0 left-0 right-0 z-50 shadow-lg">
+      <div className="bg-yellow-100 border-l-4 border-yellow-500 p-3">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center">
             <span className="font-bold text-yellow-800 mr-2">DEV:</span>
@@ -49,7 +49,7 @@ export function Home() {
           <span className="text-xs text-yellow-700 italic">Check .env.local is being used</span>
         </div>
       </div>
-      <div className="pt-16">
+      <div>
       <section className="relative bg-gradient-to-br from-blue-600 to-cyan-500 text-white">
         <div className="absolute inset-0 bg-black opacity-10"></div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-32">
