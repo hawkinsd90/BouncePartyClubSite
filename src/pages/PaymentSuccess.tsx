@@ -1,42 +1,51 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 export function PaymentSuccess() {
+  const [searchParams] = useSearchParams();
+  const orderId = searchParams.get('orderId');
+  const [processing, setProcessing] = useState(true);
+
   useEffect(() => {
-    // Try to close the window immediately
-    // This works if the window was opened via window.open()
-    try {
-      if (window.opener) {
-        // Notify parent window if possible
-        window.opener.postMessage({ type: 'PAYMENT_SUCCESS' }, '*');
+    async function processPayment() {
+      if (!orderId) {
+        setProcessing(false);
+        return;
       }
 
-      setTimeout(() => {
-        window.close();
+      try {
+        // Notify parent window immediately
+        if (window.opener) {
+          window.opener.postMessage({ type: 'PAYMENT_SUCCESS', orderId }, '*');
+        }
 
-        // If window.close() doesn't work (e.g., not opened by script),
-        // try to navigate back or show a message
+        setProcessing(false);
+
+        // Auto-close after a brief delay
         setTimeout(() => {
-          // If we're still here, the window didn't close
-          // Redirect to home or show a button
-          if (window.opener) {
-            window.opener.focus();
-          }
-        }, 500);
-      }, 500);
-    } catch (e) {
-      console.error('Error closing window:', e);
+          window.close();
+        }, 1500);
+      } catch (error) {
+        console.error('Error processing payment success:', error);
+        setProcessing(false);
+      }
     }
-  }, []);
+
+    processPayment();
+  }, [orderId]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center p-4">
-      <div className="text-center">
-        <div className="text-6xl mb-4">✓</div>
+      <div className="bg-white rounded-lg shadow-xl p-8 text-center max-w-md">
+        <div className="text-6xl text-green-500 mb-4">✓</div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Payment Complete!</h1>
-        <p className="text-gray-600 mb-4">This window will close automatically...</p>
+        <p className="text-gray-600 mb-4">
+          {processing ? 'Processing your payment...' : 'Your payment has been processed successfully.'}
+        </p>
+        <p className="text-sm text-gray-500 mb-4">This window will close automatically...</p>
         <button
           onClick={() => window.close()}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
         >
           Close Window
         </button>

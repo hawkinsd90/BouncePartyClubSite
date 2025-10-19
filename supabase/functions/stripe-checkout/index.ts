@@ -14,6 +14,7 @@ interface CheckoutRequest {
   tipCents?: number;
   customerEmail: string;
   customerName: string;
+  appBaseUrl: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -26,80 +27,64 @@ Deno.serve(async (req: Request) => {
       const url = new URL(req.url);
       const action = url.searchParams.get("action");
       const orderId = url.searchParams.get("orderId");
+      const sessionId = url.searchParams.get("session_id");
 
-      if (action === "success") {
-        const sessionId = url.searchParams.get("session_id");
+      if (action === "webhook" && orderId && sessionId) {
+        try {
+          const supabaseClient = createClient(
+            Deno.env.get("SUPABASE_URL") ?? "",
+            Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+          );
 
-        if (orderId && sessionId) {
-          try {
-            const supabaseClient = createClient(
-              Deno.env.get("SUPABASE_URL") ?? "",
-              Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-            );
+          const { data: stripeKeyData } = await supabaseClient
+            .from("admin_settings")
+            .select("value")
+            .eq("key", "stripe_secret_key")
+            .maybeSingle();
 
-            const { data: stripeKeyData } = await supabaseClient
-              .from("admin_settings")
-              .select("value")
-              .eq("key", "stripe_secret_key")
-              .maybeSingle();
+          if (stripeKeyData?.value) {
+            const stripe = new Stripe(stripeKeyData.value, {
+              apiVersion: "2024-10-28.acacia",
+            });
 
-            if (stripeKeyData?.value) {
-              const stripe = new Stripe(stripeKeyData.value, {
-                apiVersion: "2024-10-28.acacia",
-              });
+            const session = await stripe.checkout.sessions.retrieve(sessionId);
 
-              const session = await stripe.checkout.sessions.retrieve(sessionId);
+            if (session.payment_status === "paid" && session.payment_intent) {
+              const tipCents = parseInt(session.metadata?.tip_cents || "0", 10);
+              const paymentAmountCents = (session.amount_total || 0) - tipCents;
 
-              if (session.payment_status === "paid" && session.payment_intent) {
-                const tipCents = parseInt(session.metadata?.tip_cents || "0", 10);
-                const paymentAmountCents = (session.amount_total || 0) - tipCents;
+              await supabaseClient
+                .from("orders")
+                .update({
+                  stripe_payment_status: "paid",
+                  stripe_payment_method_id: session.payment_method as string,
+                  deposit_paid_cents: paymentAmountCents,
+                  status: "pending_review",
+                })
+                .eq("id", orderId);
 
+              if (typeof session.payment_intent === "string") {
                 await supabaseClient
-                  .from("orders")
-                  .update({
-                    stripe_payment_status: "paid",
-                    stripe_payment_method_id: session.payment_method as string,
-                    deposit_paid_cents: paymentAmountCents,
-                    status: "pending_review",
-                  })
-                  .eq("id", orderId);
-
-                if (typeof session.payment_intent === "string") {
-                  await supabaseClient
-                    .from("payments")
-                    .update({ status: "succeeded" })
-                    .eq("stripe_payment_intent_id", session.payment_intent);
-                }
-
-                console.log(`Payment successful for order ${orderId}`);
+                  .from("payments")
+                  .update({ status: "succeeded" })
+                  .eq("stripe_payment_intent_id", session.payment_intent);
               }
+
+              console.log(`Payment successful for order ${orderId}`);
             }
-          } catch (error) {
-            console.error("Error updating order:", error);
           }
+        } catch (error) {
+          console.error("Error updating order:", error);
         }
-
-        const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Payment Complete</title><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%)}.container{background:white;padding:3rem;border-radius:1rem;box-shadow:0 20px 60px rgba(0,0,0,0.3);text-align:center;max-width:400px}.checkmark{font-size:4rem;color:#10b981;margin-bottom:1rem}h1{color:#1f2937;margin:0 0 .5rem 0}p{color:#6b7280;margin:0 0 1.5rem 0}button{background:#667eea;color:white;border:none;padding:.75rem 2rem;border-radius:.5rem;font-size:1rem;cursor:pointer;font-weight:600}button:hover{background:#5568d3}</style></head><body><div class="container"><div class="checkmark">✓</div><h1>Payment Complete!</h1><p>Your payment has been processed successfully.</p><p style="font-size:.875rem">This window will close automatically...</p><button onclick="window.close()">Close Window</button></div><script>if(window.opener){console.log("Notifying parent");window.opener.postMessage({type:"PAYMENT_SUCCESS",orderId:"${orderId}"},"*");setTimeout(()=>window.close(),1500)}else{setTimeout(()=>window.close(),3000)}</script></body></html>`;
-
-        return new Response(html, {
-          status: 200,
-          headers: { "Content-Type": "text/html; charset=utf-8" },
-        });
       }
 
-      if (action === "cancel") {
-        const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Payment Canceled</title><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:linear-gradient(135deg,#f59e0b 0%,#ef4444 100%)}.container{background:white;padding:3rem;border-radius:1rem;box-shadow:0 20px 60px rgba(0,0,0,0.3);text-align:center;max-width:400px}.icon{font-size:4rem;margin-bottom:1rem}h1{color:#1f2937;margin:0 0 .5rem 0}p{color:#6b7280;margin:0 0 1.5rem 0}button{background:#ef4444;color:white;border:none;padding:.75rem 2rem;border-radius:.5rem;font-size:1rem;cursor:pointer;font-weight:600}button:hover{background:#dc2626}</style></head><body><div class="container"><div class="icon">✕</div><h1>Payment Canceled</h1><p>Your payment was not completed.</p><button onclick="window.close()">Close Window</button></div><script>setTimeout(()=>window.close(),2000)</script></body></html>`;
-
-        return new Response(html, {
+      return new Response(
+        JSON.stringify({ success: true, action, orderId }),
+        {
           status: 200,
-          headers: { "Content-Type": "text/html; charset=utf-8" },
-        });
-      }
-
-      return new Response(JSON.stringify({ error: "Invalid action" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     const supabaseClient = createClient(
@@ -124,9 +109,9 @@ Deno.serve(async (req: Request) => {
       apiVersion: "2024-10-28.acacia",
     });
 
-    const { orderId, depositCents, tipCents = 0, customerEmail, customerName }: CheckoutRequest = await req.json();
+    const { orderId, depositCents, tipCents = 0, customerEmail, customerName, appBaseUrl }: CheckoutRequest = await req.json();
 
-    if (!orderId || !depositCents || !customerEmail) {
+    if (!orderId || !depositCents || !customerEmail || !appBaseUrl) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -195,8 +180,8 @@ Deno.serve(async (req: Request) => {
           tip_cents: tipCents.toString(),
         },
       },
-      success_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/stripe-checkout?action=success&orderId=${orderId}&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/stripe-checkout?action=cancel&orderId=${orderId}`,
+      success_url: `${appBaseUrl}/checkout/payment-success?orderId=${orderId}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appBaseUrl}/checkout/payment-canceled?orderId=${orderId}`,
       metadata: {
         order_id: orderId,
         tip_cents: tipCents.toString(),
@@ -228,6 +213,6 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    });
   }
 });
