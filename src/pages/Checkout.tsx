@@ -411,33 +411,14 @@ export function Checkout() {
       (window as any).__SUPABASE_URL__ = import.meta.env.VITE_SUPABASE_URL;
       (window as any).__SUPABASE_ANON_KEY__ = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-      // Use Supabase client to invoke the edge function
-      const { data, error: invokeError } = await supabase.functions.invoke('stripe-checkout', {
-        body: {
-          orderId: createdOrderId,
-          depositCents: paymentCents,
-          tipCents: getTipCents(),
-          customerEmail: contactData.email,
-          customerName: `${contactData.first_name} ${contactData.last_name}`,
-          appBaseUrl,
-        },
-      });
+      // Store order ID in session storage for when we return from Stripe
+      sessionStorage.setItem('pending_order_id', createdOrderId);
 
-      if (invokeError || !data?.url) {
-        throw new Error(data?.error || invokeError?.message || 'Failed to create checkout session');
-      }
+      // Navigate to a simple checkout redirect page that will call the edge function
+      // This avoids CORS issues in WebContainer environments
+      window.location.href = `/checkout/stripe-redirect?orderId=${createdOrderId}&depositCents=${paymentCents}&tipCents=${getTipCents()}&email=${encodeURIComponent(contactData.email)}&name=${encodeURIComponent(`${contactData.first_name} ${contactData.last_name}`)}`;
 
-      // Open Stripe in a popup window
-      const stripeWindow = window.open(
-        data.url,
-        'stripe-checkout',
-        'width=600,height=800,left=200,top=100'
-      );
-
-      setStripePopupWindow(stripeWindow);
-
-      // Poll the payment status by calling our edge function
-      console.log('Starting payment polling for order:', createdOrderId);
+      return; // Exit early since we're navigating away
       const checkInterval = setInterval(async () => {
         console.log('Polling payment status...');
 
