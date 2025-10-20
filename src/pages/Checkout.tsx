@@ -149,6 +149,11 @@ export function Checkout() {
         localStorage.removeItem('bpc_quote_form');
         localStorage.removeItem('bpc_price_breakdown');
 
+        // Close the popup if it's still open
+        if (stripePopupWindow && !stripePopupWindow.closed) {
+          stripePopupWindow.close();
+        }
+
         return true; // Payment found
       }
     } catch (error) {
