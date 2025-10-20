@@ -92,12 +92,13 @@ export function Quote() {
 
   useEffect(() => {
     if (cart.length > 0 && formData.event_date && formData.event_end_date) {
+      console.log('Checking availability for dates:', formData.event_date, formData.event_end_date, 'Cart items:', cart.length);
       const timer = setTimeout(() => {
         checkCartAvailability();
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [formData.event_date, formData.event_end_date]);
+  }, [formData.event_date, formData.event_end_date, cart.length]);
 
   useEffect(() => {
     if (formData.location_type === 'commercial') {
@@ -209,7 +210,16 @@ export function Quote() {
   }
 
   async function checkCartAvailability() {
-    if (!formData.event_date || !formData.event_end_date || cart.length === 0) return;
+    if (!formData.event_date || !formData.event_end_date || cart.length === 0) {
+      console.log('Skipping availability check - missing data:', {
+        event_date: formData.event_date,
+        event_end_date: formData.event_end_date,
+        cart_length: cart.length
+      });
+      return;
+    }
+
+    console.log('Running availability check for cart:', cart);
 
     const checks = cart.map(item => ({
       unitId: item.unit_id,
@@ -218,12 +228,14 @@ export function Quote() {
     }));
 
     const results = await checkMultipleUnitsAvailability(checks);
+    console.log('Availability results:', results);
 
     const updatedCart = cart.map((item, index) => ({
       ...item,
       isAvailable: results[index]?.isAvailable ?? true,
     }));
 
+    console.log('Updated cart with availability:', updatedCart);
     setCart(updatedCart);
     localStorage.setItem('bpc_cart', JSON.stringify(updatedCart));
   }
