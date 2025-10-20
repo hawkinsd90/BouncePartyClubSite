@@ -5,7 +5,6 @@ import { formatCurrency } from '../lib/pricing';
 import { CreditCard, Shield, CheckCircle, Loader2, User, MapPin, DollarSign, FileText, Printer, X } from 'lucide-react';
 import { RentalTerms } from '../components/RentalTerms';
 import { PrintableInvoice } from '../components/PrintableInvoice';
-import { StripeCheckoutForm } from '../components/StripeCheckoutForm';
 
 export function Checkout() {
   const navigate = useNavigate();
@@ -21,7 +20,6 @@ export function Checkout() {
   const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
   const [customAmount, setCustomAmount] = useState('');
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [showStripeForm, setShowStripeForm] = useState(false);
   const [tempOrderId, setTempOrderId] = useState<string | null>(null);
 
   const [contactData, setContactData] = useState({
@@ -213,8 +211,41 @@ export function Checkout() {
       }
 
       setTempOrderId(order.id);
-      setShowStripeForm(true);
       setProcessing(false);
+
+      const appBaseUrl = window.location.origin;
+      const depositCents = getPaymentAmountCents();
+      const popupUrl = `/stripe-popup.html?orderId=${order.id}&depositCents=${depositCents}&email=${encodeURIComponent(contactData.email)}&name=${encodeURIComponent(`${contactData.first_name} ${contactData.last_name}`)}&appBaseUrl=${encodeURIComponent(appBaseUrl)}`;
+
+      (window as any).__SUPABASE_URL__ = import.meta.env.VITE_SUPABASE_URL;
+      (window as any).__SUPABASE_ANON_KEY__ = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      const stripeWindow = window.open(popupUrl, '_blank');
+
+      if (!stripeWindow) {
+        alert('Please allow popups to complete payment');
+        return;
+      }
+
+      const messageHandler = (event: MessageEvent) => {
+        if (event.data.type === 'PAYMENT_SUCCESS') {
+          window.removeEventListener('message', messageHandler);
+          handlePaymentSuccess();
+        } else if (event.data.type === 'PAYMENT_CANCELED') {
+          window.removeEventListener('message', messageHandler);
+          alert('Payment was canceled');
+        }
+      };
+
+      window.addEventListener('message', messageHandler);
+
+      const checkInterval = setInterval(() => {
+        if (stripeWindow.closed) {
+          clearInterval(checkInterval);
+          window.removeEventListener('message', messageHandler);
+        }
+      }, 500);
+
       return;
     } catch (error: any) {
       console.error('Error creating order:', error);
@@ -895,24 +926,6 @@ export function Checkout() {
         </div>
       </form>
 
-      {showStripeForm && tempOrderId && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-            <h2 className="text-2xl font-bold text-slate-900 mb-4">Payment Information</h2>
-            <p className="text-slate-600 mb-6">
-              Enter your payment details below. Your card will be securely stored for future charges related to this booking.
-            </p>
-            <StripeCheckoutForm
-              orderId={tempOrderId}
-              depositCents={getPaymentAmountCents()}
-              customerEmail={contactData.email}
-              customerName={`${contactData.first_name} ${contactData.last_name}`}
-              onSuccess={handlePaymentSuccess}
-              onError={handlePaymentError}
-            />
-          </div>
-        </div>
-      )}
 
       {showInvoiceModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto">
