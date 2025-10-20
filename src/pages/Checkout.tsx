@@ -21,6 +21,8 @@ export function Checkout() {
   const [customAmount, setCustomAmount] = useState('');
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [tempOrderId, setTempOrderId] = useState<string | null>(null);
+  const [awaitingPayment, setAwaitingPayment] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const [contactData, setContactData] = useState({
     first_name: '',
@@ -212,39 +214,43 @@ export function Checkout() {
 
       setTempOrderId(order.id);
       setProcessing(false);
+      setAwaitingPayment(true);
 
       const appBaseUrl = window.location.origin;
       const depositCents = getPaymentAmountCents();
-      const popupUrl = `/stripe-popup.html?orderId=${order.id}&depositCents=${depositCents}&email=${encodeURIComponent(contactData.email)}&name=${encodeURIComponent(`${contactData.first_name} ${contactData.last_name}`)}&appBaseUrl=${encodeURIComponent(appBaseUrl)}`;
 
-      (window as any).__SUPABASE_URL__ = import.meta.env.VITE_SUPABASE_URL;
-      (window as any).__SUPABASE_ANON_KEY__ = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              orderId: order.id,
+              depositCents,
+              tipCents: 0,
+              customerEmail: contactData.email,
+              customerName: `${contactData.first_name} ${contactData.last_name}`,
+              appBaseUrl,
+            }),
+          }
+        );
 
-      const stripeWindow = window.open(popupUrl, '_blank');
+        const data = await response.json();
 
-      if (!stripeWindow) {
-        alert('Please allow popups to complete payment');
-        return;
+        if (!response.ok || !data.url) {
+          throw new Error(data.error || 'Failed to create checkout session');
+        }
+
+        window.location.href = data.url;
+      } catch (err: any) {
+        console.error('Stripe checkout error:', err);
+        setPaymentError(err.message || 'Failed to initialize payment');
+        setAwaitingPayment(false);
       }
-
-      const messageHandler = (event: MessageEvent) => {
-        if (event.data.type === 'PAYMENT_SUCCESS') {
-          window.removeEventListener('message', messageHandler);
-          handlePaymentSuccess();
-        } else if (event.data.type === 'PAYMENT_CANCELED') {
-          window.removeEventListener('message', messageHandler);
-          alert('Payment was canceled');
-        }
-      };
-
-      window.addEventListener('message', messageHandler);
-
-      const checkInterval = setInterval(() => {
-        if (stripeWindow.closed) {
-          clearInterval(checkInterval);
-          window.removeEventListener('message', messageHandler);
-        }
-      }, 500);
 
       return;
     } catch (error: any) {
@@ -351,11 +357,43 @@ export function Checkout() {
 
   const handlePaymentError = (error: string) => {
     alert(`Payment failed: ${error}\n\nPlease try again or contact us at (313) 889-3860 for assistance.`);
-    setShowStripeForm(false);
   };
 
   if (!quoteData || !priceBreakdown) {
     return null;
+  }
+
+  if (awaitingPayment) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="bg-white rounded-xl shadow-lg p-8 text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
+            <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+          </div>
+          <h1 className="text-3xl font-bold text-slate-900 mb-4">
+            Redirecting to Payment
+          </h1>
+          <p className="text-lg text-slate-600 mb-6">
+            Please wait while we redirect you to our secure payment processor...
+          </p>
+          {paymentError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+              <p className="text-red-800 font-semibold mb-2">Payment Error</p>
+              <p className="text-red-700 text-sm">{paymentError}</p>
+              <button
+                onClick={() => {
+                  setAwaitingPayment(false);
+                  setPaymentError(null);
+                }}
+                className="mt-4 bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+              >
+                Go Back
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
   }
 
   if (success) {
