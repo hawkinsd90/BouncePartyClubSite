@@ -31,8 +31,8 @@ export async function checkUnitAvailability(
       order_id,
       orders!inner(
         id,
-        event_start_date,
-        event_end_date,
+        start_date,
+        end_date,
         status
       )
     `)
@@ -59,8 +59,8 @@ export async function checkUnitAvailability(
       const order = item.orders;
       if (!order) return false;
 
-      const orderStart = new Date(order.event_start_date);
-      const orderEnd = new Date(order.event_end_date);
+      const orderStart = new Date(order.start_date);
+      const orderEnd = new Date(order.end_date);
       const checkStart = new Date(eventStartDate);
       const checkEnd = new Date(eventEndDate);
 
@@ -72,8 +72,8 @@ export async function checkUnitAvailability(
     })
     .map((item: any) => ({
       orderId: item.orders.id,
-      eventStartDate: item.orders.event_start_date,
-      eventEndDate: item.orders.event_end_date,
+      eventStartDate: item.orders.start_date,
+      eventEndDate: item.orders.end_date,
       status: item.orders.status,
     }));
 
@@ -102,8 +102,8 @@ export async function getUnavailableDatesForUnit(
     .from('order_items')
     .select(`
       orders!inner(
-        event_start_date,
-        event_end_date,
+        start_date,
+        end_date,
         status
       )
     `)
@@ -111,11 +111,11 @@ export async function getUnavailableDatesForUnit(
     .in('orders.status', BLOCKED_STATUSES);
 
   if (startDate) {
-    query = query.gte('orders.event_end_date', startDate);
+    query = query.gte('orders.end_date', startDate);
   }
 
   if (endDate) {
-    query = query.lte('orders.event_start_date', endDate);
+    query = query.lte('orders.start_date', endDate);
   }
 
   const { data, error } = await query;
@@ -126,8 +126,8 @@ export async function getUnavailableDatesForUnit(
   }
 
   return (data || []).map((item: any) => ({
-    start: item.orders.event_start_date,
-    end: item.orders.event_end_date,
+    start: item.orders.start_date,
+    end: item.orders.end_date,
     status: item.orders.status,
   }));
 }
