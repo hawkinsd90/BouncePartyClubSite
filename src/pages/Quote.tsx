@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import {
@@ -72,8 +72,8 @@ export function Quote() {
   });
   const [priceBreakdown, setPriceBreakdown] = useState<any>(null);
 
-  // Memoized availability check function
-  const checkCartAvailability = useCallback(async () => {
+  // Function to check cart availability (not memoized to avoid circular deps)
+  async function checkCartAvailability() {
     if (!formData.event_date || !formData.event_end_date) {
       console.log('Skipping availability check - missing dates:', {
         event_date: formData.event_date,
@@ -82,39 +82,33 @@ export function Quote() {
       return;
     }
 
-    setCart(currentCart => {
-      if (currentCart.length === 0) {
-        console.log('Skipping availability check - empty cart');
-        return currentCart;
-      }
+    console.log('Running availability check with dates:', formData.event_date, formData.event_end_date, 'cart length:', cart.length);
 
-      console.log('Running availability check for cart:', currentCart, 'dates:', formData.event_date, formData.event_end_date);
+    if (cart.length === 0) {
+      console.log('Skipping availability check - empty cart');
+      return;
+    }
 
-      const checks = currentCart.map(item => ({
-        unitId: item.unit_id,
-        eventStartDate: formData.event_date,
-        eventEndDate: formData.event_end_date,
-      }));
+    const checks = cart.map(item => ({
+      unitId: item.unit_id,
+      eventStartDate: formData.event_date,
+      eventEndDate: formData.event_end_date,
+    }));
 
-      // Run the async check and update cart when done
-      checkMultipleUnitsAvailability(checks).then(results => {
-        console.log('Availability results:', results);
+    console.log('Checking availability for items:', checks);
 
-        setCart(prevCart => {
-          const updatedCart = prevCart.map((item, index) => ({
-            ...item,
-            isAvailable: results[index]?.isAvailable ?? true,
-          }));
+    const results = await checkMultipleUnitsAvailability(checks);
+    console.log('Availability results:', results);
 
-          console.log('Updated cart with availability:', updatedCart);
-          localStorage.setItem('bpc_cart', JSON.stringify(updatedCart));
-          return updatedCart;
-        });
-      });
+    const updatedCart = cart.map((item, index) => ({
+      ...item,
+      isAvailable: results[index]?.isAvailable ?? true,
+    }));
 
-      return currentCart;
-    });
-  }, [formData.event_date, formData.event_end_date]);
+    console.log('Updated cart with availability:', updatedCart);
+    setCart(updatedCart);
+    localStorage.setItem('bpc_cart', JSON.stringify(updatedCart));
+  }
 
   useEffect(() => {
     loadCart();
@@ -142,7 +136,7 @@ export function Quote() {
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [formData.event_date, formData.event_end_date, cart.length, checkCartAvailability]);
+  }, [formData.event_date, formData.event_end_date, cart.length]);
 
   useEffect(() => {
     if (formData.location_type === 'commercial') {
