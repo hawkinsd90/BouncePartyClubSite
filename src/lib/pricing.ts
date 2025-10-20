@@ -207,6 +207,9 @@ export async function calculateDrivingDistance(
   destLat: number,
   destLng: number
 ): Promise<number> {
+  // Use straight-line distance × 1.4 as fallback (approximates driving distance)
+  const fallbackDistance = calculateDistance(originLat, originLng, destLat, destLng) * 1.4;
+
   try {
     const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-maps-distance`;
 
@@ -225,13 +228,8 @@ export async function calculateDrivingDistance(
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      if (errorData.error && errorData.error.includes('not configured')) {
-        console.log('Google Maps API not configured, using straight-line distance × 1.4');
-      } else {
-        console.warn('Distance API error, falling back to straight-line × 1.4');
-      }
-      return calculateDistance(originLat, originLng, destLat, destLng) * 1.4;
+      // Silently fall back to approximation - the function doesn't exist or failed
+      return fallbackDistance;
     }
 
     const data = await response.json();
@@ -239,11 +237,10 @@ export async function calculateDrivingDistance(
     if (data.distanceMiles) {
       return data.distanceMiles;
     } else {
-      console.warn('No distance in response, falling back to straight-line × 1.4');
-      return calculateDistance(originLat, originLng, destLat, destLng) * 1.4;
+      return fallbackDistance;
     }
   } catch (error) {
-    console.error('Error calculating driving distance:', error);
-    return calculateDistance(originLat, originLng, destLat, destLng) * 1.4;
+    // Silently fall back to approximation - CORS or network error
+    return fallbackDistance;
   }
 }
