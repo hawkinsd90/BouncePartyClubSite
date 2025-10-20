@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import {
@@ -71,6 +71,50 @@ export function Quote() {
     special_details: '',
   });
   const [priceBreakdown, setPriceBreakdown] = useState<any>(null);
+
+  // Memoized availability check function
+  const checkCartAvailability = useCallback(async () => {
+    if (!formData.event_date || !formData.event_end_date) {
+      console.log('Skipping availability check - missing dates:', {
+        event_date: formData.event_date,
+        event_end_date: formData.event_end_date,
+      });
+      return;
+    }
+
+    setCart(currentCart => {
+      if (currentCart.length === 0) {
+        console.log('Skipping availability check - empty cart');
+        return currentCart;
+      }
+
+      console.log('Running availability check for cart:', currentCart, 'dates:', formData.event_date, formData.event_end_date);
+
+      const checks = currentCart.map(item => ({
+        unitId: item.unit_id,
+        eventStartDate: formData.event_date,
+        eventEndDate: formData.event_end_date,
+      }));
+
+      // Run the async check and update cart when done
+      checkMultipleUnitsAvailability(checks).then(results => {
+        console.log('Availability results:', results);
+
+        setCart(prevCart => {
+          const updatedCart = prevCart.map((item, index) => ({
+            ...item,
+            isAvailable: results[index]?.isAvailable ?? true,
+          }));
+
+          console.log('Updated cart with availability:', updatedCart);
+          localStorage.setItem('bpc_cart', JSON.stringify(updatedCart));
+          return updatedCart;
+        });
+      });
+
+      return currentCart;
+    });
+  }, [formData.event_date, formData.event_end_date]);
 
   useEffect(() => {
     loadCart();
@@ -208,49 +252,6 @@ export function Quote() {
       });
     }
   }
-
-  const checkCartAvailability = React.useCallback(async () => {
-    if (!formData.event_date || !formData.event_end_date) {
-      console.log('Skipping availability check - missing dates:', {
-        event_date: formData.event_date,
-        event_end_date: formData.event_end_date,
-      });
-      return;
-    }
-
-    setCart(currentCart => {
-      if (currentCart.length === 0) {
-        console.log('Skipping availability check - empty cart');
-        return currentCart;
-      }
-
-      console.log('Running availability check for cart:', currentCart, 'dates:', formData.event_date, formData.event_end_date);
-
-      const checks = currentCart.map(item => ({
-        unitId: item.unit_id,
-        eventStartDate: formData.event_date,
-        eventEndDate: formData.event_end_date,
-      }));
-
-      // Run the async check and update cart when done
-      checkMultipleUnitsAvailability(checks).then(results => {
-        console.log('Availability results:', results);
-
-        setCart(prevCart => {
-          const updatedCart = prevCart.map((item, index) => ({
-            ...item,
-            isAvailable: results[index]?.isAvailable ?? true,
-          }));
-
-          console.log('Updated cart with availability:', updatedCart);
-          localStorage.setItem('bpc_cart', JSON.stringify(updatedCart));
-          return updatedCart;
-        });
-      });
-
-      return currentCart;
-    });
-  }, [formData.event_date, formData.event_end_date]);
 
   async function calculatePricing() {
     if (!pricingRules) return;
