@@ -210,37 +210,44 @@ export async function calculateDrivingDistance(
   // Use straight-line distance × 1.4 as fallback (approximates driving distance)
   const fallbackDistance = calculateDistance(originLat, originLng, destLat, destLng) * 1.4;
 
+  // Check if Google Maps is available (loaded by AddressAutocomplete component)
+  if (!window.google?.maps?.DistanceMatrixService) {
+    console.log('Google Maps not loaded, using straight-line distance approximation');
+    return fallbackDistance;
+  }
+
   try {
-    const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-maps-distance`;
+    const service = new google.maps.DistanceMatrixService();
+    const origin = new google.maps.LatLng(originLat, originLng);
+    const destination = new google.maps.LatLng(destLat, destLng);
 
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        originLat,
-        originLng,
-        destLat,
-        destLng,
-      }),
+    return new Promise((resolve) => {
+      service.getDistanceMatrix(
+        {
+          origins: [origin],
+          destinations: [destination],
+          travelMode: google.maps.TravelMode.DRIVING,
+          unitSystem: google.maps.UnitSystem.IMPERIAL,
+        },
+        (response, status) => {
+          if (status === 'OK' && response?.rows?.[0]?.elements?.[0]?.status === 'OK') {
+            const distanceMeters = response.rows[0].elements[0].distance?.value;
+            if (distanceMeters) {
+              // Convert meters to miles
+              const distanceMiles = distanceMeters / 1609.34;
+              console.log(`Driving distance: ${distanceMiles.toFixed(2)} miles`);
+              resolve(distanceMiles);
+              return;
+            }
+          }
+
+          console.warn('Distance Matrix API failed, using straight-line approximation:', status);
+          resolve(fallbackDistance);
+        }
+      );
     });
-
-    if (!response.ok) {
-      // Silently fall back to approximation - the function doesn't exist or failed
-      return fallbackDistance;
-    }
-
-    const data = await response.json();
-
-    if (data.distanceMiles) {
-      return data.distanceMiles;
-    } else {
-      return fallbackDistance;
-    }
   } catch (error) {
-    // Silently fall back to approximation - CORS or network error
+    console.error('Error calculating driving distance:', error);
     return fallbackDistance;
   }
 }
