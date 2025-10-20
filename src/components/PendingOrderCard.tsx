@@ -196,7 +196,7 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
         .eq('order_id', order.id)
         .eq('status', 'pending');
 
-      const rejectionMessage = `Hi ${order.customers?.first_name}, unfortunately we cannot accommodate your booking for ${format(new Date(order.event_date), 'MMMM d, yyyy')}. Reason: ${reason}. Please contact us if you have questions.`;
+      const rejectionMessage = `Hi ${order.customers?.first_name}, unfortunately we cannot accommodate your booking for ${format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')}. Reason: ${reason}. Please contact us if you have questions.`;
 
       await handleSendSms(rejectionMessage);
 
@@ -276,7 +276,7 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
         <div>
           <h4 className="text-sm font-medium text-slate-500 mb-1">Event Date & Time</h4>
           <p className="text-base text-slate-900 font-medium">
-            {format(new Date(order.event_date), 'EEEE, MMMM d, yyyy')}
+            {format(new Date(order.event_date + 'T12:00:00'), 'EEEE, MMMM d, yyyy')}
           </p>
           <p className="text-sm text-slate-600">
             {order.start_window} - {order.end_window}
