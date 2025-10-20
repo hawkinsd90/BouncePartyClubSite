@@ -92,9 +92,12 @@ export function Quote() {
 
   useEffect(() => {
     if (cart.length > 0 && formData.event_date && formData.event_end_date) {
-      checkCartAvailability();
+      const timer = setTimeout(() => {
+        checkCartAvailability();
+      }, 300);
+      return () => clearTimeout(timer);
     }
-  }, [formData.event_date, formData.event_end_date, cart.length]);
+  }, [formData.event_date, formData.event_end_date]);
 
   useEffect(() => {
     if (formData.location_type === 'commercial') {
@@ -989,9 +992,18 @@ export function Quote() {
                     <p className="text-sm text-slate-500 italic text-center">Pricing will be shown on the checkout page</p>
                   </div>
 
+                  {cart.some(item => item.isAvailable === false) && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-sm text-red-800 font-medium text-center">
+                        Some inflatables are not available for the selected dates. Please choose different dates or remove unavailable items.
+                      </p>
+                    </div>
+                  )}
+
                   <button
                     type="submit"
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+                    disabled={cart.some(item => item.isAvailable === false)}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors disabled:bg-slate-400 disabled:cursor-not-allowed disabled:hover:bg-slate-400"
                   >
                     Continue to Checkout
                   </button>
