@@ -96,11 +96,20 @@ export function Quote() {
     }));
 
     console.log('Checking availability for items:', checks);
+    checks.forEach((check, idx) => {
+      console.log(`Check ${idx}:`, {
+        unitId: check.unitId,
+        unitName: cart[idx]?.unit_name,
+        eventStartDate: check.eventStartDate,
+        eventEndDate: check.eventEndDate,
+      });
+    });
 
     const results = await checkMultipleUnitsAvailability(checks);
     console.log('Availability results:', results);
     results.forEach((result, idx) => {
-      console.log(`Unit ${idx} (${cart[idx]?.name}):`, {
+      console.log(`Unit ${idx} (${cart[idx]?.unit_name}):`, {
+        unitId: result.unitId,
         isAvailable: result.isAvailable,
         conflictingOrders: result.conflictingOrders,
       });
