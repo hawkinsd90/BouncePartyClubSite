@@ -99,6 +99,12 @@ export function Quote() {
 
     const results = await checkMultipleUnitsAvailability(checks);
     console.log('Availability results:', results);
+    results.forEach((result, idx) => {
+      console.log(`Unit ${idx} (${cart[idx]?.name}):`, {
+        isAvailable: result.isAvailable,
+        conflictingOrders: result.conflictingOrders,
+      });
+    });
 
     const updatedCart = cart.map((item, index) => ({
       ...item,
