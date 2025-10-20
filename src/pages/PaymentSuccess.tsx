@@ -1,59 +1,32 @@
-import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useEffect } from 'react';
 
 export function PaymentSuccess() {
-  const [searchParams] = useSearchParams();
-  const orderId = searchParams.get('orderId');
-  const sessionId = searchParams.get('session_id');
-  const [processing, setProcessing] = useState(true);
-
   useEffect(() => {
-    async function processPayment() {
-      if (!orderId || !sessionId) {
-        setProcessing(false);
-        return;
-      }
+    console.log('[PaymentSuccess] Payment completed - closing window');
 
+    // Notify parent window
+    if (window.opener && !window.opener.closed) {
       try {
-        // Call the webhook to update the order in the database
-        const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout?action=webhook&orderId=${orderId}&session_id=${sessionId}`;
-        await fetch(webhookUrl, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          },
-        });
-
-        // Notify parent window immediately
-        if (window.opener) {
-          window.opener.postMessage({ type: 'PAYMENT_SUCCESS', orderId }, '*');
-        }
-
-        setProcessing(false);
-
-        // Try multiple approaches to close the window
-        // Approach 1: Try to close immediately
-        window.close();
-
-        // Approach 2: If still open after 500ms, try again
-        setTimeout(() => {
-          window.close();
-        }, 500);
-
-        // Approach 3: If still open after 1s, try one more time
-        setTimeout(() => {
-          window.close();
-        }, 1000);
-      } catch (error) {
-        console.error('Error processing payment success:', error);
-        setProcessing(false);
-        // Still try to close even on error
-        setTimeout(() => window.close(), 500);
+        window.opener.postMessage({ type: 'PAYMENT_SUCCESS' }, '*');
+      } catch (e) {
+        console.log('[PaymentSuccess] Could not message parent:', e);
       }
     }
 
-    processPayment();
-  }, [orderId, sessionId]);
+    // Try to close immediately
+    window.close();
+
+    // Keep trying every 100ms for 3 seconds
+    const closeInterval = setInterval(() => {
+      window.close();
+    }, 100);
+
+    setTimeout(() => {
+      clearInterval(closeInterval);
+    }, 3000);
+
+    return () => clearInterval(closeInterval);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center p-4">
