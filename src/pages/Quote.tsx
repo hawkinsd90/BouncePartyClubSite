@@ -1002,8 +1002,7 @@ export function Quote() {
 
                   <button
                     type="submit"
-                    disabled={cart.some(item => item.isAvailable === false)}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors disabled:bg-slate-400 disabled:cursor-not-allowed disabled:hover:bg-slate-400"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
                   >
                     Continue to Checkout
                   </button>
