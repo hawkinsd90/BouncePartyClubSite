@@ -8,8 +8,9 @@ import {
   type PricingRules,
 } from '../lib/pricing';
 import { HOME_BASE } from '../lib/constants';
-import { MapPin, Calendar, Home, Building2, Droplets, Trash2, Zap, AlertCircle, CheckCircle2, Clock, Sun, Anchor } from 'lucide-react';
+import { MapPin, Calendar, Home, Building2, Droplets, Trash2, Zap, AlertCircle, CheckCircle2, Clock, Sun, Anchor, XCircle } from 'lucide-react';
 import { AddressAutocomplete } from '../components/AddressAutocomplete';
+import { checkMultipleUnitsAvailability } from '../lib/availability';
 
 interface CartItem {
   unit_id: string;
@@ -18,6 +19,7 @@ interface CartItem {
   unit_price_cents: number;
   qty: number;
   is_combo?: boolean;
+  isAvailable?: boolean;
 }
 
 interface QuoteFormData {
@@ -87,6 +89,12 @@ export function Quote() {
       calculatePricing();
     }
   }, [cart, pricingRules, formData]);
+
+  useEffect(() => {
+    if (cart.length > 0 && formData.event_date && formData.event_end_date) {
+      checkCartAvailability();
+    }
+  }, [formData.event_date, formData.event_end_date]);
 
   useEffect(() => {
     if (formData.location_type === 'commercial') {
@@ -197,6 +205,26 @@ export function Quote() {
     }
   }
 
+  async function checkCartAvailability() {
+    if (!formData.event_date || !formData.event_end_date || cart.length === 0) return;
+
+    const checks = cart.map(item => ({
+      unitId: item.unit_id,
+      eventStartDate: formData.event_date,
+      eventEndDate: formData.event_end_date,
+    }));
+
+    const results = await checkMultipleUnitsAvailability(checks);
+
+    const updatedCart = cart.map((item, index) => ({
+      ...item,
+      isAvailable: results[index]?.isAvailable ?? true,
+    }));
+
+    setCart(updatedCart);
+    localStorage.setItem('bpc_cart', JSON.stringify(updatedCart));
+  }
+
   async function calculatePricing() {
     if (!pricingRules) return;
 
@@ -250,31 +278,24 @@ export function Quote() {
       return;
     }
 
+    const unavailableItems = cart.filter(item => item.isAvailable === false);
+    if (unavailableItems.length > 0) {
+      const unavailableNames = unavailableItems.map(item => item.unit_name).join(', ');
+      alert(`The following units are not available for your selected dates: ${unavailableNames}. Please choose different dates or remove these items.`);
+      return;
+    }
+
     if (formData.pickup_preference === 'same_day' && !formData.same_day_responsibility_accepted) {
       alert('Please accept the responsibility agreement for same-day pickup.');
       return;
     }
 
-    // Check unit availability
-    const unitIds = cart.map(item => item.unit_id);
-    const { data: availability, error: availError } = await supabase
-      .rpc('check_unit_availability', {
-        p_unit_ids: unitIds,
-        p_start_date: formData.event_date,
-        p_end_date: formData.event_end_date || formData.event_date
-      });
+    await checkCartAvailability();
 
-    if (availError) {
-      console.error('Error checking availability:', availError);
-      alert('Error checking availability. Please try again.');
-      return;
-    }
-
-    const unavailable = availability?.filter((item: any) => !item.available);
-    if (unavailable && unavailable.length > 0) {
-      const unavailableNames = unavailable.map((item: any) => item.unit_name).join(', ');
-
-      alert(`Sorry, the following units are not available for your selected dates: ${unavailableNames}. Please select different dates or remove these items from your cart.`);
+    const stillUnavailable = cart.filter(item => item.isAvailable === false);
+    if (stillUnavailable.length > 0) {
+      const unavailableNames = stillUnavailable.map(item => item.unit_name).join(', ');
+      alert(`Sorry, the following units were just booked by another customer: ${unavailableNames}. Please choose different dates or remove these items.`);
       return;
     }
 
@@ -308,11 +329,23 @@ export function Quote() {
                   {cart.map((item, index) => (
                     <div
                       key={index}
-                      className="p-4 border border-slate-200 rounded-lg space-y-3"
+                      className={`p-4 border rounded-lg space-y-3 ${
+                        item.isAvailable === false
+                          ? 'border-red-300 bg-red-50'
+                          : 'border-slate-200'
+                      }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
-                          <h3 className="font-semibold text-slate-900">{item.unit_name}</h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold text-slate-900">{item.unit_name}</h3>
+                            {item.isAvailable === false && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                                <XCircle className="w-3 h-3" />
+                                Not Available
+                              </span>
+                            )}
+                          </div>
                           <span className="text-sm text-slate-600">Qty: {item.qty}</span>
                         </div>
                         <button
@@ -323,6 +356,12 @@ export function Quote() {
                           <Trash2 className="w-5 h-5" />
                         </button>
                       </div>
+
+                      {item.isAvailable === false && formData.event_date && (
+                        <div className="text-sm text-red-700 bg-red-100 px-3 py-2 rounded">
+                          This unit is already booked for the selected dates. Please choose different dates or remove this item.
+                        </div>
+                      )}
 
                       {item.is_combo && (
                         <div>

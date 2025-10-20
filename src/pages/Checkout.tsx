@@ -6,6 +6,7 @@ import { CreditCard, Shield, CheckCircle, Loader2, User, MapPin, DollarSign, Fil
 import { RentalTerms } from '../components/RentalTerms';
 import { PrintableInvoice } from '../components/PrintableInvoice';
 import { createOrderBeforePayment, completeOrderAfterPayment } from '../lib/orderCreation';
+import { checkMultipleUnitsAvailability } from '../lib/availability';
 
 export function Checkout() {
   const navigate = useNavigate();
@@ -366,26 +367,25 @@ export function Checkout() {
     setCheckingAvailability(true);
 
     try {
-      const { data: availabilityData, error: availabilityError } = await supabase.rpc(
-        'check_unit_availability',
-        {
-          p_unit_ids: cart.map((item) => item.unit_id),
-          p_start_date: quoteData.event_date,
-          p_end_date: quoteData.event_end_date || quoteData.event_date,
-        }
-      );
+      const checks = cart.map(item => ({
+        unitId: item.unit_id,
+        eventStartDate: quoteData.event_date,
+        eventEndDate: quoteData.event_end_date || quoteData.event_date,
+      }));
 
-      if (availabilityError) {
-        console.error('Availability check error:', availabilityError);
-        throw new Error('Unable to verify availability. Please try again.');
-      }
+      const results = await checkMultipleUnitsAvailability(checks);
 
-      // Check if all units are available
-      const unavailable = availabilityData?.filter((item: any) => !item.available);
-      if (unavailable && unavailable.length > 0) {
-        const unitNames = unavailable.map((item: any) => item.unit_name).join(', ');
+      const unavailableUnits = results.filter(r => !r.isAvailable);
+      if (unavailableUnits.length > 0) {
+        const unitNames = unavailableUnits
+          .map((r) => {
+            const cartItem = cart.find(c => c.unit_id === r.unitId);
+            return cartItem?.unit_name || 'Unknown Unit';
+          })
+          .join(', ');
+
         alert(
-          `Sorry, these units are no longer available for your selected dates: ${unitNames}\n\nPlease go back to the quote page and select different units or dates.`
+          `Sorry, these units are no longer available for your selected dates: ${unitNames}\n\nAnother customer may have just booked them. Please go back to the quote page and select different units or dates.`
         );
         setCheckingAvailability(false);
         return;
