@@ -76,20 +76,15 @@ export function Checkout() {
 
     try {
       // Call edge function to check Stripe directly
-      const statusResponse = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/check-payment-status`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          },
-          body: JSON.stringify({ orderId: checkOrderId }),
-        }
-      );
+      const { data: statusData, error: statusError } = await supabase.functions.invoke('check-payment-status', {
+        body: { orderId: checkOrderId },
+      });
 
-      const statusData = await statusResponse.json();
+      if (statusError) {
+        console.error('Error checking payment status:', statusError);
+        return;
+      }
+
       console.log('Payment status from Stripe check:', statusData);
 
       // Also check database to get latest order data
@@ -416,30 +411,20 @@ export function Checkout() {
       (window as any).__SUPABASE_URL__ = import.meta.env.VITE_SUPABASE_URL;
       (window as any).__SUPABASE_ANON_KEY__ = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          },
-          body: JSON.stringify({
-            orderId: createdOrderId,
-            depositCents: paymentCents,
-            tipCents: getTipCents(),
-            customerEmail: contactData.email,
-            customerName: `${contactData.first_name} ${contactData.last_name}`,
-            appBaseUrl,
-          }),
-        }
-      );
+      // Use Supabase client to invoke the edge function
+      const { data, error: invokeError } = await supabase.functions.invoke('stripe-checkout', {
+        body: {
+          orderId: createdOrderId,
+          depositCents: paymentCents,
+          tipCents: getTipCents(),
+          customerEmail: contactData.email,
+          customerName: `${contactData.first_name} ${contactData.last_name}`,
+          appBaseUrl,
+        },
+      });
 
-      const data = await response.json();
-
-      if (!response.ok || !data.url) {
-        throw new Error(data.error || 'Failed to create checkout session');
+      if (invokeError || !data?.url) {
+        throw new Error(data?.error || invokeError?.message || 'Failed to create checkout session');
       }
 
       // Open Stripe in a popup window
