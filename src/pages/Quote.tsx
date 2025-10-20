@@ -129,12 +129,15 @@ export function Quote() {
   }, [cart, pricingRules, formData]);
 
   useEffect(() => {
+    console.log('Availability useEffect called. Cart length:', cart.length, 'event_date:', formData.event_date, 'event_end_date:', formData.event_end_date);
     if (cart.length > 0 && formData.event_date && formData.event_end_date) {
       console.log('useEffect triggered - Checking availability for dates:', formData.event_date, formData.event_end_date, 'Cart items:', cart.length);
       const timer = setTimeout(() => {
         checkCartAvailability();
       }, 300);
       return () => clearTimeout(timer);
+    } else {
+      console.log('Skipping availability check - condition not met');
     }
   }, [formData.event_date, formData.event_end_date, cart.length]);
 
