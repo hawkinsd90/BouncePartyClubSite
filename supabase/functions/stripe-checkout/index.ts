@@ -180,8 +180,8 @@ Deno.serve(async (req: Request) => {
           tip_cents: tipCents.toString(),
         },
       },
-      success_url: `${appBaseUrl}/checkout/payment-success?orderId=${orderId}&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appBaseUrl}/checkout/payment-canceled?orderId=${orderId}`,
+      success_url: `${appBaseUrl}/payment-success.html?orderId=${orderId}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appBaseUrl}/payment-success.html?orderId=${orderId}&canceled=true`,
       metadata: {
         order_id: orderId,
         tip_cents: tipCents.toString(),

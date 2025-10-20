@@ -77,56 +77,44 @@
   </div>
 
   <script>
-    (async () => {
+    console.log('[payment-success.html] Payment completed - closing window');
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const orderId = urlParams.get('orderId');
+    const canceled = urlParams.get('canceled');
+
+    if (canceled) {
+      document.getElementById('message').textContent = 'Payment canceled. Closing window...';
+    } else {
+      document.getElementById('message').textContent = 'Payment complete! Closing window...';
+    }
+
+    // Notify parent window
+    if (window.opener && !window.opener.closed) {
       try {
-        const urlParams = new URLSearchParams(window.location.search);
-        const orderId = urlParams.get('orderId');
-        const sessionId = urlParams.get('session_id');
-
-        if (!orderId || !sessionId) {
-          document.getElementById('message').textContent = 'Missing payment information';
-          setTimeout(() => window.close(), 2000);
-          return;
-        }
-
-        // Get environment variables from parent or use defaults
-        const SUPABASE_URL = window.opener?.__SUPABASE_URL__ || localStorage.getItem('SUPABASE_URL');
-        const SUPABASE_ANON_KEY = window.opener?.__SUPABASE_ANON_KEY__ || localStorage.getItem('SUPABASE_ANON_KEY');
-
-        // Call webhook to update order
-        const webhookUrl = `${SUPABASE_URL}/functions/v1/stripe-checkout?action=webhook&orderId=${orderId}&session_id=${sessionId}`;
-        const response = await fetch(webhookUrl, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-        });
-
-        if (response.ok) {
-          document.getElementById('message').innerHTML = 'Payment complete! Closing window...';
-
-          // Notify parent window
-          if (window.opener) {
-            window.opener.postMessage({ type: 'PAYMENT_SUCCESS', orderId }, '*');
-          }
-
-          // Close the window
-          setTimeout(() => {
-            window.close();
-            // If window.close() didn't work (some browsers block it), show message
-            setTimeout(() => {
-              document.getElementById('message').innerHTML = 'Payment complete! You can close this window.';
-            }, 500);
-          }, 1000);
-        } else {
-          throw new Error('Failed to process payment');
-        }
-      } catch (error) {
-        console.error('Error:', error);
-        document.getElementById('message').textContent = 'Payment received. You can close this window.';
-        setTimeout(() => window.close(), 2000);
+        window.opener.postMessage({
+          type: canceled ? 'PAYMENT_CANCELED' : 'PAYMENT_SUCCESS',
+          orderId: orderId
+        }, '*');
+        console.log('[payment-success.html] Notified parent window');
+      } catch (e) {
+        console.error('[payment-success.html] Could not message parent:', e);
       }
-    })();
+    }
+
+    // Try to close immediately
+    window.close();
+
+    // Keep trying every 100ms for 3 seconds
+    const closeInterval = setInterval(() => {
+      window.close();
+    }, 100);
+
+    setTimeout(() => {
+      clearInterval(closeInterval);
+      document.getElementById('message').textContent = 'Payment received. You can close this window manually.';
+      console.log('[payment-success.html] Could not auto-close window');
+    }, 3000);
   </script>
 </body>
 </html>
