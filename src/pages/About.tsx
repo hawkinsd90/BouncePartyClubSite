@@ -62,7 +62,7 @@ export function About() {
             We understand that planning an event can be stressful, which is why we've streamlined everything from booking to setup. Our online quote system gives you instant pricing, our professional crew handles all the heavy lifting, and our flexible policies give you peace of mind.
           </p>
           <p className="text-slate-700 leading-relaxed">
-            Every bounce house, water slide, and combo unit in our fleet is chosen with safety and fun in mind. We invest in premium equipment, maintain it meticulously, and deliver it with care.
+            Every bounce house, water slide, and combo inflatable in our fleet is chosen with safety and fun in mind. We invest in premium equipment, maintain it meticulously, and deliver it with care.
           </p>
         </div>
 

@@ -380,12 +380,12 @@ export function Checkout() {
         const unitNames = unavailableUnits
           .map((r) => {
             const cartItem = cart.find(c => c.unit_id === r.unitId);
-            return cartItem?.unit_name || 'Unknown Unit';
+            return cartItem?.unit_name || 'Unknown Inflatable';
           })
           .join(', ');
 
         alert(
-          `Sorry, these units are no longer available for your selected dates: ${unitNames}\n\nAnother customer may have just booked them. Please go back to the quote page and select different units or dates.`
+          `Sorry, these inflatables are no longer available for your selected dates: ${unitNames}\n\nAnother customer may have just booked them. Please go back to the quote page and select different inflatables or dates.`
         );
         setCheckingAvailability(false);
         return;

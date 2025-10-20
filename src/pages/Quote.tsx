@@ -94,7 +94,7 @@ export function Quote() {
     if (cart.length > 0 && formData.event_date && formData.event_end_date) {
       checkCartAvailability();
     }
-  }, [formData.event_date, formData.event_end_date]);
+  }, [formData.event_date, formData.event_end_date, cart.length]);
 
   useEffect(() => {
     if (formData.location_type === 'commercial') {
@@ -274,14 +274,14 @@ export function Quote() {
     e.preventDefault();
 
     if (cart.length === 0) {
-      alert('Please add at least one unit to your quote.');
+      alert('Please add at least one inflatable to your quote.');
       return;
     }
 
     const unavailableItems = cart.filter(item => item.isAvailable === false);
     if (unavailableItems.length > 0) {
       const unavailableNames = unavailableItems.map(item => item.unit_name).join(', ');
-      alert(`The following units are not available for your selected dates: ${unavailableNames}. Please choose different dates or remove these items.`);
+      alert(`The following inflatables are not available for your selected dates: ${unavailableNames}. Please choose different dates or remove these items.`);
       return;
     }
 
@@ -295,7 +295,7 @@ export function Quote() {
     const stillUnavailable = cart.filter(item => item.isAvailable === false);
     if (stillUnavailable.length > 0) {
       const unavailableNames = stillUnavailable.map(item => item.unit_name).join(', ');
-      alert(`Sorry, the following units were just booked by another customer: ${unavailableNames}. Please choose different dates or remove these items.`);
+      alert(`Sorry, the following inflatables were just booked by another customer: ${unavailableNames}. Please choose different dates or remove these items.`);
       return;
     }
 
@@ -359,7 +359,7 @@ export function Quote() {
 
                       {item.isAvailable === false && formData.event_date && (
                         <div className="text-sm text-red-700 bg-red-100 px-3 py-2 rounded">
-                          This unit is already booked for the selected dates. Please choose different dates or remove this item.
+                          This inflatable is already booked for the selected dates. Please choose different dates or remove this item.
                         </div>
                       )}
 
@@ -423,7 +423,7 @@ export function Quote() {
                     onClick={() => navigate('/catalog')}
                     className="w-full py-3 border-2 border-dashed border-slate-300 rounded-lg text-slate-600 hover:border-blue-500 hover:text-blue-600 transition-colors font-medium"
                   >
-                    + Add More Units
+                    + Add More Inflatables
                   </button>
                 </div>
               )}
@@ -705,9 +705,29 @@ export function Quote() {
                       type="date"
                       required
                       value={formData.event_date}
-                      onChange={(e) =>
-                        setFormData({ ...formData, event_date: e.target.value })
-                      }
+                      onChange={(e) => {
+                        const newStartDate = e.target.value;
+                        const oldStartDate = formData.event_date;
+                        const oldEndDate = formData.event_end_date;
+
+                        if (oldStartDate && oldEndDate && newStartDate) {
+                          const oldStart = new Date(oldStartDate);
+                          const oldEnd = new Date(oldEndDate);
+                          const dayOffset = Math.round((oldEnd.getTime() - oldStart.getTime()) / (1000 * 60 * 60 * 24));
+
+                          const newStart = new Date(newStartDate);
+                          const newEnd = new Date(newStart);
+                          newEnd.setDate(newEnd.getDate() + dayOffset);
+
+                          setFormData({
+                            ...formData,
+                            event_date: newStartDate,
+                            event_end_date: newEnd.toISOString().split('T')[0]
+                          });
+                        } else {
+                          setFormData({ ...formData, event_date: newStartDate });
+                        }
+                      }}
                       min={new Date().toISOString().split('T')[0]}
                       className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                     />
