@@ -13,33 +13,15 @@ let stripePromise: Promise<Stripe | null> | null = null;
 async function getStripeInstance(): Promise<Stripe | null> {
   if (!stripePromise) {
     console.log('[getStripeInstance] Creating new Stripe promise');
-    stripePromise = (async () => {
-      try {
-        console.log('[getStripeInstance] Fetching publishable key...');
-        const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-stripe-publishable-key`;
-        const response = await fetch(apiUrl, {
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        const data = await response.json();
-        console.log('[getStripeInstance] Received publishable key response');
+    const publishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 
-        if (data.publishableKey) {
-          console.log('[getStripeInstance] Loading Stripe with publishable key...');
-          const stripeInstance = await loadStripe(data.publishableKey);
-          console.log('[getStripeInstance] Stripe loaded:', !!stripeInstance);
-          return stripeInstance;
-        } else {
-          console.error('[getStripeInstance] No publishable key in response');
-          throw new Error('No publishable key configured');
-        }
-      } catch (error) {
-        console.error('[getStripeInstance] Error loading Stripe:', error);
-        return null;
-      }
-    })();
+    if (!publishableKey) {
+      console.error('[getStripeInstance] No VITE_STRIPE_PUBLISHABLE_KEY in environment');
+      return null;
+    }
+
+    console.log('[getStripeInstance] Loading Stripe with publishable key from env...');
+    stripePromise = loadStripe(publishableKey);
   } else {
     console.log('[getStripeInstance] Reusing existing Stripe promise');
   }

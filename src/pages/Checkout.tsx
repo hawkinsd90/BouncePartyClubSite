@@ -1,16 +1,14 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../lib/pricing';
 import { CreditCard, Shield, CheckCircle, Loader2, User, MapPin, DollarSign, FileText, Printer, X } from 'lucide-react';
 import { RentalTerms } from '../components/RentalTerms';
 import { PrintableInvoice } from '../components/PrintableInvoice';
-import { createOrderBeforePayment, completeOrderAfterPayment } from '../lib/orderCreation';
-import { checkMultipleUnitsAvailability } from '../lib/availability';
+import { StripeCheckoutForm } from '../components/StripeCheckoutForm';
 
 export function Checkout() {
   const navigate = useNavigate();
-  const { orderId: urlOrderId } = useParams<{ orderId: string }>();
   const [quoteData, setQuoteData] = useState<any>(null);
   const [priceBreakdown, setPriceBreakdown] = useState<any>(null);
   const [cart, setCart] = useState<any[]>([]);
@@ -22,12 +20,9 @@ export function Checkout() {
   const [billingSameAsEvent, setBillingSameAsEvent] = useState(true);
   const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
   const [customAmount, setCustomAmount] = useState('');
-  const [tipAmount, setTipAmount] = useState('');
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [awaitingPayment, setAwaitingPayment] = useState(false);
-  const [paymentCheckInterval, setPaymentCheckInterval] = useState<NodeJS.Timeout | null>(null);
-  const [checkingAvailability, setCheckingAvailability] = useState(false);
-  const [stripePopupWindow, setStripePopupWindow] = useState<Window | null>(null);
+  const [showStripeForm, setShowStripeForm] = useState(false);
+  const [tempOrderId, setTempOrderId] = useState<string | null>(null);
 
   const [contactData, setContactData] = useState({
     first_name: '',
@@ -45,229 +40,6 @@ export function Checkout() {
   });
 
   useEffect(() => {
-    if (urlOrderId) {
-      loadExistingOrder(urlOrderId);
-    } else {
-      loadNewCheckout();
-    }
-  }, [navigate, urlOrderId]);
-
-  // Listen for messages from the payment popup window
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      console.log('Received message from popup:', event.data);
-
-      if (event.data?.type === 'PAYMENT_SUCCESS') {
-        console.log('Payment success message received from popup!');
-        // Trigger immediate payment check
-        if (orderId) {
-          checkPaymentStatus(orderId);
-        }
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [orderId]);
-
-  // Helper function to check payment status
-  const checkPaymentStatus = async (checkOrderId: string) => {
-    console.log('Checking payment status for order:', checkOrderId);
-
-    try {
-      // Call edge function to check Stripe directly
-      const { data: statusData, error: statusError } = await supabase.functions.invoke('check-payment-status', {
-        body: { orderId: checkOrderId },
-      });
-
-      if (statusError) {
-        console.error('Error checking payment status:', statusError);
-        return;
-      }
-
-      console.log('Payment status from Stripe check:', statusData);
-
-      // Also check database to get latest order data
-      const { data: order } = await supabase
-        .from('orders')
-        .select('stripe_payment_status, status, id')
-        .eq('id', checkOrderId)
-        .maybeSingle();
-
-      console.log('Order from DB:', order);
-
-      if (order?.stripe_payment_status === 'paid' || statusData?.status === 'paid') {
-        console.log('Payment detected as paid! Closing popup and showing success...');
-
-        // Clear polling interval
-        if (paymentCheckInterval) {
-          clearInterval(paymentCheckInterval);
-          setPaymentCheckInterval(null);
-        }
-
-        // Close the Stripe popup if still open
-        if (stripePopupWindow && !stripePopupWindow.closed) {
-          stripePopupWindow.close();
-        }
-
-        // Load order details for success screen
-        const { data: fullOrder } = await supabase
-          .from('orders')
-          .select('*, order_items(*, units(name, category))')
-          .eq('id', checkOrderId)
-          .maybeSingle();
-
-        if (fullOrder) {
-          setQuoteData({
-            event_date: fullOrder.event_start_date,
-            event_end_date: fullOrder.event_end_date,
-            address_line1: fullOrder.event_address_line1,
-            address_line2: fullOrder.event_address_line2,
-            city: fullOrder.event_city,
-            state: fullOrder.event_state,
-            zip: fullOrder.event_zip,
-          });
-          setPriceBreakdown({
-            subtotal_cents: fullOrder.subtotal_cents,
-            travel_fee_cents: fullOrder.travel_fee_cents,
-            same_day_pickup_fee_cents: fullOrder.same_day_pickup_fee_cents,
-            generator_fee_cents: fullOrder.generator_fee_cents || 0,
-            tax_cents: fullOrder.tax_cents,
-            total_cents: fullOrder.total_cents,
-            deposit_due_cents: fullOrder.deposit_paid_cents,
-            balance_due_cents: fullOrder.balance_due_cents,
-          });
-          setCart(fullOrder.order_items);
-        }
-
-        setAwaitingPayment(false);
-        setSuccess(true);
-        localStorage.removeItem('bpc_cart');
-        localStorage.removeItem('bpc_quote_form');
-        localStorage.removeItem('bpc_price_breakdown');
-
-        // Close the popup if it's still open
-        if (stripePopupWindow && !stripePopupWindow.closed) {
-          stripePopupWindow.close();
-        }
-
-        return true; // Payment found
-      }
-    } catch (error) {
-      console.error('Error checking payment status:', error);
-    }
-
-    return false; // Payment not found yet
-  };
-
-  async function loadExistingOrder(id: string) {
-    setCheckingAvailability(true);
-    try {
-      const { data: order, error } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          customers (*),
-          addresses (*),
-          order_items (*, units(*))
-        `)
-        .eq('id', id)
-        .maybeSingle();
-
-      if (error || !order) {
-        alert('Order not found');
-        navigate('/');
-        return;
-      }
-
-      if (order.status === 'void') {
-        alert('This order has been voided and is no longer valid.');
-        window.close();
-        return;
-      }
-
-      if (order.status !== 'draft') {
-        alert('This order has already been processed.');
-        window.close();
-        return;
-      }
-
-      const unitIds = order.order_items.map((item: any) => item.unit_id);
-      const { data: availabilityCheck, error: availError } = await supabase.rpc('check_unit_availability', {
-        p_unit_ids: unitIds,
-        p_start_date: order.start_date || order.event_date,
-        p_end_date: order.end_date || order.event_date,
-      });
-
-      if (availError) throw availError;
-
-      const allAvailable = availabilityCheck?.every((check: any) => check.is_available) || false;
-
-      if (!allAvailable) {
-        await supabase
-          .from('orders')
-          .update({ status: 'void' })
-          .eq('id', id);
-
-        alert('Sorry, one or more items in this order are no longer available. This order has been voided.');
-        window.close();
-        return;
-      }
-
-      setOrderId(id);
-      setCart(order.order_items);
-      setContactData({
-        first_name: order.customers.first_name,
-        last_name: order.customers.last_name,
-        email: order.customers.email,
-        phone: order.customers.phone,
-      });
-
-      const formData = {
-        event_date: order.event_date,
-        start_window: order.start_window,
-        end_window: order.end_window,
-        address_line1: order.addresses.line1,
-        address_line2: order.addresses.line2,
-        city: order.addresses.city,
-        state: order.addresses.state,
-        zip: order.addresses.zip,
-        surface: order.surface,
-        setup_location: order.setup_location,
-        generator_required: order.generator_required,
-        has_pets: order.has_pets,
-        special_details: order.special_details,
-      };
-
-      setQuoteData(formData);
-      setPriceBreakdown({
-        subtotal_cents: order.subtotal_cents,
-        travel_fee_cents: order.travel_fee_cents,
-        surface_fee_cents: order.surface_fee_cents,
-        same_day_pickup_fee_cents: order.same_day_pickup_fee_cents,
-        tax_cents: order.tax_cents,
-        total_cents: order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents,
-        deposit_due_cents: order.deposit_due_cents,
-        balance_due_cents: order.balance_due_cents,
-      });
-
-      setBillingAddress({
-        line1: order.addresses.line1,
-        line2: order.addresses.line2 || '',
-        city: order.addresses.city,
-        state: order.addresses.state,
-        zip: order.addresses.zip,
-      });
-    } catch (error) {
-      console.error('Error loading order:', error);
-      alert('Error loading order. Please try again.');
-      navigate('/');
-    } finally {
-      setCheckingAvailability(false);
-    }
-  }
-
-  async function loadNewCheckout() {
     const savedForm = localStorage.getItem('bpc_quote_form');
     const savedBreakdown = localStorage.getItem('bpc_price_breakdown');
     const savedCart = localStorage.getItem('bpc_cart');
@@ -278,31 +50,9 @@ export function Checkout() {
     }
 
     const formData = JSON.parse(savedForm);
-    const parsedCart = JSON.parse(savedCart);
-
-    // Validate cart unit IDs exist in database (handles migration from old DB)
-    if (parsedCart.length > 0) {
-      const unitIds = parsedCart.map((item: any) => item.unit_id);
-      const { data: validUnits, error } = await supabase
-        .from('units')
-        .select('id')
-        .in('id', unitIds);
-
-      if (error || !validUnits || validUnits.length !== unitIds.length) {
-        // Cart contains invalid unit IDs - clear it and redirect
-        console.warn('Cart contains invalid unit IDs from old database. Clearing cart.');
-        localStorage.removeItem('bpc_cart');
-        localStorage.removeItem('bpc_quote_form');
-        localStorage.removeItem('bpc_price_breakdown');
-        alert('Your cart has been cleared due to a database update. Please add items again.');
-        navigate('/catalog');
-        return;
-      }
-    }
-
     setQuoteData(formData);
     setPriceBreakdown(JSON.parse(savedBreakdown));
-    setCart(parsedCart);
+    setCart(JSON.parse(savedCart));
 
     setBillingAddress({
       line1: formData.address_line1 || '',
@@ -311,16 +61,7 @@ export function Checkout() {
       state: formData.state || '',
       zip: formData.zip || '',
     });
-  }
-
-  // Cleanup interval on unmount
-  useEffect(() => {
-    return () => {
-      if (paymentCheckInterval) {
-        clearInterval(paymentCheckInterval);
-      }
-    };
-  }, [paymentCheckInterval]);
+  }, [navigate]);
 
   const getPaymentAmountCents = () => {
     if (paymentAmount === 'full') {
@@ -330,10 +71,6 @@ export function Checkout() {
       return Math.max(priceBreakdown.deposit_due_cents, Math.min(customCents, priceBreakdown.total_cents));
     }
     return priceBreakdown.deposit_due_cents;
-  };
-
-  const getTipCents = () => {
-    return Math.round(parseFloat(tipAmount || '0') * 100);
   };
 
   const handlePrintInvoice = () => {
@@ -359,112 +96,236 @@ export function Checkout() {
       return;
     }
 
-    // Check availability BEFORE showing payment form
-    setCheckingAvailability(true);
+    setProcessing(true);
 
     try {
-      const checks = cart.map(item => ({
-        unitId: item.unit_id,
-        eventStartDate: quoteData.event_date,
-        eventEndDate: quoteData.event_end_date || quoteData.event_date,
-      }));
+      let customer;
 
-      const results = await checkMultipleUnitsAvailability(checks);
+      const { data: existingCustomer } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('email', contactData.email)
+        .maybeSingle();
 
-      const unavailableUnits = results.filter(r => !r.isAvailable);
-      if (unavailableUnits.length > 0) {
-        const unitNames = unavailableUnits
-          .map((r) => {
-            const cartItem = cart.find(c => c.unit_id === r.unitId);
-            return cartItem?.unit_name || 'Unknown Inflatable';
+      if (existingCustomer) {
+        const { data: updatedCustomer, error: updateError } = await supabase
+          .from('customers')
+          .update({
+            first_name: contactData.first_name,
+            last_name: contactData.last_name,
+            phone: contactData.phone,
           })
-          .join(', ');
+          .eq('id', existingCustomer.id)
+          .select()
+          .single();
 
-        alert(
-          `Sorry, these inflatables are no longer available for your selected dates: ${unitNames}\n\nAnother customer may have just booked them. Please go back to the quote page and select different inflatables or dates.`
-        );
-        setCheckingAvailability(false);
-        return;
+        if (updateError) throw updateError;
+        customer = updatedCustomer;
+      } else {
+        const { data: newCustomer, error: customerError } = await supabase
+          .from('customers')
+          .insert({
+            first_name: contactData.first_name,
+            last_name: contactData.last_name,
+            email: contactData.email,
+            phone: contactData.phone,
+          })
+          .select()
+          .single();
+
+        if (customerError) throw customerError;
+        customer = newCustomer;
       }
 
-      // All available - create draft order and show payment form
-      const createdOrderId = await createOrderBeforePayment({
-        contactData,
-        quoteData,
-        priceBreakdown,
-        cart,
-        billingAddress,
-        billingSameAsEvent,
-        smsConsent,
-      });
+      const eventAddressData = billingSameAsEvent ? billingAddress : {
+        line1: quoteData.address_line1,
+        line2: quoteData.address_line2 || null,
+        city: quoteData.city,
+        state: quoteData.state,
+        zip: quoteData.zip,
+      };
 
-      // Open Stripe Checkout in new tab and wait for payment
-      setCheckingAvailability(false);
-      setAwaitingPayment(true);
-      setOrderId(createdOrderId);
+      const { data: address, error: addressError } = await supabase
+        .from('addresses')
+        .insert({
+          customer_id: customer.id,
+          ...eventAddressData,
+        })
+        .select()
+        .single();
 
-      // Get the app base URL for Stripe redirects
-      const appBaseUrl = window.location.origin;
-      console.log('Using app base URL for Stripe redirects:', appBaseUrl);
+      if (addressError) throw addressError;
 
-      // Store env vars in window so the popup can access them
-      (window as any).__SUPABASE_URL__ = import.meta.env.VITE_SUPABASE_URL;
-      (window as any).__SUPABASE_ANON_KEY__ = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          customer_id: customer.id,
+          status: 'pending_review',
+          location_type: quoteData.location_type,
+          surface: quoteData.can_stake ? 'grass' : 'cement',
+          event_date: quoteData.event_date,
+          start_date: quoteData.event_date,
+          end_date: quoteData.event_end_date || quoteData.event_date,
+          start_window: quoteData.start_window,
+          end_window: quoteData.end_window,
+          overnight_allowed: quoteData.pickup_preference === 'next_day',
+          can_use_stakes: quoteData.can_stake,
+          generator_selected: quoteData.has_generator,
+          has_pets: quoteData.has_pets || false,
+          address_id: address.id,
+          subtotal_cents: priceBreakdown.subtotal_cents,
+          travel_fee_cents: priceBreakdown.travel_fee_cents,
+          travel_total_miles: priceBreakdown.travel_total_miles,
+          travel_base_radius_miles: priceBreakdown.travel_base_radius_miles,
+          travel_chargeable_miles: priceBreakdown.travel_chargeable_miles,
+          travel_per_mile_cents: priceBreakdown.travel_per_mile_cents,
+          travel_is_flat_fee: priceBreakdown.travel_is_flat_fee,
+          surface_fee_cents: priceBreakdown.surface_fee_cents,
+          same_day_pickup_fee_cents: priceBreakdown.same_day_pickup_fee_cents || 0,
+          tax_cents: priceBreakdown.tax_cents,
+          deposit_due_cents: priceBreakdown.deposit_due_cents,
+          deposit_paid_cents: 0,
+          balance_due_cents: priceBreakdown.balance_due_cents,
+          payment_method_id: 'stripe_pm_mock_' + Date.now(),
+          card_on_file_consent_text:
+            'I authorize Bounce Party Club LLC to securely store my payment method and charge it for incidentals including damage, excess cleaning, or late fees as itemized in a receipt.',
+          card_on_file_consented_at: new Date().toISOString(),
+          sms_consent_text:
+            'I consent to receive transactional SMS messages from Bounce Party Club LLC regarding my booking, including order confirmations, delivery updates, and service notifications. Message frequency varies. Message and data rates may apply. Reply STOP to opt-out.',
+          sms_consented_at: new Date().toISOString(),
+          special_details: quoteData.special_details || null,
+        })
+        .select()
+        .single();
 
-      // Open popup with static HTML page that will call edge function
-      // This bypasses CORS issues in the main app context
-      const popupUrl = `/stripe-popup.html?orderId=${createdOrderId}&depositCents=${paymentCents}&tipCents=${getTipCents()}&email=${encodeURIComponent(contactData.email)}&name=${encodeURIComponent(`${contactData.first_name} ${contactData.last_name}`)}&appBaseUrl=${encodeURIComponent(appBaseUrl)}`;
+      if (orderError) throw orderError;
 
-      const stripeWindow = window.open(
-        popupUrl,
-        'stripe-checkout',
-        'width=600,height=800,left=200,top=100'
-      );
+      for (const item of cart) {
+        const { error: itemError } = await supabase.from('order_items').insert({
+          order_id: order.id,
+          unit_id: item.unit_id,
+          wet_or_dry: item.wet_or_dry,
+          unit_price_cents: item.unit_price_cents,
+          qty: item.qty || 1,
+        });
 
-      setStripePopupWindow(stripeWindow);
+        if (itemError) throw itemError;
+      }
 
-      // Poll the payment status
-      console.log('Starting payment polling for order:', createdOrderId);
-      const checkInterval = setInterval(async () => {
-        console.log('Polling payment status...');
-
-        try {
-          // Check if user closed the popup without paying
-          if (stripeWindow && stripeWindow.closed) {
-            console.log('Popup closed - checking if payment was completed');
-
-            // Do one final check
-            const paid = await checkPaymentStatus(createdOrderId);
-
-            if (!paid) {
-              console.log('Popup closed without payment');
-              clearInterval(checkInterval);
-              setPaymentCheckInterval(null);
-              setAwaitingPayment(false);
-              alert('Payment window was closed. Your order has been saved as a draft. You can contact us to complete the payment.');
-            }
-          } else {
-            // Popup still open, check payment status
-            await checkPaymentStatus(createdOrderId);
-          }
-        } catch (pollError) {
-          console.error('Error during polling:', pollError);
-        }
-      }, 2000); // Check every 2 seconds
-
-      setPaymentCheckInterval(checkInterval);
+      setTempOrderId(order.id);
+      setShowStripeForm(true);
+      setProcessing(false);
+      return;
     } catch (error: any) {
-      console.error('Error checking availability or creating order:', error);
-      alert(
-        `Unable to process booking: ${error.message}\n\nPlease try again or contact us at (313) 889-3860.`
-      );
-      setCheckingAvailability(false);
-      setAwaitingPayment(false);
-      if (paymentCheckInterval) {
-        clearInterval(paymentCheckInterval);
-      }
+      console.error('Error creating order:', error);
+      const errorMessage = error?.message || 'Unknown error';
+      alert(`There was an error processing your order: ${errorMessage}\n\nPlease try again or contact us at (313) 889-3860 for assistance.`);
+      setProcessing(false);
     }
   };
+
+  const handlePaymentSuccess = async () => {
+    if (!tempOrderId) return;
+
+    try {
+      const { error: routeDropoffError } = await supabase.from('route_stops').insert({
+        order_id: tempOrderId,
+        type: 'dropoff',
+        checkpoint: 'none',
+      });
+
+      if (routeDropoffError) throw routeDropoffError;
+
+      const { error: routePickupError } = await supabase.from('route_stops').insert({
+        order_id: tempOrderId,
+        type: 'pickup',
+        checkpoint: 'none',
+      });
+
+      if (routePickupError) throw routePickupError;
+
+      const { error: messageError } = await supabase.from('messages').insert({
+        order_id: tempOrderId,
+        to_email: contactData.email,
+        channel: 'email',
+        template_key: 'deposit_receipt',
+        payload_json: {
+          name: `${contactData.first_name} ${contactData.last_name}`,
+          units: cart.map((item) => item.unit_name).join(', '),
+          event_date: quoteData.event_date,
+          balance: formatCurrency(priceBreakdown.balance_due_cents),
+        },
+        status: 'pending',
+      });
+
+      if (messageError) throw messageError;
+
+      try {
+        await supabase.from('contacts').upsert({
+          customer_id: contactData.email,
+          first_name: contactData.first_name,
+          last_name: contactData.last_name,
+          email: contactData.email,
+          phone: contactData.phone,
+          source: 'booking',
+          opt_in_email: true,
+          opt_in_sms: true,
+        }, {
+          onConflict: 'email',
+        });
+      } catch (contactError) {
+        console.error('Error adding to contacts:', contactError);
+      }
+
+      try {
+        const { data: adminSettings } = await supabase
+          .from('admin_settings')
+          .select('value')
+          .eq('key', 'admin_notification_phone')
+          .maybeSingle();
+
+        if (adminSettings?.value) {
+          const smsMessage = `🎈 NEW BOOKING! ${contactData.first_name} ${contactData.last_name} for ${quoteData.event_date}. Review at: https://yourdomain.com/admin Order #${tempOrderId.slice(0, 8)}`;
+
+          const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
+          await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              to: adminSettings.value,
+              message: smsMessage,
+              orderId: tempOrderId,
+            }),
+          });
+        }
+      } catch (smsError) {
+        console.error('Error sending SMS notification:', smsError);
+      }
+
+      localStorage.removeItem('bpc_cart');
+      localStorage.removeItem('bpc_quote_form');
+      localStorage.removeItem('bpc_price_breakdown');
+
+      setOrderId(tempOrderId);
+      setSuccess(true);
+      setShowStripeForm(false);
+    } catch (error: any) {
+      console.error('Error finalizing order:', error);
+      alert('Payment succeeded but there was an error finalizing your order. Please contact us.');
+    }
+  };
+
+  const handlePaymentError = (error: string) => {
+    alert(`Payment failed: ${error}\n\nPlease try again or contact us at (313) 889-3860 for assistance.`);
+    setShowStripeForm(false);
+  };
+
+  if (!quoteData || !priceBreakdown) {
+    return null;
+  }
 
   if (success) {
     return (
@@ -474,10 +335,10 @@ export function Checkout() {
             <CheckCircle className="w-10 h-10 text-green-600" />
           </div>
           <h1 className="text-3xl font-bold text-slate-900 mb-4">
-            Payment Successful!
+            Booking Submitted!
           </h1>
           <p className="text-lg text-slate-600 mb-6">
-            Thank you for choosing Bounce Party Club. Your deposit has been paid and your booking is now pending admin review for final confirmation.
+            Thank you for choosing Bounce Party Club. Your booking request has been submitted and is pending admin review. Payment will be processed once approved.
           </p>
           <div className="bg-slate-50 rounded-lg p-6 mb-6 text-left">
             <div className="grid grid-cols-2 gap-4 text-sm">
@@ -511,7 +372,7 @@ export function Checkout() {
               <span className="font-semibold text-slate-900">{contactData.email}</span>.
             </p>
             <p>
-              Our admin team will review your booking request and contact you within 24 hours to confirm your delivery time window and finalize your reservation details.
+              Our admin team will review your booking request and contact you within 24 hours to confirm availability and process payment. Once approved, you'll receive a confirmation with your delivery time window.
             </p>
           </div>
           <div className="border-t border-slate-200 pt-6 bg-blue-50 -mx-8 -mb-8 px-8 py-6 rounded-b-xl">
@@ -519,76 +380,19 @@ export function Checkout() {
             <p className="text-blue-800 leading-relaxed mb-2">
               Thank you for choosing Bounce Party Club to bring energy and excitement to your event! We're honored to help make your celebration unforgettable.
             </p>
-            <p className="text-blue-800 mb-4">
+            <p className="text-blue-800">
               If you have any questions, contact us at <strong>(313) 889-3860</strong> or visit us at <strong>4426 Woodward St, Wayne, MI 48184</strong>.
             </p>
-            <button
-              onClick={() => navigate('/')}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors"
-            >
-              Back to Home
-            </button>
           </div>
+          <button
+            onClick={() => navigate('/')}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors"
+          >
+            Back to Home
+          </button>
         </div>
       </div>
     );
-  }
-
-  if (awaitingPayment) {
-    return (
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="bg-white rounded-xl shadow-lg p-8 text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
-            <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
-          </div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-4">
-            Waiting for Payment
-          </h2>
-          <p className="text-slate-600 mb-6 text-lg">
-            Please complete your payment in the Stripe checkout window that just opened.
-          </p>
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-            <p className="text-blue-900 font-medium mb-2">
-              Don't see the payment window?
-            </p>
-            <p className="text-blue-800 text-sm">
-              Check if your browser blocked the popup, or click below to try again.
-            </p>
-          </div>
-          <div className="flex gap-4 justify-center">
-            <button
-              onClick={() => {
-                if (paymentCheckInterval) {
-                  clearInterval(paymentCheckInterval);
-                }
-                setAwaitingPayment(false);
-              }}
-              className="px-6 py-3 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              Cancel Payment
-            </button>
-          </div>
-          <p className="text-slate-500 text-sm mt-6">
-            This page will automatically update once your payment is complete.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (checkingAvailability) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-lg text-slate-700">Checking availability...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!quoteData || !priceBreakdown) {
-    return null;
   }
 
   return (
@@ -870,32 +674,11 @@ export function Checkout() {
                 </div>
               )}
 
-              <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Add a Tip (Optional)
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-2 text-slate-600">$</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={tipAmount}
-                    onChange={(e) => setTipAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full pl-8 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  />
-                </div>
-                <p className="text-xs text-slate-500 mt-2">
-                  Show your appreciation for our crew! Tips do not reduce your remaining balance.
-                </p>
-              </div>
-
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-900 font-medium mb-1">
-                  {paymentAmount === 'deposit' && `Pay ${formatCurrency(priceBreakdown.deposit_due_cents)}${tipAmount ? ` + $${tipAmount} tip` : ''} now, ${formatCurrency(priceBreakdown.balance_due_cents)} at event`}
-                  {paymentAmount === 'full' && `Pay ${formatCurrency(priceBreakdown.total_cents)}${tipAmount ? ` + $${tipAmount} tip` : ''} now, nothing at event`}
-                  {paymentAmount === 'custom' && customAmount && `Pay $${customAmount}${tipAmount ? ` + $${tipAmount} tip` : ''} now, ${formatCurrency(priceBreakdown.total_cents - Math.round(parseFloat(customAmount) * 100))} at event`}
+                  {paymentAmount === 'deposit' && `Pay ${formatCurrency(priceBreakdown.deposit_due_cents)} now, ${formatCurrency(priceBreakdown.balance_due_cents)} at event`}
+                  {paymentAmount === 'full' && `Pay ${formatCurrency(priceBreakdown.total_cents)} now, nothing at event`}
+                  {paymentAmount === 'custom' && customAmount && `Pay $${customAmount} now, ${formatCurrency(priceBreakdown.total_cents - Math.round(parseFloat(customAmount) * 100))} at event`}
                   {paymentAmount === 'custom' && !customAmount && 'Enter amount to see payment breakdown'}
                 </p>
                 <p className="text-xs text-blue-700">
@@ -1089,23 +872,18 @@ export function Checkout() {
 
             <button
               type="submit"
-              disabled={checkingAvailability || awaitingPayment || !cardOnFileConsent || !smsConsent}
+              disabled={processing || !cardOnFileConsent || !smsConsent}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center"
             >
-              {checkingAvailability ? (
+              {processing ? (
                 <>
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Checking Availability...
-                </>
-              ) : awaitingPayment ? (
-                <>
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Opening Payment...
+                  Processing...
                 </>
               ) : (
                 <>
                   <Shield className="w-5 h-5 mr-2" />
-                  Proceed to Payment
+                  Complete Booking
                 </>
               )}
             </button>
@@ -1117,7 +895,26 @@ export function Checkout() {
         </div>
       </form>
 
-{showInvoiceModal && (
+      {showStripeForm && tempOrderId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h2 className="text-2xl font-bold text-slate-900 mb-4">Payment Information</h2>
+            <p className="text-slate-600 mb-6">
+              Enter your payment details below. Your card will be securely stored for future charges related to this booking.
+            </p>
+            <StripeCheckoutForm
+              orderId={tempOrderId}
+              depositCents={getPaymentAmountCents()}
+              customerEmail={contactData.email}
+              customerName={`${contactData.first_name} ${contactData.last_name}`}
+              onSuccess={handlePaymentSuccess}
+              onError={handlePaymentError}
+            />
+          </div>
+        </div>
+      )}
+
+      {showInvoiceModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-lg max-w-5xl w-full max-h-[90vh] overflow-y-auto relative">
             <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex justify-between items-center z-10 no-print">
