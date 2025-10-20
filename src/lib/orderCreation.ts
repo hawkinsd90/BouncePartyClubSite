@@ -155,6 +155,14 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
 
   // 5. Create order items
   for (const item of cart) {
+    console.log('Creating order item:', {
+      order_id: order.id,
+      unit_id: item.unit_id,
+      wet_or_dry: item.wet_or_dry,
+      unit_price_cents: item.unit_price_cents,
+      qty: item.qty || 1
+    });
+
     const { error: itemError } = await supabase.from('order_items').insert({
       order_id: order.id,
       unit_id: item.unit_id,
@@ -163,7 +171,11 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       qty: item.qty || 1,
     });
 
-    if (itemError) throw itemError;
+    if (itemError) {
+      console.error('Order item insert error:', itemError);
+      console.error('Failed cart item:', item);
+      throw itemError;
+    }
   }
 
   // 6. Create route stops
@@ -404,6 +416,14 @@ export async function createOrderAfterPayment(data: OrderData) {
 
   // 5. Create order items
   for (const item of cart) {
+    console.log('Creating order item (after payment):', {
+      order_id: order.id,
+      unit_id: item.unit_id,
+      wet_or_dry: item.wet_or_dry,
+      unit_price_cents: item.unit_price_cents,
+      qty: item.qty || 1
+    });
+
     const { error: itemError } = await supabase.from('order_items').insert({
       order_id: order.id,
       unit_id: item.unit_id,
@@ -412,7 +432,11 @@ export async function createOrderAfterPayment(data: OrderData) {
       qty: item.qty || 1,
     });
 
-    if (itemError) throw itemError;
+    if (itemError) {
+      console.error('Order item insert error (after payment):', itemError);
+      console.error('Failed cart item:', item);
+      throw itemError;
+    }
   }
 
   // 6. Create route stops

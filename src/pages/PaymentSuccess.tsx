@@ -1,19 +1,75 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 export function PaymentSuccess() {
+  const [searchParams] = useSearchParams();
+  const orderId = searchParams.get('orderId');
+  const sessionId = searchParams.get('session_id');
+  const [processing, setProcessing] = useState(true);
+
   useEffect(() => {
-    // Close this popup window after a short delay
-    setTimeout(() => {
-      window.close();
-    }, 500);
-  }, []);
+    async function processPayment() {
+      if (!orderId || !sessionId) {
+        setProcessing(false);
+        return;
+      }
+
+      try {
+        // Call the webhook to update the order in the database
+        const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout?action=webhook&orderId=${orderId}&session_id=${sessionId}`;
+        await fetch(webhookUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+        });
+
+        // Notify parent window immediately
+        if (window.opener) {
+          window.opener.postMessage({ type: 'PAYMENT_SUCCESS', orderId }, '*');
+        }
+
+        setProcessing(false);
+
+        // Try multiple approaches to close the window
+        // Approach 1: Try to close immediately
+        window.close();
+
+        // Approach 2: If still open after 500ms, try again
+        setTimeout(() => {
+          window.close();
+        }, 500);
+
+        // Approach 3: If still open after 1s, try one more time
+        setTimeout(() => {
+          window.close();
+        }, 1000);
+      } catch (error) {
+        console.error('Error processing payment success:', error);
+        setProcessing(false);
+        // Still try to close even on error
+        setTimeout(() => window.close(), 500);
+      }
+    }
+
+    processPayment();
+  }, [orderId, sessionId]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center p-4">
-      <div className="text-center">
-        <div className="text-6xl mb-4">✓</div>
+      <div className="bg-white rounded-lg shadow-xl p-8 text-center max-w-md">
+        <div className="text-6xl text-green-500 mb-4">✓</div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Payment Complete!</h1>
-        <p className="text-gray-600">This window will close automatically...</p>
+        <p className="text-gray-600 mb-4">
+          {processing ? 'Processing your payment...' : 'Your payment has been processed successfully.'}
+        </p>
+        <p className="text-sm text-gray-500 mb-4">This window will close automatically...</p>
+        <button
+          onClick={() => window.close()}
+          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+        >
+          Close Window
+        </button>
       </div>
     </div>
   );
