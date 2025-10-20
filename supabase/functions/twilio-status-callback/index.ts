@@ -16,66 +16,62 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    // Parse incoming Twilio status callback data (application/x-www-form-urlencoded)
     const formData = await req.formData();
     
     const messageSid = formData.get("MessageSid") as string;
     const messageStatus = formData.get("MessageStatus") as string;
     const errorCode = formData.get("ErrorCode") as string;
+    const to = formData.get("To") as string;
+    const from = formData.get("From") as string;
 
-    console.log("Status callback:", { messageSid, messageStatus, errorCode });
+    console.log("Status callback received:", {
+      messageSid,
+      messageStatus,
+      errorCode,
+      to,
+      from,
+    });
 
     if (!messageSid || !messageStatus) {
-      return new Response(
-        JSON.stringify({ error: "Missing required parameters" }),
-        {
-          status: 400,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      console.warn("Missing required parameters");
+      return new Response(null, { status: 200 });
     }
 
+    // Initialize Supabase client with service role key
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Update SMS conversation status in database
     const { error: updateError } = await supabase
       .from("sms_conversations")
       .update({
         status: messageStatus,
-        error_code: errorCode || null,
       })
       .eq("twilio_message_sid", messageSid);
 
     if (updateError) {
       console.error("Error updating SMS status:", updateError);
-      throw updateError;
+    } else {
+      console.log(`Updated message ${messageSid} to status: ${messageStatus}`);
     }
 
-    return new Response(
-      JSON.stringify({ success: true }),
-      {
-        status: 200,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    // If there's an error code, log it for debugging
+    if (errorCode) {
+      console.error(`SMS Error for ${messageSid}: Error code ${errorCode}`);
+    }
+
+    // Return success (empty response)
+    return new Response(null, {
+      status: 200,
+    });
   } catch (error) {
     console.error("Error processing status callback:", error);
     
-    return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      {
-        status: 500,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    // Return success even on error so Twilio doesn't retry
+    return new Response(null, {
+      status: 200,
+    });
   }
 });

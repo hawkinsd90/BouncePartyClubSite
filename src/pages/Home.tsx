@@ -33,23 +33,8 @@ export function Home() {
     navigate('/catalog');
   };
 
-  // TEMPORARY: Display Supabase URL for verification - REMOVE AFTER CONFIRMING
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-  const displayUrl = supabaseUrl ? `${supabaseUrl.substring(0, 30)}...${supabaseUrl.substring(supabaseUrl.length - 20)}` : 'Not configured';
-
   return (
     <div>
-      {/* TEMPORARY DEV DISPLAY - REMOVE THIS BLOCK AFTER CONFIRMING URL */}
-      <div className="bg-yellow-100 border-l-4 border-yellow-500 p-3">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div className="flex items-center">
-            <span className="font-bold text-yellow-800 mr-2">DEV:</span>
-            <span className="text-yellow-900 text-sm font-mono">{displayUrl}</span>
-          </div>
-          <span className="text-xs text-yellow-700 italic">Check .env.local is being used</span>
-        </div>
-      </div>
-      <div>
       <section className="relative bg-gradient-to-br from-blue-600 to-cyan-500 text-white">
         <div className="absolute inset-0 bg-black opacity-10"></div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-32">
@@ -232,7 +217,6 @@ export function Home() {
           </div>
         </div>
       </section>
-      </div>
     </div>
   );
 }

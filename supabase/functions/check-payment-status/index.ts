@@ -18,7 +18,6 @@ Deno.serve(async (req: Request) => {
 
   try {
     const { orderId } = await req.json();
-    console.log("[check-payment-status] Checking payment for order:", orderId);
 
     if (!orderId) {
       return new Response(
@@ -35,14 +34,14 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    const { data: stripeKeyData, error: keyError } = await supabaseClient
+    // Get Stripe secret key
+    const { data: stripeKeyData } = await supabaseClient
       .from("admin_settings")
       .select("value")
       .eq("key", "stripe_secret_key")
       .maybeSingle();
 
-    if (keyError || !stripeKeyData?.value) {
-      console.error("[check-payment-status] Stripe key error:", keyError);
+    if (!stripeKeyData?.value) {
       return new Response(
         JSON.stringify({ error: "Stripe not configured" }),
         {
@@ -56,14 +55,14 @@ Deno.serve(async (req: Request) => {
       apiVersion: "2024-10-28.acacia",
     });
 
-    const { data: order, error: orderError } = await supabaseClient
+    // Get order with payment info
+    const { data: order } = await supabaseClient
       .from("orders")
       .select("stripe_payment_status, stripe_customer_id")
       .eq("id", orderId)
       .maybeSingle();
 
-    if (orderError || !order) {
-      console.error("[check-payment-status] Order fetch error:", orderError);
+    if (!order) {
       return new Response(
         JSON.stringify({ error: "Order not found" }),
         {
@@ -73,13 +72,8 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log("[check-payment-status] Current order status:", {
-      stripe_payment_status: order.stripe_payment_status,
-      stripe_customer_id: order.stripe_customer_id,
-    });
-
+    // If already marked as paid, return immediately
     if (order.stripe_payment_status === "paid") {
-      console.log("[check-payment-status] Order already marked as paid");
       return new Response(
         JSON.stringify({ status: "paid" }),
         {
@@ -89,51 +83,36 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Check Stripe for recent successful checkout sessions
     if (order.stripe_customer_id) {
-      console.log("[check-payment-status] Checking Stripe for customer:", order.stripe_customer_id);
       const sessions = await stripe.checkout.sessions.list({
         customer: order.stripe_customer_id,
         limit: 10,
       });
 
-      console.log("[check-payment-status] Found", sessions.data.length, "sessions");
-
+      // Find a completed session for this order
       const completedSession = sessions.data.find(
         (s) => s.metadata?.order_id === orderId && s.payment_status === "paid"
       );
 
       if (completedSession) {
-        console.log("[check-payment-status] Found completed session:", completedSession.id);
-
-        const fullSession = await stripe.checkout.sessions.retrieve(completedSession.id, {
-          expand: ['payment_method']
-        });
-        console.log("[check-payment-status] Payment method ID:", fullSession.payment_method);
+        console.log("Found completed session, updating order:", completedSession.id);
         
-        const paymentMethodId = typeof fullSession.payment_method === 'string'
-          ? fullSession.payment_method
-          : fullSession.payment_method?.id;
-
-        const { error: updateError } = await supabaseClient
+        // Update order status
+        await supabaseClient
           .from("orders")
           .update({
             stripe_payment_status: "paid",
-            stripe_payment_method_id: paymentMethodId || null,
-            deposit_paid_cents: fullSession.amount_total || 0,
-            status: "pending_review",
+            stripe_payment_method_id: completedSession.payment_method_configuration as string,
+            deposit_paid_cents: completedSession.amount_total || 0,
+            status: "pending",
           })
           .eq("id", orderId);
 
-        if (updateError) {
-          console.error("[check-payment-status] Failed to update order:", updateError);
-        } else {
-          console.log("[check-payment-status] Order updated successfully");
-        }
-
+        // Send SMS notification
         try {
-          console.log("[check-payment-status] Sending SMS notification");
           const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-          const smsResponse = await fetch(`${supabaseUrl}/functions/v1/send-sms-notification`, {
+          await fetch(`${supabaseUrl}/functions/v1/send-sms-notification`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -144,15 +123,8 @@ Deno.serve(async (req: Request) => {
               templateKey: "booking_received_admin",
             }),
           });
-
-          if (!smsResponse.ok) {
-            const errorText = await smsResponse.text();
-            console.error("[check-payment-status] SMS failed:", errorText);
-          } else {
-            console.log("[check-payment-status] SMS sent successfully");
-          }
         } catch (smsError) {
-          console.error("[check-payment-status] SMS error:", smsError);
+          console.error("Failed to send SMS notification:", smsError);
         }
 
         return new Response(
@@ -162,11 +134,7 @@ Deno.serve(async (req: Request) => {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           }
         );
-      } else {
-        console.log("[check-payment-status] No completed session found for this order");
       }
-    } else {
-      console.log("[check-payment-status] No stripe_customer_id set");
     }
 
     return new Response(
@@ -177,7 +145,7 @@ Deno.serve(async (req: Request) => {
       }
     );
   } catch (error) {
-    console.error("[check-payment-status] Error:", error);
+    console.error("Check payment status error:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
       {

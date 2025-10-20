@@ -61,10 +61,11 @@ Deno.serve(async (req: Request) => {
               stripe_payment_status: "paid",
               stripe_payment_method_id: session.payment_method as string,
               deposit_paid_cents: session.amount_total || 0,
-              status: "pending_review",
+              status: "pending",
             })
             .eq("id", orderId);
 
+          // Send SMS notification to admin
           try {
             const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
             await fetch(`${supabaseUrl}/functions/v1/send-sms-notification`, {
@@ -80,6 +81,7 @@ Deno.serve(async (req: Request) => {
             });
           } catch (smsError) {
             console.error("Failed to send SMS notification:", smsError);
+            // Don't fail the webhook if SMS fails
           }
         }
 

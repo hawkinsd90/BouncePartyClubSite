@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { FileText, Calendar, Eye } from 'lucide-react';
+import { FileText, DollarSign, Calendar, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatCurrency } from '../lib/pricing';
 

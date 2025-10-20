@@ -16,8 +16,6 @@ import { Setup } from './pages/Setup';
 import { Invoice } from './pages/Invoice';
 import { PaymentSuccess } from './pages/PaymentSuccess';
 import { PaymentCanceled } from './pages/PaymentCanceled';
-import { UnitForm } from './pages/UnitForm';
-import { CustomerPortal } from './pages/CustomerPortal';
 
 function App() {
   return (
@@ -27,10 +25,8 @@ function App() {
           <Route path="/setup" element={<Setup />} />
           <Route path="/login" element={<Login />} />
           <Route path="/invoice/:orderId" element={<Invoice />} />
-          <Route path="/customer-portal/:orderId" element={<CustomerPortal />} />
           <Route path="/checkout/payment-success" element={<PaymentSuccess />} />
           <Route path="/checkout/payment-canceled" element={<PaymentCanceled />} />
-          <Route path="/checkout/:orderId" element={<Checkout />} />
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />
             <Route path="catalog" element={<Catalog />} />
@@ -40,26 +36,10 @@ function App() {
             <Route path="checkout" element={<Checkout />} />
             <Route path="about" element={<About />} />
             <Route
-              path="admin"
+              path="admin/*"
               element={
                 <ProtectedRoute allowedRoles={['ADMIN']}>
                   <Admin />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="admin/inventory/new"
-              element={
-                <ProtectedRoute allowedRoles={['ADMIN']}>
-                  <UnitForm />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="admin/inventory/edit/:id"
-              element={
-                <ProtectedRoute allowedRoles={['ADMIN']}>
-                  <UnitForm />
                 </ProtectedRoute>
               }
             />
