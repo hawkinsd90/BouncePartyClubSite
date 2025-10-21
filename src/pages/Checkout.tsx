@@ -58,7 +58,22 @@ export function Checkout() {
     const formData = JSON.parse(savedForm);
     setQuoteData(formData);
     setPriceBreakdown(JSON.parse(savedBreakdown));
-    setCart(JSON.parse(savedCart));
+
+    const cartData = JSON.parse(savedCart);
+    const validCart = cartData.filter((item: any) => {
+      const isValid = item.unit_id && typeof item.unit_id === 'string' && item.unit_id !== 'undefined';
+      if (!isValid) {
+        console.log('Checkout: Filtering out invalid cart item:', item);
+      }
+      return isValid;
+    });
+
+    if (validCart.length !== cartData.length) {
+      console.log(`Checkout: Removed ${cartData.length - validCart.length} invalid cart items`);
+      localStorage.setItem('bpc_cart', JSON.stringify(validCart));
+    }
+
+    setCart(validCart);
 
     if (savedContactData) {
       const contactInfo = JSON.parse(savedContactData);

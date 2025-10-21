@@ -184,9 +184,16 @@ export function Quote() {
 
   function loadCart() {
     const savedCart = JSON.parse(localStorage.getItem('bpc_cart') || '[]');
-    const validCart = savedCart.filter((item: any) => item.unit_id && typeof item.unit_id === 'string');
+    const validCart = savedCart.filter((item: any) => {
+      const isValid = item.unit_id && typeof item.unit_id === 'string' && item.unit_id !== 'undefined';
+      if (!isValid) {
+        console.log('Filtering out invalid cart item:', item);
+      }
+      return isValid;
+    });
 
     if (validCart.length !== savedCart.length) {
+      console.log(`Removed ${savedCart.length - validCart.length} invalid cart items`);
       localStorage.setItem('bpc_cart', JSON.stringify(validCart));
     }
 
