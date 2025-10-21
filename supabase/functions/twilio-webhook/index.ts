@@ -59,27 +59,41 @@ Deno.serve(async (req: Request) => {
     };
 
     const normalizedFrom = normalizePhone(from);
-
-    const { data: customers } = await supabase
-      .from("customers")
-      .select("id, phone")
-      .ilike("phone", `%${normalizedFrom}%`);
+    const normalizedTo = normalizePhone(to);
 
     let orderId = null;
 
-    if (customers && customers.length > 0) {
-      const customerIds = customers.map(c => c.id);
+    const { data: recentOutbound } = await supabase
+      .from("sms_conversations")
+      .select("order_id")
+      .eq("direction", "outbound")
+      .ilike("from_phone", `%${normalizedTo}%`)
+      .ilike("to_phone", `%${normalizedFrom}%`)
+      .order("created_at", { ascending: false })
+      .limit(1);
 
-      const { data: orders } = await supabase
-        .from("orders")
-        .select("id")
-        .in("customer_id", customerIds)
-        .in("status", ["pending_review", "confirmed", "draft"])
-        .order("created_at", { ascending: false })
-        .limit(1);
+    if (recentOutbound && recentOutbound.length > 0 && recentOutbound[0].order_id) {
+      orderId = recentOutbound[0].order_id;
+    } else {
+      const { data: customers } = await supabase
+        .from("customers")
+        .select("id, phone")
+        .ilike("phone", `%${normalizedFrom}%`);
 
-      if (orders && orders.length > 0) {
-        orderId = orders[0].id;
+      if (customers && customers.length > 0) {
+        const customerIds = customers.map(c => c.id);
+
+        const { data: orders } = await supabase
+          .from("orders")
+          .select("id")
+          .in("customer_id", customerIds)
+          .in("status", ["pending_review", "confirmed", "draft"])
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        if (orders && orders.length > 0) {
+          orderId = orders[0].id;
+        }
       }
     }
 
