@@ -41,7 +41,8 @@ const REMOTE_ADDRESSES = [
 async function findAvailableUnits(date: string, count: number = 2) {
   const { data: units } = await supabase
     .from('units')
-    .select('id, name, price_dry_cents')
+    .select('id, name, price_dry_cents, quantity_available')
+    .eq('active', true)
     .limit(10);
 
   if (!units || units.length === 0) return [];
@@ -49,13 +50,15 @@ async function findAvailableUnits(date: string, count: number = 2) {
   const availableUnits = [];
   for (const unit of units) {
     const { data: conflicts } = await supabase
-      .from('orders')
-      .select('id')
+      .from('order_items')
+      .select('order_id, orders!inner(id, start_date, end_date, status)')
       .eq('unit_id', unit.id)
-      .eq('event_date', date)
-      .not('status', 'in', '(cancelled,void)');
+      .not('orders.status', 'in', '(cancelled,void,draft)');
 
-    if (!conflicts || conflicts.length === 0) {
+    const quantityBooked = conflicts?.length || 0;
+    const quantityAvailable = unit.quantity_available || 1;
+
+    if (quantityBooked < quantityAvailable) {
       availableUnits.push(unit);
       if (availableUnits.length >= count) break;
     }
