@@ -129,9 +129,9 @@ Deno.serve(async (req: Request) => {
 
     const twilioConfig: any = {};
     settings.forEach((s: any) => {
-      if (s.key === "twilio_account_sid") twilioConfig.accountSid = s.value;
-      if (s.key === "twilio_auth_token") twilioConfig.authToken = s.value;
-      if (s.key === "twilio_from_number") twilioConfig.fromNumber = s.value;
+      if (s.key === "twilio_account_sid") twilioConfig.accountSid = s.value?.trim();
+      if (s.key === "twilio_auth_token") twilioConfig.authToken = s.value?.trim();
+      if (s.key === "twilio_from_number") twilioConfig.fromNumber = s.value?.trim();
     });
 
     if (!twilioConfig.accountSid || !twilioConfig.authToken || !twilioConfig.fromNumber) {
@@ -171,8 +171,13 @@ Deno.serve(async (req: Request) => {
 
     if (!twilioResponse.ok) {
       const errorData = await twilioResponse.json();
-      console.error("[send-sms-notification] Twilio error:", errorData);
-      throw new Error(`Twilio API error: ${errorData.message || 'Unknown error'}`);
+      console.error("[send-sms-notification] Twilio error response:", {
+        status: twilioResponse.status,
+        code: errorData.code,
+        message: errorData.message,
+        moreInfo: errorData.more_info
+      });
+      throw new Error(`Twilio API error (${errorData.code}): ${errorData.message || 'Unknown error'}`);
     }
 
     const data = await twilioResponse.json();
