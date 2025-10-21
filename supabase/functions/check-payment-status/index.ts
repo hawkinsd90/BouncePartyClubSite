@@ -11,7 +11,7 @@ const corsHeaders = {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
-      status: 204,
+      status: 200,
       headers: corsHeaders,
     });
   }
@@ -115,7 +115,6 @@ Deno.serve(async (req: Request) => {
 
           amountPaid = fullSession.amount_total || completedSession.amount_total || 0;
 
-          // Get payment method from payment intent
           if (fullSession.payment_intent) {
             const paymentIntent = typeof fullSession.payment_intent === 'string'
               ? await stripe.paymentIntents.retrieve(fullSession.payment_intent)
@@ -133,7 +132,6 @@ Deno.serve(async (req: Request) => {
           });
         } catch (pmError) {
           console.error("[check-payment-status] Error getting payment details:", pmError);
-          // Continue anyway - we have the session amount
         }
 
         console.log("[check-payment-status] Updating order to paid status...");
