@@ -25,6 +25,8 @@ export function Checkout() {
   const [tempOrderId, setTempOrderId] = useState<string | null>(null);
   const [awaitingPayment, setAwaitingPayment] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [stripeWindow, setStripeWindow] = useState<Window | null>(null);
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
 
   const [contactData, setContactData] = useState({
     first_name: '',
@@ -87,6 +89,54 @@ export function Checkout() {
   const handlePrintInvoice = () => {
     window.print();
   };
+
+  const startPaymentPolling = (orderId: string) => {
+    const interval = setInterval(async () => {
+      try {
+        const { data: order, error } = await supabase
+          .from('orders')
+          .select('stripe_payment_status, status')
+          .eq('id', orderId)
+          .single();
+
+        if (error) {
+          console.error('Error polling order:', error);
+          return;
+        }
+
+        if (order.stripe_payment_status === 'succeeded' || order.stripe_payment_status === 'paid') {
+          if (pollingInterval) {
+            clearInterval(pollingInterval);
+            setPollingInterval(null);
+          }
+
+          if (stripeWindow && !stripeWindow.closed) {
+            stripeWindow.close();
+          }
+
+          setAwaitingPayment(false);
+          setProcessing(false);
+          localStorage.removeItem('bpc_quote_form');
+          localStorage.removeItem('bpc_price_breakdown');
+          localStorage.removeItem('bpc_cart');
+
+          navigate('/payment-success?order_id=' + orderId);
+        }
+      } catch (err) {
+        console.error('Polling error:', err);
+      }
+    }, 2000);
+
+    setPollingInterval(interval);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+    };
+  }, [pollingInterval]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -256,11 +306,17 @@ export function Checkout() {
           throw new Error(data.error || 'Failed to create checkout session');
         }
 
-        window.location.replace(data.url);
+        const popup = window.open(data.url, '_blank', 'width=800,height=800');
+        setStripeWindow(popup);
+        setAwaitingPayment(true);
+        setProcessing(false);
+
+        startPaymentPolling(order.id);
       } catch (err: any) {
         console.error('Stripe checkout error:', err);
         setPaymentError(err.message || 'Failed to initialize payment');
         setAwaitingPayment(false);
+        setProcessing(false);
       }
 
       return;
@@ -388,17 +444,32 @@ export function Checkout() {
             <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
           </div>
           <h1 className="text-3xl font-bold text-slate-900 mb-4">
-            Redirecting to Payment
+            Waiting for Payment
           </h1>
-          <p className="text-lg text-slate-600 mb-6">
-            Please wait while we redirect you to our secure payment processor...
+          <p className="text-lg text-slate-600 mb-4">
+            Complete your payment in the Stripe window that just opened.
           </p>
+          <p className="text-sm text-slate-500 mb-6">
+            This page will automatically update once payment is complete. Don't close this window.
+          </p>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+            <p className="text-blue-900 text-sm font-medium mb-2">
+              Don't see the payment window?
+            </p>
+            <p className="text-blue-800 text-sm">
+              Check if it was blocked by your browser's popup blocker and allow popups for this site.
+            </p>
+          </div>
           {paymentError && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
               <p className="text-red-800 font-semibold mb-2">Payment Error</p>
               <p className="text-red-700 text-sm">{paymentError}</p>
               <button
                 onClick={() => {
+                  if (pollingInterval) {
+                    clearInterval(pollingInterval);
+                    setPollingInterval(null);
+                  }
                   setAwaitingPayment(false);
                   setPaymentError(null);
                 }}
