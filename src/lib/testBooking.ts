@@ -124,10 +124,12 @@ export async function createTestBooking() {
     };
 
     const cart = units.map((unit) => ({
-      id: unit.id,
-      name: unit.name,
-      quantity: 1,
-      base_price_cents: unit.price_dry_cents,
+      unit_id: unit.id,
+      unit_name: unit.name,
+      wet_or_dry: 'dry',
+      unit_price_cents: unit.price_dry_cents,
+      qty: 1,
+      is_combo: false,
     }));
 
     const contactData = {
