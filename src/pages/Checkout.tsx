@@ -317,7 +317,7 @@ export function Checkout() {
           throw new Error(data.error || 'Failed to create checkout session');
         }
 
-        const popup = window.open(data.url, '_blank', 'width=800,height=800');
+        const popup = window.open(data.url, 'stripeCheckout', 'width=800,height=800,popup=1,noopener=0');
         setStripeWindow(popup);
         setAwaitingPayment(true);
         setProcessing(false);
@@ -478,10 +478,15 @@ export function Checkout() {
                 setPollingInterval(null);
               }
               if (stripeWindow && !stripeWindow.closed) {
-                stripeWindow.close();
+                try {
+                  stripeWindow.close();
+                } catch (e) {
+                  console.log('Unable to close window automatically');
+                }
               }
               setAwaitingPayment(false);
               setProcessing(false);
+              setPaymentError('Payment cancelled. Please close the Stripe tab manually if still open.');
             }}
             className="bg-slate-600 hover:bg-slate-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
           >
