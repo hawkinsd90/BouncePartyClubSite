@@ -47,6 +47,8 @@ export function Checkout() {
     const savedForm = localStorage.getItem('bpc_quote_form');
     const savedBreakdown = localStorage.getItem('bpc_price_breakdown');
     const savedCart = localStorage.getItem('bpc_cart');
+    const savedContactData = localStorage.getItem('bpc_contact_data');
+    const savedTip = localStorage.getItem('test_booking_tip');
 
     if (!savedForm || !savedBreakdown || !savedCart) {
       navigate('/quote');
@@ -57,6 +59,29 @@ export function Checkout() {
     setQuoteData(formData);
     setPriceBreakdown(JSON.parse(savedBreakdown));
     setCart(JSON.parse(savedCart));
+
+    if (savedContactData) {
+      const contactInfo = JSON.parse(savedContactData);
+      setContactData({
+        first_name: contactInfo.first_name || '',
+        last_name: contactInfo.last_name || '',
+        email: contactInfo.email || '',
+        phone: contactInfo.phone || '',
+      });
+      setSmsConsent(true);
+      setCardOnFileConsent(true);
+    }
+
+    if (savedTip) {
+      const tipCents = parseInt(savedTip, 10);
+      if (tipCents === 1000) {
+        setTipAmount('10');
+      } else {
+        setCustomTip((tipCents / 100).toFixed(2));
+        setTipAmount('custom');
+      }
+      localStorage.removeItem('test_booking_tip');
+    }
 
     setBillingAddress({
       line1: formData.address_line1 || '',
@@ -317,6 +342,7 @@ export function Checkout() {
           throw new Error(data.error || 'Failed to create checkout session');
         }
 
+        localStorage.removeItem('stripe_cancel_payment');
         const popup = window.open(data.url, 'stripeCheckout', 'width=800,height=800,popup=1,noopener=0');
         setStripeWindow(popup);
         setAwaitingPayment(true);
@@ -477,16 +503,19 @@ export function Checkout() {
                 clearInterval(pollingInterval);
                 setPollingInterval(null);
               }
-              if (stripeWindow && !stripeWindow.closed) {
-                try {
-                  stripeWindow.close();
-                } catch (e) {
-                  console.log('Unable to close window automatically');
+              localStorage.setItem('stripe_cancel_payment', 'true');
+              setTimeout(() => {
+                if (stripeWindow && !stripeWindow.closed) {
+                  try {
+                    stripeWindow.close();
+                  } catch (e) {
+                    console.log('Unable to close window automatically');
+                  }
                 }
-              }
+                localStorage.removeItem('stripe_cancel_payment');
+              }, 500);
               setAwaitingPayment(false);
               setProcessing(false);
-              setPaymentError('Payment cancelled. Please close the Stripe tab manually if still open.');
             }}
             className="bg-slate-600 hover:bg-slate-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
           >

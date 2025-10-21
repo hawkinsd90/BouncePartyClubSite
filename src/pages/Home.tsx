@@ -1,14 +1,18 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Search, Star, Shield, Clock, DollarSign, Home as HomeIcon, Building2 } from 'lucide-react';
+import { Calendar, Search, Star, Shield, Clock, DollarSign, Home as HomeIcon, Building2, Zap } from 'lucide-react';
 import { AddressAutocomplete } from '../components/AddressAutocomplete';
+import { useAuth } from '../contexts/AuthContext';
+import { createTestBooking } from '../lib/testBooking';
 
 export function Home() {
   const navigate = useNavigate();
+  const { user, isAdmin } = useAuth();
   const [eventDate, setEventDate] = useState('');
   const [addressData, setAddressData] = useState<any>(null);
   const [locationType, setLocationType] = useState<'residential' | 'commercial'>('residential');
   const [addressInput, setAddressInput] = useState('');
+  const [creatingTestBooking, setCreatingTestBooking] = useState(false);
 
   const handleCheckAvailability = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,7 +50,28 @@ export function Home() {
             <span className="font-bold text-yellow-800 mr-2">DEV:</span>
             <span className="text-yellow-900 text-sm font-mono">{displayUrl}</span>
           </div>
-          <span className="text-xs text-yellow-700 italic">Check .env.local is being used</span>
+          <div className="flex items-center gap-4">
+            <span className="text-xs text-yellow-700 italic">Check .env.local is being used</span>
+            {isAdmin && (
+              <button
+                onClick={async () => {
+                  setCreatingTestBooking(true);
+                  const result = await createTestBooking();
+                  setCreatingTestBooking(false);
+                  if (result.success) {
+                    navigate('/checkout');
+                  } else {
+                    alert('Failed to create test booking: ' + result.error);
+                  }
+                }}
+                disabled={creatingTestBooking}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+              >
+                <Zap className="w-4 h-4" />
+                {creatingTestBooking ? 'Creating...' : 'Create Test Booking'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
       <div>

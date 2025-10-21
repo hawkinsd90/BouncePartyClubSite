@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Loading Payment...</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background: #f8f9fa;
+    }
+    .loader {
+      text-align: center;
+    }
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #3498db;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="loader">
+    <div class="spinner"></div>
+    <p>Loading payment form...</p>
+  </div>
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const stripeUrl = urlParams.get('url');
+
+    if (stripeUrl) {
+      window.location.href = stripeUrl;
+    }
+
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'stripe_cancel_payment' && e.newValue === 'true') {
+        window.close();
+      }
+    });
+
+    setInterval(() => {
+      const cancel = localStorage.getItem('stripe_cancel_payment');
+      if (cancel === 'true') {
+        window.close();
+      }
+    }, 500);
+  </script>
+</body>
+</html>
