@@ -36,8 +36,6 @@ export function AddressAutocomplete({
   useEffect(() => {
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
-    console.log('[AddressAutocomplete] Initializing... API key present:', !!apiKey);
-
     if (!apiKey) {
       console.error('[AddressAutocomplete] No API key configured');
       setError('Address autocomplete not configured');
@@ -45,12 +43,6 @@ export function AddressAutocomplete({
     }
 
     function initAutocomplete() {
-      console.log('[AddressAutocomplete] initAutocomplete called');
-      console.log('[AddressAutocomplete] inputRef.current:', inputRef.current);
-      console.log('[AddressAutocomplete] window.google exists:', !!window.google);
-      console.log('[AddressAutocomplete] window.google.maps exists:', !!window.google?.maps);
-      console.log('[AddressAutocomplete] window.google.maps.places exists:', !!window.google?.maps?.places);
-
       if (!inputRef.current) {
         console.error('[AddressAutocomplete] Input ref is null');
         return;
@@ -63,17 +55,13 @@ export function AddressAutocomplete({
       }
 
       try {
-        console.log('[AddressAutocomplete] Creating Autocomplete...');
         const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
           componentRestrictions: { country: 'us' },
           fields: ['address_components', 'formatted_address', 'geometry'],
         });
-        console.log('[AddressAutocomplete] Autocomplete created successfully');
 
         autocomplete.addListener('place_changed', () => {
-          console.log('[AddressAutocomplete] Place changed');
           const place = autocomplete.getPlace();
-          console.log('[AddressAutocomplete] Place:', place);
 
           if (!place.geometry || !place.geometry.location) {
             setError('Please select a valid address from the dropdown');
@@ -104,38 +92,31 @@ export function AddressAutocomplete({
             lng: place.geometry.location.lng(),
           };
 
-          console.log('[AddressAutocomplete] Result:', result);
           setInputValue(place.formatted_address || '');
           setError('');
           onSelect(result);
         });
 
         autocompleteRef.current = autocomplete;
-        console.log('[AddressAutocomplete] Setup complete');
       } catch (error) {
         console.error('[AddressAutocomplete] Error creating autocomplete:', error);
         setError('Error initializing address autocomplete');
       }
     }
 
-    // Check if Google Maps is already loaded
     if (window.google?.maps?.places?.Autocomplete) {
-      console.log('[AddressAutocomplete] Google Maps already loaded');
       initAutocomplete();
     } else {
       const existingScript = document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]');
 
       if (existingScript) {
-        console.log('[AddressAutocomplete] Script tag exists, waiting for load...');
         existingScript.addEventListener('load', initAutocomplete);
       } else {
-        console.log('[AddressAutocomplete] Loading Google Maps script...');
         const script = document.createElement('script');
         script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
         script.async = true;
         script.defer = true;
         script.onload = () => {
-          console.log('[AddressAutocomplete] Script loaded successfully');
           initAutocomplete();
         };
         script.onerror = (e) => {
@@ -143,7 +124,6 @@ export function AddressAutocomplete({
           setError('Failed to load address autocomplete');
         };
         document.head.appendChild(script);
-        console.log('[AddressAutocomplete] Script tag added to head');
       }
     }
 

@@ -45,9 +45,6 @@ export async function checkUnitAvailability(
 
   const { data: orderItems, error } = await query;
 
-  console.log(`[Availability] Checking unit ${unitId} for dates ${eventStartDate} to ${eventEndDate}`);
-  console.log(`[Availability] Found ${orderItems?.length || 0} order items with blocking statuses`);
-
   if (error) {
     console.error('Error checking availability:', error);
     return {
@@ -72,13 +69,6 @@ export async function checkUnitAvailability(
         (checkEnd >= orderStart && checkEnd <= orderEnd) ||
         (checkStart <= orderStart && checkEnd >= orderEnd)
       );
-
-      console.log(`[Availability] Comparing with order ${order.id}:`, {
-        orderDates: `${order.start_date} to ${order.end_date}`,
-        checkDates: `${eventStartDate} to ${eventEndDate}`,
-        conflicts,
-        status: order.status
-      });
 
       return conflicts;
     })

@@ -77,17 +77,10 @@ export function Quote() {
   // Function to check cart availability (not memoized to avoid circular deps)
   async function checkCartAvailability() {
     if (!formData.event_date || !formData.event_end_date) {
-      console.log('Skipping availability check - missing dates:', {
-        event_date: formData.event_date,
-        event_end_date: formData.event_end_date,
-      });
       return;
     }
 
-    console.log('Running availability check with dates:', formData.event_date, formData.event_end_date, 'cart length:', cart.length);
-
     if (cart.length === 0) {
-      console.log('Skipping availability check - empty cart');
       return;
     }
 
@@ -97,32 +90,12 @@ export function Quote() {
       eventEndDate: formData.event_end_date,
     }));
 
-    console.log('Checking availability for items:', checks);
-    checks.forEach((check, idx) => {
-      console.log(`Check ${idx}:`, {
-        unitId: check.unitId,
-        unitName: cart[idx]?.unit_name,
-        eventStartDate: check.eventStartDate,
-        eventEndDate: check.eventEndDate,
-      });
-    });
-
     const results = await checkMultipleUnitsAvailability(checks);
-    console.log('Availability results:', results);
-    results.forEach((result, idx) => {
-      console.log(`Unit ${idx} (${cart[idx]?.unit_name}):`, {
-        unitId: result.unitId,
-        isAvailable: result.isAvailable,
-        conflictingOrders: result.conflictingOrders,
-      });
-    });
 
     const updatedCart = cart.map((item, index) => ({
       ...item,
       isAvailable: results[index]?.isAvailable ?? true,
     }));
-
-    console.log('Updated cart with availability:', updatedCart);
     setCart(updatedCart);
     localStorage.setItem('bpc_cart', JSON.stringify(updatedCart));
   }
@@ -146,15 +119,11 @@ export function Quote() {
   }, [cart, pricingRules, formData]);
 
   useEffect(() => {
-    console.log('Availability useEffect called. Cart length:', cart.length, 'event_date:', formData.event_date, 'event_end_date:', formData.event_end_date);
     if (cart.length > 0 && formData.event_date && formData.event_end_date) {
-      console.log('useEffect triggered - Checking availability for dates:', formData.event_date, formData.event_end_date, 'Cart items:', cart.length);
       const timer = setTimeout(() => {
         checkCartAvailability();
       }, 300);
       return () => clearTimeout(timer);
-    } else {
-      console.log('Skipping availability check - condition not met');
     }
   }, [formData.event_date, formData.event_end_date, cart.length]);
 
