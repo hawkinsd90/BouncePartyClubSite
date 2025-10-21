@@ -111,16 +111,26 @@ export async function createTestBooking() {
     const randomAddress = REMOTE_ADDRESSES[Math.floor(Math.random() * REMOTE_ADDRESSES.length)];
 
     const { date, units } = await findAvailableDate();
+    const endDate = addDays(new Date(date), 1);
 
     const quoteData = {
       event_date: date,
-      setup_time: '09:00',
-      event_duration_hours: 4,
-      address: randomAddress,
+      event_end_date: format(endDate, 'yyyy-MM-dd'),
+      start_window: '09:00',
+      end_window: '17:00',
+      address_line1: randomAddress.street_address,
+      address_line2: '',
+      city: randomAddress.city,
+      state: randomAddress.state,
+      zip: randomAddress.zip_code,
       location_type: 'residential',
-      sandbags_needed: true,
-      needs_generator: true,
-      same_day_pickup: true,
+      pickup_preference: 'next_day',
+      same_day_responsibility_accepted: false,
+      overnight_responsibility_accepted: true,
+      can_stake: true,
+      has_generator: false,
+      has_pets: false,
+      special_details: 'Test booking',
     };
 
     const cart = units.map((unit) => ({
@@ -132,21 +142,31 @@ export async function createTestBooking() {
       is_combo: false,
     }));
 
+    const priceBreakdown = {
+      subtotal_cents: units.reduce((sum, u) => sum + u.price_dry_cents, 0),
+      travel_fee_cents: 5000,
+      total_cents: units.reduce((sum, u) => sum + u.price_dry_cents, 0) + 5000,
+    };
+
     const contactData = {
       ...DEVON_CONTACT,
       location_type: 'residential',
-      same_day_pickup: true,
+      same_day_pickup: false,
       warnings_acknowledged: {
-        sandbags: true,
-        generator: true,
-        sameday: true,
+        sandbags: false,
+        generator: false,
+        sameday: false,
       },
     };
 
+    console.log('Creating test booking with cart:', cart);
     localStorage.setItem('bpc_quote_form', JSON.stringify(quoteData));
     localStorage.setItem('bpc_cart', JSON.stringify(cart));
+    localStorage.setItem('bpc_price_breakdown', JSON.stringify(priceBreakdown));
     localStorage.setItem('bpc_contact_data', JSON.stringify(contactData));
     localStorage.setItem('test_booking_tip', '1000');
+
+    console.log('Test booking data saved to localStorage');
 
     return { success: true, date, units };
   } catch (error) {
