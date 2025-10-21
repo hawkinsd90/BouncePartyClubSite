@@ -59,23 +59,25 @@ Deno.serve(async (req: Request) => {
     };
 
     const normalizedFrom = normalizePhone(from);
-    
+
     const { data: customers } = await supabase
       .from("customers")
       .select("id, phone")
-      .ilike("phone", `%${normalizedFrom}%`)
-      .limit(1);
+      .ilike("phone", `%${normalizedFrom}%`);
 
     let orderId = null;
-    
+
     if (customers && customers.length > 0) {
+      const customerIds = customers.map(c => c.id);
+
       const { data: orders } = await supabase
         .from("orders")
         .select("id")
-        .eq("customer_id", customers[0].id)
+        .in("customer_id", customerIds)
+        .in("status", ["pending_review", "confirmed", "draft"])
         .order("created_at", { ascending: false })
         .limit(1);
-      
+
       if (orders && orders.length > 0) {
         orderId = orders[0].id;
       }
@@ -99,6 +101,18 @@ Deno.serve(async (req: Request) => {
     }
 
     const autoReply = "Thank you for your message! We've received it and will respond shortly. - Bounce Party Club";
+
+    await supabase
+      .from("sms_conversations")
+      .insert({
+        order_id: orderId,
+        from_phone: to,
+        to_phone: from,
+        message_body: autoReply,
+        direction: "outbound",
+        twilio_message_sid: null,
+        status: "sent",
+      });
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
