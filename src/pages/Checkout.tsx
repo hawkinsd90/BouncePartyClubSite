@@ -74,12 +74,8 @@ export function Checkout() {
 
     if (savedTip) {
       const tipCents = parseInt(savedTip, 10);
-      if (tipCents === 1000) {
-        setTipAmount('10');
-      } else {
-        setCustomTip((tipCents / 100).toFixed(2));
-        setTipAmount('custom');
-      }
+      setCustomTip((tipCents / 100).toFixed(2));
+      setTipAmount('custom');
       localStorage.removeItem('test_booking_tip');
     }
 
