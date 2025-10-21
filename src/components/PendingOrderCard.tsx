@@ -493,9 +493,14 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
             <div className="text-lg font-bold text-green-900">
               {formatCurrency((order.deposit_paid_cents || 0) + (order.balance_paid_cents || 0))}
             </div>
-            <div className="text-xs text-green-700 mt-1">
-              Deposit: {formatCurrency(order.deposit_paid_cents || 0)}<br />
-              Balance: {formatCurrency(order.balance_paid_cents || 0)}
+            <div className="text-xs text-green-700 mt-1 space-y-0.5">
+              <div>Deposit: {formatCurrency(order.deposit_paid_cents || 0)}</div>
+              <div>Balance: {formatCurrency(order.balance_paid_cents || 0)}</div>
+              {order.tip_cents > 0 && (
+                <div className="pt-1 border-t border-green-300">
+                  Tip: {formatCurrency(order.tip_cents)}
+                </div>
+              )}
             </div>
           </div>
 
