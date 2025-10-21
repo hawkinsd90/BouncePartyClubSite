@@ -112,9 +112,16 @@ export function Checkout() {
   };
 
   const startPaymentPolling = (orderId: string, popup: Window | null) => {
+    console.log('🔍 [POLLING] Starting payment polling for order:', orderId);
+    console.log('🔍 [POLLING] Popup window reference:', popup);
+
     const interval = setInterval(async () => {
       try {
+        console.log('🔄 [POLLING] Checking payment status...');
+        console.log('🔄 [POLLING] Popup closed?', popup?.closed);
+
         if (popup && popup.closed) {
+          console.log('❌ [POLLING] Popup was closed, stopping polling');
           if (pollingInterval) {
             clearInterval(pollingInterval);
             setPollingInterval(null);
@@ -125,6 +132,7 @@ export function Checkout() {
           return;
         }
 
+        console.log('📡 [POLLING] Querying order from database...');
         const { data: order, error } = await supabase
           .from('orders')
           .select('stripe_payment_status, status')
@@ -132,17 +140,26 @@ export function Checkout() {
           .single();
 
         if (error) {
-          console.error('Error polling order:', error);
+          console.error('❌ [POLLING] Error polling order:', error);
           return;
         }
 
+        console.log('✅ [POLLING] Order data received:', {
+          orderId,
+          stripe_payment_status: order.stripe_payment_status,
+          status: order.status,
+        });
+
         if (order.stripe_payment_status === 'succeeded' || order.stripe_payment_status === 'paid') {
+          console.log('🎉 [POLLING] Payment succeeded! Redirecting...');
+
           if (pollingInterval) {
             clearInterval(pollingInterval);
             setPollingInterval(null);
           }
 
           if (popup && !popup.closed) {
+            console.log('🔒 [POLLING] Closing popup window');
             popup.close();
           }
 
@@ -152,14 +169,18 @@ export function Checkout() {
           localStorage.removeItem('bpc_price_breakdown');
           localStorage.removeItem('bpc_cart');
 
+          console.log('🚀 [POLLING] Navigating to success page');
           navigate('/payment-success?order_id=' + orderId);
+        } else {
+          console.log('⏳ [POLLING] Payment not complete yet, continuing to poll...');
         }
       } catch (err) {
-        console.error('Polling error:', err);
+        console.error('❌ [POLLING] Polling error:', err);
       }
     }, 2000);
 
     setPollingInterval(interval);
+    console.log('✅ [POLLING] Polling interval set');
   };
 
   useEffect(() => {

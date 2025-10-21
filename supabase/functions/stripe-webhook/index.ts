@@ -13,6 +13,8 @@ const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
 });
 
 Deno.serve(async (req: Request) => {
+  console.log('🎯 [WEBHOOK] Received request:', req.method);
+
   if (req.method === "OPTIONS") {
     return new Response(null, {
       status: 200,
@@ -25,13 +27,17 @@ Deno.serve(async (req: Request) => {
     const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
     const signature = req.headers.get("stripe-signature");
 
+    console.log('📋 [WEBHOOK] Has webhook secret:', !!webhookSecret);
+    console.log('📋 [WEBHOOK] Has signature:', !!signature);
+
     let event: Stripe.Event;
 
     if (webhookSecret && signature) {
       try {
         event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+        console.log('✅ [WEBHOOK] Signature verified');
       } catch (err) {
-        console.error("Webhook signature verification failed:", err.message);
+        console.error("❌ [WEBHOOK] Signature verification failed:", err.message);
         return new Response(
           JSON.stringify({ error: "Invalid signature" }),
           {
@@ -42,7 +48,10 @@ Deno.serve(async (req: Request) => {
       }
     } else {
       event = JSON.parse(body);
+      console.log('⚠️ [WEBHOOK] No signature verification (dev mode)');
     }
+
+    console.log('📨 [WEBHOOK] Event type:', event.type);
 
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -54,8 +63,15 @@ Deno.serve(async (req: Request) => {
         const session = event.data.object as Stripe.Checkout.Session;
         const orderId = session.metadata?.order_id;
 
+        console.log('💳 [WEBHOOK] Checkout session completed');
+        console.log('💳 [WEBHOOK] Order ID:', orderId);
+        console.log('💳 [WEBHOOK] Amount total:', session.amount_total);
+        console.log('💳 [WEBHOOK] Payment status:', session.payment_status);
+
         if (orderId) {
-          await supabaseClient
+          console.log('📝 [WEBHOOK] Updating order in database...');
+
+          const { data, error } = await supabaseClient
             .from("orders")
             .update({
               stripe_payment_status: "paid",
@@ -63,7 +79,14 @@ Deno.serve(async (req: Request) => {
               deposit_paid_cents: session.amount_total || 0,
               status: "pending_review",
             })
-            .eq("id", orderId);
+            .eq("id", orderId)
+            .select();
+
+          if (error) {
+            console.error('❌ [WEBHOOK] Failed to update order:', error);
+          } else {
+            console.log('✅ [WEBHOOK] Order updated successfully:', data);
+          }
 
           try {
             const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
