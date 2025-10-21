@@ -90,9 +90,20 @@ export function Checkout() {
     window.print();
   };
 
-  const startPaymentPolling = (orderId: string) => {
+  const startPaymentPolling = (orderId: string, popup: Window | null) => {
     const interval = setInterval(async () => {
       try {
+        if (popup && popup.closed) {
+          if (pollingInterval) {
+            clearInterval(pollingInterval);
+            setPollingInterval(null);
+          }
+          setAwaitingPayment(false);
+          setProcessing(false);
+          setPaymentError('Payment window was closed. Please try again.');
+          return;
+        }
+
         const { data: order, error } = await supabase
           .from('orders')
           .select('stripe_payment_status, status')
@@ -110,8 +121,8 @@ export function Checkout() {
             setPollingInterval(null);
           }
 
-          if (stripeWindow && !stripeWindow.closed) {
-            stripeWindow.close();
+          if (popup && !popup.closed) {
+            popup.close();
           }
 
           setAwaitingPayment(false);
@@ -311,7 +322,7 @@ export function Checkout() {
         setAwaitingPayment(true);
         setProcessing(false);
 
-        startPaymentPolling(order.id);
+        startPaymentPolling(order.id, popup);
       } catch (err: any) {
         console.error('Stripe checkout error:', err);
         setPaymentError(err.message || 'Failed to initialize payment');
@@ -460,6 +471,22 @@ export function Checkout() {
               Check if it was blocked by your browser's popup blocker and allow popups for this site.
             </p>
           </div>
+          <button
+            onClick={() => {
+              if (pollingInterval) {
+                clearInterval(pollingInterval);
+                setPollingInterval(null);
+              }
+              if (stripeWindow && !stripeWindow.closed) {
+                stripeWindow.close();
+              }
+              setAwaitingPayment(false);
+              setProcessing(false);
+            }}
+            className="bg-slate-600 hover:bg-slate-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
+          >
+            Cancel Payment
+          </button>
           {paymentError && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
               <p className="text-red-800 font-semibold mb-2">Payment Error</p>
