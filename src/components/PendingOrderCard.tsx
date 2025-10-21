@@ -25,6 +25,14 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
     loadPayments();
   }, [order.id]);
 
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      loadSmsConversations();
+    }, 10000);
+
+    return () => clearInterval(intervalId);
+  }, [order.id]);
+
   async function loadOrderItems() {
     const { data } = await supabase
       .from('order_items')
@@ -165,7 +173,16 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
         payment_method: 'card',
       });
 
-      alert('Booking approved! Invoice generated. Customer will receive confirmation.');
+      const confirmationMessage = `Hi ${order.customers?.first_name}, your booking for ${format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')} is confirmed! Order #${order.id.slice(0, 8).toUpperCase()}. We'll contact you closer to your event date. Reply to this message anytime with questions.`;
+
+      try {
+        await handleSendSms(confirmationMessage);
+        alert('Booking approved! Invoice generated and customer notified via SMS.');
+      } catch (smsError) {
+        console.error('Error sending confirmation SMS:', smsError);
+        alert('Booking approved! Invoice generated (SMS notification failed - please contact customer manually).');
+      }
+
       onUpdate();
     } catch (error) {
       console.error('Error approving order:', error);
