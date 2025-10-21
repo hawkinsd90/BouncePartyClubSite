@@ -132,25 +132,31 @@ export function Checkout() {
           return;
         }
 
-        console.log('📡 [POLLING] Querying order from database...');
-        const { data: order, error } = await supabase
-          .from('orders')
-          .select('stripe_payment_status, status')
-          .eq('id', orderId)
-          .single();
+        console.log('📡 [POLLING] Checking payment status via edge function...');
 
-        if (error) {
-          console.error('❌ [POLLING] Error polling order:', error);
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const checkResponse = await fetch(
+          `${supabaseUrl}/functions/v1/check-payment-status`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            },
+            body: JSON.stringify({ orderId }),
+          }
+        );
+
+        if (!checkResponse.ok) {
+          console.error('❌ [POLLING] Error checking payment status');
           return;
         }
 
-        console.log('✅ [POLLING] Order data received:', {
-          orderId,
-          stripe_payment_status: order.stripe_payment_status,
-          status: order.status,
-        });
+        const paymentStatus = await checkResponse.json();
 
-        if (order.stripe_payment_status === 'succeeded' || order.stripe_payment_status === 'paid') {
+        console.log('✅ [POLLING] Payment status response:', paymentStatus);
+
+        if (paymentStatus.status === 'paid') {
           console.log('🎉 [POLLING] Payment succeeded! Redirecting...');
 
           if (pollingInterval) {
