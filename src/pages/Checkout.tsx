@@ -256,7 +256,7 @@ export function Checkout() {
           throw new Error(data.error || 'Failed to create checkout session');
         }
 
-        window.location.href = data.url;
+        window.location.replace(data.url);
       } catch (err: any) {
         console.error('Stripe checkout error:', err);
         setPaymentError(err.message || 'Failed to initialize payment');
