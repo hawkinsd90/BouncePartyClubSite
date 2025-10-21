@@ -38,6 +38,7 @@ interface QuoteFormData {
   location_type: 'residential' | 'commercial';
   pickup_preference: 'same_day' | 'next_day';
   same_day_responsibility_accepted: boolean;
+  overnight_responsibility_accepted: boolean;
   can_stake: boolean;
   has_generator: boolean;
   has_pets: boolean;
@@ -65,6 +66,7 @@ export function Quote() {
     location_type: 'residential',
     pickup_preference: 'next_day',
     same_day_responsibility_accepted: false,
+    overnight_responsibility_accepted: false,
     can_stake: true,
     has_generator: false,
     has_pets: false,
@@ -220,8 +222,8 @@ export function Quote() {
     if (savedFormData) {
       try {
         const parsedFormData = JSON.parse(savedFormData);
-        // Exclude same_day_responsibility_accepted - user must re-check each time
-        const { same_day_responsibility_accepted, ...safeFormData } = parsedFormData;
+        // Exclude responsibility checkboxes - user must re-check each time
+        const { same_day_responsibility_accepted, overnight_responsibility_accepted, ...safeFormData } = parsedFormData;
         setFormData(prev => ({
           ...prev,
           ...safeFormData,
@@ -322,6 +324,11 @@ export function Quote() {
     if (unavailableItems.length > 0) {
       const unavailableNames = unavailableItems.map(item => item.unit_name).join(', ');
       alert(`The following inflatables are not available for your selected dates: ${unavailableNames}. Please choose different dates or remove these items.`);
+      return;
+    }
+
+    if (formData.location_type === 'residential' && formData.pickup_preference === 'next_day' && !formData.overnight_responsibility_accepted) {
+      alert('Please accept the overnight responsibility agreement.');
       return;
     }
 
@@ -616,7 +623,7 @@ export function Quote() {
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
-                      onClick={() => setFormData({ ...formData, pickup_preference: 'next_day', same_day_responsibility_accepted: false })}
+                      onClick={() => setFormData({ ...formData, pickup_preference: 'next_day', same_day_responsibility_accepted: false, overnight_responsibility_accepted: false })}
                       className={`flex flex-col items-center p-4 rounded-lg border-2 transition-all ${
                         formData.pickup_preference === 'next_day'
                           ? 'border-green-600 bg-green-50'
@@ -659,9 +666,20 @@ export function Quote() {
                   </div>
                   {formData.pickup_preference === 'next_day' && (
                     <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                      <p className="text-xs text-amber-900 font-medium">
-                        ⚠️ Overnight Responsibility: You understand the inflatable will remain on your property overnight and you are legally responsible for its safety and security until pickup the next morning.
-                      </p>
+                      <label className="flex items-start cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.overnight_responsibility_accepted}
+                          onChange={(e) =>
+                            setFormData({ ...formData, overnight_responsibility_accepted: e.target.checked })
+                          }
+                          className="mt-0.5 mr-3"
+                          required
+                        />
+                        <p className="text-xs text-amber-900 font-medium">
+                          ⚠️ I understand the inflatable will remain on my property overnight and I am legally responsible for its safety and security until pickup the next morning. *
+                        </p>
+                      </label>
                     </div>
                   )}
                   {formData.pickup_preference === 'same_day' && (
