@@ -198,11 +198,16 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
 
       const rejectionMessage = `Hi ${order.customers?.first_name}, unfortunately we cannot accommodate your booking for ${format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')}. Reason: ${reason}. Please contact us if you have questions.`;
 
-      await handleSendSms(rejectionMessage);
+      try {
+        await handleSendSms(rejectionMessage);
+        alert('Booking rejected and customer notified via SMS.');
+      } catch (smsError) {
+        console.error('Error sending rejection SMS:', smsError);
+        alert('Booking rejected (SMS notification failed - please contact customer manually).');
+      }
 
       setShowRejectionModal(false);
       setCustomRejectionReason('');
-      alert('Booking rejected and customer notified via SMS.');
       onUpdate();
     } catch (error) {
       console.error('Error rejecting order:', error);

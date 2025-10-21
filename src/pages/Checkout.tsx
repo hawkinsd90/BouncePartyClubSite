@@ -160,7 +160,7 @@ export function Checkout() {
         .from('orders')
         .insert({
           customer_id: customer.id,
-          status: 'pending_review',
+          status: 'draft',
           location_type: quoteData.location_type,
           surface: quoteData.can_stake ? 'grass' : 'cement',
           event_date: quoteData.event_date,
@@ -265,6 +265,13 @@ export function Checkout() {
     if (!tempOrderId) return;
 
     try {
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({ status: 'pending_review' })
+        .eq('id', tempOrderId);
+
+      if (updateError) throw updateError;
+
       const { error: routeDropoffError } = await supabase.from('route_stops').insert({
         order_id: tempOrderId,
         type: 'dropoff',
@@ -348,7 +355,6 @@ export function Checkout() {
 
       setOrderId(tempOrderId);
       setSuccess(true);
-      setShowStripeForm(false);
     } catch (error: any) {
       console.error('Error finalizing order:', error);
       alert('Payment succeeded but there was an error finalizing your order. Please contact us.');
