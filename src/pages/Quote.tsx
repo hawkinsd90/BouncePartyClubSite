@@ -184,7 +184,13 @@ export function Quote() {
 
   function loadCart() {
     const savedCart = JSON.parse(localStorage.getItem('bpc_cart') || '[]');
-    setCart(savedCart);
+    const validCart = savedCart.filter((item: any) => item.unit_id && typeof item.unit_id === 'string');
+
+    if (validCart.length !== savedCart.length) {
+      localStorage.setItem('bpc_cart', JSON.stringify(validCart));
+    }
+
+    setCart(validCart);
 
     // Also restore form data from localStorage if it exists
     const savedFormData = localStorage.getItem('bpc_quote_form');
