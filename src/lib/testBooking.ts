@@ -84,6 +84,27 @@ async function findAvailableDate() {
 
 export async function createTestBooking() {
   try {
+    const existingCart = localStorage.getItem('bpc_cart');
+    const existingQuote = localStorage.getItem('bpc_quote_form');
+
+    if (existingCart && existingQuote) {
+      const contactData = {
+        ...DEVON_CONTACT,
+        location_type: 'residential',
+        same_day_pickup: true,
+        warnings_acknowledged: {
+          sandbags: true,
+          generator: true,
+          sameday: true,
+        },
+      };
+
+      localStorage.setItem('bpc_contact_data', JSON.stringify(contactData));
+      localStorage.setItem('test_booking_tip', '1000');
+
+      return { success: true, date: 'existing', units: [] };
+    }
+
     const randomAddress = REMOTE_ADDRESSES[Math.floor(Math.random() * REMOTE_ADDRESSES.length)];
 
     const { date, units } = await findAvailableDate();

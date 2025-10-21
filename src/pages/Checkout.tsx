@@ -342,8 +342,9 @@ export function Checkout() {
           throw new Error(data.error || 'Failed to create checkout session');
         }
 
-        localStorage.removeItem('stripe_cancel_payment');
-        const popup = window.open(data.url, 'stripeCheckout', 'width=800,height=800,popup=1,noopener=0');
+        localStorage.setItem('stripe_active', 'true');
+        const popupFeatures = 'width=600,height=700,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes';
+        const popup = window.open(data.url, 'StripeCheckout', popupFeatures);
         setStripeWindow(popup);
         setAwaitingPayment(true);
         setProcessing(false);
@@ -503,17 +504,27 @@ export function Checkout() {
                 clearInterval(pollingInterval);
                 setPollingInterval(null);
               }
-              localStorage.setItem('stripe_cancel_payment', 'true');
-              setTimeout(() => {
+
+              localStorage.setItem('stripe_active', 'false');
+
+              let closeAttempts = 0;
+              const closeInterval = setInterval(() => {
                 if (stripeWindow && !stripeWindow.closed) {
                   try {
                     stripeWindow.close();
                   } catch (e) {
-                    console.log('Unable to close window automatically');
+                    console.log('Close attempt failed');
                   }
                 }
-                localStorage.removeItem('stripe_cancel_payment');
-              }, 500);
+                closeAttempts++;
+                if (closeAttempts > 5 || !stripeWindow || stripeWindow.closed) {
+                  clearInterval(closeInterval);
+                  if (stripeWindow && !stripeWindow.closed) {
+                    setPaymentError('Payment cancelled. Please manually close the Stripe window/tab.');
+                  }
+                }
+              }, 100);
+
               setAwaitingPayment(false);
               setProcessing(false);
             }}

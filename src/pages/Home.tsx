@@ -7,7 +7,7 @@ import { createTestBooking } from '../lib/testBooking';
 
 export function Home() {
   const navigate = useNavigate();
-  const { user, isAdmin } = useAuth();
+  const { user, role } = useAuth();
   const [eventDate, setEventDate] = useState('');
   const [addressData, setAddressData] = useState<any>(null);
   const [locationType, setLocationType] = useState<'residential' | 'commercial'>('residential');
@@ -52,7 +52,7 @@ export function Home() {
           </div>
           <div className="flex items-center gap-4">
             <span className="text-xs text-yellow-700 italic">Check .env.local is being used</span>
-            {isAdmin && (
+            {role === 'ADMIN' && (
               <button
                 onClick={async () => {
                   setCreatingTestBooking(true);
