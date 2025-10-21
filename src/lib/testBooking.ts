@@ -39,58 +39,92 @@ const REMOTE_ADDRESSES = [
 ];
 
 async function findAvailableUnits(date: string, count: number = 2) {
-  const { data: units } = await supabase
+  console.log(`🔍 [TEST BOOKING] Finding ${count} available units for date: ${date}`);
+
+  const { data: units, error } = await supabase
     .from('units')
     .select('id, name, price_dry_cents, quantity_available')
     .eq('active', true)
     .limit(10);
 
-  if (!units || units.length === 0) return [];
+  if (error) {
+    console.error('❌ [TEST BOOKING] Error fetching units:', error);
+    return [];
+  }
+
+  console.log(`📦 [TEST BOOKING] Found ${units?.length || 0} active units in database`);
+
+  if (!units || units.length === 0) {
+    console.warn('⚠️ [TEST BOOKING] No active units found');
+    return [];
+  }
 
   const availableUnits = [];
   for (const unit of units) {
-    const { data: conflicts } = await supabase
+    console.log(`🔍 [TEST BOOKING] Checking availability for unit: ${unit.name} (${unit.id})`);
+
+    const { data: conflicts, error: conflictError } = await supabase
       .from('order_items')
       .select('order_id, orders!inner(id, start_date, end_date, status)')
       .eq('unit_id', unit.id)
       .not('orders.status', 'in', '(cancelled,void,draft)');
 
+    if (conflictError) {
+      console.error(`❌ [TEST BOOKING] Error checking conflicts for ${unit.name}:`, conflictError);
+      continue;
+    }
+
     const quantityBooked = conflicts?.length || 0;
     const quantityAvailable = unit.quantity_available || 1;
 
+    console.log(`📊 [TEST BOOKING] Unit ${unit.name}: ${quantityBooked}/${quantityAvailable} booked`);
+
     if (quantityBooked < quantityAvailable) {
+      console.log(`✅ [TEST BOOKING] Unit ${unit.name} is available!`);
       availableUnits.push(unit);
-      if (availableUnits.length >= count) break;
+      if (availableUnits.length >= count) {
+        console.log(`🎉 [TEST BOOKING] Found ${count} available units!`);
+        break;
+      }
     }
   }
 
+  console.log(`📊 [TEST BOOKING] Total available units found: ${availableUnits.length}`);
   return availableUnits;
 }
 
 async function findAvailableDate() {
+  console.log('📅 [TEST BOOKING] Starting to find available date...');
   let currentDate = addDays(new Date(), 1);
   const maxAttempts = 90;
 
   for (let i = 0; i < maxAttempts; i++) {
     const dateStr = format(currentDate, 'yyyy-MM-dd');
+    console.log(`🔍 [TEST BOOKING] Attempt ${i + 1}/${maxAttempts}: Checking date ${dateStr}`);
     const units = await findAvailableUnits(dateStr, 2);
 
     if (units.length >= 2) {
+      console.log(`✅ [TEST BOOKING] Found available date: ${dateStr} with ${units.length} units`);
       return { date: dateStr, units };
+    } else {
+      console.log(`⏭️ [TEST BOOKING] Date ${dateStr} only has ${units.length} units, trying next date...`);
     }
 
     currentDate = addDays(currentDate, 1);
   }
 
+  console.error('❌ [TEST BOOKING] Could not find available date within 90 days');
   throw new Error('Could not find available date within 90 days');
 }
 
 export async function createTestBooking() {
+  console.log('🚀 [TEST BOOKING] Starting test booking creation...');
   try {
     const existingCart = localStorage.getItem('bpc_cart');
     const existingQuote = localStorage.getItem('bpc_quote_form');
 
     if (existingCart && existingQuote) {
+      console.log('ℹ️ [TEST BOOKING] Found existing cart and quote, reusing them');
       const contactData = {
         ...DEVON_CONTACT,
         location_type: 'residential',
@@ -105,11 +139,15 @@ export async function createTestBooking() {
       localStorage.setItem('bpc_contact_data', JSON.stringify(contactData));
       localStorage.setItem('test_booking_tip', '1000');
 
+      console.log('✅ [TEST BOOKING] Reused existing booking data');
       return { success: true, date: 'existing', units: [] };
     }
 
+    console.log('🆕 [TEST BOOKING] Creating new test booking...');
     const randomAddress = REMOTE_ADDRESSES[Math.floor(Math.random() * REMOTE_ADDRESSES.length)];
+    console.log('📍 [TEST BOOKING] Selected address:', randomAddress.formatted_address);
 
+    console.log('🔍 [TEST BOOKING] Searching for available date and units...');
     const { date, units } = await findAvailableDate();
     const endDate = addDays(new Date(date), 1);
 
@@ -159,18 +197,23 @@ export async function createTestBooking() {
       },
     };
 
-    console.log('Creating test booking with cart:', cart);
+    console.log('💾 [TEST BOOKING] Saving test booking data to localStorage...');
+    console.log('🛒 [TEST BOOKING] Cart:', cart);
+    console.log('📝 [TEST BOOKING] Quote data:', quoteData);
+    console.log('💰 [TEST BOOKING] Price breakdown:', priceBreakdown);
+
     localStorage.setItem('bpc_quote_form', JSON.stringify(quoteData));
     localStorage.setItem('bpc_cart', JSON.stringify(cart));
     localStorage.setItem('bpc_price_breakdown', JSON.stringify(priceBreakdown));
     localStorage.setItem('bpc_contact_data', JSON.stringify(contactData));
     localStorage.setItem('test_booking_tip', '1000');
 
-    console.log('Test booking data saved to localStorage');
+    console.log('✅ [TEST BOOKING] Test booking data saved to localStorage successfully!');
+    console.log('🎯 [TEST BOOKING] Returning success with date:', date, 'and units:', units.map(u => u.name));
 
     return { success: true, date, units };
   } catch (error) {
-    console.error('Failed to create test booking:', error);
+    console.error('❌ [TEST BOOKING] Failed to create test booking:', error);
     return { success: false, error };
   }
 }

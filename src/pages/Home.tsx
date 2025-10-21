@@ -55,12 +55,17 @@ export function Home() {
             {role === 'ADMIN' && (
               <button
                 onClick={async () => {
+                  console.log('🎬 [HOME] Create Test Booking button clicked');
                   setCreatingTestBooking(true);
+                  console.log('⏳ [HOME] Calling createTestBooking()...');
                   const result = await createTestBooking();
+                  console.log('📊 [HOME] createTestBooking() result:', result);
                   setCreatingTestBooking(false);
                   if (result.success) {
+                    console.log('✅ [HOME] Test booking created successfully, navigating to /checkout');
                     navigate('/checkout');
                   } else {
+                    console.error('❌ [HOME] Test booking failed:', result.error);
                     alert('Failed to create test booking: ' + result.error);
                   }
                 }}
