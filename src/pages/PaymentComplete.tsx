@@ -25,25 +25,29 @@ export function PaymentComplete() {
       }
 
       try {
-        console.log('📝 [PAYMENT-COMPLETE] Updating order in database...');
+        console.log('📝 [PAYMENT-COMPLETE] Calling edge function to update order...');
 
-        const { data, error: updateError } = await supabase
-          .from('orders')
-          .update({
-            stripe_payment_status: 'succeeded',
-            status: 'pending_review'
-          })
-          .eq('id', orderId)
-          .select();
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const response = await fetch(
+          `${supabaseUrl}/functions/v1/stripe-checkout?action=webhook&orderId=${orderId}&session_id=${sessionId}`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            },
+          }
+        );
 
-        if (updateError) {
-          console.error('❌ [PAYMENT-COMPLETE] Failed to update order:', updateError);
-          setError(updateError.message);
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ [PAYMENT-COMPLETE] Edge function error:', errorText);
+          setError('Failed to update order');
           setStatus('error');
           return;
         }
 
-        console.log('✅ [PAYMENT-COMPLETE] Order updated successfully:', data);
+        const result = await response.json();
+        console.log('✅ [PAYMENT-COMPLETE] Edge function response:', result);
         setStatus('success');
 
         setTimeout(() => {
