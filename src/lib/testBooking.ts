@@ -41,7 +41,7 @@ const REMOTE_ADDRESSES = [
 async function findAvailableUnits(date: string, count: number = 2) {
   const { data: units } = await supabase
     .from('units')
-    .select('id, name, base_price_cents')
+    .select('id, name, price_dry_cents')
     .limit(10);
 
   if (!units || units.length === 0) return [];
@@ -124,7 +124,7 @@ export async function createTestBooking() {
       id: unit.id,
       name: unit.name,
       quantity: 1,
-      base_price_cents: unit.base_price_cents,
+      base_price_cents: unit.price_dry_cents,
     }));
 
     const contactData = {
