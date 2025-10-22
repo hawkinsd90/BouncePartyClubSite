@@ -191,6 +191,11 @@ Deno.serve(async (req: Request) => {
       },
     });
 
+    console.log("🎯 [STRIPE-CHECKOUT] Session created successfully!");
+    console.log("🎯 [STRIPE-CHECKOUT] Session ID:", session.id);
+    console.log("🎯 [STRIPE-CHECKOUT] Success URL:", session.success_url);
+    console.log("🎯 [STRIPE-CHECKOUT] Stripe will redirect to:", `${appBaseUrl}/booking-confirmed.html?orderId=${orderId}&session_id={CHECKOUT_SESSION_ID}`);
+
     await supabaseClient.from("payments").insert({
       order_id: orderId,
       stripe_payment_intent_id: session.payment_intent as string,
@@ -205,6 +210,7 @@ Deno.serve(async (req: Request) => {
         sessionId: session.id,
         url: session.url,
         customerId: customerId,
+        successUrl: session.success_url,
       }),
       {
         status: 200,

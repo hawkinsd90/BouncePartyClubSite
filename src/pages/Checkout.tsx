@@ -376,9 +376,14 @@ export function Checkout() {
 
         const data = await response.json();
 
+        console.log('💳 [CHECKOUT] Stripe session response:', data);
+        console.log('💳 [CHECKOUT] Success URL from server:', data.successUrl);
+
         if (!response.ok || !data.url) {
           throw new Error(data.error || 'Failed to create checkout session');
         }
+
+        console.log('💳 [CHECKOUT] Opening Stripe popup with URL:', data.url);
 
         localStorage.setItem('stripe_active', 'true');
         const popupFeatures = 'width=600,height=700,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes';
