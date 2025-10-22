@@ -114,7 +114,7 @@ Deno.serve(async (req: Request) => {
     });
 
     const body: CheckoutRequest = await req.json();
-    const { orderId, depositCents, tipCents = 0, customerEmail, customerName, origin } = body;
+    const { orderId, depositCents, tipCents = 0, customerEmail, customerName, origin: sentOrigin } = body;
 
     if (!orderId || !depositCents || !customerEmail) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
@@ -123,7 +123,20 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const base = origin ?? Deno.env.get("PUBLIC_SITE_BASE_URL") ?? "https://bouncepartyclub.netlify.app";
+    // Prefer the origin passed from the browser, else fall back to request headers.
+    // DO NOT use the Supabase function host; it cannot serve booking-confirmed.html.
+    const headerOrigin = req.headers.get('origin');
+    const referer = req.headers.get('referer');
+    let refererOrigin: string | null = null;
+    try {
+      if (referer) refererOrigin = new URL(referer).origin;
+    } catch {}
+
+    const base =
+      (sentOrigin && /^https?:\/\//.test(sentOrigin) ? sentOrigin : null) ||
+      (headerOrigin && /^https?:\/\//.test(headerOrigin) ? headerOrigin : null) ||
+      (refererOrigin && /^https?:\/\//.test(refererOrigin) ? refererOrigin : null) ||
+      'http://localhost:3000';
 
     const { data: order } = await supabaseClient
       .from("orders")
