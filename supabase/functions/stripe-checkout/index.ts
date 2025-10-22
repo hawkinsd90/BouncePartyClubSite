@@ -183,7 +183,7 @@ Deno.serve(async (req: Request) => {
           tip_cents: tipCents.toString(),
         },
       },
-      success_url: `data:text/html,<html><head><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:linear-gradient(135deg,%2310b981,%23059669);color:white;text-align:center}</style></head><body><div><div style="width:80px;height:80px;border-radius:50%;background:white;margin:0 auto 1.5rem;display:flex;align-items:center;justify-content:center"><svg width="50" height="50" viewBox="0 0 52 52" style="stroke:%2310b981;stroke-width:3;fill:none"><path d="M14 27l7.5 7.5L38 18"/></svg></div><h1>Payment Successful!</h1><p>This window will close automatically...</p></div><script>console.log('Payment complete');setTimeout(()=>{window.close()},2000)</script></body></html>`,
+      success_url: `${appBaseUrl}/payment-complete?orderId=${orderId}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${appBaseUrl}/checkout`,
       metadata: {
         order_id: orderId,
