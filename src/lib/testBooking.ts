@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { addDays, format } from 'date-fns';
-import { calculateDistance, calculatePrice } from './pricing';
+import { calculateDistance, calculateDrivingDistance, calculatePrice } from './pricing';
 
 const DEVON_CONTACT = {
   first_name: 'Devon',
@@ -200,14 +200,27 @@ export async function createTestBooking() {
       throw new Error('No pricing rules configured');
     }
 
-    const distance = calculateDistance(
-      HOME_BASE.latitude,
-      HOME_BASE.longitude,
-      randomAddress.latitude,
-      randomAddress.longitude
-    );
+    console.log(`📏 [TEST BOOKING] Calculating driving distance from ${HOME_BASE.address} to ${randomAddress.formatted_address}...`);
 
-    console.log(`📏 [TEST BOOKING] Distance from home base to ${randomAddress.city}: ${distance.toFixed(2)} miles`);
+    let distance;
+    try {
+      distance = await calculateDrivingDistance(
+        HOME_BASE.latitude,
+        HOME_BASE.longitude,
+        randomAddress.latitude,
+        randomAddress.longitude
+      );
+      console.log(`🚗 [TEST BOOKING] Driving distance: ${distance.toFixed(2)} miles`);
+    } catch (error) {
+      console.warn('⚠️ [TEST BOOKING] Could not get driving distance, using straight-line approximation');
+      distance = calculateDistance(
+        HOME_BASE.latitude,
+        HOME_BASE.longitude,
+        randomAddress.latitude,
+        randomAddress.longitude
+      );
+      console.log(`📏 [TEST BOOKING] Straight-line distance: ${distance.toFixed(2)} miles`);
+    }
 
     const priceCalculation = calculatePrice({
       items: cart,
