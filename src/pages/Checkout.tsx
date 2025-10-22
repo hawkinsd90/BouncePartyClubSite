@@ -190,7 +190,7 @@ export function Checkout() {
           localStorage.removeItem('bpc_price_breakdown');
           localStorage.removeItem('bpc_cart');
 
-          console.log('🚀 [POLLING] Navigating to success page');
+          console.log('🚀 [POLLING] Navigating to success page with order ID:', orderId);
           navigate('/payment-success?order_id=' + orderId);
         } else {
           console.log('⏳ [POLLING] Payment not complete yet, continuing to poll...');
