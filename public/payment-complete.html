@@ -188,8 +188,11 @@
     console.error('%c⚠️ THIS IS THE WRONG FILE! SHOULD BE booking-confirmed.html ⚠️', 'background: #ef4444; color: white; font-size: 16px; font-weight: bold; padding: 8px;');
     console.log('💳 [PAYMENT-COMPLETE] Payment complete page loaded');
     console.log('💳 [PAYMENT-COMPLETE] File path: /payment-complete.html');
+    console.log('💳 [PAYMENT-COMPLETE] Full URL:', window.location.href);
 
     const urlParams = new URLSearchParams(window.location.search);
+    console.log('💳 [PAYMENT-COMPLETE] All URL params:', Array.from(urlParams.entries()));
+
     const orderId = urlParams.get('orderId');
     const sessionId = urlParams.get('session_id');
 

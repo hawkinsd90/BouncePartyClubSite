@@ -221,8 +221,11 @@
     console.log('%c🚀 BOOKING-CONFIRMED.HTML FILE LOADED! 🚀', 'background: #10b981; color: white; font-size: 20px; font-weight: bold; padding: 10px;');
     console.log('💳 [BOOKING-CONFIRMED] Page loaded at', new Date().toISOString());
     console.log('💳 [BOOKING-CONFIRMED] File path: /booking-confirmed.html');
+    console.log('💳 [BOOKING-CONFIRMED] Full URL:', window.location.href);
 
     const urlParams = new URLSearchParams(window.location.search);
+    console.log('💳 [BOOKING-CONFIRMED] All URL params:', Array.from(urlParams.entries()));
+
     const orderId = urlParams.get('orderId');
     const sessionId = urlParams.get('session_id');
 
