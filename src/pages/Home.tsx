@@ -56,6 +56,14 @@ export function Home() {
               <button
                 onClick={async () => {
                   console.log('🎬 [HOME] Create Test Booking button clicked');
+
+                  console.log('🧹 [HOME] Clearing existing localStorage data...');
+                  localStorage.removeItem('bpc_cart');
+                  localStorage.removeItem('bpc_quote_form');
+                  localStorage.removeItem('bpc_price_breakdown');
+                  localStorage.removeItem('bpc_contact_data');
+                  localStorage.removeItem('test_booking_tip');
+
                   setCreatingTestBooking(true);
                   console.log('⏳ [HOME] Calling createTestBooking()...');
                   const result = await createTestBooking();
