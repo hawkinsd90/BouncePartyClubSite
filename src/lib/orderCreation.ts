@@ -249,34 +249,34 @@ export async function completeOrderAfterPayment(orderId: string, paymentIntentId
     status: 'pending',
   });
 
-  // Send SMS notification to admin
-  try {
-    const { data: adminSettings } = await supabase
-      .from('admin_settings')
-      .select('value')
-      .eq('key', 'admin_notification_phone')
-      .maybeSingle();
+  // Send SMS notification to admin - COMMENTED OUT FOR TESTING
+  // try {
+  //   const { data: adminSettings } = await supabase
+  //     .from('admin_settings')
+  //     .select('value')
+  //     .eq('key', 'admin_notification_phone')
+  //     .maybeSingle();
 
-    if (adminSettings?.value) {
-      const smsMessage = `🎈 NEW BOOKING! ${contactData.first_name} ${contactData.last_name} for ${order.event_date}. Review in admin panel. Order #${order.id.slice(0, 8).toUpperCase()}`;
+  //   if (adminSettings?.value) {
+  //     const smsMessage = `🎈 NEW BOOKING! ${contactData.first_name} ${contactData.last_name} for ${order.event_date}. Review in admin panel. Order #${order.id.slice(0, 8).toUpperCase()}`;
 
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
-      await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          to: adminSettings.value,
-          message: smsMessage,
-          orderId: order.id,
-        }),
-      });
-    }
-  } catch (smsError) {
-    console.error('Error sending SMS notification:', smsError);
-  }
+  //     const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
+  //     await fetch(apiUrl, {
+  //       method: 'POST',
+  //       headers: {
+  //         Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+  //         'Content-Type': 'application/json',
+  //       },
+  //       body: JSON.stringify({
+  //         to: adminSettings.value,
+  //         message: smsMessage,
+  //         orderId: order.id,
+  //       }),
+  //     });
+  //   }
+  // } catch (smsError) {
+  //   console.error('Error sending SMS notification:', smsError);
+  // }
 
   return order.id;
 }
@@ -468,35 +468,35 @@ export async function createOrderAfterPayment(data: OrderData) {
     status: 'pending',
   });
 
-  // 8. Send SMS notification to admin
-  try {
-    const { data: adminSettings } = await supabase
-      .from('admin_settings')
-      .select('value')
-      .eq('key', 'admin_notification_phone')
-      .maybeSingle();
+  // 8. Send SMS notification to admin - COMMENTED OUT FOR TESTING
+  // try {
+  //   const { data: adminSettings } = await supabase
+  //     .from('admin_settings')
+  //     .select('value')
+  //     .eq('key', 'admin_notification_phone')
+  //     .maybeSingle();
 
-    if (adminSettings?.value) {
-      const smsMessage = `🎈 NEW BOOKING! ${contactData.first_name} ${contactData.last_name} for ${quoteData.event_date}. Review in admin panel. Order #${order.id.slice(0, 8).toUpperCase()}`;
+  //   if (adminSettings?.value) {
+  //     const smsMessage = `🎈 NEW BOOKING! ${contactData.first_name} ${contactData.last_name} for ${quoteData.event_date}. Review in admin panel. Order #${order.id.slice(0, 8).toUpperCase()}`;
 
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
-      await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          to: adminSettings.value,
-          message: smsMessage,
-          orderId: order.id,
-        }),
-      });
-    }
-  } catch (smsError) {
-    console.error('Error sending SMS notification:', smsError);
-    // Don't throw - SMS failure shouldn't fail the order
-  }
+  //     const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
+  //     await fetch(apiUrl, {
+  //       method: 'POST',
+  //       headers: {
+  //         Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+  //         'Content-Type': 'application/json',
+  //       },
+  //       body: JSON.stringify({
+  //         to: adminSettings.value,
+  //         message: smsMessage,
+  //         orderId: order.id,
+  //       }),
+  //     });
+  //   }
+  // } catch (smsError) {
+  //   console.error('Error sending SMS notification:', smsError);
+  //   // Don't throw - SMS failure shouldn't fail the order
+  // }
 
   return order.id;
 }
