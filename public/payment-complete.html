@@ -3,28 +3,37 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Payment Complete</title>
+  <title>Payment Successful</title>
   <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
     body {
-      font-family: system-ui, -apple-system, sans-serif;
+      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
       display: flex;
       align-items: center;
       justify-content: center;
       min-height: 100vh;
       margin: 0;
-      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-      color: white;
+      background: white;
+      color: #1e293b;
+      padding: 2rem 1rem;
     }
     .container {
+      max-width: 600px;
+      width: 100%;
+    }
+    .header {
       text-align: center;
-      padding: 2rem;
-      max-width: 400px;
+      margin-bottom: 2rem;
     }
     .checkmark {
       width: 80px;
       height: 80px;
       border-radius: 50%;
-      background: white;
+      background: #10b981;
       margin: 0 auto 1.5rem;
       display: flex;
       align-items: center;
@@ -32,61 +41,243 @@
       animation: scaleIn 0.3s ease-out;
     }
     .checkmark svg {
-      width: 50px;
-      height: 50px;
-      stroke: #10b981;
+      width: 48px;
+      height: 48px;
+      stroke: white;
       stroke-width: 3;
       stroke-linecap: round;
       stroke-linejoin: round;
       fill: none;
-      animation: drawCheck 0.5s ease-out 0.2s forwards;
-      stroke-dasharray: 100;
-      stroke-dashoffset: 100;
     }
     @keyframes scaleIn {
       from { transform: scale(0); }
       to { transform: scale(1); }
     }
-    @keyframes drawCheck {
-      to { stroke-dashoffset: 0; }
-    }
     h1 {
       font-size: 2rem;
-      margin: 0 0 0.5rem;
+      margin-bottom: 1rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .subtitle {
+      font-size: 1rem;
+      color: #475569;
+      line-height: 1.6;
+      margin-bottom: 1.5rem;
+    }
+    .details-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      padding: 1.5rem;
+      background: #f8fafc;
+      border-radius: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+    .detail-item {
+      text-align: left;
+    }
+    .detail-label {
+      font-size: 0.875rem;
+      color: #64748b;
+      margin-bottom: 0.25rem;
+    }
+    .detail-value {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .detail-value.green {
+      color: #10b981;
+    }
+    .info-box {
+      padding: 1.5rem;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+    .info-box p {
+      font-size: 0.875rem;
+      color: #1e3a8a;
+      line-height: 1.6;
+    }
+    .info-box strong {
       font-weight: 600;
     }
-    p {
-      font-size: 1.1rem;
-      opacity: 0.95;
-      margin: 0;
-      line-height: 1.5;
+    .message-box {
+      padding: 1.5rem;
+      background: #f8fafc;
+      border-radius: 0.75rem;
+      margin-bottom: 1.5rem;
     }
-    .note {
-      margin-top: 1rem;
-      font-size: 0.9rem;
-      opacity: 0.8;
+    .message-box p {
+      font-size: 0.875rem;
+      color: #334155;
+      line-height: 1.6;
+      margin-bottom: 0.75rem;
+    }
+    .message-box p:last-child {
+      margin-bottom: 0;
+      color: #64748b;
+    }
+    .thank-you {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .thank-you h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 1rem;
+    }
+    .thank-you p {
+      font-size: 0.875rem;
+      color: #64748b;
+      font-style: italic;
+      line-height: 1.6;
+    }
+    .footer {
+      text-align: center;
+      margin-top: 2rem;
+    }
+    .footer p {
+      font-size: 0.75rem;
+      color: #cbd5e1;
+    }
+    .loading {
+      text-align: center;
+      color: #64748b;
+      font-size: 0.875rem;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="checkmark">
-      <svg viewBox="0 0 52 52">
-        <path d="M14 27l7.5 7.5L38 18"/>
-      </svg>
+    <div class="header">
+      <div class="checkmark">
+        <svg viewBox="0 0 24 24">
+          <path d="M5 13l4 4L19 7"/>
+        </svg>
+      </div>
+      <h1>Payment Successful!</h1>
+      <p class="subtitle">
+        Thank you for choosing Bounce Party Club. Your deposit has been paid and your booking is now pending admin review for final confirmation.
+      </p>
     </div>
-    <h1>Payment Successful!</h1>
-    <p>Your payment has been processed.</p>
-    <p class="note">You can close this tab now.</p>
+
+    <div id="order-details" class="loading">Loading order details...</div>
+
+    <div class="thank-you">
+      <h2>Thank You!</h2>
+      <p>
+        Thank you for choosing Bounce Party Club to bring energy and excitement to your event. If you have any questions, contact us at (313) 889-3860.
+      </p>
+    </div>
+
+    <div class="footer">
+      <p>This window will close automatically...</p>
+    </div>
   </div>
+
   <script>
     console.log('💳 [PAYMENT-COMPLETE] Payment complete page loaded');
-    console.log('💳 [PAYMENT-COMPLETE] Main window will handle order update via polling');
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const orderId = urlParams.get('orderId');
+    const sessionId = urlParams.get('session_id');
+
+    console.log('💳 [PAYMENT-COMPLETE] Order ID:', orderId);
+    console.log('💳 [PAYMENT-COMPLETE] Session ID:', sessionId);
+
+    async function loadOrderDetails() {
+      if (!orderId) {
+        document.getElementById('order-details').innerHTML = '<p style="color: #dc2626;">Error: No order ID provided</p>';
+        return;
+      }
+
+      try {
+        const supabaseUrl = 'https://ohtxfkaswaocwdwbpyztr.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9odHhma2Fzd2FvY3dkd2JweXp0ciIsInJvbGUiOiJhbm9uIiwiZXhwIjoyMjA5NDU5ODMyfQ.M6KyxiIh3RBPPd1_WVJrCXz6zZy0HYSqy4s_5G3G3ZQ';
+
+        const response = await fetch(
+          `${supabaseUrl}/rest/v1/orders?id=eq.${orderId}&select=id,event_date,deposit_paid_cents,balance_due_cents,customer:customers!customer_id(email)`,
+          {
+            headers: {
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`
+            }
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch order details');
+        }
+
+        const orders = await response.json();
+        if (orders.length === 0) {
+          throw new Error('Order not found');
+        }
+
+        const order = orders[0];
+
+        const eventDate = new Date(order.event_date).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        });
+
+        const depositPaid = (order.deposit_paid_cents / 100).toFixed(2);
+        const balanceDue = (order.balance_due_cents / 100).toFixed(2);
+        const customerEmail = order.customer?.email || 'N/A';
+        const orderIdShort = order.id.slice(0, 8).toUpperCase();
+
+        document.getElementById('order-details').innerHTML = `
+          <div class="details-grid">
+            <div class="detail-item">
+              <div class="detail-label">Order ID:</div>
+              <div class="detail-value">${orderIdShort}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Event Date:</div>
+              <div class="detail-value">${eventDate}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Deposit Paid:</div>
+              <div class="detail-value green">$${depositPaid}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Balance Due:</div>
+              <div class="detail-value">$${balanceDue}</div>
+            </div>
+          </div>
+
+          <div class="info-box">
+            <p>A confirmation email has been sent to <strong>${customerEmail}</strong></p>
+          </div>
+
+          <div class="message-box">
+            <p>Our admin team will review your booking request and contact you within 24 hours to confirm your delivery time window and finalize your reservation details.</p>
+            <p>If you have any questions, contact us at <strong>(313) 889-3860</strong> or visit us at <strong>4426 Woodward Ave, Wayne, MI 48184</strong>.</p>
+          </div>
+        `;
+
+      } catch (error) {
+        console.error('Error loading order details:', error);
+        document.getElementById('order-details').innerHTML = `
+          <div class="message-box">
+            <p>Your payment was successful, but we couldn't load all the details. You'll receive a confirmation email shortly.</p>
+          </div>
+        `;
+      }
+    }
+
+    loadOrderDetails();
 
     setTimeout(() => {
       console.log('🔒 [PAYMENT-COMPLETE] Attempting to close window...');
       window.close();
-    }, 2000);
+    }, 3000);
   </script>
 </body>
 </html>

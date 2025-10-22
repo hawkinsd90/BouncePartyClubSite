@@ -1,11 +1,18 @@
 import { supabase } from './supabase';
 import { addDays, format } from 'date-fns';
+import { calculateDistance, calculatePrice } from './pricing';
 
 const DEVON_CONTACT = {
   first_name: 'Devon',
   last_name: 'Hawkins',
   email: 'hawkinsd90@gmail.com',
   phone: '7343588854',
+};
+
+const HOME_BASE = {
+  latitude: 42.2812,
+  longitude: -83.3755,
+  address: '4426 Woodward Ave, Wayne, MI 48184'
 };
 
 const REMOTE_ADDRESSES = [
@@ -176,26 +183,55 @@ export async function createTestBooking() {
     const cart = units.map((unit) => ({
       unit_id: unit.id,
       unit_name: unit.name,
-      wet_or_dry: 'dry',
+      wet_or_dry: 'dry' as const,
       unit_price_cents: unit.price_dry_cents,
       qty: 1,
       is_combo: false,
     }));
 
-    const subtotal = units.reduce((sum, u) => sum + u.price_dry_cents, 0);
-    const travelFee = 5000;
-    const tax = Math.round((subtotal + travelFee) * 0.06);
-    const total = subtotal + travelFee + tax;
-    const depositDue = cart.length * 5000;
-    const balanceDue = total - depositDue;
+    const { data: pricingRules } = await supabase
+      .from('pricing_rules')
+      .select('*')
+      .limit(1)
+      .maybeSingle();
+
+    if (!pricingRules) {
+      console.error('❌ [TEST BOOKING] No pricing rules found');
+      throw new Error('No pricing rules configured');
+    }
+
+    const distance = calculateDistance(
+      HOME_BASE.latitude,
+      HOME_BASE.longitude,
+      randomAddress.latitude,
+      randomAddress.longitude
+    );
+
+    console.log(`📏 [TEST BOOKING] Distance from home base to ${randomAddress.city}: ${distance.toFixed(2)} miles`);
+
+    const priceCalculation = calculatePrice({
+      items: cart,
+      location_type: 'residential',
+      surface: 'grass',
+      can_use_stakes: true,
+      overnight_allowed: true,
+      num_days: 1,
+      distance_miles: distance,
+      city: randomAddress.city,
+      zip: randomAddress.zip_code,
+      has_generator: false,
+      rules: pricingRules,
+    });
+
+    console.log('💰 [TEST BOOKING] Price calculation:', priceCalculation);
 
     const priceBreakdown = {
-      subtotal_cents: subtotal,
-      travel_fee_cents: travelFee,
-      tax_cents: tax,
-      total_cents: total,
-      deposit_due_cents: depositDue,
-      balance_due_cents: balanceDue,
+      subtotal_cents: priceCalculation.subtotal_cents,
+      travel_fee_cents: priceCalculation.travel_fee_cents,
+      tax_cents: priceCalculation.tax_cents,
+      total_cents: priceCalculation.total_cents,
+      deposit_due_cents: priceCalculation.deposit_due_cents,
+      balance_due_cents: priceCalculation.balance_due_cents,
     };
 
     const contactData = {
