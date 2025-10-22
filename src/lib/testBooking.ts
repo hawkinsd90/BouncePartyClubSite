@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { addDays, format } from 'date-fns';
 import { calculateDistance, calculateDrivingDistance, calculatePrice } from './pricing';
+import { loadGoogleMapsAPI } from './googleMaps';
 
 const DEVON_CONTACT = {
   first_name: 'Devon',
@@ -129,6 +130,14 @@ async function findAvailableDate() {
 export async function createTestBooking() {
   console.log('🚀 [TEST BOOKING] Starting test booking creation...');
   try {
+    console.log('🗺️ [TEST BOOKING] Loading Google Maps API for accurate distance calculation...');
+    try {
+      await loadGoogleMapsAPI();
+      console.log('✅ [TEST BOOKING] Google Maps API loaded successfully');
+    } catch (error) {
+      console.warn('⚠️ [TEST BOOKING] Could not load Google Maps API, will use approximation:', error);
+    }
+
     const existingCart = localStorage.getItem('bpc_cart');
     const existingQuote = localStorage.getItem('bpc_quote_form');
 
@@ -203,6 +212,7 @@ export async function createTestBooking() {
     console.log(`📏 [TEST BOOKING] Calculating driving distance from ${HOME_BASE.address} to ${randomAddress.formatted_address}...`);
 
     let distance;
+    let distanceType = 'driving';
     try {
       distance = await calculateDrivingDistance(
         HOME_BASE.latitude,
@@ -210,17 +220,21 @@ export async function createTestBooking() {
         randomAddress.latitude,
         randomAddress.longitude
       );
-      console.log(`🚗 [TEST BOOKING] Driving distance: ${distance.toFixed(2)} miles`);
+      console.log(`🚗 [TEST BOOKING] Driving distance (via Google Maps): ${distance.toFixed(2)} miles`);
     } catch (error) {
-      console.warn('⚠️ [TEST BOOKING] Could not get driving distance, using straight-line approximation');
-      distance = calculateDistance(
+      distanceType = 'approximation';
+      console.warn('⚠️ [TEST BOOKING] Could not get driving distance from Google Maps, using straight-line × 1.4 approximation');
+      const straightLine = calculateDistance(
         HOME_BASE.latitude,
         HOME_BASE.longitude,
         randomAddress.latitude,
         randomAddress.longitude
       );
-      console.log(`📏 [TEST BOOKING] Straight-line distance: ${distance.toFixed(2)} miles`);
+      distance = straightLine * 1.4;
+      console.log(`📏 [TEST BOOKING] Approximate distance: ${distance.toFixed(2)} miles (straight-line: ${straightLine.toFixed(2)} miles)`);
     }
+
+    console.log(`🎯 [TEST BOOKING] Using ${distanceType} distance for pricing calculation`);
 
     const priceCalculation = calculatePrice({
       items: cart,
