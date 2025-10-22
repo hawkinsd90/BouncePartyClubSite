@@ -326,8 +326,26 @@
 
     loadOrderDetails();
 
+    (function () {
+      var qs = new URLSearchParams(location.search);
+      var msg = {
+        type: 'BPC_CHECKOUT_COMPLETE',
+        session_id: qs.get('session_id'),
+        orderId: qs.get('orderId')
+      };
+      try {
+        if (window.opener) {
+          console.log('📤 [BOOKING-CONFIRMED] Posting message to opener:', msg);
+          window.opener.postMessage(msg, '*');
+        }
+      } catch (e) {
+        console.error('❌ [BOOKING-CONFIRMED] Error posting message:', e);
+      }
+      window.close();
+    })();
+
     setTimeout(() => {
-      console.log('🔒 [BOOKING-CONFIRMED] Closing window...');
+      console.log('🔒 [BOOKING-CONFIRMED] Closing window (fallback)...');
       window.close();
     }, 3000);
   </script>

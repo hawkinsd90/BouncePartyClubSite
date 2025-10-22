@@ -216,6 +216,14 @@ export function StripeCheckoutForm({
       try {
         console.log('[StripeCheckoutForm] Mount #', currentMount, '- Creating payment intent for order:', orderId);
 
+        const payload = {
+          orderId,
+          depositCents,
+          customerEmail,
+          customerName,
+          origin: window.location.origin
+        };
+
         const paymentResponse = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`,
           {
@@ -224,12 +232,7 @@ export function StripeCheckoutForm({
               'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-              orderId,
-              depositCents,
-              customerEmail,
-              customerName,
-            }),
+            body: JSON.stringify(payload),
           }
         );
 

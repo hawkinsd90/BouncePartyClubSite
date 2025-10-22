@@ -28,6 +28,30 @@ export function Checkout() {
   const [stripeWindow, setStripeWindow] = useState<Window | null>(null);
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
 
+  useEffect(() => {
+    function onMessage(ev: MessageEvent) {
+      if (!ev?.data || ev.data.type !== 'BPC_CHECKOUT_COMPLETE') return;
+
+      try {
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          setPollingInterval(null);
+        }
+      } catch {}
+      try {
+        if ((window as any).__bpcPollId) {
+          clearInterval((window as any).__bpcPollId);
+          (window as any).__bpcPollId = null;
+        }
+      } catch {}
+
+      const url = `/booking-confirmed.html?orderId=${encodeURIComponent(ev.data.orderId)}&session_id=${encodeURIComponent(ev.data.session_id ?? '')}`;
+      window.location.assign(url);
+    }
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [pollingInterval]);
+
   const [contactData, setContactData] = useState({
     first_name: '',
     last_name: '',
@@ -351,7 +375,6 @@ export function Checkout() {
       setProcessing(false);
       setAwaitingPayment(true);
 
-      const appBaseUrl = window.location.origin;
       const depositCents = getPaymentAmountCents();
 
       try {
@@ -369,7 +392,7 @@ export function Checkout() {
               tipCents: getTipAmountCents(),
               customerEmail: contactData.email,
               customerName: `${contactData.first_name} ${contactData.last_name}`,
-              appBaseUrl,
+              origin: window.location.origin,
             }),
           }
         );
@@ -385,9 +408,7 @@ export function Checkout() {
 
         console.log('💳 [CHECKOUT] Opening Stripe popup with URL:', data.url);
 
-        localStorage.setItem('stripe_active', 'true');
-        const popupFeatures = 'width=600,height=700,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes';
-        const popup = window.open(data.url, 'StripeCheckout', popupFeatures);
+        const popup = window.open(data.url, 'stripeCheckout', 'noopener');
         setStripeWindow(popup);
         setAwaitingPayment(true);
         setProcessing(false);

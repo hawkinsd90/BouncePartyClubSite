@@ -14,7 +14,8 @@ interface CheckoutRequest {
   tipCents?: number;
   customerEmail: string;
   customerName: string;
-  appBaseUrl: string;
+  appBaseUrl?: string;
+  origin?: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -112,14 +113,17 @@ Deno.serve(async (req: Request) => {
       apiVersion: "2024-10-28.acacia",
     });
 
-    const { orderId, depositCents, tipCents = 0, customerEmail, customerName, appBaseUrl }: CheckoutRequest = await req.json();
+    const body: CheckoutRequest = await req.json();
+    const { orderId, depositCents, tipCents = 0, customerEmail, customerName, origin } = body;
 
-    if (!orderId || !depositCents || !customerEmail || !appBaseUrl) {
+    if (!orderId || !depositCents || !customerEmail) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const base = origin ?? Deno.env.get("PUBLIC_SITE_BASE_URL") ?? "https://bouncepartyclub.netlify.app";
 
     const { data: order } = await supabaseClient
       .from("orders")
@@ -171,6 +175,9 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    const success_url = `${base}/booking-confirmed.html?orderId=${encodeURIComponent(orderId)}&session_id={CHECKOUT_SESSION_ID}`;
+    const cancel_url = `${base}/checkout?canceled=1&orderId=${encodeURIComponent(orderId)}`;
+
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       line_items: lineItems,
@@ -183,8 +190,8 @@ Deno.serve(async (req: Request) => {
           tip_cents: tipCents.toString(),
         },
       },
-      success_url: `${appBaseUrl}/booking-confirmed.html?orderId=${orderId}&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appBaseUrl}/checkout`,
+      success_url,
+      cancel_url,
       metadata: {
         order_id: orderId,
         tip_cents: tipCents.toString(),
@@ -193,8 +200,8 @@ Deno.serve(async (req: Request) => {
 
     console.log("🎯 [STRIPE-CHECKOUT] Session created successfully!");
     console.log("🎯 [STRIPE-CHECKOUT] Session ID:", session.id);
-    console.log("🎯 [STRIPE-CHECKOUT] Success URL:", session.success_url);
-    console.log("🎯 [STRIPE-CHECKOUT] Stripe will redirect to:", `${appBaseUrl}/booking-confirmed.html?orderId=${orderId}&session_id={CHECKOUT_SESSION_ID}`);
+    console.log("🎯 [STRIPE-CHECKOUT] Success URL:", success_url);
+    console.log("🎯 [STRIPE-CHECKOUT] Cancel URL:", cancel_url);
 
     await supabaseClient.from("payments").insert({
       order_id: orderId,
