@@ -351,7 +351,9 @@ export function Checkout() {
       setProcessing(false);
       setAwaitingPayment(true);
 
-      const appBaseUrl = window.location.origin;
+      const appBaseUrl = window.location.hostname.includes('bolt.new')
+        ? `https://bolt.new${window.location.pathname.split('/checkout')[0]}`
+        : window.location.origin;
       const depositCents = getPaymentAmountCents();
 
       try {
