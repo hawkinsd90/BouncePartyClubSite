@@ -183,7 +183,7 @@ Deno.serve(async (req: Request) => {
           tip_cents: tipCents.toString(),
         },
       },
-      success_url: `${appBaseUrl}/payment-complete?orderId=${orderId}&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${appBaseUrl}/payment-complete.html`,
       cancel_url: `${appBaseUrl}/checkout`,
       metadata: {
         order_id: orderId,
