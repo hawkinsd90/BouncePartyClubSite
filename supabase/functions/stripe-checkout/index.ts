@@ -114,7 +114,7 @@ Deno.serve(async (req: Request) => {
     });
 
     const body: CheckoutRequest = await req.json();
-    const { orderId, depositCents, tipCents = 0, customerEmail, customerName, origin: sentOrigin } = body;
+    const { orderId, depositCents, tipCents = 0, customerEmail, customerName, origin: openerOrigin } = body;
 
     if (!orderId || !depositCents || !customerEmail) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
@@ -123,20 +123,19 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Prefer the origin passed from the browser, else fall back to request headers.
-    // DO NOT use the Supabase function host; it cannot serve booking-confirmed.html.
+    // origin of this function host (always absolute, public)
+    const functionOrigin = new URL(req.url).origin;
+
+    // cancel: back to the site (fall back to referrer or localhost)
     const headerOrigin = req.headers.get('origin');
     const referer = req.headers.get('referer');
-    let refererOrigin: string | null = null;
-    try {
-      if (referer) refererOrigin = new URL(referer).origin;
-    } catch {}
-
-    const base =
-      (sentOrigin && /^https?:\/\//.test(sentOrigin) ? sentOrigin : null) ||
-      (headerOrigin && /^https?:\/\//.test(headerOrigin) ? headerOrigin : null) ||
-      (refererOrigin && /^https?:\/\//.test(refererOrigin) ? refererOrigin : null) ||
-      'http://localhost:3000';
+    let siteOrigin = openerOrigin || headerOrigin;
+    if (!siteOrigin && referer) {
+      try {
+        siteOrigin = new URL(referer).origin;
+      } catch {}
+    }
+    siteOrigin = siteOrigin || 'http://localhost:3000';
 
     const { data: order } = await supabaseClient
       .from("orders")
@@ -188,8 +187,9 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const success_url = `${base}/booking-confirmed.html?orderId=${encodeURIComponent(orderId)}&session_id={CHECKOUT_SESSION_ID}`;
-    const cancel_url = `${base}/checkout?canceled=1&orderId=${encodeURIComponent(orderId)}`;
+    // success: go to the public bridge page (always loads), pass data and opener origin
+    const success_url = `${functionOrigin}/functions/v1/checkout-bridge?orderId=${encodeURIComponent(orderId)}&session_id={CHECKOUT_SESSION_ID}&origin=${encodeURIComponent(openerOrigin || "")}`;
+    const cancel_url = `${siteOrigin}/checkout?canceled=1&orderId=${encodeURIComponent(orderId)}`;
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
