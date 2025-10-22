@@ -180,10 +180,16 @@ export async function createTestBooking() {
       is_combo: false,
     }));
 
+    const subtotal = units.reduce((sum, u) => sum + u.price_dry_cents, 0);
+    const travelFee = 5000;
+    const tax = Math.round((subtotal + travelFee) * 0.06);
+    const total = subtotal + travelFee + tax;
+
     const priceBreakdown = {
-      subtotal_cents: units.reduce((sum, u) => sum + u.price_dry_cents, 0),
-      travel_fee_cents: 5000,
-      total_cents: units.reduce((sum, u) => sum + u.price_dry_cents, 0) + 5000,
+      subtotal_cents: subtotal,
+      travel_fee_cents: travelFee,
+      tax_cents: tax,
+      total_cents: total,
     };
 
     const contactData = {
