@@ -191,7 +191,7 @@ export function Checkout() {
           localStorage.removeItem('bpc_cart');
 
           console.log('🚀 [POLLING] Navigating to success page with order ID:', orderId);
-          navigate('/checkout/payment-success?orderId=' + orderId);
+          navigate('/checkout/payment-success?order_id=' + orderId);
         } else {
           console.log('⏳ [POLLING] Payment not complete yet, continuing to poll...');
         }
@@ -351,9 +351,7 @@ export function Checkout() {
       setProcessing(false);
       setAwaitingPayment(true);
 
-      const appBaseUrl = window.location.hostname.includes('bolt.new')
-        ? `https://bolt.new${window.location.pathname.split('/checkout')[0]}`
-        : window.location.origin;
+      const appBaseUrl = window.location.origin;
       const depositCents = getPaymentAmountCents();
 
       try {
