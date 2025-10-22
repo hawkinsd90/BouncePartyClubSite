@@ -6,10 +6,17 @@ import { CheckCircle, Loader2 } from 'lucide-react';
 interface OrderDetails {
   id: string;
   event_date: string;
-  deposit_amount: number;
-  total_price: number;
-  customer_email: string;
-  customer_name: string;
+  deposit_due_cents: number;
+  subtotal_cents: number;
+  travel_fee_cents: number;
+  surface_fee_cents: number;
+  same_day_pickup_fee_cents: number;
+  tax_cents: number;
+  contacts: {
+    email: string;
+    first_name: string;
+    last_name: string;
+  };
 }
 
 export function PaymentSuccess() {
@@ -31,7 +38,21 @@ export function PaymentSuccess() {
       try {
         const { data: order, error } = await supabase
           .from('orders')
-          .select('id, event_date, deposit_amount, total_price, customer_email, customer_name')
+          .select(`
+            id,
+            event_date,
+            deposit_due_cents,
+            subtotal_cents,
+            travel_fee_cents,
+            surface_fee_cents,
+            same_day_pickup_fee_cents,
+            tax_cents,
+            contacts (
+              email,
+              first_name,
+              last_name
+            )
+          `)
           .eq('id', orderIdFromUrl)
           .maybeSingle();
 
@@ -86,7 +107,12 @@ export function PaymentSuccess() {
     month: '2-digit',
     day: '2-digit'
   });
-  const balanceDue = orderDetails.total_price - orderDetails.deposit_amount;
+
+  const totalCents = orderDetails.subtotal_cents + orderDetails.travel_fee_cents +
+                     orderDetails.surface_fee_cents + orderDetails.same_day_pickup_fee_cents +
+                     orderDetails.tax_cents;
+  const depositDollars = orderDetails.deposit_due_cents / 100;
+  const balanceDue = (totalCents - orderDetails.deposit_due_cents) / 100;
 
   return (
     <div className="min-h-screen bg-white flex items-center justify-center p-4">
@@ -113,7 +139,7 @@ export function PaymentSuccess() {
             </div>
             <div>
               <p className="text-gray-500 mb-1">Deposit Paid:</p>
-              <p className="font-semibold text-green-600">${orderDetails.deposit_amount.toFixed(2)}</p>
+              <p className="font-semibold text-green-600">${depositDollars.toFixed(2)}</p>
             </div>
             <div>
               <p className="text-gray-500 mb-1">Balance Due:</p>
@@ -123,7 +149,7 @@ export function PaymentSuccess() {
         </div>
 
         <p className="text-gray-600 text-sm mb-4 px-4">
-          A confirmation email has been sent to <span className="font-medium text-gray-900">{orderDetails.customer_email}</span>.
+          A confirmation email has been sent to <span className="font-medium text-gray-900">{orderDetails.contacts.email}</span>.
         </p>
 
         <p className="text-gray-600 text-sm mb-6 px-4">
