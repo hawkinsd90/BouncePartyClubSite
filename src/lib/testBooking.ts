@@ -67,7 +67,9 @@ async function findAvailableUnits(date: string, count: number = 2) {
       .from('order_items')
       .select('order_id, orders!inner(id, start_date, end_date, status)')
       .eq('unit_id', unit.id)
-      .not('orders.status', 'in', '(cancelled,void,draft)');
+      .not('orders.status', 'in', '(cancelled,void,draft)')
+      .lte('orders.start_date', date)
+      .gte('orders.end_date', date);
 
     if (conflictError) {
       console.error(`❌ [TEST BOOKING] Error checking conflicts for ${unit.name}:`, conflictError);
@@ -77,7 +79,7 @@ async function findAvailableUnits(date: string, count: number = 2) {
     const quantityBooked = conflicts?.length || 0;
     const quantityAvailable = unit.quantity_available || 1;
 
-    console.log(`📊 [TEST BOOKING] Unit ${unit.name}: ${quantityBooked}/${quantityAvailable} booked`);
+    console.log(`📊 [TEST BOOKING] Unit ${unit.name}: ${quantityBooked}/${quantityAvailable} booked on ${date}`);
 
     if (quantityBooked < quantityAvailable) {
       console.log(`✅ [TEST BOOKING] Unit ${unit.name} is available!`);
