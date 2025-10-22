@@ -281,6 +281,9 @@ export async function completeOrderAfterPayment(orderId: string, paymentIntentId
   return order.id;
 }
 
+// TODO: REMOVE AFTER TESTING - This function appears to be unused/legacy code.
+// The current payment flow uses createOrderBeforePayment + completeOrderAfterPayment instead.
+// If this is truly unused, delete this entire function to reduce duplication.
 export async function createOrderAfterPayment(data: OrderData) {
   const {
     contactData,
