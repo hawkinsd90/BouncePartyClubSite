@@ -12,12 +12,13 @@
       justify-content: center;
       min-height: 100vh;
       margin: 0;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
       color: white;
     }
     .container {
       text-align: center;
       padding: 2rem;
+      max-width: 400px;
     }
     .checkmark {
       width: 80px;
@@ -33,7 +34,7 @@
     .checkmark svg {
       width: 50px;
       height: 50px;
-      stroke: #667eea;
+      stroke: #10b981;
       stroke-width: 3;
       stroke-linecap: round;
       stroke-linejoin: round;
@@ -56,8 +57,14 @@
     }
     p {
       font-size: 1.1rem;
-      opacity: 0.9;
+      opacity: 0.95;
       margin: 0;
+      line-height: 1.5;
+    }
+    .note {
+      margin-top: 1rem;
+      font-size: 0.9rem;
+      opacity: 0.8;
     }
   </style>
 </head>
@@ -68,8 +75,9 @@
         <path d="M14 27l7.5 7.5L38 18"/>
       </svg>
     </div>
-    <h1>Payment Complete!</h1>
-    <p>This window will close automatically...</p>
+    <h1>Payment Successful!</h1>
+    <p>Your payment has been processed.</p>
+    <p class="note">You can close this tab now.</p>
   </div>
   <script>
     console.log('💳 [PAYMENT-COMPLETE] Page loaded');
