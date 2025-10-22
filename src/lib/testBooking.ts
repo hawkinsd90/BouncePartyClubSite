@@ -184,12 +184,16 @@ export async function createTestBooking() {
     const travelFee = 5000;
     const tax = Math.round((subtotal + travelFee) * 0.06);
     const total = subtotal + travelFee + tax;
+    const depositDue = cart.length * 5000;
+    const balanceDue = total - depositDue;
 
     const priceBreakdown = {
       subtotal_cents: subtotal,
       travel_fee_cents: travelFee,
       tax_cents: tax,
       total_cents: total,
+      deposit_due_cents: depositDue,
+      balance_due_cents: balanceDue,
     };
 
     const contactData = {
