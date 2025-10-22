@@ -71,56 +71,44 @@
     <h1>Payment Complete!</h1>
     <p>This window will close automatically...</p>
   </div>
-  <script type="module">
+  <script>
     console.log('💳 [PAYMENT-COMPLETE] Page loaded');
 
-    // Get order ID from URL
     const urlParams = new URLSearchParams(window.location.search);
     const orderId = urlParams.get('orderId');
+    const sessionId = urlParams.get('session_id');
 
-    console.log('💳 [PAYMENT-COMPLETE] Order ID from URL:', orderId);
+    console.log('💳 [PAYMENT-COMPLETE] Order ID:', orderId);
+    console.log('💳 [PAYMENT-COMPLETE] Session ID:', sessionId);
 
-    if (orderId) {
-      // Import Supabase
-      import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm')
-        .then(({ createClient }) => {
-          console.log('💳 [PAYMENT-COMPLETE] Supabase loaded, updating order...');
+    if (orderId && sessionId) {
+      const supabaseUrl = 'https://zp1v56uxy8rdx5ypatb0ockcb9tr6a.supabase.co';
+      const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpwMXY1NnV4eThyZHg1eXBhdGIwb2NrY2I5dHI2YSIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzI3NjYxMDk3LCJleHAiOjIwNDMyMzcwOTd9.2Ts4VgpWXbxl9TvSw5d8kNIKDy-dqZFp5aFZV1gZAVE';
 
-          const supabaseUrl = 'https://zp1v56uxy8rdx5ypatb0ockcb9tr6a.supabase.co';
-          const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpwMXY1NnV4eThyZHg1eXBhdGIwb2NrY2I5dHI2YSIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzI3NjYxMDk3LCJleHAiOjIwNDMyMzcwOTd9.2Ts4VgpWXbxl9TvSw5d8kNIKDy-dqZFp5aFZV1gZAVE';
-          const supabase = createClient(supabaseUrl, supabaseKey);
+      console.log('📞 [PAYMENT-COMPLETE] Calling edge function to update order...');
 
-          // Update the order status
-          supabase
-            .from('orders')
-            .update({
-              stripe_payment_status: 'succeeded',
-              status: 'pending_review'
-            })
-            .eq('id', orderId)
-            .select()
-            .then(({ data, error }) => {
-              if (error) {
-                console.error('❌ [PAYMENT-COMPLETE] Failed to update order:', error);
-              } else {
-                console.log('✅ [PAYMENT-COMPLETE] Order updated successfully:', data);
-              }
-
-              // Close window after update
-              setTimeout(() => {
-                window.close();
-              }, 1500);
-            });
-        })
-        .catch((error) => {
-          console.error('❌ [PAYMENT-COMPLETE] Failed to load Supabase:', error);
-          // Still close window on error
-          setTimeout(() => {
-            window.close();
-          }, 2000);
-        });
+      fetch(`${supabaseUrl}/functions/v1/stripe-checkout?action=webhook&orderId=${orderId}&session_id=${sessionId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+        },
+      })
+      .then(response => response.json())
+      .then(result => {
+        console.log('✅ [PAYMENT-COMPLETE] Order updated:', result);
+        setTimeout(() => {
+          console.log('🔒 [PAYMENT-COMPLETE] Closing window...');
+          window.close();
+        }, 1500);
+      })
+      .catch(error => {
+        console.error('❌ [PAYMENT-COMPLETE] Error:', error);
+        setTimeout(() => {
+          window.close();
+        }, 2000);
+      });
     } else {
-      console.warn('⚠️ [PAYMENT-COMPLETE] No order ID in URL');
+      console.warn('⚠️ [PAYMENT-COMPLETE] Missing orderId or sessionId');
       setTimeout(() => {
         window.close();
       }, 2000);
