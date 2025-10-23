@@ -1,3 +1,33 @@
+/**
+ * CHECKOUT PAGE
+ *
+ * PURPOSE:
+ * Main checkout page where customers enter their information, review their order,
+ * and complete payment through Stripe Checkout.
+ *
+ * KEY FEATURES:
+ * - Load quote data from localStorage (from Quote page)
+ * - Customer information form (name, email, phone, address)
+ * - Payment amount selection (deposit, full, or custom)
+ * - Optional tip selection
+ * - Order creation in database
+ * - Stripe Checkout integration (opens in new window)
+ * - Payment polling and postMessage handling for completion
+ * - Navigation to confirmation page after successful payment
+ *
+ * PAYMENT FLOW:
+ * 1. User fills out form and clicks "Complete Booking & Pay"
+ * 2. Order is created in database with status "draft"
+ * 3. Stripe Checkout session is created via edge function
+ * 4. Stripe opens in NEW WINDOW (via window.open)
+ * 5. Polling starts to check payment status (backup mechanism)
+ * 6. User completes payment in Stripe window
+ * 7. Stripe redirects to checkout-bridge page
+ * 8. Bridge page posts message to THIS window and closes
+ * 9. postMessage listener receives completion event
+ * 10. Stop polling and navigate to booking-confirmed.html
+ */
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -28,16 +58,36 @@ export function Checkout() {
   const [stripeWindow, setStripeWindow] = useState<Window | null>(null);
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
 
+  // =====================================================
+  // POST MESSAGE LISTENER - Payment Completion Handler
+  // =====================================================
+  // This is the PRIMARY mechanism for detecting payment completion
+  // Listens for messages from the checkout-bridge page
+  //
+  // FLOW:
+  // 1. User completes payment in Stripe (in separate window)
+  // 2. Stripe redirects to checkout-bridge page (Supabase domain)
+  // 3. Bridge page posts message with type 'BPC_CHECKOUT_COMPLETE'
+  // 4. This listener receives the message
+  // 5. Stop all polling
+  // 6. Navigate to booking confirmation page
   useEffect(() => {
     function onMessage(ev: MessageEvent) {
+      // Ignore messages that aren't ours
+      // Only process messages with our specific type identifier
       if (!ev?.data || ev.data.type !== 'BPC_CHECKOUT_COMPLETE') return;
 
+      // Stop the polling interval (cleanup)
+      // We have the success message, no need to poll anymore
       try {
         if (pollingInterval) {
           clearInterval(pollingInterval);
           setPollingInterval(null);
         }
       } catch {}
+
+      // Also clear any legacy polling intervals
+      // (Belt and suspenders approach)
       try {
         if ((window as any).__bpcPollId) {
           clearInterval((window as any).__bpcPollId);
@@ -45,10 +95,16 @@ export function Checkout() {
         }
       } catch {}
 
+      // Navigate to booking confirmation page with order details
+      // This is a static HTML page (not part of React app)
       const url = `/booking-confirmed.html?orderId=${encodeURIComponent(ev.data.orderId)}&session_id=${encodeURIComponent(ev.data.session_id ?? '')}`;
       window.location.assign(url);
     }
+
+    // Add message listener when component mounts
     window.addEventListener('message', onMessage);
+
+    // Remove listener when component unmounts (cleanup)
     return () => window.removeEventListener('message', onMessage);
   }, [pollingInterval]);
 
@@ -371,13 +427,21 @@ export function Checkout() {
         if (itemError) throw itemError;
       }
 
+      // Store order ID for potential use
       setTempOrderId(order.id);
       setProcessing(false);
       setAwaitingPayment(true);
 
+      // Calculate the payment amount (deposit, full, or custom)
       const depositCents = getPaymentAmountCents();
 
+      // =====================================================
+      // INITIATE STRIPE CHECKOUT
+      // =====================================================
+      // Call our edge function to create a Stripe Checkout session
+      // Then open Stripe in a NEW WINDOW for payment
       try {
+        // Call the stripe-checkout edge function
         const response = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`,
           {
@@ -388,32 +452,50 @@ export function Checkout() {
             },
             body: JSON.stringify({
               orderId: order.id,
-              depositCents,
-              tipCents: getTipAmountCents(),
+              depositCents,                                            // Amount to charge
+              tipCents: getTipAmountCents(),                          // Optional tip
               customerEmail: contactData.email,
               customerName: `${contactData.first_name} ${contactData.last_name}`,
-              origin: window.location.origin,
+              origin: window.location.origin,                          // CRITICAL: Our origin for bridge page postMessage
             }),
           }
         );
 
         const data = await response.json();
 
+        // Log for debugging
         console.log('💳 [CHECKOUT] Stripe session response:', data);
         console.log('💳 [CHECKOUT] Success URL from server:', data.successUrl);
 
+        // Check if session creation was successful
         if (!response.ok || !data.url) {
           throw new Error(data.error || 'Failed to create checkout session');
         }
 
         console.log('💳 [CHECKOUT] Opening Stripe popup with URL:', data.url);
 
+        // =====================================================
+        // OPEN STRIPE CHECKOUT IN NEW WINDOW
+        // =====================================================
+        // window.open returns a reference to the new window
+        // We need this reference so:
+        // 1. The bridge page can use window.opener to send us a message
+        // 2. We can check if the window was closed (for polling cleanup)
+        //
+        // 'stripeCheckout' is the window name (target)
+        // 'noopener' is a security feature (Stripe will handle opener setup)
         const popup = window.open(data.url, 'stripeCheckout', 'noopener');
         setStripeWindow(popup);
         setAwaitingPayment(true);
         setProcessing(false);
 
+        // =====================================================
+        // START PAYMENT POLLING (BACKUP MECHANISM)
+        // =====================================================
+        // Polling is a fallback in case postMessage fails
+        // Primary success detection is via postMessage listener above
         startPaymentPolling(order.id, popup);
+
       } catch (err: any) {
         console.error('Stripe checkout error:', err);
         setPaymentError(err.message || 'Failed to initialize payment');
