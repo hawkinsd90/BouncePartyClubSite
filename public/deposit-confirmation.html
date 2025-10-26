@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment Successful - Bounce Party Club</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 600px;
+      width: 100%;
+      padding: 48px 40px;
+      text-align: center;
+    }
+    .header {
+      margin-bottom: 32px;
+    }
+    .logo {
+      font-size: 24px;
+      font-weight: 700;
+      color: #667eea;
+      margin-bottom: 24px;
+    }
+    .checkmark-container {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: #10b981;
+      margin: 0 auto 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: scaleIn 0.4s ease-out;
+    }
+    .checkmark {
+      width: 40px;
+      height: 40px;
+      stroke: white;
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+    }
+    @keyframes scaleIn {
+      0% { transform: scale(0); opacity: 0; }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      color: #1a202c;
+      margin-bottom: 12px;
+    }
+    .subtitle {
+      font-size: 16px;
+      color: #718096;
+      line-height: 1.6;
+      margin-bottom: 32px;
+    }
+    .details-section {
+      background: #f7fafc;
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .details-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      text-align: left;
+    }
+    .detail-item {
+      display: flex;
+      flex-direction: column;
+    }
+    .detail-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #a0aec0;
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+    .detail-value {
+      font-size: 18px;
+      font-weight: 600;
+      color: #2d3748;
+    }
+    .detail-value.highlight {
+      color: #10b981;
+    }
+    .info-banner {
+      background: #ebf8ff;
+      border: 1px solid #bee3f8;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 24px;
+      text-align: left;
+    }
+    .info-banner p {
+      font-size: 14px;
+      color: #2c5282;
+      line-height: 1.6;
+    }
+    .info-banner strong {
+      color: #1a365d;
+      font-weight: 600;
+    }
+    .message-section {
+      background: #f7fafc;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 24px;
+      text-align: left;
+    }
+    .message-section p {
+      font-size: 14px;
+      color: #4a5568;
+      line-height: 1.7;
+      margin-bottom: 12px;
+    }
+    .message-section p:last-child {
+      margin-bottom: 0;
+    }
+    .thank-you {
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid #e2e8f0;
+    }
+    .thank-you h2 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #2d3748;
+      margin-bottom: 12px;
+    }
+    .thank-you p {
+      font-size: 14px;
+      color: #718096;
+      line-height: 1.6;
+      font-style: italic;
+    }
+    .thank-you .contact-info {
+      margin-top: 16px;
+      font-style: normal;
+    }
+    .thank-you .contact-info strong {
+      color: #667eea;
+      font-weight: 600;
+    }
+    .btn {
+      display: inline-block;
+      background: #667eea;
+      color: white;
+      padding: 12px 32px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: 600;
+      margin-top: 24px;
+      transition: background 0.2s;
+    }
+    .btn:hover {
+      background: #5568d3;
+    }
+    @media (max-width: 600px) {
+      .container {
+        padding: 32px 24px;
+      }
+      h1 {
+        font-size: 24px;
+      }
+      .details-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+    }
+    .loading {
+      color: #a0aec0;
+      font-size: 14px;
+      padding: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">🎉 Bounce Party Club</div>
+      <div class="checkmark-container">
+        <svg class="checkmark" viewBox="0 0 24 24">
+          <path d="M5 13l4 4L19 7"/>
+        </svg>
+      </div>
+      <h1>Payment Successful!</h1>
+      <p class="subtitle">
+        Thank you for choosing Bounce Party Club. Your deposit has been paid and your booking is now pending admin review for final confirmation.
+      </p>
+    </div>
+
+    <div id="order-details" class="loading">Loading order details...</div>
+
+    <div class="thank-you">
+      <h2>Thank You!</h2>
+      <p>
+        Thank you for choosing Bounce Party Club to bring energy and excitement to your event! We're honored to help make your celebration unforgettable.
+      </p>
+      <p class="contact-info">
+        If you have any questions, contact us at <strong>(313) 889-3860</strong> or visit us at <strong>4426 Woodward Ave, Wayne, MI 48184</strong>.
+      </p>
+    </div>
+
+    <a href="/" class="btn">Back to Home</a>
+  </div>
+
+  <script>
+    console.log('✅ Deposit confirmation page loaded');
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const orderId = urlParams.get('orderId');
+    const sessionId = urlParams.get('session_id');
+
+    console.log('Order ID:', orderId);
+    console.log('Session ID:', sessionId);
+
+    async function loadOrderDetails() {
+      if (!orderId) {
+        document.getElementById('order-details').innerHTML = '<p style="color: #e53e3e;">Error: No order ID provided</p>';
+        return;
+      }
+
+      try {
+        const supabaseUrl = 'https://qaagfafagdpgzcijnfbw.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFhYWdmYWZhZ2RwZ3pjaWpuZmJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk1MDE1NDQsImV4cCI6MjA3NTA3NzU0NH0.CHVspZUadsHBDCQO5sQmJBOW9V9j8bpWc5F13rX5Mho';
+
+        const response = await fetch(
+          `${supabaseUrl}/rest/v1/orders?id=eq.${orderId}&select=id,event_date,deposit_paid_cents,balance_due_cents,customer:customers!customer_id(email)`,
+          {
+            headers: {
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`
+            }
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch order details');
+        }
+
+        const orders = await response.json();
+        if (orders.length === 0) {
+          throw new Error('Order not found');
+        }
+
+        const order = orders[0];
+
+        const eventDate = new Date(order.event_date).toLocaleDateString('en-US', {
+          month: '2-digit',
+          day: '2-digit',
+          year: 'numeric'
+        });
+
+        const depositPaid = (order.deposit_paid_cents / 100).toFixed(2);
+        const balanceDue = (order.balance_due_cents / 100).toFixed(2);
+        const customerEmail = order.customer?.email || 'N/A';
+        const orderIdShort = order.id.slice(0, 8).toUpperCase();
+
+        document.getElementById('order-details').innerHTML = `
+          <div class="details-section">
+            <div class="details-grid">
+              <div class="detail-item">
+                <div class="detail-label">Order ID</div>
+                <div class="detail-value">${orderIdShort}</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Event Date</div>
+                <div class="detail-value">${eventDate}</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Deposit Paid</div>
+                <div class="detail-value highlight">$${depositPaid}</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Balance Due</div>
+                <div class="detail-value">$${balanceDue}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="info-banner">
+            <p>A confirmation email has been sent to <strong>${customerEmail}</strong></p>
+          </div>
+
+          <div class="message-section">
+            <p>Our admin team will review your booking request and contact you within 24 hours to confirm your delivery time window and finalize your reservation details.</p>
+            <p>If you have any questions, contact us at <strong>(313) 889-3860</strong> or visit us at <strong>4426 Woodward Ave, Wayne, MI 48184</strong>.</p>
+          </div>
+        `;
+
+      } catch (error) {
+        console.error('Error loading order details:', error);
+        document.getElementById('order-details').innerHTML = `
+          <div class="message-section">
+            <p>Your payment was successful, but we couldn't load all the details right now. You'll receive a confirmation email shortly with all your booking information.</p>
+          </div>
+        `;
+      }
+    }
+
+    loadOrderDetails();
+  </script>
+</body>
+</html>
