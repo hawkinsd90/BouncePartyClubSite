@@ -22,11 +22,11 @@ export function Invoice() {
 
   useEffect(() => {
     if (orderId) {
-      loadOrder();
+      loadOrder(orderId);
     }
   }, [orderId]);
 
-  const loadOrder = async () => {
+  const loadOrder = async (id: string) => {
     try {
       setLoading(true);
       setError(null);
@@ -42,7 +42,7 @@ export function Invoice() {
             units (*)
           )
         `)
-        .eq('id', orderId)
+        .eq('id', id)
         .single();
 
       if (orderError) throw orderError;
@@ -58,7 +58,7 @@ export function Invoice() {
       // If deposit_required = true and deposit has been paid, show success
       // If deposit_required = false, no payment needed (manual invoice)
       const depositPaid = orderData.deposit_required
-        ? orderData.deposit_paid_cents >= orderData.deposit_due_cents
+        ? (orderData.deposit_paid_cents ?? 0) >= orderData.deposit_due_cents
         : true; // No deposit required means consider it "paid"
 
       if (depositPaid && orderData.status !== 'draft') {
@@ -78,6 +78,11 @@ export function Invoice() {
   };
 
   const handlePayNow = async () => {
+    
+    if (!orderId) {
+      setError('Missing order ID for payment.');
+      return;
+    }
     setCheckingAvailability(true);
 
     try {

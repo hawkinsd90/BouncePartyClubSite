@@ -130,31 +130,43 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
   ];
 
   async function handleApprove() {
-    if (!confirm('Approve this booking? Payment will be processed and customer will be notified.')) return;
+    if (!confirm("Approve this booking? The customer's card will be charged for the deposit and they will be notified.")) {
+      return;
+    }
+
+    if (!order.stripe_customer_id || !order.stripe_payment_method_id) {
+      alert('No payment method on file. Ask the customer to complete checkout first.');
+      return;
+    }
 
     setProcessing(true);
     try {
-      const { error } = await supabase
-        .from('orders')
-        .update({
-          status: 'confirmed',
-          deposit_paid_cents: order.deposit_due_cents
-        })
-        .eq('id', order.id);
+      // 1. Call edge function to charge deposit (+ tip)
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/charge-deposit`;
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ orderId: order.id }),
+      });
 
-      if (error) throw error;
+      const data = await response.json();
 
-      await supabase
-        .from('payments')
-        .update({ status: 'succeeded' })
-        .eq('order_id', order.id)
-        .eq('status', 'pending');
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to charge card');
+      }
 
+      // 2. (Optional) Generate invoice if you still want that here
       const { data: invoiceNumberData } = await supabase.rpc('generate_invoice_number');
       const invoiceNumber = invoiceNumberData || `INV-${Date.now()}`;
 
-      const totalCents = order.subtotal_cents + order.travel_fee_cents +
-                        order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents;
+      const totalCents = order.subtotal_cents
+        + order.travel_fee_cents
+        + order.surface_fee_cents
+        + order.same_day_pickup_fee_cents
+        + order.tax_cents;
 
       await supabase.from('invoices').insert({
         invoice_number: invoiceNumber,
@@ -169,28 +181,33 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
         surface_fee_cents: order.surface_fee_cents,
         same_day_pickup_fee_cents: order.same_day_pickup_fee_cents,
         total_cents: totalCents,
-        paid_amount_cents: order.deposit_paid_cents || 0,
+        paid_amount_cents: (order.deposit_paid_cents || 0) + (order.balance_paid_cents || 0),
         payment_method: 'card',
       });
 
-      const confirmationMessage = `Hi ${order.customers?.first_name}, your booking for ${format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')} is confirmed! Order #${order.id.slice(0, 8).toUpperCase()}. We'll contact you closer to your event date. Reply to this message anytime with questions.`;
+      // 3. Send confirmation SMS
+      const confirmationMessage =
+        `Hi ${order.customers?.first_name}, your booking for ${format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')} is confirmed! ` +
+        `Order #${order.id.slice(0, 8).toUpperCase()}. We'll contact you closer to your event date. Reply to this message anytime with questions.`;
 
       try {
         await handleSendSms(confirmationMessage);
-        alert('Booking approved! Invoice generated and customer notified via SMS.');
+        alert('Booking approved, card charged, invoice generated, and customer notified via SMS.');
       } catch (smsError) {
         console.error('Error sending confirmation SMS:', smsError);
-        alert('Booking approved! Invoice generated (SMS notification failed - please contact customer manually).');
+        alert('Booking approved and card charged. SMS failed – please contact customer manually.');
       }
 
+      // 4. Refresh parent list
       onUpdate();
     } catch (error) {
       console.error('Error approving order:', error);
-      alert('Error approving order. Please try again.');
+      alert('Error approving order / charging card. Please try again.');
     } finally {
       setProcessing(false);
     }
   }
+
 
   async function handleReject(reason?: string) {
     if (!reason) {

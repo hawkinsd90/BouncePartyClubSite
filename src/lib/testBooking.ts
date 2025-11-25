@@ -247,7 +247,7 @@ export async function createTestBooking() {
       city: randomAddress.city,
       zip: randomAddress.zip_code,
       has_generator: false,
-      rules: pricingRules,
+      rules: pricingRules as any,
     });
 
     console.log('💰 [TEST BOOKING] Price calculation:', priceCalculation);

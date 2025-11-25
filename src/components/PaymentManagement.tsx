@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CreditCard, DollarSign, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { formatCurrency } from '../lib/pricing';
+import { supabase } from '../lib/supabase';
 
 interface Payment {
   id: string;
@@ -61,18 +62,16 @@ export function PaymentManagement({ order, payments, onRefresh }: PaymentManagem
 
     try {
       const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-charge`;
+      const { data: { session } } = await supabase.auth.getSession();
+      const jwt = session?.access_token;
+
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Authorization': `Bearer ${jwt}`, // ← signed-in user's JWT
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          orderId: order.id,
-          amountCents,
-          paymentType: chargeType,
-          description: chargeDescription || `${chargeType} charge`,
-        }),
+        body: JSON.stringify({ /* ... */ }),
       });
 
       const data = await response.json();

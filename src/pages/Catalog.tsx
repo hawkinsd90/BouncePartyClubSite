@@ -8,7 +8,7 @@ interface Unit {
   slug: string;
   name: string;
   type: string;
-  is_combo: boolean;
+  is_combo: boolean | null;
   price_dry_cents: number;
   price_water_cents: number | null;
   dimensions: string;

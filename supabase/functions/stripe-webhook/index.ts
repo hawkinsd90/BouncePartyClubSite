@@ -13,13 +13,10 @@ const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
 });
 
 Deno.serve(async (req: Request) => {
-  console.log('🎯 [WEBHOOK] Received request:', req.method);
+  console.log("🧲 [WEBHOOK] Received request:", req.method);
 
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders,
-    });
+    return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
@@ -27,31 +24,28 @@ Deno.serve(async (req: Request) => {
     const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
     const signature = req.headers.get("stripe-signature");
 
-    console.log('📋 [WEBHOOK] Has webhook secret:', !!webhookSecret);
-    console.log('📋 [WEBHOOK] Has signature:', !!signature);
+    console.log("🔐 [WEBHOOK] Has webhook secret:", !!webhookSecret);
+    console.log("🖊️ [WEBHOOK] Has signature:", !!signature);
 
     let event: Stripe.Event;
 
     if (webhookSecret && signature) {
       try {
         event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-        console.log('✅ [WEBHOOK] Signature verified');
-      } catch (err) {
+        console.log("✅ [WEBHOOK] Signature verified");
+      } catch (err: any) {
         console.error("❌ [WEBHOOK] Signature verification failed:", err.message);
-        return new Response(
-          JSON.stringify({ error: "Invalid signature" }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
+        return new Response(JSON.stringify({ error: "Invalid signature" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
     } else {
       event = JSON.parse(body);
-      console.log('⚠️ [WEBHOOK] No signature verification (dev mode)');
+      console.log("⚠️ [WEBHOOK] No signature verification (dev mode)");
     }
 
-    console.log('📨 [WEBHOOK] Event type:', event.type);
+    console.log("📨 [WEBHOOK] Event type:", event.type);
 
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -61,88 +55,104 @@ Deno.serve(async (req: Request) => {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        const orderId = session.metadata?.order_id;
+        const orderId = session.metadata?.order_id || null;
 
-        console.log('💳 [WEBHOOK] Checkout session completed');
-        console.log('💳 [WEBHOOK] Order ID:', orderId);
-        console.log('💳 [WEBHOOK] Amount total:', session.amount_total);
-        console.log('💳 [WEBHOOK] Payment status:', session.payment_status);
+        // Safely pull customer + PI
+        const stripeCustomerId =
+          typeof session.customer === "string"
+            ? session.customer
+            : (session.customer as any)?.id || null;
+
+        const piId = session.payment_intent as string | null;
+        let paymentMethodId: string | null = null;
+        let amountPaid = session.amount_total || 0;
+
+        if (piId) {
+          const pi = await stripe.paymentIntents.retrieve(piId, {
+            expand: ["payment_method"],
+          });
+          if (typeof pi.payment_method === "string") {
+            paymentMethodId = pi.payment_method;
+          } else if (pi.payment_method?.id) {
+            paymentMethodId = pi.payment_method.id;
+          }
+          amountPaid = pi.amount_received || session.amount_total || 0;
+        }
+
+        // Separate tip for deposit accounting (optional)
+        const tipCents = parseInt(session.metadata?.tip_cents || "0", 10);
+        const depositOnly = Math.max(
+          0,
+          amountPaid - (Number.isFinite(tipCents) ? tipCents : 0)
+        );
 
         if (orderId) {
-          console.log('📝 [WEBHOOK] Updating order in database...');
-
-          const { data, error } = await supabaseClient
+          await supabaseClient
             .from("orders")
             .update({
               stripe_payment_status: "paid",
-              stripe_payment_method_id: session.payment_method as string,
-              deposit_paid_cents: session.amount_total || 0,
+              stripe_payment_method_id: paymentMethodId,
+              stripe_customer_id: stripeCustomerId,
+              deposit_paid_cents: depositOnly,
               status: "pending_review",
             })
-            .eq("id", orderId)
-            .select();
+            .eq("id", orderId);
 
-          if (error) {
-            console.error('❌ [WEBHOOK] Failed to update order:', error);
-          } else {
-            console.log('✅ [WEBHOOK] Order updated successfully:', data);
-          }
-
-          try {
-            const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-            await fetch(`${supabaseUrl}/functions/v1/send-sms-notification`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-              },
-              body: JSON.stringify({
-                orderId: orderId,
-                templateKey: "booking_received_admin",
-              }),
-            });
-          } catch (smsError) {
-            console.error("Failed to send SMS notification:", smsError);
+          if (piId) {
+            await supabaseClient
+              .from("payments")
+              .update({ status: "succeeded" })
+              .eq("stripe_payment_intent_id", piId);
           }
         }
-
         break;
       }
 
       case "payment_intent.succeeded": {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
-        const orderId = paymentIntent.metadata.order_id;
-        const paymentType = paymentIntent.metadata.payment_type;
+        const orderId = paymentIntent.metadata?.order_id || null;
+        const paymentType = paymentIntent.metadata?.payment_type || null;
 
+        // Mark the payment row as succeeded
         await supabaseClient
           .from("payments")
           .update({ status: "succeeded" })
           .eq("stripe_payment_intent_id", paymentIntent.id);
 
         if (orderId && paymentType === "deposit") {
-          const paymentMethodId = paymentIntent.payment_method as string;
+          const paymentMethodId =
+            typeof paymentIntent.payment_method === "string"
+              ? paymentIntent.payment_method
+              : (paymentIntent.payment_method as any)?.id || null;
+
+          const stripeCustomerId =
+            typeof paymentIntent.customer === "string"
+              ? paymentIntent.customer
+              : (paymentIntent.customer as any)?.id || null;
+
+          const amountReceived =
+            (paymentIntent as any).amount_received ?? paymentIntent.amount ?? 0;
 
           await supabaseClient
             .from("orders")
             .update({
-              stripe_payment_method_id: paymentMethodId,
-              deposit_paid_cents: paymentIntent.amount,
               stripe_payment_status: "paid",
+              stripe_payment_method_id: paymentMethodId,
+              stripe_customer_id: stripeCustomerId,
+              deposit_paid_cents: amountReceived,
+              status: "pending_review",
             })
             .eq("id", orderId);
         }
-
         break;
       }
 
       case "payment_intent.payment_failed": {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
-
         await supabaseClient
           .from("payments")
           .update({ status: "failed" })
           .eq("stripe_payment_intent_id", paymentIntent.id);
-
         break;
       }
 
@@ -150,22 +160,25 @@ Deno.serve(async (req: Request) => {
         const charge = event.data.object as Stripe.Charge;
         const paymentIntentId = charge.payment_intent as string;
 
+        // Link refund to order via original payment row
         const { data: payment } = await supabaseClient
           .from("payments")
-          .select("*")
+          .select("order_id")
           .eq("stripe_payment_intent_id", paymentIntentId)
           .single();
 
-        if (payment) {
-          await supabaseClient.from("payments").insert({
+        if (payment?.order_id) {
+          // Record a refund entry (your schema: order_refunds)
+          await supabaseClient.from("order_refunds").insert({
             order_id: payment.order_id,
-            stripe_payment_intent_id: paymentIntentId,
-            amount_cents: -charge.amount_refunded,
-            payment_type: "refund",
-            status: "succeeded",
-            description: `Refund for ${payment.payment_type}`,
+            amount_cents: charge.amount_refunded || 0,
+            reason: charge.reason || "refund",
+            stripe_refund_id: (charge.refunds?.data?.[0]?.id as string) || null,
+            refunded_by: null,
+            status: charge.refunded ? "succeeded" : "pending",
           });
 
+          // Update running total on the order
           const { data: order } = await supabaseClient
             .from("orders")
             .select("total_refunded_cents")
@@ -176,31 +189,30 @@ Deno.serve(async (req: Request) => {
             await supabaseClient
               .from("orders")
               .update({
-                total_refunded_cents: (order.total_refunded_cents || 0) + charge.amount_refunded,
+                total_refunded_cents:
+                  (order.total_refunded_cents || 0) +
+                  (charge.amount_refunded || 0),
               })
               .eq("id", payment.order_id);
           }
         }
-
         break;
       }
+
+      default:
+        // No-op for other event types
+        break;
     }
 
-    return new Response(
-      JSON.stringify({ received: true }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
-  } catch (error) {
+    return new Response(JSON.stringify({ received: true }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (error: any) {
     console.error("Webhook error:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
