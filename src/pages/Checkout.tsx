@@ -15,7 +15,7 @@ interface OrderDetails {
   };
 }
 
-export function PaymentComplete() {
+export function Checkout() {
   const [searchParams] = useSearchParams();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);

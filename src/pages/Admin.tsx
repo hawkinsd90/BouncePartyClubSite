@@ -3,19 +3,30 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../lib/pricing';
 import { Package, DollarSign, FileText, Download, CreditCard as Edit2, Trash2, Plus } from 'lucide-react';
-import { format } from 'date-fns';
 import { ContactsList } from '../components/ContactsList';
 import { InvoicesList } from '../components/InvoicesList';
 import { OrdersManager } from '../components/OrdersManager';
 import { InvoiceBuilder } from '../components/InvoiceBuilder';
 import { PendingOrderCard } from '../components/PendingOrderCard';
 
+type AdminTab =
+  | 'overview'
+  | 'pending'
+  | 'inventory'
+  | 'orders'
+  | 'contacts'
+  | 'invoices'
+  | 'settings'
+  | 'changelog'
+  | 'calculator'
+  | 'pricing'
+  | 'sms_templates';
+
 function AdminDashboard() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const tabFromUrl = searchParams.get('tab') as 'overview' | 'pending' | 'inventory' | 'orders' | 'contacts' | 'invoices' | 'settings' | 'changelog' | 'calculator' | null;
-  const [activeTab, setActiveTab] = useState<'overview' | 'pending' | 'inventory' | 'orders' | 'contacts' | 'invoices' | 'settings' | 'changelog' | 'calculator'>(tabFromUrl || 'pending');
-  const [units, setUnits] = useState<any[]>([]);
+  const tabFromUrl = searchParams.get('tab') as AdminTab | null;
+  const [activeTab, setActiveTab] = useState<AdminTab>(tabFromUrl || 'pending');const [units, setUnits] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [pricingRules, setPricingRules] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -45,7 +56,8 @@ function AdminDashboard() {
     }
   }, [tabFromUrl]);
 
-  function changeTab(tab: 'overview' | 'pending' | 'inventory' | 'orders' | 'contacts' | 'invoices' | 'settings' | 'changelog' | 'calculator') {
+  
+  function changeTab(tab: AdminTab) {
     setActiveTab(tab);
     setSearchParams({ tab });
   }
