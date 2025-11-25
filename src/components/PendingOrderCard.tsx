@@ -511,9 +511,9 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
               {formatCurrency((order.deposit_paid_cents || 0) + (order.balance_paid_cents || 0))}
             </div>
             <div className="text-xs text-green-700 mt-1 space-y-0.5">
-              <div>Deposit: {formatCurrency(order.deposit_paid_cents || 0)}</div>
+              <div>Deposit: {formatCurrency((order.deposit_paid_cents || 0) - (order.tip_cents || 0))}</div>
               <div>Balance: {formatCurrency(order.balance_paid_cents || 0)}</div>
-              {order.tip_cents > 0 && (
+              {(order.tip_cents || 0) > 0 && (
                 <div className="pt-1 border-t border-green-300">
                   Tip: {formatCurrency(order.tip_cents)}
                 </div>
@@ -551,27 +551,30 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
           <div className="mt-4 pt-4 border-t border-slate-200">
             <h5 className="text-sm font-semibold text-slate-700 mb-2">Payment History</h5>
             <div className="space-y-2">
-              {payments.map((payment) => (
-                <div key={payment.id} className="flex justify-between items-center p-2 bg-slate-50 rounded text-sm">
-                  <div>
-                    <div className="font-medium text-slate-900 capitalize">
-                      {payment.payment_type?.replace('_', ' ') || 'Payment'}
+              {payments.map((payment) => {
+                const paymentType = payment.payment_type || payment.type || 'payment';
+                return (
+                  <div key={payment.id} className="flex justify-between items-center p-2 bg-slate-50 rounded text-sm">
+                    <div>
+                      <div className="font-medium text-slate-900 capitalize">
+                        {paymentType.replace('_', ' ')}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {format(new Date(payment.created_at), 'MMM d, yyyy h:mm a')}
+                      </div>
                     </div>
-                    <div className="text-xs text-slate-500">
-                      {format(new Date(payment.created_at), 'MMM d, yyyy h:mm a')}
+                    <div className="text-right">
+                      <div className={`font-semibold ${
+                        payment.status === 'succeeded' ? 'text-green-600' :
+                        payment.status === 'failed' ? 'text-red-600' : 'text-slate-600'
+                      }`}>
+                        {formatCurrency(payment.amount_cents)}
+                      </div>
+                      <div className="text-xs capitalize text-slate-500">{payment.status}</div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className={`font-semibold ${
-                      payment.status === 'succeeded' ? 'text-green-600' :
-                      payment.status === 'failed' ? 'text-red-600' : 'text-slate-600'
-                    }`}>
-                      {formatCurrency(payment.amount_cents)}
-                    </div>
-                    <div className="text-xs capitalize text-slate-500">{payment.status}</div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
