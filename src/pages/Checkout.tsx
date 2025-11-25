@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
 interface OrderDetails {
@@ -16,7 +16,9 @@ interface OrderDetails {
 }
 
 export function Checkout() {
+  const { orderId } = useParams<{ orderId: string }>();
   const [searchParams] = useSearchParams();
+  const sessionId = searchParams.get('session_id');
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
   const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
@@ -138,9 +140,6 @@ export function Checkout() {
     const updateOrder = async () => {
       console.log('� [PAYMENT-COMPLETE] Component mounted');
 
-      const orderId = searchParams.get('orderId');
-      const sessionId = searchParams.get('session_id');
-
       console.log('� [PAYMENT-COMPLETE] Order ID:', orderId);
       console.log('� [PAYMENT-COMPLETE] Session ID:', sessionId);
 
@@ -157,8 +156,9 @@ export function Checkout() {
         console.log('� [PAYMENT-COMPLETE] Calling stripe-checkout edge function (webhook mode)...');
 
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+
         const response = await fetch(
-          `${supabaseUrl}/functions/v1/stripe-checkout?action=webhook&orderId=${orderId}&session_id=${sessionId}`,
+          `${supabaseUrl}/functions/v1/stripe-checkout?action=webhook&orderId=${orderId}&session_id=${sessionId ?? ''}`,
           {
             method: 'GET',
             headers: {
@@ -178,11 +178,9 @@ export function Checkout() {
         const result = await response.json();
         console.log('✅ [PAYMENT-COMPLETE] Edge function response:', result);
 
-        // Fetch fresh order details for display + notifications
         const { data: order, error: orderError } = await supabase
           .from('orders')
-          .select(
-            `
+          .select(`
             id,
             event_date,
             deposit_due_cents,
@@ -193,8 +191,7 @@ export function Checkout() {
               email,
               phone
             )
-          `
-          )
+          `)
           .eq('id', orderId)
           .single();
 
@@ -203,14 +200,11 @@ export function Checkout() {
         } else {
           const typedOrder = order as unknown as OrderDetails;
           setOrderDetails(typedOrder);
-
-          // Send SMS + email exactly once per order
           await sendNotificationsIfNeeded(typedOrder);
         }
 
         setStatus('success');
 
-        // Close window after short delay
         setTimeout(() => {
           console.log('� [PAYMENT-COMPLETE] Closing window...');
           window.close();
@@ -223,7 +217,8 @@ export function Checkout() {
     };
 
     updateOrder();
-  }, [searchParams]);
+  }, [orderId, sessionId]);
+
 
   // LOADING UI
   if (status === 'loading') {

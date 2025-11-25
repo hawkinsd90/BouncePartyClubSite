@@ -7,8 +7,13 @@ export function PaymentCanceled() {
   const orderId = searchParams.get('orderId');
 
   const handleRetry = () => {
-    navigate('/checkout');
+    if (orderId) {
+      navigate(`/checkout/${orderId}`);
+    } else {
+      navigate('/quote');
+    }
   };
+
 
   const handleCancel = () => {
     navigate('/quote');

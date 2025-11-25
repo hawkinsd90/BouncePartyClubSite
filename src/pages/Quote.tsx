@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import {
-  formatCurrency,
   calculatePrice,
   calculateDrivingDistance,
   type PricingRules,
@@ -235,19 +234,20 @@ export function Quote() {
 
     if (data) {
       setPricingRules({
-        base_radius_miles: parseFloat(data.base_radius_miles),
-        included_city_list_json: data.included_city_list_json as string[],
-        per_mile_after_base_cents: data.per_mile_after_base_cents,
-        zone_overrides_json: data.zone_overrides_json as any[],
-        surface_sandbag_fee_cents: data.surface_sandbag_fee_cents,
-        residential_multiplier: parseFloat(data.residential_multiplier),
-        commercial_multiplier: parseFloat(data.commercial_multiplier),
-        same_day_matrix_json: data.same_day_matrix_json as any[],
-        overnight_holiday_only: data.overnight_holiday_only,
-        extra_day_pct: parseFloat(data.extra_day_pct),
+        base_radius_miles: Number(data.base_radius_miles ?? 0),
+        included_city_list_json: (data.included_city_list_json as string[]) ?? [],
+        per_mile_after_base_cents: data.per_mile_after_base_cents ?? 0,
+        zone_overrides_json: (data.zone_overrides_json as any[]) ?? [],
+        surface_sandbag_fee_cents: data.surface_sandbag_fee_cents ?? 0,
+        residential_multiplier: Number(data.residential_multiplier ?? 1),
+        commercial_multiplier: Number(data.commercial_multiplier ?? 1),
+        same_day_matrix_json: (data.same_day_matrix_json as any[]) ?? [],
+        overnight_holiday_only: data.overnight_holiday_only ?? false,
+        extra_day_pct: Number(data.extra_day_pct ?? 0),
       });
     }
   }
+
 
   async function calculatePricing() {
     if (!pricingRules) return;
