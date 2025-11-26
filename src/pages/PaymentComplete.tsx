@@ -95,7 +95,7 @@ export function PaymentComplete() {
         console.log('[PAYMENT-COMPLETE] Booking confirmation email message queued.');
       }
 
-      // 3) Send SMS via edge function (best-effort; don’t break UI if it fails)
+      // 3) Send SMS to CUSTOMER via edge function (best-effort)
       if (order.customer.phone) {
         const smsMessage =
           `Hi ${order.customer.first_name}, we received your Bounce Party Club booking request for ${eventDateStr}. ` +
@@ -129,10 +129,57 @@ export function PaymentComplete() {
       } else {
         console.log('[PAYMENT-COMPLETE] No phone number on file; SMS not sent.');
       }
+
+      // 4) Send SMS notification to ADMIN
+      try {
+        const { data: adminSettings, error: adminError } = await supabase
+          .from('admin_settings')
+          .select('value')
+          .eq('key', 'admin_notification_phone')
+          .maybeSingle();
+
+        if (adminError) {
+          console.error('[PAYMENT-COMPLETE] Error fetching admin_notification_phone:', adminError);
+        } else if (adminSettings?.value) {
+          const adminPhone = adminSettings.value as string;
+
+          const adminSmsMessage =
+            `NEW BOOKING! ${order.customer.first_name} ${order.customer.last_name} ` +
+            `for ${eventDateStr}. Review in admin panel. ` +
+            `Order #${order.id.slice(0, 8).toUpperCase()}`;
+
+
+          const smsApiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
+          const adminSmsResponse = await fetch(smsApiUrl, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              to: adminPhone,
+              message: adminSmsMessage,
+              orderId: orderId,
+            }),
+          });
+
+          if (!adminSmsResponse.ok) {
+            const text = await adminSmsResponse.text();
+            console.error('[PAYMENT-COMPLETE] Admin SMS failed:', text);
+          } else {
+            console.log('[PAYMENT-COMPLETE] Admin SMS notification sent.');
+          }
+        } else {
+          console.log('[PAYMENT-COMPLETE] No admin_notification_phone configured; skipping admin SMS.');
+        }
+      } catch (adminErr) {
+        console.error('[PAYMENT-COMPLETE] Error sending admin SMS:', adminErr);
+      }
     } catch (outerErr) {
       console.error('[PAYMENT-COMPLETE] Error in sendNotificationsIfNeeded:', outerErr);
     }
   }
+
 
   useEffect(() => {
     const updateOrder = async () => {
@@ -158,7 +205,9 @@ export function PaymentComplete() {
 
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
         const response = await fetch(
-          `${supabaseUrl}/functions/v1/stripe-checkout?action=webhook&orderId=${orderId}&session_id=${sessionId}`,
+          `${supabaseUrl}/functions/v1/stripe-checkout?action=webhook&orderId=${orderId}&session_id=${encodeURIComponent(sessionId ?? '')
+
+          }`,
           {
             method: 'GET',
             headers: {

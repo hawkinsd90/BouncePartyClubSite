@@ -7,7 +7,7 @@ import { createTestBooking } from '../lib/testBooking';
 
 export function Home() {
   const navigate = useNavigate();
-  const { user, role } = useAuth();
+  const { role } = useAuth();
   const [eventDate, setEventDate] = useState('');
   const [addressData, setAddressData] = useState<any>(null);
   const [locationType, setLocationType] = useState<'residential' | 'commercial'>('residential');

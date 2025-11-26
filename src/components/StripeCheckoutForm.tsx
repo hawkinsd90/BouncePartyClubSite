@@ -338,7 +338,6 @@ function StripeElementsWrapper({ options, onSuccess, onError }: StripeElementsWr
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
   const mountCountRef = useRef(0);
-  const initializationTimeRef = useRef<number>(0);
 
   useEffect(() => {
     let mounted = true;
