@@ -2,7 +2,6 @@ import { supabase } from './supabase';
 import { addDays, format } from 'date-fns';
 import { calculateDistance, calculateDrivingDistance, calculatePrice } from './pricing';
 import { loadGoogleMapsAPI } from './googleMaps';
-import { createOrderBeforePayment } from './orderCreation';
 
 const DEVON_CONTACT = {
   first_name: 'Devon',
@@ -128,26 +127,7 @@ async function findAvailableDate() {
   throw new Error('Could not find available date within 90 days');
 }
 
-type CreateTestBookingResult =
-  | {
-      success: true;
-      date: string;
-      units: {
-        id: string;
-        name: string;
-        price_dry_cents: number;
-        quantity_available: number;
-      }[];
-      orderId?: string; // optional so existing branch can still work without it
-    }
-  | {
-      success: false;
-      error: unknown;
-    };
-
-
-export async function createTestBooking(): Promise<CreateTestBookingResult> {
-
+export async function createTestBooking() {
   console.log('🚀 [TEST BOOKING] Starting test booking creation...');
   try {
     console.log('🗺️ [TEST BOOKING] Loading Google Maps API for accurate distance calculation...');
@@ -304,39 +284,9 @@ export async function createTestBooking(): Promise<CreateTestBookingResult> {
     localStorage.setItem('test_booking_tip', '1000');
 
     console.log('✅ [TEST BOOKING] Test booking data saved to localStorage successfully!');
-    // Build billing address (same as event)
-    const billingAddress = {
-      address_line1: quoteData.address_line1,
-      address_line2: quoteData.address_line2,
-      city: quoteData.city,
-      state: quoteData.state,
-      zip: quoteData.zip,
-    };
+    console.log('🎯 [TEST BOOKING] Returning success with date:', date, 'and units:', units.map(u => u.name));
 
-    let orderId: string | undefined;
-
-    try {
-      console.log('� [TEST BOOKING] Creating order in Supabase...');
-      orderId = await createOrderBeforePayment({
-        contactData,
-        quoteData,
-        priceBreakdown,
-        cart,
-        billingAddress,
-        billingSameAsEvent: true,
-        smsConsent: true,
-      });
-
-      if (orderId) {
-        localStorage.setItem('bpc_order_id', orderId);
-        console.log('✅ [TEST BOOKING] Order created ID:', orderId);
-      } else {
-        console.warn('⚠️ [TEST BOOKING] No orderId returned from createOrderBeforePayment');
-      }
-    } catch (err) {
-      console.error('❌ [TEST BOOKING] Error creating order:', err);
-    }
-    return { success: true, date, units, orderId };
+    return { success: true, date, units };
   } catch (error) {
     console.error('❌ [TEST BOOKING] Failed to create test booking:', error);
     return { success: false, error };

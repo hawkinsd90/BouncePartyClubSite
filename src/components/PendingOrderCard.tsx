@@ -8,6 +8,8 @@ import { Edit2 } from 'lucide-react';
 export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => void }) {
   const [processing, setProcessing] = useState(false);
   const [orderItems, setOrderItems] = useState<any[]>([]);
+  const [streetViewLoaded, setStreetViewLoaded] = useState(false);
+  const [streetViewError, setStreetViewError] = useState(false);
   const [smsConversations, setSmsConversations] = useState<any[]>([]);
   const [showSmsReply, setShowSmsReply] = useState(false);
   const [replyMessage, setReplyMessage] = useState('');
@@ -55,6 +57,11 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
       .eq('order_id', order.id)
       .order('created_at', { ascending: false });
     if (data) setPayments(data);
+  }
+
+  async function handlePaymentRefresh() {
+    await loadPayments();
+    await onUpdate();
   }
 
   async function handleSendSms(customMessage?: string) {
@@ -374,6 +381,8 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
                 src={getStreetViewUrl(angle.heading)}
                 alt={angle.label}
                 className="w-full h-48 object-cover"
+                onLoad={() => setStreetViewLoaded(true)}
+                onError={() => setStreetViewError(true)}
               />
             </div>
           ))}

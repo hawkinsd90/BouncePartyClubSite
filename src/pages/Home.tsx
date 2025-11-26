@@ -7,7 +7,7 @@ import { createTestBooking } from '../lib/testBooking';
 
 export function Home() {
   const navigate = useNavigate();
-  const { role } = useAuth();
+  const { user, role } = useAuth();
   const [eventDate, setEventDate] = useState('');
   const [addressData, setAddressData] = useState<any>(null);
   const [locationType, setLocationType] = useState<'residential' | 'commercial'>('residential');
@@ -71,12 +71,7 @@ export function Home() {
                   setCreatingTestBooking(false);
                   if (result.success) {
                     console.log('✅ [HOME] Test booking created successfully, navigating to /checkout');
-                    if (result.orderId) {
-                      navigate(`/checkout/${result.orderId}`);
-                    } else {
-                      console.warn('[HOME] Test booking succeeded but no orderId was returned');
-                      alert('Test booking created, but no order ID was returned. Please check the console/logs.');
-                    }
+                    navigate('/checkout');
                   } else {
                     console.error('❌ [HOME] Test booking failed:', result.error);
                     alert('Failed to create test booking: ' + result.error);

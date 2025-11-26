@@ -37,6 +37,7 @@ function App() {
             <Route path="units/:slug" element={<UnitDetail />} />
             <Route path="quote" element={<Quote />} />
             <Route path="contact" element={<Contact />} />
+            <Route path="checkout" element={<Checkout />} />
             <Route path="about" element={<About />} />
             <Route
               path="admin"
