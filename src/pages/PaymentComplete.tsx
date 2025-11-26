@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { Home } from 'lucide-react';
 
 interface OrderDetails {
   id: string;
@@ -17,6 +18,7 @@ interface OrderDetails {
 
 export function PaymentComplete() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
   const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
@@ -56,43 +58,111 @@ export function PaymentComplete() {
         }
       );
 
-      // 2) Create email payload (stored in messages table; your backend mailer sends it)
-      const emailPayload = {
-        subject: 'We received your Bounce Party Club booking request!',
-        greeting: `Hi ${fullName},`,
-        intro:
-          'Thanks for booking with Bounce Party Club! This email confirms that we’ve received your booking request and are reviewing the details.',
-        event_summary: {
-          event_date: eventDateStr,
-          deposit_amount: (order.deposit_due_cents / 100).toFixed(2),
-          balance_due: (order.balance_due_cents / 100).toFixed(2),
-          order_id: order.id.slice(0, 8).toUpperCase(),
-        },
-        next_steps: [
-          'Our team will review your event details and confirm availability.',
-          'You’ll receive a follow-up message within 24 hours with your delivery window and final confirmation.',
-          'Your card will only be charged for the deposit once your booking is approved.',
-        ],
-        footer: {
-          phone: '(313) 889-3860',
-          address: '4426 Woodward Ave, Wayne, MI 48184',
-          tagline: 'Thank you for choosing Bounce Party Club to bring energy and excitement to your event!',
-        },
-      };
+      // 2) Send formatted HTML email via Resend
+      const emailHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Booking Request Received - Bounce Party Club</title>
+        </head>
+        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 20px;">
+            <tr>
+              <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                  <tr>
+                    <td style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 40px 30px; text-align: center;">
+                      <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: bold;">Bounce Party Club</h1>
+                      <p style="margin: 10px 0 0; color: #e0f2fe; font-size: 16px;">Request Received!</p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 40px 30px;">
+                      <h2 style="margin: 0 0 20px; color: #1e293b; font-size: 24px;">Hi ${fullName},</h2>
+                      <p style="margin: 0 0 20px; color: #475569; font-size: 16px; line-height: 1.6;">
+                        Thank you for choosing Bounce Party Club! We've received your booking request and are reviewing the details.
+                      </p>
 
-      const { error: insertMsgError } = await supabase.from('messages').insert({
-        order_id: orderId,
-        to_email: order.customer.email,
-        channel: 'email',
-        template_key: 'booking_request_confirmation',
-        payload_json: emailPayload,
-        status: 'pending',
-      });
+                      <div style="background-color: #f8fafc; border-radius: 8px; padding: 24px; margin: 30px 0;">
+                        <h3 style="margin: 0 0 16px; color: #1e293b; font-size: 18px; font-weight: 600;">Event Summary</h3>
+                        <table width="100%" cellpadding="8" cellspacing="0">
+                          <tr>
+                            <td style="color: #64748b; font-size: 14px; padding: 8px 0;">Order ID:</td>
+                            <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right; padding: 8px 0;">${order.id.slice(0, 8).toUpperCase()}</td>
+                          </tr>
+                          <tr>
+                            <td style="color: #64748b; font-size: 14px; padding: 8px 0;">Event Date:</td>
+                            <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right; padding: 8px 0;">${eventDateStr}</td>
+                          </tr>
+                          <tr>
+                            <td style="color: #64748b; font-size: 14px; padding: 8px 0;">Deposit:</td>
+                            <td style="color: #10b981; font-size: 14px; font-weight: 600; text-align: right; padding: 8px 0;">$${(order.deposit_due_cents / 100).toFixed(2)}</td>
+                          </tr>
+                          <tr>
+                            <td style="color: #64748b; font-size: 14px; padding: 8px 0;">Balance Due:</td>
+                            <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right; padding: 8px 0;">$${(order.balance_due_cents / 100).toFixed(2)}</td>
+                          </tr>
+                        </table>
+                      </div>
 
-      if (insertMsgError) {
-        console.error('[PAYMENT-COMPLETE] Error inserting booking confirmation email message:', insertMsgError);
-      } else {
-        console.log('[PAYMENT-COMPLETE] Booking confirmation email message queued.');
+                      <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 16px; margin: 30px 0; border-radius: 4px;">
+                        <h3 style="margin: 0 0 12px; color: #1e40af; font-size: 16px; font-weight: 600;">Next Steps</h3>
+                        <ul style="margin: 0; padding-left: 20px; color: #1e40af; font-size: 14px; line-height: 1.8;">
+                          <li>Our team will review your event details and confirm availability.</li>
+                          <li>You'll receive a follow-up message within 24 hours with your delivery window and final confirmation.</li>
+                          <li>Your card will only be charged for the deposit once your booking is approved.</li>
+                        </ul>
+                      </div>
+
+                      <p style="margin: 30px 0 0; color: #475569; font-size: 14px; line-height: 1.6;">
+                        If you have any questions, please don't hesitate to reach out to us at <strong style="color: #1e293b;">(313) 889-3860</strong> or visit us at <strong style="color: #1e293b;">4426 Woodward Ave, Wayne, MI 48184</strong>.
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="background-color: #f8fafc; padding: 30px; text-align: center; border-top: 1px solid #e2e8f0;">
+                      <p style="margin: 0 0 10px; color: #64748b; font-size: 14px; font-weight: 600;">Bounce Party Club</p>
+                      <p style="margin: 0; color: #94a3b8; font-size: 12px; line-height: 1.6;">
+                        Thank you for choosing Bounce Party Club to bring energy and excitement to your event!
+                      </p>
+                      <p style="margin: 15px 0 0; color: #94a3b8; font-size: 12px;">
+                        (313) 889-3860 | 4426 Woodward Ave, Wayne, MI 48184
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
+      `;
+
+      try {
+        const emailApiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`;
+        const emailResponse = await fetch(emailApiUrl, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: order.customer.email,
+            subject: '✅ We received your Bounce Party Club booking request!',
+            html: emailHtml,
+          }),
+        });
+
+        if (!emailResponse.ok) {
+          const emailText = await emailResponse.text();
+          console.error('[PAYMENT-COMPLETE] Email notification failed:', emailText);
+        } else {
+          console.log('[PAYMENT-COMPLETE] Email notification sent successfully.');
+        }
+      } catch (emailErr) {
+        console.error('[PAYMENT-COMPLETE] Error sending email notification:', emailErr);
       }
 
       // 3) Send SMS to CUSTOMER via edge function (best-effort)
@@ -171,6 +241,72 @@ export function PaymentComplete() {
           }
         } else {
           console.log('[PAYMENT-COMPLETE] No admin_notification_phone configured; skipping admin SMS.');
+        }
+
+        // Also send admin email
+        const { data: adminEmailSettings } = await supabase
+          .from('admin_settings')
+          .select('value')
+          .eq('key', 'admin_email')
+          .maybeSingle();
+
+        if (adminEmailSettings?.value) {
+          const adminEmail = adminEmailSettings.value as string;
+          const adminEmailHtml = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <title>New Booking Request</title>
+            </head>
+            <body style="font-family: Arial, sans-serif; padding: 20px; background-color: #f3f4f6;">
+              <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <h2 style="color: #dc2626; margin: 0 0 20px;">🎉 New Booking Request!</h2>
+                <div style="background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0;">
+                  <h3 style="margin: 0 0 10px; color: #991b1b;">Customer Information</h3>
+                  <p style="margin: 5px 0;"><strong>Name:</strong> ${order.customer.first_name} ${order.customer.last_name}</p>
+                  <p style="margin: 5px 0;"><strong>Email:</strong> ${order.customer.email}</p>
+                  ${order.customer.phone ? `<p style="margin: 5px 0;"><strong>Phone:</strong> ${order.customer.phone}</p>` : ''}
+                </div>
+                <div style="background-color: #f0f9ff; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0;">
+                  <h3 style="margin: 0 0 10px; color: #1e40af;">Event Details</h3>
+                  <p style="margin: 5px 0;"><strong>Order ID:</strong> ${order.id.slice(0, 8).toUpperCase()}</p>
+                  <p style="margin: 5px 0;"><strong>Event Date:</strong> ${eventDateStr}</p>
+                  <p style="margin: 5px 0;"><strong>Deposit:</strong> $${(order.deposit_due_cents / 100).toFixed(2)}</p>
+                  <p style="margin: 5px 0;"><strong>Balance Due:</strong> $${(order.balance_due_cents / 100).toFixed(2)}</p>
+                </div>
+                <p style="margin: 30px 0 0; padding: 20px; background-color: #fffbeb; border-radius: 6px; color: #92400e;">
+                  <strong>Action Required:</strong> Please review this booking request in the admin panel and confirm availability.
+                </p>
+              </div>
+            </body>
+            </html>
+          `;
+
+          try {
+            const emailApiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`;
+            const adminEmailResponse = await fetch(emailApiUrl, {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                to: adminEmail,
+                subject: `🎉 New Booking Request - Order #${order.id.slice(0, 8).toUpperCase()}`,
+                html: adminEmailHtml,
+              }),
+            });
+
+            if (!adminEmailResponse.ok) {
+              const text = await adminEmailResponse.text();
+              console.error('[PAYMENT-COMPLETE] Admin email failed:', text);
+            } else {
+              console.log('[PAYMENT-COMPLETE] Admin email notification sent.');
+            }
+          } catch (emailErr) {
+            console.error('[PAYMENT-COMPLETE] Error sending admin email:', emailErr);
+          }
         }
       } catch (adminErr) {
         console.error('[PAYMENT-COMPLETE] Error sending admin SMS:', adminErr);
@@ -258,6 +394,14 @@ export function PaymentComplete() {
         }
 
         setStatus('success');
+
+        // Clear cart and order data from localStorage
+        console.log('� [PAYMENT-COMPLETE] Clearing localStorage data...');
+        localStorage.removeItem('bpc_cart');
+        localStorage.removeItem('bpc_quote_form');
+        localStorage.removeItem('bpc_price_breakdown');
+        localStorage.removeItem('bpc_contact_data');
+        localStorage.removeItem('test_booking_tip');
 
         // Close window after short delay
         setTimeout(() => {
@@ -393,6 +537,16 @@ export function PaymentComplete() {
         </div>
 
         <div className="mt-8 text-center">
+          <button
+            onClick={() => navigate('/')}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+          >
+            <Home className="w-5 h-5" />
+            Back to Home
+          </button>
+        </div>
+
+        <div className="mt-4 text-center">
           <p className="text-xs text-slate-400">This window will close automatically...</p>
         </div>
       </div>

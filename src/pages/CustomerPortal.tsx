@@ -139,6 +139,31 @@ export function CustomerPortal() {
   const balanceDue = order.balance_due_cents - (order.balance_paid_cents || 0);
   const needsWaiver = !order.waiver_signed_at;
   const needsPayment = balanceDue > 0;
+  const needsApproval = order.status === 'awaiting_customer_approval';
+
+  async function handleApproveChanges() {
+    if (!confirm('Do you approve these order changes? The order will be sent back to our team for final confirmation.')) {
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: 'pending_review' })
+        .eq('id', orderId);
+
+      if (error) throw error;
+
+      alert('Thank you! Your approval has been received. Our team will finalize your booking shortly.');
+      await loadOrder();
+    } catch (error) {
+      console.error('Error approving changes:', error);
+      alert('Failed to approve changes');
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -150,9 +175,59 @@ export function CustomerPortal() {
             <p className="text-sm opacity-90">
               Event Date: {format(new Date(order.event_date), 'MMMM d, yyyy')} at {order.start_window}
             </p>
+            {needsApproval && (
+              <div className="mt-3 bg-amber-500 text-white px-4 py-2 rounded-lg">
+                <p className="font-semibold">⚠️ Action Required: Please review and approve order changes</p>
+              </div>
+            )}
           </div>
 
           <div className="px-8 py-6">
+            {needsApproval && (
+              <div className="mb-8 bg-amber-50 border-2 border-amber-400 rounded-xl p-6">
+                <h2 className="text-xl font-bold text-amber-900 mb-4">📝 Order Changes Need Your Approval</h2>
+                <p className="text-amber-800 mb-4">
+                  We've made updates to your booking. Please review the details below and approve the changes to proceed.
+                </p>
+                <div className="bg-white rounded-lg p-4 mb-4">
+                  <h3 className="font-semibold text-slate-900 mb-3">Updated Order Details:</h3>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-slate-600">Event Date:</p>
+                      <p className="font-medium">{format(new Date(order.event_date), 'MMMM d, yyyy')}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-600">Time Window:</p>
+                      <p className="font-medium">{order.start_window} - {order.end_window}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-600">Location:</p>
+                      <p className="font-medium">{order.addresses?.line1}, {order.addresses?.city}, {order.addresses?.state}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-600">Total Amount:</p>
+                      <p className="font-medium">{formatCurrency(order.deposit_due_cents + order.balance_due_cents)}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleApproveChanges}
+                    disabled={submitting}
+                    className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+                  >
+                    {submitting ? 'Processing...' : '✓ Approve Changes'}
+                  </button>
+                  <a
+                    href="tel:+13138893860"
+                    className="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors text-center"
+                  >
+                    📞 Call to Discuss
+                  </a>
+                </div>
+              </div>
+            )}
+
             <div className="mb-6">
               <h2 className="text-lg font-semibold text-slate-900 mb-4">Complete These Steps</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
