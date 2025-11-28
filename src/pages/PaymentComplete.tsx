@@ -96,7 +96,9 @@ export function PaymentComplete() {
       `).join('');
 
       // Send formatted HTML email via Resend with logo
-      const logoUrl = `${window.location.origin}/bounce%20party%20club%20logo.png`;
+      // Use production URL or fallback to current origin for logo
+      const siteUrl = import.meta.env.VITE_SITE_URL || window.location.origin;
+      const logoUrl = `${siteUrl}/bounce%20party%20club%20logo.png`;
 
       const emailHtml = `
         <!DOCTYPE html>
@@ -329,7 +331,7 @@ export function PaymentComplete() {
             body: JSON.stringify({
               to: adminPhone,
               message: adminSmsMessage,
-              orderId: orderId,
+              // Don't link admin notifications to order - they shouldn't appear in customer SMS conversation
             }),
           });
 
