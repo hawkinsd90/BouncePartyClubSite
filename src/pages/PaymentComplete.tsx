@@ -8,12 +8,36 @@ interface OrderDetails {
   event_date: string;
   deposit_due_cents: number;
   balance_due_cents: number;
+  subtotal_cents: number;
+  travel_fee_cents: number;
+  surface_fee_cents: number;
+  same_day_pickup_fee_cents: number;
+  tax_cents: number;
+  tip_cents: number;
+  start_window: string;
+  end_window: string;
+  location_type: string;
+  surface: string;
   customer: {
     first_name: string;
     last_name: string;
     email: string;
     phone?: string;
   };
+  addresses: {
+    line1: string;
+    city: string;
+    state: string;
+    zip: string;
+  };
+  order_items: Array<{
+    qty: number;
+    wet_or_dry: string;
+    unit_price_cents: number;
+    units: {
+      name: string;
+    };
+  }>;
 }
 
 export function PaymentComplete() {
@@ -58,77 +82,153 @@ export function PaymentComplete() {
         }
       );
 
-      // 2) Send formatted HTML email via Resend
+      // 2) Build order items list
+      const orderItemsHtml = order.order_items.map(item => `
+        <tr>
+          <td style="padding: 12px 0; border-bottom: 1px solid #e2e8f0;">
+            <span style="color: #1e293b; font-weight: 500;">${item.qty}x ${item.units.name}</span>
+            <span style="color: #64748b; font-size: 13px;"> (${item.wet_or_dry === 'water' ? 'Wet' : 'Dry'})</span>
+          </td>
+          <td style="padding: 12px 0; border-bottom: 1px solid #e2e8f0; text-align: right; color: #1e293b;">
+            $${((item.unit_price_cents * item.qty) / 100).toFixed(2)}
+          </td>
+        </tr>
+      `).join('');
+
+      // Send formatted HTML email via Resend with logo
+      const logoUrl = `${window.location.origin}/bounce%20party%20club%20logo.png`;
+
       const emailHtml = `
         <!DOCTYPE html>
         <html>
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Booking Request Received - Bounce Party Club</title>
+          <title>Booking Request Received</title>
         </head>
-        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 20px;">
+        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 40px 20px;">
             <tr>
               <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: 2px solid #3b82f6;">
+                  <!-- Logo Header -->
                   <tr>
-                    <td style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 40px 30px; text-align: center;">
-                      <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: bold;">Bounce Party Club</h1>
-                      <p style="margin: 10px 0 0; color: #e0f2fe; font-size: 16px;">Request Received!</p>
+                    <td style="background-color: #ffffff; padding: 30px; text-align: center; border-bottom: 2px solid #3b82f6;">
+                      <img src="${logoUrl}" alt="Bounce Party Club" style="height: 80px; width: auto;" />
+                      <h1 style="margin: 15px 0 0; color: #1e293b; font-size: 24px; font-weight: bold;">Booking Request Received!</h1>
                     </td>
                   </tr>
+
+                  <!-- Main Content -->
                   <tr>
-                    <td style="padding: 40px 30px;">
-                      <h2 style="margin: 0 0 20px; color: #1e293b; font-size: 24px;">Hi ${fullName},</h2>
-                      <p style="margin: 0 0 20px; color: #475569; font-size: 16px; line-height: 1.6;">
+                    <td style="padding: 30px;">
+                      <p style="margin: 0 0 20px; color: #1e293b; font-size: 16px;">Hi ${fullName},</p>
+                      <p style="margin: 0 0 20px; color: #475569; font-size: 15px; line-height: 1.6;">
                         Thank you for choosing Bounce Party Club! We've received your booking request and are reviewing the details.
                       </p>
 
-                      <div style="background-color: #f8fafc; border-radius: 8px; padding: 24px; margin: 30px 0;">
-                        <h3 style="margin: 0 0 16px; color: #1e293b; font-size: 18px; font-weight: 600;">Event Summary</h3>
-                        <table width="100%" cellpadding="8" cellspacing="0">
+                      <!-- Event Information -->
+                      <div style="background-color: #eff6ff; border: 2px solid #3b82f6; border-radius: 6px; padding: 20px; margin: 25px 0;">
+                        <h3 style="margin: 0 0 15px; color: #1e40af; font-size: 16px; font-weight: 600;">Event Information</h3>
+                        <table width="100%" cellpadding="6" cellspacing="0">
                           <tr>
-                            <td style="color: #64748b; font-size: 14px; padding: 8px 0;">Order ID:</td>
-                            <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right; padding: 8px 0;">${order.id.slice(0, 8).toUpperCase()}</td>
+                            <td style="color: #64748b; font-size: 14px;">Order ID:</td>
+                            <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">#${order.id.slice(0, 8).toUpperCase()}</td>
                           </tr>
                           <tr>
-                            <td style="color: #64748b; font-size: 14px; padding: 8px 0;">Event Date:</td>
-                            <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right; padding: 8px 0;">${eventDateStr}</td>
+                            <td style="color: #64748b; font-size: 14px;">Event Date:</td>
+                            <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">${eventDateStr}</td>
                           </tr>
                           <tr>
-                            <td style="color: #64748b; font-size: 14px; padding: 8px 0;">Deposit:</td>
-                            <td style="color: #10b981; font-size: 14px; font-weight: 600; text-align: right; padding: 8px 0;">$${(order.deposit_due_cents / 100).toFixed(2)}</td>
+                            <td style="color: #64748b; font-size: 14px;">Time:</td>
+                            <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">${order.start_window} - ${order.end_window}</td>
                           </tr>
                           <tr>
-                            <td style="color: #64748b; font-size: 14px; padding: 8px 0;">Balance Due:</td>
-                            <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right; padding: 8px 0;">$${(order.balance_due_cents / 100).toFixed(2)}</td>
+                            <td style="color: #64748b; font-size: 14px;">Location:</td>
+                            <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">${order.location_type}</td>
+                          </tr>
+                          <tr>
+                            <td style="color: #64748b; font-size: 14px;">Address:</td>
+                            <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">${order.addresses.line1}, ${order.addresses.city}, ${order.addresses.state}</td>
+                          </tr>
+                          <tr>
+                            <td style="color: #64748b; font-size: 14px;">Surface:</td>
+                            <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">${order.surface}</td>
                           </tr>
                         </table>
                       </div>
 
-                      <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 16px; margin: 30px 0; border-radius: 4px;">
-                        <h3 style="margin: 0 0 12px; color: #1e40af; font-size: 16px; font-weight: 600;">Next Steps</h3>
-                        <ul style="margin: 0; padding-left: 20px; color: #1e40af; font-size: 14px; line-height: 1.8;">
+                      <!-- Order Items -->
+                      <div style="margin: 25px 0;">
+                        <h3 style="margin: 0 0 15px; color: #1e293b; font-size: 16px; font-weight: 600;">Requested Items</h3>
+                        <table width="100%" cellpadding="0" cellspacing="0">
+                          ${orderItemsHtml}
+                        </table>
+                      </div>
+
+                      <!-- Cost Breakdown -->
+                      <div style="background-color: #f8fafc; border-radius: 6px; padding: 20px; margin: 25px 0;">
+                        <h3 style="margin: 0 0 15px; color: #1e293b; font-size: 16px; font-weight: 600;">Cost Breakdown</h3>
+                        <table width="100%" cellpadding="6" cellspacing="0">
+                          <tr>
+                            <td style="color: #64748b; font-size: 14px;">Subtotal:</td>
+                            <td style="color: #1e293b; font-size: 14px; text-align: right;">$${(order.subtotal_cents / 100).toFixed(2)}</td>
+                          </tr>
+                          ${order.travel_fee_cents > 0 ? `
+                          <tr>
+                            <td style="color: #64748b; font-size: 14px;">Travel Fee:</td>
+                            <td style="color: #1e293b; font-size: 14px; text-align: right;">$${(order.travel_fee_cents / 100).toFixed(2)}</td>
+                          </tr>` : ''}
+                          ${order.surface_fee_cents > 0 ? `
+                          <tr>
+                            <td style="color: #64748b; font-size: 14px;">Surface Fee:</td>
+                            <td style="color: #1e293b; font-size: 14px; text-align: right;">$${(order.surface_fee_cents / 100).toFixed(2)}</td>
+                          </tr>` : ''}
+                          ${order.same_day_pickup_fee_cents > 0 ? `
+                          <tr>
+                            <td style="color: #64748b; font-size: 14px;">Same Day Pickup:</td>
+                            <td style="color: #1e293b; font-size: 14px; text-align: right;">$${(order.same_day_pickup_fee_cents / 100).toFixed(2)}</td>
+                          </tr>` : ''}
+                          ${order.tax_cents > 0 ? `
+                          <tr>
+                            <td style="color: #64748b; font-size: 14px;">Tax:</td>
+                            <td style="color: #1e293b; font-size: 14px; text-align: right;">$${(order.tax_cents / 100).toFixed(2)}</td>
+                          </tr>` : ''}
+                          <tr style="border-top: 2px solid #e2e8f0;">
+                            <td style="color: #1e293b; font-size: 15px; font-weight: 600; padding-top: 10px;">Deposit Due:</td>
+                            <td style="color: #10b981; font-size: 15px; font-weight: 700; text-align: right; padding-top: 10px;">$${(order.deposit_due_cents / 100).toFixed(2)}</td>
+                          </tr>
+                          <tr>
+                            <td style="color: #1e293b; font-size: 15px; font-weight: 600;">Balance Due:</td>
+                            <td style="color: #1e293b; font-size: 15px; font-weight: 700; text-align: right;">$${(order.balance_due_cents / 100).toFixed(2)}</td>
+                          </tr>
+                        </table>
+                      </div>
+
+                      <!-- Next Steps -->
+                      <div style="background-color: #fef3c7; border: 2px solid #f59e0b; border-radius: 6px; padding: 18px; margin: 25px 0;">
+                        <h3 style="margin: 0 0 12px; color: #92400e; font-size: 15px; font-weight: 600;">Next Steps</h3>
+                        <ul style="margin: 0; padding-left: 20px; color: #92400e; font-size: 14px; line-height: 1.8;">
                           <li>Our team will review your event details and confirm availability.</li>
-                          <li>You'll receive a follow-up message within 24 hours with your delivery window and final confirmation.</li>
+                          <li>You'll receive a follow-up within 24 hours with your delivery window and final confirmation.</li>
                           <li>Your card will only be charged for the deposit once your booking is approved.</li>
                         </ul>
                       </div>
 
-                      <p style="margin: 30px 0 0; color: #475569; font-size: 14px; line-height: 1.6;">
-                        If you have any questions, please don't hesitate to reach out to us at <strong style="color: #1e293b;">(313) 889-3860</strong> or visit us at <strong style="color: #1e293b;">4426 Woodward Ave, Wayne, MI 48184</strong>.
+                      <p style="margin: 25px 0 0; color: #475569; font-size: 14px; line-height: 1.6;">
+                        Questions? Call us at <strong style="color: #1e293b;">(313) 889-3860</strong>
                       </p>
                     </td>
                   </tr>
+
+                  <!-- Footer -->
                   <tr>
-                    <td style="background-color: #f8fafc; padding: 30px; text-align: center; border-top: 1px solid #e2e8f0;">
-                      <p style="margin: 0 0 10px; color: #64748b; font-size: 14px; font-weight: 600;">Bounce Party Club</p>
-                      <p style="margin: 0; color: #94a3b8; font-size: 12px; line-height: 1.6;">
-                        Thank you for choosing Bounce Party Club to bring energy and excitement to your event!
+                    <td style="background-color: #f8fafc; padding: 25px; text-align: center; border-top: 2px solid #3b82f6;">
+                      <p style="margin: 0 0 5px; color: #64748b; font-size: 13px;">
+                        Bounce Party Club | (313) 889-3860
                       </p>
-                      <p style="margin: 15px 0 0; color: #94a3b8; font-size: 12px;">
-                        (313) 889-3860 | 4426 Woodward Ave, Wayne, MI 48184
+                      <p style="margin: 0; color: #94a3b8; font-size: 12px;">
+                        4426 Woodward Ave, Wayne, MI 48184
                       </p>
                     </td>
                   </tr>
@@ -150,7 +250,7 @@ export function PaymentComplete() {
           },
           body: JSON.stringify({
             to: order.customer.email,
-            subject: '✅ We received your Bounce Party Club booking request!',
+            subject: 'Booking Request Received - Bounce Party Club',
             html: emailHtml,
           }),
         });
@@ -259,23 +359,45 @@ export function PaymentComplete() {
               <meta charset="utf-8">
               <title>New Booking Request</title>
             </head>
-            <body style="font-family: Arial, sans-serif; padding: 20px; background-color: #f3f4f6;">
-              <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                <h2 style="color: #dc2626; margin: 0 0 20px;">🎉 New Booking Request!</h2>
-                <div style="background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0;">
-                  <h3 style="margin: 0 0 10px; color: #991b1b;">Customer Information</h3>
-                  <p style="margin: 5px 0;"><strong>Name:</strong> ${order.customer.first_name} ${order.customer.last_name}</p>
-                  <p style="margin: 5px 0;"><strong>Email:</strong> ${order.customer.email}</p>
-                  ${order.customer.phone ? `<p style="margin: 5px 0;"><strong>Phone:</strong> ${order.customer.phone}</p>` : ''}
+            <body style="font-family: Arial, sans-serif; padding: 20px; background-color: #f8fafc;">
+              <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: 2px solid #3b82f6;">
+                <div style="text-align: center; border-bottom: 2px solid #3b82f6; padding-bottom: 20px; margin-bottom: 25px;">
+                  <img src="${logoUrl}" alt="Bounce Party Club" style="height: 70px; width: auto;" />
+                  <h2 style="color: #dc2626; margin: 15px 0 0;">New Booking Request!</h2>
                 </div>
-                <div style="background-color: #f0f9ff; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0;">
-                  <h3 style="margin: 0 0 10px; color: #1e40af;">Event Details</h3>
-                  <p style="margin: 5px 0;"><strong>Order ID:</strong> ${order.id.slice(0, 8).toUpperCase()}</p>
-                  <p style="margin: 5px 0;"><strong>Event Date:</strong> ${eventDateStr}</p>
-                  <p style="margin: 5px 0;"><strong>Deposit:</strong> $${(order.deposit_due_cents / 100).toFixed(2)}</p>
-                  <p style="margin: 5px 0;"><strong>Balance Due:</strong> $${(order.balance_due_cents / 100).toFixed(2)}</p>
+
+                <div style="background-color: #fef2f2; border: 2px solid #dc2626; border-radius: 6px; padding: 18px; margin: 20px 0;">
+                  <h3 style="margin: 0 0 12px; color: #991b1b;">Customer Information</h3>
+                  <p style="margin: 5px 0; color: #1e293b;"><strong>Name:</strong> ${order.customer.first_name} ${order.customer.last_name}</p>
+                  <p style="margin: 5px 0; color: #1e293b;"><strong>Email:</strong> ${order.customer.email}</p>
+                  ${order.customer.phone ? `<p style="margin: 5px 0; color: #1e293b;"><strong>Phone:</strong> ${order.customer.phone}</p>` : ''}
                 </div>
-                <p style="margin: 30px 0 0; padding: 20px; background-color: #fffbeb; border-radius: 6px; color: #92400e;">
+
+                <div style="background-color: #eff6ff; border: 2px solid #3b82f6; border-radius: 6px; padding: 18px; margin: 20px 0;">
+                  <h3 style="margin: 0 0 12px; color: #1e40af;">Event Details</h3>
+                  <p style="margin: 5px 0; color: #1e293b;"><strong>Order ID:</strong> #${order.id.slice(0, 8).toUpperCase()}</p>
+                  <p style="margin: 5px 0; color: #1e293b;"><strong>Event Date:</strong> ${eventDateStr}</p>
+                  <p style="margin: 5px 0; color: #1e293b;"><strong>Time:</strong> ${order.start_window} - ${order.end_window}</p>
+                  <p style="margin: 5px 0; color: #1e293b;"><strong>Location:</strong> ${order.addresses.line1}, ${order.addresses.city}, ${order.addresses.state}</p>
+                </div>
+
+                <div style="background-color: #f8fafc; border-radius: 6px; padding: 18px; margin: 20px 0;">
+                  <h3 style="margin: 0 0 12px; color: #1e293b;">Items Requested</h3>
+                  ${order.order_items.map(item => `
+                    <p style="margin: 5px 0; color: #1e293b;">${item.qty}x ${item.units.name} (${item.wet_or_dry === 'water' ? 'Wet' : 'Dry'}) - $${((item.unit_price_cents * item.qty) / 100).toFixed(2)}</p>
+                  `).join('')}
+                </div>
+
+                <div style="background-color: #f8fafc; border-radius: 6px; padding: 18px; margin: 20px 0;">
+                  <h3 style="margin: 0 0 12px; color: #1e293b;">Financial Summary</h3>
+                  <p style="margin: 5px 0; color: #1e293b;"><strong>Subtotal:</strong> $${(order.subtotal_cents / 100).toFixed(2)}</p>
+                  ${order.travel_fee_cents > 0 ? `<p style="margin: 5px 0; color: #1e293b;"><strong>Travel Fee:</strong> $${(order.travel_fee_cents / 100).toFixed(2)}</p>` : ''}
+                  ${order.surface_fee_cents > 0 ? `<p style="margin: 5px 0; color: #1e293b;"><strong>Surface Fee:</strong> $${(order.surface_fee_cents / 100).toFixed(2)}</p>` : ''}
+                  <p style="margin: 8px 0 0; padding-top: 8px; border-top: 2px solid #e2e8f0; color: #10b981;"><strong>Deposit Due:</strong> $${(order.deposit_due_cents / 100).toFixed(2)}</p>
+                  <p style="margin: 5px 0; color: #1e293b;"><strong>Balance Due:</strong> $${(order.balance_due_cents / 100).toFixed(2)}</p>
+                </div>
+
+                <p style="margin: 25px 0 0; padding: 18px; background-color: #fef3c7; border: 2px solid #f59e0b; border-radius: 6px; color: #92400e;">
                   <strong>Action Required:</strong> Please review this booking request in the admin panel and confirm availability.
                 </p>
               </div>
@@ -293,7 +415,7 @@ export function PaymentComplete() {
               },
               body: JSON.stringify({
                 to: adminEmail,
-                subject: `🎉 New Booking Request - Order #${order.id.slice(0, 8).toUpperCase()}`,
+                subject: `New Booking Request - Order #${order.id.slice(0, 8).toUpperCase()}`,
                 html: adminEmailHtml,
               }),
             });
@@ -368,15 +490,26 @@ export function PaymentComplete() {
           .from('orders')
           .select(
             `
-            id,
-            event_date,
-            deposit_due_cents,
-            balance_due_cents,
+            *,
             customer:customers!customer_id (
               first_name,
               last_name,
               email,
               phone
+            ),
+            addresses (
+              line1,
+              city,
+              state,
+              zip
+            ),
+            order_items (
+              qty,
+              wet_or_dry,
+              unit_price_cents,
+              units (
+                name
+              )
             )
           `
           )
@@ -458,6 +591,14 @@ export function PaymentComplete() {
     <div className="min-h-screen bg-white flex items-center justify-center px-4 py-8">
       <div className="bg-white max-w-lg w-full">
         <div className="text-center mb-8">
+          <div className="flex justify-center mb-6">
+            <img
+              src="/bounce party club logo.png"
+              alt="Bounce Party Club"
+              className="h-24 w-auto"
+            />
+          </div>
+
           <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
             <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -544,10 +685,6 @@ export function PaymentComplete() {
             <Home className="w-5 h-5" />
             Back to Home
           </button>
-        </div>
-
-        <div className="mt-4 text-center">
-          <p className="text-xs text-slate-400">This window will close automatically...</p>
         </div>
       </div>
     </div>

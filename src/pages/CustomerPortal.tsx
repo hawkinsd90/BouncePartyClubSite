@@ -142,7 +142,15 @@ export function CustomerPortal() {
   const needsApproval = order.status === 'awaiting_customer_approval';
 
   async function handleApproveChanges() {
-    if (!confirm('Do you approve these order changes? The order will be sent back to our team for final confirmation.')) {
+    const customerName = prompt('To confirm, please enter your full name as it appears on the order:');
+
+    if (!customerName) {
+      return;
+    }
+
+    const expectedName = `${order.customers.first_name} ${order.customers.last_name}`.toLowerCase().trim();
+    if (customerName.toLowerCase().trim() !== expectedName) {
+      alert('The name you entered does not match the customer name on this order. Please try again.');
       return;
     }
 
@@ -165,6 +173,98 @@ export function CustomerPortal() {
     }
   }
 
+  // Special view when order needs approval - ONLY show approval interface
+  if (needsApproval) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white rounded-xl shadow-2xl overflow-hidden border-4 border-amber-400">
+            {/* Logo Header */}
+            <div className="bg-white px-8 py-6 text-center border-b-4 border-amber-400">
+              <img
+                src="/bounce party club logo.png"
+                alt="Bounce Party Club"
+                className="h-20 w-auto mx-auto mb-4"
+              />
+              <h1 className="text-2xl font-bold text-amber-900">Order Changes - Approval Required</h1>
+              <p className="text-amber-700 mt-2">Order #{order.id.slice(0, 8).toUpperCase()}</p>
+            </div>
+
+            <div className="px-8 py-8">
+              <div className="bg-amber-100 border-2 border-amber-500 rounded-lg p-6 mb-6">
+                <h2 className="text-lg font-bold text-amber-900 mb-3">Action Required</h2>
+                <p className="text-amber-800 mb-4">
+                  We've updated your booking details. Please review the changes below and confirm your approval.
+                </p>
+              </div>
+
+              {/* Updated Order Details */}
+              <div className="bg-slate-50 rounded-lg p-6 mb-6 border-2 border-slate-200">
+                <h3 className="font-bold text-slate-900 mb-4 text-lg">Updated Booking Information</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between py-2 border-b border-slate-200">
+                    <span className="text-slate-600 font-medium">Customer:</span>
+                    <span className="text-slate-900 font-semibold">{order.customers.first_name} {order.customers.last_name}</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-slate-200">
+                    <span className="text-slate-600 font-medium">Event Date:</span>
+                    <span className="text-slate-900 font-semibold">{format(new Date(order.event_date), 'MMMM d, yyyy')}</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-slate-200">
+                    <span className="text-slate-600 font-medium">Time:</span>
+                    <span className="text-slate-900 font-semibold">{order.start_window} - {order.end_window}</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-slate-200">
+                    <span className="text-slate-600 font-medium">Location:</span>
+                    <span className="text-slate-900 font-semibold">{order.addresses?.line1}, {order.addresses?.city}, {order.addresses?.state}</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-slate-200">
+                    <span className="text-slate-600 font-medium">Surface:</span>
+                    <span className="text-slate-900 font-semibold">{order.surface}</span>
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span className="text-slate-600 font-medium">Total Amount:</span>
+                    <span className="text-green-600 font-bold text-lg">{formatCurrency(order.deposit_due_cents + order.balance_due_cents)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Identity Confirmation */}
+              <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-6 mb-6">
+                <h3 className="font-bold text-blue-900 mb-2">Identity Verification Required</h3>
+                <p className="text-blue-800 text-sm">
+                  To approve these changes, you'll be asked to confirm your identity by entering your full name exactly as it appears on the order: <strong>{order.customers.first_name} {order.customers.last_name}</strong>
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-4">
+                <button
+                  onClick={handleApproveChanges}
+                  disabled={submitting}
+                  className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-bold py-4 px-6 rounded-lg transition-colors text-lg shadow-lg"
+                >
+                  {submitting ? 'Processing...' : 'Approve Changes'}
+                </button>
+                <a
+                  href="tel:+13138893860"
+                  className="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-bold py-4 px-6 rounded-lg transition-colors text-center text-lg shadow-lg"
+                >
+                  Call to Discuss
+                </a>
+              </div>
+
+              <p className="text-center text-slate-500 text-sm mt-6">
+                Questions? Call us at (313) 889-3860
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Regular portal view for waiver, payment, pictures
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
@@ -175,59 +275,9 @@ export function CustomerPortal() {
             <p className="text-sm opacity-90">
               Event Date: {format(new Date(order.event_date), 'MMMM d, yyyy')} at {order.start_window}
             </p>
-            {needsApproval && (
-              <div className="mt-3 bg-amber-500 text-white px-4 py-2 rounded-lg">
-                <p className="font-semibold">⚠️ Action Required: Please review and approve order changes</p>
-              </div>
-            )}
           </div>
 
           <div className="px-8 py-6">
-            {needsApproval && (
-              <div className="mb-8 bg-amber-50 border-2 border-amber-400 rounded-xl p-6">
-                <h2 className="text-xl font-bold text-amber-900 mb-4">📝 Order Changes Need Your Approval</h2>
-                <p className="text-amber-800 mb-4">
-                  We've made updates to your booking. Please review the details below and approve the changes to proceed.
-                </p>
-                <div className="bg-white rounded-lg p-4 mb-4">
-                  <h3 className="font-semibold text-slate-900 mb-3">Updated Order Details:</h3>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-slate-600">Event Date:</p>
-                      <p className="font-medium">{format(new Date(order.event_date), 'MMMM d, yyyy')}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-600">Time Window:</p>
-                      <p className="font-medium">{order.start_window} - {order.end_window}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-600">Location:</p>
-                      <p className="font-medium">{order.addresses?.line1}, {order.addresses?.city}, {order.addresses?.state}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-600">Total Amount:</p>
-                      <p className="font-medium">{formatCurrency(order.deposit_due_cents + order.balance_due_cents)}</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleApproveChanges}
-                    disabled={submitting}
-                    className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-                  >
-                    {submitting ? 'Processing...' : '✓ Approve Changes'}
-                  </button>
-                  <a
-                    href="tel:+13138893860"
-                    className="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors text-center"
-                  >
-                    📞 Call to Discuss
-                  </a>
-                </div>
-              </div>
-            )}
-
             <div className="mb-6">
               <h2 className="text-lg font-semibold text-slate-900 mb-4">Complete These Steps</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

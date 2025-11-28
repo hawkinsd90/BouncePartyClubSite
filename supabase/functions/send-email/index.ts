@@ -50,7 +50,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const emailPayload: any = {
-      from: from || 'Bounce Party Club <bookings@bouncepartyclub.com>',
+      from: from || 'Bounce Party Club <admin@bouncepartyclub.com>',
       to: [to],
       subject,
     };

@@ -41,10 +41,11 @@ export function Layout() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <Link to="/" className="flex items-center space-x-2">
-              <PartyPopper className="w-8 h-8 text-blue-600" />
-              <span className="text-xl font-bold text-slate-900">
-                Bounce Party Club
-              </span>
+              <img
+                src="/bounce party club logo.png"
+                alt="Bounce Party Club"
+                className="h-12 w-auto"
+              />
             </Link>
 
             <nav className="hidden md:flex items-center space-x-8">
@@ -134,9 +135,12 @@ export function Layout() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div>
-              <div className="flex items-center space-x-2 mb-4">
-                <PartyPopper className="w-6 h-6 text-blue-400" />
-                <span className="font-bold text-lg">Bounce Party Club</span>
+              <div className="mb-4">
+                <img
+                  src="/bounce party club logo.png"
+                  alt="Bounce Party Club"
+                  className="h-16 w-auto"
+                />
               </div>
               <p className="text-slate-400 text-sm">
                 4426 Woodward St

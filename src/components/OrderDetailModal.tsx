@@ -40,10 +40,29 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [discountAmountInput, setDiscountAmountInput] = useState('0.00');
   const [discountPercentInput, setDiscountPercentInput] = useState('0');
   const [saving, setSaving] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {
     loadOrderDetails();
   }, [order.id]);
+
+  // Check if any changes have been made
+  useEffect(() => {
+    const changed =
+      editedOrder.location_type !== order.location_type ||
+      editedOrder.surface !== order.surface ||
+      editedOrder.generator_qty !== (order.generator_qty || 0) ||
+      editedOrder.start_window !== order.start_window ||
+      editedOrder.end_window !== order.end_window ||
+      editedOrder.event_date !== order.event_date ||
+      editedOrder.address_line1 !== (order.addresses?.line1 || '') ||
+      editedOrder.address_line2 !== (order.addresses?.line2 || '') ||
+      editedOrder.address_city !== (order.addresses?.city || '') ||
+      editedOrder.address_state !== (order.addresses?.state || '') ||
+      editedOrder.address_zip !== (order.addresses?.zip || '');
+
+    setHasChanges(changed);
+  }, [editedOrder, order]);
 
   async function loadOrderDetails() {
     try {
@@ -267,6 +286,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       const customerPortalUrl = `${window.location.origin}/customer-portal/${order.id}`;
       const fullName = `${order.customers?.first_name} ${order.customers?.last_name}`.trim();
 
+      const logoUrl = `${window.location.origin}/bounce%20party%20club%20logo.png`;
+
       const emailHtml = `
         <!DOCTYPE html>
         <html>
@@ -274,14 +295,17 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           <meta charset="utf-8">
           <title>Order Updated - Approval Needed</title>
         </head>
-        <body style="font-family: Arial, sans-serif; padding: 20px; background-color: #f3f4f6;">
-          <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-            <h2 style="color: #3b82f6; margin: 0 0 20px;">📝 Your Order Has Been Updated</h2>
+        <body style="font-family: Arial, sans-serif; padding: 20px; background-color: #f8fafc;">
+          <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: 2px solid #3b82f6;">
+            <div style="text-align: center; border-bottom: 2px solid #3b82f6; padding-bottom: 20px; margin-bottom: 25px;">
+              <img src="${logoUrl}" alt="Bounce Party Club" style="height: 70px; width: auto;" />
+              <h2 style="color: #3b82f6; margin: 15px 0 0;">Your Order Has Been Updated</h2>
+            </div>
             <p style="margin: 0 0 20px; color: #475569; font-size: 16px;">Hi ${fullName},</p>
             <p style="margin: 0 0 20px; color: #475569; font-size: 16px;">
               We've made some updates to your booking (Order #${order.id.slice(0, 8).toUpperCase()}) and need your approval to proceed.
             </p>
-            <div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 4px;">
+            <div style="background-color: #fef3c7; border: 2px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 6px;">
               <p style="margin: 0; color: #92400e; font-weight: 600;">Action Required</p>
               <p style="margin: 10px 0 0; color: #92400e;">Please review the updated details and approve or request changes.</p>
             </div>
@@ -308,7 +332,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           },
           body: JSON.stringify({
             to: order.customers.email,
-            subject: `📝 Order Updated - Approval Needed - Order #${order.id.slice(0, 8).toUpperCase()}`,
+            subject: `Order Updated - Approval Needed - Order #${order.id.slice(0, 8).toUpperCase()}`,
             html: emailHtml,
           }),
         });
@@ -909,11 +933,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                   </button>
                   <button
                     onClick={handleSaveChanges}
-                    disabled={saving}
-                    className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white font-semibold rounded-lg transition-colors"
+                    disabled={saving || !hasChanges}
+                    className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
                   >
                     <Save className="w-5 h-5" />
-                    {saving ? 'Saving...' : 'Save Changes'}
+                    {saving ? 'Saving...' : hasChanges ? 'Save Changes' : 'No Changes'}
                   </button>
                 </div>
               )}

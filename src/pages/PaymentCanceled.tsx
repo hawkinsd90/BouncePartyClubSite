@@ -17,6 +17,13 @@ export function PaymentCanceled() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-xl p-8 text-center max-w-md">
+        <div className="flex justify-center mb-6">
+          <img
+            src="/bounce party club logo.png"
+            alt="Bounce Party Club"
+            className="h-20 w-auto"
+          />
+        </div>
         <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Payment Canceled</h1>
         <p className="text-gray-600 mb-6">
