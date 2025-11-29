@@ -286,8 +286,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       const customerPortalUrl = `${window.location.origin}/customer-portal/${order.id}`;
       const fullName = `${order.customers?.first_name} ${order.customers?.last_name}`.trim();
 
-      const siteUrl = import.meta.env.VITE_SITE_URL || window.location.origin;
-      const logoUrl = `${siteUrl}/bounce%20party%20club%20logo.png`;
+      const logoUrl = import.meta.env.VITE_LOGO_URL || `${window.location.origin}/bounce%20party%20club%20logo.png`;
 
       const emailHtml = `
         <!DOCTYPE html>

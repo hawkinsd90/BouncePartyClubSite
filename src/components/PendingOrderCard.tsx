@@ -205,8 +205,7 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
           .single();
 
         if (orderWithItems && orderWithItems.customers?.email) {
-          const siteUrl = import.meta.env.VITE_SITE_URL || window.location.origin;
-          const logoUrl = `${siteUrl}/bounce%20party%20club%20logo.png`;
+          const logoUrl = import.meta.env.VITE_LOGO_URL || `${window.location.origin}/bounce%20party%20club%20logo.png`;
           const eventDateStr = format(new Date(orderWithItems.event_date + 'T12:00:00'), 'EEEE, MMMM d, yyyy');
 
           const orderItemsHtml = orderWithItems.order_items.map((item: any) => `
@@ -264,6 +263,31 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
                                 <td style="color: #64748b; font-size: 14px;">Location:</td>
                                 <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">${orderWithItems.addresses?.line1}, ${orderWithItems.addresses?.city}</td>
                               </tr>
+                              ${orderWithItems.location_type ? `
+                              <tr>
+                                <td style="color: #64748b; font-size: 14px;">Location Type:</td>
+                                <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">${orderWithItems.location_type}</td>
+                              </tr>` : ''}
+                              ${orderWithItems.surface ? `
+                              <tr>
+                                <td style="color: #64748b; font-size: 14px;">Surface:</td>
+                                <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">${orderWithItems.surface}</td>
+                              </tr>` : ''}
+                              ${orderWithItems.attendees ? `
+                              <tr>
+                                <td style="color: #64748b; font-size: 14px;">Expected Attendees:</td>
+                                <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">${orderWithItems.attendees}</td>
+                              </tr>` : ''}
+                              ${orderWithItems.pets ? `
+                              <tr>
+                                <td style="color: #64748b; font-size: 14px;">Pets:</td>
+                                <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">${orderWithItems.pets}</td>
+                              </tr>` : ''}
+                              ${orderWithItems.special_details ? `
+                              <tr>
+                                <td style="color: #64748b; font-size: 14px; vertical-align: top;">Special Details:</td>
+                                <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">${orderWithItems.special_details}</td>
+                              </tr>` : ''}
                             </table>
                           </div>
 
@@ -290,6 +314,11 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
                               <tr>
                                 <td style="color: #64748b; font-size: 14px;">Surface Fee:</td>
                                 <td style="color: #1e293b; font-size: 14px; text-align: right;">$${(orderWithItems.surface_fee_cents / 100).toFixed(2)}</td>
+                              </tr>` : ''}
+                              ${orderWithItems.same_day_pickup_fee_cents > 0 ? `
+                              <tr>
+                                <td style="color: #64748b; font-size: 14px;">Same Day Pickup Fee:</td>
+                                <td style="color: #1e293b; font-size: 14px; text-align: right;">$${(orderWithItems.same_day_pickup_fee_cents / 100).toFixed(2)}</td>
                               </tr>` : ''}
                               ${orderWithItems.tax_cents > 0 ? `
                               <tr>

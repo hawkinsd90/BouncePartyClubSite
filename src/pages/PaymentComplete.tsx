@@ -96,9 +96,7 @@ export function PaymentComplete() {
       `).join('');
 
       // Send formatted HTML email via Resend with logo
-      // Use production URL or fallback to current origin for logo
-      const siteUrl = import.meta.env.VITE_SITE_URL || window.location.origin;
-      const logoUrl = `${siteUrl}/bounce%20party%20club%20logo.png`;
+      const logoUrl = import.meta.env.VITE_LOGO_URL || `${window.location.origin}/bounce%20party%20club%20logo.png`;
 
       const emailHtml = `
         <!DOCTYPE html>
@@ -157,6 +155,21 @@ export function PaymentComplete() {
                             <td style="color: #64748b; font-size: 14px;">Surface:</td>
                             <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">${order.surface}</td>
                           </tr>
+                          ${order.attendees ? `
+                          <tr>
+                            <td style="color: #64748b; font-size: 14px;">Expected Attendees:</td>
+                            <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">${order.attendees}</td>
+                          </tr>` : ''}
+                          ${order.pets ? `
+                          <tr>
+                            <td style="color: #64748b; font-size: 14px;">Pets:</td>
+                            <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">${order.pets}</td>
+                          </tr>` : ''}
+                          ${order.special_details ? `
+                          <tr>
+                            <td style="color: #64748b; font-size: 14px; vertical-align: top;">Special Details:</td>
+                            <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">${order.special_details}</td>
+                          </tr>` : ''}
                         </table>
                       </div>
 
