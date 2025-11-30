@@ -36,16 +36,18 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [editedOrder, setEditedOrder] = useState<any>({
     location_type: order.location_type,
     surface: order.surface,
+    can_stake: order.surface === 'grass',
     generator_qty: order.generator_qty || 0,
     start_window: order.start_window,
     end_window: order.end_window,
     event_date: order.event_date,
+    event_end_date: order.event_end_date || order.event_date,
     address_line1: order.addresses?.line1 || '',
     address_line2: order.addresses?.line2 || '',
     address_city: order.addresses?.city || '',
     address_state: order.addresses?.state || '',
     address_zip: order.addresses?.zip || '',
-    overnight_allowed: order.overnight_allowed || false,
+    pickup_preference: order.pickup_preference || 'next_day',
   });
   const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
   const [discounts, setDiscounts] = useState<any[]>([]);
@@ -89,17 +91,36 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       editedOrder.start_window !== order.start_window ||
       editedOrder.end_window !== order.end_window ||
       editedOrder.event_date !== order.event_date ||
+      editedOrder.event_end_date !== (order.event_end_date || order.event_date) ||
       editedOrder.address_line1 !== (order.addresses?.line1 || '') ||
       editedOrder.address_line2 !== (order.addresses?.line2 || '') ||
       editedOrder.address_city !== (order.addresses?.city || '') ||
       editedOrder.address_state !== (order.addresses?.state || '') ||
       editedOrder.address_zip !== (order.addresses?.zip || '') ||
-      editedOrder.overnight_allowed !== (order.overnight_allowed || false);
+      editedOrder.pickup_preference !== (order.pickup_preference || 'next_day');
 
     const itemsChanged = stagedItems.some(item => item.is_new || item.is_deleted);
 
     setHasChanges(orderChanged || itemsChanged);
   }, [editedOrder, stagedItems, order]);
+
+  // Handle multi-day logic: if dates are different, lock to next_day pickup
+  useEffect(() => {
+    if (editedOrder.event_date !== editedOrder.event_end_date) {
+      if (editedOrder.pickup_preference === 'same_day') {
+        setEditedOrder((prev: any) => ({ ...prev, pickup_preference: 'next_day' }));
+      }
+    }
+  }, [editedOrder.event_date, editedOrder.event_end_date]);
+
+  // Sync surface with can_stake
+  useEffect(() => {
+    if (editedOrder.can_stake && editedOrder.surface !== 'grass') {
+      setEditedOrder((prev: any) => ({ ...prev, surface: 'grass' }));
+    } else if (!editedOrder.can_stake && editedOrder.surface === 'grass') {
+      setEditedOrder((prev: any) => ({ ...prev, surface: 'cement' }));
+    }
+  }, [editedOrder.can_stake]);
 
   // Recalculate pricing whenever staged items or order details change
   useEffect(() => {
@@ -173,7 +194,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
       // Calculate same day pickup fee
       let same_day_pickup_fee_cents = 0;
-      const needs_same_day = editedOrder.location_type === 'commercial' || !editedOrder.overnight_allowed;
+      const needs_same_day = editedOrder.location_type === 'commercial' || editedOrder.pickup_preference === 'same_day';
       if (needs_same_day && pricingRules.same_day_matrix_json) {
         const total_units = activeItems.reduce((sum, item) => sum + item.qty, 0);
         const has_generator = editedOrder.generator_qty > 0;
@@ -340,9 +361,14 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         changes.event_date = editedOrder.event_date;
         logs.push(['event_date', order.event_date, editedOrder.event_date]);
       }
-      if (editedOrder.overnight_allowed !== (order.overnight_allowed || false)) {
-        changes.overnight_allowed = editedOrder.overnight_allowed;
-        logs.push(['overnight_allowed', order.overnight_allowed || false, editedOrder.overnight_allowed]);
+      if (editedOrder.event_end_date !== (order.event_end_date || order.event_date)) {
+        changes.event_end_date = editedOrder.event_end_date;
+        logs.push(['event_end_date', order.event_end_date || order.event_date, editedOrder.event_end_date]);
+      }
+      if (editedOrder.pickup_preference !== (order.pickup_preference || 'next_day')) {
+        changes.pickup_preference = editedOrder.pickup_preference;
+        changes.overnight_allowed = editedOrder.pickup_preference === 'next_day';
+        logs.push(['pickup_preference', order.pickup_preference || 'next_day', editedOrder.pickup_preference]);
       }
 
       // Handle address changes
@@ -701,7 +727,14 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                   <label className="block text-sm font-medium text-slate-700 mb-2">Location Type</label>
                   <select
                     value={editedOrder.location_type}
-                    onChange={(e) => setEditedOrder({ ...editedOrder, location_type: e.target.value })}
+                    onChange={(e) => {
+                      const newType = e.target.value;
+                      setEditedOrder({
+                        ...editedOrder,
+                        location_type: newType,
+                        pickup_preference: newType === 'commercial' ? 'same_day' : editedOrder.pickup_preference
+                      });
+                    }}
                     className="w-full px-3 py-2 border border-slate-300 rounded"
                   >
                     <option value="residential">Residential</option>
@@ -710,19 +743,65 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Surface Type</label>
-                  <select
-                    value={editedOrder.surface}
-                    onChange={(e) => setEditedOrder({ ...editedOrder, surface: e.target.value })}
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Setup Surface</label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditedOrder({ ...editedOrder, can_stake: true, surface: 'grass' })}
+                      className={`flex-1 px-3 py-2 border-2 rounded font-medium transition-all ${
+                        editedOrder.can_stake
+                          ? 'border-green-600 bg-green-50 text-green-900'
+                          : 'border-slate-300 bg-white text-slate-700 hover:border-green-400'
+                      }`}
+                    >
+                      Grass
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditedOrder({ ...editedOrder, can_stake: false, surface: 'cement' })}
+                      className={`flex-1 px-3 py-2 border-2 rounded font-medium transition-all ${
+                        !editedOrder.can_stake
+                          ? 'border-orange-600 bg-orange-50 text-orange-900'
+                          : 'border-slate-300 bg-white text-slate-700 hover:border-orange-400'
+                      }`}
+                    >
+                      Sandbags
+                    </button>
+                  </div>
+                  {!editedOrder.can_stake && (
+                    <p className="text-xs text-amber-600 mt-1">Sandbag fee ({formatCurrency(pricingRules?.surface_sandbag_fee_cents || 3000)}) will be applied</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Event Start Date</label>
+                  <input
+                    type="date"
+                    value={editedOrder.event_date}
+                    onChange={(e) => {
+                      const newStart = e.target.value;
+                      setEditedOrder({
+                        ...editedOrder,
+                        event_date: newStart,
+                        event_end_date: newStart > editedOrder.event_end_date ? newStart : editedOrder.event_end_date
+                      });
+                    }}
                     className="w-full px-3 py-2 border border-slate-300 rounded"
-                  >
-                    <option value="grass">Grass</option>
-                    <option value="cement">Cement</option>
-                    <option value="asphalt">Asphalt</option>
-                    <option value="concrete">Concrete</option>
-                  </select>
-                  {(editedOrder.surface !== 'grass') && (
-                    <p className="text-xs text-amber-600 mt-1">Sandbag fee will be applied automatically</p>
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Event End Date</label>
+                  <input
+                    type="date"
+                    value={editedOrder.event_end_date}
+                    onChange={(e) => setEditedOrder({ ...editedOrder, event_end_date: e.target.value })}
+                    min={editedOrder.event_date}
+                    disabled={editedOrder.pickup_preference === 'same_day' || editedOrder.location_type === 'commercial'}
+                    className="w-full px-3 py-2 border border-slate-300 rounded disabled:bg-slate-100"
+                  />
+                  {(editedOrder.pickup_preference === 'same_day' || editedOrder.location_type === 'commercial') && (
+                    <p className="text-xs text-slate-500 mt-1">Same-day events cannot span multiple days</p>
                   )}
                 </div>
 
@@ -745,32 +824,60 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                     className="w-full px-3 py-2 border border-slate-300 rounded"
                   />
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Event Date</label>
-                  <input
-                    type="date"
-                    value={editedOrder.event_date}
-                    onChange={(e) => setEditedOrder({ ...editedOrder, event_date: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded"
-                  />
-                </div>
-
-                {editedOrder.location_type === 'residential' && (
-                  <div>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={editedOrder.overnight_allowed}
-                        onChange={(e) => setEditedOrder({ ...editedOrder, overnight_allowed: e.target.checked })}
-                        className="w-4 h-4"
-                      />
-                      <span className="text-sm font-medium text-slate-700">Allow Overnight</span>
-                    </label>
-                    <p className="text-xs text-slate-500 mt-1">Check if equipment can stay overnight</p>
-                  </div>
-                )}
               </div>
+
+              {editedOrder.location_type === 'residential' && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                  <label className="block text-sm font-medium text-slate-700 mb-3">Pickup Preference</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setEditedOrder({ ...editedOrder, pickup_preference: 'next_day' })}
+                      className={`flex flex-col items-center p-4 rounded-lg border-2 transition-all ${
+                        editedOrder.pickup_preference === 'next_day'
+                          ? 'border-green-600 bg-green-50'
+                          : 'border-slate-300 hover:border-green-400'
+                      }`}
+                    >
+                      <span className={`font-semibold text-center ${
+                        editedOrder.pickup_preference === 'next_day' ? 'text-green-900' : 'text-slate-700'
+                      }`}>
+                        Next Morning
+                      </span>
+                      <span className="text-xs text-slate-600 text-center mt-1">Equipment stays overnight</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (editedOrder.event_date === editedOrder.event_end_date) {
+                          setEditedOrder({ ...editedOrder, pickup_preference: 'same_day' });
+                        }
+                      }}
+                      disabled={editedOrder.event_date !== editedOrder.event_end_date}
+                      className={`flex flex-col items-center p-4 rounded-lg border-2 transition-all ${
+                        editedOrder.pickup_preference === 'same_day'
+                          ? 'border-orange-600 bg-orange-50'
+                          : editedOrder.event_date !== editedOrder.event_end_date
+                          ? 'border-slate-200 bg-slate-100 opacity-50 cursor-not-allowed'
+                          : 'border-slate-300 hover:border-orange-400'
+                      }`}
+                    >
+                      <span className={`font-semibold text-center ${
+                        editedOrder.pickup_preference === 'same_day' ? 'text-orange-900' : 'text-slate-700'
+                      }`}>
+                        Same Day
+                      </span>
+                      <span className="text-xs text-slate-600 text-center mt-1">Pickup same evening</span>
+                    </button>
+                  </div>
+                  {editedOrder.event_date !== editedOrder.event_end_date && (
+                    <p className="text-xs text-amber-600 mt-3">
+                      Multi-day rentals require next morning pickup
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div>
                 <h3 className="font-semibold text-slate-900 mb-3">Event Address</h3>
