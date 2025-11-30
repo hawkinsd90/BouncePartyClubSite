@@ -1083,7 +1083,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                     {/* Items */}
                     <div className="space-y-1">
                       <p className="text-xs font-semibold text-slate-700 uppercase mb-1">Items</p>
-                      {order.order_items?.map((item: any, idx: number) => (
+                      {orderItems.map((item: any, idx: number) => (
                         <div key={idx} className="flex justify-between text-sm pl-2">
                           <span className="text-slate-600">
                             {item.units?.name || 'Unknown'} ({item.wet_or_dry === 'water' ? 'Water' : 'Dry'}) × {item.qty}
@@ -1153,7 +1153,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                       <div className="space-y-1">
                         <p className="text-xs font-semibold text-slate-700 uppercase mb-1">Items</p>
                         {stagedItems.filter(item => !item.is_deleted).map((item, idx) => {
-                          const originalItem = order.order_items?.find((oi: any) => oi.unit_id === item.unit_id && oi.wet_or_dry === item.wet_or_dry);
+                          const originalItem = orderItems.find((oi: any) => oi.unit_id === item.unit_id && oi.wet_or_dry === item.wet_or_dry);
                           const isChanged = item.is_new || (originalItem && (originalItem.qty !== item.qty || originalItem.unit_price_cents !== item.unit_price_cents));
                           const totalPrice = item.unit_price_cents * item.qty;
 
