@@ -237,6 +237,9 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         travel_fee_cents = calculateTravelFee(distance_miles, pricingRules);
       }
 
+      // Calculate generator fee
+      const generator_fee_cents = (editedOrder.generator_qty || 0) * (pricingRules.generator_price_cents || 7500);
+
       // Calculate surface fee
       let surface_fee_cents = 0;
       if (editedOrder.surface === 'cement' || editedOrder.surface === 'asphalt' || editedOrder.surface === 'concrete') {
@@ -268,16 +271,17 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         }
       }
 
-      // Calculate tax
-      const tax_cents = Math.round((subtotal_cents + travel_fee_cents + surface_fee_cents) * 0.06);
+      // Calculate tax (includes generator fee in taxable amount)
+      const tax_cents = Math.round((subtotal_cents + generator_fee_cents + travel_fee_cents + surface_fee_cents) * 0.06);
 
       // Calculate totals
-      const total_cents = subtotal_cents + travel_fee_cents + surface_fee_cents + same_day_pickup_fee_cents + tax_cents;
+      const total_cents = subtotal_cents + generator_fee_cents + travel_fee_cents + surface_fee_cents + same_day_pickup_fee_cents + tax_cents;
       const deposit_due_cents = activeItems.reduce((sum, item) => sum + item.qty, 0) * 5000;
       const balance_due_cents = total_cents - deposit_due_cents;
 
       setCalculatedPricing({
         subtotal_cents,
+        generator_fee_cents,
         travel_fee_cents,
         distance_miles,
         surface_fee_cents,
@@ -458,6 +462,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       // Apply calculated pricing
       if (calculatedPricing) {
         changes.subtotal_cents = calculatedPricing.subtotal_cents;
+        changes.generator_fee_cents = calculatedPricing.generator_fee_cents;
         changes.travel_fee_cents = calculatedPricing.travel_fee_cents;
         changes.distance_miles = calculatedPricing.distance_miles;
         changes.surface_fee_cents = calculatedPricing.surface_fee_cents;
@@ -497,7 +502,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           // New deposit is higher than what was paid - clear payment
           shouldClearPayment = true;
           logs.push(['payment_method', 'cleared', `deposit increased from ${currentPaidAmount} to ${finalDepositCents}`]);
-        } else if (currentPaidAmount >= (order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents)) {
+        } else if (currentPaidAmount >= (order.subtotal_cents + (order.generator_fee_cents || 0) + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents)) {
           // Customer paid in full originally
           const newTotal = calculatedPricing.total_cents;
           if (newTotal > currentPaidAmount) {
@@ -866,7 +871,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 const itemsChanged = stagedItems.some(item => item.is_new || item.is_deleted);
                 const finalDepositCents = customDepositCents !== null ? customDepositCents : (calculatedPricing?.deposit_due_cents || order.deposit_due_cents);
                 const currentPaidAmount = order.stripe_amount_paid_cents || 0;
-                const originalTotal = order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents;
+                const originalTotal = order.subtotal_cents + (order.generator_fee_cents || 0) + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents;
                 const newTotal = calculatedPricing?.total_cents || originalTotal;
 
                 const willClearPayment = itemsChanged ||
@@ -953,6 +958,26 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                   </div>
                   {!editedOrder.can_stake && (
                     <p className="text-xs text-amber-600 mt-1">Sandbag fee ({formatCurrency(pricingRules?.surface_sandbag_fee_cents || 3000)}) will be applied</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Generators</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editedOrder.generator_qty}
+                    onChange={(e) => {
+                      const qty = parseInt(e.target.value) || 0;
+                      setEditedOrder({ ...editedOrder, generator_qty: qty });
+                      setHasChanges(true);
+                    }}
+                    className="w-full px-3 py-2 border border-slate-300 rounded"
+                  />
+                  {editedOrder.generator_qty > 0 && pricingRules?.generator_price_cents && (
+                    <p className="text-xs text-blue-600 mt-1">
+                      {editedOrder.generator_qty} × {formatCurrency(pricingRules.generator_price_cents)} = {formatCurrency(editedOrder.generator_qty * pricingRules.generator_price_cents)}
+                    </p>
                   )}
                 </div>
 
@@ -1177,6 +1202,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                         <span className="text-slate-600">Items Subtotal:</span>
                         <span className="font-medium">{formatCurrency(order.subtotal_cents)}</span>
                       </div>
+                      {order.generator_qty > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-600">Generators ({order.generator_qty}):</span>
+                          <span className="font-medium">{formatCurrency(order.generator_fee_cents || 0)}</span>
+                        </div>
+                      )}
                       {order.travel_fee_cents > 0 && (
                         <div className="flex justify-between text-sm">
                           <span className="text-slate-600">Travel Fee ({order.distance_miles?.toFixed(1)} mi):</span>
@@ -1205,7 +1236,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                     <div className="space-y-1 border-t border-slate-300 pt-2">
                       <div className="flex justify-between text-base font-semibold">
                         <span>Total:</span>
-                        <span>{formatCurrency(order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents)}</span>
+                        <span>{formatCurrency(order.subtotal_cents + (order.generator_fee_cents || 0) + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents)}</span>
                       </div>
                       <div className="flex justify-between text-sm text-green-700">
                         <span>Deposit Due:</span>
@@ -1279,6 +1310,19 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                             </span>
                           </div>
                         </div>
+                      {editedOrder.generator_qty > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-600">Generators ({editedOrder.generator_qty}):</span>
+                          <div className="flex items-center gap-2">
+                            {calculatedPricing.generator_fee_cents !== (order.generator_fee_cents || 0) && (
+                              <span className="text-xs text-slate-400 line-through">{formatCurrency(order.generator_fee_cents || 0)}</span>
+                            )}
+                            <span className={`font-medium ${calculatedPricing.generator_fee_cents !== (order.generator_fee_cents || 0) ? 'text-blue-700' : ''}`}>
+                              {formatCurrency(calculatedPricing.generator_fee_cents)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                       {calculatedPricing.travel_fee_cents > 0 && (
                         <div className="flex justify-between text-sm">
                           <span className="text-slate-600">Travel Fee ({calculatedPricing.distance_miles?.toFixed(1)} mi):</span>
@@ -1336,12 +1380,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                         <div className="flex justify-between text-base font-semibold">
                           <span>Total:</span>
                           <div className="flex items-center gap-2">
-                            {calculatedPricing.total_cents !== (order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents) && (
+                            {calculatedPricing.total_cents !== (order.subtotal_cents + (order.generator_fee_cents || 0) + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents) && (
                               <span className="text-sm text-slate-400 line-through">
-                                {formatCurrency(order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents)}
+                                {formatCurrency(order.subtotal_cents + (order.generator_fee_cents || 0) + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents)}
                               </span>
                             )}
-                            <span className={calculatedPricing.total_cents !== (order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents) ? 'text-blue-700' : ''}>
+                            <span className={calculatedPricing.total_cents !== (order.subtotal_cents + (order.generator_fee_cents || 0) + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents) ? 'text-blue-700' : ''}>
                               {formatCurrency(calculatedPricing.total_cents)}
                             </span>
                           </div>
