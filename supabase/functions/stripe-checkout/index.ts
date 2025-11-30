@@ -198,6 +198,7 @@ Deno.serve(async (req: Request) => {
     const cancel_url = `${siteOrigin}/checkout/payment-canceled?orderId=${orderId}`;
 
     // Create the Setup Session
+    // Note: Apple Pay and Google Pay are automatically available when enabled in Stripe Dashboard
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: "setup",

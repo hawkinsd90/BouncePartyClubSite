@@ -150,6 +150,10 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
           onChange={handleChange}
           options={{
             layout: 'tabs',
+            wallets: {
+              applePay: 'auto',
+              googlePay: 'auto',
+            },
           }}
         />
       </div>
