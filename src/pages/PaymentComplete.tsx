@@ -96,7 +96,7 @@ export function PaymentComplete() {
       `).join('');
 
       // Send formatted HTML email via Resend with logo
-      const logoUrl = import.meta.env.VITE_LOGO_URL || `${window.location.origin}/bounce%20party%20club%20logo.png`;
+      const logoUrl = 'https://qaagfafagdpgzcijnfbw.supabase.co/storage/v1/object/public/public-assets/bounce-party-club-logo.png';
 
       const emailHtml = `
         <!DOCTYPE html>

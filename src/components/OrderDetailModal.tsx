@@ -11,6 +11,17 @@ interface OrderDetailModalProps {
   onUpdate: () => void;
 }
 
+interface StagedItem {
+  id?: string; // undefined for new items
+  unit_id: string;
+  unit_name: string;
+  qty: number;
+  wet_or_dry: 'dry' | 'water';
+  unit_price_cents: number;
+  is_new?: boolean;
+  is_deleted?: boolean;
+}
+
 export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalProps) {
   const [activeSection, setActiveSection] = useState<'details' | 'workflow' | 'notes' | 'changelog'>('details');
   const [orderItems, setOrderItems] = useState<any[]>([]);
@@ -34,21 +45,44 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     address_city: order.addresses?.city || '',
     address_state: order.addresses?.state || '',
     address_zip: order.addresses?.zip || '',
+    overnight_allowed: order.overnight_allowed || false,
   });
+  const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
   const [discounts, setDiscounts] = useState<any[]>([]);
   const [newDiscount, setNewDiscount] = useState({ name: '', amount_cents: 0, percentage: 0 });
   const [discountAmountInput, setDiscountAmountInput] = useState('0.00');
   const [discountPercentInput, setDiscountPercentInput] = useState('0');
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [pricingRules, setPricingRules] = useState<any>(null);
+  const [adminSettings, setAdminSettings] = useState<any>(null);
+  const [calculatedPricing, setCalculatedPricing] = useState<any>(null);
 
   useEffect(() => {
     loadOrderDetails();
+    loadPricingData();
   }, [order.id]);
+
+  // Initialize staged items from order items
+  useEffect(() => {
+    if (orderItems.length > 0 && stagedItems.length === 0) {
+      const staged = orderItems.map(item => ({
+        id: item.id,
+        unit_id: item.unit_id,
+        unit_name: item.units?.name || 'Unknown',
+        qty: item.qty,
+        wet_or_dry: item.wet_or_dry,
+        unit_price_cents: item.unit_price_cents,
+        is_new: false,
+        is_deleted: false,
+      }));
+      setStagedItems(staged);
+    }
+  }, [orderItems]);
 
   // Check if any changes have been made
   useEffect(() => {
-    const changed =
+    const orderChanged =
       editedOrder.location_type !== order.location_type ||
       editedOrder.surface !== order.surface ||
       editedOrder.generator_qty !== (order.generator_qty || 0) ||
@@ -59,10 +93,132 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       editedOrder.address_line2 !== (order.addresses?.line2 || '') ||
       editedOrder.address_city !== (order.addresses?.city || '') ||
       editedOrder.address_state !== (order.addresses?.state || '') ||
-      editedOrder.address_zip !== (order.addresses?.zip || '');
+      editedOrder.address_zip !== (order.addresses?.zip || '') ||
+      editedOrder.overnight_allowed !== (order.overnight_allowed || false);
 
-    setHasChanges(changed);
-  }, [editedOrder, order]);
+    const itemsChanged = stagedItems.some(item => item.is_new || item.is_deleted);
+
+    setHasChanges(orderChanged || itemsChanged);
+  }, [editedOrder, stagedItems, order]);
+
+  // Recalculate pricing whenever staged items or order details change
+  useEffect(() => {
+    if (pricingRules && adminSettings && stagedItems.length > 0) {
+      recalculatePricing();
+    }
+  }, [stagedItems, editedOrder, pricingRules, adminSettings]);
+
+  async function loadPricingData() {
+    try {
+      const [rulesRes, settingsRes] = await Promise.all([
+        supabase.from('pricing_rules').select('*').single(),
+        supabase.from('admin_settings').select('*'),
+      ]);
+
+      if (rulesRes.data) setPricingRules(rulesRes.data);
+      if (settingsRes.data) {
+        const settings: any = {};
+        settingsRes.data.forEach((s: any) => {
+          settings[s.key] = s.value;
+        });
+        setAdminSettings(settings);
+      }
+    } catch (error) {
+      console.error('Error loading pricing data:', error);
+    }
+  }
+
+  async function recalculatePricing() {
+    if (!pricingRules || !adminSettings) return;
+
+    try {
+      // Calculate subtotal from staged items (excluding deleted)
+      const activeItems = stagedItems.filter(item => !item.is_deleted);
+      let subtotal_cents = activeItems.reduce((sum, item) => {
+        return sum + (item.unit_price_cents * item.qty);
+      }, 0);
+
+      // Apply location multiplier
+      const location_multiplier = editedOrder.location_type === 'residential'
+        ? parseFloat(pricingRules.residential_multiplier)
+        : parseFloat(pricingRules.commercial_multiplier);
+      subtotal_cents = Math.round(subtotal_cents * location_multiplier);
+
+      // Calculate travel fee if address changed
+      let travel_fee_cents = order.travel_fee_cents;
+      let distance_miles = order.distance_miles;
+
+      const addressChanged =
+        editedOrder.address_line1 !== (order.addresses?.line1 || '') ||
+        editedOrder.address_city !== (order.addresses?.city || '') ||
+        editedOrder.address_state !== (order.addresses?.state || '') ||
+        editedOrder.address_zip !== (order.addresses?.zip || '');
+
+      if (addressChanged && editedOrder.address_line1 && editedOrder.address_city) {
+        const homeBase = {
+          lat: parseFloat(adminSettings.home_base_lat || '42.2808'),
+          lng: parseFloat(adminSettings.home_base_lng || '-83.3863')
+        };
+        const destination = `${editedOrder.address_line1}, ${editedOrder.address_city}, ${editedOrder.address_state} ${editedOrder.address_zip}`;
+
+        distance_miles = await calculateDistance(homeBase, destination);
+        travel_fee_cents = calculateTravelFee(distance_miles, pricingRules);
+      }
+
+      // Calculate surface fee
+      let surface_fee_cents = 0;
+      if (editedOrder.surface === 'cement' || editedOrder.surface === 'asphalt' || editedOrder.surface === 'concrete') {
+        surface_fee_cents = pricingRules.surface_sandbag_fee_cents || 3000;
+      }
+
+      // Calculate same day pickup fee
+      let same_day_pickup_fee_cents = 0;
+      const needs_same_day = editedOrder.location_type === 'commercial' || !editedOrder.overnight_allowed;
+      if (needs_same_day && pricingRules.same_day_matrix_json) {
+        const total_units = activeItems.reduce((sum, item) => sum + item.qty, 0);
+        const has_generator = editedOrder.generator_qty > 0;
+
+        const applicable_rules = pricingRules.same_day_matrix_json
+          .filter((rule: any) => {
+            if (rule.units > total_units) return false;
+            if (rule.generator && !has_generator) return false;
+            if (rule.subtotal_ge_cents > subtotal_cents) return false;
+            return true;
+          })
+          .sort((a: any, b: any) => {
+            if (a.units !== b.units) return b.units - a.units;
+            if (a.generator !== b.generator) return a.generator ? -1 : 1;
+            return b.subtotal_ge_cents - a.subtotal_ge_cents;
+          });
+
+        if (applicable_rules && applicable_rules.length > 0) {
+          same_day_pickup_fee_cents = applicable_rules[0].fee_cents;
+        }
+      }
+
+      // Calculate tax
+      const tax_cents = Math.round((subtotal_cents + travel_fee_cents + surface_fee_cents) * 0.06);
+
+      // Calculate totals
+      const total_cents = subtotal_cents + travel_fee_cents + surface_fee_cents + same_day_pickup_fee_cents + tax_cents;
+      const deposit_due_cents = activeItems.reduce((sum, item) => sum + item.qty, 0) * 5000;
+      const balance_due_cents = total_cents - deposit_due_cents;
+
+      setCalculatedPricing({
+        subtotal_cents,
+        travel_fee_cents,
+        distance_miles,
+        surface_fee_cents,
+        same_day_pickup_fee_cents,
+        tax_cents,
+        total_cents,
+        deposit_due_cents,
+        balance_due_cents,
+      });
+    } catch (error) {
+      console.error('Error recalculating pricing:', error);
+    }
+  }
 
   async function loadOrderDetails() {
     try {
@@ -101,7 +257,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
       setNewNote('');
       await loadOrderDetails();
-      alert('Note added successfully!');
     } catch (error) {
       console.error('Error adding note:', error);
       alert('Failed to add note');
@@ -110,87 +265,48 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
   }
 
-  async function handleWorkflowAction(action: 'on_the_way' | 'arrived' | 'setup_completed' | 'pickup_completed') {
-    try {
-      const user = (await supabase.auth.getUser()).data.user;
-
-      await supabase.from('order_workflow_events').insert({
-        order_id: order.id,
-        event_type: action,
-        user_id: user?.id,
-        eta: action === 'on_the_way' && eta ? new Date(eta).toISOString() : null,
-      });
-
-      let newWorkflowStatus = 'pending';
-      let orderStatus = order.status;
-
-      if (action === 'on_the_way') newWorkflowStatus = 'on_the_way';
-      if (action === 'arrived') newWorkflowStatus = 'arrived';
-      if (action === 'setup_completed') newWorkflowStatus = 'setup_completed';
-      if (action === 'pickup_completed') {
-        newWorkflowStatus = 'completed';
-        orderStatus = 'completed';
-      }
-
-      await supabase.from('orders').update({
-        workflow_status: newWorkflowStatus,
-        status: orderStatus,
-        current_eta: action === 'on_the_way' && eta ? new Date(eta).toISOString() : order.current_eta,
-      }).eq('id', order.id);
-
-      if (action === 'on_the_way') {
-        const portalLink = `${window.location.origin}/customer-portal/${order.id}`;
-        const message = `Hi ${order.customers?.first_name}, we're on our way! ETA: ${eta}. Complete any remaining steps here: ${portalLink}`;
-        await sendSMS(message);
-      }
-
-      if (action === 'arrived') {
-        const alerts = [];
-        if (order.has_pets) alerts.push('Please secure any pets');
-        if (order.balance_due_cents > order.balance_paid_cents) alerts.push('Remaining balance due');
-        if (!order.waiver_signed_at) alerts.push('Waiver not yet signed');
-        const alertText = alerts.length > 0 ? ` Reminders: ${alerts.join(', ')}` : '';
-        const message = `Hi ${order.customers?.first_name}, we've arrived!${alertText}`;
-        await sendSMS(message);
-      }
-
-      if (action === 'setup_completed') {
-        const message = order.overnight_allowed
-          ? `Setup complete! Pickup scheduled for tomorrow at ${order.start_window}. Please follow all safety rules.`
-          : `Setup complete! Enjoy your event. Pickup at ${order.end_window}. Thank you!`;
-        await sendSMS(message);
-      }
-
-      if (action === 'pickup_completed') {
-        const message = `Thank you for choosing Bounce Party Club! We hope you had a great event. We'd love to hear your feedback!`;
-        await sendSMS(message);
-
-        await logChange('order_status', order.status, 'completed', 'status_change');
-      }
-
-      await loadOrderDetails();
-      onUpdate();
-      alert('Workflow action completed!');
-    } catch (error) {
-      console.error('Error processing workflow action:', error);
-      alert('Failed to process workflow action');
-    }
-  }
-
-  async function logChange(field: string, oldVal: any, newVal: any, changeType: string = 'edit') {
+  async function logChange(field: string, oldValue: any, newValue: any, action: 'update' | 'add' | 'remove' = 'update') {
     try {
       const user = (await supabase.auth.getUser()).data.user;
       await supabase.from('order_changelog').insert({
         order_id: order.id,
         user_id: user?.id,
-        field_changed: field,
-        old_value: String(oldVal),
-        new_value: String(newVal),
-        change_type: changeType,
+        field_name: field,
+        old_value: String(oldValue),
+        new_value: String(newValue),
+        action,
       });
     } catch (error) {
       console.error('Error logging change:', error);
     }
+  }
+
+  function stageAddItem(unit: any, mode: 'dry' | 'water') {
+    const price = mode === 'water' && unit.price_water_cents ? unit.price_water_cents : unit.price_dry_cents;
+
+    const newItem: StagedItem = {
+      unit_id: unit.id,
+      unit_name: unit.name,
+      qty: 1,
+      wet_or_dry: mode,
+      unit_price_cents: price,
+      is_new: true,
+      is_deleted: false,
+    };
+
+    setStagedItems([...stagedItems, newItem]);
+  }
+
+  function stageRemoveItem(index: number) {
+    const updatedItems = [...stagedItems];
+    if (updatedItems[index].is_new) {
+      // Remove new items entirely
+      updatedItems.splice(index, 1);
+    } else {
+      // Mark existing items as deleted
+      updatedItems[index].is_deleted = true;
+    }
+    setStagedItems(updatedItems);
   }
 
   async function handleSaveChanges() {
@@ -199,6 +315,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       const changes: any = {};
       const logs = [];
 
+      // Track order field changes
       if (editedOrder.location_type !== order.location_type) {
         changes.location_type = editedOrder.location_type;
         logs.push(['location_type', order.location_type, editedOrder.location_type]);
@@ -223,7 +340,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         changes.event_date = editedOrder.event_date;
         logs.push(['event_date', order.event_date, editedOrder.event_date]);
       }
+      if (editedOrder.overnight_allowed !== (order.overnight_allowed || false)) {
+        changes.overnight_allowed = editedOrder.overnight_allowed;
+        logs.push(['overnight_allowed', order.overnight_allowed || false, editedOrder.overnight_allowed]);
+      }
 
+      // Handle address changes
       const addressChanged =
         editedOrder.address_line1 !== (order.addresses?.line1 || '') ||
         editedOrder.address_city !== (order.addresses?.city || '') ||
@@ -243,26 +365,54 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           `${order.addresses?.line1}, ${order.addresses?.city}, ${order.addresses?.state}`,
           `${editedOrder.address_line1}, ${editedOrder.address_city}, ${editedOrder.address_state}`
         ]);
+      }
 
-        const { data: settings } = await supabase.from('admin_settings').select('*').single();
-        if (settings) {
-          const homeBase = { lat: settings.home_base_lat, lng: settings.home_base_lng };
-          const destination = `${editedOrder.address_line1}, ${editedOrder.address_city}, ${editedOrder.address_state} ${editedOrder.address_zip}`;
+      // Apply calculated pricing
+      if (calculatedPricing) {
+        changes.subtotal_cents = calculatedPricing.subtotal_cents;
+        changes.travel_fee_cents = calculatedPricing.travel_fee_cents;
+        changes.distance_miles = calculatedPricing.distance_miles;
+        changes.surface_fee_cents = calculatedPricing.surface_fee_cents;
+        changes.same_day_pickup_fee_cents = calculatedPricing.same_day_pickup_fee_cents;
+        changes.tax_cents = calculatedPricing.tax_cents;
+        changes.deposit_due_cents = calculatedPricing.deposit_due_cents;
+        changes.balance_due_cents = calculatedPricing.balance_due_cents;
 
-          const distance = await calculateDistance(homeBase, destination);
-          const travelFee = calculateTravelFee(distance, settings);
-
-          changes.travel_fee_cents = travelFee;
-          changes.distance_miles = distance;
-          logs.push(['travel_fee', order.travel_fee_cents, travelFee]);
+        if (calculatedPricing.travel_fee_cents !== order.travel_fee_cents) {
+          logs.push(['travel_fee', order.travel_fee_cents, calculatedPricing.travel_fee_cents]);
+        }
+        if (calculatedPricing.surface_fee_cents !== order.surface_fee_cents) {
+          logs.push(['surface_fee', order.surface_fee_cents, calculatedPricing.surface_fee_cents]);
         }
       }
 
-      if (Object.keys(changes).length > 0) {
-        changes.status = 'awaiting_customer_approval';
+      // Handle item changes
+      for (const item of stagedItems) {
+        if (item.is_new && !item.is_deleted) {
+          // Add new item
+          await supabase.from('order_items').insert({
+            order_id: order.id,
+            unit_id: item.unit_id,
+            qty: item.qty,
+            wet_or_dry: item.wet_or_dry,
+            unit_price_cents: item.unit_price_cents,
+          });
+          await logChange('order_items', '', `${item.unit_name} (${item.wet_or_dry})`, 'add');
+        } else if (item.is_deleted && item.id) {
+          // Remove item
+          await supabase.from('order_items').delete().eq('id', item.id);
+          await logChange('order_items', `${item.unit_name} (${item.wet_or_dry})`, '', 'remove');
+        }
+      }
 
+      // Set status to awaiting customer approval
+      changes.status = 'awaiting_customer_approval';
+
+      // Update order
+      if (Object.keys(changes).length > 0) {
         await supabase.from('orders').update(changes).eq('id', order.id);
 
+        // Log all changes
         for (const [field, oldVal, newVal] of logs) {
           await logChange(field, oldVal, newVal);
         }
@@ -273,6 +423,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       await loadOrderDetails();
       onUpdate();
       alert('Changes saved successfully! Customer will be notified to review and approve the changes.');
+      onClose();
     } catch (error) {
       console.error('Error saving changes:', error);
       alert('Failed to save changes');
@@ -286,7 +437,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       const customerPortalUrl = `${window.location.origin}/customer-portal/${order.id}`;
       const fullName = `${order.customers?.first_name} ${order.customers?.last_name}`.trim();
 
-      const logoUrl = import.meta.env.VITE_LOGO_URL || `${window.location.origin}/bounce%20party%20club%20logo.png`;
+      const logoUrl = 'https://qaagfafagdpgzcijnfbw.supabase.co/storage/v1/object/public/public-assets/bounce-party-club-logo.png';
 
       const emailHtml = `
         <!DOCTYPE html>
@@ -343,27 +494,36 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           `Hi ${order.customers.first_name}, we've updated your Bounce Party Club booking ` +
           `(Order #${order.id.slice(0, 8).toUpperCase()}). Please review and approve the changes: ${customerPortalUrl}`;
 
-        const smsApiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
-        await fetch(smsApiUrl, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            to: order.customers.phone,
-            message: smsMessage,
-            orderId: order.id,
-          }),
-        });
+        await sendSMS(smsMessage);
       }
     } catch (error) {
-      console.error('Error sending order edit notifications:', error);
+      console.error('Error sending notifications:', error);
     }
+  }
+
+  async function sendSMS(message: string) {
+    const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
+    await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: order.customers?.phone,
+        message,
+        orderId: order.id,
+      }),
+    });
   }
 
   async function calculateDistance(origin: { lat: number; lng: number }, destination: string): Promise<number> {
     return new Promise((resolve) => {
+      if (!window.google?.maps) {
+        resolve(0);
+        return;
+      }
+
       const service = new google.maps.DistanceMatrixService();
       service.getDistanceMatrix(
         {
@@ -384,21 +544,14 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     });
   }
 
-  function calculateTravelFee(distance: number, settings: any): number {
-    const freeRadius = settings.travel_free_radius_miles || 0;
-    const perMile = settings.travel_fee_per_mile_cents || 0;
-    const minFee = settings.travel_min_fee_cents || 0;
-    const maxFee = settings.travel_max_fee_cents || 999999;
+  function calculateTravelFee(distance: number, rules: any): number {
+    const base_radius = parseFloat(rules.base_radius_miles) || 20;
+    const per_mile = rules.per_mile_after_base_cents || 500;
 
-    if (distance <= freeRadius) return 0;
+    if (distance <= base_radius) return 0;
 
-    const chargeableMiles = distance - freeRadius;
-    let fee = Math.round(chargeableMiles * perMile);
-
-    if (fee < minFee) fee = minFee;
-    if (fee > maxFee) fee = maxFee;
-
-    return fee;
+    const chargeableMiles = distance - base_radius;
+    return Math.round(chargeableMiles * per_mile);
   }
 
   async function handleAddDiscount() {
@@ -407,149 +560,78 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       return;
     }
 
-    if (newDiscount.amount_cents === 0 && newDiscount.percentage === 0) {
+    const amount = parseFloat(discountAmountInput) * 100;
+    const percentage = parseFloat(discountPercentInput);
+
+    if (amount === 0 && percentage === 0) {
       alert('Please enter either an amount or percentage');
       return;
     }
 
+    if (amount > 0 && percentage > 0) {
+      alert('Please enter either amount OR percentage, not both');
+      return;
+    }
+
     try {
-      const user = (await supabase.auth.getUser()).data.user;
       const { error } = await supabase.from('order_discounts').insert({
         order_id: order.id,
         name: newDiscount.name,
-        amount_cents: newDiscount.amount_cents,
-        percentage: newDiscount.percentage,
-        created_by: user?.id,
+        amount_cents: Math.round(amount),
+        percentage: percentage || 0,
       });
 
       if (error) throw error;
 
-      await logChange('discount', '', `${newDiscount.name} (${newDiscount.amount_cents > 0 ? formatCurrency(newDiscount.amount_cents) : newDiscount.percentage + '%'})`, 'add');
       setNewDiscount({ name: '', amount_cents: 0, percentage: 0 });
       setDiscountAmountInput('0.00');
       setDiscountPercentInput('0');
       await loadOrderDetails();
-      onUpdate();
     } catch (error) {
       console.error('Error adding discount:', error);
       alert('Failed to add discount');
     }
   }
 
-  async function handleRemoveDiscount(discountId: string, discountName: string) {
-    if (!confirm(`Remove discount "${discountName}"?`)) return;
+  async function handleRemoveDiscount(discountId: string) {
+    if (!confirm('Remove this discount?')) return;
 
     try {
       await supabase.from('order_discounts').delete().eq('id', discountId);
-      await logChange('discount', discountName, 'removed', 'remove');
       await loadOrderDetails();
-      onUpdate();
     } catch (error) {
       console.error('Error removing discount:', error);
       alert('Failed to remove discount');
     }
   }
 
-  function startEditing() {
-    setEditedOrder({
-      event_date: order.event_date,
-      start_window: order.start_window,
-      end_window: order.end_window,
-    });
-    setIsEditing(true);
-  }
-
-  async function saveEdits() {
+  async function handleStatusChange(newStatus: string) {
     try {
-      const user = (await supabase.auth.getUser()).data.user;
-      const changes: any = {};
+      const { error } = await supabase.from('orders').update({ status: newStatus }).eq('id', order.id);
+      if (error) throw error;
 
-      if (editedOrder.event_date !== order.event_date) {
-        changes.event_date = editedOrder.event_date;
-        await logChange('event_date', order.event_date, editedOrder.event_date);
-      }
-      if (editedOrder.start_window !== order.start_window) {
-        changes.start_window = editedOrder.start_window;
-        await logChange('start_window', order.start_window, editedOrder.start_window);
-      }
-      if (editedOrder.end_window !== order.end_window) {
-        changes.end_window = editedOrder.end_window;
-        await logChange('end_window', order.end_window, editedOrder.end_window);
-      }
-
-      if (Object.keys(changes).length > 0) {
-        await supabase.from('orders').update(changes).eq('id', order.id);
-      }
-
-      setIsEditing(false);
-      await loadOrderDetails();
-      onUpdate();
-      alert('Changes saved successfully!');
-    } catch (error) {
-      console.error('Error saving edits:', error);
-      alert('Failed to save changes');
-    }
-  }
-
-  async function removeItem(itemId: string, itemName: string) {
-    if (!confirm(`Remove ${itemName} from this order?`)) return;
-
-    try {
-      await supabase.from('order_items').delete().eq('id', itemId);
-      await logChange('order_items', itemName, 'removed', 'remove');
-      await loadOrderDetails();
-      onUpdate();
-      alert('Item removed successfully!');
-    } catch (error) {
-      console.error('Error removing item:', error);
-      alert('Failed to remove item');
-    }
-  }
-
-  async function addItem(unit: any, mode: 'dry' | 'water') {
-    try {
-      const price = mode === 'water' && unit.price_water_cents ? unit.price_water_cents : unit.price_dry_cents;
-
-      await supabase.from('order_items').insert({
+      await supabase.from('order_workflow_events').insert({
         order_id: order.id,
-        unit_id: unit.id,
-        qty: 1,
-        wet_or_dry: mode,
-        unit_price_cents: price,
+        user_id: (await supabase.auth.getUser()).data.user?.id,
+        event_type: newStatus,
+        description: `Order status changed to ${newStatus}`,
       });
 
-      await logChange('order_items', '', `${unit.name} (${mode})`, 'add');
       await loadOrderDetails();
       onUpdate();
-      alert('Item added successfully!');
     } catch (error) {
-      console.error('Error adding item:', error);
-      alert('Failed to add item');
+      console.error('Error updating status:', error);
+      alert('Failed to update status');
     }
   }
 
-  async function sendSMS(message: string) {
-    const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
-    await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        to: order.customers?.phone,
-        message,
-        orderId: order.id,
-      }),
-    });
-  }
-
-  const totalOrder = order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents;
+  const totalOrder = calculatedPricing?.total_cents || (order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents);
+  const activeItems = stagedItems.filter(item => !item.is_deleted);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div className="bg-white rounded-lg max-w-6xl w-full my-8">
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between rounded-t-lg">
+        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between rounded-t-lg z-10">
           <div>
             <h2 className="text-2xl font-bold text-slate-900">
               Order #{order.id.slice(0, 8).toUpperCase()}
@@ -558,239 +640,274 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               {order.customers?.first_name} {order.customers?.last_name} • {format(new Date(order.event_date), 'MMM d, yyyy')}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {hasChanges && (
+              <button
+                onClick={handleSaveChanges}
+                disabled={saving}
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            )}
             <button
-              onClick={() => setIsEditing(!isEditing)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-                isEditing
-                  ? 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
-              }`}
+              onClick={onClose}
+              className="text-slate-400 hover:text-slate-600"
             >
-              <Edit2 className="w-4 h-4" />
-              {isEditing ? 'View Mode' : 'Edit Mode'}
-            </button>
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
               <X className="w-6 h-6" />
             </button>
           </div>
         </div>
 
-        <div className="flex gap-2 px-6 py-4 border-b border-slate-200 overflow-x-auto">
-          {[
-            { key: 'details', label: 'Details', icon: FileText },
-            { key: 'workflow', label: 'Workflow', icon: Truck },
-            { key: 'notes', label: 'Notes', icon: MessageSquare },
-            { key: 'changelog', label: 'Changelog', icon: History },
-          ].map(section => (
-            <button
-              key={section.key}
-              onClick={() => setActiveSection(section.key as any)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium whitespace-nowrap ${
-                activeSection === section.key
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              <section.icon className="w-4 h-4" />
-              {section.label}
-            </button>
-          ))}
+        <div className="px-6 py-4 border-b border-slate-200">
+          <div className="flex space-x-1">
+            {(['details', 'workflow', 'notes', 'changelog'] as const).map(section => (
+              <button
+                key={section}
+                onClick={() => setActiveSection(section)}
+                className={`px-4 py-2 font-medium rounded-t-lg ${
+                  activeSection === section
+                    ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-700'
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {section === 'details' && <FileText className="w-4 h-4 inline mr-2" />}
+                {section === 'workflow' && <Truck className="w-4 h-4 inline mr-2" />}
+                {section === 'notes' && <MessageSquare className="w-4 h-4 inline mr-2" />}
+                {section === 'changelog' && <History className="w-4 h-4 inline mr-2" />}
+                {section.charAt(0).toUpperCase() + section.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="p-6 max-h-[calc(90vh-200px)] overflow-y-auto">
+        <div className="px-6 py-6 max-h-[calc(100vh-300px)] overflow-y-auto">
           {activeSection === 'details' && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-slate-50 rounded-lg p-4">
-                  <h3 className="font-semibold text-slate-900 mb-3">Customer Information</h3>
-                  <div className="space-y-2 text-sm">
-                    <p><span className="font-medium">Name:</span> {order.customers?.first_name} {order.customers?.last_name}</p>
-                    <p><span className="font-medium">Email:</span> {order.customers?.email}</p>
-                    <p><span className="font-medium">Phone:</span> {order.customers?.phone}</p>
-                  </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Edit2 className="w-4 h-4 text-amber-700" />
+                  <h3 className="font-semibold text-amber-900">Edit Mode Active</h3>
                 </div>
-
-                <div className="bg-slate-50 rounded-lg p-4">
-                  <h3 className="font-semibold text-slate-900 mb-3">Event Details</h3>
-                  {isEditing ? (
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-xs font-medium text-slate-700 mb-1">Event Date</label>
-                        <input
-                          type="date"
-                          value={editedOrder.event_date}
-                          onChange={(e) => setEditedOrder({ ...editedOrder, event_date: e.target.value })}
-                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-xs font-medium text-slate-700 mb-1">Start Time</label>
-                          <input
-                            type="time"
-                            value={editedOrder.start_window}
-                            onChange={(e) => setEditedOrder({ ...editedOrder, start_window: e.target.value })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-slate-700 mb-1">End Time</label>
-                          <input
-                            type="time"
-                            value={editedOrder.end_window}
-                            onChange={(e) => setEditedOrder({ ...editedOrder, end_window: e.target.value })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-700 mb-1">Location Type</label>
-                        <select
-                          value={editedOrder.location_type}
-                          onChange={(e) => setEditedOrder({ ...editedOrder, location_type: e.target.value })}
-                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                        >
-                          <option value="commercial">Commercial</option>
-                          <option value="home">Home</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-700 mb-1">Surface</label>
-                        <select
-                          value={editedOrder.surface}
-                          onChange={(e) => setEditedOrder({ ...editedOrder, surface: e.target.value })}
-                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                        >
-                          <option value="grass">Grass</option>
-                          <option value="concrete">Concrete</option>
-                          <option value="asphalt">Asphalt</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-700 mb-1">Generator Quantity</label>
-                        <input
-                          type="number"
-                          min="0"
-                          value={editedOrder.generator_qty}
-                          onChange={(e) => setEditedOrder({ ...editedOrder, generator_qty: parseInt(e.target.value) || 0 })}
-                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-2 text-sm">
-                      <p><span className="font-medium">Date:</span> {format(new Date(order.event_date), 'MMMM d, yyyy')}</p>
-                      <p><span className="font-medium">Time:</span> {order.start_window} - {order.end_window}</p>
-                      <p><span className="font-medium">Type:</span> {order.location_type} • {order.surface}</p>
-                      <p><span className="font-medium">Generators:</span> {order.generator_qty || 0}</p>
-                    </div>
-                  )}
-                </div>
+                <p className="text-sm text-amber-700">
+                  Make changes to order details and items below. Click "Save Changes" to apply all changes at once.
+                  The order status will be set to "Awaiting Customer Approval" when saved.
+                </p>
               </div>
 
-              <div className="bg-slate-50 rounded-lg p-4">
-                <h3 className="font-semibold text-slate-900 mb-3">Address</h3>
-                {isEditing ? (
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-2">Street Address</label>
-                      <AddressAutocomplete
-                        value={`${editedOrder.address_line1}, ${editedOrder.address_city}, ${editedOrder.address_state} ${editedOrder.address_zip}`}
-                        onSelect={(result) => {
-                          setEditedOrder({
-                            ...editedOrder,
-                            address_line1: result.street,
-                            address_city: result.city,
-                            address_state: result.state,
-                            address_zip: result.zip,
-                          });
-                        }}
-                        placeholder="Enter event address"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Address Line 2 (optional)</label>
-                      <input
-                        type="text"
-                        value={editedOrder.address_line2}
-                        onChange={(e) => setEditedOrder({ ...editedOrder, address_line2: e.target.value })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                        placeholder="Apt, Suite, Unit, etc."
-                      />
-                    </div>
-                    <p className="text-xs text-amber-600">Address changes will recalculate travel fees when saved</p>
-                  </div>
-                ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Location Type</label>
+                  <select
+                    value={editedOrder.location_type}
+                    onChange={(e) => setEditedOrder({ ...editedOrder, location_type: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded"
+                  >
+                    <option value="residential">Residential</option>
+                    <option value="commercial">Commercial</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Surface Type</label>
+                  <select
+                    value={editedOrder.surface}
+                    onChange={(e) => setEditedOrder({ ...editedOrder, surface: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded"
+                  >
+                    <option value="grass">Grass</option>
+                    <option value="cement">Cement</option>
+                    <option value="asphalt">Asphalt</option>
+                    <option value="concrete">Concrete</option>
+                  </select>
+                  {(editedOrder.surface !== 'grass') && (
+                    <p className="text-xs text-amber-600 mt-1">Sandbag fee will be applied automatically</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Start Time</label>
+                  <input
+                    type="time"
+                    value={editedOrder.start_window}
+                    onChange={(e) => setEditedOrder({ ...editedOrder, start_window: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">End Time</label>
+                  <input
+                    type="time"
+                    value={editedOrder.end_window}
+                    onChange={(e) => setEditedOrder({ ...editedOrder, end_window: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Event Date</label>
+                  <input
+                    type="date"
+                    value={editedOrder.event_date}
+                    onChange={(e) => setEditedOrder({ ...editedOrder, event_date: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded"
+                  />
+                </div>
+
+                {editedOrder.location_type === 'residential' && (
                   <div>
-                    <p className="text-sm">{order.addresses?.line1}</p>
-                    {order.addresses?.line2 && <p className="text-sm">{order.addresses.line2}</p>}
-                    <p className="text-sm">{order.addresses?.city}, {order.addresses?.state} {order.addresses?.zip}</p>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editedOrder.overnight_allowed}
+                        onChange={(e) => setEditedOrder({ ...editedOrder, overnight_allowed: e.target.checked })}
+                        className="w-4 h-4"
+                      />
+                      <span className="text-sm font-medium text-slate-700">Allow Overnight</span>
+                    </label>
+                    <p className="text-xs text-slate-500 mt-1">Check if equipment can stay overnight</p>
                   </div>
                 )}
               </div>
 
               <div>
+                <h3 className="font-semibold text-slate-900 mb-3">Event Address</h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Street Address</label>
+                    <AddressAutocomplete
+                      value={editedOrder.address_line1}
+                      onSelect={(result) => {
+                        setEditedOrder({
+                          ...editedOrder,
+                          address_line1: result.street,
+                          address_city: result.city,
+                          address_state: result.state,
+                          address_zip: result.zip,
+                        });
+                      }}
+                      placeholder="Enter event address"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Address Line 2 (optional)</label>
+                    <input
+                      type="text"
+                      value={editedOrder.address_line2}
+                      onChange={(e) => setEditedOrder({ ...editedOrder, address_line2: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                      placeholder="Apt, Suite, Unit, etc."
+                    />
+                  </div>
+                  <p className="text-xs text-amber-600">Address changes will recalculate travel fees when saved</p>
+                </div>
+              </div>
+
+              <div>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold text-slate-900">Order Items</h3>
-                  {isEditing && (
-                    <span className="text-xs text-slate-600 bg-yellow-100 px-2 py-1 rounded">Edit Mode Active</span>
-                  )}
                 </div>
                 <div className="space-y-2">
-                  {orderItems.map(item => (
-                    <div key={item.id} className="flex justify-between items-center bg-slate-50 rounded-lg p-3">
+                  {activeItems.map((item, index) => (
+                    <div key={index} className={`flex justify-between items-center rounded-lg p-3 ${item.is_new ? 'bg-green-50 border border-green-200' : 'bg-slate-50'}`}>
                       <div>
-                        <p className="font-medium text-slate-900">{item.units?.name}</p>
+                        <p className="font-medium text-slate-900">
+                          {item.unit_name}
+                          {item.is_new && <span className="ml-2 text-xs bg-green-600 text-white px-2 py-0.5 rounded">NEW</span>}
+                        </p>
                         <p className="text-sm text-slate-600">{item.wet_or_dry === 'water' ? 'Water' : 'Dry'} • Qty: {item.qty}</p>
                       </div>
                       <div className="flex items-center gap-3">
                         <p className="font-semibold">{formatCurrency(item.unit_price_cents * item.qty)}</p>
-                        {isEditing && (
-                          <button
-                            onClick={() => removeItem(item.id, item.units?.name)}
-                            className="text-red-600 hover:text-red-800 p-1"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => stageRemoveItem(stagedItems.indexOf(item))}
+                          className="text-red-600 hover:text-red-800 p-1"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                {isEditing && (
-                  <div className="mt-4 border-t border-slate-200 pt-4">
-                    <h4 className="font-medium text-slate-900 mb-3 flex items-center gap-2">
-                      <Plus className="w-4 h-4" />
-                      Add Item
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
-                      {availableUnits.map(unit => (
-                        <div key={unit.id} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                          <p className="font-medium text-slate-900 mb-2">{unit.name}</p>
-                          <div className="flex gap-2">
+                <div className="mt-4 border-t border-slate-200 pt-4">
+                  <h4 className="font-medium text-slate-900 mb-3 flex items-center gap-2">
+                    <Plus className="w-4 h-4" />
+                    Add Item
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
+                    {availableUnits.map(unit => (
+                      <div key={unit.id} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                        <p className="font-medium text-slate-900 mb-2">{unit.name}</p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => stageAddItem(unit, 'dry')}
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 px-3 rounded"
+                          >
+                            Add Dry ({formatCurrency(unit.price_dry_cents)})
+                          </button>
+                          {unit.price_water_cents && (
                             <button
-                              onClick={() => addItem(unit, 'dry')}
-                              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 px-3 rounded"
+                              onClick={() => stageAddItem(unit, 'water')}
+                              className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white text-xs py-2 px-3 rounded"
                             >
-                              Add Dry ({formatCurrency(unit.price_dry_cents)})
+                              Add Water ({formatCurrency(unit.price_water_cents)})
                             </button>
-                            {unit.price_water_cents && (
-                              <button
-                                onClick={() => addItem(unit, 'water')}
-                                className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white text-xs py-2 px-3 rounded"
-                              >
-                                Add Water ({formatCurrency(unit.price_water_cents)})
-                              </button>
-                            )}
-                          </div>
+                          )}
                         </div>
-                      ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {calculatedPricing && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h3 className="font-semibold text-slate-900 mb-3">Updated Pricing</h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Subtotal:</span>
+                      <span className="font-medium">{formatCurrency(calculatedPricing.subtotal_cents)}</span>
+                    </div>
+                    {calculatedPricing.travel_fee_cents > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Travel Fee ({calculatedPricing.distance_miles?.toFixed(1)} mi):</span>
+                        <span className="font-medium">{formatCurrency(calculatedPricing.travel_fee_cents)}</span>
+                      </div>
+                    )}
+                    {calculatedPricing.surface_fee_cents > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Surface Fee (Sandbags):</span>
+                        <span className="font-medium">{formatCurrency(calculatedPricing.surface_fee_cents)}</span>
+                      </div>
+                    )}
+                    {calculatedPricing.same_day_pickup_fee_cents > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Same Day Pickup:</span>
+                        <span className="font-medium">{formatCurrency(calculatedPricing.same_day_pickup_fee_cents)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Tax (6%):</span>
+                      <span className="font-medium">{formatCurrency(calculatedPricing.tax_cents)}</span>
+                    </div>
+                    <div className="flex justify-between text-base font-semibold border-t border-blue-300 pt-2">
+                      <span>Total:</span>
+                      <span>{formatCurrency(calculatedPricing.total_cents)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm text-green-700">
+                      <span>Deposit Due:</span>
+                      <span className="font-semibold">{formatCurrency(calculatedPricing.deposit_due_cents)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Balance Due:</span>
+                      <span className="font-medium">{formatCurrency(calculatedPricing.balance_due_cents)}</span>
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                 <h3 className="font-semibold text-slate-900 mb-3">Discounts</h3>
@@ -798,244 +915,120 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 {discounts.length > 0 && (
                   <div className="space-y-2 mb-4">
                     {discounts.map(discount => (
-                      <div key={discount.id} className="flex justify-between items-center bg-white rounded p-3">
+                      <div key={discount.id} className="flex justify-between items-center bg-white rounded p-2">
                         <div>
-                          <p className="font-medium text-slate-900">{discount.name}</p>
+                          <p className="font-medium text-sm">{discount.name}</p>
                           <p className="text-xs text-slate-600">
-                            {discount.amount_cents > 0
-                              ? formatCurrency(discount.amount_cents)
-                              : `${discount.percentage}%`}
+                            {discount.amount_cents > 0 ? formatCurrency(discount.amount_cents) : `${discount.percentage}%`}
                           </p>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className="font-semibold text-green-600">
-                            -{discount.amount_cents > 0
-                              ? formatCurrency(discount.amount_cents)
-                              : formatCurrency(Math.round(order.subtotal_cents * (discount.percentage / 100)))}
-                          </span>
-                          {isEditing && (
-                            <button
-                              onClick={() => handleRemoveDiscount(discount.id, discount.name)}
-                              className="text-red-600 hover:text-red-800 p-1"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
+                        <button
+                          onClick={() => handleRemoveDiscount(discount.id)}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     ))}
                   </div>
                 )}
 
-                {isEditing && (
-                  <div className="border-t border-green-300 pt-4">
-                    <h4 className="text-sm font-medium text-slate-900 mb-3">Add Discount</h4>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-xs font-medium text-slate-700 mb-1">Discount Name</label>
-                        <input
-                          type="text"
-                          value={newDiscount.name}
-                          onChange={(e) => setNewDiscount({ ...newDiscount, name: e.target.value })}
-                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                          placeholder="e.g., Military Discount, SAVE20"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-medium text-slate-700 mb-1">Amount ($)</label>
-                          <input
-                            type="text"
-                            value={discountAmountInput}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              if (/^\d*\.?\d{0,2}$/.test(value)) {
-                                setDiscountAmountInput(value);
-                                const cents = Math.round(parseFloat(value || '0') * 100);
-                                setNewDiscount({ ...newDiscount, amount_cents: cents, percentage: 0 });
-                                setDiscountPercentInput('0');
-                              }
-                            }}
-                            className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                            placeholder="0.00"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-slate-700 mb-1">Percentage (%)</label>
-                          <input
-                            type="text"
-                            value={discountPercentInput}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              if (/^\d*\.?\d{0,2}$/.test(value)) {
-                                setDiscountPercentInput(value);
-                                const percent = parseFloat(value || '0');
-                                if (percent <= 100) {
-                                  setNewDiscount({ ...newDiscount, percentage: percent, amount_cents: 0 });
-                                  setDiscountAmountInput('0.00');
-                                }
-                              }
-                            }}
-                            className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                            placeholder="0"
-                          />
-                        </div>
-                      </div>
-                      <button
-                        onClick={handleAddDiscount}
-                        className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded font-medium"
-                      >
-                        <Plus className="w-4 h-4" />
-                        Add Discount
-                      </button>
-                      <p className="text-xs text-slate-600">Enter either a dollar amount OR percentage (not both)</p>
-                    </div>
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={newDiscount.name}
+                    onChange={(e) => setNewDiscount({ ...newDiscount, name: e.target.value })}
+                    placeholder="Discount name"
+                    className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={discountAmountInput}
+                      onChange={(e) => setDiscountAmountInput(e.target.value)}
+                      placeholder="Amount ($)"
+                      className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                    />
+                    <input
+                      type="number"
+                      step="1"
+                      value={discountPercentInput}
+                      onChange={(e) => setDiscountPercentInput(e.target.value)}
+                      placeholder="Percentage (%)"
+                      className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                    />
                   </div>
-                )}
+                  <button
+                    onClick={handleAddDiscount}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded text-sm font-medium"
+                  >
+                    Add Discount
+                  </button>
+                </div>
               </div>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span>Subtotal:</span>
-                    <span className="font-semibold">{formatCurrency(order.subtotal_cents)}</span>
-                  </div>
-                  {order.travel_fee_cents > 0 && (
-                    <div className="flex justify-between">
-                      <span>Travel Fee:</span>
-                      <span className="font-semibold">{formatCurrency(order.travel_fee_cents)}</span>
-                    </div>
-                  )}
-                  {discounts.length > 0 && discounts.map(discount => (
-                    <div key={discount.id} className="flex justify-between text-green-600">
-                      <span>{discount.name}:</span>
-                      <span className="font-semibold">
-                        -{discount.amount_cents > 0
-                          ? formatCurrency(discount.amount_cents)
-                          : formatCurrency(Math.round(order.subtotal_cents * (discount.percentage / 100)))}
-                      </span>
-                    </div>
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                <h3 className="font-semibold text-slate-900 mb-3">Order Status</h3>
+                <div className="flex flex-wrap gap-2">
+                  {['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'void'].map(status => (
+                    <button
+                      key={status}
+                      onClick={() => handleStatusChange(status)}
+                      className={`px-3 py-1 rounded text-sm font-medium ${
+                        order.status === status
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {status.replace('_', ' ').toUpperCase()}
+                    </button>
                   ))}
-                  <div className="flex justify-between pt-2 border-t border-blue-300 text-lg">
-                    <span className="font-bold">Total:</span>
-                    <span className="font-bold">{formatCurrency(totalOrder - discounts.reduce((sum, d) => sum + (d.amount_cents > 0 ? d.amount_cents : Math.round(order.subtotal_cents * (d.percentage / 100))), 0))}</span>
-                  </div>
                 </div>
               </div>
-
-              {isEditing && (
-                <div className="flex justify-end gap-3">
-                  <button
-                    onClick={() => setIsEditing(false)}
-                    className="px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSaveChanges}
-                    disabled={saving || !hasChanges}
-                    className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
-                  >
-                    <Save className="w-5 h-5" />
-                    {saving ? 'Saving...' : hasChanges ? 'Save Changes' : 'No Changes'}
-                  </button>
-                </div>
-              )}
             </div>
           )}
 
           {activeSection === 'workflow' && (
-            <div className="space-y-6">
-              {order.status === 'confirmed' && (
-                <div className="space-y-4">
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <h3 className="font-semibold text-slate-900 mb-4">Workflow Actions</h3>
-
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                          Set ETA (for On the Way notification)
-                        </label>
-                        <input
-                          type="datetime-local"
-                          value={eta}
-                          onChange={(e) => setEta(e.target.value)}
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                        />
+            <div className="space-y-4">
+              <h3 className="font-semibold text-slate-900">Workflow Events</h3>
+              {workflowEvents.length === 0 ? (
+                <p className="text-slate-600">No workflow events yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {workflowEvents.map(event => (
+                    <div key={event.id} className="bg-slate-50 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                        <p className="font-medium text-sm">{event.event_type}</p>
+                        <span className="text-xs text-slate-500 ml-auto">
+                          {format(new Date(event.created_at), 'MMM d, yyyy h:mm a')}
+                        </span>
                       </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <button
-                          onClick={() => handleWorkflowAction('on_the_way')}
-                          disabled={!eta}
-                          className="flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-400 text-white py-3 px-4 rounded-lg font-medium"
-                        >
-                          <Truck className="w-5 h-5" />
-                          On the Way
-                        </button>
-                        <button
-                          onClick={() => handleWorkflowAction('arrived')}
-                          className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg font-medium"
-                        >
-                          <MapPin className="w-5 h-5" />
-                          Arrived
-                        </button>
-                        <button
-                          onClick={() => handleWorkflowAction('setup_completed')}
-                          className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-medium"
-                        >
-                          <CheckCircle className="w-5 h-5" />
-                          Setup Complete
-                        </button>
-                      </div>
+                      {event.description && (
+                        <p className="text-sm text-slate-600 ml-6">{event.description}</p>
+                      )}
                     </div>
-                  </div>
+                  ))}
                 </div>
               )}
-
-              <div>
-                <h3 className="font-semibold text-slate-900 mb-3">Workflow History</h3>
-                {workflowEvents.length === 0 ? (
-                  <p className="text-slate-500 text-center py-8">No workflow events yet</p>
-                ) : (
-                  <div className="space-y-3">
-                    {workflowEvents.map(event => (
-                      <div key={event.id} className="bg-slate-50 rounded-lg p-4">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-medium text-slate-900 capitalize">
-                              {event.event_type.replace(/_/g, ' ')}
-                            </p>
-                            <p className="text-sm text-slate-600">By: {event.user?.email}</p>
-                            {event.eta && (
-                              <p className="text-sm text-slate-600">ETA: {format(new Date(event.eta), 'MMM d, h:mm a')}</p>
-                            )}
-                          </div>
-                          <p className="text-xs text-slate-500">{format(new Date(event.created_at), 'MMM d, h:mm a')}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
             </div>
           )}
 
           {activeSection === 'notes' && (
-            <div className="space-y-6">
+            <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Add Note</label>
+                <h3 className="font-semibold text-slate-900 mb-3">Add Note</h3>
                 <textarea
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
-                  placeholder="Enter notes about this order..."
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg resize-none"
-                  rows={3}
+                  className="w-full px-3 py-2 border border-slate-300 rounded mb-2 h-24"
+                  placeholder="Enter note..."
                 />
                 <button
                   onClick={handleAddNote}
                   disabled={savingNote || !newNote.trim()}
-                  className="mt-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white py-2 px-6 rounded-lg font-medium"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium disabled:opacity-50"
                 >
                   {savingNote ? 'Saving...' : 'Add Note'}
                 </button>
@@ -1044,21 +1037,53 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               <div>
                 <h3 className="font-semibold text-slate-900 mb-3">Notes History</h3>
                 {notes.length === 0 ? (
-                  <p className="text-slate-500 text-center py-8">No notes yet</p>
+                  <p className="text-slate-600">No notes yet</p>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {notes.map(note => (
-                      <div key={note.id} className="bg-slate-50 rounded-lg p-4">
-                        <p className="text-slate-900 whitespace-pre-wrap">{note.note}</p>
-                        <div className="flex justify-between items-center mt-2 text-xs text-slate-500">
-                          <span>By: {note.user?.email}</span>
-                          <span>{format(new Date(note.created_at), 'MMM d, h:mm a')}</span>
+                      <div key={note.id} className="bg-slate-50 rounded-lg p-3">
+                        <p className="text-sm mb-2">{note.note}</p>
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                          <span>{note.user?.email}</span>
+                          <span>•</span>
+                          <span>{format(new Date(note.created_at), 'MMM d, yyyy h:mm a')}</span>
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {activeSection === 'changelog' && (
+            <div className="space-y-4">
+              <h3 className="font-semibold text-slate-900">Change History</h3>
+              {changelog.length === 0 ? (
+                <p className="text-slate-600">No changes recorded yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {changelog.map(change => (
+                    <div key={change.id} className="bg-slate-50 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <History className="w-4 h-4 text-blue-600" />
+                        <p className="font-medium text-sm">{change.field_name}</p>
+                        <span className="text-xs text-slate-500 ml-auto">
+                          {format(new Date(change.created_at), 'MMM d, yyyy h:mm a')}
+                        </span>
+                      </div>
+                      <div className="ml-6 text-sm">
+                        <p className="text-slate-600">
+                          <span className="text-red-600 line-through">{change.old_value || '(empty)'}</span>
+                          {' → '}
+                          <span className="text-green-600 font-medium">{change.new_value || '(empty)'}</span>
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">{change.user?.email}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

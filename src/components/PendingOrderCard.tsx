@@ -205,7 +205,7 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
           .single();
 
         if (orderWithItems && orderWithItems.customers?.email) {
-          const logoUrl = import.meta.env.VITE_LOGO_URL || `${window.location.origin}/bounce%20party%20club%20logo.png`;
+          const logoUrl = 'https://qaagfafagdpgzcijnfbw.supabase.co/storage/v1/object/public/public-assets/bounce-party-club-logo.png';
           const eventDateStr = format(new Date(orderWithItems.event_date + 'T12:00:00'), 'EEEE, MMMM d, yyyy');
 
           const orderItemsHtml = orderWithItems.order_items.map((item: any) => `
