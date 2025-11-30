@@ -1075,51 +1075,158 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 </div>
               </div>
 
-              {calculatedPricing && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <h3 className="font-semibold text-slate-900 mb-3">Updated Pricing</h3>
+              <div className="grid grid-cols-2 gap-4">
+                {/* Current/Original Pricing */}
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                  <h3 className="font-semibold text-slate-900 mb-3">Current Pricing</h3>
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-600">Subtotal:</span>
-                      <span className="font-medium">{formatCurrency(calculatedPricing.subtotal_cents)}</span>
+                      <span className="font-medium">{formatCurrency(order.subtotal_cents)}</span>
                     </div>
-                    {calculatedPricing.travel_fee_cents > 0 && (
+                    {order.travel_fee_cents > 0 && (
                       <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Travel Fee ({calculatedPricing.distance_miles?.toFixed(1)} mi):</span>
-                        <span className="font-medium">{formatCurrency(calculatedPricing.travel_fee_cents)}</span>
+                        <span className="text-slate-600">Travel Fee:</span>
+                        <span className="font-medium">{formatCurrency(order.travel_fee_cents)}</span>
+                      </div>
+                    )}
+                    {order.surface_fee_cents > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Surface Fee:</span>
+                        <span className="font-medium">{formatCurrency(order.surface_fee_cents)}</span>
+                      </div>
+                    )}
+                    {order.same_day_pickup_fee_cents > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Same Day Pickup:</span>
+                        <span className="font-medium">{formatCurrency(order.same_day_pickup_fee_cents)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Tax (6%):</span>
+                      <span className="font-medium">{formatCurrency(order.tax_cents)}</span>
+                    </div>
+                    <div className="flex justify-between text-base font-semibold border-t border-slate-300 pt-2">
+                      <span>Total:</span>
+                      <span>{formatCurrency(order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm text-green-700">
+                      <span>Deposit Due:</span>
+                      <span className="font-semibold">{formatCurrency(order.deposit_due_cents)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Balance Due:</span>
+                      <span className="font-medium">{formatCurrency(order.balance_due_cents)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Updated Pricing */}
+                {calculatedPricing && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                      Updated Pricing
+                      {hasChanges && <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">Changes Pending</span>}
+                    </h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Subtotal:</span>
+                        <div className="flex items-center gap-2">
+                          {calculatedPricing.subtotal_cents !== order.subtotal_cents && (
+                            <span className="text-xs text-slate-400 line-through">{formatCurrency(order.subtotal_cents)}</span>
+                          )}
+                          <span className={`font-medium ${calculatedPricing.subtotal_cents !== order.subtotal_cents ? 'text-blue-700' : ''}`}>
+                            {formatCurrency(calculatedPricing.subtotal_cents)}
+                          </span>
+                        </div>
+                      </div>
+                      {calculatedPricing.travel_fee_cents > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-600">Travel Fee ({calculatedPricing.distance_miles?.toFixed(1)} mi):</span>
+                          <div className="flex items-center gap-2">
+                            {calculatedPricing.travel_fee_cents !== order.travel_fee_cents && (
+                              <span className="text-xs text-slate-400 line-through">{formatCurrency(order.travel_fee_cents)}</span>
+                            )}
+                            <span className={`font-medium ${calculatedPricing.travel_fee_cents !== order.travel_fee_cents ? 'text-blue-700' : ''}`}>
+                              {formatCurrency(calculatedPricing.travel_fee_cents)}
+                            </span>
+                          </div>
                       </div>
                     )}
                     {calculatedPricing.surface_fee_cents > 0 && (
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-600">Surface Fee (Sandbags):</span>
-                        <span className="font-medium">{formatCurrency(calculatedPricing.surface_fee_cents)}</span>
+                        <div className="flex items-center gap-2">
+                          {calculatedPricing.surface_fee_cents !== order.surface_fee_cents && (
+                            <span className="text-xs text-slate-400 line-through">{formatCurrency(order.surface_fee_cents)}</span>
+                          )}
+                          <span className={`font-medium ${calculatedPricing.surface_fee_cents !== order.surface_fee_cents ? 'text-blue-700' : ''}`}>
+                            {formatCurrency(calculatedPricing.surface_fee_cents)}
+                          </span>
+                        </div>
                       </div>
                     )}
                     {calculatedPricing.same_day_pickup_fee_cents > 0 && (
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-600">Same Day Pickup:</span>
-                        <span className="font-medium">{formatCurrency(calculatedPricing.same_day_pickup_fee_cents)}</span>
+                        <div className="flex items-center gap-2">
+                          {calculatedPricing.same_day_pickup_fee_cents !== order.same_day_pickup_fee_cents && (
+                            <span className="text-xs text-slate-400 line-through">{formatCurrency(order.same_day_pickup_fee_cents)}</span>
+                          )}
+                          <span className={`font-medium ${calculatedPricing.same_day_pickup_fee_cents !== order.same_day_pickup_fee_cents ? 'text-blue-700' : ''}`}>
+                            {formatCurrency(calculatedPricing.same_day_pickup_fee_cents)}
+                          </span>
+                        </div>
                       </div>
                     )}
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-600">Tax (6%):</span>
-                      <span className="font-medium">{formatCurrency(calculatedPricing.tax_cents)}</span>
+                      <div className="flex items-center gap-2">
+                        {calculatedPricing.tax_cents !== order.tax_cents && (
+                          <span className="text-xs text-slate-400 line-through">{formatCurrency(order.tax_cents)}</span>
+                        )}
+                        <span className={`font-medium ${calculatedPricing.tax_cents !== order.tax_cents ? 'text-blue-700' : ''}`}>
+                          {formatCurrency(calculatedPricing.tax_cents)}
+                        </span>
+                      </div>
                     </div>
                     <div className="flex justify-between text-base font-semibold border-t border-blue-300 pt-2">
                       <span>Total:</span>
-                      <span>{formatCurrency(calculatedPricing.total_cents)}</span>
+                      <div className="flex items-center gap-2">
+                        {calculatedPricing.total_cents !== (order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents) && (
+                          <span className="text-sm text-slate-400 line-through">
+                            {formatCurrency(order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents)}
+                          </span>
+                        )}
+                        <span className={calculatedPricing.total_cents !== (order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents) ? 'text-blue-700' : ''}>
+                          {formatCurrency(calculatedPricing.total_cents)}
+                        </span>
+                      </div>
                     </div>
                     <div className="flex justify-between text-sm text-green-700">
                       <span>Deposit Due:</span>
-                      <span className="font-semibold">{formatCurrency(calculatedPricing.deposit_due_cents)}</span>
+                      <div className="flex items-center gap-2">
+                        {calculatedPricing.deposit_due_cents !== order.deposit_due_cents && (
+                          <span className="text-xs text-slate-400 line-through">{formatCurrency(order.deposit_due_cents)}</span>
+                        )}
+                        <span className="font-semibold">{formatCurrency(calculatedPricing.deposit_due_cents)}</span>
+                      </div>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-600">Balance Due:</span>
-                      <span className="font-medium">{formatCurrency(calculatedPricing.balance_due_cents)}</span>
+                      <div className="flex items-center gap-2">
+                        {calculatedPricing.balance_due_cents !== order.balance_due_cents && (
+                          <span className="text-xs text-slate-400 line-through">{formatCurrency(order.balance_due_cents)}</span>
+                        )}
+                        <span className={`font-medium ${calculatedPricing.balance_due_cents !== order.balance_due_cents ? 'text-blue-700' : ''}`}>
+                          {formatCurrency(calculatedPricing.balance_due_cents)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
               )}
+              </div>
 
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                 <h3 className="font-semibold text-slate-900 mb-3">Discounts</h3>
