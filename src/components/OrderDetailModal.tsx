@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { X, Truck, MapPin, CheckCircle, MessageSquare, FileText, Edit2, History, Save, Plus, Trash2 } from 'lucide-react';
+import { X, Truck, MapPin, CheckCircle, MessageSquare, FileText, Edit2, History, Save, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
 import { formatCurrency } from '../lib/pricing';
 import { AddressAutocomplete } from './AddressAutocomplete';
+import { checkMultipleUnitsAvailability } from '../lib/availability';
 
 interface OrderDetailModalProps {
   order: any;
@@ -59,6 +60,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [pricingRules, setPricingRules] = useState<any>(null);
   const [adminSettings, setAdminSettings] = useState<any>(null);
   const [calculatedPricing, setCalculatedPricing] = useState<any>(null);
+  const [availabilityIssues, setAvailabilityIssues] = useState<any[]>([]);
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
 
   useEffect(() => {
     loadOrderDetails();
@@ -129,6 +132,16 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
   }, [stagedItems, editedOrder, pricingRules, adminSettings]);
 
+  // Check availability when dates or items change
+  useEffect(() => {
+    if (stagedItems.length > 0 && editedOrder.event_date && editedOrder.event_end_date) {
+      const timer = setTimeout(() => {
+        checkAvailability();
+      }, 500); // Debounce for 500ms
+      return () => clearTimeout(timer);
+    }
+  }, [editedOrder.event_date, editedOrder.event_end_date, stagedItems]);
+
   async function loadPricingData() {
     try {
       const [rulesRes, settingsRes] = await Promise.all([
@@ -146,6 +159,42 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       }
     } catch (error) {
       console.error('Error loading pricing data:', error);
+    }
+  }
+
+  async function checkAvailability() {
+    if (!editedOrder.event_date || !editedOrder.event_end_date || stagedItems.length === 0) {
+      setAvailabilityIssues([]);
+      return;
+    }
+
+    setCheckingAvailability(true);
+    try {
+      const activeItems = stagedItems.filter(item => !item.is_deleted);
+      const checks = activeItems.map(item => ({
+        unitId: item.unit_id,
+        eventStartDate: editedOrder.event_date,
+        eventEndDate: editedOrder.event_end_date,
+        excludeOrderId: order.id, // Exclude current order from conflict check
+      }));
+
+      const results = await checkMultipleUnitsAvailability(checks);
+      const issues = results
+        .filter(result => !result.isAvailable)
+        .map(result => {
+          const item = activeItems.find(i => i.unit_id === result.unitId);
+          return {
+            unitName: item?.unit_name || 'Unknown',
+            unitId: result.unitId,
+            conflicts: result.conflictingOrders,
+          };
+        });
+
+      setAvailabilityIssues(issues);
+    } catch (error) {
+      console.error('Error checking availability:', error);
+    } finally {
+      setCheckingAvailability(false);
     }
   }
 
@@ -331,6 +380,15 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   }
 
   async function handleSaveChanges() {
+    // Check availability one final time before saving
+    await checkAvailability();
+
+    if (availabilityIssues.length > 0) {
+      const unitNames = availabilityIssues.map(issue => issue.unitName).join(', ');
+      alert(`Cannot save: The following units are not available for the selected dates: ${unitNames}\n\nPlease adjust the dates or remove the conflicting items.`);
+      return;
+    }
+
     setSaving(true);
     try {
       const changes: any = {};
@@ -359,10 +417,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       }
       if (editedOrder.event_date !== order.event_date) {
         changes.event_date = editedOrder.event_date;
+        changes.start_date = editedOrder.event_date; // Keep start_date in sync
         logs.push(['event_date', order.event_date, editedOrder.event_date]);
       }
       if (editedOrder.event_end_date !== (order.event_end_date || order.event_date)) {
         changes.event_end_date = editedOrder.event_end_date;
+        changes.end_date = editedOrder.event_end_date; // Keep end_date in sync
         logs.push(['event_end_date', order.event_end_date || order.event_date, editedOrder.event_end_date]);
       }
       if (editedOrder.pickup_preference !== (order.pickup_preference || 'next_day')) {
@@ -721,6 +781,51 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                   The order status will be set to "Awaiting Customer Approval" when saved.
                 </p>
               </div>
+
+              {checkingAvailability && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-700"></div>
+                    <p className="text-sm text-blue-700">Checking unit availability...</p>
+                  </div>
+                </div>
+              )}
+
+              {!checkingAvailability && availabilityIssues.length > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="w-4 h-4 text-red-700" />
+                    <h3 className="font-semibold text-red-900">Availability Conflict</h3>
+                  </div>
+                  <p className="text-sm text-red-700 mb-2">
+                    The following units are not available for the selected dates:
+                  </p>
+                  <ul className="list-disc list-inside text-sm text-red-700 space-y-1">
+                    {availabilityIssues.map((issue, idx) => (
+                      <li key={idx}>
+                        <span className="font-medium">{issue.unitName}</span>
+                        {issue.conflicts && issue.conflicts.length > 0 && (
+                          <span className="text-xs">
+                            {' '}(conflicts with {issue.conflicts.length} other order{issue.conflicts.length > 1 ? 's' : ''})
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-red-600 mt-2">
+                    Please adjust the dates or remove the conflicting items before saving.
+                  </p>
+                </div>
+              )}
+
+              {!checkingAvailability && availabilityIssues.length === 0 && stagedItems.filter(i => !i.is_deleted).length > 0 && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-700" />
+                    <p className="text-sm text-green-700 font-medium">All units are available for the selected dates</p>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
