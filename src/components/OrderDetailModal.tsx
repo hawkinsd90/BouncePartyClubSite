@@ -62,6 +62,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [calculatedPricing, setCalculatedPricing] = useState<any>(null);
   const [availabilityIssues, setAvailabilityIssues] = useState<any[]>([]);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
+  const [customDepositCents, setCustomDepositCents] = useState<number | null>(null);
+  const [customDepositInput, setCustomDepositInput] = useState('');
 
   useEffect(() => {
     loadOrderDetails();
@@ -461,8 +463,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         changes.surface_fee_cents = calculatedPricing.surface_fee_cents;
         changes.same_day_pickup_fee_cents = calculatedPricing.same_day_pickup_fee_cents;
         changes.tax_cents = calculatedPricing.tax_cents;
-        changes.deposit_due_cents = calculatedPricing.deposit_due_cents;
-        changes.balance_due_cents = calculatedPricing.balance_due_cents;
+
+        // Apply custom deposit override if set
+        const finalDepositCents = customDepositCents !== null ? customDepositCents : calculatedPricing.deposit_due_cents;
+        changes.deposit_due_cents = finalDepositCents;
+        changes.balance_due_cents = calculatedPricing.total_cents - finalDepositCents;
 
         if (calculatedPricing.travel_fee_cents !== order.travel_fee_cents) {
           logs.push(['travel_fee', order.travel_fee_cents, calculatedPricing.travel_fee_cents]);
@@ -470,6 +475,45 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         if (calculatedPricing.surface_fee_cents !== order.surface_fee_cents) {
           logs.push(['surface_fee', order.surface_fee_cents, calculatedPricing.surface_fee_cents]);
         }
+        if (finalDepositCents !== order.deposit_due_cents) {
+          logs.push(['deposit_due', order.deposit_due_cents, finalDepositCents]);
+        }
+      }
+
+      // Determine if we need to clear payment method
+      let shouldClearPayment = false;
+      const itemsChanged = stagedItems.some(item => item.is_new || item.is_deleted);
+
+      if (itemsChanged) {
+        // Items were added or removed - always clear payment
+        shouldClearPayment = true;
+        logs.push(['payment_method', 'cleared', 'items changed']);
+      } else if (calculatedPricing && order.stripe_payment_intent_id) {
+        // No item changes, but check if deposit increased
+        const finalDepositCents = customDepositCents !== null ? customDepositCents : calculatedPricing.deposit_due_cents;
+        const currentPaidAmount = order.stripe_amount_paid_cents || 0;
+
+        if (finalDepositCents > currentPaidAmount) {
+          // New deposit is higher than what was paid - clear payment
+          shouldClearPayment = true;
+          logs.push(['payment_method', 'cleared', `deposit increased from ${currentPaidAmount} to ${finalDepositCents}`]);
+        } else if (currentPaidAmount >= (order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents)) {
+          // Customer paid in full originally
+          const newTotal = calculatedPricing.total_cents;
+          if (newTotal > currentPaidAmount) {
+            // New total exceeds what was paid - clear payment
+            shouldClearPayment = true;
+            logs.push(['payment_method', 'cleared', `paid in full but total increased from ${currentPaidAmount} to ${newTotal}`]);
+          }
+        }
+      }
+
+      // Clear payment method if needed
+      if (shouldClearPayment) {
+        changes.stripe_payment_intent_id = null;
+        changes.stripe_payment_method_id = null;
+        changes.stripe_amount_paid_cents = null;
+        changes.payment_collected_at = null;
       }
 
       // Handle item changes
@@ -817,6 +861,40 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                   </p>
                 </div>
               )}
+
+              {(() => {
+                const itemsChanged = stagedItems.some(item => item.is_new || item.is_deleted);
+                const finalDepositCents = customDepositCents !== null ? customDepositCents : (calculatedPricing?.deposit_due_cents || order.deposit_due_cents);
+                const currentPaidAmount = order.stripe_amount_paid_cents || 0;
+                const originalTotal = order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents;
+                const newTotal = calculatedPricing?.total_cents || originalTotal;
+
+                const willClearPayment = itemsChanged ||
+                  (order.stripe_payment_intent_id && (
+                    finalDepositCents > currentPaidAmount ||
+                    (currentPaidAmount >= originalTotal && newTotal > currentPaidAmount)
+                  ));
+
+                return willClearPayment && (
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <AlertTriangle className="w-4 h-4 text-purple-700" />
+                      <h3 className="font-semibold text-purple-900">Payment Information Will Be Cleared</h3>
+                    </div>
+                    <p className="text-sm text-purple-700 mb-2">
+                      {itemsChanged
+                        ? "Since you're adding or removing units, the saved payment method will be cleared."
+                        : finalDepositCents > currentPaidAmount
+                        ? `The new deposit (${formatCurrency(finalDepositCents)}) is higher than the amount already paid (${formatCurrency(currentPaidAmount)}), so the payment method will be cleared.`
+                        : `The customer paid the full amount (${formatCurrency(currentPaidAmount)}), but the new total (${formatCurrency(newTotal)}) exceeds this, so the payment method will be cleared.`
+                      }
+                    </p>
+                    <p className="text-xs text-purple-600">
+                      The customer will be asked to provide payment information again when they approve the changes.
+                    </p>
+                  </div>
+                );
+              })()}
 
               {!checkingAvailability && availabilityIssues.length === 0 && stagedItems.filter(i => !i.is_deleted).length > 0 && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -1274,7 +1352,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                             {calculatedPricing.deposit_due_cents !== order.deposit_due_cents && (
                               <span className="text-xs text-slate-400 line-through">{formatCurrency(order.deposit_due_cents)}</span>
                             )}
-                            <span className="font-semibold">{formatCurrency(calculatedPricing.deposit_due_cents)}</span>
+                            <span className="font-semibold">
+                              {formatCurrency(customDepositCents !== null ? customDepositCents : calculatedPricing.deposit_due_cents)}
+                            </span>
+                            {customDepositCents !== null && customDepositCents !== calculatedPricing.deposit_due_cents && (
+                              <span className="text-xs bg-amber-600 text-white px-1 py-0.5 rounded">OVERRIDE</span>
+                            )}
                           </div>
                         </div>
                         <div className="flex justify-between text-sm">
@@ -1284,7 +1367,9 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                               <span className="text-xs text-slate-400 line-through">{formatCurrency(order.balance_due_cents)}</span>
                             )}
                             <span className={`font-medium ${calculatedPricing.balance_due_cents !== order.balance_due_cents ? 'text-blue-700' : ''}`}>
-                              {formatCurrency(calculatedPricing.balance_due_cents)}
+                              {formatCurrency(customDepositCents !== null
+                                ? calculatedPricing.total_cents - customDepositCents
+                                : calculatedPricing.balance_due_cents)}
                             </span>
                           </div>
                         </div>
@@ -1350,6 +1435,64 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                   >
                     Add Discount
                   </button>
+                </div>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <h3 className="font-semibold text-slate-900 mb-3">Deposit Override</h3>
+                <p className="text-sm text-slate-600 mb-3">
+                  Set a custom deposit amount. Use this when the calculated deposit doesn't match your requirements.
+                </p>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-slate-700">Calculated Deposit:</span>
+                    <span className="font-semibold">{formatCurrency(calculatedPricing?.deposit_due_cents || order.deposit_due_cents)}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="block text-xs text-slate-600 mb-1">Custom Deposit Amount</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={customDepositInput}
+                        onChange={(e) => setCustomDepositInput(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                      />
+                    </div>
+                    <div className="flex items-end gap-2">
+                      <button
+                        onClick={() => {
+                          const amountCents = Math.round(parseFloat(customDepositInput || '0') * 100);
+                          setCustomDepositCents(amountCents);
+                          setHasChanges(true);
+                        }}
+                        className="bg-amber-600 hover:bg-amber-700 text-white py-2 px-4 rounded text-sm font-medium"
+                      >
+                        Apply
+                      </button>
+                      {customDepositCents !== null && (
+                        <button
+                          onClick={() => {
+                            setCustomDepositCents(null);
+                            setCustomDepositInput('');
+                            setHasChanges(true);
+                          }}
+                          className="bg-slate-500 hover:bg-slate-600 text-white py-2 px-4 rounded text-sm font-medium"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {customDepositCents !== null && (
+                    <div className="bg-white border border-amber-300 rounded p-3">
+                      <p className="text-sm font-medium text-amber-800 mb-1">Active Override</p>
+                      <p className="text-xs text-slate-600">
+                        Deposit will be set to <span className="font-semibold">{formatCurrency(customDepositCents)}</span> when you save changes.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
