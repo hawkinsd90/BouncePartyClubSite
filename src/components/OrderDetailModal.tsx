@@ -1091,13 +1091,15 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       const { data: { user } } = await supabase.auth.getUser();
 
       // Log status change in changelog with reason
+      // Store reason in the new_value field in format: "status | Reason: reason text"
+      const changeDescription = `${pendingStatus} | Reason: ${statusChangeReason}`;
       const { error: logError } = await supabase.from('order_changelog').insert({
         order_id: order.id,
         user_id: user?.id,
         field_changed: 'status',
         old_value: order.status,
-        new_value: pendingStatus,
-        notes: statusChangeReason,
+        new_value: changeDescription,
+        change_type: 'status_change',
       });
 
       if (logError) {
