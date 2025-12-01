@@ -1148,6 +1148,37 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
 
     try {
+      // Check availability if confirming the order
+      if (pendingStatus === 'confirmed') {
+        const activeItems = stagedItems.filter(item => !item.is_deleted);
+        const checks = activeItems.map(item => ({
+          unitId: item.unit_id,
+          wetOrDry: item.wet_or_dry,
+          quantity: item.qty,
+          eventStartDate: editedOrder.event_date,
+          eventEndDate: editedOrder.event_end_date,
+          excludeOrderId: order.id,
+        }));
+
+        const availabilityResults = await checkMultipleUnitsAvailability(checks);
+        const conflicts = availabilityResults.filter(result => !result.isAvailable);
+
+        if (conflicts.length > 0) {
+          const conflictList = conflicts
+            .map(c => {
+              const item = activeItems.find(i => i.unit_id === c.unitId);
+              return item?.unit_name || 'Unknown unit';
+            })
+            .join(', ');
+
+          alert(
+            `Cannot confirm order: The following equipment is not available for the selected dates: ${conflictList}\n\n` +
+            'Please adjust the order dates or equipment before confirming.'
+          );
+          return;
+        }
+      }
+
       // Update order status
       const { error: updateError } = await supabase.from('orders').update({ status: pendingStatus }).eq('id', order.id);
       if (updateError) {

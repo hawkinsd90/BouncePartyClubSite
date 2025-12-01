@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../lib/pricing';
+import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { CheckCircle, Upload, CreditCard, FileText, Image as ImageIcon, AlertCircle, Sparkles, TrendingUp } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -252,6 +253,35 @@ export function CustomerPortal() {
 
     setSubmitting(true);
     try {
+      // Check availability before approving
+      const checks = orderItems.map((item: any) => ({
+        unitId: item.unit_id,
+        wetOrDry: item.wet_or_dry,
+        quantity: item.qty,
+        eventStartDate: order.event_date,
+        eventEndDate: order.event_end_date,
+        excludeOrderId: order.id,
+      }));
+
+      const availabilityResults = await checkMultipleUnitsAvailability(checks);
+      const conflicts = availabilityResults.filter(result => !result.isAvailable);
+
+      if (conflicts.length > 0) {
+        const conflictList = conflicts
+          .map(c => {
+            const item = orderItems.find((i: any) => i.unit_id === c.unitId);
+            return item?.units?.name || 'Unknown unit';
+          })
+          .join(', ');
+
+        alert(
+          `We're sorry, but the following equipment is no longer available for your selected dates: ${conflictList}\n\n` +
+          'Please call us at (313) 889-3860 to discuss alternative dates or equipment options.'
+        );
+        setSubmitting(false);
+        return;
+      }
+
       const { error } = await supabase
         .from('orders')
         .update({ status: 'pending_review' })
