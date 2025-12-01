@@ -552,6 +552,56 @@ export function CustomerPortal() {
                 </div>
               )}
 
+              {/* What Changed Section */}
+              {changelog.length > 0 && (
+                <div className="bg-orange-50 border-2 border-orange-400 rounded-lg p-6 mb-6">
+                  <h3 className="font-bold text-orange-900 mb-4 text-lg flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5" />
+                    What Changed
+                  </h3>
+                  <div className="space-y-3">
+                    {changelog.map((change, idx) => {
+                      const formatValue = (val: string, field: string) => {
+                        if (!val || val === 'null') return 'None';
+                        if (field.includes('cents') || field.includes('price')) {
+                          return formatCurrency(parseInt(val));
+                        }
+                        if (field === 'event_date' || field === 'event_end_date' || field === 'start_date' || field === 'end_date') {
+                          return format(new Date(val), 'MMMM d, yyyy');
+                        }
+                        return val;
+                      };
+
+                      const fieldLabel = change.field_changed
+                        .replace(/_/g, ' ')
+                        .replace(/\b\w/g, (l: string) => l.toUpperCase())
+                        .replace('Cents', '')
+                        .replace('Fee', '');
+
+                      return (
+                        <div key={idx} className="bg-white rounded p-4 border border-orange-200">
+                          <div className="font-semibold text-orange-900 mb-2">{fieldLabel}</div>
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <div className="text-slate-600 mb-1">Previous:</div>
+                              <div className="text-red-700 line-through font-medium">
+                                {formatValue(change.old_value, change.field_changed)}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-slate-600 mb-1">Updated:</div>
+                              <div className="text-green-700 font-semibold">
+                                {formatValue(change.new_value, change.field_changed)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Updated Order Details */}
               <div className="bg-slate-50 rounded-lg p-6 mb-6 border-2 border-slate-200">
                 <h3 className="font-bold text-slate-900 mb-4 text-lg">Current Booking Information</h3>
@@ -641,45 +691,116 @@ export function CustomerPortal() {
                     </div>
                   )}
 
-                  {/* Pricing Summary */}
-                  <div className="pt-4 border-t border-slate-300 space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-600">Items Subtotal:</span>
-                      <span className="text-slate-900">{formatCurrency(order.subtotal_cents)}</span>
-                    </div>
-                    {order.travel_fee_cents > 0 && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Travel Fee:</span>
-                        <span className="text-slate-900">{formatCurrency(order.travel_fee_cents)}</span>
+                  {/* Detailed Pricing Breakdown */}
+                  <div className="pt-4 border-t-2 border-slate-400">
+                    <h4 className="font-bold text-slate-900 mb-3">Complete Price Breakdown</h4>
+                    <div className="space-y-2 bg-white p-4 rounded border border-slate-200">
+                      {/* Equipment Items */}
+                      {orderItems.map((item, idx) => (
+                        <div key={idx} className="flex justify-between text-sm">
+                          <span className="text-slate-700">
+                            {item.units.name} ({item.wet_or_dry === 'dry' ? 'Dry' : 'Water'})
+                            {item.qty > 1 && ` × ${item.qty}`}
+                          </span>
+                          <span className="text-slate-900 font-medium">{formatCurrency(item.unit_price_cents * item.qty)}</span>
+                        </div>
+                      ))}
+
+                      {/* Generator Fee */}
+                      {order.generator_fee_cents > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-700">
+                            Generator{order.generator_qty > 1 ? `s (${order.generator_qty})` : ''}
+                          </span>
+                          <span className="text-slate-900 font-medium">{formatCurrency(order.generator_fee_cents)}</span>
+                        </div>
+                      )}
+
+                      {/* Discounts */}
+                      {discounts.map((discount, idx) => (
+                        <div key={`discount-${idx}`} className="flex justify-between text-sm">
+                          <span className="text-green-700 font-medium">
+                            {discount.name} {discount.percentage > 0 && `(${discount.percentage}%)`}
+                          </span>
+                          <span className="text-green-700 font-semibold">-{formatCurrency(discount.amount_cents)}</span>
+                        </div>
+                      ))}
+
+                      {/* Custom Fees */}
+                      {customFees.map((fee, idx) => (
+                        <div key={`fee-${idx}`} className="flex justify-between text-sm">
+                          <span className="text-slate-700">{fee.name}</span>
+                          <span className="text-slate-900 font-medium">{formatCurrency(fee.amount_cents)}</span>
+                        </div>
+                      ))}
+
+                      {/* Items Subtotal */}
+                      <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
+                        <span className="text-slate-700 font-medium">Items Subtotal:</span>
+                        <span className="text-slate-900 font-semibold">{formatCurrency(order.subtotal_cents)}</span>
                       </div>
-                    )}
-                    {order.surface_fee_cents > 0 && (
+
+                      {/* Travel Fee */}
                       <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Surface Fee (Sandbags):</span>
-                        <span className="text-slate-900">{formatCurrency(order.surface_fee_cents)}</span>
+                        <span className="text-slate-700">
+                          Travel Fee
+                          {order.travel_is_flat_fee && ' (Flat Fee)'}
+                          {!order.travel_is_flat_fee && order.travel_chargeable_miles > 0 &&
+                            ` (${order.travel_chargeable_miles} mi × ${formatCurrency(order.travel_per_mile_cents)})`
+                          }
+                        </span>
+                        <span className="text-slate-900 font-medium">
+                          {order.travel_fee_cents > 0 ? formatCurrency(order.travel_fee_cents) : '$0.00'}
+                        </span>
                       </div>
-                    )}
-                    {order.same_day_pickup_fee_cents > 0 && (
+
+                      {/* Surface Fee */}
+                      {order.surface_fee_cents > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-700">Surface Fee (Sandbags)</span>
+                          <span className="text-slate-900 font-medium">{formatCurrency(order.surface_fee_cents)}</span>
+                        </div>
+                      )}
+
+                      {/* Same Day Pickup Fee */}
+                      {order.same_day_pickup_fee_cents > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-700">Same-Day Pickup Fee</span>
+                          <span className="text-slate-900 font-medium">{formatCurrency(order.same_day_pickup_fee_cents)}</span>
+                        </div>
+                      )}
+
+                      {/* Tax */}
                       <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Same-Day Pickup Fee:</span>
-                        <span className="text-slate-900">{formatCurrency(order.same_day_pickup_fee_cents)}</span>
+                        <span className="text-slate-700">Tax (6%)</span>
+                        <span className="text-slate-900 font-medium">{formatCurrency(order.tax_cents)}</span>
                       </div>
-                    )}
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-600">Tax (6%):</span>
-                      <span className="text-slate-900">{formatCurrency(order.tax_cents)}</span>
-                    </div>
-                    <div className="flex justify-between pt-2 border-t border-slate-400">
-                      <span className="text-slate-900 font-semibold">Total Amount:</span>
-                      <span className="text-slate-900 font-bold text-lg">{formatCurrency(order.deposit_due_cents + order.balance_due_cents)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm pt-2">
-                      <span className="text-slate-600">Deposit Due:</span>
-                      <span className="text-green-600 font-semibold">{formatCurrency(order.deposit_due_cents)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-600">Balance Due After Event:</span>
-                      <span className="text-slate-700">{formatCurrency(order.balance_due_cents)}</span>
+
+                      {/* Tip */}
+                      {order.tip_cents > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-700">Tip (Optional)</span>
+                          <span className="text-slate-900 font-medium">{formatCurrency(order.tip_cents)}</span>
+                        </div>
+                      )}
+
+                      {/* Total */}
+                      <div className="flex justify-between pt-3 border-t-2 border-slate-400">
+                        <span className="text-slate-900 font-bold text-base">Total Amount:</span>
+                        <span className="text-slate-900 font-bold text-xl">{formatCurrency(order.deposit_due_cents + order.balance_due_cents)}</span>
+                      </div>
+
+                      {/* Payment Split */}
+                      <div className="mt-4 pt-3 border-t border-slate-300 space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-green-700 font-semibold">Deposit Due Now:</span>
+                          <span className="text-green-700 font-bold text-base">{formatCurrency(order.deposit_due_cents)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-600">Balance Due After Event:</span>
+                          <span className="text-slate-700 font-semibold">{formatCurrency(order.balance_due_cents)}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
