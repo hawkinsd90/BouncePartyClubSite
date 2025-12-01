@@ -130,14 +130,16 @@ export function OrdersManager() {
         return orders.filter(o => o.status === 'draft').length;
       case 'pending_review':
         return orders.filter(o => o.status === 'pending_review').length;
+      case 'awaiting_customer_approval':
+        return orders.filter(o => o.status === 'awaiting_customer_approval').length;
       case 'current':
-        return orders.filter(o => isToday(new Date(o.event_date)) && o.status !== 'cancelled' && o.status !== 'pending_review' && o.status !== 'draft').length;
+        return orders.filter(o => isToday(new Date(o.event_date)) && o.status !== 'cancelled' && o.status !== 'pending_review' && o.status !== 'awaiting_customer_approval' && o.status !== 'draft').length;
       case 'upcoming':
-        return orders.filter(o => isFuture(new Date(o.event_date)) && o.status !== 'cancelled' && o.status !== 'pending_review' && o.status !== 'draft').length;
+        return orders.filter(o => isFuture(new Date(o.event_date)) && o.status !== 'cancelled' && o.status !== 'pending_review' && o.status !== 'awaiting_customer_approval' && o.status !== 'draft').length;
       case 'past':
         return orders.filter(o => {
           const eventDate = new Date(o.event_date);
-          return isPast(eventDate) && !isToday(eventDate) && o.status !== 'cancelled' && o.status !== 'pending_review' && o.status !== 'draft';
+          return isPast(eventDate) && !isToday(eventDate) && o.status !== 'cancelled' && o.status !== 'pending_review' && o.status !== 'awaiting_customer_approval' && o.status !== 'draft';
         }).length;
       case 'cancelled':
         return orders.filter(o => o.status === 'cancelled').length;
