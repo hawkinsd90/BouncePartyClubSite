@@ -530,7 +530,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         changes.subtotal_cents = calculatedPricing.subtotal_cents;
         changes.generator_fee_cents = calculatedPricing.generator_fee_cents;
         changes.travel_fee_cents = calculatedPricing.travel_fee_cents;
-        changes.distance_miles = calculatedPricing.distance_miles;
+        // Note: distance_miles is calculated but not stored in the orders table
         changes.surface_fee_cents = calculatedPricing.surface_fee_cents;
         changes.same_day_pickup_fee_cents = calculatedPricing.same_day_pickup_fee_cents;
         changes.tax_cents = calculatedPricing.tax_cents;
