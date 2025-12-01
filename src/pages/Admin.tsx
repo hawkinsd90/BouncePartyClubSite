@@ -12,6 +12,7 @@ import { PendingOrderCard } from '../components/PendingOrderCard';
 type AdminTab =
   | 'overview'
   | 'pending'
+  | 'awaiting_approval'
   | 'inventory'
   | 'orders'
   | 'contacts'
@@ -71,7 +72,7 @@ function AdminDashboard() {
           *,
           customers (first_name, last_name, email, phone),
           addresses (line1, city, state, zip)
-        `).in('status', ['pending_review', 'draft', 'confirmed']).order('created_at', { ascending: false }).limit(50),
+        `).in('status', ['pending_review', 'awaiting_customer_approval', 'draft', 'confirmed']).order('created_at', { ascending: false }).limit(50),
         supabase.from('pricing_rules').select('*').limit(1).maybeSingle(),
         supabase.from('admin_settings').select('*').in('key', ['twilio_account_sid', 'twilio_auth_token', 'twilio_from_number', 'admin_email', 'stripe_secret_key', 'stripe_publishable_key']),
         supabase.from('sms_message_templates').select('*').order('template_name'),
@@ -280,6 +281,21 @@ function AdminDashboard() {
           )}
         </button>
         <button
+          onClick={() => changeTab('awaiting_approval')}
+          className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors relative ${
+            activeTab === 'awaiting_approval'
+              ? 'bg-orange-600 text-white'
+              : 'bg-white text-slate-700 border border-slate-300 hover:border-orange-600'
+          }`}
+        >
+          Awaiting Approval
+          {orders.filter(o => o.status === 'awaiting_customer_approval').length > 0 && (
+            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+              {orders.filter(o => o.status === 'awaiting_customer_approval').length}
+            </span>
+          )}
+        </button>
+        <button
           onClick={() => changeTab('inventory')}
           className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
             activeTab === 'inventory'
@@ -409,6 +425,42 @@ function AdminDashboard() {
             <div className="space-y-4">
               {orders
                 .filter(o => o.status === 'pending_review')
+                .map((order) => (
+                  <PendingOrderCard key={order.id} order={order} onUpdate={loadData} />
+                ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'awaiting_approval' && (
+        <div className="bg-white rounded-xl shadow-md p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-slate-900">Awaiting Customer Approval</h2>
+            <button
+              onClick={loadData}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              Refresh
+            </button>
+          </div>
+
+          <div className="bg-orange-50 border-l-4 border-orange-500 p-4 mb-6">
+            <p className="text-orange-800 text-sm">
+              <strong>Note:</strong> These orders have pending changes that require customer approval.
+              Customers will receive an email with a link to review and approve/reject the changes.
+            </p>
+          </div>
+
+          {orders.filter(o => o.status === 'awaiting_customer_approval').length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-slate-600 mb-2">No orders awaiting customer approval</p>
+              <p className="text-sm text-slate-500">Orders with pending changes will appear here</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {orders
+                .filter(o => o.status === 'awaiting_customer_approval')
                 .map((order) => (
                   <PendingOrderCard key={order.id} order={order} onUpdate={loadData} />
                 ))}
