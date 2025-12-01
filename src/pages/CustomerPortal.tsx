@@ -82,6 +82,57 @@ export function CustomerPortal() {
           console.log('Loaded custom fees:', feesData);
           setCustomFees(feesData);
         }
+
+        // Recalculate pricing with discounts and custom fees
+        if (data && (discountsData.length > 0 || feesData.length > 0)) {
+          const discountTotal = discountsData.reduce((sum: number, d: any) => {
+            if (d.amount_cents > 0) {
+              return sum + d.amount_cents;
+            } else if (d.percentage > 0) {
+              const taxableBase = data.subtotal_cents + (data.generator_fee_cents || 0) + data.travel_fee_cents + data.surface_fee_cents;
+              return sum + Math.round(taxableBase * (d.percentage / 100));
+            }
+            return sum;
+          }, 0);
+
+          const customFeesTotal = feesData.reduce((sum: number, f: any) => sum + f.amount_cents, 0);
+
+          // Recalculate tax with discounts and custom fees
+          const taxableAmount = Math.max(0,
+            data.subtotal_cents +
+            (data.generator_fee_cents || 0) +
+            data.travel_fee_cents +
+            data.surface_fee_cents +
+            customFeesTotal -
+            discountTotal
+          );
+          const recalculatedTax = Math.round(taxableAmount * 0.06);
+
+          // Recalculate total
+          const recalculatedTotal =
+            data.subtotal_cents +
+            (data.generator_fee_cents || 0) +
+            data.travel_fee_cents +
+            data.surface_fee_cents +
+            (data.same_day_pickup_fee_cents || 0) +
+            customFeesTotal +
+            recalculatedTax +
+            (data.tip_cents || 0) -
+            discountTotal;
+
+          console.log('Rendering price breakdown:');
+          console.log('- Discounts:', discountsData);
+          console.log('- Custom Fees:', feesData);
+          console.log('- Order Items:', itemsData);
+
+          // Update the order object with recalculated values
+          setOrder({
+            ...data,
+            tax_cents: recalculatedTax,
+            deposit_due_cents: data.deposit_due_cents,
+            balance_due_cents: recalculatedTotal - data.deposit_due_cents,
+          });
+        }
       }
     } catch (error) {
       console.error('Error loading order:', error);
