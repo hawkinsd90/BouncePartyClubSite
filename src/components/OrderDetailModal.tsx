@@ -299,9 +299,22 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       // Calculate custom fees total
       const custom_fees_total_cents = customFees.reduce((sum, fee) => sum + fee.amount_cents, 0);
 
+      console.log('🧮 Admin Panel Price Calculation:');
+      console.log('Subtotal:', subtotal_cents);
+      console.log('Generator Fee:', generator_fee_cents);
+      console.log('Travel Fee:', travel_fee_cents);
+      console.log('Surface Fee:', surface_fee_cents);
+      console.log('Custom Fees Array:', customFees);
+      console.log('Custom Fees Total:', custom_fees_total_cents);
+      console.log('Discounts Array:', discounts);
+      console.log('Discount Total:', discount_total_cents);
+
       // Calculate tax (includes generator fee and custom fees in taxable amount, after discounts)
       const taxable_amount = Math.max(0, subtotal_cents + generator_fee_cents + travel_fee_cents + surface_fee_cents + custom_fees_total_cents - discount_total_cents);
       const tax_cents = Math.round(taxable_amount * 0.06);
+
+      console.log('Taxable Amount:', taxable_amount);
+      console.log('Tax (6%):', tax_cents);
 
       // Calculate totals
       const total_cents = subtotal_cents + generator_fee_cents + travel_fee_cents + surface_fee_cents + same_day_pickup_fee_cents + custom_fees_total_cents + tax_cents - discount_total_cents;
