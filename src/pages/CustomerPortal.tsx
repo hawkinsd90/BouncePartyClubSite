@@ -557,7 +557,7 @@ export function CustomerPortal() {
                 // Filter to only customer-relevant changes
                 const customerRelevantFields = [
                   'event_date', 'event_end_date', 'address', 'location_type',
-                  'surface', 'generator_qty', 'pickup_preference', 'total'
+                  'surface', 'generator_qty', 'pickup_preference', 'total', 'order_items'
                 ];
 
                 const relevantChanges = changelog.filter(c =>
@@ -567,7 +567,7 @@ export function CustomerPortal() {
                 if (relevantChanges.length === 0) return null;
 
                 const formatValue = (val: string, field: string) => {
-                  if (!val || val === 'null') return 'None';
+                  if (!val || val === 'null' || val === '') return '';
                   if (field === 'total') {
                     return formatCurrency(parseInt(val));
                   }
@@ -598,7 +598,8 @@ export function CustomerPortal() {
                     'surface': 'Surface',
                     'generator_qty': 'Generators',
                     'pickup_preference': 'Pickup',
-                    'total': 'Total Price'
+                    'total': 'Total Price',
+                    'order_items': 'Equipment'
                   };
                   return labels[field] || field;
                 };
@@ -610,22 +611,35 @@ export function CustomerPortal() {
                       What Changed
                     </h3>
                     <div className="bg-white rounded border border-orange-200 divide-y divide-orange-100">
-                      {relevantChanges.map((change, idx) => (
-                        <div key={idx} className="px-4 py-2.5 flex justify-between items-center text-sm">
-                          <span className="font-medium text-orange-900 min-w-[120px]">
-                            {getFieldLabel(change.field_changed)}:
-                          </span>
-                          <div className="flex items-center gap-3 flex-1 justify-end">
-                            <span className="text-red-700 line-through">
-                              {formatValue(change.old_value, change.field_changed)}
+                      {relevantChanges.map((change, idx) => {
+                        const isItemChange = change.field_changed === 'order_items';
+                        const oldVal = formatValue(change.old_value, change.field_changed);
+                        const newVal = formatValue(change.new_value, change.field_changed);
+
+                        return (
+                          <div key={idx} className="px-4 py-2.5 flex justify-between items-center text-sm">
+                            <span className="font-medium text-orange-900 min-w-[120px]">
+                              {getFieldLabel(change.field_changed)}:
                             </span>
-                            <span className="text-slate-400">→</span>
-                            <span className="text-green-700 font-semibold">
-                              {formatValue(change.new_value, change.field_changed)}
-                            </span>
+                            <div className="flex items-center gap-3 flex-1 justify-end">
+                              {isItemChange ? (
+                                // For item add/remove, show special format
+                                <>
+                                  {oldVal && <span className="text-red-700">Removed: {oldVal}</span>}
+                                  {newVal && <span className="text-green-700 font-semibold">Added: {newVal}</span>}
+                                </>
+                              ) : (
+                                // For regular changes, show old → new
+                                <>
+                                  <span className="text-red-700 line-through">{oldVal}</span>
+                                  <span className="text-slate-400">→</span>
+                                  <span className="text-green-700 font-semibold">{newVal}</span>
+                                </>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 );
