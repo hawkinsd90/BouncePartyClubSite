@@ -769,6 +769,12 @@ export function CustomerPortal() {
                         return changelog.some(c => c.field_changed === fieldName);
                       };
 
+                      // Helper function to get old value from changelog
+                      const getOldValue = (fieldName: string) => {
+                        const change = changelog.find(c => c.field_changed === fieldName);
+                        return change ? change.old_value : null;
+                      };
+
                       // Check for item additions
                       const addedItems = changelog.filter(c => c.field_changed === 'order_items' && c.new_value && !c.old_value);
 
@@ -805,7 +811,12 @@ export function CustomerPortal() {
                           {/* Items Subtotal */}
                           <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
                             <span className="text-slate-700 font-medium">Items Subtotal:</span>
-                            <span className="text-slate-900 font-semibold">{formatCurrency(order.subtotal_cents)}</span>
+                            <div className="flex items-center gap-2">
+                              {hasChanged('subtotal') && getOldValue('subtotal') && (
+                                <span className="text-xs text-slate-400 line-through">{formatCurrency(parseInt(getOldValue('subtotal')))}</span>
+                              )}
+                              <span className={`font-semibold ${hasChanged('subtotal') ? 'text-blue-700' : 'text-slate-900'}`}>{formatCurrency(order.subtotal_cents)}</span>
+                            </div>
                           </div>
 
                           {/* FEES Section */}
@@ -820,7 +831,12 @@ export function CustomerPortal() {
                                   <TrendingUp className="w-4 h-4 text-blue-600" />
                                 )}
                               </span>
-                              <span className="text-slate-900 font-medium">{formatCurrency(order.generator_fee_cents)}</span>
+                              <div className="flex items-center gap-2">
+                                {(hasChanged('generator_fee') || hasChanged('generator_qty')) && getOldValue('generator_fee') && (
+                                  <span className="text-xs text-slate-400 line-through">{formatCurrency(parseInt(getOldValue('generator_fee')))}</span>
+                                )}
+                                <span className={`font-medium ${hasChanged('generator_fee') || hasChanged('generator_qty') ? 'text-blue-700' : 'text-slate-900'}`}>{formatCurrency(order.generator_fee_cents)}</span>
+                              </div>
                             </div>
                           )}
 
@@ -835,9 +851,14 @@ export function CustomerPortal() {
                                 <TrendingUp className="w-4 h-4 text-blue-600" />
                               )}
                             </span>
-                            <span className="text-slate-900 font-medium">
-                              {order.travel_fee_cents > 0 ? formatCurrency(order.travel_fee_cents) : '$0.00'}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              {hasChanged('travel_fee') && getOldValue('travel_fee') && (
+                                <span className="text-xs text-slate-400 line-through">{formatCurrency(parseInt(getOldValue('travel_fee')))}</span>
+                              )}
+                              <span className={`font-medium ${hasChanged('travel_fee') ? 'text-blue-700' : 'text-slate-900'}`}>
+                                {order.travel_fee_cents > 0 ? formatCurrency(order.travel_fee_cents) : '$0.00'}
+                              </span>
+                            </div>
                           </div>
 
                           {/* Surface Fee */}
@@ -849,7 +870,12 @@ export function CustomerPortal() {
                                   <TrendingUp className="w-4 h-4 text-blue-600" />
                                 )}
                               </span>
-                              <span className="text-slate-900 font-medium">{formatCurrency(order.surface_fee_cents)}</span>
+                              <div className="flex items-center gap-2">
+                                {hasChanged('surface_fee') && getOldValue('surface_fee') && (
+                                  <span className="text-xs text-slate-400 line-through">{formatCurrency(parseInt(getOldValue('surface_fee')))}</span>
+                                )}
+                                <span className={`font-medium ${hasChanged('surface_fee') ? 'text-blue-700' : 'text-slate-900'}`}>{formatCurrency(order.surface_fee_cents)}</span>
+                              </div>
                             </div>
                           )}
 
@@ -895,7 +921,12 @@ export function CustomerPortal() {
                           {/* Tax */}
                           <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
                             <span className="text-slate-700">Tax (6%):</span>
-                            <span className="text-slate-900 font-medium">{formatCurrency(order.tax_cents)}</span>
+                            <div className="flex items-center gap-2">
+                              {hasChanged('tax') && getOldValue('tax') && (
+                                <span className="text-xs text-slate-400 line-through">{formatCurrency(parseInt(getOldValue('tax')))}</span>
+                              )}
+                              <span className={`font-medium ${hasChanged('tax') ? 'text-blue-700' : 'text-slate-900'}`}>{formatCurrency(order.tax_cents)}</span>
+                            </div>
                           </div>
 
                           {/* Tip */}
@@ -909,18 +940,33 @@ export function CustomerPortal() {
                           {/* Total */}
                           <div className="flex justify-between pt-3 border-t-2 border-slate-400">
                             <span className="text-slate-900 font-bold text-base">Total:</span>
-                            <span className="text-slate-900 font-bold text-xl">{formatCurrency(order.deposit_due_cents + order.balance_due_cents)}</span>
+                            <div className="flex items-center gap-2">
+                              {hasChanged('total') && getOldValue('total') && (
+                                <span className="text-sm text-slate-400 line-through">{formatCurrency(parseInt(getOldValue('total')))}</span>
+                              )}
+                              <span className={`font-bold text-xl ${hasChanged('total') ? 'text-blue-700' : 'text-slate-900'}`}>{formatCurrency(order.deposit_due_cents + order.balance_due_cents)}</span>
+                            </div>
                           </div>
 
                           {/* Payment Split */}
                           <div className="mt-4 pt-3 border-t border-slate-300 space-y-2">
                             <div className="flex justify-between text-sm">
                               <span className="text-green-700 font-semibold">Deposit Due Now:</span>
-                              <span className="text-green-700 font-bold text-base">{formatCurrency(order.deposit_due_cents)}</span>
+                              <div className="flex items-center gap-2">
+                                {hasChanged('deposit_due') && getOldValue('deposit_due') && (
+                                  <span className="text-xs text-slate-400 line-through">{formatCurrency(parseInt(getOldValue('deposit_due')))}</span>
+                                )}
+                                <span className="text-green-700 font-bold text-base">{formatCurrency(order.deposit_due_cents)}</span>
+                              </div>
                             </div>
                             <div className="flex justify-between text-sm">
                               <span className="text-slate-600">Balance Due After Event:</span>
-                              <span className="text-slate-700 font-semibold">{formatCurrency(order.balance_due_cents)}</span>
+                              <div className="flex items-center gap-2">
+                                {hasChanged('balance_due') && getOldValue('balance_due') && (
+                                  <span className="text-xs text-slate-400 line-through">{formatCurrency(parseInt(getOldValue('balance_due')))}</span>
+                                )}
+                                <span className="text-slate-700 font-semibold">{formatCurrency(order.balance_due_cents)}</span>
+                              </div>
                             </div>
                           </div>
                         </div>
