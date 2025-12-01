@@ -74,8 +74,14 @@ export function CustomerPortal() {
           .eq('order_id', orderId);
 
         if (itemsData) setOrderItems(itemsData);
-        if (discountsData) setDiscounts(discountsData);
-        if (feesData) setCustomFees(feesData);
+        if (discountsData) {
+          console.log('Loaded discounts:', discountsData);
+          setDiscounts(discountsData);
+        }
+        if (feesData) {
+          console.log('Loaded custom fees:', feesData);
+          setCustomFees(feesData);
+        }
       }
     } catch (error) {
       console.error('Error loading order:', error);
@@ -766,6 +772,11 @@ export function CustomerPortal() {
                       // Check for item additions
                       const addedItems = changelog.filter(c => c.field_changed === 'order_items' && c.new_value && !c.old_value);
 
+                      console.log('Rendering price breakdown:');
+                      console.log('- Discounts:', discounts);
+                      console.log('- Custom Fees:', customFees);
+                      console.log('- Order Items:', orderItems);
+
                       return (
                         <div className="space-y-2 bg-white p-4 rounded border border-slate-200">
                           {/* ITEMS Section */}
@@ -790,19 +801,6 @@ export function CustomerPortal() {
                               </div>
                             );
                           })}
-
-                          {/* Generator Fee */}
-                          {order.generator_fee_cents > 0 && (
-                            <div className={`flex justify-between text-sm items-center ${hasChanged('generator_fee') || hasChanged('generator_qty') ? 'bg-blue-50 -mx-2 px-2 py-1 rounded' : ''}`}>
-                              <span className="text-slate-700 flex items-center gap-2">
-                                Generators ({order.generator_qty})
-                                {(hasChanged('generator_fee') || hasChanged('generator_qty')) && (
-                                  <TrendingUp className="w-4 h-4 text-blue-600" />
-                                )}
-                              </span>
-                              <span className="text-slate-900 font-medium">{formatCurrency(order.generator_fee_cents)}</span>
-                            </div>
-                          )}
 
                           {/* Items Subtotal */}
                           <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
