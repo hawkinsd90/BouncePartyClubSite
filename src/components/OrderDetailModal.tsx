@@ -578,11 +578,15 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         }
       }
 
-      // Set status to awaiting customer approval
-      changes.status = 'awaiting_customer_approval';
+      // Check if there are any actual changes to track
+      const hasTrackedChanges = logs.length > 0 || stagedItems.some(item => item.is_new || item.is_deleted) || discounts.some(d => d.is_new);
+      const hasFieldChanges = Object.keys(changes).length > 0;
 
-      // Update order
-      if (Object.keys(changes).length > 0) {
+      // Only set awaiting_customer_approval status if there are actual changes
+      if (hasTrackedChanges || hasFieldChanges) {
+        changes.status = 'awaiting_customer_approval';
+
+        // Update order
         await supabase.from('orders').update(changes).eq('id', order.id);
 
         // Log all changes
@@ -590,12 +594,24 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           await logChange(field, oldVal, newVal);
         }
 
-        await sendOrderEditNotifications();
+        // Only send notification if there are tracked changes for the customer to review
+        if (hasTrackedChanges) {
+          await sendOrderEditNotifications();
+        }
+      } else {
+        // No changes to track, just do a regular update without changing status
+        if (hasFieldChanges) {
+          await supabase.from('orders').update(changes).eq('id', order.id);
+        }
       }
 
       await loadOrderDetails();
       onUpdate();
-      alert('Changes saved successfully! Customer will be notified to review and approve the changes.');
+      if (hasTrackedChanges) {
+        alert('Changes saved successfully! Customer will be notified to review and approve the changes.');
+      } else {
+        alert('Changes saved successfully!');
+      }
       onClose();
     } catch (error) {
       console.error('Error saving changes:', error);
