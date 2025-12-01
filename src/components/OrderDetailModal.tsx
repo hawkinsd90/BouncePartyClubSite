@@ -41,8 +41,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     generator_qty: order.generator_qty || 0,
     start_window: order.start_window,
     end_window: order.end_window,
-    event_date: order.event_date,
-    event_end_date: order.event_end_date || order.event_date,
+    event_date: order.event_date?.split('T')[0] || order.event_date,
+    event_end_date: (order.event_end_date || order.event_date)?.split('T')[0] || order.event_date,
     address_line1: order.addresses?.line1 || '',
     address_line2: order.addresses?.line2 || '',
     address_city: order.addresses?.city || '',
@@ -692,7 +692,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         changes.status = 'awaiting_customer_approval';
 
         // Update order
-        await supabase.from('orders').update(changes).eq('id', order.id);
+        const { error: updateError } = await supabase.from('orders').update(changes).eq('id', order.id);
+        if (updateError) {
+          console.error('Error updating order:', updateError);
+          throw new Error(`Failed to update order: ${updateError.message}`);
+        }
 
         // Log all changes
         for (const [field, oldVal, newVal] of logs) {
@@ -706,7 +710,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       } else {
         // No changes to track, just do a regular update without changing status
         if (hasFieldChanges) {
-          await supabase.from('orders').update(changes).eq('id', order.id);
+          const { error: updateError } = await supabase.from('orders').update(changes).eq('id', order.id);
+          if (updateError) {
+            console.error('Error updating order:', updateError);
+            throw new Error(`Failed to update order: ${updateError.message}`);
+          }
         }
       }
 
@@ -720,7 +728,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       onClose();
     } catch (error) {
       console.error('Error saving changes:', error);
-      alert('Failed to save changes');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to save changes: ${errorMessage}`);
     } finally {
       setSaving(false);
     }
