@@ -55,6 +55,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [newDiscount, setNewDiscount] = useState({ name: '', amount_cents: 0, percentage: 0 });
   const [discountAmountInput, setDiscountAmountInput] = useState('0.00');
   const [discountPercentInput, setDiscountPercentInput] = useState('0');
+  const [customFees, setCustomFees] = useState<any[]>([]);
+  const [newCustomFee, setNewCustomFee] = useState({ name: '', amount_cents: 0 });
+  const [customFeeInput, setCustomFeeInput] = useState('0.00');
+  const [adminMessage, setAdminMessage] = useState('');
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [pricingRules, setPricingRules] = useState<any>(null);
@@ -311,13 +315,14 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
   async function loadOrderDetails() {
     try {
-      const [itemsRes, notesRes, eventsRes, changelogRes, unitsRes, discountsRes] = await Promise.all([
+      const [itemsRes, notesRes, eventsRes, changelogRes, unitsRes, discountsRes, customFeesRes] = await Promise.all([
         supabase.from('order_items').select('*, units(name, price_dry_cents, price_water_cents)').eq('order_id', order.id),
         supabase.from('order_notes').select('*, user:user_id(email)').eq('order_id', order.id).order('created_at', { ascending: false }),
         supabase.from('order_workflow_events').select('*, user:user_id(email)').eq('order_id', order.id).order('created_at', { ascending: false }),
         supabase.from('order_changelog').select('*, user:user_id(email)').eq('order_id', order.id).order('created_at', { ascending: false }),
         supabase.from('units').select('*').eq('active', true).order('name'),
         supabase.from('order_discounts').select('*').eq('order_id', order.id).order('created_at', { ascending: false }),
+        supabase.from('order_custom_fees').select('*').eq('order_id', order.id).order('created_at', { ascending: false }),
       ]);
 
       if (itemsRes.data) setOrderItems(itemsRes.data);
@@ -326,6 +331,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       if (changelogRes.data) setChangelog(changelogRes.data);
       if (unitsRes.data) setAvailableUnits(unitsRes.data);
       if (discountsRes.data) setDiscounts(discountsRes.data);
+      if (customFeesRes.data) setCustomFees(customFeesRes.data);
     } catch (error) {
       console.error('Error loading order details:', error);
     }
@@ -603,8 +609,37 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         }
       }
 
+      // Handle staged custom fees
+      for (const fee of customFees) {
+        if (fee.is_new) {
+          // Add new custom fee
+          await supabase.from('order_custom_fees').insert({
+            order_id: order.id,
+            name: fee.name,
+            amount_cents: fee.amount_cents,
+          });
+          await logChange('custom_fees', '', fee.name, 'add');
+        }
+      }
+
+      // Remove custom fees that were deleted (check against original list)
+      const originalCustomFees = await supabase.from('order_custom_fees').select('*').eq('order_id', order.id);
+      if (originalCustomFees.data) {
+        const currentFeeIds = customFees.filter(f => !f.is_new).map(f => f.id);
+        const deletedFees = originalCustomFees.data.filter(of => !currentFeeIds.includes(of.id));
+        for (const deleted of deletedFees) {
+          await supabase.from('order_custom_fees').delete().eq('id', deleted.id);
+          await logChange('custom_fees', deleted.name, '', 'remove');
+        }
+      }
+
+      // Save admin message if provided
+      if (adminMessage.trim()) {
+        changes.admin_message = adminMessage.trim();
+      }
+
       // Check if there are any actual changes to track
-      const hasTrackedChanges = logs.length > 0 || stagedItems.some(item => item.is_new || item.is_deleted) || discounts.some(d => d.is_new);
+      const hasTrackedChanges = logs.length > 0 || stagedItems.some(item => item.is_new || item.is_deleted) || discounts.some(d => d.is_new) || customFees.some(f => f.is_new) || adminMessage.trim();
       const hasFieldChanges = Object.keys(changes).length > 0;
 
       // Only set awaiting_customer_approval status if there are actual changes
@@ -670,6 +705,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
             <p style="margin: 0 0 20px; color: #475569; font-size: 16px;">
               We've made some updates to your booking (Order #${order.id.slice(0, 8).toUpperCase()}) and need your approval to proceed.
             </p>
+            ${adminMessage.trim() ? `
+            <div style="background-color: #dbeafe; border: 2px solid #3b82f6; padding: 15px; margin: 20px 0; border-radius: 6px;">
+              <p style="margin: 0; color: #1e40af; font-weight: 600;">Message from Bounce Party Club:</p>
+              <p style="margin: 10px 0 0; color: #1e40af; white-space: pre-wrap;">${adminMessage}</p>
+            </div>` : ''}
             <div style="background-color: #fef3c7; border: 2px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 6px;">
               <p style="margin: 0; color: #92400e; font-weight: 600;">Action Required</p>
               <p style="margin: 10px 0 0; color: #92400e;">Please review the updated details and approve or request changes.</p>
@@ -704,9 +744,15 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       }
 
       if (order.customers?.phone) {
-        const smsMessage =
+        let smsMessage =
           `Hi ${order.customers.first_name}, we've updated your Bounce Party Club booking ` +
-          `(Order #${order.id.slice(0, 8).toUpperCase()}). Please review and approve the changes: ${customerPortalUrl}`;
+          `(Order #${order.id.slice(0, 8).toUpperCase()}).`;
+
+        if (adminMessage.trim()) {
+          smsMessage += ` Note: ${adminMessage.trim()}`;
+        }
+
+        smsMessage += ` Please review and approve: ${customerPortalUrl}`;
 
         await sendSMS(smsMessage);
       }
@@ -809,6 +855,42 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
     // Remove from staging array (not saved to DB yet)
     setDiscounts(discounts.filter(d => d.id !== discountId));
+    setHasChanges(true);
+  }
+
+  function handleAddCustomFee() {
+    if (!newCustomFee.name.trim()) {
+      alert('Please enter a fee name');
+      return;
+    }
+
+    const amount = parseFloat(customFeeInput) * 100;
+
+    if (amount <= 0) {
+      alert('Please enter a valid fee amount');
+      return;
+    }
+
+    // Add custom fee to staging array (not saved to DB yet)
+    const newFeeItem = {
+      id: `temp_${Date.now()}`,
+      order_id: order.id,
+      name: newCustomFee.name,
+      amount_cents: Math.round(amount),
+      is_new: true,
+    };
+
+    setCustomFees([...customFees, newFeeItem]);
+    setNewCustomFee({ name: '', amount_cents: 0 });
+    setCustomFeeInput('0.00');
+    setHasChanges(true);
+  }
+
+  function handleRemoveCustomFee(feeId: string) {
+    if (!confirm('Remove this fee?')) return;
+
+    // Remove from staging array (not saved to DB yet)
+    setCustomFees(customFees.filter(f => f.id !== feeId));
     setHasChanges(true);
   }
 
@@ -1591,6 +1673,55 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 </div>
               </div>
 
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="font-semibold text-slate-900 mb-3">Custom Fees</h3>
+
+                {customFees.length > 0 && (
+                  <div className="space-y-2 mb-4">
+                    {customFees.map(fee => (
+                      <div key={fee.id} className="flex justify-between items-center bg-white rounded p-2">
+                        <div>
+                          <p className="font-medium text-sm">{fee.name}</p>
+                          <p className="text-xs text-slate-600">
+                            {formatCurrency(fee.amount_cents)}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveCustomFee(fee.id)}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={newCustomFee.name}
+                    onChange={(e) => setNewCustomFee({ ...newCustomFee, name: e.target.value })}
+                    placeholder="Fee name (e.g., Tip, Setup Fee, etc.)"
+                    className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                  />
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={customFeeInput}
+                    onChange={(e) => setCustomFeeInput(e.target.value)}
+                    placeholder="Amount ($)"
+                    className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                  />
+                  <button
+                    onClick={handleAddCustomFee}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-sm font-medium"
+                  >
+                    Add Custom Fee
+                  </button>
+                </div>
+              </div>
+
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                 <h3 className="font-semibold text-slate-900 mb-3">Deposit Override</h3>
                 <p className="text-sm text-slate-600 mb-3">
@@ -1647,6 +1778,28 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                     </div>
                   )}
                 </div>
+              </div>
+
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <h3 className="font-semibold text-slate-900 mb-3">Message to Customer</h3>
+                <p className="text-sm text-slate-600 mb-3">
+                  Add an optional message to explain the changes to the customer. This will be included in the email and text notification.
+                </p>
+                <textarea
+                  value={adminMessage}
+                  onChange={(e) => {
+                    setAdminMessage(e.target.value);
+                    setHasChanges(true);
+                  }}
+                  placeholder="Example: We're upgrading your bounce house to a larger unit at no extra charge! Also added a generator since your event location doesn't have power outlets nearby."
+                  rows={4}
+                  className="w-full px-3 py-2 border border-slate-300 rounded text-sm resize-none"
+                />
+                {adminMessage.trim() && (
+                  <p className="text-xs text-purple-600 mt-2">
+                    This message will be sent to the customer when you save changes.
+                  </p>
+                )}
               </div>
 
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">

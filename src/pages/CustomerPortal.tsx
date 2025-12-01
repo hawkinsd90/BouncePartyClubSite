@@ -352,6 +352,14 @@ export function CustomerPortal() {
                 </p>
               </div>
 
+              {/* Admin Message */}
+              {order.admin_message && (
+                <div className="bg-blue-50 border-2 border-blue-400 rounded-lg p-6 mb-6">
+                  <h3 className="font-bold text-blue-900 mb-3 text-lg">Message from Bounce Party Club</h3>
+                  <p className="text-blue-800 whitespace-pre-wrap">{order.admin_message}</p>
+                </div>
+              )}
+
               {/* Changelog - What Changed */}
               {changelog.length > 0 && (
                 <div className="bg-blue-50 rounded-lg p-6 mb-6 border-2 border-blue-300">
@@ -374,6 +382,7 @@ export function CustomerPortal() {
                         'address': 'Event Address',
                         'order_items': 'Order Items',
                         'discounts': 'Discounts',
+                        'custom_fees': 'Custom Fees',
                         'subtotal': 'Subtotal',
                         'generator_fee': 'Generator Fee',
                         'travel_fee': 'Travel Fee',
