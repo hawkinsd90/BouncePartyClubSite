@@ -487,14 +487,39 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         changes.deposit_due_cents = finalDepositCents;
         changes.balance_due_cents = calculatedPricing.total_cents - finalDepositCents;
 
+        // Log all pricing changes that matter to the customer
+        if (calculatedPricing.subtotal_cents !== order.subtotal_cents) {
+          logs.push(['subtotal', order.subtotal_cents, calculatedPricing.subtotal_cents]);
+        }
+        if (calculatedPricing.generator_fee_cents !== (order.generator_fee_cents || 0)) {
+          logs.push(['generator_fee', order.generator_fee_cents || 0, calculatedPricing.generator_fee_cents]);
+        }
         if (calculatedPricing.travel_fee_cents !== order.travel_fee_cents) {
           logs.push(['travel_fee', order.travel_fee_cents, calculatedPricing.travel_fee_cents]);
         }
         if (calculatedPricing.surface_fee_cents !== order.surface_fee_cents) {
           logs.push(['surface_fee', order.surface_fee_cents, calculatedPricing.surface_fee_cents]);
         }
+        if (calculatedPricing.same_day_pickup_fee_cents !== (order.same_day_pickup_fee_cents || 0)) {
+          logs.push(['same_day_pickup_fee', order.same_day_pickup_fee_cents || 0, calculatedPricing.same_day_pickup_fee_cents]);
+        }
+        if (calculatedPricing.tax_cents !== order.tax_cents) {
+          logs.push(['tax', order.tax_cents, calculatedPricing.tax_cents]);
+        }
         if (finalDepositCents !== order.deposit_due_cents) {
           logs.push(['deposit_due', order.deposit_due_cents, finalDepositCents]);
+        }
+
+        const newBalanceDue = calculatedPricing.total_cents - finalDepositCents;
+        if (newBalanceDue !== order.balance_due_cents) {
+          logs.push(['balance_due', order.balance_due_cents, newBalanceDue]);
+        }
+
+        // Log total change for easy customer understanding
+        const newTotal = calculatedPricing.total_cents;
+        const oldTotal = order.subtotal_cents + (order.generator_fee_cents || 0) + order.travel_fee_cents + order.surface_fee_cents + (order.same_day_pickup_fee_cents || 0) + order.tax_cents;
+        if (newTotal !== oldTotal) {
+          logs.push(['total', oldTotal, newTotal]);
         }
       }
 

@@ -361,17 +361,72 @@ export function CustomerPortal() {
                   </h3>
                   <div className="space-y-2">
                     {changelog.map((change, idx) => {
-                      const fieldLabel = change.field_changed
-                        .replace(/_/g, ' ')
-                        .split(' ')
-                        .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
-                        .join(' ');
+                      // Create friendly field labels
+                      const fieldLabelMap: Record<string, string> = {
+                        'location_type': 'Location Type',
+                        'surface': 'Setup Surface',
+                        'generator_qty': 'Generator Quantity',
+                        'start_window': 'Start Time',
+                        'end_window': 'End Time',
+                        'event_date': 'Event Start Date',
+                        'event_end_date': 'Event End Date',
+                        'pickup_preference': 'Pickup Preference',
+                        'address': 'Event Address',
+                        'order_items': 'Order Items',
+                        'discounts': 'Discounts',
+                        'subtotal': 'Subtotal',
+                        'generator_fee': 'Generator Fee',
+                        'travel_fee': 'Travel Fee',
+                        'surface_fee': 'Surface Fee',
+                        'same_day_pickup_fee': 'Same-Day Pickup Fee',
+                        'tax': 'Tax',
+                        'deposit_due': 'Deposit Due',
+                        'balance_due': 'Balance Due',
+                        'total': 'Order Total',
+                        'payment_method': 'Payment Method',
+                      };
+
+                      const fieldLabel = fieldLabelMap[change.field_changed] ||
+                        change.field_changed
+                          .replace(/_/g, ' ')
+                          .split(' ')
+                          .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+                          .join(' ');
 
                       const formatValue = (value: any) => {
                         if (value === null || value === undefined || value === '') return 'None';
+
+                        // Format time fields
+                        if (change.field_changed === 'start_window' || change.field_changed === 'end_window') {
+                          return value;
+                        }
+
+                        // Format date fields
+                        if (change.field_changed === 'event_date' || change.field_changed === 'event_end_date') {
+                          return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        }
+
+                        // Format pickup preference
+                        if (change.field_changed === 'pickup_preference') {
+                          return value === 'next_day' ? 'Next Morning' : 'Same Day';
+                        }
+
+                        // Format location type
+                        if (change.field_changed === 'location_type') {
+                          return value.charAt(0).toUpperCase() + value.slice(1);
+                        }
+
+                        // Format surface
+                        if (change.field_changed === 'surface') {
+                          return value === 'grass' ? 'Grass (Stakes)' : 'Sandbags';
+                        }
+
+                        // Format money fields
                         if (typeof value === 'number' || (typeof value === 'string' && !isNaN(parseFloat(value)))) {
                           const numValue = typeof value === 'number' ? value : parseFloat(value);
-                          if (fieldLabel.toLowerCase().includes('fee') || fieldLabel.toLowerCase().includes('deposit') || fieldLabel.toLowerCase().includes('balance') || fieldLabel.toLowerCase().includes('subtotal') || fieldLabel.toLowerCase().includes('tax') || fieldLabel.toLowerCase().includes('total')) {
+                          if (fieldLabel.toLowerCase().includes('fee') || fieldLabel.toLowerCase().includes('deposit') ||
+                              fieldLabel.toLowerCase().includes('balance') || fieldLabel.toLowerCase().includes('subtotal') ||
+                              fieldLabel.toLowerCase().includes('tax') || fieldLabel.toLowerCase().includes('total')) {
                             return formatCurrency(numValue);
                           }
                         }
