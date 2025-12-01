@@ -177,7 +177,7 @@ export function CustomerPortal() {
   const balanceDue = order.balance_due_cents - (order.balance_paid_cents || 0);
   const needsWaiver = !order.waiver_signed_at;
   const needsPayment = balanceDue > 0;
-  const needsApproval = order.status === 'awaiting_customer_approval' || (order.status === 'pending_review' && changelog.length > 0);
+  const needsApproval = order.status === 'awaiting_customer_approval';
   const isActive = ['confirmed', 'in_progress', 'completed'].includes(order.status);
 
   async function handleApproveChanges() {
@@ -542,6 +542,16 @@ export function CustomerPortal() {
                 </div>
               )}
 
+              {/* Payment Method Cleared Notice */}
+              {!order.stripe_payment_method_id && changelog.some(c => c.field_changed === 'payment_method' && c.new_value === 'cleared') && (
+                <div className="bg-amber-50 border-2 border-amber-400 rounded-lg p-6 mb-6">
+                  <h3 className="font-bold text-amber-900 mb-3 text-lg">Payment Update Required</h3>
+                  <p className="text-amber-800">
+                    Due to changes in your order, your previous payment method has been removed. You'll need to provide a new payment method when you approve these changes.
+                  </p>
+                </div>
+              )}
+
               {/* Changelog - What Changed */}
               {changelog.length > 0 && (
                 <div className="bg-blue-50 rounded-lg p-6 mb-6 border-2 border-blue-300">
@@ -550,7 +560,20 @@ export function CustomerPortal() {
                     What Changed
                   </h3>
                   <div className="space-y-2">
-                    {changelog.map((change, idx) => {
+                    {changelog
+                      .filter(change => {
+                        // Filter out fields customers don't need to see
+                        const hiddenFields = [
+                          'admin_message', // Shown separately above
+                          'payment_method', // Handled with explanation
+                          'subtotal', // Part of itemized receipt below
+                          'total', // Shown in summary below
+                          'deposit_due', // Shown in summary below
+                          'balance_due', // Shown in summary below
+                        ];
+                        return !hiddenFields.includes(change.field_changed);
+                      })
+                      .map((change, idx) => {
                       // Create friendly field labels
                       const fieldLabelMap: Record<string, string> = {
                         'location_type': 'Location Type',
@@ -565,17 +588,11 @@ export function CustomerPortal() {
                         'order_items': 'Order Items',
                         'discounts': 'Discounts',
                         'custom_fees': 'Custom Fees',
-                        'admin_message': 'Message from Bounce Party Club',
-                        'subtotal': 'Subtotal',
                         'generator_fee': 'Generator Fee',
                         'travel_fee': 'Travel Fee',
                         'surface_fee': 'Surface Fee',
                         'same_day_pickup_fee': 'Same-Day Pickup Fee',
                         'tax': 'Tax',
-                        'deposit_due': 'Deposit Due',
-                        'balance_due': 'Balance Due',
-                        'total': 'Order Total',
-                        'payment_method': 'Payment Method',
                         'status': 'Order Status',
                       };
 
@@ -767,7 +784,15 @@ export function CustomerPortal() {
                     </div>
                     <div className="flex justify-between pt-2 border-t border-slate-400">
                       <span className="text-slate-900 font-semibold">Total Amount:</span>
-                      <span className="text-green-600 font-bold text-lg">{formatCurrency(order.deposit_due_cents + order.balance_due_cents)}</span>
+                      <span className="text-slate-900 font-bold text-lg">{formatCurrency(order.deposit_due_cents + order.balance_due_cents)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm pt-2">
+                      <span className="text-slate-600">Deposit Due:</span>
+                      <span className="text-green-600 font-semibold">{formatCurrency(order.deposit_due_cents)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Balance Due After Event:</span>
+                      <span className="text-slate-700">{formatCurrency(order.balance_due_cents)}</span>
                     </div>
                   </div>
                 </div>
