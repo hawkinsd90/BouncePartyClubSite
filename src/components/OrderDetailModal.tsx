@@ -520,8 +520,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         }).eq('id', order.address_id);
 
         logs.push(['address',
-          `${order.addresses?.line1}, ${order.addresses?.city}, ${order.addresses?.state}`,
-          `${editedOrder.address_line1}, ${editedOrder.address_city}, ${editedOrder.address_state}`
+          `${order.addresses?.line1}, ${order.addresses?.city}, ${order.addresses?.state} ${order.addresses?.zip}`,
+          `${editedOrder.address_line1}, ${editedOrder.address_city}, ${editedOrder.address_state} ${editedOrder.address_zip}`
         ]);
       }
 

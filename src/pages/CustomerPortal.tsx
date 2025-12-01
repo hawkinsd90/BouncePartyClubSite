@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../lib/pricing';
-import { CheckCircle, Upload, CreditCard, FileText, Image as ImageIcon, AlertCircle } from 'lucide-react';
+import { CheckCircle, Upload, CreditCard, FileText, Image as ImageIcon, AlertCircle, Sparkles, TrendingUp } from 'lucide-react';
 import { format } from 'date-fns';
 
 export function CustomerPortal() {
@@ -586,6 +586,10 @@ export function CustomerPortal() {
                   if (field === 'generator_qty') {
                     return val === '0' ? 'None' : `${val} Generator${val === '1' ? '' : 's'}`;
                   }
+                  if (field === 'address') {
+                    // Extract zip code from address if available
+                    return val;
+                  }
                   return val;
                 };
 
@@ -611,7 +615,23 @@ export function CustomerPortal() {
                       What Changed
                     </h3>
                     <div className="bg-white rounded border border-orange-200 divide-y divide-orange-100">
-                      {relevantChanges.map((change, idx) => {
+                      {relevantChanges
+                        .filter(change => {
+                          // Hide event end date if it's the same as start date
+                          if (change.field_changed === 'event_end_date') {
+                            const eventDateChange = relevantChanges.find(c => c.field_changed === 'event_date');
+                            if (eventDateChange && change.new_value === eventDateChange.new_value) {
+                              return false;
+                            }
+                          }
+                          return true;
+                        })
+                        .sort((a, b) => {
+                          // Custom sort order: event_date before event_end_date
+                          const order = ['total', 'event_date', 'event_end_date', 'address', 'pickup', 'location_type', 'surface', 'generator_qty', 'order_items'];
+                          return order.indexOf(a.field_changed) - order.indexOf(b.field_changed);
+                        })
+                        .map((change, idx) => {
                         const isItemChange = change.field_changed === 'order_items';
                         const oldVal = formatValue(change.old_value, change.field_changed);
                         const newVal = formatValue(change.new_value, change.field_changed);
@@ -672,7 +692,7 @@ export function CustomerPortal() {
                   </div>
                   <div className="flex justify-between py-2 border-b border-slate-200">
                     <span className="text-slate-600 font-medium">Address:</span>
-                    <span className="text-slate-900 font-semibold">{order.addresses?.line1}, {order.addresses?.city}, {order.addresses?.state}</span>
+                    <span className="text-slate-900 font-semibold">{order.addresses?.line1}, {order.addresses?.city}, {order.addresses?.state} {order.addresses?.zip}</span>
                   </div>
                   <div className="flex justify-between py-2 border-b border-slate-200">
                     <span className="text-slate-600 font-medium">Surface:</span>
@@ -737,114 +757,177 @@ export function CustomerPortal() {
                   {/* Detailed Pricing Breakdown */}
                   <div className="pt-4 border-t-2 border-slate-400">
                     <h4 className="font-bold text-slate-900 mb-3">Complete Price Breakdown</h4>
-                    <div className="space-y-2 bg-white p-4 rounded border border-slate-200">
-                      {/* Equipment Items */}
-                      {orderItems.map((item, idx) => (
-                        <div key={idx} className="flex justify-between text-sm">
-                          <span className="text-slate-700">
-                            {item.units.name} ({item.wet_or_dry === 'dry' ? 'Dry' : 'Water'})
-                            {item.qty > 1 && ` × ${item.qty}`}
-                          </span>
-                          <span className="text-slate-900 font-medium">{formatCurrency(item.unit_price_cents * item.qty)}</span>
+                    {(() => {
+                      // Helper function to check if a field changed
+                      const hasChanged = (fieldName: string) => {
+                        return changelog.some(c => c.field_changed === fieldName);
+                      };
+
+                      // Check for item additions
+                      const addedItems = changelog.filter(c => c.field_changed === 'order_items' && c.new_value && !c.old_value);
+
+                      return (
+                        <div className="space-y-2 bg-white p-4 rounded border border-slate-200">
+                          {/* ITEMS Section */}
+                          <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">ITEMS</div>
+
+                          {/* Equipment Items */}
+                          {orderItems.map((item, idx) => {
+                            const isNew = addedItems.some(change =>
+                              change.new_value.includes(item.units.name)
+                            );
+
+                            return (
+                              <div key={idx} className="flex justify-between text-sm items-center">
+                                <span className="text-slate-700 flex items-center gap-2">
+                                  {item.units.name} ({item.wet_or_dry === 'dry' ? 'Dry' : 'Water'})
+                                  {item.qty > 1 && ` × ${item.qty}`}
+                                  {isNew && (
+                                    <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-semibold">NEW</span>
+                                  )}
+                                </span>
+                                <span className="text-slate-900 font-medium">{formatCurrency(item.unit_price_cents * item.qty)}</span>
+                              </div>
+                            );
+                          })}
+
+                          {/* Generator Fee */}
+                          {order.generator_fee_cents > 0 && (
+                            <div className={`flex justify-between text-sm items-center ${hasChanged('generator_fee') || hasChanged('generator_qty') ? 'bg-blue-50 -mx-2 px-2 py-1 rounded' : ''}`}>
+                              <span className="text-slate-700 flex items-center gap-2">
+                                Generators ({order.generator_qty})
+                                {(hasChanged('generator_fee') || hasChanged('generator_qty')) && (
+                                  <TrendingUp className="w-4 h-4 text-blue-600" />
+                                )}
+                              </span>
+                              <span className="text-slate-900 font-medium">{formatCurrency(order.generator_fee_cents)}</span>
+                            </div>
+                          )}
+
+                          {/* Items Subtotal */}
+                          <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
+                            <span className="text-slate-700 font-medium">Items Subtotal:</span>
+                            <span className="text-slate-900 font-semibold">{formatCurrency(order.subtotal_cents)}</span>
+                          </div>
+
+                          {/* FEES Section */}
+                          <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 mt-4">FEES</div>
+
+                          {/* Generator Fee (detailed breakdown) */}
+                          {order.generator_fee_cents > 0 && (
+                            <div className={`flex justify-between text-sm ${hasChanged('generator_fee') || hasChanged('generator_qty') ? 'bg-blue-50 -mx-2 px-2 py-1 rounded' : ''}`}>
+                              <span className="text-slate-700 flex items-center gap-2">
+                                Generators
+                                {(hasChanged('generator_fee') || hasChanged('generator_qty')) && (
+                                  <TrendingUp className="w-4 h-4 text-blue-600" />
+                                )}
+                              </span>
+                              <span className="text-slate-900 font-medium">{formatCurrency(order.generator_fee_cents)}</span>
+                            </div>
+                          )}
+
+                          {/* Travel Fee */}
+                          <div className={`flex justify-between text-sm ${hasChanged('travel_fee') ? 'bg-blue-50 -mx-2 px-2 py-1 rounded' : ''}`}>
+                            <span className="text-slate-700 flex items-center gap-2">
+                              Travel Fee
+                              {order.travel_chargeable_miles > 0 &&
+                                ` (${order.travel_chargeable_miles.toFixed(1)} mi)`
+                              }
+                              {hasChanged('travel_fee') && (
+                                <TrendingUp className="w-4 h-4 text-blue-600" />
+                              )}
+                            </span>
+                            <span className="text-slate-900 font-medium">
+                              {order.travel_fee_cents > 0 ? formatCurrency(order.travel_fee_cents) : '$0.00'}
+                            </span>
+                          </div>
+
+                          {/* Surface Fee */}
+                          {order.surface_fee_cents > 0 && (
+                            <div className={`flex justify-between text-sm ${hasChanged('surface_fee') ? 'bg-blue-50 -mx-2 px-2 py-1 rounded' : ''}`}>
+                              <span className="text-slate-700 flex items-center gap-2">
+                                Surface Fee (Sandbags)
+                                {hasChanged('surface_fee') && (
+                                  <TrendingUp className="w-4 h-4 text-blue-600" />
+                                )}
+                              </span>
+                              <span className="text-slate-900 font-medium">{formatCurrency(order.surface_fee_cents)}</span>
+                            </div>
+                          )}
+
+                          {/* Same Day Pickup Fee */}
+                          {order.same_day_pickup_fee_cents > 0 && (
+                            <div className={`flex justify-between text-sm ${hasChanged('same_day_pickup_fee') ? 'bg-blue-50 -mx-2 px-2 py-1 rounded' : ''}`}>
+                              <span className="text-slate-700 flex items-center gap-2">
+                                Same-Day Pickup Fee
+                                {hasChanged('same_day_pickup_fee') && (
+                                  <TrendingUp className="w-4 h-4 text-blue-600" />
+                                )}
+                              </span>
+                              <span className="text-slate-900 font-medium">{formatCurrency(order.same_day_pickup_fee_cents)}</span>
+                            </div>
+                          )}
+
+                          {/* Custom Fees */}
+                          {customFees.map((fee, idx) => (
+                            <div key={`fee-${idx}`} className="flex justify-between text-sm items-center">
+                              <span className="text-slate-700 flex items-center gap-2">
+                                {fee.name}
+                                <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-semibold">ADDED</span>
+                              </span>
+                              <span className="text-slate-900 font-medium">{formatCurrency(fee.amount_cents)}</span>
+                            </div>
+                          ))}
+
+                          {/* Discounts */}
+                          {discounts.length > 0 && (
+                            <>
+                              <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 mt-4">DISCOUNT</div>
+                              {discounts.map((discount, idx) => (
+                                <div key={`discount-${idx}`} className="flex justify-between text-sm">
+                                  <span className="text-green-700 font-medium">
+                                    {discount.name} {discount.percentage > 0 && `(${discount.percentage}%)`}
+                                  </span>
+                                  <span className="text-green-700 font-semibold">-{formatCurrency(discount.amount_cents)}</span>
+                                </div>
+                              ))}
+                            </>
+                          )}
+
+                          {/* Tax */}
+                          <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
+                            <span className="text-slate-700">Tax (6%):</span>
+                            <span className="text-slate-900 font-medium">{formatCurrency(order.tax_cents)}</span>
+                          </div>
+
+                          {/* Tip */}
+                          {order.tip_cents > 0 && (
+                            <div className="flex justify-between text-sm">
+                              <span className="text-slate-700">Tip (Optional):</span>
+                              <span className="text-slate-900 font-medium">{formatCurrency(order.tip_cents)}</span>
+                            </div>
+                          )}
+
+                          {/* Total */}
+                          <div className="flex justify-between pt-3 border-t-2 border-slate-400">
+                            <span className="text-slate-900 font-bold text-base">Total:</span>
+                            <span className="text-slate-900 font-bold text-xl">{formatCurrency(order.deposit_due_cents + order.balance_due_cents)}</span>
+                          </div>
+
+                          {/* Payment Split */}
+                          <div className="mt-4 pt-3 border-t border-slate-300 space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-green-700 font-semibold">Deposit Due Now:</span>
+                              <span className="text-green-700 font-bold text-base">{formatCurrency(order.deposit_due_cents)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-slate-600">Balance Due After Event:</span>
+                              <span className="text-slate-700 font-semibold">{formatCurrency(order.balance_due_cents)}</span>
+                            </div>
+                          </div>
                         </div>
-                      ))}
-
-                      {/* Generator Fee */}
-                      {order.generator_fee_cents > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-700">
-                            Generator{order.generator_qty > 1 ? `s (${order.generator_qty})` : ''}
-                          </span>
-                          <span className="text-slate-900 font-medium">{formatCurrency(order.generator_fee_cents)}</span>
-                        </div>
-                      )}
-
-                      {/* Discounts */}
-                      {discounts.map((discount, idx) => (
-                        <div key={`discount-${idx}`} className="flex justify-between text-sm">
-                          <span className="text-green-700 font-medium">
-                            {discount.name} {discount.percentage > 0 && `(${discount.percentage}%)`}
-                          </span>
-                          <span className="text-green-700 font-semibold">-{formatCurrency(discount.amount_cents)}</span>
-                        </div>
-                      ))}
-
-                      {/* Custom Fees */}
-                      {customFees.map((fee, idx) => (
-                        <div key={`fee-${idx}`} className="flex justify-between text-sm">
-                          <span className="text-slate-700">{fee.name}</span>
-                          <span className="text-slate-900 font-medium">{formatCurrency(fee.amount_cents)}</span>
-                        </div>
-                      ))}
-
-                      {/* Items Subtotal */}
-                      <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
-                        <span className="text-slate-700 font-medium">Items Subtotal:</span>
-                        <span className="text-slate-900 font-semibold">{formatCurrency(order.subtotal_cents)}</span>
-                      </div>
-
-                      {/* Travel Fee */}
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-700">
-                          Travel Fee
-                          {order.travel_is_flat_fee && ' (Flat Fee)'}
-                          {!order.travel_is_flat_fee && order.travel_chargeable_miles > 0 &&
-                            ` (${order.travel_chargeable_miles} mi × ${formatCurrency(order.travel_per_mile_cents)})`
-                          }
-                        </span>
-                        <span className="text-slate-900 font-medium">
-                          {order.travel_fee_cents > 0 ? formatCurrency(order.travel_fee_cents) : '$0.00'}
-                        </span>
-                      </div>
-
-                      {/* Surface Fee */}
-                      {order.surface_fee_cents > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-700">Surface Fee (Sandbags)</span>
-                          <span className="text-slate-900 font-medium">{formatCurrency(order.surface_fee_cents)}</span>
-                        </div>
-                      )}
-
-                      {/* Same Day Pickup Fee */}
-                      {order.same_day_pickup_fee_cents > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-700">Same-Day Pickup Fee</span>
-                          <span className="text-slate-900 font-medium">{formatCurrency(order.same_day_pickup_fee_cents)}</span>
-                        </div>
-                      )}
-
-                      {/* Tax */}
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-700">Tax (6%)</span>
-                        <span className="text-slate-900 font-medium">{formatCurrency(order.tax_cents)}</span>
-                      </div>
-
-                      {/* Tip */}
-                      {order.tip_cents > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-700">Tip (Optional)</span>
-                          <span className="text-slate-900 font-medium">{formatCurrency(order.tip_cents)}</span>
-                        </div>
-                      )}
-
-                      {/* Total */}
-                      <div className="flex justify-between pt-3 border-t-2 border-slate-400">
-                        <span className="text-slate-900 font-bold text-base">Total Amount:</span>
-                        <span className="text-slate-900 font-bold text-xl">{formatCurrency(order.deposit_due_cents + order.balance_due_cents)}</span>
-                      </div>
-
-                      {/* Payment Split */}
-                      <div className="mt-4 pt-3 border-t border-slate-300 space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-green-700 font-semibold">Deposit Due Now:</span>
-                          <span className="text-green-700 font-bold text-base">{formatCurrency(order.deposit_due_cents)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-600">Balance Due After Event:</span>
-                          <span className="text-slate-700 font-semibold">{formatCurrency(order.balance_due_cents)}</span>
-                        </div>
-                      </div>
-                    </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
