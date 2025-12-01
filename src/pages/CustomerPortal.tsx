@@ -383,6 +383,7 @@ export function CustomerPortal() {
                         'order_items': 'Order Items',
                         'discounts': 'Discounts',
                         'custom_fees': 'Custom Fees',
+                        'admin_message': 'Message from Bounce Party Club',
                         'subtotal': 'Subtotal',
                         'generator_fee': 'Generator Fee',
                         'travel_fee': 'Travel Fee',
@@ -393,6 +394,7 @@ export function CustomerPortal() {
                         'balance_due': 'Balance Due',
                         'total': 'Order Total',
                         'payment_method': 'Payment Method',
+                        'status': 'Order Status',
                       };
 
                       const fieldLabel = fieldLabelMap[change.field_changed] ||

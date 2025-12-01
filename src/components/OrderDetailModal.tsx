@@ -655,13 +655,17 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         }
       }
 
-      // Save admin message if provided
+      // Save admin message if provided and log it
       if (adminMessage.trim()) {
         changes.admin_message = adminMessage.trim();
+        // Log admin message as a change so it appears in changelog
+        if (adminMessage.trim() !== (order.admin_message || '')) {
+          logs.push(['admin_message', order.admin_message || '', adminMessage.trim()]);
+        }
       }
 
       // Check if there are any actual changes to track
-      const hasTrackedChanges = logs.length > 0 || stagedItems.some(item => item.is_new || item.is_deleted) || discounts.some(d => d.is_new) || customFees.some(f => f.is_new) || adminMessage.trim();
+      const hasTrackedChanges = logs.length > 0 || stagedItems.some(item => item.is_new || item.is_deleted) || discounts.some(d => d.is_new) || customFees.some(f => f.is_new);
       const hasFieldChanges = Object.keys(changes).length > 0;
 
       // Only set awaiting_customer_approval status if there are actual changes
