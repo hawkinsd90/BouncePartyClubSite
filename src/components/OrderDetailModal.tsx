@@ -444,6 +444,16 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
     setSaving(true);
     try {
+      // Verify user is authenticated
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        console.error('Authentication error:', authError);
+        alert('You must be logged in to save changes.');
+        setSaving(false);
+        return;
+      }
+      console.log('User authenticated:', user.id);
+
       const changes: any = {};
       const logs = [];
 
@@ -640,7 +650,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
             name: discount.name,
             amount_cents: discount.amount_cents,
             percentage: discount.percentage,
-          });
+          }).select();
           if (error) {
             console.error('Error inserting discount:', error);
             throw new Error(`Failed to save discount: ${error.message}`);
@@ -671,7 +681,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
             order_id: order.id,
             name: fee.name,
             amount_cents: fee.amount_cents,
-          });
+          }).select();
           if (error) {
             console.error('Error inserting custom fee:', error);
             throw new Error(`Failed to save custom fee: ${error.message}`);
