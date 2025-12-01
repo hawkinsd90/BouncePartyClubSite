@@ -553,54 +553,83 @@ export function CustomerPortal() {
               )}
 
               {/* What Changed Section */}
-              {changelog.length > 0 && (
-                <div className="bg-orange-50 border-2 border-orange-400 rounded-lg p-6 mb-6">
-                  <h3 className="font-bold text-orange-900 mb-4 text-lg flex items-center gap-2">
-                    <AlertCircle className="w-5 h-5" />
-                    What Changed
-                  </h3>
-                  <div className="space-y-3">
-                    {changelog.map((change, idx) => {
-                      const formatValue = (val: string, field: string) => {
-                        if (!val || val === 'null') return 'None';
-                        if (field.includes('cents') || field.includes('price')) {
-                          return formatCurrency(parseInt(val));
-                        }
-                        if (field === 'event_date' || field === 'event_end_date' || field === 'start_date' || field === 'end_date') {
-                          return format(new Date(val), 'MMMM d, yyyy');
-                        }
-                        return val;
-                      };
+              {(() => {
+                // Filter to only customer-relevant changes
+                const customerRelevantFields = [
+                  'event_date', 'event_end_date', 'address', 'location_type',
+                  'surface', 'generator_qty', 'pickup_preference', 'total'
+                ];
 
-                      const fieldLabel = change.field_changed
-                        .replace(/_/g, ' ')
-                        .replace(/\b\w/g, (l: string) => l.toUpperCase())
-                        .replace('Cents', '')
-                        .replace('Fee', '');
+                const relevantChanges = changelog.filter(c =>
+                  customerRelevantFields.includes(c.field_changed)
+                );
 
-                      return (
-                        <div key={idx} className="bg-white rounded p-4 border border-orange-200">
-                          <div className="font-semibold text-orange-900 mb-2">{fieldLabel}</div>
-                          <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                              <div className="text-slate-600 mb-1">Previous:</div>
-                              <div className="text-red-700 line-through font-medium">
-                                {formatValue(change.old_value, change.field_changed)}
-                              </div>
-                            </div>
-                            <div>
-                              <div className="text-slate-600 mb-1">Updated:</div>
-                              <div className="text-green-700 font-semibold">
-                                {formatValue(change.new_value, change.field_changed)}
-                              </div>
-                            </div>
+                if (relevantChanges.length === 0) return null;
+
+                const formatValue = (val: string, field: string) => {
+                  if (!val || val === 'null') return 'None';
+                  if (field === 'total') {
+                    return formatCurrency(parseInt(val));
+                  }
+                  if (field === 'event_date' || field === 'event_end_date') {
+                    return format(new Date(val), 'MMMM d, yyyy');
+                  }
+                  if (field === 'location_type') {
+                    return val === 'residential' ? 'Residential' : 'Commercial';
+                  }
+                  if (field === 'surface') {
+                    return val === 'grass' ? 'Grass (Stakes)' : 'Concrete (Sandbags)';
+                  }
+                  if (field === 'pickup_preference') {
+                    return val === 'next_day' ? 'Next Morning' : 'Same Day';
+                  }
+                  if (field === 'generator_qty') {
+                    return val === '0' ? 'None' : `${val} Generator${val === '1' ? '' : 's'}`;
+                  }
+                  return val;
+                };
+
+                const getFieldLabel = (field: string) => {
+                  const labels: Record<string, string> = {
+                    'event_date': 'Event Date',
+                    'event_end_date': 'Event End Date',
+                    'address': 'Address',
+                    'location_type': 'Location Type',
+                    'surface': 'Surface',
+                    'generator_qty': 'Generators',
+                    'pickup_preference': 'Pickup',
+                    'total': 'Total Price'
+                  };
+                  return labels[field] || field;
+                };
+
+                return (
+                  <div className="bg-orange-50 border-2 border-orange-400 rounded-lg p-5 mb-6">
+                    <h3 className="font-bold text-orange-900 mb-3 text-base flex items-center gap-2">
+                      <AlertCircle className="w-5 h-5" />
+                      What Changed
+                    </h3>
+                    <div className="bg-white rounded border border-orange-200 divide-y divide-orange-100">
+                      {relevantChanges.map((change, idx) => (
+                        <div key={idx} className="px-4 py-2.5 flex justify-between items-center text-sm">
+                          <span className="font-medium text-orange-900 min-w-[120px]">
+                            {getFieldLabel(change.field_changed)}:
+                          </span>
+                          <div className="flex items-center gap-3 flex-1 justify-end">
+                            <span className="text-red-700 line-through">
+                              {formatValue(change.old_value, change.field_changed)}
+                            </span>
+                            <span className="text-slate-400">→</span>
+                            <span className="text-green-700 font-semibold">
+                              {formatValue(change.new_value, change.field_changed)}
+                            </span>
                           </div>
                         </div>
-                      );
-                    })}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Updated Order Details */}
               <div className="bg-slate-50 rounded-lg p-6 mb-6 border-2 border-slate-200">
