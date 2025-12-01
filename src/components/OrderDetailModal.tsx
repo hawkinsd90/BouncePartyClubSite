@@ -656,6 +656,15 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
             throw new Error(`Failed to save discount: ${error.message}`);
           }
           console.log('Discount inserted successfully:', data);
+
+          // Verify the insert by reading it back
+          const { data: verifyData, error: verifyError } = await supabase
+            .from('order_discounts')
+            .select('*')
+            .eq('order_id', order.id)
+            .eq('name', discount.name);
+          console.log('Verify discount exists:', verifyData, verifyError);
+
           await logChange('discounts', '', discount.name, 'add');
         }
       }
@@ -687,6 +696,15 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
             throw new Error(`Failed to save custom fee: ${error.message}`);
           }
           console.log('Custom fee inserted successfully:', data);
+
+          // Verify the insert by reading it back
+          const { data: verifyData, error: verifyError } = await supabase
+            .from('order_custom_fees')
+            .select('*')
+            .eq('order_id', order.id)
+            .eq('name', fee.name);
+          console.log('Verify custom fee exists:', verifyData, verifyError);
+
           await logChange('custom_fees', '', fee.name, 'add');
         }
       }
