@@ -271,11 +271,23 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         }
       }
 
-      // Calculate tax (includes generator fee in taxable amount)
-      const tax_cents = Math.round((subtotal_cents + generator_fee_cents + travel_fee_cents + surface_fee_cents) * 0.06);
+      // Apply discounts
+      let discount_total_cents = 0;
+      for (const discount of discounts) {
+        if (discount.amount_cents > 0) {
+          discount_total_cents += discount.amount_cents;
+        } else if (discount.percentage > 0) {
+          const discountable = subtotal_cents + generator_fee_cents + travel_fee_cents + surface_fee_cents;
+          discount_total_cents += Math.round(discountable * (discount.percentage / 100));
+        }
+      }
+
+      // Calculate tax (includes generator fee in taxable amount, after discounts)
+      const taxable_amount = Math.max(0, subtotal_cents + generator_fee_cents + travel_fee_cents + surface_fee_cents - discount_total_cents);
+      const tax_cents = Math.round(taxable_amount * 0.06);
 
       // Calculate totals
-      const total_cents = subtotal_cents + generator_fee_cents + travel_fee_cents + surface_fee_cents + same_day_pickup_fee_cents + tax_cents;
+      const total_cents = subtotal_cents + generator_fee_cents + travel_fee_cents + surface_fee_cents + same_day_pickup_fee_cents + tax_cents - discount_total_cents;
       const deposit_due_cents = activeItems.reduce((sum, item) => sum + item.qty, 0) * 5000;
       const balance_due_cents = total_cents - deposit_due_cents;
 
@@ -286,6 +298,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         distance_miles,
         surface_fee_cents,
         same_day_pickup_fee_cents,
+        discount_total_cents,
         tax_cents,
         total_cents,
         deposit_due_cents,
@@ -982,57 +995,64 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Event Start Date</label>
-                  <input
-                    type="date"
-                    value={editedOrder.event_date}
-                    onChange={(e) => {
-                      const newStart = e.target.value;
-                      setEditedOrder({
-                        ...editedOrder,
-                        event_date: newStart,
-                        event_end_date: newStart > editedOrder.event_end_date ? newStart : editedOrder.event_end_date
-                      });
-                    }}
-                    className="w-full px-3 py-2 border border-slate-300 rounded"
-                  />
-                </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Event Start Date</label>
+                      <input
+                        type="date"
+                        value={editedOrder.event_date}
+                        onChange={(e) => {
+                          const newStart = e.target.value;
+                          setEditedOrder({
+                            ...editedOrder,
+                            event_date: newStart,
+                            event_end_date: newStart > editedOrder.event_end_date ? newStart : editedOrder.event_end_date
+                          });
+                        }}
+                        className="w-full px-3 py-2 border border-slate-300 rounded"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Event End Date</label>
-                  <input
-                    type="date"
-                    value={editedOrder.event_end_date}
-                    onChange={(e) => setEditedOrder({ ...editedOrder, event_end_date: e.target.value })}
-                    min={editedOrder.event_date}
-                    disabled={editedOrder.pickup_preference === 'same_day' || editedOrder.location_type === 'commercial'}
-                    className="w-full px-3 py-2 border border-slate-300 rounded disabled:bg-slate-100"
-                  />
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Event End Date</label>
+                      <input
+                        type="date"
+                        value={editedOrder.event_end_date}
+                        onChange={(e) => setEditedOrder({ ...editedOrder, event_end_date: e.target.value })}
+                        min={editedOrder.event_date}
+                        disabled={editedOrder.pickup_preference === 'same_day' || editedOrder.location_type === 'commercial'}
+                        className="w-full px-3 py-2 border border-slate-300 rounded disabled:bg-slate-100"
+                      />
+                    </div>
+                  </div>
                   {(editedOrder.pickup_preference === 'same_day' || editedOrder.location_type === 'commercial') && (
                     <p className="text-xs text-slate-500 mt-1">Same-day events cannot span multiple days</p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Start Time</label>
-                  <input
-                    type="time"
-                    value={editedOrder.start_window}
-                    onChange={(e) => setEditedOrder({ ...editedOrder, start_window: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded"
-                  />
-                </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Start Time</label>
+                      <input
+                        type="time"
+                        value={editedOrder.start_window}
+                        onChange={(e) => setEditedOrder({ ...editedOrder, start_window: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">End Time</label>
-                  <input
-                    type="time"
-                    value={editedOrder.end_window}
-                    onChange={(e) => setEditedOrder({ ...editedOrder, end_window: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded"
-                  />
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">End Time</label>
+                      <input
+                        type="time"
+                        value={editedOrder.end_window}
+                        onChange={(e) => setEditedOrder({ ...editedOrder, end_window: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded"
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
 
               {editedOrder.location_type === 'residential' && (
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
@@ -1362,20 +1382,26 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                         </div>
                       </div>
                     )}
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-600">Tax (6%):</span>
-                          <div className="flex items-center gap-2">
-                            {calculatedPricing.tax_cents !== order.tax_cents && (
-                              <span className="text-xs text-slate-400 line-through">{formatCurrency(order.tax_cents)}</span>
-                            )}
-                            <span className={`font-medium ${calculatedPricing.tax_cents !== order.tax_cents ? 'text-blue-700' : ''}`}>
-                              {formatCurrency(calculatedPricing.tax_cents)}
-                            </span>
-                          </div>
-                        </div>
+                    {calculatedPricing.discount_total_cents > 0 && (
+                      <div className="flex justify-between text-sm text-green-700">
+                        <span className="font-medium">Discount:</span>
+                        <span className="font-medium">-{formatCurrency(calculatedPricing.discount_total_cents)}</span>
                       </div>
+                    )}
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Tax (6%):</span>
+                      <div className="flex items-center gap-2">
+                        {calculatedPricing.tax_cents !== order.tax_cents && (
+                          <span className="text-xs text-slate-400 line-through">{formatCurrency(order.tax_cents)}</span>
+                        )}
+                        <span className={`font-medium ${calculatedPricing.tax_cents !== order.tax_cents ? 'text-blue-700' : ''}`}>
+                          {formatCurrency(calculatedPricing.tax_cents)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
 
-                      {/* Totals */}
+                  {/* Totals */}
                       <div className="space-y-1 border-t border-blue-300 pt-2">
                         <div className="flex justify-between text-base font-semibold">
                           <span>Total:</span>
@@ -1559,6 +1585,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 </div>
               </div>
             </div>
+          </div>
           )}
 
           {activeSection === 'workflow' && (
