@@ -101,6 +101,13 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
   }, [orderItems]);
 
+  // Recalculate pricing whenever discounts, custom fees, or staged items change
+  useEffect(() => {
+    if (pricingRules && editedOrder && stagedItems.length > 0) {
+      recalculatePricing();
+    }
+  }, [discounts, customFees, stagedItems, editedOrder.location_type, editedOrder.surface, editedOrder.generator_qty]);
+
   // Check if any changes have been made
   useEffect(() => {
     const orderChanged =
