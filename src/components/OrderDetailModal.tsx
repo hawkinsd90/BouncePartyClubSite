@@ -641,6 +641,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
       // Handle staged discounts
       console.log('Saving discounts:', discounts);
+      const insertedDiscountIds: string[] = [];
+
       for (const discount of discounts) {
         if (discount.is_new) {
           console.log('Inserting new discount:', discount);
@@ -657,13 +659,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           }
           console.log('Discount inserted successfully:', data);
 
-          // Verify the insert by reading it back
-          const { data: verifyData, error: verifyError } = await supabase
-            .from('order_discounts')
-            .select('*')
-            .eq('order_id', order.id)
-            .eq('name', discount.name);
-          console.log('Verify discount exists:', verifyData, verifyError);
+          // Track the newly inserted discount ID
+          if (data && data[0]) {
+            insertedDiscountIds.push(data[0].id);
+          }
 
           await logChange('discounts', '', discount.name, 'add');
         }
@@ -672,9 +671,14 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       // Remove discounts that were deleted (check against original list)
       const originalDiscounts = await supabase.from('order_discounts').select('*').eq('order_id', order.id);
       if (originalDiscounts.data) {
-        const currentDiscountIds = discounts.filter(d => !d.is_new).map(d => d.id);
+        // Include both existing discount IDs and newly inserted ones
+        const currentDiscountIds = [
+          ...discounts.filter(d => !d.is_new).map(d => d.id),
+          ...insertedDiscountIds
+        ];
         const deletedDiscounts = originalDiscounts.data.filter(od => !currentDiscountIds.includes(od.id));
         for (const deleted of deletedDiscounts) {
+          console.log('Deleting discount:', deleted);
           await supabase.from('order_discounts').delete().eq('id', deleted.id);
           await logChange('discounts', deleted.name, '', 'remove');
         }
@@ -682,6 +686,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
       // Handle staged custom fees
       console.log('Saving custom fees:', customFees);
+      const insertedFeeIds: string[] = [];
+
       for (const fee of customFees) {
         if (fee.is_new) {
           console.log('Inserting new custom fee:', fee);
@@ -697,13 +703,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           }
           console.log('Custom fee inserted successfully:', data);
 
-          // Verify the insert by reading it back
-          const { data: verifyData, error: verifyError } = await supabase
-            .from('order_custom_fees')
-            .select('*')
-            .eq('order_id', order.id)
-            .eq('name', fee.name);
-          console.log('Verify custom fee exists:', verifyData, verifyError);
+          // Track the newly inserted fee ID
+          if (data && data[0]) {
+            insertedFeeIds.push(data[0].id);
+          }
 
           await logChange('custom_fees', '', fee.name, 'add');
         }
@@ -712,9 +715,14 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       // Remove custom fees that were deleted (check against original list)
       const originalCustomFees = await supabase.from('order_custom_fees').select('*').eq('order_id', order.id);
       if (originalCustomFees.data) {
-        const currentFeeIds = customFees.filter(f => !f.is_new).map(f => f.id);
+        // Include both existing fee IDs and newly inserted ones
+        const currentFeeIds = [
+          ...customFees.filter(f => !f.is_new).map(f => f.id),
+          ...insertedFeeIds
+        ];
         const deletedFees = originalCustomFees.data.filter(of => !currentFeeIds.includes(of.id));
         for (const deleted of deletedFees) {
+          console.log('Deleting custom fee:', deleted);
           await supabase.from('order_custom_fees').delete().eq('id', deleted.id);
           await logChange('custom_fees', deleted.name, '', 'remove');
         }
