@@ -477,19 +477,25 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       const originalEventDate = normalizeDate(order.event_date);
       const editedEventDate = normalizeDate(editedOrder.event_date);
 
+      console.log('Date comparison - Original:', originalEventDate, 'Edited:', editedEventDate);
+
       if (editedEventDate !== originalEventDate) {
         changes.event_date = editedOrder.event_date;
         changes.start_date = editedOrder.event_date; // Keep start_date in sync
         logs.push(['event_date', order.event_date, editedOrder.event_date]);
+        console.log('✅ Event date changed from', originalEventDate, 'to', editedEventDate);
       }
 
       const originalEventEndDate = normalizeDate(order.event_end_date || order.event_date);
       const editedEventEndDate = normalizeDate(editedOrder.event_end_date);
 
+      console.log('End date comparison - Original:', originalEventEndDate, 'Edited:', editedEventEndDate);
+
       if (editedEventEndDate !== originalEventEndDate) {
         changes.event_end_date = editedOrder.event_end_date;
         changes.end_date = editedOrder.event_end_date; // Keep end_date in sync
         logs.push(['event_end_date', order.event_end_date || order.event_date, editedOrder.event_end_date]);
+        console.log('✅ Event end date changed from', originalEventEndDate, 'to', editedEventEndDate);
       }
       if (editedOrder.pickup_preference !== (order.pickup_preference || 'next_day')) {
         changes.pickup_preference = editedOrder.pickup_preference;
@@ -1074,35 +1080,43 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
 
     try {
-      const { error } = await supabase.from('orders').update({ status: pendingStatus }).eq('id', order.id);
-      if (error) throw error;
+      // Update order status
+      const { error: updateError } = await supabase.from('orders').update({ status: pendingStatus }).eq('id', order.id);
+      if (updateError) {
+        console.error('Error updating order status:', updateError);
+        throw new Error(`Failed to update order status: ${updateError.message}`);
+      }
 
-      const description = `Order status changed to ${pendingStatus}. Reason: ${statusChangeReason}`;
+      // Get current user for logging
+      const { data: { user } } = await supabase.auth.getUser();
 
-      await supabase.from('order_workflow_events').insert({
+      // Log status change in changelog with reason
+      const { error: logError } = await supabase.from('order_changelog').insert({
         order_id: order.id,
-        user_id: (await supabase.auth.getUser()).data.user?.id,
-        event_type: pendingStatus,
-        description,
-      });
-
-      // Log status change in changelog
-      await supabase.from('order_changelog').insert({
-        order_id: order.id,
-        user_id: (await supabase.auth.getUser()).data.user?.id,
+        user_id: user?.id,
         field_changed: 'status',
         old_value: order.status,
         new_value: pendingStatus,
+        notes: statusChangeReason,
       });
+
+      if (logError) {
+        console.error('Error logging status change:', logError);
+        // Don't throw here - the status was already updated successfully
+      }
+
+      console.log('✅ Status changed from', order.status, 'to', pendingStatus, 'Reason:', statusChangeReason);
 
       setShowStatusDialog(false);
       setPendingStatus('');
       setStatusChangeReason('');
       await loadOrderDetails();
       onUpdate();
+      alert('Status updated successfully!');
     } catch (error) {
       console.error('Error updating status:', error);
-      alert('Failed to update status');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to update status: ${errorMessage}`);
     }
   }
 
