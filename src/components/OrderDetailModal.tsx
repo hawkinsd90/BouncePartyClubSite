@@ -468,12 +468,25 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         changes.end_window = editedOrder.end_window;
         logs.push(['end_window', order.end_window, editedOrder.end_window]);
       }
-      if (editedOrder.event_date !== order.event_date) {
+      // Normalize dates to YYYY-MM-DD format for comparison
+      const normalizeDate = (dateStr: string) => {
+        if (!dateStr) return '';
+        return dateStr.split('T')[0]; // Extract YYYY-MM-DD from timestamp
+      };
+
+      const originalEventDate = normalizeDate(order.event_date);
+      const editedEventDate = normalizeDate(editedOrder.event_date);
+
+      if (editedEventDate !== originalEventDate) {
         changes.event_date = editedOrder.event_date;
         changes.start_date = editedOrder.event_date; // Keep start_date in sync
         logs.push(['event_date', order.event_date, editedOrder.event_date]);
       }
-      if (editedOrder.event_end_date !== (order.event_end_date || order.event_date)) {
+
+      const originalEventEndDate = normalizeDate(order.event_end_date || order.event_date);
+      const editedEventEndDate = normalizeDate(editedOrder.event_end_date);
+
+      if (editedEventEndDate !== originalEventEndDate) {
         changes.event_end_date = editedOrder.event_end_date;
         changes.end_date = editedOrder.event_end_date; // Keep end_date in sync
         logs.push(['event_end_date', order.event_end_date || order.event_date, editedOrder.event_end_date]);

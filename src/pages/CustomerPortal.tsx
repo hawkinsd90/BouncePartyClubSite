@@ -543,125 +543,12 @@ export function CustomerPortal() {
               )}
 
               {/* Payment Method Cleared Notice */}
-              {!order.stripe_payment_method_id && changelog.some(c => c.field_changed === 'payment_method' && c.new_value === 'cleared') && (
+              {!order.stripe_payment_method_id && changelog.some(c => c.field_changed === 'payment_method') && (
                 <div className="bg-amber-50 border-2 border-amber-400 rounded-lg p-6 mb-6">
                   <h3 className="font-bold text-amber-900 mb-3 text-lg">Payment Update Required</h3>
                   <p className="text-amber-800">
-                    Due to changes in your order, your previous payment method has been removed. You'll need to provide a new payment method when you approve these changes.
+                    Due to changes in your order, your previous payment method has been removed for your security. You'll need to provide a new payment method when you approve these changes.
                   </p>
-                </div>
-              )}
-
-              {/* Changelog - What Changed */}
-              {changelog.length > 0 && (
-                <div className="bg-blue-50 rounded-lg p-6 mb-6 border-2 border-blue-300">
-                  <h3 className="font-bold text-blue-900 mb-4 text-lg flex items-center gap-2">
-                    <FileText className="w-5 h-5" />
-                    What Changed
-                  </h3>
-                  <div className="space-y-2">
-                    {changelog
-                      .filter(change => {
-                        // Filter out fields customers don't need to see
-                        const hiddenFields = [
-                          'admin_message', // Shown separately above
-                          'payment_method', // Handled with explanation
-                          'subtotal', // Part of itemized receipt below
-                          'total', // Shown in summary below
-                          'deposit_due', // Shown in summary below
-                          'balance_due', // Shown in summary below
-                        ];
-                        return !hiddenFields.includes(change.field_changed);
-                      })
-                      .map((change, idx) => {
-                      // Create friendly field labels
-                      const fieldLabelMap: Record<string, string> = {
-                        'location_type': 'Location Type',
-                        'surface': 'Setup Surface',
-                        'generator_qty': 'Generator Quantity',
-                        'start_window': 'Start Time',
-                        'end_window': 'End Time',
-                        'event_date': 'Event Start Date',
-                        'event_end_date': 'Event End Date',
-                        'pickup_preference': 'Pickup Preference',
-                        'address': 'Event Address',
-                        'order_items': 'Order Items',
-                        'discounts': 'Discounts',
-                        'custom_fees': 'Custom Fees',
-                        'generator_fee': 'Generator Fee',
-                        'travel_fee': 'Travel Fee',
-                        'surface_fee': 'Surface Fee',
-                        'same_day_pickup_fee': 'Same-Day Pickup Fee',
-                        'tax': 'Tax',
-                        'status': 'Order Status',
-                      };
-
-                      const fieldLabel = fieldLabelMap[change.field_changed] ||
-                        change.field_changed
-                          .replace(/_/g, ' ')
-                          .split(' ')
-                          .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
-                          .join(' ');
-
-                      const formatValue = (value: any) => {
-                        if (value === null || value === undefined || value === '') return 'None';
-
-                        // Format time fields
-                        if (change.field_changed === 'start_window' || change.field_changed === 'end_window') {
-                          return value;
-                        }
-
-                        // Format date fields
-                        if (change.field_changed === 'event_date' || change.field_changed === 'event_end_date') {
-                          return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                        }
-
-                        // Format pickup preference
-                        if (change.field_changed === 'pickup_preference') {
-                          return value === 'next_day' ? 'Next Morning' : 'Same Day';
-                        }
-
-                        // Format location type
-                        if (change.field_changed === 'location_type') {
-                          return value.charAt(0).toUpperCase() + value.slice(1);
-                        }
-
-                        // Format surface
-                        if (change.field_changed === 'surface') {
-                          return value === 'grass' ? 'Grass (Stakes)' : 'Sandbags';
-                        }
-
-                        // Format money fields
-                        if (typeof value === 'number' || (typeof value === 'string' && !isNaN(parseFloat(value)))) {
-                          const numValue = typeof value === 'number' ? value : parseFloat(value);
-                          if (fieldLabel.toLowerCase().includes('fee') || fieldLabel.toLowerCase().includes('deposit') ||
-                              fieldLabel.toLowerCase().includes('balance') || fieldLabel.toLowerCase().includes('subtotal') ||
-                              fieldLabel.toLowerCase().includes('tax') || fieldLabel.toLowerCase().includes('total')) {
-                            return formatCurrency(numValue);
-                          }
-                        }
-                        return String(value);
-                      };
-
-                      let changeDescription = '';
-                      if (change.change_type === 'add') {
-                        changeDescription = `Added: ${change.new_value}`;
-                      } else if (change.change_type === 'remove') {
-                        changeDescription = `Removed: ${change.old_value}`;
-                      } else {
-                        changeDescription = `${formatValue(change.old_value)} → ${formatValue(change.new_value)}`;
-                      }
-
-                      return (
-                        <div key={idx} className="bg-white rounded p-3 border border-blue-200">
-                          <div className="flex items-start justify-between">
-                            <span className="text-sm font-semibold text-blue-900">{fieldLabel}:</span>
-                            <span className="text-sm text-slate-700 text-right ml-4">{changeDescription}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
                 </div>
               )}
 
