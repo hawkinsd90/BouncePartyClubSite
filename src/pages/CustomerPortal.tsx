@@ -246,6 +246,165 @@ export function CustomerPortal() {
     }
   }
 
+  async function handleRejectChanges() {
+    const confirmReject = confirm(
+      'Are you sure you want to reject these changes? This will cancel your order. ' +
+      'If you have questions, please call us at (313) 889-3860 instead.'
+    );
+
+    if (!confirmReject) {
+      return;
+    }
+
+    const customerName = prompt('To confirm cancellation, please enter your full name as it appears on the order:');
+
+    if (!customerName) {
+      return;
+    }
+
+    const expectedName = `${order.customers.first_name} ${order.customers.last_name}`.toLowerCase().trim();
+    if (customerName.toLowerCase().trim() !== expectedName) {
+      alert('The name you entered does not match the customer name on this order. Please try again.');
+      return;
+    }
+
+    const rejectionReason = prompt('Optional: Please tell us why you\'re rejecting these changes:') || 'No reason provided';
+
+    setSubmitting(true);
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          status: 'cancelled',
+          admin_message: `Customer rejected changes. Reason: ${rejectionReason}`
+        })
+        .eq('id', orderId);
+
+      if (error) throw error;
+
+      // Send admin notifications
+      try {
+        // Get admin contact info
+        const { data: adminPhone } = await supabase
+          .from('admin_settings')
+          .select('value')
+          .eq('key', 'admin_notification_phone')
+          .maybeSingle();
+
+        const { data: adminEmail } = await supabase
+          .from('admin_settings')
+          .select('value')
+          .eq('key', 'admin_notification_email')
+          .maybeSingle();
+
+        const customerName = `${order.customers.first_name} ${order.customers.last_name}`;
+        const orderNum = order.id.slice(0, 8).toUpperCase();
+
+        // Send SMS
+        if (adminPhone?.value) {
+          const adminSmsMessage =
+            `⚠️ CUSTOMER REJECTED CHANGES! ` +
+            `${customerName} rejected order changes for Order #${orderNum}. ` +
+            `Reason: ${rejectionReason}. ` +
+            `Order has been cancelled.`;
+
+          const smsApiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
+          await fetch(smsApiUrl, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              to: adminPhone.value,
+              message: adminSmsMessage,
+            }),
+          });
+        }
+
+        // Send Email
+        if (adminEmail?.value) {
+          const logoUrl = 'https://qaagfafagdpgzcijnfbw.supabase.co/storage/v1/object/public/public-assets/bounce-party-club-logo.png';
+
+          const emailHtml = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <title>Customer Rejected Order Changes</title>
+            </head>
+            <body style="font-family: Arial, sans-serif; padding: 20px; background-color: #f8fafc;">
+              <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: 3px solid #ef4444;">
+                <div style="text-align: center; border-bottom: 2px solid #ef4444; padding-bottom: 20px; margin-bottom: 25px;">
+                  <img src="${logoUrl}" alt="Bounce Party Club" style="height: 70px; width: auto;" />
+                  <h2 style="color: #ef4444; margin: 15px 0 0;">⚠️ Customer Rejected Changes</h2>
+                </div>
+                <p style="margin: 0 0 20px; color: #475569; font-size: 16px;">
+                  <strong>${customerName}</strong> has rejected the proposed changes for their booking.
+                </p>
+
+                <div style="background-color: #fee2e2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                  <p style="margin: 0; color: #991b1b; font-weight: bold;">Order Details:</p>
+                  <p style="margin: 10px 0 0; color: #7f1d1d;">
+                    <strong>Order #:</strong> ${orderNum}<br>
+                    <strong>Customer:</strong> ${customerName}<br>
+                    <strong>Email:</strong> ${order.customers.email}<br>
+                    <strong>Phone:</strong> ${order.customers.phone}<br>
+                    <strong>Event Date:</strong> ${format(new Date(order.event_date), 'MMMM d, yyyy')}
+                  </p>
+                </div>
+
+                <div style="background-color: #f1f5f9; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                  <p style="margin: 0; color: #334155; font-weight: bold;">Rejection Reason:</p>
+                  <p style="margin: 10px 0 0; color: #475569;">${rejectionReason}</p>
+                </div>
+
+                <div style="background-color: #fef3c7; border: 2px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                  <p style="margin: 0; color: #92400e; font-weight: bold;">⚠️ Action Required:</p>
+                  <p style="margin: 10px 0 0; color: #92400e;">
+                    The order has been automatically cancelled. Please contact the customer to discuss their concerns and potentially create a new booking that meets their needs.
+                  </p>
+                </div>
+
+                <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+                  <p style="margin: 0; color: #64748b; font-size: 14px;">
+                    Customer Contact: ${order.customers.phone} | ${order.customers.email}
+                  </p>
+                </div>
+              </div>
+            </body>
+            </html>
+          `;
+
+          const emailApiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`;
+          await fetch(emailApiUrl, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              to: adminEmail.value,
+              subject: `⚠️ Customer Rejected Changes - Order #${orderNum}`,
+              html: emailHtml,
+            }),
+          });
+        }
+      } catch (notificationError) {
+        console.error('Error sending notifications:', notificationError);
+        // Don't fail the rejection if notifications fail
+      }
+
+      alert('Your order has been cancelled. We\'re sorry we couldn\'t meet your needs. Our team will be in touch shortly.');
+      await loadOrder();
+    } catch (error) {
+      console.error('Error rejecting changes:', error);
+      alert('Failed to process rejection. Please call us at (313) 889-3860.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   // Show success screen after approval
   if (approvalSuccess) {
     return (
@@ -623,20 +782,29 @@ export function CustomerPortal() {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-4">
+              <div className="space-y-4">
+                <div className="flex gap-4">
+                  <button
+                    onClick={handleApproveChanges}
+                    disabled={submitting}
+                    className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-bold py-4 px-6 rounded-lg transition-colors text-lg shadow-lg"
+                  >
+                    {submitting ? 'Processing...' : 'Approve Changes'}
+                  </button>
+                  <a
+                    href="tel:+13138893860"
+                    className="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-bold py-4 px-6 rounded-lg transition-colors text-center text-lg shadow-lg"
+                  >
+                    Call to Discuss
+                  </a>
+                </div>
                 <button
-                  onClick={handleApproveChanges}
+                  onClick={handleRejectChanges}
                   disabled={submitting}
-                  className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-bold py-4 px-6 rounded-lg transition-colors text-lg shadow-lg"
+                  className="w-full bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-bold py-3 px-6 rounded-lg transition-colors shadow-lg"
                 >
-                  {submitting ? 'Processing...' : 'Approve Changes'}
+                  Reject Changes & Cancel Order
                 </button>
-                <a
-                  href="tel:+13138893860"
-                  className="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-bold py-4 px-6 rounded-lg transition-colors text-center text-lg shadow-lg"
-                >
-                  Call to Discuss
-                </a>
               </div>
 
               <p className="text-center text-slate-500 text-sm mt-6">
