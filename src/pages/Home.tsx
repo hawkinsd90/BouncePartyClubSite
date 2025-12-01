@@ -44,46 +44,49 @@ export function Home() {
   return (
     <div>
       {/* TEMPORARY DEV DISPLAY - REMOVE THIS BLOCK AFTER CONFIRMING URL */}
-      <div className="bg-yellow-100 border-l-4 border-yellow-500 p-3">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div className="flex items-center">
-            <span className="font-bold text-yellow-800 mr-2">DEV:</span>
-            <span className="text-yellow-900 text-sm font-mono">{displayUrl}</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-xs text-yellow-700 italic">Check .env.local is being used</span>
-            {role === 'ADMIN' && (
-              <button
-                onClick={async () => {
-                  console.log('🎬 [HOME] Create Test Booking button clicked');
+      <div className="bg-yellow-100 border-l-4 border-yellow-500 p-2 sm:p-3">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="flex items-center overflow-hidden">
+              <span className="font-bold text-yellow-800 mr-2 text-xs sm:text-sm shrink-0">DEV:</span>
+              <span className="text-yellow-900 text-xs font-mono truncate">{displayUrl}</span>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-4">
+              <span className="text-xs text-yellow-700 italic hidden lg:inline">Check .env.local is being used</span>
+              {role === 'ADMIN' && (
+                <button
+                  onClick={async () => {
+                    console.log('🎬 [HOME] Create Test Booking button clicked');
 
-                  console.log('🧹 [HOME] Clearing existing localStorage data...');
-                  localStorage.removeItem('bpc_cart');
-                  localStorage.removeItem('bpc_quote_form');
-                  localStorage.removeItem('bpc_price_breakdown');
-                  localStorage.removeItem('bpc_contact_data');
-                  localStorage.removeItem('test_booking_tip');
+                    console.log('🧹 [HOME] Clearing existing localStorage data...');
+                    localStorage.removeItem('bpc_cart');
+                    localStorage.removeItem('bpc_quote_form');
+                    localStorage.removeItem('bpc_price_breakdown');
+                    localStorage.removeItem('bpc_contact_data');
+                    localStorage.removeItem('test_booking_tip');
 
-                  setCreatingTestBooking(true);
-                  console.log('⏳ [HOME] Calling createTestBooking()...');
-                  const result = await createTestBooking();
-                  console.log('📊 [HOME] createTestBooking() result:', result);
-                  setCreatingTestBooking(false);
-                  if (result.success) {
-                    console.log('✅ [HOME] Test booking created successfully, navigating to /checkout');
-                    navigate('/checkout');
-                  } else {
-                    console.error('❌ [HOME] Test booking failed:', result.error);
-                    alert('Failed to create test booking: ' + result.error);
-                  }
-                }}
-                disabled={creatingTestBooking}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
-              >
-                <Zap className="w-4 h-4" />
-                {creatingTestBooking ? 'Creating...' : 'Create Test Booking'}
-              </button>
-            )}
+                    setCreatingTestBooking(true);
+                    console.log('⏳ [HOME] Calling createTestBooking()...');
+                    const result = await createTestBooking();
+                    console.log('📊 [HOME] createTestBooking() result:', result);
+                    setCreatingTestBooking(false);
+                    if (result.success) {
+                      console.log('✅ [HOME] Test booking created successfully, navigating to /checkout');
+                      navigate('/checkout');
+                    } else {
+                      console.error('❌ [HOME] Test booking failed:', result.error);
+                      alert('Failed to create test booking: ' + result.error);
+                    }
+                  }}
+                  disabled={creatingTestBooking}
+                  className="flex items-center gap-1.5 sm:gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold transition-colors text-xs sm:text-sm whitespace-nowrap"
+                >
+                  <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <span className="hidden sm:inline">{creatingTestBooking ? 'Creating...' : 'Create Test Booking'}</span>
+                  <span className="sm:hidden">{creatingTestBooking ? 'Creating...' : 'Test Booking'}</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
