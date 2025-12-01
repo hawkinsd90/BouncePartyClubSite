@@ -15,6 +15,7 @@ export function CustomerPortal() {
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [approvalSuccess, setApprovalSuccess] = useState(false);
+  const [changelog, setChangelog] = useState<any[]>([]);
 
   useEffect(() => {
     loadOrder();
@@ -38,6 +39,19 @@ export function CustomerPortal() {
         setOrder(data);
         if (data.waiver_signed_at) {
           setActiveTab('payment');
+        }
+
+        // Load changelog if status is awaiting approval
+        if (data.status === 'awaiting_customer_approval') {
+          const { data: changelogData } = await supabase
+            .from('order_changelog')
+            .select('*')
+            .eq('order_id', orderId)
+            .order('created_at', { ascending: false });
+
+          if (changelogData) {
+            setChangelog(changelogData);
+          }
         }
       }
     } catch (error) {
@@ -276,9 +290,54 @@ export function CustomerPortal() {
                 </p>
               </div>
 
+              {/* Changelog - What Changed */}
+              {changelog.length > 0 && (
+                <div className="bg-blue-50 rounded-lg p-6 mb-6 border-2 border-blue-300">
+                  <h3 className="font-bold text-blue-900 mb-4 text-lg flex items-center gap-2">
+                    <FileText className="w-5 h-5" />
+                    What Changed
+                  </h3>
+                  <div className="space-y-2">
+                    {changelog.map((change, idx) => {
+                      const fieldLabel = change.field_name
+                        .replace(/_/g, ' ')
+                        .split(' ')
+                        .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+                        .join(' ');
+
+                      const formatValue = (value: any) => {
+                        if (value === null || value === undefined || value === '') return 'None';
+                        if (typeof value === 'number' && fieldLabel.includes('Cents')) {
+                          return formatCurrency(value);
+                        }
+                        return String(value);
+                      };
+
+                      let changeDescription = '';
+                      if (change.action === 'add') {
+                        changeDescription = `Added ${change.new_value}`;
+                      } else if (change.action === 'remove') {
+                        changeDescription = `Removed ${change.old_value}`;
+                      } else {
+                        changeDescription = `${formatValue(change.old_value)} → ${formatValue(change.new_value)}`;
+                      }
+
+                      return (
+                        <div key={idx} className="bg-white rounded p-3 border border-blue-200">
+                          <div className="flex items-start justify-between">
+                            <span className="text-sm font-semibold text-blue-900">{fieldLabel}:</span>
+                            <span className="text-sm text-slate-700 text-right ml-4">{changeDescription}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Updated Order Details */}
               <div className="bg-slate-50 rounded-lg p-6 mb-6 border-2 border-slate-200">
-                <h3 className="font-bold text-slate-900 mb-4 text-lg">Updated Booking Information</h3>
+                <h3 className="font-bold text-slate-900 mb-4 text-lg">Current Booking Information</h3>
                 <div className="space-y-3">
                   <div className="flex justify-between py-2 border-b border-slate-200">
                     <span className="text-slate-600 font-medium">Customer:</span>
