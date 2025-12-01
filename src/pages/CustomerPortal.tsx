@@ -291,7 +291,7 @@ export function CustomerPortal() {
               </h2>
               <p className="text-slate-700 mb-4">
                 {order.status === 'draft' && 'This order requires payment before you can access the customer portal. Please complete the payment process to continue.'}
-                {order.status === 'pending_review' && 'Thank you for your order! Our team is currently reviewing your booking and will confirm shortly. You\'ll receive an email with next steps once your order is approved.'}
+                {order.status === 'pending_review' && 'Thank you! Your booking is currently being reviewed by our team. If you already approved recent changes, we\'ve received your approval and will finalize your booking shortly. You\'ll receive an email with next steps once your order is confirmed.'}
                 {order.status === 'cancelled' && 'This order has been cancelled. If you have questions, please contact us.'}
                 {order.status === 'void' && 'This order is no longer valid. Please contact us if you need assistance.'}
               </p>
@@ -361,7 +361,7 @@ export function CustomerPortal() {
                   </h3>
                   <div className="space-y-2">
                     {changelog.map((change, idx) => {
-                      const fieldLabel = change.field_name
+                      const fieldLabel = change.field_changed
                         .replace(/_/g, ' ')
                         .split(' ')
                         .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -369,17 +369,20 @@ export function CustomerPortal() {
 
                       const formatValue = (value: any) => {
                         if (value === null || value === undefined || value === '') return 'None';
-                        if (typeof value === 'number' && fieldLabel.includes('Cents')) {
-                          return formatCurrency(value);
+                        if (typeof value === 'number' || (typeof value === 'string' && !isNaN(parseFloat(value)))) {
+                          const numValue = typeof value === 'number' ? value : parseFloat(value);
+                          if (fieldLabel.toLowerCase().includes('fee') || fieldLabel.toLowerCase().includes('deposit') || fieldLabel.toLowerCase().includes('balance') || fieldLabel.toLowerCase().includes('subtotal') || fieldLabel.toLowerCase().includes('tax') || fieldLabel.toLowerCase().includes('total')) {
+                            return formatCurrency(numValue);
+                          }
                         }
                         return String(value);
                       };
 
                       let changeDescription = '';
-                      if (change.action === 'add') {
-                        changeDescription = `Added ${change.new_value}`;
-                      } else if (change.action === 'remove') {
-                        changeDescription = `Removed ${change.old_value}`;
+                      if (change.change_type === 'add') {
+                        changeDescription = `Added: ${change.new_value}`;
+                      } else if (change.change_type === 'remove') {
+                        changeDescription = `Removed: ${change.old_value}`;
                       } else {
                         changeDescription = `${formatValue(change.old_value)} → ${formatValue(change.new_value)}`;
                       }
