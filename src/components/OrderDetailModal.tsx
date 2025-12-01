@@ -61,6 +61,13 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [adminMessage, setAdminMessage] = useState('');
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [savedDiscountTemplates, setSavedDiscountTemplates] = useState<any[]>([]);
+  const [savedFeeTemplates, setSavedFeeTemplates] = useState<any[]>([]);
+  const [saveDiscountAsTemplate, setSaveDiscountAsTemplate] = useState(false);
+  const [saveFeeAsTemplate, setSaveFeeAsTemplate] = useState(false);
+  const [showStatusDialog, setShowStatusDialog] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState('');
+  const [statusChangeReason, setStatusChangeReason] = useState('');
   const [pricingRules, setPricingRules] = useState<any>(null);
   const [adminSettings, setAdminSettings] = useState<any>(null);
   const [calculatedPricing, setCalculatedPricing] = useState<any>(null);
@@ -72,6 +79,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   useEffect(() => {
     loadOrderDetails();
     loadPricingData();
+    loadSavedTemplates();
   }, [order.id]);
 
   // Initialize staged items from order items
@@ -334,6 +342,20 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       if (customFeesRes.data) setCustomFees(customFeesRes.data);
     } catch (error) {
       console.error('Error loading order details:', error);
+    }
+  }
+
+  async function loadSavedTemplates() {
+    try {
+      const [discountTemplatesRes, feeTemplatesRes] = await Promise.all([
+        supabase.from('saved_discount_templates').select('*').order('name'),
+        supabase.from('saved_fee_templates').select('*').order('name'),
+      ]);
+
+      if (discountTemplatesRes.data) setSavedDiscountTemplates(discountTemplatesRes.data);
+      if (feeTemplatesRes.data) setSavedFeeTemplates(feeTemplatesRes.data);
+    } catch (error) {
+      console.error('Error loading saved templates:', error);
     }
   }
 
@@ -814,7 +836,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     return Math.round(chargeableMiles * per_mile);
   }
 
-  function handleAddDiscount() {
+  async function handleAddDiscount() {
     if (!newDiscount.name.trim()) {
       alert('Please enter a discount name');
       return;
@@ -833,6 +855,20 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       return;
     }
 
+    // Save as template if checkbox is checked
+    if (saveDiscountAsTemplate) {
+      try {
+        await supabase.from('saved_discount_templates').insert({
+          name: newDiscount.name,
+          amount_cents: Math.round(amount),
+          percentage: percentage || 0,
+        });
+        await loadSavedTemplates();
+      } catch (error) {
+        console.error('Error saving discount template:', error);
+      }
+    }
+
     // Add discount to staging array (not saved to DB yet)
     const newDiscountItem = {
       id: `temp_${Date.now()}`,
@@ -847,6 +883,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     setNewDiscount({ name: '', amount_cents: 0, percentage: 0 });
     setDiscountAmountInput('0.00');
     setDiscountPercentInput('0');
+    setSaveDiscountAsTemplate(false);
     setHasChanges(true);
   }
 
@@ -858,7 +895,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     setHasChanges(true);
   }
 
-  function handleAddCustomFee() {
+  async function handleAddCustomFee() {
     if (!newCustomFee.name.trim()) {
       alert('Please enter a fee name');
       return;
@@ -869,6 +906,19 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     if (amount <= 0) {
       alert('Please enter a valid fee amount');
       return;
+    }
+
+    // Save as template if checkbox is checked
+    if (saveFeeAsTemplate) {
+      try {
+        await supabase.from('saved_fee_templates').insert({
+          name: newCustomFee.name,
+          amount_cents: Math.round(amount),
+        });
+        await loadSavedTemplates();
+      } catch (error) {
+        console.error('Error saving fee template:', error);
+      }
     }
 
     // Add custom fee to staging array (not saved to DB yet)
@@ -883,6 +933,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     setCustomFees([...customFees, newFeeItem]);
     setNewCustomFee({ name: '', amount_cents: 0 });
     setCustomFeeInput('0.00');
+    setSaveFeeAsTemplate(false);
     setHasChanges(true);
   }
 
@@ -894,18 +945,43 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     setHasChanges(true);
   }
 
-  async function handleStatusChange(newStatus: string) {
+  function initiateStatusChange(newStatus: string) {
+    setPendingStatus(newStatus);
+    setStatusChangeReason('');
+    setShowStatusDialog(true);
+  }
+
+  async function confirmStatusChange() {
+    if (!statusChangeReason.trim()) {
+      alert('Please provide a reason for the status change');
+      return;
+    }
+
     try {
-      const { error } = await supabase.from('orders').update({ status: newStatus }).eq('id', order.id);
+      const { error } = await supabase.from('orders').update({ status: pendingStatus }).eq('id', order.id);
       if (error) throw error;
+
+      const description = `Order status changed to ${pendingStatus}. Reason: ${statusChangeReason}`;
 
       await supabase.from('order_workflow_events').insert({
         order_id: order.id,
         user_id: (await supabase.auth.getUser()).data.user?.id,
-        event_type: newStatus,
-        description: `Order status changed to ${newStatus}`,
+        event_type: pendingStatus,
+        description,
       });
 
+      // Log status change in changelog
+      await supabase.from('order_changelog').insert({
+        order_id: order.id,
+        user_id: (await supabase.auth.getUser()).data.user?.id,
+        field_changed: 'status',
+        old_value: order.status,
+        new_value: pendingStatus,
+      });
+
+      setShowStatusDialog(false);
+      setPendingStatus('');
+      setStatusChangeReason('');
       await loadOrderDetails();
       onUpdate();
     } catch (error) {
@@ -1638,7 +1714,30 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                   </div>
                 )}
 
-                <div className="space-y-2">
+                <div className="space-y-3">
+                  {savedDiscountTemplates.length > 0 && (
+                    <div>
+                      <label className="block text-xs text-slate-700 mb-1 font-medium">Load Saved Discount</label>
+                      <select
+                        onChange={(e) => {
+                          const template = savedDiscountTemplates.find(t => t.id === e.target.value);
+                          if (template) {
+                            setNewDiscount({ name: template.name, amount_cents: template.amount_cents, percentage: template.percentage });
+                            setDiscountAmountInput((template.amount_cents / 100).toFixed(2));
+                            setDiscountPercentInput(template.percentage.toString());
+                          }
+                        }}
+                        className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                      >
+                        <option value="">Select a saved discount...</option>
+                        {savedDiscountTemplates.map(template => (
+                          <option key={template.id} value={template.id}>
+                            {template.name} - {template.amount_cents > 0 ? `$${(template.amount_cents / 100).toFixed(2)}` : `${template.percentage}%`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <input
                     type="text"
                     value={newDiscount.name}
@@ -1647,23 +1746,44 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                     className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
                   />
                   <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={discountAmountInput}
-                      onChange={(e) => setDiscountAmountInput(e.target.value)}
-                      placeholder="Amount ($)"
-                      className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                    />
-                    <input
-                      type="number"
-                      step="1"
-                      value={discountPercentInput}
-                      onChange={(e) => setDiscountPercentInput(e.target.value)}
-                      placeholder="Percentage (%)"
-                      className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                    />
+                    <div>
+                      <label className="block text-xs text-slate-700 mb-1 font-medium">$ Amount</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={discountAmountInput}
+                          onChange={(e) => setDiscountAmountInput(e.target.value)}
+                          placeholder="0.00"
+                          className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded text-sm"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-700 mb-1 font-medium">% Percentage</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          step="1"
+                          value={discountPercentInput}
+                          onChange={(e) => setDiscountPercentInput(e.target.value)}
+                          placeholder="0"
+                          className="w-full pr-7 pl-3 py-2 border border-slate-300 rounded text-sm"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">%</span>
+                      </div>
+                    </div>
                   </div>
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={saveDiscountAsTemplate}
+                      onChange={(e) => setSaveDiscountAsTemplate(e.target.checked)}
+                      className="rounded"
+                    />
+                    Save this discount for future use
+                  </label>
                   <button
                     onClick={handleAddDiscount}
                     className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded text-sm font-medium"
@@ -1697,7 +1817,29 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                   </div>
                 )}
 
-                <div className="space-y-2">
+                <div className="space-y-3">
+                  {savedFeeTemplates.length > 0 && (
+                    <div>
+                      <label className="block text-xs text-slate-700 mb-1 font-medium">Load Saved Fee</label>
+                      <select
+                        onChange={(e) => {
+                          const template = savedFeeTemplates.find(t => t.id === e.target.value);
+                          if (template) {
+                            setNewCustomFee({ name: template.name, amount_cents: template.amount_cents });
+                            setCustomFeeInput((template.amount_cents / 100).toFixed(2));
+                          }
+                        }}
+                        className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                      >
+                        <option value="">Select a saved fee...</option>
+                        {savedFeeTemplates.map(template => (
+                          <option key={template.id} value={template.id}>
+                            {template.name} - ${(template.amount_cents / 100).toFixed(2)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <input
                     type="text"
                     value={newCustomFee.name}
@@ -1705,14 +1847,29 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                     placeholder="Fee name (e.g., Tip, Setup Fee, etc.)"
                     className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
                   />
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={customFeeInput}
-                    onChange={(e) => setCustomFeeInput(e.target.value)}
-                    placeholder="Amount ($)"
-                    className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                  />
+                  <div>
+                    <label className="block text-xs text-slate-700 mb-1 font-medium">$ Amount</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={customFeeInput}
+                        onChange={(e) => setCustomFeeInput(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded text-sm"
+                      />
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={saveFeeAsTemplate}
+                      onChange={(e) => setSaveFeeAsTemplate(e.target.checked)}
+                      className="rounded"
+                    />
+                    Save this fee for future use
+                  </label>
                   <button
                     onClick={handleAddCustomFee}
                     className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-sm font-medium"
@@ -1808,7 +1965,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                   {['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'void'].map(status => (
                     <button
                       key={status}
-                      onClick={() => handleStatusChange(status)}
+                      onClick={() => initiateStatusChange(status)}
                       className={`px-3 py-1 rounded text-sm font-medium ${
                         order.status === status
                           ? 'bg-blue-600 text-white'
@@ -1923,6 +2080,49 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           )}
         </div>
       </div>
+
+      {/* Status Change Confirmation Dialog */}
+      {showStatusDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-bold text-slate-900 mb-4">Confirm Status Change</h3>
+            <p className="text-slate-700 mb-4">
+              You are changing the order status to <span className="font-semibold">{pendingStatus.replace('_', ' ').toUpperCase()}</span>.
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Reason for status change <span className="text-red-600">*</span>
+              </label>
+              <textarea
+                value={statusChangeReason}
+                onChange={(e) => setStatusChangeReason(e.target.value)}
+                placeholder="Example: Customer called to confirm. Payment received. Equipment ready for delivery."
+                rows={3}
+                className="w-full px-3 py-2 border border-slate-300 rounded text-sm resize-none"
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setShowStatusDialog(false);
+                  setPendingStatus('');
+                  setStatusChangeReason('');
+                }}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmStatusChange}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium"
+              >
+                Confirm Change
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
