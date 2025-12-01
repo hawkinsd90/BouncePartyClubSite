@@ -635,12 +635,17 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         if (discount.is_new) {
           console.log('Inserting new discount:', discount);
           // Add new discount
-          await supabase.from('order_discounts').insert({
+          const { data, error } = await supabase.from('order_discounts').insert({
             order_id: order.id,
             name: discount.name,
             amount_cents: discount.amount_cents,
             percentage: discount.percentage,
           });
+          if (error) {
+            console.error('Error inserting discount:', error);
+            throw new Error(`Failed to save discount: ${error.message}`);
+          }
+          console.log('Discount inserted successfully:', data);
           await logChange('discounts', '', discount.name, 'add');
         }
       }
@@ -662,11 +667,16 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         if (fee.is_new) {
           console.log('Inserting new custom fee:', fee);
           // Add new custom fee
-          await supabase.from('order_custom_fees').insert({
+          const { data, error } = await supabase.from('order_custom_fees').insert({
             order_id: order.id,
             name: fee.name,
             amount_cents: fee.amount_cents,
           });
+          if (error) {
+            console.error('Error inserting custom fee:', error);
+            throw new Error(`Failed to save custom fee: ${error.message}`);
+          }
+          console.log('Custom fee inserted successfully:', data);
           await logChange('custom_fees', '', fee.name, 'add');
         }
       }
