@@ -1087,6 +1087,22 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const totalOrder = calculatedPricing?.total_cents || (order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents);
   const activeItems = stagedItems.filter(item => !item.is_deleted);
 
+  // Filter available units - only show units that:
+  // 1. Are not already in the order, OR
+  // 2. Have quantity_available > 1 (meaning we can add more)
+  const unitsAvailableToAdd = availableUnits.filter(unit => {
+    // Check if this unit is already in the order (not deleted)
+    const existingItem = activeItems.find(item => item.unit_id === unit.id);
+
+    if (!existingItem) {
+      // Unit not in order, so it's available to add
+      return true;
+    }
+
+    // Unit is in order - only show if we have multiple units in inventory
+    return (unit.quantity_available || 1) > 1;
+  });
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div className="bg-white rounded-lg max-w-6xl w-full my-8">
@@ -1491,27 +1507,38 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                     Add Item
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
-                    {availableUnits.map(unit => (
-                      <div key={unit.id} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                        <p className="font-medium text-slate-900 mb-2">{unit.name}</p>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => stageAddItem(unit, 'dry')}
-                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 px-3 rounded"
-                          >
-                            Add Dry ({formatCurrency(unit.price_dry_cents)})
-                          </button>
-                          {unit.price_water_cents && (
+                    {unitsAvailableToAdd.length > 0 ? (
+                      unitsAvailableToAdd.map(unit => (
+                        <div key={unit.id} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                          <p className="font-medium text-slate-900 mb-2">
+                            {unit.name}
+                            {(unit.quantity_available || 1) > 1 && (
+                              <span className="ml-2 text-xs text-slate-600">({unit.quantity_available} available)</span>
+                            )}
+                          </p>
+                          <div className="flex gap-2">
                             <button
-                              onClick={() => stageAddItem(unit, 'water')}
-                              className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white text-xs py-2 px-3 rounded"
+                              onClick={() => stageAddItem(unit, 'dry')}
+                              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 px-3 rounded"
                             >
-                              Add Water ({formatCurrency(unit.price_water_cents)})
+                              Add Dry ({formatCurrency(unit.price_dry_cents)})
                             </button>
-                          )}
+                            {unit.price_water_cents && (
+                              <button
+                                onClick={() => stageAddItem(unit, 'water')}
+                                className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white text-xs py-2 px-3 rounded"
+                              >
+                                Add Water ({formatCurrency(unit.price_water_cents)})
+                              </button>
+                            )}
+                          </div>
                         </div>
+                      ))
+                    ) : (
+                      <div className="col-span-2 text-center py-6 text-slate-500">
+                        All available units have been added to this order
                       </div>
-                    ))}
+                    )}
                   </div>
               </div>
 
