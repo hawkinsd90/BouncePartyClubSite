@@ -16,6 +16,9 @@ export function CustomerPortal() {
   const [submitting, setSubmitting] = useState(false);
   const [approvalSuccess, setApprovalSuccess] = useState(false);
   const [changelog, setChangelog] = useState<any[]>([]);
+  const [orderItems, setOrderItems] = useState<any[]>([]);
+  const [discounts, setDiscounts] = useState<any[]>([]);
+  const [customFees, setCustomFees] = useState<any[]>([]);
 
   useEffect(() => {
     loadOrder();
@@ -53,6 +56,26 @@ export function CustomerPortal() {
             setChangelog(changelogData);
           }
         }
+
+        // Load order items, discounts, and custom fees
+        const { data: itemsData } = await supabase
+          .from('order_items')
+          .select('*, units(name)')
+          .eq('order_id', orderId);
+
+        const { data: discountsData } = await supabase
+          .from('order_discounts')
+          .select('*')
+          .eq('order_id', orderId);
+
+        const { data: feesData } = await supabase
+          .from('order_custom_fees')
+          .select('*')
+          .eq('order_id', orderId);
+
+        if (itemsData) setOrderItems(itemsData);
+        if (discountsData) setDiscounts(discountsData);
+        if (feesData) setCustomFees(feesData);
       }
     } catch (error) {
       console.error('Error loading order:', error);
@@ -476,23 +499,117 @@ export function CustomerPortal() {
                   </div>
                   <div className="flex justify-between py-2 border-b border-slate-200">
                     <span className="text-slate-600 font-medium">Event Date:</span>
-                    <span className="text-slate-900 font-semibold">{format(new Date(order.event_date), 'MMMM d, yyyy')}</span>
+                    <span className="text-slate-900 font-semibold">
+                      {format(new Date(order.event_date), 'MMMM d, yyyy')}
+                      {order.event_end_date && order.event_end_date !== order.event_date && (
+                        <> - {format(new Date(order.event_end_date), 'MMMM d, yyyy')}</>
+                      )}
+                    </span>
                   </div>
                   <div className="flex justify-between py-2 border-b border-slate-200">
                     <span className="text-slate-600 font-medium">Time:</span>
                     <span className="text-slate-900 font-semibold">{order.start_window} - {order.end_window}</span>
                   </div>
                   <div className="flex justify-between py-2 border-b border-slate-200">
-                    <span className="text-slate-600 font-medium">Location:</span>
+                    <span className="text-slate-600 font-medium">Location Type:</span>
+                    <span className="text-slate-900 font-semibold">{order.location_type === 'residential' ? 'Residential' : 'Commercial'}</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-slate-200">
+                    <span className="text-slate-600 font-medium">Address:</span>
                     <span className="text-slate-900 font-semibold">{order.addresses?.line1}, {order.addresses?.city}, {order.addresses?.state}</span>
                   </div>
                   <div className="flex justify-between py-2 border-b border-slate-200">
                     <span className="text-slate-600 font-medium">Surface:</span>
-                    <span className="text-slate-900 font-semibold">{order.surface}</span>
+                    <span className="text-slate-900 font-semibold">{order.surface === 'grass' ? 'Grass (Stakes)' : 'Sandbags'}</span>
                   </div>
-                  <div className="flex justify-between py-2">
-                    <span className="text-slate-600 font-medium">Total Amount:</span>
-                    <span className="text-green-600 font-bold text-lg">{formatCurrency(order.deposit_due_cents + order.balance_due_cents)}</span>
+                  <div className="flex justify-between py-2 border-b border-slate-200">
+                    <span className="text-slate-600 font-medium">Pickup:</span>
+                    <span className="text-slate-900 font-semibold">{order.pickup_preference === 'next_day' ? 'Next Morning' : 'Same Day'}</span>
+                  </div>
+
+                  {/* Order Items */}
+                  {orderItems.length > 0 && (
+                    <div className="pt-4 border-t border-slate-300">
+                      <p className="text-slate-600 font-medium mb-2">Equipment:</p>
+                      <ul className="space-y-1 ml-4">
+                        {orderItems.map((item, idx) => (
+                          <li key={idx} className="text-slate-900 text-sm">
+                            • {item.units.name} ({item.wet_or_dry === 'dry' ? 'Dry' : 'Water'}) - {formatCurrency(item.unit_price_cents)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Generators */}
+                  {order.generator_fee_cents > 0 && (
+                    <div className="flex justify-between py-2 border-t border-slate-300">
+                      <span className="text-slate-600 font-medium">Generators:</span>
+                      <span className="text-slate-900 font-semibold">{formatCurrency(order.generator_fee_cents)}</span>
+                    </div>
+                  )}
+
+                  {/* Discounts */}
+                  {discounts.length > 0 && (
+                    <div className="pt-2 border-t border-slate-300">
+                      <p className="text-slate-600 font-medium mb-2">Discounts:</p>
+                      <ul className="space-y-1 ml-4">
+                        {discounts.map((discount, idx) => (
+                          <li key={idx} className="text-green-700 text-sm">
+                            • {discount.name}: -{formatCurrency(discount.amount_cents)}
+                            {discount.percentage > 0 && ` (${discount.percentage}%)`}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Custom Fees */}
+                  {customFees.length > 0 && (
+                    <div className="pt-2 border-t border-slate-300">
+                      <p className="text-slate-600 font-medium mb-2">Additional Fees:</p>
+                      <ul className="space-y-1 ml-4">
+                        {customFees.map((fee, idx) => (
+                          <li key={idx} className="text-slate-900 text-sm">
+                            • {fee.name}: {formatCurrency(fee.amount_cents)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Pricing Summary */}
+                  <div className="pt-4 border-t border-slate-300 space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Items Subtotal:</span>
+                      <span className="text-slate-900">{formatCurrency(order.subtotal_cents)}</span>
+                    </div>
+                    {order.travel_fee_cents > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Travel Fee:</span>
+                        <span className="text-slate-900">{formatCurrency(order.travel_fee_cents)}</span>
+                      </div>
+                    )}
+                    {order.surface_fee_cents > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Surface Fee (Sandbags):</span>
+                        <span className="text-slate-900">{formatCurrency(order.surface_fee_cents)}</span>
+                      </div>
+                    )}
+                    {order.same_day_pickup_fee_cents > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Same-Day Pickup Fee:</span>
+                        <span className="text-slate-900">{formatCurrency(order.same_day_pickup_fee_cents)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Tax (6%):</span>
+                      <span className="text-slate-900">{formatCurrency(order.tax_cents)}</span>
+                    </div>
+                    <div className="flex justify-between pt-2 border-t border-slate-400">
+                      <span className="text-slate-900 font-semibold">Total Amount:</span>
+                      <span className="text-green-600 font-bold text-lg">{formatCurrency(order.deposit_due_cents + order.balance_due_cents)}</span>
+                    </div>
                   </div>
                 </div>
               </div>
