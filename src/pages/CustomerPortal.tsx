@@ -155,6 +155,7 @@ export function CustomerPortal() {
   const needsWaiver = !order.waiver_signed_at;
   const needsPayment = balanceDue > 0;
   const needsApproval = order.status === 'awaiting_customer_approval';
+  const isActive = ['confirmed', 'in_progress', 'completed'].includes(order.status);
 
   async function handleApproveChanges() {
     const customerName = prompt('To confirm, please enter your full name as it appears on the order:');
@@ -259,6 +260,67 @@ export function CustomerPortal() {
             <p className="text-slate-600">
               You can safely close this window. We'll be in touch soon!
             </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // If order is not active and not awaiting approval, show status message
+  if (!isActive && !needsApproval) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4">
+        <div className="max-w-2xl w-full bg-white rounded-xl shadow-lg overflow-hidden border-2 border-slate-300">
+          <div className="bg-gradient-to-r from-blue-600 to-cyan-600 px-8 py-6 text-center">
+            <img
+              src="/bounce party club logo.png"
+              alt="Bounce Party Club"
+              className="h-20 w-auto mx-auto mb-4"
+            />
+            <h1 className="text-2xl font-bold text-white">Order Status</h1>
+            <p className="text-blue-100 mt-2">Order #{order.id.slice(0, 8).toUpperCase()}</p>
+          </div>
+
+          <div className="px-8 py-8 text-center">
+            <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-6 mb-6">
+              <h2 className="text-xl font-bold text-blue-900 mb-3">
+                {order.status === 'draft' && 'Payment Required'}
+                {order.status === 'pending_review' && 'Order Under Review'}
+                {order.status === 'cancelled' && 'Order Cancelled'}
+                {order.status === 'void' && 'Order Voided'}
+              </h2>
+              <p className="text-slate-700 mb-4">
+                {order.status === 'draft' && 'This order requires payment before you can access the customer portal. Please complete the payment process to continue.'}
+                {order.status === 'pending_review' && 'Thank you for your order! Our team is currently reviewing your booking and will confirm shortly. You\'ll receive an email with next steps once your order is approved.'}
+                {order.status === 'cancelled' && 'This order has been cancelled. If you have questions, please contact us.'}
+                {order.status === 'void' && 'This order is no longer valid. Please contact us if you need assistance.'}
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex justify-between py-3 border-b border-slate-200">
+                <span className="text-slate-600 font-medium">Customer:</span>
+                <span className="text-slate-900">{order.customers.first_name} {order.customers.last_name}</span>
+              </div>
+              <div className="flex justify-between py-3 border-b border-slate-200">
+                <span className="text-slate-600 font-medium">Event Date:</span>
+                <span className="text-slate-900">{format(new Date(order.event_date), 'MMMM d, yyyy')}</span>
+              </div>
+              <div className="flex justify-between py-3 border-b border-slate-200">
+                <span className="text-slate-600 font-medium">Total:</span>
+                <span className="text-slate-900 font-semibold">{formatCurrency(order.deposit_due_cents + order.balance_due_cents)}</span>
+              </div>
+            </div>
+
+            <div className="mt-8 pt-6 border-t border-slate-200">
+              <p className="text-slate-600 text-sm mb-4">Questions about your order?</p>
+              <a
+                href="tel:+13138893860"
+                className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+              >
+                Call (313) 889-3860
+              </a>
+            </div>
           </div>
         </div>
       </div>
