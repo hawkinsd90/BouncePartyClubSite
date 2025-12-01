@@ -331,9 +331,9 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     try {
       const [itemsRes, notesRes, eventsRes, changelogRes, unitsRes, discountsRes, customFeesRes] = await Promise.all([
         supabase.from('order_items').select('*, units(name, price_dry_cents, price_water_cents)').eq('order_id', order.id),
-        supabase.from('order_notes').select('*, user:user_id(email)').eq('order_id', order.id).order('created_at', { ascending: false }),
-        supabase.from('order_workflow_events').select('*, user:user_id(email)').eq('order_id', order.id).order('created_at', { ascending: false }),
-        supabase.from('order_changelog').select('*, user:user_id(email)').eq('order_id', order.id).order('created_at', { ascending: false }),
+        supabase.from('order_notes').select('*').eq('order_id', order.id).order('created_at', { ascending: false }),
+        supabase.from('order_workflow_events').select('*').eq('order_id', order.id).order('created_at', { ascending: false }),
+        supabase.from('order_changelog').select('*').eq('order_id', order.id).order('created_at', { ascending: false }),
         supabase.from('units').select('*').eq('active', true).order('name'),
         supabase.from('order_discounts').select('*').eq('order_id', order.id).order('created_at', { ascending: false }),
         supabase.from('order_custom_fees').select('*').eq('order_id', order.id).order('created_at', { ascending: false }),
@@ -1894,7 +1894,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                           type="number"
                           step="0.01"
                           value={discountAmountInput}
-                          onChange={(e) => setDiscountAmountInput(e.target.value)}
+                          onChange={(e) => {
+                            setDiscountAmountInput(e.target.value);
+                            if (parseFloat(e.target.value) > 0) {
+                              setDiscountPercentInput('0');
+                            }
+                          }}
                           placeholder="0.00"
                           className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded text-sm"
                         />
@@ -1907,7 +1912,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                           type="number"
                           step="1"
                           value={discountPercentInput}
-                          onChange={(e) => setDiscountPercentInput(e.target.value)}
+                          onChange={(e) => {
+                            setDiscountPercentInput(e.target.value);
+                            if (parseFloat(e.target.value) > 0) {
+                              setDiscountAmountInput('0.00');
+                            }
+                          }}
                           placeholder="0"
                           className="w-full pr-7 pl-3 py-2 border border-slate-300 rounded text-sm"
                         />
@@ -2057,7 +2067,16 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                     <div className="flex items-end gap-2">
                       <button
                         onClick={() => {
-                          const amountCents = Math.round(parseFloat(customDepositInput || '0') * 100);
+                          const inputValue = customDepositInput.trim();
+                          if (inputValue === '') {
+                            alert('Please enter a deposit amount');
+                            return;
+                          }
+                          const amountCents = Math.round(parseFloat(inputValue) * 100);
+                          if (isNaN(amountCents) || amountCents < 0) {
+                            alert('Please enter a valid deposit amount');
+                            return;
+                          }
                           setCustomDepositCents(amountCents);
                           setHasChanges(true);
                         }}
