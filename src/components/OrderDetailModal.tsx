@@ -608,8 +608,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       if (shouldClearPayment) {
         changes.stripe_payment_intent_id = null;
         changes.stripe_payment_method_id = null;
-        changes.stripe_amount_paid_cents = null;
-        changes.payment_collected_at = null;
+        changes.stripe_payment_status = 'unpaid';
       }
 
       // Handle item changes
