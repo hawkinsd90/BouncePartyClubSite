@@ -630,8 +630,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       }
 
       // Handle staged discounts
+      console.log('Saving discounts:', discounts);
       for (const discount of discounts) {
         if (discount.is_new) {
+          console.log('Inserting new discount:', discount);
           // Add new discount
           await supabase.from('order_discounts').insert({
             order_id: order.id,
@@ -655,8 +657,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       }
 
       // Handle staged custom fees
+      console.log('Saving custom fees:', customFees);
       for (const fee of customFees) {
         if (fee.is_new) {
+          console.log('Inserting new custom fee:', fee);
           // Add new custom fee
           await supabase.from('order_custom_fees').insert({
             order_id: order.id,
