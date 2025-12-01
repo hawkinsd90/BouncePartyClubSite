@@ -553,6 +553,31 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         }
       }
 
+      // Handle staged discounts
+      for (const discount of discounts) {
+        if (discount.is_new) {
+          // Add new discount
+          await supabase.from('order_discounts').insert({
+            order_id: order.id,
+            name: discount.name,
+            amount_cents: discount.amount_cents,
+            percentage: discount.percentage,
+          });
+          await logChange('discounts', '', discount.name, 'add');
+        }
+      }
+
+      // Remove discounts that were deleted (check against original list)
+      const originalDiscounts = await supabase.from('order_discounts').select('*').eq('order_id', order.id);
+      if (originalDiscounts.data) {
+        const currentDiscountIds = discounts.filter(d => !d.is_new).map(d => d.id);
+        const deletedDiscounts = originalDiscounts.data.filter(od => !currentDiscountIds.includes(od.id));
+        for (const deleted of deletedDiscounts) {
+          await supabase.from('order_discounts').delete().eq('id', deleted.id);
+          await logChange('discounts', deleted.name, '', 'remove');
+        }
+      }
+
       // Set status to awaiting customer approval
       changes.status = 'awaiting_customer_approval';
 
@@ -702,7 +727,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     return Math.round(chargeableMiles * per_mile);
   }
 
-  async function handleAddDiscount() {
+  function handleAddDiscount() {
     if (!newDiscount.name.trim()) {
       alert('Please enter a discount name');
       return;
@@ -721,36 +746,29 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       return;
     }
 
-    try {
-      const { error } = await supabase.from('order_discounts').insert({
-        order_id: order.id,
-        name: newDiscount.name,
-        amount_cents: Math.round(amount),
-        percentage: percentage || 0,
-      });
+    // Add discount to staging array (not saved to DB yet)
+    const newDiscountItem = {
+      id: `temp_${Date.now()}`,
+      order_id: order.id,
+      name: newDiscount.name,
+      amount_cents: Math.round(amount),
+      percentage: percentage || 0,
+      is_new: true,
+    };
 
-      if (error) throw error;
-
-      setNewDiscount({ name: '', amount_cents: 0, percentage: 0 });
-      setDiscountAmountInput('0.00');
-      setDiscountPercentInput('0');
-      await loadOrderDetails();
-    } catch (error) {
-      console.error('Error adding discount:', error);
-      alert('Failed to add discount');
-    }
+    setDiscounts([...discounts, newDiscountItem]);
+    setNewDiscount({ name: '', amount_cents: 0, percentage: 0 });
+    setDiscountAmountInput('0.00');
+    setDiscountPercentInput('0');
+    setHasChanges(true);
   }
 
-  async function handleRemoveDiscount(discountId: string) {
+  function handleRemoveDiscount(discountId: string) {
     if (!confirm('Remove this discount?')) return;
 
-    try {
-      await supabase.from('order_discounts').delete().eq('id', discountId);
-      await loadOrderDetails();
-    } catch (error) {
-      console.error('Error removing discount:', error);
-      alert('Failed to remove discount');
-    }
+    // Remove from staging array (not saved to DB yet)
+    setDiscounts(discounts.filter(d => d.id !== discountId));
+    setHasChanges(true);
   }
 
   async function handleStatusChange(newStatus: string) {
