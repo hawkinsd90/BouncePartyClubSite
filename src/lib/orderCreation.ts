@@ -118,6 +118,8 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       location_type: quoteData.location_type,
       surface: quoteData.can_stake ? 'grass' : 'cement',
       event_date: quoteData.event_date,
+      event_end_date: quoteData.event_end_date || quoteData.event_date,
+      pickup_preference: quoteData.pickup_preference || (quoteData.location_type === 'commercial' ? 'same_day' : 'next_day'),
       start_date: quoteData.event_date,
       end_date: quoteData.event_end_date || quoteData.event_date,
       start_window: quoteData.start_window,
