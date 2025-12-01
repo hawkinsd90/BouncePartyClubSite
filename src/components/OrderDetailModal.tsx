@@ -2147,7 +2147,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
                 <h3 className="font-semibold text-slate-900 mb-3">Order Status</h3>
                 <div className="flex flex-wrap gap-2">
-                  {['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'void'].map(status => (
+                  {['pending', 'awaiting_customer_approval', 'confirmed', 'in_progress', 'completed', 'cancelled', 'void'].map(status => (
                     <button
                       key={status}
                       onClick={() => initiateStatusChange(status)}
@@ -2157,7 +2157,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                           : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
                       }`}
                     >
-                      {status.replace('_', ' ').toUpperCase()}
+                      {status.replace(/_/g, ' ').toUpperCase()}
                     </button>
                   ))}
                 </div>
