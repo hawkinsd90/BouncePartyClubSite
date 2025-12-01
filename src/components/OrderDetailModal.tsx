@@ -606,7 +606,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
       // Clear payment method if needed
       if (shouldClearPayment) {
-        changes.stripe_payment_intent_id = null;
         changes.stripe_payment_method_id = null;
         changes.stripe_payment_status = 'unpaid';
       }
