@@ -90,89 +90,89 @@ export function Home() {
       <div>
       <section className="relative bg-gradient-to-br from-blue-600 to-cyan-500 text-white">
         <div className="absolute inset-0 bg-black opacity-10"></div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-32">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 md:py-24 lg:py-32">
           <div className="max-w-3xl">
-            <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-6 leading-tight">
               Make Your Party Unforgettable
             </h1>
-            <p className="text-xl md:text-2xl mb-8 text-blue-50">
+            <p className="text-lg sm:text-xl md:text-2xl mb-6 sm:mb-8 text-blue-50">
               Premium bounce houses, water slides, and party rentals delivered across Detroit
               and surrounding areas.
             </p>
 
-            <form onSubmit={handleCheckAvailability} className="bg-white rounded-lg shadow-xl p-6">
-              <h2 className="text-slate-900 text-lg font-semibold mb-4">
+            <form onSubmit={handleCheckAvailability} className="bg-white rounded-lg shadow-xl p-4 sm:p-6">
+              <h2 className="text-slate-900 text-base sm:text-lg font-semibold mb-3 sm:mb-4">
                 Check Availability
               </h2>
 
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-slate-700 mb-3">
+              <div className="mb-3 sm:mb-4">
+                <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2 sm:mb-3">
                   Event Type
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2 sm:gap-3">
                   <button
                     type="button"
                     onClick={() => setLocationType('residential')}
-                    className={`flex flex-col items-center p-4 rounded-lg border-2 transition-all ${
+                    className={`flex flex-col items-center p-3 sm:p-4 rounded-lg border-2 transition-all ${
                       locationType === 'residential'
                         ? 'border-blue-600 bg-blue-50'
                         : 'border-slate-300 hover:border-blue-400'
                     }`}
                   >
-                    <HomeIcon className={`w-8 h-8 mb-2 ${
+                    <HomeIcon className={`w-6 h-6 sm:w-8 sm:h-8 mb-1 sm:mb-2 ${
                       locationType === 'residential' ? 'text-blue-600' : 'text-slate-400'
                     }`} />
-                    <span className={`font-semibold ${
+                    <span className={`text-sm sm:text-base font-semibold ${
                       locationType === 'residential' ? 'text-blue-900' : 'text-slate-700'
                     }`}>
                       Residential
                     </span>
-                    <span className="text-xs text-slate-600 mt-1 text-center">
+                    <span className="text-xs text-slate-600 mt-0.5 sm:mt-1 text-center">
                       Home, backyard
                     </span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setLocationType('commercial')}
-                    className={`flex flex-col items-center p-4 rounded-lg border-2 transition-all ${
+                    className={`flex flex-col items-center p-3 sm:p-4 rounded-lg border-2 transition-all ${
                       locationType === 'commercial'
                         ? 'border-blue-600 bg-blue-50'
                         : 'border-slate-300 hover:border-blue-400'
                     }`}
                   >
-                    <Building2 className={`w-8 h-8 mb-2 ${
+                    <Building2 className={`w-6 h-6 sm:w-8 sm:h-8 mb-1 sm:mb-2 ${
                       locationType === 'commercial' ? 'text-blue-600' : 'text-slate-400'
                     }`} />
-                    <span className={`font-semibold ${
+                    <span className={`text-sm sm:text-base font-semibold ${
                       locationType === 'commercial' ? 'text-blue-900' : 'text-slate-700'
                     }`}>
                       Commercial
                     </span>
-                    <span className="text-xs text-slate-600 mt-1 text-center">
+                    <span className="text-xs text-slate-600 mt-0.5 sm:mt-1 text-center">
                       School, park, church
                     </span>
                   </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mb-3 sm:mb-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">
                     Event Date
                   </label>
                   <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400" />
                     <input
                       type="date"
                       value={eventDate}
                       onChange={(e) => setEventDate(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
+                      className="w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2.5 sm:py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 text-sm sm:text-base"
                       min={new Date().toISOString().split('T')[0]}
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">
                     Event Address
                   </label>
                   <AddressAutocomplete
@@ -187,9 +187,9 @@ export function Home() {
               </div>
               <button
                 type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg transition-colors flex items-center justify-center text-sm sm:text-base"
               >
-                <Search className="w-5 h-5 mr-2" />
+                <Search className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                 Find Available Units
               </button>
             </form>
@@ -197,11 +197,11 @@ export function Home() {
         </div>
       </section>
 
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <h2 className="text-3xl font-bold text-slate-900 text-center mb-12">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+        <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 text-center mb-8 sm:mb-12">
           Why Choose Bounce Party Club?
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
           <div className="text-center">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
               <Star className="w-8 h-8 text-blue-600" />
@@ -252,18 +252,18 @@ export function Home() {
         </div>
       </section>
 
-      <section className="bg-slate-100 py-16">
+      <section className="bg-slate-100 py-12 sm:py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl font-bold text-slate-900 text-center mb-4">
+          <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 text-center mb-3 sm:mb-4">
             Serving Wayne and the Greater Detroit Area
           </h2>
-          <p className="text-xl text-slate-600 text-center mb-12">
+          <p className="text-base sm:text-lg md:text-xl text-slate-600 text-center mb-8 sm:mb-12 px-4">
             Free delivery within 20 miles of Wayne, MI or anywhere in Detroit. Additional travel fees apply beyond our service area.
           </p>
           <div className="text-center">
             <button
               onClick={() => navigate('/contact')}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-8 rounded-lg transition-colors text-lg"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 sm:py-4 px-6 sm:px-8 rounded-lg transition-colors text-base sm:text-lg"
             >
               Get a Quote
             </button>

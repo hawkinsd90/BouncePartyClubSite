@@ -1,5 +1,5 @@
 import { Link, Outlet, useNavigate } from 'react-router-dom';
-import { PartyPopper, Phone, Mail, LogOut, LogIn, ShoppingCart } from 'lucide-react';
+import { PartyPopper, Phone, Mail, LogOut, LogIn, ShoppingCart, Menu, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useState, useEffect } from 'react';
 
@@ -7,6 +7,7 @@ export function Layout() {
   const { user, role, signOut } = useAuth();
   const navigate = useNavigate();
   const [cartCount, setCartCount] = useState(0);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const updateCartCount = () => {
@@ -42,15 +43,18 @@ export function Layout() {
           <div className="flex justify-between items-center h-16">
             <Link
               to="/"
-              className="flex items-center space-x-3"
-              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              className="flex items-center space-x-2 sm:space-x-3"
+              onClick={() => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                setMobileMenuOpen(false);
+              }}
             >
               <img
                 src="/bounce party club logo.png"
                 alt="Bounce Party Club"
-                className="h-12 w-auto"
+                className="h-10 sm:h-12 w-auto"
               />
-              <span className="text-xl font-bold text-slate-900">
+              <span className="text-lg sm:text-xl font-bold text-slate-900">
                 Bounce Party Club
               </span>
             </Link>
@@ -92,35 +96,38 @@ export function Layout() {
               )}
             </nav>
 
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 sm:space-x-4">
               <a
                 href="tel:+13138893860"
-                className="hidden sm:flex items-center text-slate-600 hover:text-blue-600 transition-colors"
+                className="hidden lg:flex items-center text-slate-600 hover:text-blue-600 transition-colors"
               >
                 <Phone className="w-4 h-4 mr-1" />
                 <span className="text-sm font-medium">(313) 889-3860</span>
               </a>
-              {user ? (
-                <button
-                  onClick={handleSignOut}
-                  className="flex items-center text-slate-600 hover:text-blue-600 transition-colors"
-                >
-                  <LogOut className="w-4 h-4 mr-1" />
-                  <span className="text-sm font-medium">Sign Out</span>
-                </button>
-              ) : (
-                <Link
-                  to="/login"
-                  className="flex items-center text-slate-600 hover:text-blue-600 transition-colors"
-                >
-                  <LogIn className="w-4 h-4 mr-1" />
-                  <span className="text-sm font-medium">Login</span>
-                </Link>
-              )}
+              <div className="hidden md:flex items-center space-x-4">
+                {user ? (
+                  <button
+                    onClick={handleSignOut}
+                    className="flex items-center text-slate-600 hover:text-blue-600 transition-colors"
+                  >
+                    <LogOut className="w-4 h-4 mr-1" />
+                    <span className="text-sm font-medium">Sign Out</span>
+                  </button>
+                ) : (
+                  <Link
+                    to="/login"
+                    className="flex items-center text-slate-600 hover:text-blue-600 transition-colors"
+                  >
+                    <LogIn className="w-4 h-4 mr-1" />
+                    <span className="text-sm font-medium">Login</span>
+                  </Link>
+                )}
+              </div>
               <Link
                 to="/quote"
                 className="relative flex items-center justify-center w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 transition-colors"
                 title="View Cart"
+                onClick={() => setMobileMenuOpen(false)}
               >
                 <ShoppingCart className="w-5 h-5 text-white" />
                 {cartCount > 0 && (
@@ -129,9 +136,93 @@ export function Layout() {
                   </span>
                 )}
               </Link>
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="md:hidden flex items-center justify-center w-10 h-10 text-slate-700 hover:text-blue-600 transition-colors"
+                aria-label="Toggle menu"
+              >
+                {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              </button>
             </div>
           </div>
         </div>
+
+        {/* Mobile menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-slate-200">
+            <nav className="px-4 py-4 space-y-3">
+              <Link
+                to="/catalog"
+                className="block text-slate-700 hover:text-blue-600 font-medium py-2 transition-colors"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Browse Inflatables
+              </Link>
+              <Link
+                to="/contact"
+                className="block text-slate-700 hover:text-blue-600 font-medium py-2 transition-colors"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Get Quote
+              </Link>
+              <Link
+                to="/about"
+                className="block text-slate-700 hover:text-blue-600 font-medium py-2 transition-colors"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                About Us
+              </Link>
+              {role === 'ADMIN' && (
+                <Link
+                  to="/admin"
+                  className="block text-slate-700 hover:text-blue-600 font-medium py-2 transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Admin
+                </Link>
+              )}
+              {(role === 'ADMIN' || role === 'CREW') && (
+                <Link
+                  to="/crew"
+                  className="block text-slate-700 hover:text-blue-600 font-medium py-2 transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Crew
+                </Link>
+              )}
+              <div className="border-t border-slate-200 pt-3 mt-3">
+                <a
+                  href="tel:+13138893860"
+                  className="flex items-center text-slate-600 hover:text-blue-600 py-2 transition-colors"
+                >
+                  <Phone className="w-4 h-4 mr-2" />
+                  <span className="text-sm font-medium">(313) 889-3860</span>
+                </a>
+                {user ? (
+                  <button
+                    onClick={() => {
+                      handleSignOut();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="flex items-center text-slate-600 hover:text-blue-600 py-2 transition-colors w-full"
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    <span className="text-sm font-medium">Sign Out</span>
+                  </button>
+                ) : (
+                  <Link
+                    to="/login"
+                    className="flex items-center text-slate-600 hover:text-blue-600 py-2 transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <LogIn className="w-4 h-4 mr-2" />
+                    <span className="text-sm font-medium">Login</span>
+                  </Link>
+                )}
+              </div>
+            </nav>
+          </div>
+        )}
       </header>
 
       <main>
