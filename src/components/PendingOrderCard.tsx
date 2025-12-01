@@ -473,31 +473,35 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
   }
 
   return (
-    <div className="border border-blue-300 bg-blue-50 rounded-lg p-6">
-      <div className="flex justify-between items-start mb-4">
-        <div>
-          <h3 className="text-lg font-semibold text-slate-900">
+    <div className="border border-blue-300 bg-blue-50 rounded-lg p-3 md:p-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4">
+        <div className="flex-1 min-w-0">
+          <h3 className="text-base md:text-lg font-semibold text-slate-900 truncate">
             {order.customers?.first_name} {order.customers?.last_name}
           </h3>
-          <p className="text-sm text-slate-600">{order.customers?.email}</p>
-          <p className="text-sm text-slate-600">{order.customers?.phone}</p>
+          <p className="text-xs md:text-sm text-slate-600 truncate">{order.customers?.email}</p>
+          <p className="text-xs md:text-sm text-slate-600">{order.customers?.phone}</p>
         </div>
-        <div className="text-right">
-          <div className="flex items-center justify-end gap-2 mb-2">
+        <div className="sm:text-right w-full sm:w-auto shrink-0">
+          <div className="flex items-center justify-between sm:justify-end gap-2 mb-2">
+            <span className="sm:hidden inline-block px-2 py-1 rounded-full text-xs font-semibold bg-orange-600 text-white whitespace-nowrap">
+              {isDraft ? 'DRAFT' : 'PENDING'}
+            </span>
             <button
               onClick={() => setShowEditModal(true)}
-              className="flex items-center gap-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium transition-colors"
+              className="flex items-center gap-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium transition-colors whitespace-nowrap"
             >
               <Edit2 className="w-3 h-3" />
-              Edit Order
+              <span className="hidden sm:inline">Edit Order</span>
+              <span className="sm:hidden">Edit</span>
             </button>
           </div>
-          <p className="text-sm text-slate-600">Order ID</p>
-          <p className="font-mono text-sm font-semibold">{order.id.slice(0, 8).toUpperCase()}</p>
+          <p className="text-xs md:text-sm text-slate-600">Order ID</p>
+          <p className="font-mono text-xs md:text-sm font-semibold">{order.id.slice(0, 8).toUpperCase()}</p>
           <p className="text-xs text-slate-500 mt-1">
             {format(new Date(order.created_at), 'MMM d, yyyy h:mm a')}
           </p>
-          <div className="mt-2">
+          <div className="mt-2 hidden sm:block">
             <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-orange-600 text-white">
               {isDraft ? 'DRAFT - NEEDS DEPOSIT' : 'PENDING REVIEW'}
             </span>
@@ -557,7 +561,7 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
         )}
       </div>
 
-      <div className="mb-4 p-4 bg-white rounded-lg">
+      <div className="mb-4 p-3 md:p-4 bg-white rounded-lg">
         <div className="flex items-center justify-between mb-2">
           <h4 className="text-sm font-semibold text-slate-700">Street View Assessment - Multiple Angles</h4>
           <span className="text-xs text-slate-500">
@@ -567,7 +571,7 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
         <div className="text-xs text-slate-500 mb-3">
           Non-client test message may still display during delivery. Walk down during delivery.
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {streetViewAngles.map(angle => (
             <div key={angle.heading} className="border border-slate-200 rounded overflow-hidden">
               <div className="bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">{angle.label}</div>
@@ -581,7 +585,7 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
         </div>
       </div>
 
-      <div className="mb-4 p-4 bg-white rounded-lg">
+      <div className="mb-4 p-3 md:p-4 bg-white rounded-lg">
         <h4 className="text-sm font-semibold text-slate-700 mb-3">Complete Order Details</h4>
         <div className="space-y-2 text-sm">
           {orderItems.map(item => (

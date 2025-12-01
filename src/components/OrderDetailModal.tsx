@@ -1241,44 +1241,60 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   });
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-lg max-w-6xl w-full my-8">
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between rounded-t-lg z-10">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-0 md:p-4 overflow-y-auto">
+      <div className="bg-white md:rounded-lg max-w-6xl w-full min-h-screen md:min-h-0 md:my-8">
+        <div className="sticky top-0 bg-white border-b border-slate-200 px-3 md:px-6 py-3 md:py-4 flex items-center justify-between md:rounded-t-lg z-10">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg md:text-2xl font-bold text-slate-900 truncate">
               Order #{order.id.slice(0, 8).toUpperCase()}
             </h2>
-            <p className="text-sm text-slate-600">
+            <p className="text-xs md:text-sm text-slate-600 truncate">
               {order.customers?.first_name} {order.customers?.last_name} • {format(new Date(order.event_date), 'MMM d, yyyy')}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 md:gap-2 shrink-0">
             {hasChanges && (
               <button
                 onClick={handleSaveChanges}
                 disabled={saving}
-                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50"
+                className="flex items-center gap-1 md:gap-2 bg-green-600 hover:bg-green-700 text-white px-2 md:px-4 py-1.5 md:py-2 rounded-lg text-sm md:text-base font-medium disabled:opacity-50"
               >
-                <Save className="w-4 h-4" />
-                {saving ? 'Saving...' : 'Save Changes'}
+                <Save className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                <span className="hidden sm:inline">{saving ? 'Saving...' : 'Save Changes'}</span>
+                <span className="sm:hidden">{saving ? '...' : 'Save'}</span>
               </button>
             )}
             <button
               onClick={onClose}
-              className="text-slate-400 hover:text-slate-600"
+              className="text-slate-400 hover:text-slate-600 p-1"
             >
-              <X className="w-6 h-6" />
+              <X className="w-5 h-5 md:w-6 md:h-6" />
             </button>
           </div>
         </div>
 
-        <div className="px-6 py-4 border-b border-slate-200">
-          <div className="flex space-x-1">
+        <div className="px-3 md:px-6 py-3 md:py-4 border-b border-slate-200 bg-slate-50">
+          {/* Mobile Dropdown */}
+          <div className="md:hidden">
+            <select
+              value={activeSection}
+              onChange={(e) => setActiveSection(e.target.value as any)}
+              className="w-full px-3 py-2 bg-white border-2 border-slate-300 rounded-lg text-slate-900 font-medium focus:outline-none focus:border-blue-500"
+            >
+              <option value="details">Details</option>
+              <option value="workflow">Workflow</option>
+              <option value="notes">Notes</option>
+              <option value="changelog">Changelog</option>
+            </select>
+          </div>
+
+          {/* Desktop Tabs */}
+          <div className="hidden md:flex space-x-1">
             {(['details', 'workflow', 'notes', 'changelog'] as const).map(section => (
               <button
                 key={section}
                 onClick={() => setActiveSection(section)}
-                className={`px-4 py-2 font-medium rounded-t-lg ${
+                className={`px-4 py-2 font-medium rounded-t-lg transition-colors ${
                   activeSection === section
                     ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-700'
                     : 'text-slate-600 hover:bg-slate-50'
@@ -1294,7 +1310,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           </div>
         </div>
 
-        <div className="px-6 py-6 max-h-[calc(100vh-300px)] overflow-y-auto">
+        <div className="px-3 md:px-6 py-4 md:py-6 max-h-[calc(100vh-200px)] md:max-h-[calc(100vh-300px)] overflow-y-auto">
           {activeSection === 'details' && (
             <div className="space-y-6">
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
@@ -1679,10 +1695,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                   </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {/* Current/Original Pricing */}
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                  <h3 className="font-semibold text-slate-900 mb-3">Current Pricing</h3>
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 md:p-4">
+                  <h3 className="font-semibold text-slate-900 mb-3 text-sm md:text-base">Current Pricing</h3>
                   <div className="space-y-3">
                     {/* Items */}
                     <div className="space-y-1">
@@ -1771,10 +1787,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
                 {/* Updated Pricing */}
                 {calculatedPricing && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 md:p-4">
+                    <h3 className="font-semibold text-slate-900 mb-3 flex flex-wrap items-center gap-2 text-sm md:text-base">
                       Updated Pricing
-                      {hasChanges && <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">Changes Pending</span>}
+                      {hasChanges && <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded whitespace-nowrap">Changes Pending</span>}
                     </h3>
                     <div className="space-y-3">
                       {/* Items */}
