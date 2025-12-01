@@ -127,12 +127,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
   }, [editedOrder.can_stake]);
 
-  // Recalculate pricing whenever staged items or order details change
+  // Recalculate pricing whenever staged items, discounts, or order details change
   useEffect(() => {
     if (pricingRules && adminSettings && stagedItems.length > 0) {
       recalculatePricing();
     }
-  }, [stagedItems, editedOrder, pricingRules, adminSettings]);
+  }, [stagedItems, discounts, editedOrder, pricingRules, adminSettings]);
 
   // Check availability when dates or items change
   useEffect(() => {
@@ -1270,6 +1270,24 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                           <span className="font-medium">{formatCurrency(order.same_day_pickup_fee_cents)}</span>
                         </div>
                       )}
+                      {(() => {
+                        const originalDiscounts = discounts.filter(d => !d.is_new);
+                        let originalDiscountTotal = 0;
+                        for (const discount of originalDiscounts) {
+                          if (discount.amount_cents > 0) {
+                            originalDiscountTotal += discount.amount_cents;
+                          } else if (discount.percentage > 0) {
+                            const discountable = order.subtotal_cents + (order.generator_fee_cents || 0) + order.travel_fee_cents + order.surface_fee_cents;
+                            originalDiscountTotal += Math.round(discountable * (discount.percentage / 100));
+                          }
+                        }
+                        return originalDiscountTotal > 0 ? (
+                          <div className="flex justify-between text-sm text-green-700">
+                            <span>Discount:</span>
+                            <span className="font-medium">-{formatCurrency(originalDiscountTotal)}</span>
+                          </div>
+                        ) : null;
+                      })()}
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-600">Tax (6%):</span>
                         <span className="font-medium">{formatCurrency(order.tax_cents)}</span>
