@@ -41,8 +41,8 @@ export function CustomerPortal() {
           setActiveTab('payment');
         }
 
-        // Load changelog if status is awaiting approval
-        if (data.status === 'awaiting_customer_approval') {
+        // Load changelog if status is awaiting approval or pending review
+        if (data.status === 'awaiting_customer_approval' || data.status === 'pending_review') {
           const { data: changelogData } = await supabase
             .from('order_changelog')
             .select('*')
@@ -154,7 +154,7 @@ export function CustomerPortal() {
   const balanceDue = order.balance_due_cents - (order.balance_paid_cents || 0);
   const needsWaiver = !order.waiver_signed_at;
   const needsPayment = balanceDue > 0;
-  const needsApproval = order.status === 'awaiting_customer_approval';
+  const needsApproval = order.status === 'awaiting_customer_approval' || (order.status === 'pending_review' && changelog.length > 0);
   const isActive = ['confirmed', 'in_progress', 'completed'].includes(order.status);
 
   async function handleApproveChanges() {

@@ -65,6 +65,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [savedFeeTemplates, setSavedFeeTemplates] = useState<any[]>([]);
   const [saveDiscountAsTemplate, setSaveDiscountAsTemplate] = useState(false);
   const [saveFeeAsTemplate, setSaveFeeAsTemplate] = useState(false);
+  const [selectedDiscountTemplateId, setSelectedDiscountTemplateId] = useState<string>('');
+  const [selectedFeeTemplateId, setSelectedFeeTemplateId] = useState<string>('');
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [pendingStatus, setPendingStatus] = useState('');
   const [statusChangeReason, setStatusChangeReason] = useState('');
@@ -294,12 +296,15 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         }
       }
 
-      // Calculate tax (includes generator fee in taxable amount, after discounts)
-      const taxable_amount = Math.max(0, subtotal_cents + generator_fee_cents + travel_fee_cents + surface_fee_cents - discount_total_cents);
+      // Calculate custom fees total
+      const custom_fees_total_cents = customFees.reduce((sum, fee) => sum + fee.amount_cents, 0);
+
+      // Calculate tax (includes generator fee and custom fees in taxable amount, after discounts)
+      const taxable_amount = Math.max(0, subtotal_cents + generator_fee_cents + travel_fee_cents + surface_fee_cents + custom_fees_total_cents - discount_total_cents);
       const tax_cents = Math.round(taxable_amount * 0.06);
 
       // Calculate totals
-      const total_cents = subtotal_cents + generator_fee_cents + travel_fee_cents + surface_fee_cents + same_day_pickup_fee_cents + tax_cents - discount_total_cents;
+      const total_cents = subtotal_cents + generator_fee_cents + travel_fee_cents + surface_fee_cents + same_day_pickup_fee_cents + custom_fees_total_cents + tax_cents - discount_total_cents;
       const deposit_due_cents = activeItems.reduce((sum, item) => sum + item.qty, 0) * 5000;
       const balance_due_cents = total_cents - deposit_due_cents;
 
@@ -310,6 +315,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         distance_miles,
         surface_fee_cents,
         same_day_pickup_fee_cents,
+        custom_fees_total_cents,
         discount_total_cents,
         tax_cents,
         total_cents,
@@ -862,6 +868,18 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     // Save as template if checkbox is checked
     if (saveDiscountAsTemplate) {
       try {
+        // Check if template with this name already exists
+        const { data: existing } = await supabase
+          .from('saved_discount_templates')
+          .select('id')
+          .eq('name', newDiscount.name)
+          .maybeSingle();
+
+        if (existing) {
+          alert(`A discount template with the name "${newDiscount.name}" already exists. Please choose a different name or update the existing template.`);
+          return;
+        }
+
         await supabase.from('saved_discount_templates').insert({
           name: newDiscount.name,
           amount_cents: Math.round(amount),
@@ -870,6 +888,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         await loadSavedTemplates();
       } catch (error) {
         console.error('Error saving discount template:', error);
+        alert('Failed to save discount template');
+        return;
       }
     }
 
@@ -915,6 +935,18 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     // Save as template if checkbox is checked
     if (saveFeeAsTemplate) {
       try {
+        // Check if template with this name already exists
+        const { data: existing } = await supabase
+          .from('saved_fee_templates')
+          .select('id')
+          .eq('name', newCustomFee.name)
+          .maybeSingle();
+
+        if (existing) {
+          alert(`A fee template with the name "${newCustomFee.name}" already exists. Please choose a different name or update the existing template.`);
+          return;
+        }
+
         await supabase.from('saved_fee_templates').insert({
           name: newCustomFee.name,
           amount_cents: Math.round(amount),
@@ -922,6 +954,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         await loadSavedTemplates();
       } catch (error) {
         console.error('Error saving fee template:', error);
+        alert('Failed to save fee template');
+        return;
       }
     }
 
@@ -947,6 +981,62 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     // Remove from staging array (not saved to DB yet)
     setCustomFees(customFees.filter(f => f.id !== feeId));
     setHasChanges(true);
+  }
+
+  async function handleDeleteDiscountTemplate() {
+    if (!selectedDiscountTemplateId) {
+      alert('Please select a discount template first');
+      return;
+    }
+
+    const template = savedDiscountTemplates.find(t => t.id === selectedDiscountTemplateId);
+    if (!confirm(`Delete the discount template "${template?.name}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('saved_discount_templates')
+        .delete()
+        .eq('id', selectedDiscountTemplateId);
+
+      if (error) throw error;
+
+      setSelectedDiscountTemplateId('');
+      await loadSavedTemplates();
+      alert('Discount template deleted successfully');
+    } catch (error) {
+      console.error('Error deleting discount template:', error);
+      alert('Failed to delete discount template');
+    }
+  }
+
+  async function handleDeleteFeeTemplate() {
+    if (!selectedFeeTemplateId) {
+      alert('Please select a fee template first');
+      return;
+    }
+
+    const template = savedFeeTemplates.find(t => t.id === selectedFeeTemplateId);
+    if (!confirm(`Delete the fee template "${template?.name}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('saved_fee_templates')
+        .delete()
+        .eq('id', selectedFeeTemplateId);
+
+      if (error) throw error;
+
+      setSelectedFeeTemplateId('');
+      await loadSavedTemplates();
+      alert('Fee template deleted successfully');
+    } catch (error) {
+      console.error('Error deleting fee template:', error);
+      alert('Failed to delete fee template');
+    }
   }
 
   function initiateStatusChange(newStatus: string) {
@@ -1627,6 +1717,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                         </div>
                       </div>
                     )}
+                    {customFees.length > 0 && customFees.map((fee, idx) => (
+                      <div key={idx} className="flex justify-between text-sm">
+                        <span className="text-slate-600">{fee.name}:</span>
+                        <span className="font-medium text-blue-700">{formatCurrency(fee.amount_cents)}</span>
+                      </div>
+                    ))}
                     {calculatedPricing.discount_total_cents > 0 && (
                       <div className="flex justify-between text-sm text-green-700">
                         <span className="font-medium">Discount:</span>
@@ -1722,24 +1818,37 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                   {savedDiscountTemplates.length > 0 && (
                     <div>
                       <label className="block text-xs text-slate-700 mb-1 font-medium">Load Saved Discount</label>
-                      <select
-                        onChange={(e) => {
-                          const template = savedDiscountTemplates.find(t => t.id === e.target.value);
-                          if (template) {
-                            setNewDiscount({ name: template.name, amount_cents: template.amount_cents, percentage: template.percentage });
-                            setDiscountAmountInput((template.amount_cents / 100).toFixed(2));
-                            setDiscountPercentInput(template.percentage.toString());
-                          }
-                        }}
-                        className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                      >
-                        <option value="">Select a saved discount...</option>
-                        {savedDiscountTemplates.map(template => (
-                          <option key={template.id} value={template.id}>
-                            {template.name} - {template.amount_cents > 0 ? `$${(template.amount_cents / 100).toFixed(2)}` : `${template.percentage}%`}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex gap-2">
+                        <select
+                          value={selectedDiscountTemplateId}
+                          onChange={(e) => {
+                            setSelectedDiscountTemplateId(e.target.value);
+                            const template = savedDiscountTemplates.find(t => t.id === e.target.value);
+                            if (template) {
+                              setNewDiscount({ name: template.name, amount_cents: template.amount_cents, percentage: template.percentage });
+                              setDiscountAmountInput((template.amount_cents / 100).toFixed(2));
+                              setDiscountPercentInput(template.percentage.toString());
+                            }
+                          }}
+                          className="flex-1 px-3 py-2 border border-slate-300 rounded text-sm"
+                        >
+                          <option value="">Select a saved discount...</option>
+                          {savedDiscountTemplates.map(template => (
+                            <option key={template.id} value={template.id}>
+                              {template.name} - {template.amount_cents > 0 ? `$${(template.amount_cents / 100).toFixed(2)}` : `${template.percentage}%`}
+                            </option>
+                          ))}
+                        </select>
+                        {selectedDiscountTemplateId && (
+                          <button
+                            onClick={handleDeleteDiscountTemplate}
+                            className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-1 text-sm"
+                            title="Delete selected template"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                   <input
@@ -1825,23 +1934,36 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                   {savedFeeTemplates.length > 0 && (
                     <div>
                       <label className="block text-xs text-slate-700 mb-1 font-medium">Load Saved Fee</label>
-                      <select
-                        onChange={(e) => {
-                          const template = savedFeeTemplates.find(t => t.id === e.target.value);
-                          if (template) {
-                            setNewCustomFee({ name: template.name, amount_cents: template.amount_cents });
-                            setCustomFeeInput((template.amount_cents / 100).toFixed(2));
-                          }
-                        }}
-                        className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                      >
-                        <option value="">Select a saved fee...</option>
-                        {savedFeeTemplates.map(template => (
-                          <option key={template.id} value={template.id}>
-                            {template.name} - ${(template.amount_cents / 100).toFixed(2)}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex gap-2">
+                        <select
+                          value={selectedFeeTemplateId}
+                          onChange={(e) => {
+                            setSelectedFeeTemplateId(e.target.value);
+                            const template = savedFeeTemplates.find(t => t.id === e.target.value);
+                            if (template) {
+                              setNewCustomFee({ name: template.name, amount_cents: template.amount_cents });
+                              setCustomFeeInput((template.amount_cents / 100).toFixed(2));
+                            }
+                          }}
+                          className="flex-1 px-3 py-2 border border-slate-300 rounded text-sm"
+                        >
+                          <option value="">Select a saved fee...</option>
+                          {savedFeeTemplates.map(template => (
+                            <option key={template.id} value={template.id}>
+                              {template.name} - ${(template.amount_cents / 100).toFixed(2)}
+                            </option>
+                          ))}
+                        </select>
+                        {selectedFeeTemplateId && (
+                          <button
+                            onClick={handleDeleteFeeTemplate}
+                            className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-1 text-sm"
+                            title="Delete selected template"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                   <input
