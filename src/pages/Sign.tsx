@@ -16,16 +16,18 @@ interface OrderData {
   customer_id: string;
   start_date: string;
   end_date: string | null;
-  address_line1: string;
-  address_line2: string | null;
-  city: string;
-  state: string;
-  zip: string;
   customer: {
     first_name: string;
     last_name: string;
     email: string;
     phone: string;
+  };
+  address: {
+    line1: string;
+    line2: string | null;
+    city: string;
+    state: string;
+    zip: string;
   };
   waiver_signed_at: string | null;
   signed_waiver_url: string | null;
@@ -79,14 +81,10 @@ export default function Sign() {
           customer_id,
           start_date,
           end_date,
-          address_line1,
-          address_line2,
-          city,
-          state,
-          zip,
           waiver_signed_at,
           signed_waiver_url,
-          customer:customers(*)
+          customer:customers(*),
+          address:addresses(*)
         `)
         .eq('id', orderId!)
         .single();
@@ -108,11 +106,15 @@ export default function Sign() {
       setRenterEmail(data.customer.email || '');
       setEventDate(data.start_date || '');
       setEventEndDate(data.end_date || '');
-      setEventAddressLine1(data.address_line1 || '');
-      setEventAddressLine2(data.address_line2 || '');
-      setEventCity(data.city || '');
-      setEventState(data.state || '');
-      setEventZip(data.zip || '');
+
+      // Auto-fill address from related address record
+      if (data.address) {
+        setEventAddressLine1(data.address.line1 || '');
+        setEventAddressLine2(data.address.line2 || '');
+        setEventCity(data.address.city || '');
+        setEventState(data.address.state || '');
+        setEventZip(data.address.zip || '');
+      }
     } catch (err: any) {
       console.error('Error loading order:', err);
       setError(err.message || 'Failed to load order');
