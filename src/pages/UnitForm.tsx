@@ -40,13 +40,18 @@ export function UnitForm() {
   }, [id]);
 
   async function loadUnit() {
+    if (!id) return;
+
     const [unitRes, mediaRes] = await Promise.all([
       supabase.from('units').select('*').eq('id', id).single(),
       supabase.from('unit_media').select('*').eq('unit_id', id).order('sort'),
     ]);
 
     if (unitRes.data) {
-      setFormData(unitRes.data);
+      setFormData({
+        ...unitRes.data,
+        is_combo: unitRes.data.is_combo ?? false,
+      });
       setPriceInput((unitRes.data.price_dry_cents / 100).toFixed(2));
       if (unitRes.data.price_water_cents) {
         setPriceWaterInput((unitRes.data.price_water_cents / 100).toFixed(2));

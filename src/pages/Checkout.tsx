@@ -105,6 +105,7 @@ export function Checkout() {
         last_name: contactInfo.last_name || '',
         email: contactInfo.email || '',
         phone: contactInfo.phone || '',
+        business_name: contactInfo.business_name || '',
       });
       setSmsConsent(true);
       setCardOnFileConsent(true);

@@ -18,6 +18,9 @@ interface OrderDetails {
   end_window: string;
   location_type: string;
   surface: string;
+  attendees?: number;
+  pets?: boolean;
+  special_details?: string;
   customer: {
     first_name: string;
     last_name: string;
