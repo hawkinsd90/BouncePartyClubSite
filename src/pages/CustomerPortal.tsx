@@ -20,6 +20,9 @@ export function CustomerPortal() {
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [discounts, setDiscounts] = useState<any[]>([]);
   const [customFees, setCustomFees] = useState<any[]>([]);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectConfirmName, setRejectConfirmName] = useState('');
 
   useEffect(() => {
     loadOrder();
@@ -334,28 +337,17 @@ export function CustomerPortal() {
   }
 
   async function handleRejectChanges() {
-    const confirmReject = confirm(
-      'Are you sure you want to reject these changes? This will cancel your order. ' +
-      'If you have questions, please call us at (313) 889-3860 instead.'
-    );
+    setShowRejectModal(true);
+  }
 
-    if (!confirmReject) {
-      return;
-    }
-
-    const customerName = prompt('To confirm cancellation, please enter your full name as it appears on the order:');
-
-    if (!customerName) {
-      return;
-    }
-
+  async function confirmRejectChanges() {
     const expectedName = `${order.customers.first_name} ${order.customers.last_name}`.toLowerCase().trim();
-    if (customerName.toLowerCase().trim() !== expectedName) {
+    if (rejectConfirmName.toLowerCase().trim() !== expectedName) {
       alert('The name you entered does not match the customer name on this order. Please try again.');
       return;
     }
 
-    const rejectionReason = prompt('Optional: Please tell us why you\'re rejecting these changes:') || 'No reason provided';
+    const rejectionReason = rejectReason.trim() || 'No reason provided';
 
     setSubmitting(true);
     try {
@@ -482,6 +474,9 @@ export function CustomerPortal() {
         // Don't fail the rejection if notifications fail
       }
 
+      setShowRejectModal(false);
+      setRejectConfirmName('');
+      setRejectReason('');
       alert('Your order has been cancelled. We\'re sorry we couldn\'t meet your needs. Our team will be in touch shortly.');
       await loadOrder();
     } catch (error) {
@@ -724,11 +719,11 @@ export function CustomerPortal() {
                         const newVal = formatValue(change.new_value, change.field_changed);
 
                         return (
-                          <div key={idx} className="px-4 py-2.5 flex justify-between items-center text-sm">
-                            <span className="font-medium text-orange-900 min-w-[120px]">
+                          <div key={idx} className="px-3 md:px-4 py-2.5 text-xs md:text-sm">
+                            <div className="font-medium text-orange-900 mb-1">
                               {getFieldLabel(change.field_changed)}:
-                            </span>
-                            <div className="flex items-center gap-3 flex-1 justify-end">
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
                               {isItemChange ? (
                                 // For item add/remove, show special format
                                 <>
@@ -738,9 +733,9 @@ export function CustomerPortal() {
                               ) : (
                                 // For regular changes, show old → new
                                 <>
-                                  <span className="text-red-700 line-through">{oldVal}</span>
+                                  <span className="text-red-700 line-through break-words">{oldVal}</span>
                                   <span className="text-slate-400">→</span>
-                                  <span className="text-green-700 font-semibold">{newVal}</span>
+                                  <span className="text-green-700 font-semibold break-words">{newVal}</span>
                                 </>
                               )}
                             </div>
@@ -1095,6 +1090,70 @@ export function CustomerPortal() {
                 Questions? Call us at (313) 889-3860
               </p>
             </div>
+
+            {/* Custom Rejection Modal */}
+            {showRejectModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+                  <div className="p-4 md:p-6">
+                    <h3 className="text-lg md:text-xl font-bold text-red-900 mb-3">Reject Changes & Cancel Order</h3>
+                    <p className="text-sm md:text-base text-slate-700 mb-4">
+                      Are you sure you want to reject these changes? This will cancel your order.
+                    </p>
+                    <p className="text-sm text-slate-600 mb-4">
+                      If you have questions, please call us at <a href="tel:+13138893860" className="text-blue-600 font-semibold">(313) 889-3860</a> instead.
+                    </p>
+
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        To confirm, enter your full name: <span className="text-red-600">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={rejectConfirmName}
+                        onChange={(e) => setRejectConfirmName(e.target.value)}
+                        placeholder={`${order.customers.first_name} ${order.customers.last_name}`}
+                        className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:outline-none focus:border-red-500 text-sm md:text-base"
+                      />
+                      <p className="text-xs text-slate-500 mt-1">Must match: {order.customers.first_name} {order.customers.last_name}</p>
+                    </div>
+
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Reason for rejection (optional):
+                      </label>
+                      <textarea
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        placeholder="Let us know why you're rejecting these changes..."
+                        rows={3}
+                        className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:outline-none focus:border-red-500 resize-none text-sm md:text-base"
+                      />
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <button
+                        onClick={() => {
+                          setShowRejectModal(false);
+                          setRejectConfirmName('');
+                          setRejectReason('');
+                        }}
+                        className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold py-2.5 md:py-3 px-4 rounded-lg transition-colors text-sm md:text-base"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={confirmRejectChanges}
+                        disabled={!rejectConfirmName.trim() || submitting}
+                        className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed text-white font-bold py-2.5 md:py-3 px-4 rounded-lg transition-colors text-sm md:text-base"
+                      >
+                        {submitting ? 'Processing...' : 'Confirm Rejection'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
