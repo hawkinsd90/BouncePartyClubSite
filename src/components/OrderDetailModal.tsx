@@ -764,11 +764,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
       // Only set awaiting_customer_approval status if there are actual changes
       if (hasTrackedChanges || hasFieldChanges) {
-        // Check if admin override is enabled
+        // Check if admin wants to skip customer approval
         if (adminOverrideApproval) {
-          // Admin override: go directly to confirmed status, keep payment method
+          // Skip customer approval: go directly to confirmed status, keep payment method
           changes.status = 'confirmed';
-          console.log('Admin override enabled - skipping customer approval');
+          console.log('Skipping customer approval - order confirmed immediately');
         } else {
           changes.status = 'awaiting_customer_approval';
         }
@@ -804,7 +804,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       onUpdate();
       if (hasTrackedChanges) {
         if (adminOverrideApproval) {
-          alert('Changes saved successfully! Admin override applied - order is now confirmed without customer approval required.');
+          alert('Changes saved and order confirmed! Customer approval was skipped - order is ready to go.');
         } else {
           alert('Changes saved successfully! Customer will be notified to review and approve the changes.');
         }
@@ -1274,8 +1274,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                     onChange={(e) => setAdminOverrideApproval(e.target.checked)}
                     className="w-3.5 h-3.5 md:w-4 md:h-4"
                   />
-                  <span className="hidden lg:inline">Admin Override</span>
-                  <span className="lg:hidden">Override</span>
+                  <span className="hidden lg:inline">Skip Customer Approval</span>
+                  <span className="lg:hidden">Skip Approval</span>
                 </label>
                 <button
                   onClick={handleSaveChanges}
