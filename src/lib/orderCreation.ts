@@ -7,6 +7,7 @@ interface OrderData {
     last_name: string;
     email: string;
     phone: string;
+    business_name?: string;
   };
   quoteData: any;
   priceBreakdown: any;
@@ -73,6 +74,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       last_name: contactData.last_name,
       email: contactData.email,
       phone: contactData.phone,
+      business_name: contactData.business_name || null,
       source: 'booking',
       opt_in_email: true,
       opt_in_sms: smsConsent,

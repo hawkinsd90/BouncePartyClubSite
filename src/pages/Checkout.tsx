@@ -55,6 +55,7 @@ export function Checkout() {
     last_name: '',
     email: '',
     phone: '',
+    business_name: '',
   });
 
   const [billingAddress, setBillingAddress] = useState({
@@ -255,6 +256,20 @@ export function Checkout() {
               Contact Information
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Business Name (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={contactData.business_name}
+                  onChange={(e) =>
+                    setContactData({ ...contactData, business_name: e.target.value })
+                  }
+                  placeholder="Leave blank if booking as an individual"
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   First Name *

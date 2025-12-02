@@ -81,6 +81,11 @@ export function PrintableInvoice({
               Bill To:
             </h3>
             <div className="text-slate-700">
+              {contactData.business_name && (
+                <p className="font-bold text-base">
+                  {contactData.business_name}
+                </p>
+              )}
               <p className="font-semibold">
                 {contactData.first_name} {contactData.last_name}
               </p>
