@@ -16,7 +16,6 @@ export function Invoice() {
   const [address, setAddress] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
-  const [processing, setProcessing] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
 
@@ -133,17 +132,14 @@ export function Invoice() {
 
   const handlePaymentSuccess = async () => {
     try {
-      setProcessing(true);
       await completeOrderAfterPayment(orderId!, 'payment_intent_id');
       setPaymentSuccess(true);
       setShowPaymentForm(false);
-      setProcessing(false);
     } catch (error: any) {
       console.error('Error completing payment:', error);
       alert(
         `Payment succeeded but failed to finalize booking: ${error.message}\n\nPlease contact us at (313) 889-3860 with your order confirmation.`
       );
-      setProcessing(false);
     }
   };
 

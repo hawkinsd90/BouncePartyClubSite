@@ -1,5 +1,5 @@
 import { Link, Outlet, useNavigate } from 'react-router-dom';
-import { PartyPopper, Phone, Mail, LogOut, LogIn, ShoppingCart, Menu, X } from 'lucide-react';
+import { Phone, Mail, LogOut, LogIn, ShoppingCart, Menu, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useState, useEffect } from 'react';
 
