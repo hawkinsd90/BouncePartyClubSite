@@ -128,9 +128,44 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
     await handleApprove();
   }
 
+  async function handleForceApproval() {
+    // Confirm with admin since this is bypassing normal approval
+    const hasPaymentMethod = order.stripe_customer_id && order.stripe_payment_method_id;
+
+    let confirmMessage = 'Force approve this order and mark as confirmed?\n\n';
+    if (!hasPaymentMethod) {
+      confirmMessage += '⚠️ WARNING: No payment method on file. This will be treated as a CASH PAYMENT.\n\n';
+      confirmMessage += 'The order will be confirmed without charging a card. Continue?';
+    } else {
+      confirmMessage += 'This will skip customer approval and mark the order as confirmed (keeping the same payment method on file). Continue?';
+    }
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: 'confirmed' })
+        .eq('id', order.id);
+
+      if (error) throw error;
+
+      alert('Order has been force approved and marked as confirmed!');
+      onUpdate();
+    } catch (error) {
+      console.error('Error force approving order:', error);
+      alert('Failed to force approve order.');
+    } finally {
+      setProcessing(false);
+    }
+  }
+
   async function handleApprove() {
     if (!order.stripe_customer_id || !order.stripe_payment_method_id) {
-      alert('No payment method on file. Ask the customer to complete checkout first.');
+      alert('No payment method on file. Ask the customer to complete checkout first, or use "Force Approve" for cash payments.');
       return;
     }
 
@@ -455,6 +490,7 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
   ];
 
   const isDraft = order.status === 'draft';
+  const isAwaitingApproval = order.status === 'awaiting_customer_approval';
   const paymentUrl = `${window.location.origin}/checkout/${order.id}`;
 
   async function handleCopyPaymentLink() {
@@ -484,8 +520,8 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
         </div>
         <div className="sm:text-right w-full sm:w-auto shrink-0">
           <div className="flex items-center justify-between sm:justify-end gap-2 mb-2">
-            <span className="sm:hidden inline-block px-2 py-1 rounded-full text-xs font-semibold bg-orange-600 text-white whitespace-nowrap">
-              {isDraft ? 'DRAFT' : 'PENDING'}
+            <span className={`sm:hidden inline-block px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${isDraft ? 'bg-orange-600' : isAwaitingApproval ? 'bg-amber-600' : 'bg-orange-600'} text-white`}>
+              {isDraft ? 'DRAFT' : isAwaitingApproval ? 'AWAITING' : 'PENDING'}
             </span>
             <button
               onClick={() => setShowEditModal(true)}
@@ -502,8 +538,8 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
             {format(new Date(order.created_at), 'MMM d, yyyy h:mm a')}
           </p>
           <div className="mt-2 hidden sm:block">
-            <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-orange-600 text-white">
-              {isDraft ? 'DRAFT - NEEDS DEPOSIT' : 'PENDING REVIEW'}
+            <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold text-white ${isDraft ? 'bg-orange-600' : isAwaitingApproval ? 'bg-amber-600' : 'bg-orange-600'}`}>
+              {isDraft ? 'DRAFT - NEEDS DEPOSIT' : isAwaitingApproval ? 'AWAITING CUSTOMER APPROVAL' : 'PENDING REVIEW'}
             </span>
           </div>
         </div>
@@ -809,6 +845,20 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
             className="w-full bg-red-600 hover:bg-red-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
           >
             Cancel Order
+          </button>
+        </div>
+      ) : isAwaitingApproval ? (
+        <div className="space-y-3">
+          <div className="p-4 bg-amber-50 border border-amber-300 rounded-lg">
+            <p className="text-sm text-amber-900 font-semibold mb-1">⏳ Awaiting Customer Approval</p>
+            <p className="text-xs text-amber-800">Customer needs to review and approve the changes you made to this order.</p>
+          </div>
+          <button
+            onClick={handleForceApproval}
+            disabled={processing}
+            className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+          >
+            {processing ? 'Processing...' : 'Force Approve (Admin Override)'}
           </button>
         </div>
       ) : (

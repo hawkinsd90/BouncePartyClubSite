@@ -1072,12 +1072,12 @@ export function CustomerPortal() {
                   >
                     {submitting ? 'Processing...' : 'Approve Changes'}
                   </button>
-                  <button
-                    onClick={() => window.location.href = 'tel:+13138893860'}
+                  <a
+                    href="tel:+13138893860"
                     className="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-bold py-4 px-6 rounded-lg transition-colors text-center text-lg shadow-lg"
                   >
                     Call to Discuss
-                  </button>
+                  </a>
                 </div>
                 <button
                   onClick={handleRejectChanges}
