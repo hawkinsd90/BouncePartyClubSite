@@ -23,6 +23,8 @@ export function CustomerPortal() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [rejectConfirmName, setRejectConfirmName] = useState('');
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [approveConfirmName, setApproveConfirmName] = useState('');
 
   useEffect(() => {
     loadOrder();
@@ -242,14 +244,12 @@ export function CustomerPortal() {
   const isActive = ['confirmed', 'in_progress', 'completed'].includes(order.status);
 
   async function handleApproveChanges() {
-    const customerName = prompt('To confirm, please enter your full name as it appears on the order:');
+    setShowApproveModal(true);
+  }
 
-    if (!customerName) {
-      return;
-    }
-
+  async function confirmApproveChanges() {
     const expectedName = `${order.customers.first_name} ${order.customers.last_name}`.toLowerCase().trim();
-    if (customerName.toLowerCase().trim() !== expectedName) {
+    if (approveConfirmName.toLowerCase().trim() !== expectedName) {
       alert('The name you entered does not match the customer name on this order. Please try again.');
       return;
     }
@@ -327,6 +327,8 @@ export function CustomerPortal() {
         // Don't fail the approval if SMS fails
       }
 
+      setShowApproveModal(false);
+      setApproveConfirmName('');
       setApprovalSuccess(true);
     } catch (error) {
       console.error('Error approving changes:', error);
@@ -751,38 +753,38 @@ export function CustomerPortal() {
               <div className="bg-slate-50 rounded-lg p-3 md:p-6 mb-4 md:mb-6 border-2 border-slate-200">
                 <h3 className="font-bold text-slate-900 mb-3 md:mb-4 text-base md:text-lg">Current Booking Information</h3>
                 <div className="space-y-2 md:space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:justify-between py-2 border-b border-slate-200 gap-1">
-                    <span className="text-slate-600 font-medium text-sm md:text-base">Customer:</span>
+                  <div className="py-2 border-b border-slate-200">
+                    <span className="text-slate-600 font-medium text-sm md:text-base block mb-1">Customer:</span>
                     <span className="text-slate-900 font-semibold text-sm md:text-base">{order.customers.first_name} {order.customers.last_name}</span>
                   </div>
-                  <div className="flex flex-col sm:flex-row sm:justify-between py-2 border-b border-slate-200 gap-1">
-                    <span className="text-slate-600 font-medium text-sm md:text-base">Event Date:</span>
-                    <span className="text-slate-900 font-semibold text-sm md:text-base text-right">
+                  <div className="py-2 border-b border-slate-200">
+                    <span className="text-slate-600 font-medium text-sm md:text-base block mb-1">Event Date:</span>
+                    <span className="text-slate-900 font-semibold text-sm md:text-base">
                       {format(new Date(order.event_date), 'MMMM d, yyyy')}
                       {order.event_end_date && order.event_end_date !== order.event_date && (
                         <> - {format(new Date(order.event_end_date), 'MMMM d, yyyy')}</>
                       )}
                     </span>
                   </div>
-                  <div className="flex flex-col sm:flex-row sm:justify-between py-2 border-b border-slate-200 gap-1">
-                    <span className="text-slate-600 font-medium text-sm md:text-base">Time:</span>
-                    <span className="text-slate-900 font-semibold text-sm md:text-base text-right">{order.start_window} - {order.end_window}</span>
+                  <div className="py-2 border-b border-slate-200">
+                    <span className="text-slate-600 font-medium text-sm md:text-base block mb-1">Time:</span>
+                    <span className="text-slate-900 font-semibold text-sm md:text-base">{order.start_window} - {order.end_window}</span>
                   </div>
-                  <div className="flex flex-col sm:flex-row sm:justify-between py-2 border-b border-slate-200 gap-1">
-                    <span className="text-slate-600 font-medium text-sm md:text-base">Location Type:</span>
-                    <span className="text-slate-900 font-semibold text-sm md:text-base text-right">{order.location_type === 'residential' ? 'Residential' : 'Commercial'}</span>
+                  <div className="py-2 border-b border-slate-200">
+                    <span className="text-slate-600 font-medium text-sm md:text-base block mb-1">Location Type:</span>
+                    <span className="text-slate-900 font-semibold text-sm md:text-base">{order.location_type === 'residential' ? 'Residential' : 'Commercial'}</span>
                   </div>
-                  <div className="flex flex-col sm:flex-row sm:justify-between py-2 border-b border-slate-200 gap-1">
-                    <span className="text-slate-600 font-medium text-sm md:text-base">Address:</span>
-                    <span className="text-slate-900 font-semibold text-sm md:text-base text-right">{order.addresses?.line1}, {order.addresses?.city}, {order.addresses?.state} {order.addresses?.zip}</span>
+                  <div className="py-2 border-b border-slate-200">
+                    <span className="text-slate-600 font-medium text-sm md:text-base block mb-1">Address:</span>
+                    <span className="text-slate-900 font-semibold text-sm md:text-base">{order.addresses?.line1}, {order.addresses?.city}, {order.addresses?.state} {order.addresses?.zip}</span>
                   </div>
-                  <div className="flex flex-col sm:flex-row sm:justify-between py-2 border-b border-slate-200 gap-1">
-                    <span className="text-slate-600 font-medium text-sm md:text-base">Surface:</span>
-                    <span className="text-slate-900 font-semibold text-sm md:text-base text-right">{order.surface === 'grass' ? 'Grass (Stakes)' : 'Sandbags'}</span>
+                  <div className="py-2 border-b border-slate-200">
+                    <span className="text-slate-600 font-medium text-sm md:text-base block mb-1">Surface:</span>
+                    <span className="text-slate-900 font-semibold text-sm md:text-base">{order.surface === 'grass' ? 'Grass (Stakes)' : 'Sandbags'}</span>
                   </div>
-                  <div className="flex flex-col sm:flex-row sm:justify-between py-2 border-b border-slate-200 gap-1">
-                    <span className="text-slate-600 font-medium text-sm md:text-base">Pickup:</span>
-                    <span className="text-slate-900 font-semibold text-sm md:text-base text-right">{order.pickup_preference === 'next_day' ? 'Next Morning' : 'Same Day'}</span>
+                  <div className="py-2 border-b border-slate-200">
+                    <span className="text-slate-600 font-medium text-sm md:text-base block mb-1">Pickup:</span>
+                    <span className="text-slate-900 font-semibold text-sm md:text-base">{order.pickup_preference === 'next_day' ? 'Next Morning' : 'Same Day'}</span>
                   </div>
 
                   {/* Order Items */}
@@ -801,9 +803,9 @@ export function CustomerPortal() {
 
                   {/* Generators */}
                   {order.generator_fee_cents > 0 && (
-                    <div className="flex flex-col sm:flex-row sm:justify-between py-2 border-t border-slate-300 gap-1">
-                      <span className="text-slate-600 font-medium text-sm md:text-base">Generators:</span>
-                      <span className="text-slate-900 font-semibold text-sm md:text-base text-right">{formatCurrency(order.generator_fee_cents)}</span>
+                    <div className="py-2 border-t border-slate-300">
+                      <span className="text-slate-600 font-medium text-sm md:text-base block mb-1">Generators:</span>
+                      <span className="text-slate-900 font-semibold text-sm md:text-base">{formatCurrency(order.generator_fee_cents)}</span>
                     </div>
                   )}
 
@@ -1070,12 +1072,12 @@ export function CustomerPortal() {
                   >
                     {submitting ? 'Processing...' : 'Approve Changes'}
                   </button>
-                  <a
-                    href="tel:+13138893860"
+                  <button
+                    onClick={() => window.location.href = 'tel:+13138893860'}
                     className="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-bold py-4 px-6 rounded-lg transition-colors text-center text-lg shadow-lg"
                   >
                     Call to Discuss
-                  </a>
+                  </button>
                 </div>
                 <button
                   onClick={handleRejectChanges}
@@ -1090,6 +1092,53 @@ export function CustomerPortal() {
                 Questions? Call us at (313) 889-3860
               </p>
             </div>
+
+            {/* Custom Approval Modal */}
+            {showApproveModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+                  <div className="p-4 md:p-6">
+                    <h3 className="text-lg md:text-xl font-bold text-green-900 mb-3">Approve Order Changes</h3>
+                    <p className="text-sm md:text-base text-slate-700 mb-4">
+                      By approving these changes, you confirm that you have reviewed and accept the updated order details.
+                    </p>
+
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        To confirm, enter your full name: <span className="text-red-600">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={approveConfirmName}
+                        onChange={(e) => setApproveConfirmName(e.target.value)}
+                        placeholder={`${order.customers.first_name} ${order.customers.last_name}`}
+                        className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:outline-none focus:border-green-500 text-sm md:text-base"
+                      />
+                      <p className="text-xs text-slate-500 mt-1">Must match: {order.customers.first_name} {order.customers.last_name}</p>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <button
+                        onClick={() => {
+                          setShowApproveModal(false);
+                          setApproveConfirmName('');
+                        }}
+                        className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold py-2.5 md:py-3 px-4 rounded-lg transition-colors text-sm md:text-base"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={confirmApproveChanges}
+                        disabled={!approveConfirmName.trim() || submitting}
+                        className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed text-white font-bold py-2.5 md:py-3 px-4 rounded-lg transition-colors text-sm md:text-base"
+                      >
+                        {submitting ? 'Processing...' : 'Confirm Approval'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Custom Rejection Modal */}
             {showRejectModal && (

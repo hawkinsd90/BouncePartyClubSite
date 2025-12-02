@@ -72,6 +72,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [statusChangeReason, setStatusChangeReason] = useState('');
   const [pricingRules, setPricingRules] = useState<any>(null);
   const [adminSettings, setAdminSettings] = useState<any>(null);
+  const [adminOverrideApproval, setAdminOverrideApproval] = useState(false);
   const [calculatedPricing, setCalculatedPricing] = useState<any>(null);
   const [availabilityIssues, setAvailabilityIssues] = useState<any[]>([]);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
@@ -763,7 +764,14 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
       // Only set awaiting_customer_approval status if there are actual changes
       if (hasTrackedChanges || hasFieldChanges) {
-        changes.status = 'awaiting_customer_approval';
+        // Check if admin override is enabled
+        if (adminOverrideApproval) {
+          // Admin override: go directly to confirmed status, keep payment method
+          changes.status = 'confirmed';
+          console.log('Admin override enabled - skipping customer approval');
+        } else {
+          changes.status = 'awaiting_customer_approval';
+        }
 
         // Update order
         const { error: updateError } = await supabase.from('orders').update(changes).eq('id', order.id);
@@ -777,8 +785,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           await logChange(field, oldVal, newVal);
         }
 
-        // Only send notification if there are tracked changes for the customer to review
-        if (hasTrackedChanges) {
+        // Only send notification if there are tracked changes for the customer to review AND admin didn't override
+        if (hasTrackedChanges && !adminOverrideApproval) {
           await sendOrderEditNotifications();
         }
       } else {
@@ -795,7 +803,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       await loadOrderDetails();
       onUpdate();
       if (hasTrackedChanges) {
-        alert('Changes saved successfully! Customer will be notified to review and approve the changes.');
+        if (adminOverrideApproval) {
+          alert('Changes saved successfully! Admin override applied - order is now confirmed without customer approval required.');
+        } else {
+          alert('Changes saved successfully! Customer will be notified to review and approve the changes.');
+        }
       } else {
         alert('Changes saved successfully!');
       }
@@ -1254,15 +1266,27 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           </div>
           <div className="flex items-center gap-1 md:gap-2 shrink-0">
             {hasChanges && (
-              <button
-                onClick={handleSaveChanges}
-                disabled={saving}
-                className="flex items-center gap-1 md:gap-2 bg-green-600 hover:bg-green-700 text-white px-2 md:px-4 py-1.5 md:py-2 rounded-lg text-sm md:text-base font-medium disabled:opacity-50"
-              >
-                <Save className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                <span className="hidden sm:inline">{saving ? 'Saving...' : 'Save Changes'}</span>
-                <span className="sm:hidden">{saving ? '...' : 'Save'}</span>
-              </button>
+              <>
+                <label className="flex items-center gap-1.5 bg-amber-50 border border-amber-300 text-amber-900 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-medium cursor-pointer hover:bg-amber-100">
+                  <input
+                    type="checkbox"
+                    checked={adminOverrideApproval}
+                    onChange={(e) => setAdminOverrideApproval(e.target.checked)}
+                    className="w-3.5 h-3.5 md:w-4 md:h-4"
+                  />
+                  <span className="hidden lg:inline">Admin Override</span>
+                  <span className="lg:hidden">Override</span>
+                </label>
+                <button
+                  onClick={handleSaveChanges}
+                  disabled={saving}
+                  className="flex items-center gap-1 md:gap-2 bg-green-600 hover:bg-green-700 text-white px-2 md:px-4 py-1.5 md:py-2 rounded-lg text-sm md:text-base font-medium disabled:opacity-50"
+                >
+                  <Save className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                  <span className="hidden sm:inline">{saving ? 'Saving...' : 'Save Changes'}</span>
+                  <span className="sm:hidden">{saving ? '...' : 'Save'}</span>
+                </button>
+              </>
             )}
             <button
               onClick={onClose}
