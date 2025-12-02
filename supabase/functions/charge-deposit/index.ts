@@ -90,8 +90,24 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // If already paid, avoid double charge
+    // If already paid, just update status to confirmed (avoid double charge)
     if (order.deposit_paid_cents && order.deposit_paid_cents >= order.deposit_due_cents) {
+      // Still need to update status if it's not confirmed yet
+      if (order.status !== 'confirmed') {
+        const { error: updateError } = await supabaseClient
+          .from("orders")
+          .update({ status: "confirmed" })
+          .eq("id", orderId);
+
+        if (updateError) {
+          console.error("Failed to update order status:", updateError);
+          return new Response(
+            JSON.stringify({ success: false, error: `Failed to update order: ${updateError.message}` }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+
       return new Response(
         JSON.stringify({
           success: true,
