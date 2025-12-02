@@ -205,8 +205,11 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
       const data = await response.json();
 
       if (!response.ok || !data.success) {
+        console.error('Charge deposit failed:', data);
         throw new Error(data.error || 'Failed to charge card');
       }
+
+      console.log('Deposit charged successfully:', data);
 
       // 2. (Optional) Generate invoice if you still want that here
       const { data: invoiceNumberData } = await supabase.rpc('generate_invoice_number');
