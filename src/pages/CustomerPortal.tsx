@@ -599,41 +599,41 @@ export function CustomerPortal() {
   // Special view when order needs approval - ONLY show approval interface
   if (needsApproval) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-50 py-4 md:py-12 px-3 sm:px-6 lg:px-8">
         <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-xl shadow-2xl overflow-hidden border-4 border-amber-400">
+          <div className="bg-white rounded-lg md:rounded-xl shadow-2xl overflow-hidden border-2 md:border-4 border-amber-400">
             {/* Logo Header */}
-            <div className="bg-white px-8 py-6 text-center border-b-4 border-amber-400">
+            <div className="bg-white px-4 md:px-8 py-4 md:py-6 text-center border-b-2 md:border-b-4 border-amber-400">
               <img
                 src="/bounce party club logo.png"
                 alt="Bounce Party Club"
-                className="h-20 w-auto mx-auto mb-4"
+                className="h-16 md:h-20 w-auto mx-auto mb-3 md:mb-4"
               />
-              <h1 className="text-2xl font-bold text-amber-900">Order Changes - Approval Required</h1>
-              <p className="text-amber-700 mt-2">Order #{order.id.slice(0, 8).toUpperCase()}</p>
+              <h1 className="text-lg md:text-2xl font-bold text-amber-900">Order Changes - Approval Required</h1>
+              <p className="text-sm md:text-base text-amber-700 mt-1 md:mt-2">Order #{order.id.slice(0, 8).toUpperCase()}</p>
             </div>
 
-            <div className="px-8 py-8">
-              <div className="bg-amber-100 border-2 border-amber-500 rounded-lg p-6 mb-6">
-                <h2 className="text-lg font-bold text-amber-900 mb-3">Action Required</h2>
-                <p className="text-amber-800 mb-4">
+            <div className="px-4 md:px-8 py-4 md:py-8">
+              <div className="bg-amber-100 border-2 border-amber-500 rounded-lg p-4 md:p-6 mb-4 md:mb-6">
+                <h2 className="text-base md:text-lg font-bold text-amber-900 mb-2 md:mb-3">Action Required</h2>
+                <p className="text-sm md:text-base text-amber-800">
                   We've updated your booking details. Please review the changes below and confirm your approval.
                 </p>
               </div>
 
               {/* Admin Message */}
               {order.admin_message && (
-                <div className="bg-blue-50 border-2 border-blue-400 rounded-lg p-6 mb-6">
-                  <h3 className="font-bold text-blue-900 mb-3 text-lg">Message from Bounce Party Club</h3>
-                  <p className="text-blue-800 whitespace-pre-wrap">{order.admin_message}</p>
+                <div className="bg-blue-50 border-2 border-blue-400 rounded-lg p-4 md:p-6 mb-4 md:mb-6">
+                  <h3 className="font-bold text-blue-900 mb-2 md:mb-3 text-base md:text-lg">Message from Bounce Party Club</h3>
+                  <p className="text-sm md:text-base text-blue-800 whitespace-pre-wrap">{order.admin_message}</p>
                 </div>
               )}
 
               {/* Payment Method Cleared Notice */}
               {!order.stripe_payment_method_id && changelog.some(c => c.field_changed === 'payment_method') && (
-                <div className="bg-amber-50 border-2 border-amber-400 rounded-lg p-6 mb-6">
-                  <h3 className="font-bold text-amber-900 mb-3 text-lg">Payment Update Required</h3>
-                  <p className="text-amber-800">
+                <div className="bg-amber-50 border-2 border-amber-400 rounded-lg p-4 md:p-6 mb-4 md:mb-6">
+                  <h3 className="font-bold text-amber-900 mb-2 md:mb-3 text-base md:text-lg">Payment Update Required</h3>
+                  <p className="text-sm md:text-base text-amber-800">
                     Due to changes in your order, your previous payment method has been removed for your security. You'll need to provide a new payment method when you approve these changes.
                   </p>
                 </div>
@@ -696,9 +696,9 @@ export function CustomerPortal() {
                 };
 
                 return (
-                  <div className="bg-orange-50 border-2 border-orange-400 rounded-lg p-5 mb-6">
-                    <h3 className="font-bold text-orange-900 mb-3 text-base flex items-center gap-2">
-                      <AlertCircle className="w-5 h-5" />
+                  <div className="bg-orange-50 border-2 border-orange-400 rounded-lg p-3 md:p-5 mb-4 md:mb-6">
+                    <h3 className="font-bold text-orange-900 mb-2 md:mb-3 text-sm md:text-base flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 md:w-5 md:h-5" />
                       What Changed
                     </h3>
                     <div className="bg-white rounded border border-orange-200 divide-y divide-orange-100">
@@ -753,50 +753,50 @@ export function CustomerPortal() {
               })()}
 
               {/* Updated Order Details */}
-              <div className="bg-slate-50 rounded-lg p-6 mb-6 border-2 border-slate-200">
-                <h3 className="font-bold text-slate-900 mb-4 text-lg">Current Booking Information</h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between py-2 border-b border-slate-200">
-                    <span className="text-slate-600 font-medium">Customer:</span>
-                    <span className="text-slate-900 font-semibold">{order.customers.first_name} {order.customers.last_name}</span>
+              <div className="bg-slate-50 rounded-lg p-3 md:p-6 mb-4 md:mb-6 border-2 border-slate-200">
+                <h3 className="font-bold text-slate-900 mb-3 md:mb-4 text-base md:text-lg">Current Booking Information</h3>
+                <div className="space-y-2 md:space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:justify-between py-2 border-b border-slate-200 gap-1">
+                    <span className="text-slate-600 font-medium text-sm md:text-base">Customer:</span>
+                    <span className="text-slate-900 font-semibold text-sm md:text-base">{order.customers.first_name} {order.customers.last_name}</span>
                   </div>
-                  <div className="flex justify-between py-2 border-b border-slate-200">
-                    <span className="text-slate-600 font-medium">Event Date:</span>
-                    <span className="text-slate-900 font-semibold">
+                  <div className="flex flex-col sm:flex-row sm:justify-between py-2 border-b border-slate-200 gap-1">
+                    <span className="text-slate-600 font-medium text-sm md:text-base">Event Date:</span>
+                    <span className="text-slate-900 font-semibold text-sm md:text-base text-right">
                       {format(new Date(order.event_date), 'MMMM d, yyyy')}
                       {order.event_end_date && order.event_end_date !== order.event_date && (
                         <> - {format(new Date(order.event_end_date), 'MMMM d, yyyy')}</>
                       )}
                     </span>
                   </div>
-                  <div className="flex justify-between py-2 border-b border-slate-200">
-                    <span className="text-slate-600 font-medium">Time:</span>
-                    <span className="text-slate-900 font-semibold">{order.start_window} - {order.end_window}</span>
+                  <div className="flex flex-col sm:flex-row sm:justify-between py-2 border-b border-slate-200 gap-1">
+                    <span className="text-slate-600 font-medium text-sm md:text-base">Time:</span>
+                    <span className="text-slate-900 font-semibold text-sm md:text-base text-right">{order.start_window} - {order.end_window}</span>
                   </div>
-                  <div className="flex justify-between py-2 border-b border-slate-200">
-                    <span className="text-slate-600 font-medium">Location Type:</span>
-                    <span className="text-slate-900 font-semibold">{order.location_type === 'residential' ? 'Residential' : 'Commercial'}</span>
+                  <div className="flex flex-col sm:flex-row sm:justify-between py-2 border-b border-slate-200 gap-1">
+                    <span className="text-slate-600 font-medium text-sm md:text-base">Location Type:</span>
+                    <span className="text-slate-900 font-semibold text-sm md:text-base text-right">{order.location_type === 'residential' ? 'Residential' : 'Commercial'}</span>
                   </div>
-                  <div className="flex justify-between py-2 border-b border-slate-200">
-                    <span className="text-slate-600 font-medium">Address:</span>
-                    <span className="text-slate-900 font-semibold">{order.addresses?.line1}, {order.addresses?.city}, {order.addresses?.state} {order.addresses?.zip}</span>
+                  <div className="flex flex-col sm:flex-row sm:justify-between py-2 border-b border-slate-200 gap-1">
+                    <span className="text-slate-600 font-medium text-sm md:text-base">Address:</span>
+                    <span className="text-slate-900 font-semibold text-sm md:text-base text-right">{order.addresses?.line1}, {order.addresses?.city}, {order.addresses?.state} {order.addresses?.zip}</span>
                   </div>
-                  <div className="flex justify-between py-2 border-b border-slate-200">
-                    <span className="text-slate-600 font-medium">Surface:</span>
-                    <span className="text-slate-900 font-semibold">{order.surface === 'grass' ? 'Grass (Stakes)' : 'Sandbags'}</span>
+                  <div className="flex flex-col sm:flex-row sm:justify-between py-2 border-b border-slate-200 gap-1">
+                    <span className="text-slate-600 font-medium text-sm md:text-base">Surface:</span>
+                    <span className="text-slate-900 font-semibold text-sm md:text-base text-right">{order.surface === 'grass' ? 'Grass (Stakes)' : 'Sandbags'}</span>
                   </div>
-                  <div className="flex justify-between py-2 border-b border-slate-200">
-                    <span className="text-slate-600 font-medium">Pickup:</span>
-                    <span className="text-slate-900 font-semibold">{order.pickup_preference === 'next_day' ? 'Next Morning' : 'Same Day'}</span>
+                  <div className="flex flex-col sm:flex-row sm:justify-between py-2 border-b border-slate-200 gap-1">
+                    <span className="text-slate-600 font-medium text-sm md:text-base">Pickup:</span>
+                    <span className="text-slate-900 font-semibold text-sm md:text-base text-right">{order.pickup_preference === 'next_day' ? 'Next Morning' : 'Same Day'}</span>
                   </div>
 
                   {/* Order Items */}
                   {orderItems.length > 0 && (
-                    <div className="pt-4 border-t border-slate-300">
-                      <p className="text-slate-600 font-medium mb-2">Equipment:</p>
-                      <ul className="space-y-1 ml-4">
+                    <div className="pt-3 md:pt-4 border-t border-slate-300">
+                      <p className="text-slate-600 font-medium mb-2 text-sm md:text-base">Equipment:</p>
+                      <ul className="space-y-1 ml-2 md:ml-4">
                         {orderItems.map((item, idx) => (
-                          <li key={idx} className="text-slate-900 text-sm">
+                          <li key={idx} className="text-slate-900 text-xs md:text-sm break-words">
                             • {item.units.name} ({item.wet_or_dry === 'dry' ? 'Dry' : 'Water'}) - {formatCurrency(item.unit_price_cents)}
                           </li>
                         ))}
@@ -806,19 +806,19 @@ export function CustomerPortal() {
 
                   {/* Generators */}
                   {order.generator_fee_cents > 0 && (
-                    <div className="flex justify-between py-2 border-t border-slate-300">
-                      <span className="text-slate-600 font-medium">Generators:</span>
-                      <span className="text-slate-900 font-semibold">{formatCurrency(order.generator_fee_cents)}</span>
+                    <div className="flex flex-col sm:flex-row sm:justify-between py-2 border-t border-slate-300 gap-1">
+                      <span className="text-slate-600 font-medium text-sm md:text-base">Generators:</span>
+                      <span className="text-slate-900 font-semibold text-sm md:text-base text-right">{formatCurrency(order.generator_fee_cents)}</span>
                     </div>
                   )}
 
                   {/* Discounts */}
                   {discounts.length > 0 && (
                     <div className="pt-2 border-t border-slate-300">
-                      <p className="text-slate-600 font-medium mb-2">Discounts:</p>
-                      <ul className="space-y-1 ml-4">
+                      <p className="text-slate-600 font-medium mb-2 text-sm md:text-base">Discounts:</p>
+                      <ul className="space-y-1 ml-2 md:ml-4">
                         {discounts.map((discount, idx) => (
-                          <li key={idx} className="text-green-700 text-sm">
+                          <li key={idx} className="text-green-700 text-xs md:text-sm break-words">
                             • {discount.name}: -{formatCurrency(discount.amount_cents)}
                             {discount.percentage > 0 && ` (${discount.percentage}%)`}
                           </li>
@@ -830,10 +830,10 @@ export function CustomerPortal() {
                   {/* Custom Fees */}
                   {customFees.length > 0 && (
                     <div className="pt-2 border-t border-slate-300">
-                      <p className="text-slate-600 font-medium mb-2">Additional Fees:</p>
-                      <ul className="space-y-1 ml-4">
+                      <p className="text-slate-600 font-medium mb-2 text-sm md:text-base">Additional Fees:</p>
+                      <ul className="space-y-1 ml-2 md:ml-4">
                         {customFees.map((fee, idx) => (
-                          <li key={idx} className="text-slate-900 text-sm">
+                          <li key={idx} className="text-slate-900 text-xs md:text-sm break-words">
                             • {fee.name}: {formatCurrency(fee.amount_cents)}
                           </li>
                         ))}
@@ -842,8 +842,8 @@ export function CustomerPortal() {
                   )}
 
                   {/* Detailed Pricing Breakdown */}
-                  <div className="pt-4 border-t-2 border-slate-400">
-                    <h4 className="font-bold text-slate-900 mb-3">Complete Price Breakdown</h4>
+                  <div className="pt-3 md:pt-4 border-t-2 border-slate-400">
+                    <h4 className="font-bold text-slate-900 mb-2 md:mb-3 text-sm md:text-base">Complete Price Breakdown</h4>
                     {(() => {
                       // Helper function to check if a field changed
                       const hasChanged = (fieldName: string) => {
@@ -865,7 +865,7 @@ export function CustomerPortal() {
                       console.log('- Order Items:', orderItems);
 
                       return (
-                        <div className="space-y-2 bg-white p-4 rounded border border-slate-200">
+                        <div className="space-y-2 bg-white p-3 md:p-4 rounded border border-slate-200">
                           {/* ITEMS Section */}
                           <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">ITEMS</div>
 
@@ -876,15 +876,15 @@ export function CustomerPortal() {
                             );
 
                             return (
-                              <div key={idx} className="flex justify-between text-sm items-center">
-                                <span className="text-slate-700 flex items-center gap-2">
-                                  {item.units.name} ({item.wet_or_dry === 'dry' ? 'Dry' : 'Water'})
-                                  {item.qty > 1 && ` × ${item.qty}`}
+                              <div key={idx} className="flex flex-col sm:flex-row sm:justify-between text-xs md:text-sm items-start sm:items-center gap-1">
+                                <span className="text-slate-700 flex flex-wrap items-center gap-1 md:gap-2">
+                                  <span className="break-words">{item.units.name} ({item.wet_or_dry === 'dry' ? 'Dry' : 'Water'})</span>
+                                  {item.qty > 1 && <span className="whitespace-nowrap">× {item.qty}</span>}
                                   {isNew && (
-                                    <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-semibold">NEW</span>
+                                    <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-semibold whitespace-nowrap">NEW</span>
                                   )}
                                 </span>
-                                <span className="text-slate-900 font-medium">{formatCurrency(item.unit_price_cents * item.qty)}</span>
+                                <span className="text-slate-900 font-medium whitespace-nowrap">{formatCurrency(item.unit_price_cents * item.qty)}</span>
                               </div>
                             );
                           })}
