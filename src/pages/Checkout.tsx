@@ -180,6 +180,7 @@ export function Checkout() {
         billingAddress,
         billingSameAsEvent,
         smsConsent,
+        cardOnFileConsent,
       });
 
       // 3. Figure out how much to charge (deposit/full/custom)

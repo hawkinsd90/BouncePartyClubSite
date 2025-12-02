@@ -15,6 +15,7 @@ interface OrderData {
   billingAddress: any;
   billingSameAsEvent: boolean;
   smsConsent: boolean;
+  cardOnFileConsent: boolean;
 }
 
 export async function createOrderBeforePayment(data: OrderData): Promise<string> {
@@ -26,6 +27,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     billingAddress,
     billingSameAsEvent,
     smsConsent,
+    cardOnFileConsent,
   } = data;
 
   // 1. Create or update customer
@@ -146,10 +148,12 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       balance_due_cents: priceBreakdown.balance_due_cents,
       card_on_file_consent_text:
         'I authorize Bounce Party Club LLC to securely store my payment method and charge it for incidentals including damage, excess cleaning, or late fees as itemized in a receipt.',
-      card_on_file_consented_at: new Date().toISOString(),
+      card_on_file_consented_at: cardOnFileConsent ? new Date().toISOString() : null,
+      card_on_file_consent: cardOnFileConsent,
       sms_consent_text:
         'I consent to receive transactional SMS messages from Bounce Party Club LLC regarding my booking, including order confirmations, delivery updates, and service notifications. Message frequency varies. Message and data rates may apply. Reply STOP to opt-out.',
-      sms_consented_at: new Date().toISOString(),
+      sms_consented_at: smsConsent ? new Date().toISOString() : null,
+      sms_consent: smsConsent,
       special_details: quoteData.special_details || null,
     })
     .select()
@@ -195,6 +199,41 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       checkpoint: 'none',
     },
   ]);
+
+  // 7. Create consent records
+  const consentRecords = [];
+
+  if (smsConsent) {
+    consentRecords.push({
+      order_id: order.id,
+      customer_id: customer.id,
+      consent_type: 'sms',
+      consented: true,
+      consent_text: 'I consent to receive transactional SMS messages from Bounce Party Club LLC regarding my booking, including order confirmations, delivery updates, and service notifications. Message frequency varies. Message and data rates may apply. Reply STOP to opt-out.',
+      consent_version: '1.0',
+    });
+  }
+
+  if (cardOnFileConsent) {
+    consentRecords.push({
+      order_id: order.id,
+      customer_id: customer.id,
+      consent_type: 'card_on_file',
+      consented: true,
+      consent_text: 'I authorize Bounce Party Club LLC to securely store my payment method and charge it for incidentals including damage, excess cleaning, or late fees as itemized in a receipt.',
+      consent_version: '1.0',
+    });
+  }
+
+  if (consentRecords.length > 0) {
+    const { error: consentError } = await supabase
+      .from('consent_records')
+      .insert(consentRecords);
+
+    if (consentError) {
+      console.error('Error creating consent records:', consentError);
+    }
+  }
 
   return order.id;
 }

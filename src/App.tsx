@@ -18,6 +18,7 @@ import { PaymentComplete } from './pages/PaymentComplete';
 import { PaymentCanceled } from './pages/PaymentCanceled';
 import { UnitForm } from './pages/UnitForm';
 import { CustomerPortal } from './pages/CustomerPortal';
+import Sign from './pages/Sign';
 
 function App() {
   return (
@@ -27,7 +28,9 @@ function App() {
           <Route path="/setup" element={<Setup />} />
           <Route path="/login" element={<Login />} />
           <Route path="/invoice/:orderId" element={<Invoice />} />
+          <Route path="/sign/:orderId" element={<Sign />} />
           <Route path="/customer-portal/:orderId" element={<CustomerPortal />} />
+          <Route path="/customer-portal" element={<CustomerPortal />} />
           <Route path="/checkout/payment-complete" element={<PaymentComplete />} />
           <Route path="/checkout/payment-canceled" element={<PaymentCanceled />} />
           <Route path="/checkout/:orderId" element={<Checkout />} />

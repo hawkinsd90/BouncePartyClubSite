@@ -5,6 +5,7 @@ import { formatCurrency } from '../lib/pricing';
 import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { CheckCircle, Upload, CreditCard, FileText, Image as ImageIcon, AlertCircle, Sparkles, TrendingUp } from 'lucide-react';
 import { format } from 'date-fns';
+import WaiverTab from '../components/WaiverTab';
 
 export function CustomerPortal() {
   const { orderId } = useParams();
@@ -147,34 +148,6 @@ export function CustomerPortal() {
     }
   }
 
-  async function handleSignWaiver() {
-    if (!signature.trim()) {
-      alert('Please enter your full name to sign the waiver');
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const { error } = await supabase
-        .from('orders')
-        .update({
-          waiver_signed_at: new Date().toISOString(),
-          waiver_signature_data: signature,
-        })
-        .eq('id', orderId);
-
-      if (error) throw error;
-
-      alert('Waiver signed successfully!');
-      await loadOrder();
-      setActiveTab('payment');
-    } catch (error) {
-      console.error('Error signing waiver:', error);
-      alert('Failed to sign waiver');
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   async function handlePayment() {
     alert('Payment processing will be implemented with Stripe integration');
@@ -1303,72 +1276,7 @@ export function CustomerPortal() {
             </div>
 
             {activeTab === 'waiver' && (
-              <div className="space-y-6">
-                {order.waiver_signed_at ? (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
-                    <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-3" />
-                    <h3 className="text-lg font-semibold text-green-900">Waiver Signed</h3>
-                    <p className="text-sm text-green-700 mt-2">
-                      Signed by {order.waiver_signature_data} on{' '}
-                      {format(new Date(order.waiver_signed_at), 'MMM d, yyyy h:mm a')}
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
-                      <h3 className="text-lg font-semibold text-slate-900 mb-4">Rental Agreement & Waiver</h3>
-                      <div className="prose prose-sm max-w-none text-slate-700 space-y-3 max-h-96 overflow-y-auto">
-                        <p className="font-semibold">PLEASE READ CAREFULLY BEFORE SIGNING</p>
-
-                        <p><strong>1. RENTAL TERMS</strong></p>
-                        <p>The customer agrees to rent the inflatable equipment for the date and time specified in the rental agreement. Setup and pickup times are approximate and may vary by up to 30 minutes.</p>
-
-                        <p><strong>2. SAFETY REQUIREMENTS</strong></p>
-                        <ul className="list-disc list-inside space-y-1">
-                          <li>Adult supervision is required at all times when equipment is in use</li>
-                          <li>Do not use equipment in wet conditions or high winds (over 15 mph)</li>
-                          <li>Remove shoes, glasses, jewelry, and sharp objects before use</li>
-                          <li>Follow capacity limits at all times</li>
-                          <li>No food, drinks, or silly string allowed on equipment</li>
-                        </ul>
-
-                        <p><strong>3. LIABILITY WAIVER</strong></p>
-                        <p>The customer agrees to assume all risks associated with the use of the rental equipment and releases Bounce Party Club from any liability for injuries or damages that may occur. The customer agrees to supervise all users and ensure safety rules are followed.</p>
-
-                        <p><strong>4. DAMAGE AND LOSS</strong></p>
-                        <p>The customer is responsible for any damage to the equipment beyond normal wear and tear. This includes but is not limited to: punctures, tears, stains, and missing components. Replacement costs will be charged to the payment method on file.</p>
-
-                        <p><strong>5. CANCELLATION POLICY</strong></p>
-                        <p>Cancellations made more than 48 hours before the event date will receive a full refund. Cancellations within 48 hours are subject to a 50% cancellation fee. Weather-related cancellations will be rescheduled or refunded at no charge.</p>
-                      </div>
-                    </div>
-
-                    <div className="border border-slate-300 rounded-lg p-4">
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Electronic Signature
-                      </label>
-                      <p className="text-xs text-slate-600 mb-3">
-                        By typing your full name below, you agree to all terms and conditions stated above.
-                      </p>
-                      <input
-                        type="text"
-                        value={signature}
-                        onChange={(e) => setSignature(e.target.value)}
-                        placeholder="Type your full name"
-                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-
-                    <button
-                      onClick={handleSignWaiver}
-                      disabled={submitting || !signature.trim()}
-                      className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-                    >
-                      {submitting ? 'Signing...' : 'Sign Waiver'}
-                    </button>
-                  </>
-                )}
-              </div>
+              <WaiverTab orderId={orderId!} order={order} />
             )}
 
             {activeTab === 'payment' && (
