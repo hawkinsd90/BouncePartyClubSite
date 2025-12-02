@@ -226,7 +226,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
   }
 
   if (consentRecords.length > 0) {
-    const { error: consentError } = await supabase
+    const { error: consentError } = await (supabase as any)
       .from('consent_records')
       .insert(consentRecords);
 

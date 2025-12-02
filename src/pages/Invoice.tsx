@@ -16,6 +16,7 @@ export function Invoice() {
   const [address, setAddress] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [processing, setProcessing] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
 

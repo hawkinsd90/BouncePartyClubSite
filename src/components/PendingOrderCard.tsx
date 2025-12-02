@@ -217,9 +217,9 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
 
       const totalCents = order.subtotal_cents
         + order.travel_fee_cents
-        + order.surface_fee_cents
-        + order.same_day_pickup_fee_cents
-        + order.tax_cents;
+        + (order.surface_fee_cents ?? 0)
+        + (order.same_day_pickup_fee_cents ?? 0)
+        + (order.tax_cents ?? 0);
 
       await supabase.from('invoices').insert({
         invoice_number: invoiceNumber,
@@ -229,9 +229,9 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
         due_date: order.event_date,
         status: 'sent',
         subtotal_cents: order.subtotal_cents,
-        tax_cents: order.tax_cents,
-        travel_fee_cents: order.travel_fee_cents,
-        surface_fee_cents: order.surface_fee_cents,
+        tax_cents: order.tax_cents ?? 0,
+        travel_fee_cents: order.travel_fee_cents ?? 0,
+        surface_fee_cents: order.surface_fee_cents ?? 0,
         same_day_pickup_fee_cents: order.same_day_pickup_fee_cents,
         total_cents: totalCents,
         paid_amount_cents: (order.deposit_paid_cents || 0) + (order.balance_paid_cents || 0),
@@ -331,15 +331,10 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
                                 <td style="color: #64748b; font-size: 14px;">Surface:</td>
                                 <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">${orderWithItems.surface}</td>
                               </tr>` : ''}
-                              ${orderWithItems.attendees ? `
-                              <tr>
-                                <td style="color: #64748b; font-size: 14px;">Expected Attendees:</td>
-                                <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">${orderWithItems.attendees}</td>
-                              </tr>` : ''}
-                              ${orderWithItems.pets ? `
+                              ${orderWithItems.has_pets ? `
                               <tr>
                                 <td style="color: #64748b; font-size: 14px;">Pets:</td>
-                                <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">${orderWithItems.pets}</td>
+                                <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">Yes</td>
                               </tr>` : ''}
                               ${orderWithItems.special_details ? `
                               <tr>
@@ -363,25 +358,25 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
                                 <td style="color: #64748b; font-size: 14px;">Subtotal:</td>
                                 <td style="color: #1e293b; font-size: 14px; text-align: right;">$${(orderWithItems.subtotal_cents / 100).toFixed(2)}</td>
                               </tr>
-                              ${orderWithItems.travel_fee_cents > 0 ? `
+                              ${(orderWithItems.travel_fee_cents ?? 0) > 0 ? `
                               <tr>
                                 <td style="color: #64748b; font-size: 14px;">Travel Fee:</td>
-                                <td style="color: #1e293b; font-size: 14px; text-align: right;">$${(orderWithItems.travel_fee_cents / 100).toFixed(2)}</td>
+                                <td style="color: #1e293b; font-size: 14px; text-align: right;">$${((orderWithItems.travel_fee_cents ?? 0) / 100).toFixed(2)}</td>
                               </tr>` : ''}
-                              ${orderWithItems.surface_fee_cents > 0 ? `
+                              ${(orderWithItems.surface_fee_cents ?? 0) > 0 ? `
                               <tr>
                                 <td style="color: #64748b; font-size: 14px;">Surface Fee:</td>
-                                <td style="color: #1e293b; font-size: 14px; text-align: right;">$${(orderWithItems.surface_fee_cents / 100).toFixed(2)}</td>
+                                <td style="color: #1e293b; font-size: 14px; text-align: right;">$${((orderWithItems.surface_fee_cents ?? 0) / 100).toFixed(2)}</td>
                               </tr>` : ''}
-                              ${orderWithItems.same_day_pickup_fee_cents > 0 ? `
+                              ${(orderWithItems.same_day_pickup_fee_cents ?? 0) > 0 ? `
                               <tr>
                                 <td style="color: #64748b; font-size: 14px;">Same Day Pickup Fee:</td>
-                                <td style="color: #1e293b; font-size: 14px; text-align: right;">$${(orderWithItems.same_day_pickup_fee_cents / 100).toFixed(2)}</td>
+                                <td style="color: #1e293b; font-size: 14px; text-align: right;">$${((orderWithItems.same_day_pickup_fee_cents ?? 0) / 100).toFixed(2)}</td>
                               </tr>` : ''}
-                              ${orderWithItems.tax_cents > 0 ? `
+                              ${(orderWithItems.tax_cents ?? 0) > 0 ? `
                               <tr>
                                 <td style="color: #64748b; font-size: 14px;">Tax:</td>
-                                <td style="color: #1e293b; font-size: 14px; text-align: right;">$${(orderWithItems.tax_cents / 100).toFixed(2)}</td>
+                                <td style="color: #1e293b; font-size: 14px; text-align: right;">$${((orderWithItems.tax_cents ?? 0) / 100).toFixed(2)}</td>
                               </tr>` : ''}
                               <tr style="border-top: 2px solid #e2e8f0;">
                                 <td style="color: #1e293b; font-size: 15px; font-weight: 600; padding-top: 10px;">Total:</td>
@@ -686,11 +681,11 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
           )}
           <div className="flex justify-between">
             <span className="text-slate-600">Tax</span>
-            <span className="font-medium">{formatCurrency(order.tax_cents)}</span>
+            <span className="font-medium">{formatCurrency(order.tax_cents ?? 0)}</span>
           </div>
           <div className="flex justify-between pt-2 border-t border-slate-300 font-bold">
             <span>Total</span>
-            <span>{formatCurrency(order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents)}</span>
+            <span>{formatCurrency(order.subtotal_cents + (order.travel_fee_cents ?? 0) + (order.surface_fee_cents ?? 0) + (order.same_day_pickup_fee_cents ?? 0) + (order.tax_cents ?? 0))}</span>
           </div>
         </div>
       </div>

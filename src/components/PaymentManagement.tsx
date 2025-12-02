@@ -93,7 +93,6 @@ export function PaymentManagement({ order, payments, onRefresh }: PaymentManagem
   };
 
   const totalPaid = (order.deposit_paid_cents || 0) + (order.balance_paid_cents || 0);
-  const totalCharged = totalPaid + (order.damage_charged_cents || 0);
   const totalRefunded = order.total_refunded_cents || 0;
 
   return (
