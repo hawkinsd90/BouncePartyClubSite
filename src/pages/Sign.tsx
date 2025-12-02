@@ -14,6 +14,13 @@ import {
 interface OrderData {
   id: string;
   customer_id: string;
+  start_date: string;
+  end_date: string | null;
+  address_line1: string;
+  address_line2: string | null;
+  city: string;
+  state: string;
+  zip: string;
   customer: {
     first_name: string;
     last_name: string;
@@ -39,6 +46,23 @@ export default function Sign() {
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
   const [electronicConsent, setElectronicConsent] = useState(false);
 
+  // Renter Information State
+  const [renterName, setRenterName] = useState('');
+  const [renterPhone, setRenterPhone] = useState('');
+  const [renterEmail, setRenterEmail] = useState('');
+  const [eventDate, setEventDate] = useState('');
+  const [eventEndDate, setEventEndDate] = useState('');
+  const [eventAddressLine1, setEventAddressLine1] = useState('');
+  const [eventAddressLine2, setEventAddressLine2] = useState('');
+  const [eventCity, setEventCity] = useState('');
+  const [eventState, setEventState] = useState('');
+  const [eventZip, setEventZip] = useState('');
+  const [homeAddressLine1, setHomeAddressLine1] = useState('');
+  const [homeAddressLine2, setHomeAddressLine2] = useState('');
+  const [homeCity, setHomeCity] = useState('');
+  const [homeState, setHomeState] = useState('');
+  const [homeZip, setHomeZip] = useState('');
+
   useEffect(() => {
     loadOrder();
   }, [orderId]);
@@ -50,7 +74,20 @@ export default function Sign() {
 
       const { data, error: orderError } = await supabase
         .from('orders')
-        .select('id, customer_id, waiver_signed_at, signed_waiver_url, customer:customers(*)')
+        .select(`
+          id,
+          customer_id,
+          start_date,
+          end_date,
+          address_line1,
+          address_line2,
+          city,
+          state,
+          zip,
+          waiver_signed_at,
+          signed_waiver_url,
+          customer:customers(*)
+        `)
         .eq('id', orderId!)
         .single();
 
@@ -62,7 +99,20 @@ export default function Sign() {
       }
 
       setOrder(data as unknown as OrderData);
-      setTypedName(`${data.customer.first_name} ${data.customer.last_name}`);
+
+      // Auto-fill typed name and renter information from order
+      const fullName = `${data.customer.first_name} ${data.customer.last_name}`;
+      setTypedName(fullName);
+      setRenterName(fullName);
+      setRenterPhone(data.customer.phone || '');
+      setRenterEmail(data.customer.email || '');
+      setEventDate(data.start_date || '');
+      setEventEndDate(data.end_date || '');
+      setEventAddressLine1(data.address_line1 || '');
+      setEventAddressLine2(data.address_line2 || '');
+      setEventCity(data.city || '');
+      setEventState(data.state || '');
+      setEventZip(data.zip || '');
     } catch (err: any) {
       console.error('Error loading order:', err);
       setError(err.message || 'Failed to load order');
@@ -77,6 +127,14 @@ export default function Sign() {
 
   const isFormValid = () => {
     if (!hasScrolledToBottom) return false;
+    if (!renterName.trim()) return false;
+    if (!renterPhone.trim()) return false;
+    if (!renterEmail.trim()) return false;
+    if (!eventDate) return false;
+    if (!eventAddressLine1.trim()) return false;
+    if (!eventCity.trim()) return false;
+    if (!eventState.trim()) return false;
+    if (!eventZip.trim()) return false;
     if (!typedName.trim()) return false;
     if (!signatureDataUrl) return false;
     if (!electronicConsent) return false;
@@ -89,10 +147,38 @@ export default function Sign() {
     return true;
   };
 
+  const scrollToFirstIncomplete = () => {
+    const elements = [
+      { condition: !hasScrolledToBottom, id: 'waiver-section' },
+      { condition: !renterName.trim(), id: 'renter-name' },
+      { condition: !renterPhone.trim(), id: 'renter-phone' },
+      { condition: !renterEmail.trim(), id: 'renter-email' },
+      { condition: !eventDate, id: 'event-date' },
+      { condition: !eventAddressLine1.trim(), id: 'event-address-line1' },
+      { condition: !eventCity.trim(), id: 'event-city' },
+      { condition: !eventState.trim(), id: 'event-state' },
+      { condition: !eventZip.trim(), id: 'event-zip' },
+      { condition: !INITIALS_REQUIRED.every((s) => initials[s]?.trim().length >= 2), id: 'waiver-section' },
+      { condition: !typedName.trim(), id: 'typed-name' },
+      { condition: !signatureDataUrl, id: 'signature-pad' },
+      { condition: !electronicConsent, id: 'electronic-consent' },
+    ];
+
+    const firstIncomplete = elements.find((el) => el.condition);
+    if (firstIncomplete) {
+      const element = document.getElementById(firstIncomplete.id);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.focus();
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!isFormValid() || !order) {
+      scrollToFirstIncomplete();
       setError('Please complete all required fields');
       return;
     }
@@ -112,9 +198,23 @@ export default function Sign() {
           body: JSON.stringify({
             orderId: order.id,
             customerId: order.customer_id,
-            signerName: typedName,
-            signerEmail: order.customer.email,
-            signerPhone: order.customer.phone,
+            // Renter information snapshot
+            renterName,
+            renterPhone,
+            renterEmail,
+            eventDate,
+            eventEndDate: eventEndDate || null,
+            eventAddressLine1,
+            eventAddressLine2: eventAddressLine2 || '',
+            eventCity,
+            eventState,
+            eventZip,
+            homeAddressLine1: homeAddressLine1 || '',
+            homeAddressLine2: homeAddressLine2 || '',
+            homeCity: homeCity || '',
+            homeState: homeState || '',
+            homeZip: homeZip || '',
+            // Signature artifacts
             signatureDataUrl,
             initialsData: initials,
             typedName,
@@ -201,7 +301,7 @@ export default function Sign() {
           </div>
 
           <form onSubmit={handleSubmit} className="p-8 space-y-8">
-            <div>
+            <div id="waiver-section">
               <h3 className="text-xl font-semibold text-gray-900 mb-4">
                 1. Review Liability Waiver
               </h3>
@@ -214,11 +314,232 @@ export default function Sign() {
               />
             </div>
 
-            <div>
+            <div className="border-t-2 border-gray-200 pt-8">
+              <h3 className="text-xl font-semibold text-gray-900 mb-6">
+                2. Renter Information
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Full Name *
+                  </label>
+                  <input
+                    id="renter-name"
+                    type="text"
+                    value={renterName}
+                    onChange={(e) => setRenterName(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="John Doe"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Phone *
+                  </label>
+                  <input
+                    id="renter-phone"
+                    type="tel"
+                    value={renterPhone}
+                    onChange={(e) => setRenterPhone(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="(313) 555-0123"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email *
+                  </label>
+                  <input
+                    id="renter-email"
+                    type="email"
+                    value={renterEmail}
+                    onChange={(e) => setRenterEmail(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="john@example.com"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Rental Date *
+                  </label>
+                  <input
+                    id="event-date"
+                    type="date"
+                    value={eventDate}
+                    onChange={(e) => setEventDate(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Rental End Date
+                  </label>
+                  <input
+                    id="event-end-date"
+                    type="date"
+                    value={eventEndDate}
+                    onChange={(e) => setEventEndDate(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <h4 className="font-semibold text-gray-900 mb-3">Address of Event *</h4>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Street Address *
+                  </label>
+                  <input
+                    id="event-address-line1"
+                    type="text"
+                    value={eventAddressLine1}
+                    onChange={(e) => setEventAddressLine1(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="123 Main St"
+                    required
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Apt, Suite, etc. (optional)
+                  </label>
+                  <input
+                    id="event-address-line2"
+                    type="text"
+                    value={eventAddressLine2}
+                    onChange={(e) => setEventAddressLine2(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Apt 4B"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    City *
+                  </label>
+                  <input
+                    id="event-city"
+                    type="text"
+                    value={eventCity}
+                    onChange={(e) => setEventCity(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Wayne"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    State *
+                  </label>
+                  <input
+                    id="event-state"
+                    type="text"
+                    value={eventState}
+                    onChange={(e) => setEventState(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="MI"
+                    maxLength={2}
+                    required
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    ZIP Code *
+                  </label>
+                  <input
+                    id="event-zip"
+                    type="text"
+                    value={eventZip}
+                    onChange={(e) => setEventZip(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="48184"
+                    required
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <h4 className="font-semibold text-gray-900 mb-3 mt-4">
+                    Home Address (if different from event address)
+                  </h4>
+                </div>
+
+                <div className="md:col-span-2">
+                  <input
+                    id="home-address-line1"
+                    type="text"
+                    value={homeAddressLine1}
+                    onChange={(e) => setHomeAddressLine1(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Street Address"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <input
+                    id="home-address-line2"
+                    type="text"
+                    value={homeAddressLine2}
+                    onChange={(e) => setHomeAddressLine2(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Apt, Suite, etc."
+                  />
+                </div>
+
+                <div>
+                  <input
+                    id="home-city"
+                    type="text"
+                    value={homeCity}
+                    onChange={(e) => setHomeCity(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="City"
+                  />
+                </div>
+
+                <div>
+                  <input
+                    id="home-state"
+                    type="text"
+                    value={homeState}
+                    onChange={(e) => setHomeState(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="State"
+                    maxLength={2}
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <input
+                    id="home-zip"
+                    type="text"
+                    value={homeZip}
+                    onChange={(e) => setHomeZip(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="ZIP Code"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t-2 border-gray-200 pt-8">
               <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                2. Enter Your Full Legal Name
+                3. Enter Your Full Legal Name
               </h3>
               <input
+                id="typed-name"
                 type="text"
                 value={typedName}
                 onChange={(e) => setTypedName(e.target.value)}
@@ -231,14 +552,16 @@ export default function Sign() {
               </p>
             </div>
 
-            <div>
+            <div className="border-t-2 border-gray-200 pt-8">
               <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                3. Draw Your Signature
+                4. Draw Your Signature
               </h3>
-              <SignaturePad
-                onSignatureChange={setSignatureDataUrl}
-                disabled={submitting}
-              />
+              <div id="signature-pad">
+                <SignaturePad
+                  onSignatureChange={setSignatureDataUrl}
+                  disabled={submitting}
+                />
+              </div>
               <p className="text-sm text-gray-600 mt-2">
                 Draw your signature using your mouse, touchpad, or touch screen
               </p>
@@ -246,7 +569,7 @@ export default function Sign() {
 
             <div className="border-t-2 border-gray-200 pt-6">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <label className="flex items-start gap-3 cursor-pointer">
+                <label id="electronic-consent" className="flex items-start gap-3 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={electronicConsent}
@@ -282,7 +605,7 @@ export default function Sign() {
               </button>
               <button
                 type="submit"
-                disabled={!isFormValid() || submitting}
+                disabled={submitting}
                 className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg px-6 py-4 font-semibold hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
               >
                 {submitting ? (

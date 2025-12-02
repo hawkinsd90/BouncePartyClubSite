@@ -1,97 +1,106 @@
 export const WAIVER_VERSION = '1.0';
 
-export const WAIVER_TEXT = `PLEASE READ THIS DOCUMENT CAREFULLY BEFORE SIGNING. THIS IS A LEGAL CONTRACT THAT AFFECTS YOUR LEGAL RIGHTS.
+export const WAIVER_TEXT = `Bounce Party Club LLC
+4426 Woodward St, Wayne, MI 48184 | (313) 889-3860 | BouncePartyClub@gmail.com
 
-ACKNOWLEDGMENT OF RISK AND ASSUMPTION OF RISK
+IMPORTANT: THIS IS A LEGAL DOCUMENT. PLEASE READ CAREFULLY BEFORE SIGNING.
 
-I understand and acknowledge that the use of inflatable bounce houses, water slides, and related party rental equipment (collectively, "Equipment") provided by Bounce Party Club LLC involves inherent risks, including but not limited to risks of personal injury, property damage, or death. These risks include, but are not limited to:
+This Waiver and Release of Liability Agreement ("Agreement") is entered into by the undersigned Renter ("Renter") in favor of Bounce Party Club, LLC, a Michigan limited liability company, and its owners, employees, agents, affiliates, and contractors ("Bounce Party Club").
 
-• Slipping, tripping, falling, or colliding with other participants or Equipment
-• Equipment malfunction or improper setup
-• Weather-related hazards including wind, rain, or extreme temperatures
-• Allergic reactions or health complications
-• Injuries resulting from failure to follow safety instructions
+1. ACKNOWLEDGMENT AND ASSUMPTION OF RISK
 
-I voluntarily assume all risks associated with the use of the Equipment, whether those risks are known or unknown, foreseen or unforeseen.
+I understand that the use of inflatable bounce houses and related equipment carries inherent risks of injury or damage. I voluntarily assume all such risks for myself and all participants under my supervision.
 
-GROSS NEGLIGENCE
+I agree to inform all participants of the risks and safety rules and accept responsibility for their compliance during the rental period.
 
-I acknowledge that Bounce Party Club LLC is not liable for injuries or damages resulting from my own negligence, the negligence of other participants, or ordinary negligence by Bounce Party Club LLC. However, nothing in this agreement waives liability for gross negligence, willful misconduct, or intentional wrongdoing by Bounce Party Club LLC.
+This waiver applies for the entire rental duration, including setup, idle time, and breakdown, regardless of whether the equipment is actively in use.
 
-RELEASE AND INDEMNIFICATION
+2. WAIVER AND RELEASE OF LIABILITY
 
-In consideration for being permitted to rent and use the Equipment, I, on behalf of myself, my heirs, executors, administrators, and assigns, hereby RELEASE, WAIVE, DISCHARGE, and COVENANT NOT TO SUE Bounce Party Club LLC, its owners, officers, employees, agents, and representatives (collectively, the "Released Parties") from any and all liability, claims, demands, actions, or causes of action arising out of or related to any loss, damage, or injury, including death, that may be sustained by me or any property belonging to me while using the Equipment or while on the premises where the Equipment is located.
+I fully and forever release and discharge Bounce Party Club from any and all claims or liabilities arising out of injury or damage during the rental period, whether from negligence or otherwise.
 
-I further agree to INDEMNIFY and HOLD HARMLESS the Released Parties from any loss, liability, damage, or costs, including court costs and attorney's fees, that may arise due to my use of the Equipment.
+This waiver does not apply to claims arising from gross negligence or willful misconduct by Bounce Party Club.
 
-SUPERVISION AND SAFETY RULES
+Gross negligence is defined as conduct so reckless as to demonstrate a substantial lack of concern for whether injury results.
 
-I understand and agree to the following:
+3. INDEMNIFICATION
 
-• Adult supervision is required at all times when minors are using the Equipment
-• Maximum capacity limits must be strictly observed
-• No food, drinks, silly string, confetti, or sharp objects are allowed on or near the Equipment
-• Participants must remove shoes, jewelry, glasses, and sharp objects before entering
-• Weather conditions (high winds, rain, lightning) may require immediate evacuation
-• Equipment must not be moved or relocated without written permission
-• No pets are allowed on or near the Equipment
+I agree to indemnify and hold harmless Bounce Party Club from any claims or liabilities arising out of the use of its equipment.
 
-DAMAGE RESPONSIBILITY
+4. RENTER'S RESPONSIBILITY
 
-I agree to be financially responsible for any damage to the Equipment beyond normal wear and tear, including but not limited to:
+I accept full responsibility for supervising all participants using the equipment and for communicating all safety rules.
 
-• Tears, punctures, burns, or stains caused by prohibited items
-• Damage caused by failure to follow safety instructions
-• Theft or vandalism of the Equipment
-• Damage caused by moving or tampering with the Equipment
+5. EQUIPMENT CONDITION
 
-I authorize Bounce Party Club LLC to charge the payment method on file for any damages, late fees, cleaning fees, or other charges as outlined in the Rental Agreement.
+I acknowledge that I have inspected the equipment and found it in good working condition at the start of the rental period. I understand I may take photos or videos of any visible damage or concerns before Bounce Party Club leaves the setup location and agree to share such documentation immediately.
 
-CANCELLATION AND WEATHER POLICY
+6. CANCELLATIONS AND REFUNDS
 
-• Cancellations made less than 48 hours before the scheduled delivery time will forfeit the deposit
-• Weather-related cancellations initiated by Bounce Party Club LLC will result in a full refund or rescheduling option
-• If weather conditions become unsafe after delivery, the Equipment must be immediately vacated; no refunds will be issued for partial usage
+This agreement does not entitle me to a refund due to inclement weather unless otherwise agreed upon in writing by Bounce Party Club.
 
-PAYMENT AND FEES
+7. PHOTO AND VIDEO RELEASE (Optional)
 
-I agree to pay all amounts due under this Agreement, including:
+I consent to the use of any photos or videos taken during the event for promotional purposes by Bounce Party Club, unless I notify the company in writing prior to the rental date.
 
-• Rental fees
-• Delivery and pickup fees
-• Generator fees (if applicable)
-• Damage fees
-• Late fees (if Equipment is not returned or ready for pickup on time)
-• Cleaning fees (if Equipment is returned excessively dirty)
-• Any other fees outlined in the invoice or quote
+8. DAMAGE RESPONSIBILITY AND FEE
 
-ACKNOWLEDGMENT OF UNDERSTANDING
+I understand and agree that I am responsible for any intentional, negligent, or reckless damage to Bounce Party Club equipment.
 
-I certify that I have read this Agreement in its entirety, fully understand its terms, and voluntarily agree to be bound by its terms. I understand that I am giving up substantial legal rights, including the right to sue. I acknowledge that I am signing this Agreement freely and voluntarily, and that no oral representations, statements, or inducements have been made apart from what is contained in this written Agreement.
+I may be charged a minimum of $150.00, or more depending on the extent of the damage, subject to Bounce Party Club's reasonable assessment and documentation.
 
-ELECTRONIC SIGNATURE CONSENT
+I agree to remit payment within 10 business days upon receiving a written notice and invoice.
 
-I consent to the use of electronic records and electronic signatures for this Agreement. I understand that my electronic signature has the same legal effect as a handwritten signature.
+9. RULES AND SAFETY COMPLIANCE
 
-GOVERNING LAW
+I agree to follow all instructions and safety rules provided by Bounce Party Club. I further acknowledge the following safety guidelines apply during the rental period and must be enforced by me as the responsible renter:
 
-This Agreement shall be governed by and construed in accordance with the laws of the State of Michigan, without regard to its conflict of law provisions. Any disputes arising under this Agreement shall be resolved in the courts of Wayne County, Michigan.
+• Adult supervision is required at all times.
+• No shoes inside the inflatable.
+• No sharp objects, including keys, jewelry, or glasses.
+• No food, drinks, or gum inside the inflatable.
+• No rough play, wrestling, or climbing on the unit.
+• Do not hang on netting, walls, or roofs.
+• Limit occupancy by age group and size.
+• No silly string, face paint, glitter, or confetti.
+• Keep the unit dry unless authorized for water use.
+• Exit immediately during rain, lightning, or winds over 15 MPH.
+• Do not unplug or move blowers or extension cords.
+• Do not exceed posted weight or occupancy limits.
 
-SEVERABILITY
+In the event of injury or emergency, I agree to call 911 immediately and notify Bounce Party Club as soon as reasonably possible.
 
-If any provision of this Agreement is found to be unenforceable or invalid, that provision shall be severed, and the remainder of this Agreement shall remain in full force and effect.
+I agree to monitor weather conditions and cease use of the equipment in unsafe weather including, but not limited to, rain, high winds, or lightning.
 
-ENTIRE AGREEMENT
+I acknowledge that I have received and reviewed the safety instructions provided by Bounce Party Club and had the opportunity to ask questions.
 
-This Agreement constitutes the entire agreement between the parties and supersedes all prior negotiations, representations, or agreements, whether written or oral.
+10. GOVERNING LAW
 
-By signing below, I acknowledge that I have read, understood, and agree to be bound by all terms and conditions of this Liability Waiver and Rental Agreement.`;
+This Agreement shall be governed by and construed in accordance with the laws of the State of Michigan. Any legal action or proceeding arising out of this Agreement shall be brought exclusively in the courts of Wayne County, Michigan, and the parties hereby consent to the jurisdiction of such courts.
+
+11. SEVERABILITY
+
+If any provision is found invalid, the rest remains enforceable.
+
+12. ENTIRE AGREEMENT
+
+This Agreement reflects the complete understanding between Bounce Party Club and the Renter.
+
+13. MINORS
+
+If participants under the age of 18 will be present, I acknowledge that I am their parent/legal guardian or have secured the consent of their parent/legal guardian and accept all terms of this Agreement on their behalf.
+
+If I am not the parent or legal guardian of participating minors, I affirm I have obtained written consent from the responsible parties agreeing to the terms of this waiver.
+
+14. INSURANCE DISCLAIMER
+
+Bounce Party Club does not provide medical or liability insurance for injuries sustained while using the equipment.`;
 
 export const INITIALS_REQUIRED = [
-  'Gross Negligence',
-  'Damage Responsibility',
-  'Release and Indemnification',
+  'Cancellations and Refunds',
+  'Damage Responsibility and Fee',
+  'Rules and Safety Compliance',
 ];
 
 export const ELECTRONIC_CONSENT_TEXT =
-  'I consent to the use of electronic records and electronic signatures for this Agreement. I understand that my electronic signature has the same legal effect as a handwritten signature and that I am providing this signature voluntarily.';
+  'I consent to the use of electronic records and electronic signatures for this rental agreement and liability waiver. I understand that my electronic signature will have the same legal effect as a handwritten signature and that I am providing this signature voluntarily. I certify that I am at least 18 years old and agree to the terms of this Agreement.';

@@ -23,9 +23,23 @@ Deno.serve(async (req: Request) => {
     const {
       orderId,
       customerId,
-      signerName,
-      signerEmail,
-      signerPhone,
+      // Renter information snapshot
+      renterName,
+      renterPhone,
+      renterEmail,
+      eventDate,
+      eventEndDate,
+      eventAddressLine1,
+      eventAddressLine2,
+      eventCity,
+      eventState,
+      eventZip,
+      homeAddressLine1,
+      homeAddressLine2,
+      homeCity,
+      homeState,
+      homeZip,
+      // Signature artifacts
       signatureDataUrl,
       initialsData,
       typedName,
@@ -34,9 +48,9 @@ Deno.serve(async (req: Request) => {
       electronicConsentText,
     } = await req.json();
 
-    if (!orderId || !signatureDataUrl || !signerName || !signerEmail) {
+    if (!orderId || !signatureDataUrl || !renterName || !renterEmail || !renterPhone || !eventDate || !eventAddressLine1 || !eventCity || !eventState || !eventZip) {
       return new Response(
-        JSON.stringify({ success: false, error: "Missing required fields" }),
+        JSON.stringify({ success: false, error: "Missing required renter information or signature fields" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -88,12 +102,28 @@ Deno.serve(async (req: Request) => {
       .insert({
         order_id: orderId,
         customer_id: customerId,
-        signer_name: signerName,
-        signer_email: signerEmail,
-        signer_phone: signerPhone,
+        // Signer identity (using renter info)
+        signer_name: renterName,
+        signer_email: renterEmail,
+        signer_phone: renterPhone,
+        // Renter information snapshot
+        event_date: eventDate,
+        event_end_date: eventEndDate || null,
+        event_address_line1: eventAddressLine1,
+        event_address_line2: eventAddressLine2 || '',
+        event_city: eventCity,
+        event_state: eventState,
+        event_zip: eventZip,
+        home_address_line1: homeAddressLine1 || '',
+        home_address_line2: homeAddressLine2 || '',
+        home_city: homeCity || '',
+        home_state: homeState || '',
+        home_zip: homeZip || '',
+        // Signature artifacts
         signature_image_url: signatureImageUrl,
         initials_data: initialsData,
         typed_name: typedName,
+        // Compliance metadata
         ip_address: ipAddress,
         user_agent: userAgent,
         device_info: deviceInfo,
