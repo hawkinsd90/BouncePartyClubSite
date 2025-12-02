@@ -128,7 +128,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // Update order as paid & confirmed
-    await supabaseClient
+    const { error: updateError } = await supabaseClient
       .from("orders")
       .update({
         status: "confirmed",
@@ -137,14 +137,27 @@ Deno.serve(async (req: Request) => {
       })
       .eq("id", orderId);
 
+    if (updateError) {
+      console.error("Failed to update order status:", updateError);
+      return new Response(
+        JSON.stringify({ success: false, error: `Failed to update order: ${updateError.message}` }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Record payment
-    await supabaseClient.from("payments").insert({
+    const { error: paymentError } = await supabaseClient.from("payments").insert({
       order_id: orderId,
       stripe_payment_intent_id: paymentIntent.id,
       amount_cents: amountCents,
       payment_type: "deposit",
       status: "succeeded",
     });
+
+    if (paymentError) {
+      console.error("Failed to record payment:", paymentError);
+      // Don't fail the whole request since charge succeeded, just log it
+    }
 
     return new Response(
       JSON.stringify({ success: true }),
