@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../lib/pricing';
 import { format } from 'date-fns';
 import { OrderDetailModal } from './OrderDetailModal';
-import { Edit2 } from 'lucide-react';
+import { Edit2, X } from 'lucide-react';
 
 export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => void }) {
   const [processing, setProcessing] = useState(false);
@@ -17,6 +17,7 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [payments, setPayments] = useState<any[]>([]);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<{ url: string; label: string } | null>(null);
 
   useEffect(() => {
     loadOrderItems();
@@ -614,7 +615,8 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
               <img
                 src={getStreetViewUrl(angle.heading)}
                 alt={angle.label}
-                className="w-full h-48 object-cover"
+                className="w-full h-48 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={() => setSelectedImage({ url: getStreetViewUrl(angle.heading), label: angle.label })}
               />
             </div>
           ))}
@@ -980,6 +982,29 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
             onUpdate();
           }}
         />
+      )}
+
+      {selectedImage && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4"
+          onClick={() => setSelectedImage(null)}
+        >
+          <button
+            onClick={() => setSelectedImage(null)}
+            className="absolute top-4 right-4 text-white hover:text-slate-300 transition-colors"
+          >
+            <X className="w-8 h-8" />
+          </button>
+          <div className="max-w-full max-h-full flex flex-col items-center">
+            <img
+              src={selectedImage.url}
+              alt={selectedImage.label}
+              className="max-w-full max-h-[85vh] object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <p className="text-white text-lg font-semibold mt-4 text-center">{selectedImage.label}</p>
+          </div>
+        </div>
       )}
     </div>
   );
