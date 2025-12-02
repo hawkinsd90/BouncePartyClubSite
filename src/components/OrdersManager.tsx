@@ -15,6 +15,7 @@ export function OrdersManager() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [contactsMap, setContactsMap] = useState<Map<string, any>>(new Map());
 
   useEffect(() => {
     loadOrders();
@@ -41,7 +42,18 @@ export function OrdersManager() {
         .order('event_date', { ascending: true });
 
       if (error) throw error;
-      if (data) setOrders(data);
+      if (data) {
+        setOrders(data);
+        // Load contacts for business names
+        const { data: contacts } = await supabase
+          .from('contacts')
+          .select('email, business_name');
+        if (contacts) {
+          const map = new Map();
+          contacts.forEach(c => map.set(c.email, c));
+          setContactsMap(map);
+        }
+      }
     } catch (error) {
       console.error('Error loading orders:', error);
     } finally {
@@ -261,6 +273,11 @@ export function OrdersManager() {
                     <div className="flex items-center">
                       <User className="w-4 h-4 mr-2 text-slate-400" />
                       <div>
+                        {contactsMap.get(order.customers?.email)?.business_name && (
+                          <div className="text-sm font-bold text-slate-900">
+                            {contactsMap.get(order.customers?.email)?.business_name}
+                          </div>
+                        )}
                         <div className="text-sm font-medium text-slate-900">
                           {order.customers?.first_name} {order.customers?.last_name}
                         </div>

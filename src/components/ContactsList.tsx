@@ -109,6 +109,11 @@ export function ContactsList() {
             {filteredContacts.map((contact) => (
               <tr key={contact.id} className="hover:bg-slate-50">
                 <td className="px-6 py-4 whitespace-nowrap">
+                  {contact.business_name && (
+                    <div className="font-bold text-slate-900 text-base">
+                      {contact.business_name}
+                    </div>
+                  )}
                   <div className="font-medium text-slate-900">
                     {contact.first_name} {contact.last_name}
                   </div>
