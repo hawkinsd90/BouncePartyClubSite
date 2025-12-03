@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Layout } from './components/Layout';
 import { Home } from './pages/Home';
 import { Catalog } from './pages/Catalog';
@@ -22,8 +23,9 @@ import Sign from './pages/Sign';
 
 function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AuthProvider>
         <Routes>
           <Route path="/setup" element={<Setup />} />
           <Route path="/login" element={<Login />} />
@@ -79,6 +81,7 @@ function App() {
         </Routes>
       </AuthProvider>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 

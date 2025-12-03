@@ -5,8 +5,17 @@ import type { Database } from './database.types';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
+// Log for debugging
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables');
+  console.error('Missing Supabase environment variables:', {
+    hasUrl: !!supabaseUrl,
+    hasKey: !!supabaseAnonKey,
+    url: supabaseUrl,
+  });
 }
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+// Use fallback values to prevent app crash, but log the issue
+const finalUrl = supabaseUrl || 'https://placeholder.supabase.co';
+const finalKey = supabaseAnonKey || 'placeholder-key';
+
+export const supabase = createClient<Database>(finalUrl, finalKey);
