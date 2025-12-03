@@ -40,8 +40,8 @@ export function InvoiceBuilder() {
   const [eventDetails, setEventDetails] = useState({
     event_date: '',
     event_end_date: '',
-    start_window: '09:00 AM',
-    end_window: '05:00 PM',
+    start_window: '09:00',
+    end_window: '17:00',
     until_end_of_day: false,
     location_type: 'residential',
     address_line1: '',
@@ -540,17 +540,22 @@ export function InvoiceBuilder() {
       setEventDetails({
         event_date: '',
         event_end_date: '',
-        start_window: '09:00 AM',
-        end_window: '05:00 PM',
+        start_window: '09:00',
+        end_window: '17:00',
+        until_end_of_day: false,
         location_type: 'residential',
         address_line1: '',
         address_line2: '',
         city: '',
         state: 'MI',
         zip: '',
+        lat: 0,
+        lng: 0,
         surface: 'grass',
         generator_qty: 0,
         pickup_preference: 'next_day',
+        same_day_responsibility_accepted: false,
+        overnight_responsibility_accepted: false,
       });
     } catch (error) {
       console.error('Error generating invoice:', error);
