@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../lib/pricing';
 import { checkMultipleUnitsAvailability } from '../lib/availability';
-import { CheckCircle, Upload, CreditCard, FileText, Image as ImageIcon, AlertCircle, Sparkles, TrendingUp } from 'lucide-react';
+import { CheckCircle, Upload, CreditCard, FileText, Image as ImageIcon, AlertCircle, Sparkles, TrendingUp, Shield, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import WaiverTab from '../components/WaiverTab';
 
 export function CustomerPortal() {
-  const { orderId } = useParams();
+  const { orderId, token } = useParams();
+  const location = useLocation();
+  const isInvoiceLink = location.pathname.startsWith('/invoice/');
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'waiver' | 'payment' | 'pictures'>('waiver');
@@ -26,6 +28,17 @@ export function CustomerPortal() {
   const [rejectConfirmName, setRejectConfirmName] = useState('');
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [approveConfirmName, setApproveConfirmName] = useState('');
+  const [invoiceLink, setInvoiceLink] = useState<any>(null);
+  const [customerInfo, setCustomerInfo] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    business_name: '',
+  });
+  const [cardOnFileConsent, setCardOnFileConsent] = useState(false);
+  const [smsConsent, setSmsConsent] = useState(false);
+  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
     loadOrder();
@@ -34,18 +47,52 @@ export function CustomerPortal() {
   async function loadOrder() {
     setLoading(true);
     try {
+      let orderIdToLoad = orderId;
+
+      // If accessing via invoice token, load the invoice link first
+      if (isInvoiceLink && token) {
+        const { data: linkData, error: linkError } = await supabase
+          .from('invoice_links')
+          .select('*')
+          .eq('link_token', token)
+          .maybeSingle();
+
+        if (linkError || !linkData) {
+          setLoading(false);
+          return;
+        }
+
+        if (new Date(linkData.expires_at) < new Date()) {
+          setLoading(false);
+          return;
+        }
+
+        setInvoiceLink(linkData);
+        orderIdToLoad = linkData.order_id;
+      }
+
       const { data, error } = await supabase
         .from('orders')
         .select(`
           *,
-          customers (first_name, last_name, email, phone),
+          customers (first_name, last_name, email, phone, business_name),
           addresses (line1, line2, city, state, zip)
         `)
-        .eq('id', orderId)
+        .eq('id', orderIdToLoad)
         .single();
 
       if (error) throw error;
       if (data) {
+        // Pre-fill customer info if available
+        if (data.customers) {
+          setCustomerInfo({
+            first_name: data.customers.first_name || '',
+            last_name: data.customers.last_name || '',
+            email: data.customers.email || '',
+            phone: data.customers.phone || '',
+            business_name: data.customers.business_name || '',
+          });
+        }
         setOrder(data);
         if (data.waiver_signed_at) {
           setActiveTab('payment');
@@ -68,17 +115,17 @@ export function CustomerPortal() {
         const { data: itemsData } = await supabase
           .from('order_items')
           .select('*, units(name)')
-          .eq('order_id', orderId);
+          .eq('order_id', orderIdToLoad);
 
         const { data: discountsData } = await supabase
           .from('order_discounts')
           .select('*')
-          .eq('order_id', orderId);
+          .eq('order_id', orderIdToLoad);
 
         const { data: feesData } = await supabase
           .from('order_custom_fees')
           .select('*')
-          .eq('order_id', orderId);
+          .eq('order_id', orderIdToLoad);
 
         if (itemsData) setOrderItems(itemsData);
         if (discountsData) {
@@ -184,6 +231,114 @@ export function CustomerPortal() {
       console.error('Error submitting pictures:', error);
       alert('Failed to submit pictures');
       setSubmitting(false);
+    }
+  }
+
+  async function handleAcceptInvoice() {
+    if (!cardOnFileConsent || !smsConsent) {
+      alert('Please accept both authorization and consent terms');
+      return;
+    }
+
+    // If customer info not filled, require it
+    if (invoiceLink && !invoiceLink.customer_filled && (!customerInfo.first_name || !customerInfo.last_name || !customerInfo.email || !customerInfo.phone)) {
+      alert('Please fill in all required customer information');
+      return;
+    }
+
+    setProcessing(true);
+
+    try {
+      // If customer info was provided and not already in DB, create customer
+      let customerId = order.customer_id;
+
+      if (invoiceLink && !invoiceLink.customer_filled && customerInfo.email) {
+        const { data: newCustomer, error: customerError } = await supabase
+          .from('customers')
+          .insert([customerInfo])
+          .select()
+          .single();
+
+        if (customerError) throw customerError;
+        customerId = newCustomer.id;
+
+        // Update order with customer ID
+        await supabase
+          .from('orders')
+          .update({
+            customer_id: customerId,
+            card_on_file_consent: cardOnFileConsent,
+            sms_consent: smsConsent,
+            invoice_accepted_at: new Date().toISOString(),
+          })
+          .eq('id', order.id);
+
+        // Mark invoice link as customer filled
+        await supabase
+          .from('invoice_links')
+          .update({ customer_filled: true })
+          .eq('id', invoiceLink.id);
+      } else {
+        // Just update consent flags
+        await supabase
+          .from('orders')
+          .update({
+            card_on_file_consent: cardOnFileConsent,
+            sms_consent: smsConsent,
+            invoice_accepted_at: new Date().toISOString(),
+          })
+          .eq('id', order.id);
+      }
+
+      // Get the deposit amount from invoice link or order
+      const depositCents = invoiceLink?.deposit_cents ?? order.deposit_due_cents ?? 0;
+
+      // If deposit is $0, just mark as accepted
+      if (depositCents === 0) {
+        await supabase
+          .from('orders')
+          .update({
+            status: 'awaiting_customer_approval',
+          })
+          .eq('id', order.id);
+
+        alert('Invoice accepted! You will receive a confirmation shortly.');
+        window.location.reload();
+        return;
+      }
+
+      // Otherwise, proceed to payment
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            orderId: order.id,
+            depositCents: depositCents,
+            tipCents: 0,
+            customerEmail: customerInfo.email,
+            customerName: `${customerInfo.first_name} ${customerInfo.last_name}`,
+            origin: window.location.origin,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.url) {
+        throw new Error(data.error || 'Failed to create checkout session');
+      }
+
+      // Redirect to Stripe
+      window.location.href = data.url;
+    } catch (err: any) {
+      console.error('Error accepting invoice:', err);
+      alert('Failed to process invoice: ' + err.message);
+      setProcessing(false);
     }
   }
 
@@ -505,8 +660,238 @@ export function CustomerPortal() {
     );
   }
 
-  // If order is not active and not awaiting approval, show status message
+  // If order is not active and not awaiting approval, show status message or invoice acceptance
   if (!isActive && !needsApproval) {
+    // Show invoice acceptance for draft orders
+    if (order.status === 'draft' && isInvoiceLink) {
+      const depositCents = invoiceLink?.deposit_cents ?? order.deposit_due_cents ?? 0;
+      const needsCustomerInfo = invoiceLink && !invoiceLink.customer_filled;
+
+      return (
+        <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-3xl mx-auto">
+            <div className="bg-white rounded-lg shadow-md p-8 mb-6">
+              <div className="text-center mb-8">
+                <img
+                  src="/bounce party club logo.png"
+                  alt="Bounce Party Club"
+                  className="h-20 w-auto mx-auto mb-4"
+                />
+                <h1 className="text-3xl font-bold text-slate-900 mb-2">Invoice from Bounce Party Club</h1>
+                <p className="text-slate-600">Review and accept your order details below</p>
+              </div>
+
+              <div className="mb-8 p-6 bg-slate-50 rounded-lg">
+                <h2 className="text-xl font-bold text-slate-900 mb-4">Event Details</h2>
+                <div className="space-y-2 text-sm">
+                  <p><strong>Date:</strong> {order.event_date}</p>
+                  <p><strong>Time:</strong> {order.start_window} - {order.end_window}</p>
+                  <p><strong>Location:</strong> {order.addresses?.line1}, {order.addresses?.city}, {order.addresses?.state} {order.addresses?.zip}</p>
+                  <p><strong>Location Type:</strong> <span className="capitalize">{order.location_type}</span></p>
+                </div>
+              </div>
+
+              <div className="mb-8">
+                <h2 className="text-xl font-bold text-slate-900 mb-4">Order Items</h2>
+                <div className="space-y-3">
+                  {orderItems.map((item) => (
+                    <div key={item.id} className="flex justify-between items-center p-4 bg-slate-50 rounded-lg">
+                      <div>
+                        <p className="font-medium text-slate-900">{item.units?.name}</p>
+                        <p className="text-sm text-slate-600 capitalize">
+                          {item.wet_or_dry === 'water' ? 'Water Mode' : 'Dry Mode'} × {item.qty}
+                        </p>
+                      </div>
+                      <p className="font-semibold text-slate-900">
+                        {formatCurrency(item.unit_price_cents * item.qty)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mb-8 p-6 bg-blue-50 border border-blue-200 rounded-lg">
+                <h2 className="text-xl font-bold text-slate-900 mb-4">Invoice Summary</h2>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Subtotal:</span>
+                    <span className="font-semibold text-slate-900">{formatCurrency(order.subtotal_cents)}</span>
+                  </div>
+                  {discounts.map((discount, idx) => (
+                    <div key={idx} className="flex justify-between text-sm text-red-700">
+                      <span>{discount.name}:</span>
+                      <span className="font-semibold">-{formatCurrency(discount.amount_cents)}</span>
+                    </div>
+                  ))}
+                  {customFees.map((fee, idx) => (
+                    <div key={idx} className="flex justify-between text-sm">
+                      <span className="text-slate-600">{fee.name}:</span>
+                      <span className="font-semibold text-slate-900">{formatCurrency(fee.amount_cents)}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Tax (6%):</span>
+                    <span className="font-semibold text-slate-900">{formatCurrency(order.tax_cents)}</span>
+                  </div>
+                  <div className="flex justify-between pt-2 border-t border-blue-300">
+                    <span className="font-bold text-slate-900">Total:</span>
+                    <span className="text-xl font-bold text-slate-900">{formatCurrency(order.total_cents)}</span>
+                  </div>
+                  <div className="flex justify-between pt-2 border-t border-blue-300">
+                    <span className="text-slate-600">
+                      {depositCents === 0 ? 'Payment Required:' : 'Deposit Due Today:'}
+                    </span>
+                    <span className="text-lg font-bold text-blue-600">
+                      {formatCurrency(depositCents)}
+                    </span>
+                  </div>
+                  {depositCents > 0 && depositCents < order.total_cents && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Balance Due at Event:</span>
+                      <span className="font-semibold text-slate-900">
+                        {formatCurrency(order.total_cents - depositCents)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {needsCustomerInfo && (
+                <div className="mb-8">
+                  <h2 className="text-xl font-bold text-slate-900 mb-4">Your Information</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">First Name *</label>
+                      <input
+                        type="text"
+                        required
+                        value={customerInfo.first_name}
+                        onChange={(e) => setCustomerInfo({ ...customerInfo, first_name: e.target.value })}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Last Name *</label>
+                      <input
+                        type="text"
+                        required
+                        value={customerInfo.last_name}
+                        onChange={(e) => setCustomerInfo({ ...customerInfo, last_name: e.target.value })}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Email *</label>
+                      <input
+                        type="email"
+                        required
+                        value={customerInfo.email}
+                        onChange={(e) => setCustomerInfo({ ...customerInfo, email: e.target.value })}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Phone *</label>
+                      <input
+                        type="tel"
+                        required
+                        value={customerInfo.phone}
+                        onChange={(e) => setCustomerInfo({ ...customerInfo, phone: e.target.value })}
+                        placeholder="(313) 555-0123"
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Business Name (Optional)</label>
+                      <input
+                        type="text"
+                        value={customerInfo.business_name}
+                        onChange={(e) => setCustomerInfo({ ...customerInfo, business_name: e.target.value })}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="mb-8 space-y-4">
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                  <h3 className="font-semibold text-slate-900 mb-2 flex items-center">
+                    <Shield className="w-5 h-5 mr-2 text-green-600" />
+                    Card-on-File Authorization
+                  </h3>
+                  <p className="text-sm text-slate-700 mb-3">
+                    I authorize Bounce Party Club LLC to securely store my payment method and charge it for incidentals including damage, excess cleaning, or late fees as itemized in a receipt. I understand that any charges will be accompanied by photographic evidence and a detailed explanation.
+                  </p>
+                  <label className="flex items-start cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={cardOnFileConsent}
+                      onChange={(e) => setCardOnFileConsent(e.target.checked)}
+                      className="w-5 h-5 text-blue-600 border-slate-300 rounded focus:ring-blue-500 mt-0.5"
+                      required
+                    />
+                    <span className="ml-3 text-sm text-slate-700">
+                      I have read and agree to the card-on-file authorization terms above. *
+                    </span>
+                  </label>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                  <h3 className="font-semibold text-slate-900 mb-2">SMS Notifications Consent</h3>
+                  <p className="text-sm text-slate-700 mb-3">
+                    By providing my phone number and checking the box below, I consent to receive transactional SMS text messages from Bounce Party Club LLC at the phone number provided. These messages may include order confirmations, delivery updates, and service-related notifications about my booking. Message frequency varies. Message and data rates may apply. You can reply STOP to opt-out at any time.
+                  </p>
+                  <label className="flex items-start cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={smsConsent}
+                      onChange={(e) => setSmsConsent(e.target.checked)}
+                      className="w-5 h-5 text-blue-600 border-slate-300 rounded focus:ring-blue-500 mt-0.5"
+                      required
+                    />
+                    <span className="ml-3 text-sm text-slate-700">
+                      I consent to receive SMS notifications about my booking and agree to the terms above. *
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <button
+                onClick={handleAcceptInvoice}
+                disabled={processing || !cardOnFileConsent || !smsConsent}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center"
+              >
+                {processing ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Processing...
+                  </>
+                ) : depositCents === 0 ? (
+                  <>
+                    <CheckCircle className="w-5 h-5 mr-2" />
+                    Accept Invoice
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="w-5 h-5 mr-2" />
+                    Accept & Pay {formatCurrency(depositCents)}
+                  </>
+                )}
+              </button>
+
+              <p className="text-xs text-slate-500 text-center mt-4">
+                {depositCents === 0
+                  ? 'By accepting, you acknowledge the order details above'
+                  : 'Your payment information is secured with industry-standard encryption'}
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Show regular status message for non-draft orders
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4">
         <div className="max-w-2xl w-full bg-white rounded-xl shadow-lg overflow-hidden border-2 border-slate-300">
@@ -523,13 +908,13 @@ export function CustomerPortal() {
           <div className="px-8 py-8 text-center">
             <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-6 mb-6">
               <h2 className="text-xl font-bold text-blue-900 mb-3">
-                {order.status === 'draft' && 'Payment Required'}
+                {order.status === 'draft' && 'Invoice Pending'}
                 {order.status === 'pending_review' && 'Order Under Review'}
                 {order.status === 'cancelled' && 'Order Cancelled'}
                 {order.status === 'void' && 'Order Voided'}
               </h2>
               <p className="text-slate-700 mb-4">
-                {order.status === 'draft' && 'This order requires payment before you can access the customer portal. Please complete the payment process to continue.'}
+                {order.status === 'draft' && 'This invoice is awaiting your acceptance. Please check your email for the invoice link.'}
                 {order.status === 'pending_review' && 'Thank you! Your booking is currently being reviewed by our team. If you already approved recent changes, we\'ve received your approval and will finalize your booking shortly. You\'ll receive an email with next steps once your order is confirmed.'}
                 {order.status === 'cancelled' && 'This order has been cancelled. If you have questions, please contact us.'}
                 {order.status === 'void' && 'This order is no longer valid. Please contact us if you need assistance.'}
@@ -539,7 +924,7 @@ export function CustomerPortal() {
             <div className="space-y-4">
               <div className="flex justify-between py-3 border-b border-slate-200">
                 <span className="text-slate-600 font-medium">Customer:</span>
-                <span className="text-slate-900">{order.customers.first_name} {order.customers.last_name}</span>
+                <span className="text-slate-900">{order.customers?.first_name || 'Pending'} {order.customers?.last_name || ''}</span>
               </div>
               <div className="flex justify-between py-3 border-b border-slate-200">
                 <span className="text-slate-600 font-medium">Event Date:</span>

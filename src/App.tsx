@@ -19,7 +19,6 @@ import { PaymentCanceled } from './pages/PaymentCanceled';
 import { UnitForm } from './pages/UnitForm';
 import { CustomerPortal } from './pages/CustomerPortal';
 import Sign from './pages/Sign';
-import { InvoiceAcceptance } from './pages/InvoiceAcceptance';
 
 function App() {
   return (
@@ -28,7 +27,7 @@ function App() {
         <Routes>
           <Route path="/setup" element={<Setup />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/invoice/:token" element={<InvoiceAcceptance />} />
+          <Route path="/invoice/:token" element={<CustomerPortal />} />
           <Route path="/invoice/view/:orderId" element={<Invoice />} />
           <Route path="/sign/:orderId" element={<Sign />} />
           <Route path="/customer-portal/:orderId" element={<CustomerPortal />} />
