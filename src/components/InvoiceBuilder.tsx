@@ -49,8 +49,6 @@ export function InvoiceBuilder() {
     generator_qty: 0,
     pickup_preference: 'next_day',
   });
-  const [cardOnFileConsent, setCardOnFileConsent] = useState(false);
-  const [smsConsent, setSmsConsent] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -299,11 +297,6 @@ export function InvoiceBuilder() {
       return;
     }
 
-    if (!cardOnFileConsent || !smsConsent) {
-      alert('Please accept the authorization and consent terms');
-      return;
-    }
-
     setSaving(true);
     try {
       // 1. Create or get customer
@@ -347,8 +340,8 @@ export function InvoiceBuilder() {
           balance_due_cents: totalCents - depositRequired,
           custom_deposit_cents: customDepositCents,
           status: 'draft',
-          card_on_file_consent: cardOnFileConsent,
-          sms_consent: smsConsent,
+          card_on_file_consent: false,
+          sms_consent: false,
           admin_message: adminMessage || null,
         })
         .select()
@@ -444,8 +437,6 @@ export function InvoiceBuilder() {
       setCustomDepositInput('');
       setAdminMessage('');
       setSelectedCustomer('');
-      setCardOnFileConsent(false);
-      setSmsConsent(false);
       setEventDetails({
         event_date: '',
         event_end_date: '',
@@ -696,22 +687,66 @@ export function InvoiceBuilder() {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                 >
                   <option value="residential">Residential</option>
-                  <option value="park">Park</option>
-                  <option value="school">School</option>
-                  <option value="church">Church</option>
-                  <option value="business">Business</option>
+                  <option value="business">Commercial</option>
                 </select>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Pickup Preference</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setEventDetails({ ...eventDetails, pickup_preference: 'next_day' })}
+                    className={`px-4 py-3 rounded-lg border-2 transition-all text-left ${
+                      eventDetails.pickup_preference === 'next_day'
+                        ? 'border-green-500 bg-green-50 text-green-900'
+                        : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'
+                    }`}
+                  >
+                    <div className="font-semibold text-sm">Next Morning</div>
+                    <div className="text-xs mt-1 opacity-80">Equipment stays overnight</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEventDetails({ ...eventDetails, pickup_preference: 'same_day' })}
+                    className={`px-4 py-3 rounded-lg border-2 transition-all text-left ${
+                      eventDetails.pickup_preference === 'same_day'
+                        ? 'border-green-500 bg-green-50 text-green-900'
+                        : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'
+                    }`}
+                  >
+                    <div className="font-semibold text-sm">Same Day</div>
+                    <div className="text-xs mt-1 opacity-80">Pickup same evening</div>
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Setup Surface</label>
-                <select
-                  value={eventDetails.surface}
-                  onChange={(e) => setEventDetails({ ...eventDetails, surface: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                >
-                  <option value="grass">Grass</option>
-                  <option value="cement">Cement/Asphalt</option>
-                </select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setEventDetails({ ...eventDetails, surface: 'grass' })}
+                    className={`px-4 py-3 rounded-lg border-2 transition-all text-center font-medium ${
+                      eventDetails.surface === 'grass'
+                        ? 'border-green-500 bg-green-50 text-green-900'
+                        : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'
+                    }`}
+                  >
+                    Grass (stakes)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEventDetails({ ...eventDetails, surface: 'cement' })}
+                    className={`px-4 py-3 rounded-lg border-2 transition-all text-center font-medium ${
+                      eventDetails.surface === 'cement'
+                        ? 'border-green-500 bg-green-50 text-green-900'
+                        : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'
+                    }`}
+                  >
+                    Sandbags
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1019,45 +1054,6 @@ export function InvoiceBuilder() {
             />
           </div>
 
-          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
-            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-4">Authorization & Consent</h3>
-            <div className="space-y-4">
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                <p className="text-sm text-slate-700 mb-3">
-                  I authorize Bounce Party Club LLC to securely store my payment method and charge it for incidentals including damage, excess cleaning, or late fees as itemized in a receipt. I understand that any charges will be accompanied by photographic evidence and a detailed explanation.
-                </p>
-                <label className="flex items-start cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={cardOnFileConsent}
-                    onChange={(e) => setCardOnFileConsent(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 mt-0.5 mr-2"
-                  />
-                  <span className="text-sm text-slate-700">
-                    I agree to the card-on-file authorization terms *
-                  </span>
-                </label>
-              </div>
-
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                <p className="text-sm text-slate-700 mb-3">
-                  By checking this box, I consent to receive transactional SMS text messages from Bounce Party Club LLC. These messages may include order confirmations, delivery updates, and service-related notifications. Message and data rates may apply. Reply STOP to opt-out.
-                </p>
-                <label className="flex items-start cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={smsConsent}
-                    onChange={(e) => setSmsConsent(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 mt-0.5 mr-2"
-                  />
-                  <span className="text-sm text-slate-700">
-                    I consent to receive SMS notifications *
-                  </span>
-                </label>
-              </div>
-            </div>
-          </div>
-
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 sm:p-6">
             <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-4">Invoice Summary</h3>
             <div className="space-y-2 text-sm">
@@ -1107,7 +1103,7 @@ export function InvoiceBuilder() {
 
             <button
               onClick={handleGenerateInvoice}
-              disabled={saving || cartItems.length === 0 || !cardOnFileConsent || !smsConsent}
+              disabled={saving || cartItems.length === 0}
               className="w-full mt-6 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
             >
               <Send className="w-5 h-5" />
