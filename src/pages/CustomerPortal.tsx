@@ -75,13 +75,18 @@ export function CustomerPortal() {
         .from('orders')
         .select(`
           *,
-          customers (first_name, last_name, email, phone, business_name),
-          addresses (line1, line2, city, state, zip)
+          customers (*),
+          addresses (*)
         `)
         .eq('id', orderIdToLoad)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error loading order:', error);
+        setLoading(false);
+        return;
+      }
+
       if (data) {
         // Pre-fill customer info if available
         if (data.customers) {
@@ -128,18 +133,18 @@ export function CustomerPortal() {
           .eq('order_id', orderIdToLoad);
 
         if (itemsData) setOrderItems(itemsData);
-        if (discountsData) {
+        if (discountsData && discountsData.length > 0) {
           console.log('Loaded discounts:', discountsData);
           setDiscounts(discountsData);
         }
-        if (feesData) {
+        if (feesData && feesData.length > 0) {
           console.log('Loaded custom fees:', feesData);
           setCustomFees(feesData);
         }
 
         // Recalculate pricing with discounts and custom fees
-        if (data && (discountsData.length > 0 || feesData.length > 0)) {
-          const discountTotal = discountsData.reduce((sum: number, d: any) => {
+        if (data && ((discountsData && discountsData.length > 0) || (feesData && feesData.length > 0))) {
+          const discountTotal = (discountsData || []).reduce((sum: number, d: any) => {
             if (d.amount_cents > 0) {
               return sum + d.amount_cents;
             } else if (d.percentage > 0) {
@@ -149,7 +154,7 @@ export function CustomerPortal() {
             return sum;
           }, 0);
 
-          const customFeesTotal = feesData.reduce((sum: number, f: any) => sum + f.amount_cents, 0);
+          const customFeesTotal = (feesData || []).reduce((sum: number, f: any) => sum + f.amount_cents, 0);
 
           // Recalculate tax with discounts and custom fees
           const taxableAmount = Math.max(0,
@@ -376,6 +381,10 @@ export function CustomerPortal() {
   }
 
   async function confirmApproveChanges() {
+    if (!order.customers) {
+      alert('Customer information is missing. Please contact support.');
+      return;
+    }
     const expectedName = `${order.customers.first_name} ${order.customers.last_name}`.toLowerCase().trim();
     if (approveConfirmName.toLowerCase().trim() !== expectedName) {
       alert('The name you entered does not match the customer name on this order. Please try again.');
@@ -432,7 +441,7 @@ export function CustomerPortal() {
           const adminPhone = adminSettings.value as string;
           const adminSmsMessage =
             `Customer approved order changes! ` +
-            `${order.customers.first_name} ${order.customers.last_name} - ` +
+            `${order.customers?.first_name || 'Unknown'} ${order.customers?.last_name || ''} - ` +
             `Order #${order.id.slice(0, 8).toUpperCase()}. ` +
             `Review pending orders now.`;
 
@@ -471,6 +480,10 @@ export function CustomerPortal() {
   }
 
   async function confirmRejectChanges() {
+    if (!order.customers) {
+      alert('Customer information is missing. Please contact support.');
+      return;
+    }
     const expectedName = `${order.customers.first_name} ${order.customers.last_name}`.toLowerCase().trim();
     if (rejectConfirmName.toLowerCase().trim() !== expectedName) {
       alert('The name you entered does not match the customer name on this order. Please try again.');
@@ -506,7 +519,7 @@ export function CustomerPortal() {
           .eq('key', 'admin_notification_email')
           .maybeSingle();
 
-        const customerName = `${order.customers.first_name} ${order.customers.last_name}`;
+        const customerName = order.customers ? `${order.customers.first_name} ${order.customers.last_name}` : 'Unknown Customer';
         const orderNum = order.id.slice(0, 8).toUpperCase();
 
         // Send SMS
@@ -557,8 +570,8 @@ export function CustomerPortal() {
                   <p style="margin: 10px 0 0; color: #7f1d1d;">
                     <strong>Order #:</strong> ${orderNum}<br>
                     <strong>Customer:</strong> ${customerName}<br>
-                    <strong>Email:</strong> ${order.customers.email}<br>
-                    <strong>Phone:</strong> ${order.customers.phone}<br>
+                    <strong>Email:</strong> ${order.customers?.email || 'N/A'}<br>
+                    <strong>Phone:</strong> ${order.customers?.phone || 'N/A'}<br>
                     <strong>Event Date:</strong> ${format(new Date(order.event_date), 'MMMM d, yyyy')}
                   </p>
                 </div>
@@ -577,7 +590,7 @@ export function CustomerPortal() {
 
                 <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
                   <p style="margin: 0; color: #64748b; font-size: 14px;">
-                    Customer Contact: ${order.customers.phone} | ${order.customers.email}
+                    Customer Contact: ${order.customers?.phone || 'N/A'} | ${order.customers?.email || 'N/A'}
                   </p>
                 </div>
               </div>
@@ -1113,7 +1126,7 @@ export function CustomerPortal() {
                 <div className="space-y-2 md:space-y-3">
                   <div className="py-2 border-b border-slate-200">
                     <span className="text-slate-600 font-medium text-sm md:text-base block mb-1">Customer:</span>
-                    <span className="text-slate-900 font-semibold text-sm md:text-base">{order.customers.first_name} {order.customers.last_name}</span>
+                    <span className="text-slate-900 font-semibold text-sm md:text-base">{order.customers?.first_name || 'Unknown'} {order.customers?.last_name || ''}</span>
                   </div>
                   <div className="py-2 border-b border-slate-200">
                     <span className="text-slate-600 font-medium text-sm md:text-base block mb-1">Event Date:</span>
@@ -1416,7 +1429,7 @@ export function CustomerPortal() {
               <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-6 mb-6">
                 <h3 className="font-bold text-blue-900 mb-2">Identity Verification Required</h3>
                 <p className="text-blue-800 text-sm">
-                  To approve these changes, you'll be asked to confirm your identity by entering your full name exactly as it appears on the order: <strong>{order.customers.first_name} {order.customers.last_name}</strong>
+                  To approve these changes, you'll be asked to confirm your identity by entering your full name exactly as it appears on the order: <strong>{order.customers?.first_name || 'Unknown'} {order.customers?.last_name || ''}</strong>
                 </p>
               </div>
 
@@ -1469,10 +1482,10 @@ export function CustomerPortal() {
                         type="text"
                         value={approveConfirmName}
                         onChange={(e) => setApproveConfirmName(e.target.value)}
-                        placeholder={`${order.customers.first_name} ${order.customers.last_name}`}
+                        placeholder={`${order.customers?.first_name || 'Unknown'} ${order.customers?.last_name || ''}`}
                         className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:outline-none focus:border-green-500 text-sm md:text-base"
                       />
-                      <p className="text-xs text-slate-500 mt-1">Must match: {order.customers.first_name} {order.customers.last_name}</p>
+                      <p className="text-xs text-slate-500 mt-1">Must match: {order.customers?.first_name || 'Unknown'} {order.customers?.last_name || ''}</p>
                     </div>
 
                     <div className="flex flex-col sm:flex-row gap-3">
@@ -1519,10 +1532,10 @@ export function CustomerPortal() {
                         type="text"
                         value={rejectConfirmName}
                         onChange={(e) => setRejectConfirmName(e.target.value)}
-                        placeholder={`${order.customers.first_name} ${order.customers.last_name}`}
+                        placeholder={`${order.customers?.first_name || 'Unknown'} ${order.customers?.last_name || ''}`}
                         className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:outline-none focus:border-red-500 text-sm md:text-base"
                       />
-                      <p className="text-xs text-slate-500 mt-1">Must match: {order.customers.first_name} {order.customers.last_name}</p>
+                      <p className="text-xs text-slate-500 mt-1">Must match: {order.customers?.first_name || 'Unknown'} {order.customers?.last_name || ''}</p>
                     </div>
 
                     <div className="mb-6">
