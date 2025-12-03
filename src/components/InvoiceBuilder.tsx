@@ -9,9 +9,18 @@ export function InvoiceBuilder() {
   const [units, setUnits] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState('');
   const [cartItems, setCartItems] = useState<any[]>([]);
-  const [discountType, setDiscountType] = useState<'dollar' | 'percent'>('dollar');
-  const [discountValue, setDiscountValue] = useState('0');
-  const [waiveDeposit, setWaiveDeposit] = useState(false);
+  const [discounts, setDiscounts] = useState<any[]>([]);
+  const [newDiscount, setNewDiscount] = useState({ name: '', amount_cents: 0, percentage: 0 });
+  const [discountAmountInput, setDiscountAmountInput] = useState('0.00');
+  const [discountPercentInput, setDiscountPercentInput] = useState('0');
+  const [customFees, setCustomFees] = useState<any[]>([]);
+  const [newCustomFee, setNewCustomFee] = useState({ name: '', amount_cents: 0 });
+  const [customFeeInput, setCustomFeeInput] = useState('0.00');
+  const [savedDiscountTemplates, setSavedDiscountTemplates] = useState<any[]>([]);
+  const [savedFeeTemplates, setSavedFeeTemplates] = useState<any[]>([]);
+  const [saveDiscountAsTemplate, setSaveDiscountAsTemplate] = useState(false);
+  const [saveFeeAsTemplate, setSaveFeeAsTemplate] = useState(false);
+  const [adminMessage, setAdminMessage] = useState('');
   const [saving, setSaving] = useState(false);
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
   const [newCustomer, setNewCustomer] = useState({
@@ -21,8 +30,8 @@ export function InvoiceBuilder() {
     phone: '',
     business_name: '',
   });
-  const [customDepositAmount, setCustomDepositAmount] = useState('');
-  const [useCustomDeposit, setUseCustomDeposit] = useState(false);
+  const [customDepositCents, setCustomDepositCents] = useState<number | null>(null);
+  const [customDepositInput, setCustomDepositInput] = useState('');
   const [invoiceUrl, setInvoiceUrl] = useState('');
   const [copiedToClipboard, setCopiedToClipboard] = useState(false);
   const [eventDetails, setEventDetails] = useState({
@@ -45,6 +54,7 @@ export function InvoiceBuilder() {
 
   useEffect(() => {
     loadData();
+    loadSavedTemplates();
   }, []);
 
   async function loadData() {
@@ -55,6 +65,16 @@ export function InvoiceBuilder() {
 
     if (customersRes.data) setCustomers(customersRes.data);
     if (unitsRes.data) setUnits(unitsRes.data);
+  }
+
+  async function loadSavedTemplates() {
+    const [discountsRes, feesRes] = await Promise.all([
+      supabase.from('saved_discount_templates').select('*').order('name'),
+      supabase.from('saved_fee_templates').select('*').order('name'),
+    ]);
+
+    if (discountsRes.data) setSavedDiscountTemplates(discountsRes.data);
+    if (feesRes.data) setSavedFeeTemplates(feesRes.data);
   }
 
   function addItemToCart(unit: any, mode: 'dry' | 'water') {
@@ -96,20 +116,29 @@ export function InvoiceBuilder() {
 
   const subtotal = cartItems.reduce((sum, item) => sum + item.adjusted_price_cents * item.qty, 0);
 
-  let discountAmount = 0;
-  if (discountType === 'dollar') {
-    discountAmount = Math.round(parseFloat(discountValue || '0') * 100);
-  } else {
-    discountAmount = Math.round(subtotal * (parseFloat(discountValue || '0') / 100));
-  }
+  // Calculate total discount from all discount entries
+  const discountTotal = discounts.reduce((sum, d) => {
+    if (d.amount_cents > 0) {
+      return sum + d.amount_cents;
+    } else if (d.percentage > 0) {
+      return sum + Math.round(subtotal * (d.percentage / 100));
+    }
+    return sum;
+  }, 0);
 
-  const totalAfterDiscount = Math.max(0, subtotal - discountAmount);
-  const defaultDeposit = Math.round(totalAfterDiscount * 0.5);
-  const depositRequired = useCustomDeposit
-    ? Math.round(parseFloat(customDepositAmount || '0') * 100)
-    : waiveDeposit
-    ? 0
-    : defaultDeposit;
+  // Calculate total custom fees
+  const customFeesTotal = customFees.reduce((sum, f) => sum + f.amount_cents, 0);
+
+  // Calculate tax on taxable amount (subtotal - discounts + fees)
+  const taxableAmount = Math.max(0, subtotal - discountTotal + customFeesTotal);
+  const taxCents = Math.round(taxableAmount * 0.06);
+
+  // Calculate total
+  const totalCents = subtotal - discountTotal + customFeesTotal + taxCents;
+
+  // Calculate deposit
+  const defaultDeposit = Math.round(totalCents * 0.5);
+  const depositRequired = customDepositCents !== null ? customDepositCents : defaultDeposit;
 
   async function handleCreateNewCustomer() {
     if (!newCustomer.first_name || !newCustomer.last_name || !newCustomer.email || !newCustomer.phone) {
@@ -119,6 +148,29 @@ export function InvoiceBuilder() {
 
     setSaving(true);
     try {
+      // Check for duplicate phone + email combination
+      const { data: existingCustomers, error: checkError } = await supabase
+        .from('customers')
+        .select('first_name, last_name, email, phone')
+        .or(`and(email.eq.${newCustomer.email},phone.eq.${newCustomer.phone})`);
+
+      if (checkError) throw checkError;
+
+      if (existingCustomers && existingCustomers.length > 0) {
+        const existing = existingCustomers[0];
+        // Check if the name is also the same
+        if (existing.first_name.toLowerCase() === newCustomer.first_name.toLowerCase() &&
+            existing.last_name.toLowerCase() === newCustomer.last_name.toLowerCase()) {
+          alert(`A customer with this email (${newCustomer.email}) and phone (${newCustomer.phone}) already exists with the same name.`);
+          setSaving(false);
+          return;
+        }
+        // Names are different, but email+phone match - this is not allowed
+        alert(`A customer with both this email (${newCustomer.email}) AND phone number (${newCustomer.phone}) already exists. They can share one or the other, but not both unless the name is identical.`);
+        setSaving(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('customers')
         .insert([newCustomer])
@@ -143,6 +195,97 @@ export function InvoiceBuilder() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function handleAddDiscount() {
+    const amountCents = Math.round(parseFloat(discountAmountInput || '0') * 100);
+    const percentage = parseFloat(discountPercentInput || '0');
+
+    if (!newDiscount.name.trim()) {
+      alert('Please enter a discount name');
+      return;
+    }
+
+    if (amountCents === 0 && percentage === 0) {
+      alert('Please enter either a dollar amount or percentage');
+      return;
+    }
+
+    const discount = {
+      id: crypto.randomUUID(),
+      name: newDiscount.name,
+      amount_cents: amountCents,
+      percentage: percentage,
+    };
+
+    setDiscounts([...discounts, discount]);
+
+    // Save as template if checkbox is checked
+    if (saveDiscountAsTemplate) {
+      supabase
+        .from('saved_discount_templates')
+        .insert({ name: discount.name, amount_cents: discount.amount_cents, percentage: discount.percentage })
+        .then(() => loadSavedTemplates());
+    }
+
+    // Reset form
+    setNewDiscount({ name: '', amount_cents: 0, percentage: 0 });
+    setDiscountAmountInput('0.00');
+    setDiscountPercentInput('0');
+    setSaveDiscountAsTemplate(false);
+  }
+
+  function handleRemoveDiscount(id: string) {
+    setDiscounts(discounts.filter(d => d.id !== id));
+  }
+
+  function handleAddCustomFee() {
+    const amountCents = Math.round(parseFloat(customFeeInput || '0') * 100);
+
+    if (!newCustomFee.name.trim()) {
+      alert('Please enter a fee name');
+      return;
+    }
+
+    if (amountCents === 0) {
+      alert('Please enter a fee amount');
+      return;
+    }
+
+    const fee = {
+      id: crypto.randomUUID(),
+      name: newCustomFee.name,
+      amount_cents: amountCents,
+    };
+
+    setCustomFees([...customFees, fee]);
+
+    // Save as template if checkbox is checked
+    if (saveFeeAsTemplate) {
+      supabase
+        .from('saved_fee_templates')
+        .insert({ name: fee.name, amount_cents: fee.amount_cents })
+        .then(() => loadSavedTemplates());
+    }
+
+    // Reset form
+    setNewCustomFee({ name: '', amount_cents: 0 });
+    setCustomFeeInput('0.00');
+    setSaveFeeAsTemplate(false);
+  }
+
+  function handleRemoveCustomFee(id: string) {
+    setCustomFees(customFees.filter(f => f.id !== id));
+  }
+
+  function applyDepositOverride() {
+    const cents = Math.round(parseFloat(customDepositInput || '0') * 100);
+    setCustomDepositCents(cents);
+  }
+
+  function clearDepositOverride() {
+    setCustomDepositCents(null);
+    setCustomDepositInput('');
   }
 
   async function handleGenerateInvoice() {
@@ -182,12 +325,7 @@ export function InvoiceBuilder() {
 
       if (addressError) throw addressError;
 
-      // 3. Calculate pricing
-      const taxRate = 0.06;
-      const taxCents = Math.round(totalAfterDiscount * taxRate);
-      const totalWithTax = totalAfterDiscount + taxCents;
-
-      // 4. Create order
+      // 3. Create order
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
@@ -202,22 +340,23 @@ export function InvoiceBuilder() {
           generator_qty: eventDetails.generator_qty,
           pickup_preference: eventDetails.pickup_preference,
           subtotal_cents: subtotal,
-          discount_cents: discountAmount,
+          discount_cents: discountTotal,
           tax_cents: taxCents,
-          total_cents: totalWithTax,
+          total_cents: totalCents,
           deposit_due_cents: depositRequired,
-          balance_due_cents: totalWithTax - depositRequired,
-          custom_deposit_cents: useCustomDeposit ? depositRequired : null,
+          balance_due_cents: totalCents - depositRequired,
+          custom_deposit_cents: customDepositCents,
           status: 'draft',
           card_on_file_consent: cardOnFileConsent,
           sms_consent: smsConsent,
+          admin_message: adminMessage || null,
         })
         .select()
         .single();
 
       if (orderError) throw orderError;
 
-      // 5. Create order items
+      // 4. Create order items
       const orderItems = cartItems.map(item => ({
         order_id: order.id,
         unit_id: item.unit_id,
@@ -232,7 +371,38 @@ export function InvoiceBuilder() {
 
       if (itemsError) throw itemsError;
 
-      // 6. Send invoice
+      // 5. Create discounts
+      if (discounts.length > 0) {
+        const orderDiscounts = discounts.map(d => ({
+          order_id: order.id,
+          name: d.name,
+          amount_cents: d.amount_cents,
+          percentage: d.percentage,
+        }));
+
+        const { error: discountsError } = await supabase
+          .from('order_discounts')
+          .insert(orderDiscounts);
+
+        if (discountsError) throw discountsError;
+      }
+
+      // 6. Create custom fees
+      if (customFees.length > 0) {
+        const orderFees = customFees.map(f => ({
+          order_id: order.id,
+          name: f.name,
+          amount_cents: f.amount_cents,
+        }));
+
+        const { error: feesError } = await supabase
+          .from('order_custom_fees')
+          .insert(orderFees);
+
+        if (feesError) throw feesError;
+      }
+
+      // 7. Send invoice
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-invoice`,
         {
@@ -268,8 +438,14 @@ export function InvoiceBuilder() {
 
       // Reset form
       setCartItems([]);
-      setDiscountValue('0');
+      setDiscounts([]);
+      setCustomFees([]);
+      setCustomDepositCents(null);
+      setCustomDepositInput('');
+      setAdminMessage('');
       setSelectedCustomer('');
+      setCardOnFileConsent(false);
+      setSmsConsent(false);
       setEventDetails({
         event_date: '',
         event_end_date: '',
@@ -626,113 +802,223 @@ export function InvoiceBuilder() {
         </div>
 
         <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Discounts & Adjustments</h3>
+          {/* Discounts Section */}
+          <div className="bg-green-50 rounded-lg shadow p-6">
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">Discounts</h3>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Discount Type</label>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setDiscountType('dollar')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg border-2 transition-colors ${
-                      discountType === 'dollar'
-                        ? 'border-blue-600 bg-blue-50 text-blue-700'
-                        : 'border-slate-300 text-slate-600 hover:border-slate-400'
-                    }`}
-                  >
-                    <DollarSign className="w-4 h-4" />
-                    Dollar
-                  </button>
-                  <button
-                    onClick={() => setDiscountType('percent')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg border-2 transition-colors ${
-                      discountType === 'percent'
-                        ? 'border-blue-600 bg-blue-50 text-blue-700'
-                        : 'border-slate-300 text-slate-600 hover:border-slate-400'
-                    }`}
-                  >
-                    <Percent className="w-4 h-4" />
-                    Percent
-                  </button>
+            {/* Existing Discounts */}
+            {discounts.length > 0 && (
+              <div className="mb-4 space-y-2">
+                {discounts.map((discount) => (
+                  <div key={discount.id} className="flex items-center justify-between bg-white p-3 rounded border border-green-200">
+                    <div>
+                      <p className="font-medium text-slate-900">{discount.name}</p>
+                      <p className="text-sm text-slate-600">
+                        {discount.amount_cents > 0 && `-${formatCurrency(discount.amount_cents)}`}
+                        {discount.percentage > 0 && `${discount.percentage}%`}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveDiscount(discount.id)}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add Discount Form */}
+            <div className="space-y-3">
+              <input
+                type="text"
+                placeholder="Discount name"
+                value={newDiscount.name}
+                onChange={(e) => setNewDiscount({ ...newDiscount, name: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-600 mb-1">$ Amount</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={discountAmountInput}
+                    onChange={(e) => setDiscountAmountInput(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-600 mb-1">% Percentage</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={discountPercentInput}
+                    onChange={(e) => setDiscountPercentInput(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    placeholder="0"
+                  />
                 </div>
               </div>
+              <label className="flex items-center text-sm">
+                <input
+                  type="checkbox"
+                  checked={saveDiscountAsTemplate}
+                  onChange={(e) => setSaveDiscountAsTemplate(e.target.checked)}
+                  className="mr-2"
+                />
+                Save this discount for future use
+              </label>
+              <button
+                onClick={handleAddDiscount}
+                className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg text-sm transition-colors"
+              >
+                Add Discount
+              </button>
+            </div>
+          </div>
 
+          {/* Custom Fees Section */}
+          <div className="bg-blue-50 rounded-lg shadow p-6">
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">Custom Fees</h3>
+
+            {/* Existing Fees */}
+            {customFees.length > 0 && (
+              <div className="mb-4 space-y-2">
+                {customFees.map((fee) => (
+                  <div key={fee.id} className="flex items-center justify-between bg-white p-3 rounded border border-blue-200">
+                    <div>
+                      <p className="font-medium text-slate-900">{fee.name}</p>
+                      <p className="text-sm text-slate-600">{formatCurrency(fee.amount_cents)}</p>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveCustomFee(fee.id)}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add Fee Form */}
+            <div className="space-y-3">
+              <input
+                type="text"
+                placeholder="Fee name (e.g., Tip, Setup Fee, etc.)"
+                value={newCustomFee.name}
+                onChange={(e) => setNewCustomFee({ ...newCustomFee, name: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Discount Amount {discountType === 'percent' && '(%)'}
-                </label>
+                <label className="block text-xs text-slate-600 mb-1">$ Amount</label>
                 <input
                   type="number"
                   step="0.01"
                   min="0"
-                  value={discountValue}
-                  onChange={(e) => setDiscountValue(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={customFeeInput}
+                  onChange={(e) => setCustomFeeInput(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                   placeholder="0.00"
                 />
               </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="waive-deposit"
-                    checked={waiveDeposit}
-                    onChange={(e) => {
-                      setWaiveDeposit(e.target.checked);
-                      if (e.target.checked) setUseCustomDeposit(false);
-                    }}
-                    className="mr-2"
-                  />
-                  <label htmlFor="waive-deposit" className="text-sm text-slate-700">
-                    Waive Deposit (Full payment required)
-                  </label>
-                </div>
-
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="custom-deposit"
-                    checked={useCustomDeposit}
-                    onChange={(e) => {
-                      setUseCustomDeposit(e.target.checked);
-                      if (e.target.checked) setWaiveDeposit(false);
-                    }}
-                    className="mr-2"
-                  />
-                  <label htmlFor="custom-deposit" className="text-sm text-slate-700">
-                    Set Custom Deposit Amount
-                  </label>
-                </div>
-
-                {useCustomDeposit && (
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Custom Deposit Amount (can be $0)
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2 text-slate-600">$</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        max={(totalAfterDiscount / 100).toFixed(2)}
-                        value={customDepositAmount}
-                        onChange={(e) => setCustomDepositAmount(e.target.value)}
-                        className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="0.00"
-                      />
-                    </div>
-                    {parseFloat(customDepositAmount || '0') === 0 && (
-                      <p className="text-xs text-amber-600 mt-1">
-                        With $0 deposit, customer only needs to accept (no payment required)
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
+              <label className="flex items-center text-sm">
+                <input
+                  type="checkbox"
+                  checked={saveFeeAsTemplate}
+                  onChange={(e) => setSaveFeeAsTemplate(e.target.checked)}
+                  className="mr-2"
+                />
+                Save this fee for future use
+              </label>
+              <button
+                onClick={handleAddCustomFee}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm transition-colors"
+              >
+                Add Custom Fee
+              </button>
             </div>
+          </div>
+
+          {/* Deposit Override Section */}
+          <div className="bg-amber-50 rounded-lg shadow p-6">
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">Deposit Override</h3>
+            <p className="text-sm text-slate-600 mb-4">
+              Set a custom deposit amount. Use this when the calculated deposit doesn't match your requirements.
+            </p>
+            <div className="bg-white p-3 rounded border border-amber-200 mb-3">
+              <p className="text-sm text-slate-700">
+                <strong>Calculated Deposit:</strong> {formatCurrency(defaultDeposit)}
+              </p>
+            </div>
+            {customDepositCents === null ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Custom Deposit Amount</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-slate-600">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={customDepositInput}
+                      onChange={(e) => setCustomDepositInput(e.target.value)}
+                      className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Set to $0 for acceptance-only invoices (no payment required)
+                  </p>
+                </div>
+                <button
+                  onClick={applyDepositOverride}
+                  className="w-full bg-amber-600 hover:bg-amber-700 text-white py-2 rounded-lg text-sm transition-colors"
+                >
+                  Apply
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="bg-white p-3 rounded border border-amber-200">
+                  <p className="text-sm text-slate-700">
+                    <strong>Custom Deposit:</strong> {formatCurrency(customDepositCents)}
+                  </p>
+                  {customDepositCents === 0 && (
+                    <p className="text-xs text-amber-700 mt-1">
+                      Customer will only need to accept (no payment required)
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={clearDepositOverride}
+                  className="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 py-2 rounded-lg text-sm transition-colors"
+                >
+                  Clear Override
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Message to Customer */}
+          <div className="bg-slate-50 rounded-lg shadow p-6">
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">Message to Customer</h3>
+            <p className="text-sm text-slate-600 mb-4">
+              Add an optional message to explain the changes to the customer. This will be included in the email and text notification.
+            </p>
+            <textarea
+              value={adminMessage}
+              onChange={(e) => setAdminMessage(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              rows={4}
+              placeholder="Example: We're upgrading your bounce house to a larger unit at no extra charge! Also added a generator since your event location doesn't have power outlets nearby."
+            />
           </div>
 
           <div className="bg-white rounded-lg shadow p-6">
@@ -782,26 +1068,42 @@ export function InvoiceBuilder() {
                 <span className="font-semibold text-slate-900">{formatCurrency(subtotal)}</span>
               </div>
 
-              {discountAmount > 0 && (
-                <div className="flex justify-between text-red-700">
-                  <span>Discount:</span>
-                  <span className="font-semibold">-{formatCurrency(discountAmount)}</span>
+              {discounts.map((discount, idx) => (
+                <div key={idx} className="flex justify-between text-red-700">
+                  <span>{discount.name}:</span>
+                  <span className="font-semibold">
+                    -{formatCurrency(discount.amount_cents > 0 ? discount.amount_cents : Math.round(subtotal * (discount.percentage / 100)))}
+                  </span>
                 </div>
-              )}
+              ))}
 
-              <div className="flex justify-between pt-2 border-t border-blue-300">
-                <span className="font-semibold text-slate-900">Total:</span>
-                <span className="text-xl font-bold text-blue-600">{formatCurrency(totalAfterDiscount)}</span>
+              {customFees.map((fee, idx) => (
+                <div key={idx} className="flex justify-between text-slate-700">
+                  <span>{fee.name}:</span>
+                  <span className="font-semibold">{formatCurrency(fee.amount_cents)}</span>
+                </div>
+              ))}
+
+              <div className="flex justify-between text-slate-700">
+                <span>Tax (6%):</span>
+                <span className="font-semibold">{formatCurrency(taxCents)}</span>
               </div>
 
               <div className="flex justify-between pt-2 border-t border-blue-300">
-                <span className="text-slate-600">Deposit {waiveDeposit && '(Waived)'}:</span>
+                <span className="font-semibold text-slate-900">Total:</span>
+                <span className="text-xl font-bold text-blue-600">{formatCurrency(totalCents)}</span>
+              </div>
+
+              <div className="flex justify-between pt-2 border-t border-blue-300">
+                <span className="text-slate-600">
+                  {customDepositCents === 0 ? 'Payment Required:' : 'Deposit Due:'}
+                </span>
                 <span className="font-semibold text-green-700">{formatCurrency(depositRequired)}</span>
               </div>
 
               <div className="flex justify-between">
                 <span className="text-slate-600">Balance Due:</span>
-                <span className="font-semibold text-slate-900">{formatCurrency(totalAfterDiscount - depositRequired)}</span>
+                <span className="font-semibold text-slate-900">{formatCurrency(totalCents - depositRequired)}</span>
               </div>
             </div>
 
