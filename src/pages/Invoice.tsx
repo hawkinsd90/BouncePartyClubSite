@@ -5,6 +5,7 @@ import { formatCurrency } from '../lib/pricing';
 import { CreditCard, CheckCircle, Loader2, AlertCircle, Calendar, MapPin, Package } from 'lucide-react';
 import { StripeCheckoutForm } from '../components/StripeCheckoutForm';
 import { completeOrderAfterPayment } from '../lib/orderCreation';
+import { RentalTerms } from '../components/RentalTerms';
 
 export function Invoice() {
   const { orderId } = useParams<{ orderId: string }>();
@@ -18,6 +19,7 @@ export function Invoice() {
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
+  const [responsibilityAccepted, setResponsibilityAccepted] = useState(false);
 
   useEffect(() => {
     if (orderId) {
@@ -132,6 +134,16 @@ export function Invoice() {
 
   const handlePaymentSuccess = async () => {
     try {
+      // Update the responsibility acceptance field
+      const fieldToUpdate = order.pickup_preference === 'next_day'
+        ? 'overnight_responsibility_accepted'
+        : 'same_day_responsibility_accepted';
+
+      await supabase
+        .from('orders')
+        .update({ [fieldToUpdate]: true })
+        .eq('id', orderId);
+
       await completeOrderAfterPayment(orderId!, 'payment_intent_id');
       setPaymentSuccess(true);
       setShowPaymentForm(false);
@@ -340,33 +352,62 @@ export function Invoice() {
               </div>
             </div>
 
+            <div className="mt-6">
+              <RentalTerms />
+            </div>
+
             {order.deposit_required && order.deposit_paid_cents === 0 && (
-              <div className="bg-blue-50 rounded-lg p-6 text-center">
-                <CreditCard className="w-12 h-12 text-blue-600 mx-auto mb-3" />
-                <h3 className="text-lg font-bold text-slate-900 mb-2">
-                  Pay Deposit to Confirm Booking
-                </h3>
-                <p className="text-slate-600 mb-4">
-                  Secure your reservation with a deposit payment of {formatCurrency(order.deposit_due_cents)}
-                </p>
-                <button
-                  onClick={handlePayNow}
-                  disabled={checkingAvailability}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-3 px-8 rounded-lg transition-colors inline-flex items-center"
-                >
-                  {checkingAvailability ? (
-                    <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Checking Availability...
-                    </>
-                  ) : (
-                    <>
-                      <CreditCard className="w-5 h-5 mr-2" />
-                      Pay Now
-                    </>
+              <>
+                <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <label className="flex items-start cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={responsibilityAccepted}
+                      onChange={(e) => setResponsibilityAccepted(e.target.checked)}
+                      className="mt-0.5 mr-3"
+                    />
+                    <p className="text-sm text-amber-900 font-medium">
+                      {order.pickup_preference === 'next_day' ? (
+                        <>⚠️ I understand the inflatable will remain on my property overnight and I am legally responsible for its safety and security until pickup the next morning. *</>
+                      ) : (
+                        <>⚠️ I understand I am legally responsible for the inflatable until Bounce Party Club picks it up {order.location_type === 'commercial' ? 'by 7:00 PM' : 'this evening'}. *</>
+                      )}
+                    </p>
+                  </label>
+                </div>
+
+                <div className="bg-blue-50 rounded-lg p-6 text-center mt-6">
+                  <CreditCard className="w-12 h-12 text-blue-600 mx-auto mb-3" />
+                  <h3 className="text-lg font-bold text-slate-900 mb-2">
+                    Pay Deposit to Confirm Booking
+                  </h3>
+                  <p className="text-slate-600 mb-4">
+                    Secure your reservation with a deposit payment of {formatCurrency(order.deposit_due_cents)}
+                  </p>
+                  <button
+                    onClick={handlePayNow}
+                    disabled={checkingAvailability || !responsibilityAccepted}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-8 rounded-lg transition-colors inline-flex items-center"
+                  >
+                    {checkingAvailability ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Checking Availability...
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="w-5 h-5 mr-2" />
+                        Pay Now
+                      </>
+                    )}
+                  </button>
+                  {!responsibilityAccepted && (
+                    <p className="text-sm text-slate-600 mt-3">
+                      Please acknowledge the responsibility agreement above to continue
+                    </p>
                   )}
-                </button>
-              </div>
+                </div>
+              </>
             )}
 
             {!order.deposit_required && (

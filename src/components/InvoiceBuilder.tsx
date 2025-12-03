@@ -39,6 +39,7 @@ export function InvoiceBuilder() {
     event_end_date: '',
     start_window: '09:00 AM',
     end_window: '05:00 PM',
+    until_end_of_day: false,
     location_type: 'residential',
     address_line1: '',
     address_line2: '',
@@ -48,12 +49,39 @@ export function InvoiceBuilder() {
     surface: 'grass',
     generator_qty: 0,
     pickup_preference: 'next_day',
+    same_day_responsibility_accepted: false,
+    overnight_responsibility_accepted: false,
   });
 
   useEffect(() => {
     loadData();
     loadSavedTemplates();
   }, []);
+
+  useEffect(() => {
+    if (eventDetails.location_type === 'commercial') {
+      setEventDetails(prev => ({
+        ...prev,
+        pickup_preference: 'same_day',
+        until_end_of_day: false,
+        same_day_responsibility_accepted: false,
+        overnight_responsibility_accepted: false,
+      }));
+    }
+  }, [eventDetails.location_type]);
+
+  useEffect(() => {
+    const isSameDayRestricted = (eventDetails.location_type === 'residential' && eventDetails.pickup_preference === 'same_day') || eventDetails.location_type === 'commercial';
+
+    if (isSameDayRestricted) {
+      setEventDetails(prev => ({
+        ...prev,
+        event_end_date: prev.event_date,
+        until_end_of_day: false,
+        end_window: prev.end_window > '19:00' ? '19:00' : prev.end_window,
+      }));
+    }
+  }, [eventDetails.pickup_preference, eventDetails.location_type, eventDetails.event_date]);
 
   async function loadData() {
     const [customersRes, unitsRes] = await Promise.all([
@@ -328,10 +356,13 @@ export function InvoiceBuilder() {
           event_end_date: eventDetails.event_end_date || eventDetails.event_date,
           start_window: eventDetails.start_window,
           end_window: eventDetails.end_window,
+          until_end_of_day: eventDetails.until_end_of_day,
           location_type: eventDetails.location_type,
           surface: eventDetails.surface,
           generator_qty: eventDetails.generator_qty,
           pickup_preference: eventDetails.pickup_preference,
+          same_day_responsibility_accepted: eventDetails.same_day_responsibility_accepted,
+          overnight_responsibility_accepted: eventDetails.overnight_responsibility_accepted,
           subtotal_cents: subtotal,
           discount_cents: discountTotal,
           tax_cents: taxCents,
@@ -620,7 +651,7 @@ export function InvoiceBuilder() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Start Time</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Start Time *</label>
                   <input
                     type="time"
                     value={eventDetails.start_window}
@@ -629,13 +660,35 @@ export function InvoiceBuilder() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">End Time</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">End Time *</label>
                   <input
                     type="time"
                     value={eventDetails.end_window}
                     onChange={(e) => setEventDetails({ ...eventDetails, end_window: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                   />
+                  {((eventDetails.location_type === 'residential' && eventDetails.pickup_preference === 'same_day') || eventDetails.location_type === 'commercial') && (
+                    <p className="text-xs text-slate-600 mt-1">Max 7:00 PM for same-day pickup</p>
+                  )}
+                  <div className="mt-2">
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={eventDetails.until_end_of_day}
+                        onChange={(e) =>
+                          setEventDetails({
+                            ...eventDetails,
+                            until_end_of_day: e.target.checked,
+                          })
+                        }
+                        disabled={(eventDetails.location_type === 'residential' && eventDetails.pickup_preference === 'same_day') || eventDetails.location_type === 'commercial'}
+                        className="mr-2 disabled:opacity-50"
+                      />
+                      <span className={((eventDetails.location_type === 'residential' && eventDetails.pickup_preference === 'same_day') || eventDetails.location_type === 'commercial') ? 'opacity-50' : ''}>
+                        Until end of day
+                      </span>
+                    </label>
+                  </div>
                 </div>
               </div>
               <div>
@@ -680,46 +733,125 @@ export function InvoiceBuilder() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Location Type</label>
-                <select
-                  value={eventDetails.location_type}
-                  onChange={(e) => setEventDetails({ ...eventDetails, location_type: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                >
-                  <option value="residential">Residential</option>
-                  <option value="business">Commercial</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Pickup Preference</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="block text-sm font-medium text-slate-700 mb-2">Event Type</label>
+                <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    onClick={() => setEventDetails({ ...eventDetails, pickup_preference: 'next_day' })}
-                    className={`px-4 py-3 rounded-lg border-2 transition-all text-left ${
-                      eventDetails.pickup_preference === 'next_day'
-                        ? 'border-green-500 bg-green-50 text-green-900'
+                    onClick={() => setEventDetails({ ...eventDetails, location_type: 'residential' })}
+                    className={`px-4 py-3 rounded-lg border-2 transition-all text-center ${
+                      eventDetails.location_type === 'residential'
+                        ? 'border-green-600 bg-green-50 text-green-900'
                         : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'
                     }`}
                   >
-                    <div className="font-semibold text-sm">Next Morning</div>
-                    <div className="text-xs mt-1 opacity-80">Equipment stays overnight</div>
+                    <div className="font-semibold text-sm">Residential</div>
+                    <div className="text-xs mt-1 opacity-80">Home, backyard</div>
                   </button>
                   <button
                     type="button"
-                    onClick={() => setEventDetails({ ...eventDetails, pickup_preference: 'same_day' })}
-                    className={`px-4 py-3 rounded-lg border-2 transition-all text-left ${
-                      eventDetails.pickup_preference === 'same_day'
-                        ? 'border-green-500 bg-green-50 text-green-900'
+                    onClick={() => setEventDetails({ ...eventDetails, location_type: 'commercial' })}
+                    className={`px-4 py-3 rounded-lg border-2 transition-all text-center ${
+                      eventDetails.location_type === 'commercial'
+                        ? 'border-blue-600 bg-blue-50 text-blue-900'
                         : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'
                     }`}
                   >
-                    <div className="font-semibold text-sm">Same Day</div>
-                    <div className="text-xs mt-1 opacity-80">Pickup same evening</div>
+                    <div className="font-semibold text-sm">Commercial</div>
+                    <div className="text-xs mt-1 opacity-80">School, park, church</div>
                   </button>
                 </div>
+                {eventDetails.location_type === 'commercial' && (
+                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-xs text-blue-900">
+                      <strong>Commercial events require same-day pickup by 7:00 PM.</strong> This ensures safety at parks, churches, schools, and other public locations.
+                    </p>
+                  </div>
+                )}
               </div>
+
+              {eventDetails.location_type === 'residential' && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">When do you need pickup?</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setEventDetails({ ...eventDetails, pickup_preference: 'next_day', same_day_responsibility_accepted: false, overnight_responsibility_accepted: false })}
+                      className={`px-4 py-3 rounded-lg border-2 transition-all text-left ${
+                        eventDetails.pickup_preference === 'next_day'
+                          ? 'border-green-600 bg-green-50 text-green-900'
+                          : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'
+                      }`}
+                    >
+                      <div className="font-semibold text-sm">Next Morning</div>
+                      <div className="text-xs mt-1 opacity-80">Pickup 6 AM - 1:30 PM</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEventDetails({ ...eventDetails, pickup_preference: 'same_day' })}
+                      className={`px-4 py-3 rounded-lg border-2 transition-all text-left ${
+                        eventDetails.pickup_preference === 'same_day'
+                          ? 'border-orange-600 bg-orange-50 text-orange-900'
+                          : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'
+                      }`}
+                    >
+                      <div className="font-semibold text-sm">Same Day</div>
+                      <div className="text-xs mt-1 opacity-80">Additional fees apply</div>
+                    </button>
+                  </div>
+                  {eventDetails.pickup_preference === 'next_day' && (
+                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <label className="flex items-start cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={eventDetails.overnight_responsibility_accepted}
+                          onChange={(e) =>
+                            setEventDetails({ ...eventDetails, overnight_responsibility_accepted: e.target.checked })
+                          }
+                          className="mt-0.5 mr-3"
+                        />
+                        <p className="text-xs text-amber-900 font-medium">
+                          ⚠️ I understand the inflatable will remain on my property overnight and I am legally responsible for its safety and security until pickup the next morning. *
+                        </p>
+                      </label>
+                    </div>
+                  )}
+                  {eventDetails.pickup_preference === 'same_day' && (
+                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <label className="flex items-start cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={eventDetails.same_day_responsibility_accepted}
+                          onChange={(e) =>
+                            setEventDetails({ ...eventDetails, same_day_responsibility_accepted: e.target.checked })
+                          }
+                          className="mt-0.5 mr-3"
+                        />
+                        <p className="text-xs text-amber-900 font-medium">
+                          ⚠️ I understand I am legally responsible for the inflatable until Bounce Party Club picks it up this evening. *
+                        </p>
+                      </label>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {eventDetails.location_type === 'commercial' && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <label className="flex items-start cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={eventDetails.same_day_responsibility_accepted}
+                      onChange={(e) =>
+                        setEventDetails({ ...eventDetails, same_day_responsibility_accepted: e.target.checked })
+                      }
+                      className="mt-0.5 mr-3"
+                    />
+                    <p className="text-xs text-amber-900 font-medium">
+                      ⚠️ I understand I am legally responsible for the inflatable until Bounce Party Club picks it up by 7:00 PM. *
+                    </p>
+                  </label>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Setup Surface</label>
