@@ -244,6 +244,7 @@ export function Quote() {
         same_day_matrix_json: (data.same_day_matrix_json as any[]) ?? [],
         overnight_holiday_only: data.overnight_holiday_only ?? false,
         extra_day_pct: Number(data.extra_day_pct ?? 0),
+        generator_price_cents: Number(data.generator_price_cents ?? 0),
       });
     }
   }

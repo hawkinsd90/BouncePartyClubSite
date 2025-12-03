@@ -46,7 +46,15 @@ export interface Database {
           lng?: number | null
           created_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "addresses_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       admin_settings: {
         Row: {
@@ -514,7 +522,22 @@ export interface Database {
           qty?: number
           notes?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       order_notes: {
         Row: {
@@ -765,6 +788,9 @@ export interface Database {
           until_end_of_day: boolean
           same_day_responsibility_accepted: boolean
           overnight_responsibility_accepted: boolean
+          has_pets: boolean
+          special_details: string | null
+          deposit_required: boolean
           created_at: string
         }
         Insert: {
@@ -814,6 +840,9 @@ export interface Database {
           until_end_of_day?: boolean
           same_day_responsibility_accepted?: boolean
           overnight_responsibility_accepted?: boolean
+          has_pets?: boolean
+          special_details?: string | null
+          deposit_required?: boolean
           created_at?: string
         }
         Update: {
@@ -863,9 +892,27 @@ export interface Database {
           until_end_of_day?: boolean
           same_day_responsibility_accepted?: boolean
           overnight_responsibility_accepted?: boolean
+          has_pets?: boolean
+          special_details?: string | null
+          deposit_required?: boolean
           created_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "orders_address_id_fkey"
+            columns: ["address_id"]
+            isOneToOne: false
+            referencedRelation: "addresses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       payments: {
         Row: {
@@ -1028,6 +1075,50 @@ export interface Database {
           created_at?: string
         }
         Relationships: []
+      }
+      sms_conversations: {
+        Row: {
+          id: string
+          order_id: string | null
+          from_phone: string
+          to_phone: string
+          message_body: string
+          direction: string
+          twilio_message_sid: string | null
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          order_id?: string | null
+          from_phone: string
+          to_phone: string
+          message_body: string
+          direction: string
+          twilio_message_sid?: string | null
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          order_id?: string | null
+          from_phone?: string
+          to_phone?: string
+          message_body?: string
+          direction?: string
+          twilio_message_sid?: string | null
+          status?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_conversations_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       sms_message_templates: {
         Row: {
