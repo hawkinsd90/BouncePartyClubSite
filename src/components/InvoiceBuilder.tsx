@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { formatCurrency } from '../lib/pricing';
+import { formatCurrency, calculatePrice, calculateDrivingDistance, type PricingRules, type PriceBreakdown } from '../lib/pricing';
+import { HOME_BASE } from '../lib/constants';
 import { Trash2, DollarSign, Percent, Save, UserPlus, Copy, Check, Send, Link as LinkIcon, Calendar, MapPin, Clock, Users } from 'lucide-react';
 import { AddressAutocomplete } from './AddressAutocomplete';
 
@@ -34,6 +35,8 @@ export function InvoiceBuilder() {
   const [customDepositInput, setCustomDepositInput] = useState('');
   const [invoiceUrl, setInvoiceUrl] = useState('');
   const [copiedToClipboard, setCopiedToClipboard] = useState(false);
+  const [pricingRules, setPricingRules] = useState<PricingRules | null>(null);
+  const [priceBreakdown, setPriceBreakdown] = useState<PriceBreakdown | null>(null);
   const [eventDetails, setEventDetails] = useState({
     event_date: '',
     event_end_date: '',
@@ -46,6 +49,8 @@ export function InvoiceBuilder() {
     city: '',
     state: 'MI',
     zip: '',
+    lat: 0,
+    lng: 0,
     surface: 'grass',
     generator_qty: 0,
     pickup_preference: 'next_day',
@@ -83,14 +88,22 @@ export function InvoiceBuilder() {
     }
   }, [eventDetails.pickup_preference, eventDetails.location_type, eventDetails.event_date]);
 
+  useEffect(() => {
+    if (cartItems.length > 0 && pricingRules && eventDetails.zip && eventDetails.lat && eventDetails.lng && eventDetails.event_date && eventDetails.event_end_date) {
+      calculatePricing();
+    }
+  }, [cartItems, pricingRules, eventDetails, discounts, customFees]);
+
   async function loadData() {
-    const [customersRes, unitsRes] = await Promise.all([
+    const [customersRes, unitsRes, rulesRes] = await Promise.all([
       supabase.from('customers').select('*').order('last_name'),
       supabase.from('units').select('*').eq('active', true).order('name'),
+      supabase.from('admin_settings').select('*').single(),
     ]);
 
     if (customersRes.data) setCustomers(customersRes.data);
     if (unitsRes.data) setUnits(unitsRes.data);
+    if (rulesRes.data) setPricingRules(rulesRes.data);
   }
 
   async function loadSavedTemplates() {
@@ -101,6 +114,49 @@ export function InvoiceBuilder() {
 
     if (discountsRes.data) setSavedDiscountTemplates(discountsRes.data);
     if (feesRes.data) setSavedFeeTemplates(feesRes.data);
+  }
+
+  async function calculatePricing() {
+    if (!pricingRules) return;
+
+    try {
+      const distance = await calculateDrivingDistance(
+        HOME_BASE.lat,
+        HOME_BASE.lng,
+        eventDetails.lat,
+        eventDetails.lng
+      );
+
+      const eventStartDate = new Date(eventDetails.event_date);
+      const eventEndDate = new Date(eventDetails.event_end_date);
+      const diffTime = Math.abs(eventEndDate.getTime() - eventStartDate.getTime());
+      const numDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+      const items = cartItems.map(item => ({
+        unit_id: item.unit_id,
+        wet_or_dry: item.mode,
+        unit_price_cents: item.adjusted_price_cents,
+        qty: item.qty,
+      }));
+
+      const breakdown = calculatePrice({
+        items,
+        location_type: eventDetails.location_type as 'residential' | 'commercial',
+        surface: eventDetails.surface as 'grass' | 'cement',
+        can_use_stakes: eventDetails.surface === 'grass',
+        overnight_allowed: eventDetails.pickup_preference === 'next_day',
+        num_days: numDays,
+        distance_miles: distance,
+        city: eventDetails.city,
+        zip: eventDetails.zip,
+        has_generator: eventDetails.generator_qty > 0,
+        rules: pricingRules,
+      });
+
+      setPriceBreakdown(breakdown);
+    } catch (error) {
+      console.error('Error calculating pricing:', error);
+    }
   }
 
   function addItemToCart(unit: any, mode: 'dry' | 'water') {
@@ -155,12 +211,22 @@ export function InvoiceBuilder() {
   // Calculate total custom fees
   const customFeesTotal = customFees.reduce((sum, f) => sum + f.amount_cents, 0);
 
-  // Calculate tax on taxable amount (subtotal - discounts + fees)
-  const taxableAmount = Math.max(0, subtotal - discountTotal + customFeesTotal);
+  // Get automatic fees from priceBreakdown
+  const travelFee = priceBreakdown?.travel_fee_cents || 0;
+  const surfaceFee = priceBreakdown?.surface_fee_cents || 0;
+  const sameDayPickupFee = priceBreakdown?.same_day_pickup_fee_cents || 0;
+  const generatorFee = pricingRules && eventDetails.generator_qty > 0 ? pricingRules.generator_price_cents * eventDetails.generator_qty : 0;
+  const automaticFees = travelFee + surfaceFee + sameDayPickupFee + generatorFee;
+
+  // Use priceBreakdown subtotal if available, otherwise use calculated subtotal
+  const actualSubtotal = priceBreakdown?.subtotal_cents || subtotal;
+
+  // Calculate tax on taxable amount (subtotal + automatic fees - discounts + custom fees)
+  const taxableAmount = Math.max(0, actualSubtotal + automaticFees - discountTotal + customFeesTotal);
   const taxCents = Math.round(taxableAmount * 0.06);
 
   // Calculate total
-  const totalCents = subtotal - discountTotal + customFeesTotal + taxCents;
+  const totalCents = actualSubtotal + automaticFees - discountTotal + customFeesTotal + taxCents;
 
   // Calculate deposit
   const defaultDeposit = Math.round(totalCents * 0.5);
@@ -363,7 +429,10 @@ export function InvoiceBuilder() {
           pickup_preference: eventDetails.pickup_preference,
           same_day_responsibility_accepted: eventDetails.same_day_responsibility_accepted,
           overnight_responsibility_accepted: eventDetails.overnight_responsibility_accepted,
-          subtotal_cents: subtotal,
+          subtotal_cents: priceBreakdown?.subtotal_cents || subtotal,
+          travel_fee_cents: priceBreakdown?.travel_fee_cents || 0,
+          surface_fee_cents: priceBreakdown?.surface_fee_cents || 0,
+          same_day_pickup_fee_cents: priceBreakdown?.same_day_pickup_fee_cents || 0,
           discount_cents: discountTotal,
           tax_cents: taxCents,
           total_cents: totalCents,
@@ -703,6 +772,8 @@ export function InvoiceBuilder() {
                       city: place.city,
                       state: place.state,
                       zip: place.zip,
+                      lat: place.lat,
+                      lng: place.lng,
                     });
                   }}
                   placeholder="Enter street address"
@@ -1189,11 +1260,64 @@ export function InvoiceBuilder() {
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 sm:p-6">
             <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-4">Invoice Summary</h3>
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
+              {/* Cart Items */}
+              {cartItems.map((item, idx) => (
+                <div key={idx} className="flex justify-between text-slate-700">
+                  <span>
+                    {item.unit_name} ({item.mode})
+                    {item.qty > 1 && ` × ${item.qty}`}
+                  </span>
+                  <span className="font-semibold">{formatCurrency(item.adjusted_price_cents * item.qty)}</span>
+                </div>
+              ))}
+
+              {/* Subtotal */}
+              <div className="flex justify-between pt-2 border-t border-blue-200">
                 <span className="text-slate-600">Subtotal:</span>
-                <span className="font-semibold text-slate-900">{formatCurrency(subtotal)}</span>
+                <span className="font-semibold text-slate-900">{formatCurrency(priceBreakdown?.subtotal_cents || subtotal)}</span>
               </div>
 
+              {/* Travel Fee */}
+              {priceBreakdown && priceBreakdown.travel_fee_cents > 0 && (
+                <div className="flex justify-between text-slate-700">
+                  <span>Travel Fee:</span>
+                  <span className="font-semibold">{formatCurrency(priceBreakdown.travel_fee_cents)}</span>
+                </div>
+              )}
+
+              {/* Surface Fee */}
+              {priceBreakdown && priceBreakdown.surface_fee_cents > 0 && (
+                <div className="flex justify-between text-slate-700">
+                  <span>Sandbag Fee:</span>
+                  <span className="font-semibold">{formatCurrency(priceBreakdown.surface_fee_cents)}</span>
+                </div>
+              )}
+
+              {/* Same Day Pickup Fee */}
+              {priceBreakdown && priceBreakdown.same_day_pickup_fee_cents > 0 && (
+                <div className="flex justify-between text-slate-700">
+                  <span>Same-Day Pickup Fee:</span>
+                  <span className="font-semibold">{formatCurrency(priceBreakdown.same_day_pickup_fee_cents)}</span>
+                </div>
+              )}
+
+              {/* Generator Fee */}
+              {eventDetails.generator_qty > 0 && pricingRules && (
+                <div className="flex justify-between text-slate-700">
+                  <span>Generator{eventDetails.generator_qty > 1 ? ` × ${eventDetails.generator_qty}` : ''}:</span>
+                  <span className="font-semibold">{formatCurrency(pricingRules.generator_price_cents * eventDetails.generator_qty)}</span>
+                </div>
+              )}
+
+              {/* Custom Fees */}
+              {customFees.map((fee, idx) => (
+                <div key={idx} className="flex justify-between text-slate-700">
+                  <span>{fee.name}:</span>
+                  <span className="font-semibold">{formatCurrency(fee.amount_cents)}</span>
+                </div>
+              ))}
+
+              {/* Discounts */}
               {discounts.map((discount, idx) => (
                 <div key={idx} className="flex justify-between text-red-700">
                   <span>{discount.name}:</span>
@@ -1203,23 +1327,19 @@ export function InvoiceBuilder() {
                 </div>
               ))}
 
-              {customFees.map((fee, idx) => (
-                <div key={idx} className="flex justify-between text-slate-700">
-                  <span>{fee.name}:</span>
-                  <span className="font-semibold">{formatCurrency(fee.amount_cents)}</span>
-                </div>
-              ))}
-
+              {/* Tax */}
               <div className="flex justify-between text-slate-700">
                 <span>Tax (6%):</span>
                 <span className="font-semibold">{formatCurrency(taxCents)}</span>
               </div>
 
+              {/* Total */}
               <div className="flex justify-between pt-2 border-t border-blue-300">
                 <span className="font-semibold text-slate-900">Total:</span>
                 <span className="text-xl font-bold text-blue-600">{formatCurrency(totalCents)}</span>
               </div>
 
+              {/* Deposit */}
               <div className="flex justify-between pt-2 border-t border-blue-300">
                 <span className="text-slate-600">
                   {customDepositCents === 0 ? 'Payment Required:' : 'Deposit Due:'}
@@ -1227,6 +1347,7 @@ export function InvoiceBuilder() {
                 <span className="font-semibold text-green-700">{formatCurrency(depositRequired)}</span>
               </div>
 
+              {/* Balance */}
               <div className="flex justify-between">
                 <span className="text-slate-600">Balance Due:</span>
                 <span className="font-semibold text-slate-900">{formatCurrency(totalCents - depositRequired)}</span>
