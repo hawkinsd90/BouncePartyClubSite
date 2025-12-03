@@ -476,37 +476,35 @@ export function InvoiceBuilder() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-slate-900 mb-6">Invoice Builder</h2>
-        <p className="text-slate-600 mb-6">
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-4 sm:mb-6">Invoice Builder</h2>
+        <p className="text-sm sm:text-base text-slate-600 mb-4 sm:mb-6">
           Build a custom invoice for a customer by selecting items and adjusting prices as needed.
         </p>
       </div>
 
       {invoiceUrl && (
-        <div className="bg-green-50 border-2 border-green-500 rounded-lg p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center">
-              <Check className="w-6 h-6 text-green-600 mr-2" />
-              <h3 className="text-lg font-semibold text-green-900">Invoice Created Successfully!</h3>
-            </div>
+        <div className="bg-green-50 border-2 border-green-500 rounded-lg p-4 sm:p-6">
+          <div className="flex items-center mb-4">
+            <Check className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 mr-2" />
+            <h3 className="text-base sm:text-lg font-semibold text-green-900">Invoice Created!</h3>
           </div>
-          <p className="text-green-800 mb-4">
+          <p className="text-sm sm:text-base text-green-800 mb-4">
             {selectedCustomer
               ? 'Invoice has been sent to the customer via email and SMS.'
               : 'Copy the link below and send it to your customer to fill in their information and accept the invoice.'}
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <input
               type="text"
               value={invoiceUrl}
               readOnly
-              className="flex-1 px-4 py-2 border border-green-300 rounded-lg bg-white text-slate-900"
+              className="flex-1 px-3 sm:px-4 py-2 border border-green-300 rounded-lg bg-white text-slate-900 text-sm"
             />
             <button
               onClick={handleCopyLink}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors whitespace-nowrap text-sm sm:text-base"
             >
               {copiedToClipboard ? (
                 <>
@@ -525,13 +523,13 @@ export function InvoiceBuilder() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-slate-900">Select Customer</h3>
+        <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
+              <h3 className="text-base sm:text-lg font-semibold text-slate-900">Select Customer</h3>
               <button
                 onClick={() => setShowNewCustomerForm(!showNewCustomerForm)}
-                className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+                className="flex items-center justify-center gap-1 sm:gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm rounded-lg transition-colors"
               >
                 <UserPlus className="w-4 h-4" />
                 New Customer
@@ -556,7 +554,7 @@ export function InvoiceBuilder() {
             {showNewCustomerForm && (
               <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
                 <h4 className="font-medium text-slate-900 mb-3">Create New Customer</h4>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <input
                     type="text"
                     placeholder="First Name *"
@@ -604,10 +602,10 @@ export function InvoiceBuilder() {
             )}
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Event Details</h3>
+          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-4">Event Details</h3>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Event Start Date *</label>
                   <input
@@ -629,7 +627,7 @@ export function InvoiceBuilder() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Start Time</label>
                   <input
@@ -667,7 +665,7 @@ export function InvoiceBuilder() {
                   required
                 />
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <input
                   type="text"
                   placeholder="City"
@@ -718,8 +716,8 @@ export function InvoiceBuilder() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Available Units</h3>
+          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-4">Available Units</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
               {units.map(unit => (
                 <div key={unit.id} className="border border-slate-200 rounded-lg p-3">
@@ -746,8 +744,8 @@ export function InvoiceBuilder() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Cart Items</h3>
+          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-4">Cart Items</h3>
             {cartItems.length === 0 ? (
               <p className="text-slate-500 text-center py-8">No items in cart</p>
             ) : (
@@ -768,7 +766,7 @@ export function InvoiceBuilder() {
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-xs text-slate-600 mb-1">Quantity</label>
+                        <label className="block text-xs text-slate-600 mb-1">Qty</label>
                         <input
                           type="number"
                           min="1"
@@ -801,10 +799,10 @@ export function InvoiceBuilder() {
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {/* Discounts Section */}
-          <div className="bg-green-50 rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Discounts</h3>
+          <div className="bg-green-50 rounded-lg shadow p-4 sm:p-6">
+            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-4">Discounts</h3>
 
             {/* Existing Discounts */}
             {discounts.length > 0 && (
@@ -838,7 +836,7 @@ export function InvoiceBuilder() {
                 onChange={(e) => setNewDiscount({ ...newDiscount, name: e.target.value })}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
               />
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-slate-600 mb-1">$ Amount</label>
                   <input
@@ -884,8 +882,8 @@ export function InvoiceBuilder() {
           </div>
 
           {/* Custom Fees Section */}
-          <div className="bg-blue-50 rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Custom Fees</h3>
+          <div className="bg-blue-50 rounded-lg shadow p-4 sm:p-6">
+            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-4">Custom Fees</h3>
 
             {/* Existing Fees */}
             {customFees.length > 0 && (
@@ -947,8 +945,8 @@ export function InvoiceBuilder() {
           </div>
 
           {/* Deposit Override Section */}
-          <div className="bg-amber-50 rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">Deposit Override</h3>
+          <div className="bg-amber-50 rounded-lg shadow p-4 sm:p-6">
+            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-2">Deposit Override</h3>
             <p className="text-sm text-slate-600 mb-4">
               Set a custom deposit amount. Use this when the calculated deposit doesn't match your requirements.
             </p>
@@ -1007,8 +1005,8 @@ export function InvoiceBuilder() {
           </div>
 
           {/* Message to Customer */}
-          <div className="bg-slate-50 rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">Message to Customer</h3>
+          <div className="bg-slate-50 rounded-lg shadow p-4 sm:p-6">
+            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-2">Message to Customer</h3>
             <p className="text-sm text-slate-600 mb-4">
               Add an optional message to explain the changes to the customer. This will be included in the email and text notification.
             </p>
@@ -1021,8 +1019,8 @@ export function InvoiceBuilder() {
             />
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Authorization & Consent</h3>
+          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-4">Authorization & Consent</h3>
             <div className="space-y-4">
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
                 <p className="text-sm text-slate-700 mb-3">
@@ -1060,8 +1058,8 @@ export function InvoiceBuilder() {
             </div>
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Invoice Summary</h3>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 sm:p-6">
+            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-4">Invoice Summary</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-slate-600">Subtotal:</span>
