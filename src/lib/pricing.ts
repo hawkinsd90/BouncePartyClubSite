@@ -47,6 +47,7 @@ export interface PriceBreakdown {
   travel_is_flat_fee: boolean;
   surface_fee_cents: number;
   same_day_pickup_fee_cents: number;
+  generator_fee_cents: number;
   tax_cents: number;
   total_cents: number;
   deposit_due_cents: number;

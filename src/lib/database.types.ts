@@ -6,1098 +6,1141 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
-  }
+export interface Database {
   public: {
     Tables: {
       addresses: {
         Row: {
-          city: string
-          created_at: string | null
-          customer_id: string | null
           id: string
-          lat: number | null
+          customer_id: string | null
           line1: string
           line2: string | null
-          lng: number | null
+          city: string
           state: string
           zip: string
+          lat: number | null
+          lng: number | null
+          created_at: string
         }
         Insert: {
-          city: string
-          created_at?: string | null
-          customer_id?: string | null
           id?: string
-          lat?: number | null
+          customer_id?: string | null
           line1: string
           line2?: string | null
-          lng?: number | null
+          city: string
           state: string
           zip: string
+          lat?: number | null
+          lng?: number | null
+          created_at?: string
         }
         Update: {
-          city?: string
-          created_at?: string | null
-          customer_id?: string | null
           id?: string
-          lat?: number | null
+          customer_id?: string | null
           line1?: string
           line2?: string | null
-          lng?: number | null
+          city?: string
           state?: string
           zip?: string
+          lat?: number | null
+          lng?: number | null
+          created_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "addresses_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "customers"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       admin_settings: {
         Row: {
-          created_at: string | null
-          description: string | null
           id: string
           key: string
-          updated_at: string | null
           value: string
+          description: string | null
+          created_at: string
+          updated_at: string
         }
         Insert: {
-          created_at?: string | null
-          description?: string | null
           id?: string
           key: string
-          updated_at?: string | null
           value: string
+          description?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Update: {
-          created_at?: string | null
-          description?: string | null
           id?: string
           key?: string
-          updated_at?: string | null
           value?: string
+          description?: string | null
+          created_at?: string
+          updated_at?: string
         }
-        Relationships: []
       }
       admin_settings_changelog: {
         Row: {
-          change_description: string | null
-          changed_by: string | null
-          created_at: string | null
           id: string
-          new_value: string | null
-          old_value: string | null
           setting_key: string
+          old_value: string | null
+          new_value: string | null
+          changed_by: string | null
+          change_description: string | null
+          created_at: string
         }
         Insert: {
-          change_description?: string | null
-          changed_by?: string | null
-          created_at?: string | null
           id?: string
-          new_value?: string | null
-          old_value?: string | null
           setting_key: string
+          old_value?: string | null
+          new_value?: string | null
+          changed_by?: string | null
+          change_description?: string | null
+          created_at?: string
         }
         Update: {
-          change_description?: string | null
-          changed_by?: string | null
-          created_at?: string | null
           id?: string
-          new_value?: string | null
-          old_value?: string | null
           setting_key?: string
+          old_value?: string | null
+          new_value?: string | null
+          changed_by?: string | null
+          change_description?: string | null
+          created_at?: string
         }
-        Relationships: []
+      }
+      consent_records: {
+        Row: {
+          id: string
+          order_id: string
+          customer_id: string | null
+          consent_type: string
+          consented: boolean
+          consent_text: string
+          consent_version: string
+          consented_at: string
+          ip_address: string | null
+          user_agent: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          order_id: string
+          customer_id?: string | null
+          consent_type: string
+          consented: boolean
+          consent_text: string
+          consent_version?: string
+          consented_at?: string
+          ip_address?: string | null
+          user_agent?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          order_id?: string
+          customer_id?: string | null
+          consent_type?: string
+          consented?: boolean
+          consent_text?: string
+          consent_version?: string
+          consented_at?: string
+          ip_address?: string | null
+          user_agent?: string | null
+          created_at?: string
+        }
       }
       contacts: {
         Row: {
-          created_at: string | null
-          customer_id: string | null
-          email: string
-          first_name: string
           id: string
-          last_contact_date: string | null
+          customer_id: string | null
+          first_name: string
           last_name: string
-          opt_in_email: boolean | null
-          opt_in_sms: boolean | null
+          email: string
           phone: string | null
-          source: string | null
-          tags: string[] | null
-          total_bookings: number | null
-          total_spent_cents: number | null
-          updated_at: string | null
+          business_name: string | null
+          opt_in_email: boolean
+          opt_in_sms: boolean
+          source: string
+          tags: string[]
+          last_contact_date: string | null
+          total_bookings: number
+          total_spent_cents: number
+          created_at: string
+          updated_at: string
         }
         Insert: {
-          created_at?: string | null
-          customer_id?: string | null
-          email: string
-          first_name: string
           id?: string
-          last_contact_date?: string | null
+          customer_id?: string | null
+          first_name: string
           last_name: string
-          opt_in_email?: boolean | null
-          opt_in_sms?: boolean | null
+          email: string
           phone?: string | null
-          source?: string | null
-          tags?: string[] | null
-          total_bookings?: number | null
-          total_spent_cents?: number | null
-          updated_at?: string | null
+          business_name?: string | null
+          opt_in_email?: boolean
+          opt_in_sms?: boolean
+          source?: string
+          tags?: string[]
+          last_contact_date?: string | null
+          total_bookings?: number
+          total_spent_cents?: number
+          created_at?: string
+          updated_at?: string
         }
         Update: {
-          created_at?: string | null
-          customer_id?: string | null
-          email?: string
-          first_name?: string
           id?: string
-          last_contact_date?: string | null
+          customer_id?: string | null
+          first_name?: string
           last_name?: string
-          opt_in_email?: boolean | null
-          opt_in_sms?: boolean | null
+          email?: string
           phone?: string | null
-          source?: string | null
-          tags?: string[] | null
-          total_bookings?: number | null
-          total_spent_cents?: number | null
-          updated_at?: string | null
+          business_name?: string | null
+          opt_in_email?: boolean
+          opt_in_sms?: boolean
+          source?: string
+          tags?: string[]
+          last_contact_date?: string | null
+          total_bookings?: number
+          total_spent_cents?: number
+          created_at?: string
+          updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "contacts_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "customers"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       customers: {
         Row: {
-          created_at: string | null
-          email: string
-          first_name: string
           id: string
+          first_name: string
           last_name: string
+          email: string
           phone: string
+          business_name: string | null
+          created_at: string
         }
         Insert: {
-          created_at?: string | null
-          email: string
-          first_name: string
           id?: string
+          first_name: string
           last_name: string
+          email: string
           phone: string
+          business_name?: string | null
+          created_at?: string
         }
         Update: {
-          created_at?: string | null
-          email?: string
-          first_name?: string
           id?: string
+          first_name?: string
           last_name?: string
+          email?: string
           phone?: string
+          business_name?: string | null
+          created_at?: string
         }
-        Relationships: []
       }
       documents: {
         Row: {
-          created_at: string | null
           id: string
+          order_id: string
           kind: string
-          meta_json: Json | null
-          order_id: string | null
           url: string
+          meta_json: Json | null
+          created_at: string
         }
         Insert: {
-          created_at?: string | null
           id?: string
+          order_id: string
           kind: string
-          meta_json?: Json | null
-          order_id?: string | null
           url: string
+          meta_json?: Json | null
+          created_at?: string
         }
         Update: {
-          created_at?: string | null
           id?: string
+          order_id?: string
           kind?: string
-          meta_json?: Json | null
-          order_id?: string | null
           url?: string
+          meta_json?: Json | null
+          created_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "documents_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
+      }
+      invoice_links: {
+        Row: {
+          id: string
+          order_id: string
+          link_token: string
+          customer_filled: boolean
+          deposit_cents: number
+          expires_at: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          order_id: string
+          link_token?: string
+          customer_filled?: boolean
+          deposit_cents?: number
+          expires_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          order_id?: string
+          link_token?: string
+          customer_filled?: boolean
+          deposit_cents?: number
+          expires_at?: string
+          created_at?: string
+          updated_at?: string
+        }
       }
       invoices: {
         Row: {
-          created_at: string | null
-          customer_id: string | null
-          due_date: string | null
           id: string
-          invoice_date: string | null
           invoice_number: string
-          notes: string | null
           order_id: string | null
-          paid_amount_cents: number | null
-          payment_method: string | null
-          pdf_url: string | null
-          same_day_pickup_fee_cents: number | null
-          status: string | null
+          customer_id: string | null
+          invoice_date: string
+          due_date: string | null
+          status: string
           subtotal_cents: number
-          surface_fee_cents: number | null
-          tax_cents: number | null
+          tax_cents: number
+          travel_fee_cents: number
+          surface_fee_cents: number
+          same_day_pickup_fee_cents: number
           total_cents: number
-          travel_fee_cents: number | null
-          updated_at: string | null
+          paid_amount_cents: number
+          payment_method: string | null
+          notes: string | null
+          pdf_url: string | null
+          created_at: string
+          updated_at: string
         }
         Insert: {
-          created_at?: string | null
-          customer_id?: string | null
-          due_date?: string | null
           id?: string
-          invoice_date?: string | null
           invoice_number: string
-          notes?: string | null
           order_id?: string | null
-          paid_amount_cents?: number | null
-          payment_method?: string | null
-          pdf_url?: string | null
-          same_day_pickup_fee_cents?: number | null
-          status?: string | null
+          customer_id?: string | null
+          invoice_date?: string
+          due_date?: string | null
+          status?: string
           subtotal_cents: number
-          surface_fee_cents?: number | null
-          tax_cents?: number | null
+          tax_cents?: number
+          travel_fee_cents?: number
+          surface_fee_cents?: number
+          same_day_pickup_fee_cents?: number
           total_cents: number
-          travel_fee_cents?: number | null
-          updated_at?: string | null
+          paid_amount_cents?: number
+          payment_method?: string | null
+          notes?: string | null
+          pdf_url?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Update: {
-          created_at?: string | null
-          customer_id?: string | null
-          due_date?: string | null
           id?: string
-          invoice_date?: string | null
           invoice_number?: string
-          notes?: string | null
           order_id?: string | null
-          paid_amount_cents?: number | null
-          payment_method?: string | null
-          pdf_url?: string | null
-          same_day_pickup_fee_cents?: number | null
-          status?: string | null
+          customer_id?: string | null
+          invoice_date?: string
+          due_date?: string | null
+          status?: string
           subtotal_cents?: number
-          surface_fee_cents?: number | null
-          tax_cents?: number | null
+          tax_cents?: number
+          travel_fee_cents?: number
+          surface_fee_cents?: number
+          same_day_pickup_fee_cents?: number
           total_cents?: number
-          travel_fee_cents?: number | null
-          updated_at?: string | null
+          paid_amount_cents?: number
+          payment_method?: string | null
+          notes?: string | null
+          pdf_url?: string | null
+          created_at?: string
+          updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "invoices_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "customers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoices_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       messages: {
         Row: {
-          channel: string
-          created_at: string | null
           id: string
-          order_id: string | null
+          order_id: string
+          to_phone: string | null
+          to_email: string | null
+          channel: string
+          template_key: string
           payload_json: Json
           sent_at: string | null
-          status: string | null
-          template_key: string
-          to_email: string | null
-          to_phone: string | null
+          status: string
+          created_at: string
         }
         Insert: {
-          channel: string
-          created_at?: string | null
           id?: string
-          order_id?: string | null
+          order_id: string
+          to_phone?: string | null
+          to_email?: string | null
+          channel: string
+          template_key: string
           payload_json: Json
           sent_at?: string | null
-          status?: string | null
-          template_key: string
-          to_email?: string | null
-          to_phone?: string | null
+          status?: string
+          created_at?: string
         }
         Update: {
-          channel?: string
-          created_at?: string | null
           id?: string
-          order_id?: string | null
+          order_id?: string
+          to_phone?: string | null
+          to_email?: string | null
+          channel?: string
+          template_key?: string
           payload_json?: Json
           sent_at?: string | null
-          status?: string | null
-          template_key?: string
-          to_email?: string | null
-          to_phone?: string | null
+          status?: string
+          created_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "messages_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       order_changelog: {
         Row: {
-          change_type: string
-          created_at: string | null
-          field_changed: string
           id: string
-          new_value: string | null
-          old_value: string | null
           order_id: string
           user_id: string | null
+          field_changed: string
+          old_value: string | null
+          new_value: string | null
+          change_type: string
+          created_at: string
         }
         Insert: {
-          change_type?: string
-          created_at?: string | null
-          field_changed: string
           id?: string
-          new_value?: string | null
-          old_value?: string | null
           order_id: string
           user_id?: string | null
+          field_changed: string
+          old_value?: string | null
+          new_value?: string | null
+          change_type?: string
+          created_at?: string
         }
         Update: {
-          change_type?: string
-          created_at?: string | null
-          field_changed?: string
           id?: string
-          new_value?: string | null
-          old_value?: string | null
           order_id?: string
           user_id?: string | null
+          field_changed?: string
+          old_value?: string | null
+          new_value?: string | null
+          change_type?: string
+          created_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "order_changelog_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
+      }
+      order_custom_fees: {
+        Row: {
+          id: string
+          order_id: string
+          name: string
+          amount_cents: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          order_id: string
+          name: string
+          amount_cents?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          order_id?: string
+          name?: string
+          amount_cents?: number
+          created_at?: string
+        }
       }
       order_discounts: {
         Row: {
-          amount_cents: number | null
-          created_at: string | null
-          created_by: string | null
           id: string
-          name: string
           order_id: string
-          percentage: number | null
+          name: string
+          amount_cents: number
+          percentage: number
+          created_at: string
+          created_by: string | null
         }
         Insert: {
-          amount_cents?: number | null
-          created_at?: string | null
-          created_by?: string | null
           id?: string
-          name: string
           order_id: string
-          percentage?: number | null
+          name: string
+          amount_cents?: number
+          percentage?: number
+          created_at?: string
+          created_by?: string | null
         }
         Update: {
-          amount_cents?: number | null
-          created_at?: string | null
-          created_by?: string | null
           id?: string
-          name?: string
           order_id?: string
-          percentage?: number | null
+          name?: string
+          amount_cents?: number
+          percentage?: number
+          created_at?: string
+          created_by?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "order_discounts_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       order_items: {
         Row: {
           id: string
-          notes: string | null
-          order_id: string | null
-          qty: number | null
+          order_id: string
           unit_id: string | null
-          unit_price_cents: number
           wet_or_dry: string
+          unit_price_cents: number
+          qty: number
+          notes: string | null
         }
         Insert: {
           id?: string
-          notes?: string | null
-          order_id?: string | null
-          qty?: number | null
+          order_id: string
           unit_id?: string | null
-          unit_price_cents: number
           wet_or_dry: string
+          unit_price_cents: number
+          qty?: number
+          notes?: string | null
         }
         Update: {
           id?: string
-          notes?: string | null
-          order_id?: string | null
-          qty?: number | null
+          order_id?: string
           unit_id?: string | null
-          unit_price_cents?: number
           wet_or_dry?: string
+          unit_price_cents?: number
+          qty?: number
+          notes?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "order_items_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "order_items_unit_id_fkey"
-            columns: ["unit_id"]
-            isOneToOne: false
-            referencedRelation: "units"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       order_notes: {
         Row: {
-          created_at: string | null
           id: string
-          note: string
-          order_id: string | null
+          order_id: string
           user_id: string | null
+          note: string
+          created_at: string
         }
         Insert: {
-          created_at?: string | null
           id?: string
-          note: string
-          order_id?: string | null
+          order_id: string
           user_id?: string | null
+          note: string
+          created_at?: string
         }
         Update: {
-          created_at?: string | null
           id?: string
-          note?: string
-          order_id?: string | null
+          order_id?: string
           user_id?: string | null
+          note?: string
+          created_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "order_notes_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       order_refunds: {
         Row: {
-          amount_cents: number
-          created_at: string | null
           id: string
-          order_id: string | null
+          order_id: string
+          amount_cents: number
           reason: string
-          refunded_by: string | null
-          status: string | null
           stripe_refund_id: string | null
+          refunded_by: string | null
+          status: string
+          created_at: string
         }
         Insert: {
-          amount_cents: number
-          created_at?: string | null
           id?: string
-          order_id?: string | null
+          order_id: string
+          amount_cents: number
           reason: string
-          refunded_by?: string | null
-          status?: string | null
           stripe_refund_id?: string | null
+          refunded_by?: string | null
+          status?: string
+          created_at?: string
         }
         Update: {
-          amount_cents?: number
-          created_at?: string | null
           id?: string
-          order_id?: string | null
+          order_id?: string
+          amount_cents?: number
           reason?: string
-          refunded_by?: string | null
-          status?: string | null
           stripe_refund_id?: string | null
+          refunded_by?: string | null
+          status?: string
+          created_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "order_refunds_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
+      }
+      order_signatures: {
+        Row: {
+          id: string
+          order_id: string
+          customer_id: string | null
+          signer_name: string
+          signer_email: string
+          signer_phone: string
+          signature_image_url: string
+          initials_data: Json
+          typed_name: string
+          pdf_url: string | null
+          pdf_generated_at: string | null
+          signed_at: string
+          ip_address: string
+          user_agent: string
+          device_info: Json
+          waiver_version: string
+          waiver_text_snapshot: string
+          electronic_consent_given: boolean
+          electronic_consent_text: string
+          event_date: string
+          event_end_date: string | null
+          event_address_line1: string
+          event_address_line2: string | null
+          event_city: string
+          event_state: string
+          event_zip: string
+          home_address_line1: string | null
+          home_address_line2: string | null
+          home_city: string | null
+          home_state: string | null
+          home_zip: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          order_id: string
+          customer_id?: string | null
+          signer_name: string
+          signer_email: string
+          signer_phone: string
+          signature_image_url: string
+          initials_data?: Json
+          typed_name: string
+          pdf_url?: string | null
+          pdf_generated_at?: string | null
+          signed_at?: string
+          ip_address: string
+          user_agent: string
+          device_info?: Json
+          waiver_version?: string
+          waiver_text_snapshot: string
+          electronic_consent_given?: boolean
+          electronic_consent_text: string
+          event_date: string
+          event_end_date?: string | null
+          event_address_line1: string
+          event_address_line2?: string | null
+          event_city: string
+          event_state: string
+          event_zip: string
+          home_address_line1?: string | null
+          home_address_line2?: string | null
+          home_city?: string | null
+          home_state?: string | null
+          home_zip?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          order_id?: string
+          customer_id?: string | null
+          signer_name?: string
+          signer_email?: string
+          signer_phone?: string
+          signature_image_url?: string
+          initials_data?: Json
+          typed_name?: string
+          pdf_url?: string | null
+          pdf_generated_at?: string | null
+          signed_at?: string
+          ip_address?: string
+          user_agent?: string
+          device_info?: Json
+          waiver_version?: string
+          waiver_text_snapshot?: string
+          electronic_consent_given?: boolean
+          electronic_consent_text?: string
+          event_date?: string
+          event_end_date?: string | null
+          event_address_line1?: string
+          event_address_line2?: string | null
+          event_city?: string
+          event_state?: string
+          event_zip?: string
+          home_address_line1?: string | null
+          home_address_line2?: string | null
+          home_city?: string | null
+          home_state?: string | null
+          home_zip?: string | null
+          created_at?: string
+          updated_at?: string
+        }
       }
       order_workflow_events: {
         Row: {
-          created_at: string | null
-          eta: string | null
-          event_type: string
           id: string
+          order_id: string
+          event_type: string
+          user_id: string | null
+          eta: string | null
+          notes: string | null
           latitude: number | null
           longitude: number | null
-          notes: string | null
-          order_id: string | null
-          user_id: string | null
+          created_at: string
         }
         Insert: {
-          created_at?: string | null
-          eta?: string | null
-          event_type: string
           id?: string
+          order_id: string
+          event_type: string
+          user_id?: string | null
+          eta?: string | null
+          notes?: string | null
           latitude?: number | null
           longitude?: number | null
-          notes?: string | null
-          order_id?: string | null
-          user_id?: string | null
+          created_at?: string
         }
         Update: {
-          created_at?: string | null
-          eta?: string | null
-          event_type?: string
           id?: string
+          order_id?: string
+          event_type?: string
+          user_id?: string | null
+          eta?: string | null
+          notes?: string | null
           latitude?: number | null
           longitude?: number | null
-          notes?: string | null
-          order_id?: string | null
-          user_id?: string | null
+          created_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "order_workflow_events_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       orders: {
         Row: {
+          id: string
+          customer_id: string
+          status: string
+          location_type: string
+          surface: string
+          event_date: string
+          event_end_date: string
+          pickup_preference: string
+          start_window: string
+          end_window: string
           address_id: string | null
+          subtotal_cents: number
+          travel_fee_cents: number
+          surface_fee_cents: number
+          same_day_pickup_fee_cents: number
+          generator_fee_cents: number
+          generator_qty: number
+          tax_cents: number
+          tip_cents: number
+          deposit_due_cents: number
+          deposit_paid_cents: number
           balance_due_cents: number
-          balance_paid_cents: number | null
-          can_use_stakes: boolean | null
+          payment_method_id: string | null
           card_on_file_consent_text: string | null
           card_on_file_consented_at: string | null
-          created_at: string | null
-          current_eta: string | null
-          customer_id: string | null
-          damage_charged_cents: number | null
-          deposit_due_cents: number
-          deposit_paid_cents: number | null
-          deposit_required: boolean | null
-          end_date: string
-          end_window: string
-          event_date: string
-          generator_selected: boolean | null
-          has_pets: boolean | null
-          id: string
-          location_type: string
-          overnight_allowed: boolean | null
-          payment_method_id: string | null
-          same_day_pickup_fee_cents: number | null
-          sms_consent_text: string | null
-          sms_consented_at: string | null
-          special_details: string | null
+          card_on_file_consent: boolean
+          sms_consent: boolean
+          e_signature_consent: boolean
           start_date: string
-          start_window: string
-          status: string | null
-          stripe_customer_id: string | null
-          stripe_payment_method_id: string | null
-          stripe_payment_status: string | null
-          subtotal_cents: number
-          surface: string
-          surface_fee_cents: number | null
-          tax_cents: number | null
-          tip_cents: number
-          total_refunded_cents: number | null
-          travel_base_radius_miles: number | null
-          travel_chargeable_miles: number | null
-          travel_fee_cents: number | null
-          travel_is_flat_fee: boolean | null
-          travel_per_mile_cents: number | null
-          travel_total_miles: number | null
-          waiver_signature_data: string | null
+          end_date: string
+          overnight_allowed: boolean
+          can_use_stakes: boolean
+          generator_selected: boolean
+          workflow_status: string
+          current_eta: string | null
           waiver_signed_at: string | null
-          workflow_status: string | null
+          waiver_signature_data: string | null
+          signed_waiver_url: string | null
+          signature_id: string | null
+          admin_message: string | null
+          invoice_sent_at: string | null
+          invoice_accepted_at: string | null
+          custom_deposit_cents: number | null
+          until_end_of_day: boolean
+          same_day_responsibility_accepted: boolean
+          overnight_responsibility_accepted: boolean
+          created_at: string
         }
         Insert: {
+          id?: string
+          customer_id: string
+          status?: string
+          location_type: string
+          surface: string
+          event_date: string
+          event_end_date: string
+          pickup_preference: string
+          start_window: string
+          end_window: string
           address_id?: string | null
+          subtotal_cents: number
+          travel_fee_cents?: number
+          surface_fee_cents?: number
+          same_day_pickup_fee_cents?: number
+          generator_fee_cents?: number
+          generator_qty?: number
+          tax_cents?: number
+          tip_cents?: number
+          deposit_due_cents: number
+          deposit_paid_cents?: number
           balance_due_cents: number
-          balance_paid_cents?: number | null
-          can_use_stakes?: boolean | null
+          payment_method_id?: string | null
           card_on_file_consent_text?: string | null
           card_on_file_consented_at?: string | null
-          created_at?: string | null
-          current_eta?: string | null
-          customer_id?: string | null
-          damage_charged_cents?: number | null
-          deposit_due_cents: number
-          deposit_paid_cents?: number | null
-          deposit_required?: boolean | null
-          end_date: string
-          end_window: string
-          event_date: string
-          generator_selected?: boolean | null
-          has_pets?: boolean | null
-          id?: string
-          location_type: string
-          overnight_allowed?: boolean | null
-          payment_method_id?: string | null
-          same_day_pickup_fee_cents?: number | null
-          sms_consent_text?: string | null
-          sms_consented_at?: string | null
-          special_details?: string | null
+          card_on_file_consent?: boolean
+          sms_consent?: boolean
+          e_signature_consent?: boolean
           start_date: string
-          start_window: string
-          status?: string | null
-          stripe_customer_id?: string | null
-          stripe_payment_method_id?: string | null
-          stripe_payment_status?: string | null
-          subtotal_cents: number
-          surface: string
-          surface_fee_cents?: number | null
-          tax_cents?: number | null
-          tip_cents?: number
-          total_refunded_cents?: number | null
-          travel_base_radius_miles?: number | null
-          travel_chargeable_miles?: number | null
-          travel_fee_cents?: number | null
-          travel_is_flat_fee?: boolean | null
-          travel_per_mile_cents?: number | null
-          travel_total_miles?: number | null
-          waiver_signature_data?: string | null
+          end_date: string
+          overnight_allowed?: boolean
+          can_use_stakes?: boolean
+          generator_selected?: boolean
+          workflow_status?: string
+          current_eta?: string | null
           waiver_signed_at?: string | null
-          workflow_status?: string | null
+          waiver_signature_data?: string | null
+          signed_waiver_url?: string | null
+          signature_id?: string | null
+          admin_message?: string | null
+          invoice_sent_at?: string | null
+          invoice_accepted_at?: string | null
+          custom_deposit_cents?: number | null
+          until_end_of_day?: boolean
+          same_day_responsibility_accepted?: boolean
+          overnight_responsibility_accepted?: boolean
+          created_at?: string
         }
         Update: {
+          id?: string
+          customer_id?: string
+          status?: string
+          location_type?: string
+          surface?: string
+          event_date?: string
+          event_end_date?: string
+          pickup_preference?: string
+          start_window?: string
+          end_window?: string
           address_id?: string | null
+          subtotal_cents?: number
+          travel_fee_cents?: number
+          surface_fee_cents?: number
+          same_day_pickup_fee_cents?: number
+          generator_fee_cents?: number
+          generator_qty?: number
+          tax_cents?: number
+          tip_cents?: number
+          deposit_due_cents?: number
+          deposit_paid_cents?: number
           balance_due_cents?: number
-          balance_paid_cents?: number | null
-          can_use_stakes?: boolean | null
+          payment_method_id?: string | null
           card_on_file_consent_text?: string | null
           card_on_file_consented_at?: string | null
-          created_at?: string | null
-          current_eta?: string | null
-          customer_id?: string | null
-          damage_charged_cents?: number | null
-          deposit_due_cents?: number
-          deposit_paid_cents?: number | null
-          deposit_required?: boolean | null
-          end_date?: string
-          end_window?: string
-          event_date?: string
-          generator_selected?: boolean | null
-          has_pets?: boolean | null
-          id?: string
-          location_type?: string
-          overnight_allowed?: boolean | null
-          payment_method_id?: string | null
-          same_day_pickup_fee_cents?: number | null
-          sms_consent_text?: string | null
-          sms_consented_at?: string | null
-          special_details?: string | null
+          card_on_file_consent?: boolean
+          sms_consent?: boolean
+          e_signature_consent?: boolean
           start_date?: string
-          start_window?: string
-          status?: string | null
-          stripe_customer_id?: string | null
-          stripe_payment_method_id?: string | null
-          stripe_payment_status?: string | null
-          subtotal_cents?: number
-          surface?: string
-          surface_fee_cents?: number | null
-          tax_cents?: number | null
-          tip_cents?: number
-          total_refunded_cents?: number | null
-          travel_base_radius_miles?: number | null
-          travel_chargeable_miles?: number | null
-          travel_fee_cents?: number | null
-          travel_is_flat_fee?: boolean | null
-          travel_per_mile_cents?: number | null
-          travel_total_miles?: number | null
-          waiver_signature_data?: string | null
+          end_date?: string
+          overnight_allowed?: boolean
+          can_use_stakes?: boolean
+          generator_selected?: boolean
+          workflow_status?: string
+          current_eta?: string | null
           waiver_signed_at?: string | null
-          workflow_status?: string | null
+          waiver_signature_data?: string | null
+          signed_waiver_url?: string | null
+          signature_id?: string | null
+          admin_message?: string | null
+          invoice_sent_at?: string | null
+          invoice_accepted_at?: string | null
+          custom_deposit_cents?: number | null
+          until_end_of_day?: boolean
+          same_day_responsibility_accepted?: boolean
+          overnight_responsibility_accepted?: boolean
+          created_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "orders_address_id_fkey"
-            columns: ["address_id"]
-            isOneToOne: false
-            referencedRelation: "addresses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "orders_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "customers"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       payments: {
         Row: {
-          amount_cents: number
-          created_at: string | null
           id: string
-          order_id: string | null
-          status: string | null
-          stripe_payment_intent_id: string | null
+          order_id: string
           type: string
+          amount_cents: number
+          stripe_payment_intent_id: string | null
+          status: string
+          created_at: string
         }
         Insert: {
-          amount_cents: number
-          created_at?: string | null
           id?: string
-          order_id?: string | null
-          status?: string | null
-          stripe_payment_intent_id?: string | null
+          order_id: string
           type: string
+          amount_cents: number
+          stripe_payment_intent_id?: string | null
+          status?: string
+          created_at?: string
         }
         Update: {
-          amount_cents?: number
-          created_at?: string | null
           id?: string
-          order_id?: string | null
-          status?: string | null
-          stripe_payment_intent_id?: string | null
+          order_id?: string
           type?: string
+          amount_cents?: number
+          stripe_payment_intent_id?: string | null
+          status?: string
+          created_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "payments_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       pricing_rules: {
         Row: {
-          base_radius_miles: number | null
-          commercial_multiplier: number | null
-          extra_day_pct: number | null
           id: string
-          included_city_list_json: Json | null
-          overnight_holiday_only: boolean | null
-          per_mile_after_base_cents: number | null
-          residential_multiplier: number | null
-          same_day_matrix_json: Json | null
-          surface_sandbag_fee_cents: number | null
-          updated_at: string | null
-          zone_overrides_json: Json | null
+          base_radius_miles: number
+          included_city_list_json: Json
+          per_mile_after_base_cents: number
+          zone_overrides_json: Json
+          surface_sandbag_fee_cents: number
+          residential_multiplier: number
+          commercial_multiplier: number
+          same_day_matrix_json: Json
+          overnight_holiday_only: boolean
+          extra_day_pct: number
+          generator_price_cents: number
+          updated_at: string
         }
         Insert: {
-          base_radius_miles?: number | null
-          commercial_multiplier?: number | null
-          extra_day_pct?: number | null
           id?: string
-          included_city_list_json?: Json | null
-          overnight_holiday_only?: boolean | null
-          per_mile_after_base_cents?: number | null
-          residential_multiplier?: number | null
-          same_day_matrix_json?: Json | null
-          surface_sandbag_fee_cents?: number | null
-          updated_at?: string | null
-          zone_overrides_json?: Json | null
+          base_radius_miles?: number
+          included_city_list_json?: Json
+          per_mile_after_base_cents?: number
+          zone_overrides_json?: Json
+          surface_sandbag_fee_cents?: number
+          residential_multiplier?: number
+          commercial_multiplier?: number
+          same_day_matrix_json?: Json
+          overnight_holiday_only?: boolean
+          extra_day_pct?: number
+          generator_price_cents?: number
+          updated_at?: string
         }
         Update: {
-          base_radius_miles?: number | null
-          commercial_multiplier?: number | null
-          extra_day_pct?: number | null
           id?: string
-          included_city_list_json?: Json | null
-          overnight_holiday_only?: boolean | null
-          per_mile_after_base_cents?: number | null
-          residential_multiplier?: number | null
-          same_day_matrix_json?: Json | null
-          surface_sandbag_fee_cents?: number | null
-          updated_at?: string | null
-          zone_overrides_json?: Json | null
+          base_radius_miles?: number
+          included_city_list_json?: Json
+          per_mile_after_base_cents?: number
+          zone_overrides_json?: Json
+          surface_sandbag_fee_cents?: number
+          residential_multiplier?: number
+          commercial_multiplier?: number
+          same_day_matrix_json?: Json
+          overnight_holiday_only?: boolean
+          extra_day_pct?: number
+          generator_price_cents?: number
+          updated_at?: string
         }
-        Relationships: []
       }
       route_stops: {
         Row: {
-          checkpoint: string | null
-          checkpoint_time: string | null
-          created_at: string | null
+          id: string
+          order_id: string
+          type: string
           eta: string | null
+          checkpoint: string
+          checkpoint_time: string | null
           gps_lat: number | null
           gps_lng: number | null
-          id: string
           notes: string | null
-          order_id: string | null
-          type: string
+          created_at: string
         }
         Insert: {
-          checkpoint?: string | null
-          checkpoint_time?: string | null
-          created_at?: string | null
+          id?: string
+          order_id: string
+          type: string
           eta?: string | null
+          checkpoint?: string
+          checkpoint_time?: string | null
           gps_lat?: number | null
           gps_lng?: number | null
-          id?: string
           notes?: string | null
-          order_id?: string | null
-          type: string
+          created_at?: string
         }
         Update: {
-          checkpoint?: string | null
-          checkpoint_time?: string | null
-          created_at?: string | null
-          eta?: string | null
-          gps_lat?: number | null
-          gps_lng?: number | null
           id?: string
-          notes?: string | null
-          order_id?: string | null
+          order_id?: string
           type?: string
+          eta?: string | null
+          checkpoint?: string
+          checkpoint_time?: string | null
+          gps_lat?: number | null
+          gps_lng?: number | null
+          notes?: string | null
+          created_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "route_stops_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
       }
-      sms_conversations: {
+      saved_discount_templates: {
         Row: {
-          created_at: string | null
-          direction: string
-          from_phone: string
           id: string
-          message_body: string
-          order_id: string | null
-          status: string | null
-          to_phone: string
-          twilio_message_sid: string | null
+          name: string
+          amount_cents: number
+          percentage: number
+          created_at: string
         }
         Insert: {
-          created_at?: string | null
-          direction: string
-          from_phone: string
           id?: string
-          message_body: string
-          order_id?: string | null
-          status?: string | null
-          to_phone: string
-          twilio_message_sid?: string | null
+          name: string
+          amount_cents?: number
+          percentage?: number
+          created_at?: string
         }
         Update: {
-          created_at?: string | null
-          direction?: string
-          from_phone?: string
           id?: string
-          message_body?: string
-          order_id?: string | null
-          status?: string | null
-          to_phone?: string
-          twilio_message_sid?: string | null
+          name?: string
+          amount_cents?: number
+          percentage?: number
+          created_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "sms_conversations_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
+      }
+      saved_fee_templates: {
+        Row: {
+          id: string
+          name: string
+          amount_cents: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          amount_cents?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          amount_cents?: number
+          created_at?: string
+        }
       }
       sms_message_templates: {
         Row: {
-          created_at: string | null
-          description: string | null
           id: string
-          message_template: string
           template_key: string
           template_name: string
-          updated_at: string | null
+          message_template: string
+          description: string | null
+          created_at: string
+          updated_at: string
         }
         Insert: {
-          created_at?: string | null
-          description?: string | null
           id?: string
-          message_template: string
           template_key: string
           template_name: string
-          updated_at?: string | null
+          message_template: string
+          description?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Update: {
-          created_at?: string | null
-          description?: string | null
           id?: string
-          message_template?: string
           template_key?: string
           template_name?: string
-          updated_at?: string | null
+          message_template?: string
+          description?: string | null
+          created_at?: string
+          updated_at?: string
         }
-        Relationships: []
       }
       unit_media: {
         Row: {
-          alt: string
-          created_at: string | null
           id: string
-          mode: string | null
-          sort: number | null
-          unit_id: string | null
+          unit_id: string
           url: string
+          alt: string
+          sort: number
+          mode: string
+          created_at: string
         }
         Insert: {
-          alt: string
-          created_at?: string | null
           id?: string
-          mode?: string | null
-          sort?: number | null
-          unit_id?: string | null
+          unit_id: string
           url: string
+          alt: string
+          sort?: number
+          mode?: string
+          created_at?: string
         }
         Update: {
-          alt?: string
-          created_at?: string | null
           id?: string
-          mode?: string | null
-          sort?: number | null
-          unit_id?: string | null
+          unit_id?: string
           url?: string
+          alt?: string
+          sort?: number
+          mode?: string
+          created_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "unit_media_unit_id_fkey"
-            columns: ["unit_id"]
-            isOneToOne: false
-            referencedRelation: "units"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       units: {
         Row: {
-          active: boolean | null
-          capacity: number
-          created_at: string | null
+          id: string
+          slug: string
+          name: string
+          type: string
+          is_combo: boolean
+          price_dry_cents: number
+          price_water_cents: number | null
           dimensions: string
           dimensions_water: string | null
           footprint_sqft: number
-          id: string
-          indoor_ok: boolean | null
-          is_combo: boolean | null
-          name: string
-          outdoor_ok: boolean | null
-          power_circuits: number | null
-          price_dry_cents: number
-          price_water_cents: number | null
+          power_circuits: number
+          capacity: number
+          indoor_ok: boolean
+          outdoor_ok: boolean
+          active: boolean
           quantity_available: number
-          slug: string
-          type: string
+          created_at: string
         }
         Insert: {
-          active?: boolean | null
-          capacity: number
-          created_at?: string | null
+          id?: string
+          slug: string
+          name: string
+          type: string
+          is_combo?: boolean
+          price_dry_cents: number
+          price_water_cents?: number | null
           dimensions: string
           dimensions_water?: string | null
           footprint_sqft: number
-          id?: string
-          indoor_ok?: boolean | null
-          is_combo?: boolean | null
-          name: string
-          outdoor_ok?: boolean | null
-          power_circuits?: number | null
-          price_dry_cents: number
-          price_water_cents?: number | null
+          power_circuits?: number
+          capacity: number
+          indoor_ok?: boolean
+          outdoor_ok?: boolean
+          active?: boolean
           quantity_available?: number
-          slug: string
-          type: string
+          created_at?: string
         }
         Update: {
-          active?: boolean | null
-          capacity?: number
-          created_at?: string | null
+          id?: string
+          slug?: string
+          name?: string
+          type?: string
+          is_combo?: boolean
+          price_dry_cents?: number
+          price_water_cents?: number | null
           dimensions?: string
           dimensions_water?: string | null
           footprint_sqft?: number
-          id?: string
-          indoor_ok?: boolean | null
-          is_combo?: boolean | null
-          name?: string
-          outdoor_ok?: boolean | null
-          power_circuits?: number | null
-          price_dry_cents?: number
-          price_water_cents?: number | null
+          power_circuits?: number
+          capacity?: number
+          indoor_ok?: boolean
+          outdoor_ok?: boolean
+          active?: boolean
           quantity_available?: number
-          slug?: string
-          type?: string
+          created_at?: string
         }
-        Relationships: []
       }
       user_roles: {
         Row: {
-          created_at: string | null
           id: string
-          role: string
           user_id: string
+          role: string
+          created_at: string
         }
         Insert: {
-          created_at?: string | null
           id?: string
-          role: string
           user_id: string
+          role: string
+          created_at?: string
         }
         Update: {
-          created_at?: string | null
           id?: string
-          role?: string
           user_id?: string
+          role?: string
+          created_at?: string
         }
-        Relationships: []
       }
     }
     Views: {
@@ -1105,23 +1148,14 @@ export type Database = {
     }
     Functions: {
       check_unit_availability: {
-        Args: { p_end_date: string; p_start_date: string; p_unit_ids: string[] }
-        Returns: {
-          available: boolean
-          available_qty: number
-          requested_qty: number
-          unit_id: string
-          unit_name: string
-        }[]
+        Args: {
+          p_unit_id: string
+          p_start_date: string
+          p_end_date: string
+          p_exclude_order_id?: string
+        }
+        Returns: boolean
       }
-      generate_invoice_number: { Args: never; Returns: string }
-      get_admin_users: {
-        Args: never
-        Returns: {
-          count: number
-        }[]
-      }
-      is_admin: { Args: never; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
@@ -1131,126 +1165,3 @@ export type Database = {
     }
   }
 }
-
-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
-
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
-
-export type Tables<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
-      Row: infer R
-    }
-    ? R
-    : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-        Row: infer R
-      }
-      ? R
-      : never
-    : never
-
-export type TablesInsert<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Insert: infer I
-    }
-    ? I
-    : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Insert: infer I
-      }
-      ? I
-      : never
-    : never
-
-export type TablesUpdate<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Update: infer U
-    }
-    ? U
-    : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Update: infer U
-      }
-      ? U
-      : never
-    : never
-
-export type Enums<
-  DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
-> = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
-  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never
-
-export type CompositeTypes<
-  PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
-> = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
-
-export const Constants = {
-  public: {
-    Enums: {},
-  },
-} as const
