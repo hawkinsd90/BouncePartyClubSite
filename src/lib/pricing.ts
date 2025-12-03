@@ -14,6 +14,7 @@ export interface PricingRules {
   }>;
   overnight_holiday_only: boolean;
   extra_day_pct: number;
+  generator_price_cents: number;
 }
 
 export interface CartItem {

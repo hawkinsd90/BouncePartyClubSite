@@ -98,7 +98,7 @@ export function InvoiceBuilder() {
     const [customersRes, unitsRes, rulesRes] = await Promise.all([
       supabase.from('customers').select('*').order('last_name'),
       supabase.from('units').select('*').eq('active', true).order('name'),
-      supabase.from('admin_settings').select('*').single(),
+      supabase.from('pricing_rules').select('*').single(),
     ]);
 
     if (customersRes.data) setCustomers(customersRes.data);

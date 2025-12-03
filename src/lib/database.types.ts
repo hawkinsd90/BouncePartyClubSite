@@ -46,6 +46,7 @@ export interface Database {
           lng?: number | null
           created_at?: string
         }
+        Relationships: []
       }
       admin_settings: {
         Row: {
@@ -72,6 +73,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       admin_settings_changelog: {
         Row: {
@@ -101,6 +103,7 @@ export interface Database {
           change_description?: string | null
           created_at?: string
         }
+        Relationships: []
       }
       consent_records: {
         Row: {
@@ -142,6 +145,7 @@ export interface Database {
           user_agent?: string | null
           created_at?: string
         }
+        Relationships: []
       }
       contacts: {
         Row: {
@@ -198,6 +202,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       customers: {
         Row: {
@@ -227,6 +232,7 @@ export interface Database {
           business_name?: string | null
           created_at?: string
         }
+        Relationships: []
       }
       documents: {
         Row: {
@@ -253,6 +259,7 @@ export interface Database {
           meta_json?: Json | null
           created_at?: string
         }
+        Relationships: []
       }
       invoice_links: {
         Row: {
@@ -285,6 +292,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       invoices: {
         Row: {
@@ -350,6 +358,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       messages: {
         Row: {
@@ -388,6 +397,7 @@ export interface Database {
           status?: string
           created_at?: string
         }
+        Relationships: []
       }
       order_changelog: {
         Row: {
@@ -420,6 +430,7 @@ export interface Database {
           change_type?: string
           created_at?: string
         }
+        Relationships: []
       }
       order_custom_fees: {
         Row: {
@@ -443,6 +454,7 @@ export interface Database {
           amount_cents?: number
           created_at?: string
         }
+        Relationships: []
       }
       order_discounts: {
         Row: {
@@ -472,6 +484,7 @@ export interface Database {
           created_at?: string
           created_by?: string | null
         }
+        Relationships: []
       }
       order_items: {
         Row: {
@@ -501,6 +514,7 @@ export interface Database {
           qty?: number
           notes?: string | null
         }
+        Relationships: []
       }
       order_notes: {
         Row: {
@@ -524,6 +538,7 @@ export interface Database {
           note?: string
           created_at?: string
         }
+        Relationships: []
       }
       order_refunds: {
         Row: {
@@ -556,6 +571,7 @@ export interface Database {
           status?: string
           created_at?: string
         }
+        Relationships: []
       }
       order_signatures: {
         Row: {
@@ -663,6 +679,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       order_workflow_events: {
         Row: {
@@ -698,6 +715,7 @@ export interface Database {
           longitude?: number | null
           created_at?: string
         }
+        Relationships: []
       }
       orders: {
         Row: {
@@ -847,6 +865,7 @@ export interface Database {
           overnight_responsibility_accepted?: boolean
           created_at?: string
         }
+        Relationships: []
       }
       payments: {
         Row: {
@@ -876,6 +895,7 @@ export interface Database {
           status?: string
           created_at?: string
         }
+        Relationships: []
       }
       pricing_rules: {
         Row: {
@@ -923,6 +943,7 @@ export interface Database {
           generator_price_cents?: number
           updated_at?: string
         }
+        Relationships: []
       }
       route_stops: {
         Row: {
@@ -961,6 +982,7 @@ export interface Database {
           notes?: string | null
           created_at?: string
         }
+        Relationships: []
       }
       saved_discount_templates: {
         Row: {
@@ -984,6 +1006,7 @@ export interface Database {
           percentage?: number
           created_at?: string
         }
+        Relationships: []
       }
       saved_fee_templates: {
         Row: {
@@ -1004,6 +1027,7 @@ export interface Database {
           amount_cents?: number
           created_at?: string
         }
+        Relationships: []
       }
       sms_message_templates: {
         Row: {
@@ -1033,6 +1057,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       unit_media: {
         Row: {
@@ -1062,6 +1087,7 @@ export interface Database {
           mode?: string
           created_at?: string
         }
+        Relationships: []
       }
       units: {
         Row: {
@@ -1121,6 +1147,7 @@ export interface Database {
           quantity_available?: number
           created_at?: string
         }
+        Relationships: []
       }
       user_roles: {
         Row: {
@@ -1141,6 +1168,7 @@ export interface Database {
           role?: string
           created_at?: string
         }
+        Relationships: []
       }
     }
     Views: {
@@ -1155,6 +1183,10 @@ export interface Database {
           p_exclude_order_id?: string
         }
         Returns: boolean
+      }
+      generate_invoice_number: {
+        Args: Record<string, never>
+        Returns: string
       }
     }
     Enums: {
