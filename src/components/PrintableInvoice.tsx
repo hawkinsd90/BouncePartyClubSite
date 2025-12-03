@@ -10,6 +10,7 @@ interface PrintableInvoiceProps {
     last_name: string;
     email: string;
     phone: string;
+    business_name?: string;
   };
   invoiceNumber?: string;
   isPaid?: boolean;

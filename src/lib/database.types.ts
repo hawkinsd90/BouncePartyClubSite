@@ -1268,16 +1268,25 @@ export interface Database {
     Functions: {
       check_unit_availability: {
         Args: {
-          p_unit_id: string
+          p_unit_ids: string[]
           p_start_date: string
           p_end_date: string
-          p_exclude_order_id?: string
         }
-        Returns: boolean
+        Returns: Array<{
+          unit_id: string
+          unit_name: string
+          requested_qty: number
+          available_qty: number
+          available: boolean
+        }>
       }
       generate_invoice_number: {
         Args: Record<string, never>
         Returns: string
+      }
+      get_admin_users: {
+        Args: Record<string, never>
+        Returns: Array<{ count: number }>
       }
     }
     Enums: {

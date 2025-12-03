@@ -103,7 +103,26 @@ export function InvoiceBuilder() {
 
     if (customersRes.data) setCustomers(customersRes.data);
     if (unitsRes.data) setUnits(unitsRes.data);
-    if (rulesRes.data) setPricingRules(rulesRes.data);
+    if (rulesRes.data) {
+      setPricingRules({
+        base_radius_miles: rulesRes.data.base_radius_miles,
+        included_city_list_json: rulesRes.data.included_city_list_json as string[],
+        per_mile_after_base_cents: rulesRes.data.per_mile_after_base_cents,
+        zone_overrides_json: rulesRes.data.zone_overrides_json as Array<{ zip: string; flat_cents: number }>,
+        surface_sandbag_fee_cents: rulesRes.data.surface_sandbag_fee_cents,
+        residential_multiplier: rulesRes.data.residential_multiplier,
+        commercial_multiplier: rulesRes.data.commercial_multiplier,
+        same_day_matrix_json: rulesRes.data.same_day_matrix_json as Array<{
+          units: number;
+          generator: boolean;
+          subtotal_ge_cents: number;
+          fee_cents: number;
+        }>,
+        overnight_holiday_only: rulesRes.data.overnight_holiday_only,
+        extra_day_pct: rulesRes.data.extra_day_pct,
+        generator_price_cents: rulesRes.data.generator_price_cents,
+      });
+    }
   }
 
   async function loadSavedTemplates() {
@@ -416,10 +435,12 @@ export function InvoiceBuilder() {
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
-          customer_id: customerId || null,
+          customer_id: customerId,
           address_id: address.id,
           event_date: eventDetails.event_date,
           event_end_date: eventDetails.event_end_date || eventDetails.event_date,
+          start_date: eventDetails.event_date,
+          end_date: eventDetails.event_end_date || eventDetails.event_date,
           start_window: eventDetails.start_window,
           end_window: eventDetails.end_window,
           until_end_of_day: eventDetails.until_end_of_day,
@@ -433,9 +454,7 @@ export function InvoiceBuilder() {
           travel_fee_cents: priceBreakdown?.travel_fee_cents || 0,
           surface_fee_cents: priceBreakdown?.surface_fee_cents || 0,
           same_day_pickup_fee_cents: priceBreakdown?.same_day_pickup_fee_cents || 0,
-          discount_cents: discountTotal,
           tax_cents: taxCents,
-          total_cents: totalCents,
           deposit_due_cents: depositRequired,
           balance_due_cents: totalCents - depositRequired,
           custom_deposit_cents: customDepositCents,
@@ -559,7 +578,7 @@ export function InvoiceBuilder() {
       });
     } catch (error) {
       console.error('Error generating invoice:', error);
-      alert('Failed to generate invoice: ' + error.message);
+      alert('Failed to generate invoice: ' + (error instanceof Error ? error.message : String(error)));
     } finally {
       setSaving(false);
     }
@@ -769,16 +788,15 @@ export function InvoiceBuilder() {
                 <label className="block text-sm font-medium text-slate-700 mb-2">Street Address *</label>
                 <AddressAutocomplete
                   value={eventDetails.address_line1}
-                  onChange={(value) => setEventDetails({ ...eventDetails, address_line1: value })}
-                  onPlaceSelected={(place) => {
+                  onSelect={(address) => {
                     setEventDetails({
                       ...eventDetails,
-                      address_line1: place.line1,
-                      city: place.city,
-                      state: place.state,
-                      zip: place.zip,
-                      lat: place.lat,
-                      lng: place.lng,
+                      address_line1: address.street,
+                      city: address.city,
+                      state: address.state,
+                      zip: address.zip,
+                      lat: address.lat,
+                      lng: address.lng,
                     });
                   }}
                   placeholder="Enter street address"

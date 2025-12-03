@@ -49,8 +49,21 @@ export function UnitForm() {
 
     if (unitRes.data) {
       setFormData({
-        ...unitRes.data,
+        name: unitRes.data.name,
+        slug: unitRes.data.slug,
+        type: unitRes.data.type,
         is_combo: unitRes.data.is_combo ?? false,
+        price_dry_cents: unitRes.data.price_dry_cents,
+        price_water_cents: unitRes.data.price_water_cents ?? 0,
+        dimensions: unitRes.data.dimensions,
+        dimensions_water: unitRes.data.dimensions_water ?? '',
+        footprint_sqft: unitRes.data.footprint_sqft,
+        power_circuits: unitRes.data.power_circuits,
+        capacity: unitRes.data.capacity,
+        indoor_ok: unitRes.data.indoor_ok,
+        outdoor_ok: unitRes.data.outdoor_ok,
+        active: unitRes.data.active,
+        quantity_available: unitRes.data.quantity_available,
       });
       setPriceInput((unitRes.data.price_dry_cents / 100).toFixed(2));
       if (unitRes.data.price_water_cents) {
@@ -206,13 +219,13 @@ export function UnitForm() {
 
       const uploadedUrls = await uploadImages(unitId!);
 
-      if (uploadedUrls.length > 0) {
+      if (uploadedUrls.length > 0 && unitId) {
         const existingCount = dryImages.filter(img => img.id).length + wetImages.filter(img => img.id).length;
         const mediaRecords = uploadedUrls.map((img, index) => ({
-          unit_id: unitId,
+          unit_id: unitId as string,
           url: img.url,
           alt: img.alt,
-          mode: img.mode,
+          mode: img.mode || 'dry',
           sort: existingCount + index,
         }));
 

@@ -71,6 +71,12 @@ export function CustomerPortal() {
         orderIdToLoad = linkData.order_id;
       }
 
+      if (!orderIdToLoad) {
+        console.error('No order ID provided');
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('orders')
         .select(`
@@ -108,7 +114,7 @@ export function CustomerPortal() {
           const { data: changelogData } = await supabase
             .from('order_changelog')
             .select('*')
-            .eq('order_id', orderId)
+            .eq('order_id', orderIdToLoad)
             .order('created_at', { ascending: false });
 
           if (changelogData) {
@@ -381,6 +387,10 @@ export function CustomerPortal() {
   }
 
   async function confirmApproveChanges() {
+    if (!orderId) {
+      alert('Order ID is missing. Please try again.');
+      return;
+    }
     if (!order.customers) {
       alert('Customer information is missing. Please contact support.');
       return;
@@ -480,6 +490,10 @@ export function CustomerPortal() {
   }
 
   async function confirmRejectChanges() {
+    if (!orderId) {
+      alert('Order ID is missing. Please try again.');
+      return;
+    }
     if (!order.customers) {
       alert('Customer information is missing. Please contact support.');
       return;

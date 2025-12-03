@@ -1,14 +1,5 @@
 import { supabase } from './supabase';
 
-interface ErrorDetails {
-  message: string;
-  stack?: string;
-  componentStack?: string;
-  url?: string;
-  userId?: string;
-  additionalInfo?: Record<string, any>;
-}
-
 async function reportError(error: Error | string, additionalInfo?: Record<string, any>) {
   try {
     const errorMessage = typeof error === 'string' ? error : error.message;

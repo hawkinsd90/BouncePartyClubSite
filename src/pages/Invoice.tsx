@@ -133,6 +133,10 @@ export function Invoice() {
   };
 
   const handlePaymentSuccess = async () => {
+    if (!orderId) {
+      alert('Order ID is missing. Please try again.');
+      return;
+    }
     try {
       // Update the responsibility acceptance field
       const fieldToUpdate = order.pickup_preference === 'next_day'
