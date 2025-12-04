@@ -1480,58 +1480,7 @@ export function CustomerPortal() {
                     <span className="text-slate-900 font-semibold text-sm md:text-base">{order.pickup_preference === 'next_day' ? 'Next Morning' : 'Same Day'}</span>
                   </div>
 
-                  {/* Order Items */}
-                  {orderItems.length > 0 && (
-                    <div className="pt-3 md:pt-4 border-t border-slate-300">
-                      <p className="text-slate-600 font-medium mb-2 text-sm md:text-base">Equipment:</p>
-                      <ul className="space-y-1 ml-2 md:ml-4">
-                        {orderItems.map((item, idx) => (
-                          <li key={idx} className="text-slate-900 text-xs md:text-sm break-words">
-                            • {item.units.name} ({item.wet_or_dry === 'dry' ? 'Dry' : 'Water'}) - {formatCurrency(item.unit_price_cents)}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Generators */}
-                  {order.generator_fee_cents > 0 && (
-                    <div className="py-2 border-t border-slate-300">
-                      <span className="text-slate-600 font-medium text-sm md:text-base block mb-1">Generators:</span>
-                      <span className="text-slate-900 font-semibold text-sm md:text-base">{formatCurrency(order.generator_fee_cents)}</span>
-                    </div>
-                  )}
-
-                  {/* Discounts */}
-                  {discounts.length > 0 && (
-                    <div className="pt-2 border-t border-slate-300">
-                      <p className="text-slate-600 font-medium mb-2 text-sm md:text-base">Discounts:</p>
-                      <ul className="space-y-1 ml-2 md:ml-4">
-                        {discounts.map((discount, idx) => (
-                          <li key={idx} className="text-green-700 text-xs md:text-sm break-words">
-                            • {discount.name}: -{formatCurrency(discount.amount_cents)}
-                            {discount.percentage > 0 && ` (${discount.percentage}%)`}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Custom Fees */}
-                  {customFees.length > 0 && (
-                    <div className="pt-2 border-t border-slate-300">
-                      <p className="text-slate-600 font-medium mb-2 text-sm md:text-base">Additional Fees:</p>
-                      <ul className="space-y-1 ml-2 md:ml-4">
-                        {customFees.map((fee, idx) => (
-                          <li key={idx} className="text-slate-900 text-xs md:text-sm break-words">
-                            • {fee.name}: {formatCurrency(fee.amount_cents)}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Price Breakdown with Changelog Highlighting */}
+                  {/* Centralized Price Breakdown with Changelog Highlighting */}
                   {orderSummary && (
                     <OrderSummary
                       summary={orderSummary}
