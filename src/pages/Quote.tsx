@@ -112,10 +112,38 @@ export function Quote() {
   }, [formData.event_date]);
 
   useEffect(() => {
-    if (cart.length > 0 && pricingRules && formData.zip && formData.lat && formData.lng) {
-      calculatePricing();
+    async function geocodeAndCalculate() {
+      // If we have lat/lng from autocomplete, use them
+      if (formData.lat && formData.lng) {
+        await calculatePricing();
+        return;
+      }
+
+      // If we have city, state, and zip but no lat/lng, geocode them
+      if (formData.city && formData.state && formData.zip) {
+        try {
+          const geocoder = new google.maps.Geocoder();
+          const address = `${formData.city}, ${formData.state} ${formData.zip}`;
+          const result = await geocoder.geocode({ address });
+
+          if (result.results && result.results[0]) {
+            const location = result.results[0].geometry.location;
+            const lat = location.lat();
+            const lng = location.lng();
+
+            // Update formData with geocoded lat/lng
+            setFormData(prev => ({ ...prev, lat, lng }));
+          }
+        } catch (error) {
+          console.error('Error geocoding address:', error);
+        }
+      }
     }
-  }, [cart, pricingRules, formData]);
+
+    if (cart.length > 0 && pricingRules && formData.zip) {
+      geocodeAndCalculate();
+    }
+  }, [cart, pricingRules, formData.city, formData.state, formData.zip, formData.lat, formData.lng]);
 
   useEffect(() => {
     if (cart.length > 0 && formData.event_date && formData.event_end_date) {

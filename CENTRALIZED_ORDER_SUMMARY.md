@@ -89,6 +89,16 @@ See "New Files Created" section above.
 ### 4. `/src/components/OrderSummary.tsx` (created)
 See "New Files Created" section above.
 
+### 5. `/src/pages/Quote.tsx` ✅
+**Changes Made**:
+- ✅ Fixed pricing calculation not triggering when address is manually entered
+- ✅ Added automatic geocoding for manually entered city/state/zip combinations
+- ✅ Previously required Google autocomplete selection; now works with manual entry too
+
+**Issue Fixed**: Quote Summary was showing "Complete event details to see pricing" even when all fields were filled because lat/lng were 0 (only set by autocomplete, not manual entry).
+
+**Solution**: Added geocoding fallback that converts city/state/zip to lat/lng when user manually enters address instead of using autocomplete.
+
 ## Fee Components Now Consistently Shown
 
 Every order summary now displays these components when applicable:
@@ -188,5 +198,6 @@ All changes have been tested:
 - ✅ Created: `/src/components/OrderSummary.tsx`
 - ✅ Modified: `/src/pages/CustomerPortal.tsx`
 - ✅ Modified: `/src/components/InvoiceBuilder.tsx`
+- ✅ Modified: `/src/pages/Quote.tsx`
 
-**Result**: Order pricing is now consistent, maintainable, and shows all fee components. Future changes only need to be made in ONE place.
+**Result**: Order pricing is now consistent, maintainable, and shows all fee components. Future changes only need to be made in ONE place. Quote page now shows pricing whether address is selected from autocomplete or manually entered.
