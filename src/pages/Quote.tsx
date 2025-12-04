@@ -111,16 +111,11 @@ export function Quote() {
     }
   }, [formData.event_date]);
 
+  // Separate effect for geocoding when address is manually entered
   useEffect(() => {
-    async function geocodeAndCalculate() {
-      // If we have lat/lng from autocomplete, use them
-      if (formData.lat && formData.lng) {
-        await calculatePricing();
-        return;
-      }
-
-      // If we have city, state, and zip but no lat/lng, geocode them
-      if (formData.city && formData.state && formData.zip) {
+    async function geocodeAddress() {
+      // Only geocode if we have city/state/zip but no lat/lng
+      if (formData.city && formData.state && formData.zip && !formData.lat && !formData.lng) {
         try {
           const geocoder = new google.maps.Geocoder();
           const address = `${formData.city}, ${formData.state} ${formData.zip}`;
@@ -140,10 +135,15 @@ export function Quote() {
       }
     }
 
-    if (cart.length > 0 && pricingRules && formData.zip) {
-      geocodeAndCalculate();
+    geocodeAddress();
+  }, [formData.city, formData.state, formData.zip, formData.lat, formData.lng]);
+
+  // Effect for calculating pricing when relevant fields change
+  useEffect(() => {
+    if (cart.length > 0 && pricingRules && formData.zip && formData.lat && formData.lng) {
+      calculatePricing();
     }
-  }, [cart, pricingRules, formData.city, formData.state, formData.zip, formData.lat, formData.lng]);
+  }, [cart, pricingRules, formData]);
 
   useEffect(() => {
     if (cart.length > 0 && formData.event_date && formData.event_end_date) {
