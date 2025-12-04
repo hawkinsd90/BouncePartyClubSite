@@ -743,8 +743,8 @@ export function CustomerPortal() {
 
   // If order is not active and not awaiting approval, show status message or invoice acceptance
   if (!isActive && !needsApproval) {
-    // Show invoice acceptance for draft orders
-    if (order.status === 'draft' && isInvoiceLink) {
+    // Show invoice acceptance for draft orders (regardless of URL)
+    if (order.status === 'draft') {
       const depositCents = invoiceLink?.deposit_cents ?? order.deposit_due_cents ?? 0;
       const needsCustomerInfo = invoiceLink && !invoiceLink.customer_filled;
 
