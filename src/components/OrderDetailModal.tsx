@@ -76,6 +76,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [adminSettings, setAdminSettings] = useState<any>(null);
   const [adminOverrideApproval, setAdminOverrideApproval] = useState(false);
   const [calculatedPricing, setCalculatedPricing] = useState<any>(null);
+  const [updatedOrderSummary, setUpdatedOrderSummary] = useState<any>(null);
   const [availabilityIssues, setAvailabilityIssues] = useState<any[]>([]);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [customDepositCents, setCustomDepositCents] = useState<number | null>(null);
@@ -326,7 +327,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       console.log('🧮 Admin Panel Price Calculation (Centralized):');
       console.log('Summary:', summary);
 
-      // Store calculated values for display
+      // Store full summary for display
+      setUpdatedOrderSummary(summary);
+
+      // Store calculated values for backward compatibility
       setCalculatedPricing({
         subtotal_cents: summary.subtotal,
         generator_fee_cents: summary.fees.find(f => f.name.includes('Generator'))?.amount || 0,
@@ -1732,185 +1736,23 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 )}
 
                 {/* Updated Pricing */}
-                {calculatedPricing && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 md:p-4">
-                    <h3 className="font-semibold text-slate-900 mb-3 flex flex-wrap items-center gap-2 text-sm md:text-base">
-                      Updated Pricing
-                      {hasChanges && <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded whitespace-nowrap">Changes Pending</span>}
-                    </h3>
-                    <div className="space-y-3">
-                      {/* Items */}
-                      <div className="space-y-1">
-                        <p className="text-xs font-semibold text-slate-700 uppercase mb-1">Items</p>
-                        {stagedItems.filter(item => !item.is_deleted).map((item, idx) => {
-                          const originalItem = orderItems.find((oi: any) => oi.unit_id === item.unit_id && oi.wet_or_dry === item.wet_or_dry);
-                          const isChanged = item.is_new || (originalItem && (originalItem.qty !== item.qty || originalItem.unit_price_cents !== item.unit_price_cents));
-                          const totalPrice = item.unit_price_cents * item.qty;
-
-                          return (
-                            <div key={idx} className="flex justify-between text-sm pl-2">
-                              <span className={`text-slate-600 ${item.is_new ? 'font-medium' : ''}`}>
-                                {item.unit_name} ({item.wet_or_dry === 'water' ? 'Water' : 'Dry'}) × {item.qty}
-                                {item.is_new && <span className="ml-1 text-xs bg-green-600 text-white px-1 py-0.5 rounded">NEW</span>}
-                              </span>
-                              <div className="flex items-center gap-2">
-                                {isChanged && originalItem && (
-                                  <span className="text-xs text-slate-400 line-through">
-                                    {formatCurrency(originalItem.unit_price_cents * originalItem.qty)}
-                                  </span>
-                                )}
-                                <span className={`font-medium ${isChanged ? 'text-blue-700' : ''}`}>
-                                  {formatCurrency(totalPrice)}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {/* Show deleted items */}
-                        {stagedItems.filter(item => item.is_deleted).map((item, idx) => (
-                          <div key={`deleted-${idx}`} className="flex justify-between text-sm pl-2 opacity-50">
-                            <span className="text-slate-600 line-through">
-                              {item.unit_name} ({item.wet_or_dry === 'water' ? 'Water' : 'Dry'}) × {item.qty}
-                              <span className="ml-1 text-xs bg-red-600 text-white px-1 py-0.5 rounded">REMOVED</span>
-                            </span>
-                            <span className="line-through">{formatCurrency(item.unit_price_cents * item.qty)}</span>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Fees */}
-                      <div className="space-y-1 border-t border-blue-300 pt-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-600">Items Subtotal:</span>
-                          <div className="flex items-center gap-2">
-                            {calculatedPricing.subtotal_cents !== order.subtotal_cents && (
-                              <span className="text-xs text-slate-400 line-through">{formatCurrency(order.subtotal_cents)}</span>
-                            )}
-                            <span className={`font-medium ${calculatedPricing.subtotal_cents !== order.subtotal_cents ? 'text-blue-700' : ''}`}>
-                              {formatCurrency(calculatedPricing.subtotal_cents)}
-                            </span>
-                          </div>
-                        </div>
-                      {editedOrder.generator_qty > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-600">Generators ({editedOrder.generator_qty}):</span>
-                          <div className="flex items-center gap-2">
-                            {calculatedPricing.generator_fee_cents !== (order.generator_fee_cents || 0) && (
-                              <span className="text-xs text-slate-400 line-through">{formatCurrency(order.generator_fee_cents || 0)}</span>
-                            )}
-                            <span className={`font-medium ${calculatedPricing.generator_fee_cents !== (order.generator_fee_cents || 0) ? 'text-blue-700' : ''}`}>
-                              {formatCurrency(calculatedPricing.generator_fee_cents)}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                      {calculatedPricing.travel_fee_cents > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-600">Travel Fee ({calculatedPricing.distance_miles?.toFixed(1)} mi):</span>
-                          <div className="flex items-center gap-2">
-                            {calculatedPricing.travel_fee_cents !== order.travel_fee_cents && (
-                              <span className="text-xs text-slate-400 line-through">{formatCurrency(order.travel_fee_cents)}</span>
-                            )}
-                            <span className={`font-medium ${calculatedPricing.travel_fee_cents !== order.travel_fee_cents ? 'text-blue-700' : ''}`}>
-                              {formatCurrency(calculatedPricing.travel_fee_cents)}
-                            </span>
-                          </div>
-                      </div>
-                    )}
-                    {calculatedPricing.surface_fee_cents > 0 && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Surface Fee (Sandbags):</span>
-                        <div className="flex items-center gap-2">
-                          {calculatedPricing.surface_fee_cents !== order.surface_fee_cents && (
-                            <span className="text-xs text-slate-400 line-through">{formatCurrency(order.surface_fee_cents)}</span>
-                          )}
-                          <span className={`font-medium ${calculatedPricing.surface_fee_cents !== order.surface_fee_cents ? 'text-blue-700' : ''}`}>
-                            {formatCurrency(calculatedPricing.surface_fee_cents)}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                    {calculatedPricing.same_day_pickup_fee_cents > 0 && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Same Day Pickup:</span>
-                        <div className="flex items-center gap-2">
-                          {calculatedPricing.same_day_pickup_fee_cents !== order.same_day_pickup_fee_cents && (
-                            <span className="text-xs text-slate-400 line-through">{formatCurrency(order.same_day_pickup_fee_cents)}</span>
-                          )}
-                          <span className={`font-medium ${calculatedPricing.same_day_pickup_fee_cents !== order.same_day_pickup_fee_cents ? 'text-blue-700' : ''}`}>
-                            {formatCurrency(calculatedPricing.same_day_pickup_fee_cents)}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                    {customFees.length > 0 && customFees.map((fee, idx) => (
-                      <div key={idx} className="flex justify-between text-sm">
-                        <span className="text-slate-600">{fee.name}:</span>
-                        <span className="font-medium text-blue-700">{formatCurrency(fee.amount_cents)}</span>
-                      </div>
-                    ))}
-                    {calculatedPricing.discount_total_cents > 0 && (
-                      <div className="flex justify-between text-sm text-green-700">
-                        <span className="font-medium">Discount:</span>
-                        <span className="font-medium">-{formatCurrency(calculatedPricing.discount_total_cents)}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-600">Tax (6%):</span>
-                      <div className="flex items-center gap-2">
-                        {calculatedPricing.tax_cents !== order.tax_cents && (
-                          <span className="text-xs text-slate-400 line-through">{formatCurrency(order.tax_cents)}</span>
-                        )}
-                        <span className={`font-medium ${calculatedPricing.tax_cents !== order.tax_cents ? 'text-blue-700' : ''}`}>
-                          {formatCurrency(calculatedPricing.tax_cents)}
-                        </span>
-                      </div>
+                {updatedOrderSummary && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="px-6 py-4 border-b border-blue-300">
+                      <h3 className="text-lg font-bold text-slate-900 flex flex-wrap items-center gap-2">
+                        Updated Pricing
+                        {hasChanges && <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded whitespace-nowrap">Changes Pending</span>}
+                      </h3>
                     </div>
-                  </div>
 
-                  {/* Totals */}
-                      <div className="space-y-1 border-t border-blue-300 pt-2">
-                        <div className="flex justify-between text-base font-semibold">
-                          <span>Total:</span>
-                          <div className="flex items-center gap-2">
-                            {calculatedPricing.total_cents !== (order.subtotal_cents + (order.generator_fee_cents || 0) + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents) && (
-                              <span className="text-sm text-slate-400 line-through">
-                                {formatCurrency(order.subtotal_cents + (order.generator_fee_cents || 0) + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents)}
-                              </span>
-                            )}
-                            <span className={calculatedPricing.total_cents !== (order.subtotal_cents + (order.generator_fee_cents || 0) + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents) ? 'text-blue-700' : ''}>
-                              {formatCurrency(calculatedPricing.total_cents)}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex justify-between text-sm text-green-700">
-                          <span>Deposit Due:</span>
-                          <div className="flex items-center gap-2">
-                            {calculatedPricing.deposit_due_cents !== order.deposit_due_cents && (
-                              <span className="text-xs text-slate-400 line-through">{formatCurrency(order.deposit_due_cents)}</span>
-                            )}
-                            <span className="font-semibold">
-                              {formatCurrency(customDepositCents !== null ? customDepositCents : calculatedPricing.deposit_due_cents)}
-                            </span>
-                            {customDepositCents !== null && customDepositCents !== calculatedPricing.deposit_due_cents && (
-                              <span className="text-xs bg-amber-600 text-white px-1 py-0.5 rounded">OVERRIDE</span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-600">Balance Due:</span>
-                          <div className="flex items-center gap-2">
-                            {calculatedPricing.balance_due_cents !== order.balance_due_cents && (
-                              <span className="text-xs text-slate-400 line-through">{formatCurrency(order.balance_due_cents)}</span>
-                            )}
-                            <span className={`font-medium ${calculatedPricing.balance_due_cents !== order.balance_due_cents ? 'text-blue-700' : ''}`}>
-                              {formatCurrency(customDepositCents !== null
-                                ? calculatedPricing.total_cents - customDepositCents
-                                : calculatedPricing.balance_due_cents)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
+                    <div className="p-6 space-y-6">
+                      <OrderSummary
+                        summary={updatedOrderSummary}
+                        showDeposit={true}
+                        showTip={false}
+                        className=""
+                        title=""
+                      />
                     </div>
                   </div>
                 )}
