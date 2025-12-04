@@ -47,6 +47,7 @@ export interface PriceBreakdown {
   travel_chargeable_miles: number;
   travel_per_mile_cents: number;
   travel_is_flat_fee: boolean;
+  travel_fee_display_name: string;
   surface_fee_cents: number;
   same_day_pickup_fee_cents: number;
   generator_fee_cents: number;
@@ -163,6 +164,17 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
 
   const balance_due_cents = total_cents - deposit_due_cents;
 
+  // Build display-friendly travel fee name
+  let travel_fee_display_name = 'Travel Fee';
+  if (travel_fee_cents > 0) {
+    if (travel_is_flat_fee) {
+      travel_fee_display_name = `Travel Fee (${travel_total_miles.toFixed(1)} mi)`;
+    } else if (travel_chargeable_miles > 0) {
+      const perMileDollars = (travel_per_mile_cents / 100).toFixed(2);
+      travel_fee_display_name = `Travel Fee (${travel_chargeable_miles.toFixed(1)} mi × $${perMileDollars}/mi)`;
+    }
+  }
+
   return {
     subtotal_cents,
     travel_fee_cents,
@@ -171,6 +183,7 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
     travel_chargeable_miles,
     travel_per_mile_cents,
     travel_is_flat_fee,
+    travel_fee_display_name,
     surface_fee_cents,
     same_day_pickup_fee_cents,
     generator_fee_cents,

@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { X, Truck, MapPin, CheckCircle, MessageSquare, FileText, Edit2, History, Save, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
-import { formatCurrency, calculateDistance } from '../lib/pricing';
+import { formatCurrency, calculateDistance, calculatePrice, calculateDrivingDistance, type PricingRules, type PriceBreakdown } from '../lib/pricing';
+import { HOME_BASE } from '../lib/constants';
 import { AddressAutocomplete } from './AddressAutocomplete';
 import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { OrderSummary } from './OrderSummary';
@@ -262,9 +263,9 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     if (!pricingRules || !adminSettings) return;
 
     try {
-      // Calculate travel fee if address changed
-      let travel_fee_cents = order.travel_fee_cents;
-      let distance_miles = order.distance_miles;
+      // Get geocoded location for address if changed
+      let lat = parseFloat(order.addresses?.lat) || 0;
+      let lng = parseFloat(order.addresses?.lng) || 0;
 
       const addressChanged =
         editedOrder.address_line1 !== (order.addresses?.line1 || '') ||
@@ -273,18 +274,75 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         editedOrder.address_zip !== (order.addresses?.zip || '');
 
       if (addressChanged && editedOrder.address_line1 && editedOrder.address_city) {
-        const homeBase = {
-          lat: parseFloat(adminSettings.home_base_lat || '42.2808'),
-          lng: parseFloat(adminSettings.home_base_lng || '-83.3863')
-        };
-        const destination = `${editedOrder.address_line1}, ${editedOrder.address_city}, ${editedOrder.address_state} ${editedOrder.address_zip}`;
-
-        distance_miles = await calculateDistance(homeBase, destination);
-        travel_fee_cents = calculateTravelFee(distance_miles, pricingRules);
+        // Geocode the new address
+        if (window.google?.maps) {
+          const geocoder = new google.maps.Geocoder();
+          const destination = `${editedOrder.address_line1}, ${editedOrder.address_city}, ${editedOrder.address_state} ${editedOrder.address_zip}`;
+          const result = await geocoder.geocode({ address: destination });
+          if (result.results && result.results[0]) {
+            const location = result.results[0].geometry.location;
+            lat = location.lat();
+            lng = location.lng();
+          }
+        }
       }
 
-      // Convert staged items to order items format for centralized calculation
-      const activeItems = stagedItems.filter(item => !item.is_deleted).map(item => ({
+      // Calculate driving distance
+      const distance_miles = await calculateDrivingDistance(
+        HOME_BASE.lat,
+        HOME_BASE.lng,
+        lat,
+        lng
+      );
+
+      // Convert staged items to calculatePrice format
+      const activeItems = stagedItems.filter(item => !item.is_deleted);
+      const items = activeItems.map(item => ({
+        unit_id: item.unit_id,
+        qty: item.qty,
+        wet_or_dry: item.wet_or_dry,
+        unit_price_cents: item.unit_price_cents,
+      }));
+
+      // Calculate number of days
+      const eventStartDate = new Date(editedOrder.event_date);
+      const eventEndDate = new Date(editedOrder.event_end_date || editedOrder.event_date);
+      const diffTime = Math.abs(eventEndDate.getTime() - eventStartDate.getTime());
+      const numDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+      // Build pricing rules from database format
+      const rules: PricingRules = {
+        base_radius_miles: parseFloat(pricingRules.base_radius_miles) || 20,
+        included_city_list_json: pricingRules.included_city_list_json || [],
+        per_mile_after_base_cents: pricingRules.per_mile_after_base_cents || 500,
+        zone_overrides_json: pricingRules.zone_overrides_json || [],
+        surface_sandbag_fee_cents: pricingRules.surface_sandbag_fee_cents || 0,
+        residential_multiplier: parseFloat(pricingRules.residential_multiplier) || 1,
+        commercial_multiplier: parseFloat(pricingRules.commercial_multiplier) || 1,
+        same_day_matrix_json: pricingRules.same_day_matrix_json || [],
+        overnight_holiday_only: pricingRules.overnight_holiday_only || false,
+        extra_day_pct: parseFloat(pricingRules.extra_day_pct) || 0,
+        generator_price_cents: pricingRules.generator_price_cents || 0,
+      };
+
+      // Use centralized calculatePrice function
+      const priceBreakdown = calculatePrice({
+        items,
+        location_type: editedOrder.location_type as 'residential' | 'commercial',
+        surface: editedOrder.surface as 'grass' | 'cement',
+        can_use_stakes: editedOrder.surface === 'grass',
+        overnight_allowed: editedOrder.pickup_preference === 'next_day',
+        num_days: numDays,
+        distance_miles,
+        city: editedOrder.address_city,
+        zip: editedOrder.address_zip,
+        has_generator: (editedOrder.generator_qty || 0) > 0,
+        generator_qty: editedOrder.generator_qty || 0,
+        rules,
+      });
+
+      // Convert staged items to order items format for summary display
+      const activeItemsForDisplay = activeItems.map(item => ({
         unit_id: item.unit_id,
         qty: item.qty,
         wet_or_dry: item.wet_or_dry,
@@ -297,23 +355,23 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         }
       }));
 
-      // Build order data for centralized calculation
+      // Build order data using the centralized price breakdown
       const updatedOrderData: OrderSummaryData = {
-        items: activeItems,
+        items: activeItemsForDisplay,
         discounts,
         customFees,
-        subtotal_cents: 0,
-        travel_fee_cents,
-        surface_fee_cents: 0,
-        same_day_pickup_fee_cents: 0,
-        generator_fee_cents: 0,
+        subtotal_cents: priceBreakdown.subtotal_cents,
+        travel_fee_cents: priceBreakdown.travel_fee_cents,
+        surface_fee_cents: priceBreakdown.surface_fee_cents,
+        same_day_pickup_fee_cents: priceBreakdown.same_day_pickup_fee_cents,
+        generator_fee_cents: priceBreakdown.generator_fee_cents,
         generator_qty: editedOrder.generator_qty || 0,
-        tax_cents: 0,
+        tax_cents: priceBreakdown.tax_cents,
         tip_cents: order.tip_cents || 0,
-        total_cents: 0,
-        deposit_due_cents: 0,
+        total_cents: priceBreakdown.total_cents,
+        deposit_due_cents: customDepositCents !== null ? customDepositCents : priceBreakdown.deposit_due_cents,
         deposit_paid_cents: order.deposit_paid_cents || 0,
-        balance_due_cents: 0,
+        balance_due_cents: customDepositCents !== null ? priceBreakdown.total_cents - customDepositCents : priceBreakdown.balance_due_cents,
         custom_deposit_cents: customDepositCents,
         pickup_preference: editedOrder.pickup_preference,
         event_date: editedOrder.event_date,
@@ -322,10 +380,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         surface: editedOrder.surface,
       };
 
-      // Use centralized calculation
+      // Use centralized calculation for summary display
       const summary = formatOrderSummary(updatedOrderData);
 
-      console.log('🧮 Admin Panel Price Calculation (Centralized):');
+      console.log('🧮 Admin Panel Price Calculation (Fully Centralized):');
+      console.log('Price Breakdown:', priceBreakdown);
       console.log('Summary:', summary);
 
       // Store full summary for display
@@ -333,15 +392,15 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
       // Store calculated values for backward compatibility
       setCalculatedPricing({
-        subtotal_cents: summary.subtotal,
-        generator_fee_cents: summary.fees.find(f => f.name.includes('Generator'))?.amount || 0,
-        travel_fee_cents: summary.fees.find(f => f.name.includes('Travel'))?.amount || 0,
+        subtotal_cents: priceBreakdown.subtotal_cents,
+        generator_fee_cents: priceBreakdown.generator_fee_cents,
+        travel_fee_cents: priceBreakdown.travel_fee_cents,
         distance_miles,
-        surface_fee_cents: summary.fees.find(f => f.name.includes('Surface'))?.amount || 0,
-        same_day_pickup_fee_cents: summary.fees.find(f => f.name.includes('Same-Day'))?.amount || 0,
+        surface_fee_cents: priceBreakdown.surface_fee_cents,
+        same_day_pickup_fee_cents: priceBreakdown.same_day_pickup_fee_cents,
         custom_fees_total_cents: summary.customFees.reduce((sum, f) => sum + f.amount, 0),
         discount_total_cents: summary.discounts.reduce((sum, d) => sum + d.amount, 0),
-        tax_cents: summary.tax,
+        tax_cents: priceBreakdown.tax_cents,
         total_cents: summary.total,
         deposit_due_cents: summary.depositDue,
         balance_due_cents: summary.balanceDue,
@@ -945,16 +1004,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         }
       );
     });
-  }
-
-  function calculateTravelFee(distance: number, rules: any): number {
-    const base_radius = parseFloat(rules.base_radius_miles) || 20;
-    const per_mile = rules.per_mile_after_base_cents || 500;
-
-    if (distance <= base_radius) return 0;
-
-    const chargeableMiles = distance - base_radius;
-    return Math.round(chargeableMiles * per_mile);
   }
 
   async function handleAddDiscount() {

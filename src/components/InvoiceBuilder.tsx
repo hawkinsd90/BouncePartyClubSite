@@ -645,7 +645,7 @@ export function InvoiceBuilder() {
     const fees: Array<{ name: string; amount: number }> = [];
 
     if (priceBreakdown?.travel_fee_cents > 0) {
-      fees.push({ name: 'Travel Fee', amount: priceBreakdown.travel_fee_cents });
+      fees.push({ name: priceBreakdown.travel_fee_display_name || 'Travel Fee', amount: priceBreakdown.travel_fee_cents });
     }
 
     if (priceBreakdown?.surface_fee_cents > 0) {
@@ -1133,9 +1133,25 @@ export function InvoiceBuilder() {
           <div className="bg-white rounded-lg shadow p-4 sm:p-6">
             <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-4">Available Units</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
-              {units.map(unit => (
+              {units.filter(unit => {
+                // Check if this unit is already in the cart
+                const existingItem = cartItems.find(item => item.unit_id === unit.id);
+
+                if (!existingItem) {
+                  // Unit not in cart, so it's available to add
+                  return true;
+                }
+
+                // Unit is in cart - only show if we have multiple units in inventory
+                return (unit.quantity_available || 1) > 1;
+              }).map(unit => (
                 <div key={unit.id} className="border border-slate-200 rounded-lg p-3">
-                  <p className="font-medium text-slate-900 text-sm">{unit.name}</p>
+                  <p className="font-medium text-slate-900 text-sm">
+                    {unit.name}
+                    {(unit.quantity_available || 1) > 1 && (
+                      <span className="ml-2 text-xs text-slate-600">({unit.quantity_available} available)</span>
+                    )}
+                  </p>
                   <p className="text-xs text-slate-600 mb-2">{unit.dimensions}</p>
                   <div className="flex gap-2">
                     <button
@@ -1155,6 +1171,15 @@ export function InvoiceBuilder() {
                   </div>
                 </div>
               ))}
+              {units.filter(unit => {
+                const existingItem = cartItems.find(item => item.unit_id === unit.id);
+                if (!existingItem) return true;
+                return (unit.quantity_available || 1) > 1;
+              }).length === 0 && (
+                <div className="col-span-2 text-center py-6 text-slate-500">
+                  All available units have been added to this invoice
+                </div>
+              )}
             </div>
           </div>
 

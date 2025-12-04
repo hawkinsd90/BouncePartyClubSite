@@ -65,7 +65,7 @@ export function OrderSummary({
 
           {summary.fees.map((fee, index) => (
             <div key={index} className="flex justify-between text-slate-700">
-              <span>{fee.name} {fee.name.includes('mi') ? '' : '( mi)'}:</span>
+              <span>{fee.name}:</span>
               <span className="font-medium">{formatCurrency(fee.amount)}</span>
             </div>
           ))}
