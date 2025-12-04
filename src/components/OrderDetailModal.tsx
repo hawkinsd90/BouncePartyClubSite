@@ -1745,14 +1745,92 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                       </h3>
                     </div>
 
-                    <div className="p-6 space-y-6">
-                      <OrderSummary
-                        summary={updatedOrderSummary}
-                        showDeposit={true}
-                        showTip={false}
-                        className=""
-                        title=""
-                      />
+                    <div className="p-6">
+                      <div className="space-y-4">
+                        {/* Items Section */}
+                        <div>
+                          <p className="text-xs font-semibold text-slate-700 uppercase mb-2">ITEMS</p>
+                          <div className="space-y-1">
+                            {updatedOrderSummary.items.map((item: any, idx: number) => {
+                              const originalItem = orderItems.find((oi: any) => oi.unit_name === item.name);
+                              const isNew = !originalItem;
+
+                              return (
+                                <div key={idx} className="flex justify-between text-sm">
+                                  <span className="text-slate-600">
+                                    {item.name}
+                                    {isNew && <span className="ml-2 text-xs bg-green-600 text-white px-1.5 py-0.5 rounded">NEW</span>}
+                                  </span>
+                                  <span className={isNew ? 'font-medium text-blue-700' : 'text-slate-900'}>{formatCurrency(item.amount)}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Fees Section */}
+                        <div className="space-y-1 pt-3 border-t border-slate-200">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-slate-600">Items Subtotal:</span>
+                            <span className="text-slate-900">{formatCurrency(updatedOrderSummary.subtotal)}</span>
+                          </div>
+
+                          {updatedOrderSummary.fees.map((fee: any, idx: number) => (
+                            <div key={idx} className="flex justify-between text-sm">
+                              <span className="text-slate-600">{fee.name}:</span>
+                              <span className="text-slate-900">{formatCurrency(fee.amount)}</span>
+                            </div>
+                          ))}
+
+                          {updatedOrderSummary.customFees.map((fee: any, idx: number) => (
+                            <div key={idx} className="flex justify-between text-sm">
+                              <span className="text-slate-600">{fee.name}:</span>
+                              <span className="font-medium text-green-700">+{formatCurrency(fee.amount)}</span>
+                            </div>
+                          ))}
+
+                          {updatedOrderSummary.discounts.map((discount: any, idx: number) => (
+                            <div key={idx} className="flex justify-between text-sm">
+                              <span className="text-slate-600">{discount.name}:</span>
+                              <span className="font-medium text-red-600">-{formatCurrency(discount.amount)}</span>
+                            </div>
+                          ))}
+
+                          <div className="flex justify-between text-sm">
+                            <span className="text-slate-600">Tax (6%):</span>
+                            <span className="text-slate-900">{formatCurrency(updatedOrderSummary.tax)}</span>
+                          </div>
+                        </div>
+
+                        {/* Totals */}
+                        <div className="space-y-1 pt-3 border-t-2 border-slate-300">
+                          <div className="flex justify-between text-base font-semibold">
+                            <span className="text-slate-900">Total:</span>
+                            <span className="text-slate-900">{formatCurrency(updatedOrderSummary.total)}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-blue-700">Deposit Due Now:</span>
+                            <span className="text-blue-700 font-semibold">
+                              {formatCurrency(customDepositCents !== null ? customDepositCents : updatedOrderSummary.depositDue)}
+                              {customDepositCents !== null && customDepositCents !== updatedOrderSummary.depositDue && (
+                                <span className="ml-1 text-xs bg-amber-600 text-white px-1 py-0.5 rounded">OVERRIDE</span>
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-green-700">Deposit Paid:</span>
+                            <span className="text-green-700 font-semibold">{formatCurrency(updatedOrderSummary.depositPaid)}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-slate-600">Balance Due After Event:</span>
+                            <span className="text-slate-900">
+                              {formatCurrency(customDepositCents !== null
+                                ? updatedOrderSummary.total - customDepositCents
+                                : updatedOrderSummary.balanceDue)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
