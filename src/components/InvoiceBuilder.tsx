@@ -893,23 +893,20 @@ export function InvoiceBuilder() {
                     </button>
                   </div>
                   {eventDetails.pickup_preference === 'next_day' && (
-                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                      <label className="flex items-start cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={eventDetails.overnight_responsibility_accepted}
-                          onChange={(e) =>
-                            setEventDetails({ ...eventDetails, overnight_responsibility_accepted: e.target.checked })
-                          }
-                          className="mt-0.5 mr-3"
-                        />
-                        <p className="text-xs text-amber-900 font-medium">
-                          ⚠️ I understand the inflatable will remain on my property overnight and I am legally responsible for its safety and security until pickup the next morning. *
-                        </p>
-                      </label>
+                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-xs text-blue-900">
+                        <strong>Note:</strong> Customer will accept overnight responsibility terms when viewing the invoice.
+                      </p>
                     </div>
                   )}
                   {eventDetails.pickup_preference === 'same_day' && (
+                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-xs text-blue-900">
+                        <strong>Note:</strong> Customer will accept same-day pickup terms when viewing the invoice.
+                      </p>
+                    </div>
+                  )}
+                  {eventDetails.pickup_preference === 'same_day' && false && (
                     <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                       <label className="flex items-start cursor-pointer">
                         <input

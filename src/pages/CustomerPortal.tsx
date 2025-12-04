@@ -6,6 +6,8 @@ import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { CheckCircle, Upload, CreditCard, FileText, Image as ImageIcon, AlertCircle, Sparkles, TrendingUp, Shield, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import WaiverTab from '../components/WaiverTab';
+import { loadOrderSummary, formatOrderSummary, OrderSummaryDisplay } from '../lib/orderSummary';
+import { OrderSummary } from '../components/OrderSummary';
 
 export function CustomerPortal() {
   const { orderId, token } = useParams();
@@ -39,6 +41,8 @@ export function CustomerPortal() {
   const [cardOnFileConsent, setCardOnFileConsent] = useState(false);
   const [smsConsent, setSmsConsent] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [orderSummary, setOrderSummary] = useState<OrderSummaryDisplay | null>(null);
+  const [overnightResponsibilityAccepted, setOvernightResponsibilityAccepted] = useState(false);
 
   useEffect(() => {
     loadOrder();
@@ -197,6 +201,13 @@ export function CustomerPortal() {
             deposit_due_cents: data.deposit_due_cents,
             balance_due_cents: recalculatedTotal - data.deposit_due_cents,
           });
+        }
+
+        // Load centralized order summary
+        const summaryData = await loadOrderSummary(orderIdToLoad);
+        if (summaryData) {
+          const formattedSummary = formatOrderSummary(summaryData);
+          setOrderSummary(formattedSummary);
         }
       }
     } catch (error) {
@@ -737,51 +748,16 @@ export function CustomerPortal() {
                 </div>
               </div>
 
-              <div className="mb-8 p-6 bg-blue-50 border border-blue-200 rounded-lg">
-                <h2 className="text-xl font-bold text-slate-900 mb-4">Invoice Summary</h2>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Subtotal:</span>
-                    <span className="font-semibold text-slate-900">{formatCurrency(order.subtotal_cents)}</span>
-                  </div>
-                  {discounts.map((discount, idx) => (
-                    <div key={idx} className="flex justify-between text-sm text-red-700">
-                      <span>{discount.name}:</span>
-                      <span className="font-semibold">-{formatCurrency(discount.amount_cents)}</span>
-                    </div>
-                  ))}
-                  {customFees.map((fee, idx) => (
-                    <div key={idx} className="flex justify-between text-sm">
-                      <span className="text-slate-600">{fee.name}:</span>
-                      <span className="font-semibold text-slate-900">{formatCurrency(fee.amount_cents)}</span>
-                    </div>
-                  ))}
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Tax (6%):</span>
-                    <span className="font-semibold text-slate-900">{formatCurrency(order.tax_cents)}</span>
-                  </div>
-                  <div className="flex justify-between pt-2 border-t border-blue-300">
-                    <span className="font-bold text-slate-900">Total:</span>
-                    <span className="text-xl font-bold text-slate-900">{formatCurrency(order.total_cents)}</span>
-                  </div>
-                  <div className="flex justify-between pt-2 border-t border-blue-300">
-                    <span className="text-slate-600">
-                      {depositCents === 0 ? 'Payment Required:' : 'Deposit Due Today:'}
-                    </span>
-                    <span className="text-lg font-bold text-blue-600">
-                      {formatCurrency(depositCents)}
-                    </span>
-                  </div>
-                  {depositCents > 0 && depositCents < order.total_cents && (
-                    <div className="flex justify-between">
-                      <span className="text-slate-600">Balance Due at Event:</span>
-                      <span className="font-semibold text-slate-900">
-                        {formatCurrency(order.total_cents - depositCents)}
-                      </span>
-                    </div>
-                  )}
+              {orderSummary && (
+                <div className="mb-8">
+                  <OrderSummary
+                    summary={orderSummary}
+                    showDeposit={true}
+                    showTip={orderSummary.tip > 0}
+                    title="Complete Price Breakdown"
+                  />
                 </div>
-              </div>
+              )}
 
               {needsCustomerInfo && (
                 <div className="mb-8">
@@ -842,6 +818,30 @@ export function CustomerPortal() {
               )}
 
               <div className="mb-8 space-y-4">
+                {order.pickup_preference === 'next_day' && (
+                  <div className="bg-amber-50 border border-amber-300 rounded-lg p-4">
+                    <h3 className="font-semibold text-slate-900 mb-2 flex items-center">
+                      <AlertCircle className="w-5 h-5 mr-2 text-amber-600" />
+                      Overnight Responsibility Agreement
+                    </h3>
+                    <p className="text-sm text-slate-700 mb-3">
+                      For next-day pickup rentals, you are responsible for the equipment left on your property overnight.
+                    </p>
+                    <label className="flex items-start cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={overnightResponsibilityAccepted}
+                        onChange={(e) => setOvernightResponsibilityAccepted(e.target.checked)}
+                        className="w-5 h-5 text-blue-600 border-slate-300 rounded focus:ring-blue-500 mt-0.5"
+                        required
+                      />
+                      <span className="ml-3 text-sm text-slate-700">
+                        ⚠️ I understand the inflatable will remain on my property overnight and I am legally responsible for its safety and security until pickup the next morning. *
+                      </span>
+                    </label>
+                  </div>
+                )}
+
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
                   <h3 className="font-semibold text-slate-900 mb-2 flex items-center">
                     <Shield className="w-5 h-5 mr-2 text-green-600" />
@@ -886,7 +886,12 @@ export function CustomerPortal() {
 
               <button
                 onClick={handleAcceptInvoice}
-                disabled={processing || !cardOnFileConsent || !smsConsent}
+                disabled={
+                  processing ||
+                  !cardOnFileConsent ||
+                  !smsConsent ||
+                  (order.pickup_preference === 'next_day' && !overnightResponsibilityAccepted)
+                }
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center"
               >
                 {processing ? (
