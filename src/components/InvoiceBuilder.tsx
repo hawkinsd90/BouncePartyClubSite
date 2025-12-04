@@ -4,6 +4,8 @@ import { formatCurrency, calculatePrice, calculateDrivingDistance, type PricingR
 import { HOME_BASE } from '../lib/constants';
 import { Trash2, DollarSign, Percent, Save, UserPlus, Copy, Check, Send, Link as LinkIcon, Calendar, MapPin, Clock, Users } from 'lucide-react';
 import { AddressAutocomplete } from './AddressAutocomplete';
+import { OrderSummary } from './OrderSummary';
+import { type OrderSummaryDisplay } from '../lib/orderSummary';
 
 export function InvoiceBuilder() {
   const [customers, setCustomers] = useState<any[]>([]);
@@ -247,8 +249,8 @@ export function InvoiceBuilder() {
   // Calculate total
   const totalCents = actualSubtotal + automaticFees - discountTotal + customFeesTotal + taxCents;
 
-  // Calculate deposit
-  const defaultDeposit = Math.round(totalCents * 0.5);
+  // Calculate deposit - $50 per unit/item
+  const defaultDeposit = cartItems.reduce((sum, item) => sum + (item.qty * 5000), 0);
   const depositRequired = customDepositCents !== null ? customDepositCents : defaultDeposit;
 
   async function handleCreateNewCustomer() {
@@ -590,6 +592,83 @@ export function InvoiceBuilder() {
     setTimeout(() => setCopiedToClipboard(false), 2000);
   }
 
+  function buildOrderSummary(): OrderSummaryDisplay | null {
+    if (cartItems.length === 0) return null;
+
+    const items = cartItems.map(item => ({
+      name: item.unit_name,
+      mode: item.mode === 'water' ? 'Water' : 'Dry',
+      price: item.adjusted_price_cents,
+      qty: item.qty,
+      lineTotal: item.adjusted_price_cents * item.qty,
+    }));
+
+    const fees: Array<{ name: string; amount: number }> = [];
+
+    if (priceBreakdown?.travel_fee_cents > 0) {
+      fees.push({ name: 'Travel Fee', amount: priceBreakdown.travel_fee_cents });
+    }
+
+    if (priceBreakdown?.surface_fee_cents > 0) {
+      fees.push({ name: 'Surface Fee (Sandbags)', amount: priceBreakdown.surface_fee_cents });
+    }
+
+    if (priceBreakdown?.same_day_pickup_fee_cents > 0) {
+      fees.push({ name: 'Same-Day Pickup Fee', amount: priceBreakdown.same_day_pickup_fee_cents });
+    }
+
+    if (eventDetails.generator_qty > 0 && pricingRules) {
+      const generatorLabel = eventDetails.generator_qty > 1
+        ? `Generator (${eventDetails.generator_qty}x)`
+        : 'Generator';
+      fees.push({ name: generatorLabel, amount: pricingRules.generator_price_cents * eventDetails.generator_qty });
+    }
+
+    const summaryDiscounts = discounts.map(discount => {
+      let amount = discount.amount_cents;
+      if (discount.percentage > 0) {
+        amount = Math.round(subtotal * (discount.percentage / 100));
+      }
+      return {
+        name: discount.name,
+        amount: amount,
+      };
+    });
+
+    const summaryCustomFees = customFees.map(fee => ({
+      name: fee.name,
+      amount: fee.amount_cents,
+    }));
+
+    const totalFees = fees.reduce((sum, fee) => sum + fee.amount, 0);
+    const totalDiscounts = summaryDiscounts.reduce((sum, d) => sum + d.amount, 0);
+    const totalCustomFees = summaryCustomFees.reduce((sum, f) => sum + f.amount, 0);
+
+    const isMultiDay = eventDetails.event_end_date && eventDetails.event_end_date !== eventDetails.event_date;
+
+    return {
+      items,
+      fees,
+      discounts: summaryDiscounts,
+      customFees: summaryCustomFees,
+      subtotal: priceBreakdown?.subtotal_cents || subtotal,
+      totalFees,
+      totalDiscounts,
+      totalCustomFees,
+      taxableAmount,
+      tax: taxCents,
+      tip: 0,
+      total: totalCents,
+      depositDue: depositRequired,
+      depositPaid: 0,
+      balanceDue: totalCents - depositRequired,
+      isMultiDay: !!isMultiDay,
+      pickupPreference: eventDetails.pickup_preference,
+    };
+  }
+
+  const orderSummary = buildOrderSummary();
+
   return (
     <div className="space-y-4 sm:space-y-6">
       <div>
@@ -904,23 +983,6 @@ export function InvoiceBuilder() {
                       <p className="text-xs text-blue-900">
                         <strong>Note:</strong> Customer will accept same-day pickup terms when viewing the invoice.
                       </p>
-                    </div>
-                  )}
-                  {eventDetails.pickup_preference === 'same_day' && false && (
-                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                      <label className="flex items-start cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={eventDetails.same_day_responsibility_accepted}
-                          onChange={(e) =>
-                            setEventDetails({ ...eventDetails, same_day_responsibility_accepted: e.target.checked })
-                          }
-                          className="mt-0.5 mr-3"
-                        />
-                        <p className="text-xs text-amber-900 font-medium">
-                          ⚠️ I understand I am legally responsible for the inflatable until Bounce Party Club picks it up this evening. *
-                        </p>
-                      </label>
                     </div>
                   )}
                 </div>
@@ -1277,103 +1339,16 @@ export function InvoiceBuilder() {
             />
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 sm:p-6">
-            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-4">Invoice Summary</h3>
-            <div className="space-y-2 text-sm">
-              {/* Cart Items */}
-              {cartItems.map((item, idx) => (
-                <div key={idx} className="flex justify-between text-slate-700">
-                  <span>
-                    {item.unit_name} ({item.mode})
-                    {item.qty > 1 && ` × ${item.qty}`}
-                  </span>
-                  <span className="font-semibold">{formatCurrency(item.adjusted_price_cents * item.qty)}</span>
-                </div>
-              ))}
+          {orderSummary && (
+            <OrderSummary
+              summary={orderSummary}
+              showDeposit={true}
+              showTip={false}
+              title="Invoice Summary"
+            />
+          )}
 
-              {/* Subtotal */}
-              <div className="flex justify-between pt-2 border-t border-blue-200">
-                <span className="text-slate-600">Subtotal:</span>
-                <span className="font-semibold text-slate-900">{formatCurrency(priceBreakdown?.subtotal_cents || subtotal)}</span>
-              </div>
-
-              {/* Travel Fee */}
-              {priceBreakdown && priceBreakdown.travel_fee_cents > 0 && (
-                <div className="flex justify-between text-slate-700">
-                  <span>Travel Fee:</span>
-                  <span className="font-semibold">{formatCurrency(priceBreakdown.travel_fee_cents)}</span>
-                </div>
-              )}
-
-              {/* Surface Fee */}
-              {priceBreakdown && priceBreakdown.surface_fee_cents > 0 && (
-                <div className="flex justify-between text-slate-700">
-                  <span>Sandbag Fee:</span>
-                  <span className="font-semibold">{formatCurrency(priceBreakdown.surface_fee_cents)}</span>
-                </div>
-              )}
-
-              {/* Same Day Pickup Fee */}
-              {priceBreakdown && priceBreakdown.same_day_pickup_fee_cents > 0 && (
-                <div className="flex justify-between text-slate-700">
-                  <span>Same-Day Pickup Fee:</span>
-                  <span className="font-semibold">{formatCurrency(priceBreakdown.same_day_pickup_fee_cents)}</span>
-                </div>
-              )}
-
-              {/* Generator Fee */}
-              {eventDetails.generator_qty > 0 && pricingRules && (
-                <div className="flex justify-between text-slate-700">
-                  <span>Generator{eventDetails.generator_qty > 1 ? ` × ${eventDetails.generator_qty}` : ''}:</span>
-                  <span className="font-semibold">{formatCurrency(pricingRules.generator_price_cents * eventDetails.generator_qty)}</span>
-                </div>
-              )}
-
-              {/* Custom Fees */}
-              {customFees.map((fee, idx) => (
-                <div key={idx} className="flex justify-between text-slate-700">
-                  <span>{fee.name}:</span>
-                  <span className="font-semibold">{formatCurrency(fee.amount_cents)}</span>
-                </div>
-              ))}
-
-              {/* Discounts */}
-              {discounts.map((discount, idx) => (
-                <div key={idx} className="flex justify-between text-red-700">
-                  <span>{discount.name}:</span>
-                  <span className="font-semibold">
-                    -{formatCurrency(discount.amount_cents > 0 ? discount.amount_cents : Math.round(subtotal * (discount.percentage / 100)))}
-                  </span>
-                </div>
-              ))}
-
-              {/* Tax */}
-              <div className="flex justify-between text-slate-700">
-                <span>Tax (6%):</span>
-                <span className="font-semibold">{formatCurrency(taxCents)}</span>
-              </div>
-
-              {/* Total */}
-              <div className="flex justify-between pt-2 border-t border-blue-300">
-                <span className="font-semibold text-slate-900">Total:</span>
-                <span className="text-xl font-bold text-blue-600">{formatCurrency(totalCents)}</span>
-              </div>
-
-              {/* Deposit */}
-              <div className="flex justify-between pt-2 border-t border-blue-300">
-                <span className="text-slate-600">
-                  {customDepositCents === 0 ? 'Payment Required:' : 'Deposit Due:'}
-                </span>
-                <span className="font-semibold text-green-700">{formatCurrency(depositRequired)}</span>
-              </div>
-
-              {/* Balance */}
-              <div className="flex justify-between">
-                <span className="text-slate-600">Balance Due:</span>
-                <span className="font-semibold text-slate-900">{formatCurrency(totalCents - depositRequired)}</span>
-              </div>
-            </div>
-
+          <div className="bg-white border border-slate-200 rounded-lg p-4 sm:p-6">
             <button
               onClick={handleGenerateInvoice}
               disabled={saving || cartItems.length === 0}
