@@ -972,10 +972,20 @@ export function CustomerPortal() {
                   </label>
                 </div>
 
-                {tipAmount === 'custom' && (
-                  <div className="p-4 bg-purple-50 rounded-lg border-2 border-purple-300 mb-4">
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Custom Tip Amount</label>
-                    <div className="relative">
+                <label className={`relative flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all mb-4 ${
+                  tipAmount === 'custom' ? 'border-green-600 bg-green-50' : 'border-slate-300 hover:border-green-400'
+                }`}>
+                  <input
+                    type="radio"
+                    name="tipAmount"
+                    value="custom"
+                    checked={tipAmount === 'custom'}
+                    onChange={(e) => setTipAmount(e.target.value as any)}
+                    className="sr-only"
+                  />
+                  <span className="font-semibold text-slate-900 flex-grow">Custom Amount</span>
+                  {tipAmount === 'custom' && (
+                    <div className="relative ml-4">
                       <span className="absolute left-3 top-2 text-slate-600">$</span>
                       <input
                         type="number"
@@ -983,12 +993,13 @@ export function CustomerPortal() {
                         min="0"
                         value={customTipAmount}
                         onChange={(e) => setCustomTipAmount(e.target.value)}
-                        placeholder="10.00"
-                        className="w-full pl-8 pr-4 py-2 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        placeholder="0.00"
+                        className="w-32 pl-8 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        onClick={(e) => e.stopPropagation()}
                       />
                     </div>
-                  </div>
-                )}
+                  )}
+                </label>
 
                 {tipAmount !== 'none' && (tipAmount !== 'custom' || customTipAmount) && (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4">
