@@ -78,8 +78,8 @@ export function OrderSummary({
           ))}
 
           {summary.discounts.map((discount, index) => (
-            <div key={index} className="flex justify-between text-slate-700">
-              <span className="text-slate-700">Discount:</span>
+            <div key={index} className="flex justify-between">
+              <span className="text-green-700">Discount:</span>
               <span className="font-medium text-green-700">-{formatCurrency(discount.amount)}</span>
             </div>
           ))}
