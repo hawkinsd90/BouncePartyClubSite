@@ -143,9 +143,7 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
 
   let generator_fee_cents = 0;
   if (has_generator) {
-    const blowers_needed = total_units;
-    const generators_needed = Math.ceil(blowers_needed / 2);
-    generator_fee_cents = generators_needed * 3500;
+    generator_fee_cents = rules.generator_price_cents;
   }
 
   const tax_cents = Math.round((subtotal_cents + travel_fee_cents + surface_fee_cents + generator_fee_cents) * 0.06);
