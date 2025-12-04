@@ -8,10 +8,12 @@ import { InvoicesList } from '../components/InvoicesList';
 import { OrdersManager } from '../components/OrdersManager';
 import { InvoiceBuilder } from '../components/InvoiceBuilder';
 import { PendingOrderCard } from '../components/PendingOrderCard';
+import { AdminCalendar } from '../components/AdminCalendar';
 
 type AdminTab =
   | 'overview'
   | 'pending'
+  | 'calendar'
   | 'inventory'
   | 'orders'
   | 'contacts'
@@ -306,6 +308,16 @@ function AdminDashboard() {
           )}
         </button>
         <button
+          onClick={() => changeTab('calendar')}
+          className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
+            activeTab === 'calendar'
+              ? 'bg-blue-600 text-white'
+              : 'bg-white text-slate-700 border border-slate-300 hover:border-blue-600'
+          }`}
+        >
+          Calendar
+        </button>
+        <button
           onClick={() => changeTab('inventory')}
           className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
             activeTab === 'inventory'
@@ -440,6 +452,12 @@ function AdminDashboard() {
                 ))}
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === 'calendar' && (
+        <div className="bg-white rounded-xl shadow-md p-6">
+          <AdminCalendar />
         </div>
       )}
 
