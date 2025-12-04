@@ -1,4 +1,6 @@
 import { supabase } from './supabase';
+import { calculateDrivingDistance } from './pricing';
+import { HOME_BASE } from './constants';
 
 export interface OrderItem {
   id?: string;
@@ -96,6 +98,25 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
     if (!orderRes.data) return null;
 
     const order = orderRes.data;
+    let travelMiles = parseFloat(order.travel_total_miles) || 0;
+
+    // If travel miles not saved and we have travel fee, calculate it in real-time
+    if (travelMiles === 0 && order.travel_fee_cents > 0 && order.addresses) {
+      try {
+        const lat = parseFloat(order.addresses.lat);
+        const lng = parseFloat(order.addresses.lng);
+        if (lat && lng) {
+          travelMiles = await calculateDrivingDistance(HOME_BASE.lat, HOME_BASE.lng, lat, lng);
+          // Optionally save it for next time (fire and forget, don't await)
+          if (travelMiles > 0) {
+            supabase.from('orders').update({ travel_total_miles: travelMiles }).eq('id', orderId);
+          }
+        }
+      } catch (error) {
+        console.error('Error calculating travel distance on-the-fly:', error);
+      }
+    }
+
     return {
       items: (itemsRes.data || []).map(item => ({
         ...item,
@@ -105,7 +126,7 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
       customFees: feesRes.data || [],
       subtotal_cents: order.subtotal_cents,
       travel_fee_cents: order.travel_fee_cents || 0,
-      travel_total_miles: parseFloat(order.travel_total_miles) || 0,
+      travel_total_miles: travelMiles,
       surface_fee_cents: order.surface_fee_cents || 0,
       same_day_pickup_fee_cents: order.same_day_pickup_fee_cents || 0,
       generator_fee_cents: order.generator_fee_cents || 0,
