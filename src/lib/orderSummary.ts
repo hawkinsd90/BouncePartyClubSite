@@ -102,19 +102,47 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
 
     // If travel miles not saved and we have travel fee, calculate it in real-time
     if (travelMiles === 0 && order.travel_fee_cents > 0 && order.addresses) {
+      console.log('[OrderSummary] Attempting real-time travel distance calculation', {
+        orderId,
+        travelFeeCents: order.travel_fee_cents,
+        hasAddresses: !!order.addresses,
+        addressData: order.addresses,
+      });
+
       try {
         const lat = parseFloat(order.addresses.lat);
         const lng = parseFloat(order.addresses.lng);
+
+        console.log('[OrderSummary] Parsed coordinates:', { lat, lng, isValid: !!(lat && lng) });
+
         if (lat && lng) {
+          console.log('[OrderSummary] Calling calculateDrivingDistance...');
           travelMiles = await calculateDrivingDistance(HOME_BASE.lat, HOME_BASE.lng, lat, lng);
+          console.log('[OrderSummary] Distance calculation result:', travelMiles, 'miles');
+
           // Optionally save it for next time (fire and forget, don't await)
           if (travelMiles > 0) {
+            console.log('[OrderSummary] Saving calculated distance to database');
             supabase.from('orders').update({ travel_total_miles: travelMiles }).eq('id', orderId);
+          } else {
+            console.warn('[OrderSummary] Calculated distance was 0 or invalid, not saving');
           }
+        } else {
+          console.warn('[OrderSummary] Invalid coordinates - lat or lng is falsy', { lat, lng });
         }
       } catch (error) {
-        console.error('Error calculating travel distance on-the-fly:', error);
+        console.error('[OrderSummary] Error calculating travel distance on-the-fly:', error);
+        console.error('[OrderSummary] Error details:', {
+          message: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined,
+        });
       }
+    } else {
+      console.log('[OrderSummary] Skipping real-time distance calculation:', {
+        travelMiles,
+        travelFeeCents: order.travel_fee_cents,
+        hasAddresses: !!order.addresses,
+      });
     }
 
     return {
@@ -184,6 +212,12 @@ export function formatOrderSummary(data: OrderSummaryData): OrderSummaryDisplay 
 
   if (data.travel_fee_cents > 0) {
     // Build travel fee display name with total miles
+    console.log('[formatOrderSummary] Formatting travel fee:', {
+      travel_fee_cents: data.travel_fee_cents,
+      travel_total_miles: data.travel_total_miles,
+      willShowMiles: data.travel_total_miles > 0,
+    });
+
     const travelFeeName = data.travel_total_miles > 0
       ? `Travel Fee (${data.travel_total_miles.toFixed(1)} mi)`
       : 'Travel Fee';
