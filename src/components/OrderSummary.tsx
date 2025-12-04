@@ -79,7 +79,7 @@ export function OrderSummary({
 
           {summary.discounts.map((discount, index) => (
             <div key={index} className="flex justify-between text-slate-700">
-              <span className="text-slate-700">{discount.name}:</span>
+              <span className="text-slate-700">Discount:</span>
               <span className="font-medium text-red-600">-{formatCurrency(discount.amount)}</span>
             </div>
           ))}
