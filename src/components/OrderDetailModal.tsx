@@ -1731,7 +1731,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                       title="Current Pricing"
                       showDeposit={true}
                       showTip={order.tip_cents > 0}
-                      className="p-3 md:p-4"
                     />
                   </div>
                 )}
@@ -1749,11 +1748,9 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                       }
                       showDeposit={true}
                       showTip={order.tip_cents > 0}
-                      compactMode={true}
                       highlightNewItems={true}
                       comparisonTotal={currentOrderSummary?.total}
                       customDepositCents={customDepositCents}
-                      className="p-0"
                     />
                   </div>
                 )}
