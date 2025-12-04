@@ -5,6 +5,8 @@ import { format } from 'date-fns';
 import { formatCurrency } from '../lib/pricing';
 import { AddressAutocomplete } from './AddressAutocomplete';
 import { checkMultipleUnitsAvailability } from '../lib/availability';
+import { OrderSummary } from './OrderSummary';
+import { formatOrderSummary, type OrderSummaryData } from '../lib/orderSummary';
 
 interface OrderDetailModalProps {
   order: any;
@@ -78,6 +80,39 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [customDepositCents, setCustomDepositCents] = useState<number | null>(null);
   const [customDepositInput, setCustomDepositInput] = useState('');
+  const [currentOrderSummary, setCurrentOrderSummary] = useState<any>(null);
+
+  useEffect(() => {
+    // Load current order summary for display
+    const loadCurrentSummary = async () => {
+      const summaryData: OrderSummaryData = {
+        items: orderItems,
+        discounts: discounts.filter(d => !d.is_new),
+        customFees: customFees.filter(f => !f.is_new),
+        subtotal_cents: order.subtotal_cents,
+        travel_fee_cents: order.travel_fee_cents || 0,
+        surface_fee_cents: order.surface_fee_cents || 0,
+        same_day_pickup_fee_cents: order.same_day_pickup_fee_cents || 0,
+        generator_fee_cents: order.generator_fee_cents || 0,
+        generator_qty: order.generator_qty || 0,
+        tax_cents: order.tax_cents || 0,
+        tip_cents: order.tip_cents || 0,
+        total_cents: order.subtotal_cents + (order.generator_fee_cents || 0) + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents,
+        deposit_due_cents: order.deposit_due_cents,
+        deposit_paid_cents: order.deposit_paid_cents || 0,
+        balance_due_cents: order.balance_due_cents,
+        custom_deposit_cents: order.custom_deposit_cents,
+        pickup_preference: order.pickup_preference,
+        event_date: order.event_date,
+        event_end_date: order.event_end_date,
+      };
+      setCurrentOrderSummary(formatOrderSummary(summaryData));
+    };
+
+    if (orderItems.length > 0) {
+      loadCurrentSummary();
+    }
+  }, [orderItems, order]);
 
   useEffect(() => {
     loadOrderDetails();
@@ -1721,93 +1756,17 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {/* Current/Original Pricing */}
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 md:p-4">
-                  <h3 className="font-semibold text-slate-900 mb-3 text-sm md:text-base">Current Pricing</h3>
-                  <div className="space-y-3">
-                    {/* Items */}
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-slate-700 uppercase mb-1">Items</p>
-                      {orderItems.map((item: any, idx: number) => (
-                        <div key={idx} className="flex justify-between text-sm pl-2">
-                          <span className="text-slate-600">
-                            {item.units?.name || 'Unknown'} ({item.wet_or_dry === 'water' ? 'Water' : 'Dry'}) × {item.qty}
-                          </span>
-                          <span className="font-medium">{formatCurrency(item.unit_price_cents * item.qty)}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Fees */}
-                    <div className="space-y-1 border-t border-slate-300 pt-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Items Subtotal:</span>
-                        <span className="font-medium">{formatCurrency(order.subtotal_cents)}</span>
-                      </div>
-                      {order.generator_qty > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-600">Generators ({order.generator_qty}):</span>
-                          <span className="font-medium">{formatCurrency(order.generator_fee_cents || 0)}</span>
-                        </div>
-                      )}
-                      {order.travel_fee_cents > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-600">Travel Fee ({order.distance_miles?.toFixed(1)} mi):</span>
-                          <span className="font-medium">{formatCurrency(order.travel_fee_cents)}</span>
-                        </div>
-                      )}
-                      {order.surface_fee_cents > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-600">Surface Fee (Sandbags):</span>
-                          <span className="font-medium">{formatCurrency(order.surface_fee_cents)}</span>
-                        </div>
-                      )}
-                      {order.same_day_pickup_fee_cents > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-600">Same Day Pickup:</span>
-                          <span className="font-medium">{formatCurrency(order.same_day_pickup_fee_cents)}</span>
-                        </div>
-                      )}
-                      {(() => {
-                        const originalDiscounts = discounts.filter(d => !d.is_new);
-                        let originalDiscountTotal = 0;
-                        for (const discount of originalDiscounts) {
-                          if (discount.amount_cents > 0) {
-                            originalDiscountTotal += discount.amount_cents;
-                          } else if (discount.percentage > 0) {
-                            const discountable = order.subtotal_cents + (order.generator_fee_cents || 0) + order.travel_fee_cents + order.surface_fee_cents;
-                            originalDiscountTotal += Math.round(discountable * (discount.percentage / 100));
-                          }
-                        }
-                        return originalDiscountTotal > 0 ? (
-                          <div className="flex justify-between text-sm text-green-700">
-                            <span>Discount:</span>
-                            <span className="font-medium">-{formatCurrency(originalDiscountTotal)}</span>
-                          </div>
-                        ) : null;
-                      })()}
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Tax (6%):</span>
-                        <span className="font-medium">{formatCurrency(order.tax_cents)}</span>
-                      </div>
-                    </div>
-
-                    {/* Totals */}
-                    <div className="space-y-1 border-t border-slate-300 pt-2">
-                      <div className="flex justify-between text-base font-semibold">
-                        <span>Total:</span>
-                        <span>{formatCurrency(order.subtotal_cents + (order.generator_fee_cents || 0) + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm text-green-700">
-                        <span>Deposit Due:</span>
-                        <span className="font-semibold">{formatCurrency(order.deposit_due_cents)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Balance Due:</span>
-                        <span className="font-medium">{formatCurrency(order.balance_due_cents)}</span>
-                      </div>
-                    </div>
+                {currentOrderSummary && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg">
+                    <OrderSummary
+                      summary={currentOrderSummary}
+                      title="Current Pricing"
+                      showDeposit={true}
+                      showTip={order.tip_cents > 0}
+                      className="p-3 md:p-4"
+                    />
                   </div>
-                </div>
+                )}
 
                 {/* Updated Pricing */}
                 {calculatedPricing && (

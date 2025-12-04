@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../lib/pricing';
 import { format } from 'date-fns';
 import { OrderDetailModal } from './OrderDetailModal';
+import { OrderSummary } from './OrderSummary';
+import { loadOrderSummary, formatOrderSummary } from '../lib/orderSummary';
 import { Edit2, X } from 'lucide-react';
 
 export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => void }) {
@@ -19,6 +21,7 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{ url: string; label: string } | null>(null);
   const [contact, setContact] = useState<any>(null);
+  const [orderSummary, setOrderSummary] = useState<any>(null);
 
   // Format customer display name (business name if available, otherwise personal name)
   const getCustomerDisplayName = () => {
@@ -33,7 +36,15 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
     loadSmsConversations();
     loadPayments();
     loadContact();
+    loadSummary();
   }, [order.id]);
+
+  async function loadSummary() {
+    const data = await loadOrderSummary(order.id);
+    if (data) {
+      setOrderSummary(formatOrderSummary(data));
+    }
+  }
 
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -640,55 +651,17 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
         </div>
       </div>
 
-      <div className="mb-4 p-3 md:p-4 bg-white rounded-lg">
-        <h4 className="text-sm font-semibold text-slate-700 mb-3">Complete Order Details</h4>
-        <div className="space-y-2 text-sm">
-          {orderItems.map(item => (
-            <div key={item.id} className="flex justify-between py-1">
-              <span className="text-slate-700">• {item.units?.name} ({item.wet_or_dry}) x{item.qty}</span>
-              <span className="font-medium text-slate-900">{formatCurrency(item.unit_price_cents * item.qty)}</span>
-            </div>
-          ))}
+      {orderSummary && (
+        <div className="mb-4">
+          <OrderSummary
+            summary={orderSummary}
+            title="Complete Order Details"
+            showDeposit={true}
+            showTip={order.tip_cents > 0}
+            className="bg-white rounded-lg p-3 md:p-4"
+          />
         </div>
-        <div className="mt-3 pt-3 border-t border-slate-200 space-y-1 text-sm">
-          <div className="flex justify-between">
-            <span className="text-slate-600">Subtotal</span>
-            <span className="font-medium">{formatCurrency(order.subtotal_cents)}</span>
-          </div>
-          <div>
-            <div className="flex justify-between">
-              <span className="text-slate-600">Travel Fee</span>
-              <span className="font-medium">{formatCurrency(order.travel_fee_cents)}</span>
-            </div>
-            {order.travel_fee_breakdown && (
-              <div className="ml-4 mt-1 space-y-0.5 text-xs text-slate-500">
-                <div>Total distance: {order.travel_fee_breakdown.total_distance_miles} miles</div>
-                <div>Charge miles: {order.travel_fee_breakdown.chargeable_miles} miles × ${(order.travel_fee_breakdown.rate_per_mile / 100).toFixed(2)}/mile</div>
-              </div>
-            )}
-          </div>
-          {order.surface_fee_cents > 0 && (
-            <div className="flex justify-between">
-              <span className="text-slate-600">Surface Fee: {order.surface}</span>
-              <span className="font-medium">{formatCurrency(order.surface_fee_cents)}</span>
-            </div>
-          )}
-          {order.same_day_pickup_fee_cents > 0 && (
-            <div className="flex justify-between">
-              <span className="text-slate-600">Same Day Pickup Fee</span>
-              <span className="font-medium">{formatCurrency(order.same_day_pickup_fee_cents)}</span>
-          </div>
-          )}
-          <div className="flex justify-between">
-            <span className="text-slate-600">Tax</span>
-            <span className="font-medium">{formatCurrency(order.tax_cents ?? 0)}</span>
-          </div>
-          <div className="flex justify-between pt-2 border-t border-slate-300 font-bold">
-            <span>Total</span>
-            <span>{formatCurrency(order.subtotal_cents + (order.travel_fee_cents ?? 0) + (order.surface_fee_cents ?? 0) + (order.same_day_pickup_fee_cents ?? 0) + (order.tax_cents ?? 0))}</span>
-          </div>
-        </div>
-      </div>
+      )}
 
       <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
         <h4 className="text-sm font-semibold text-blue-900 mb-2">SMS Conversation</h4>
