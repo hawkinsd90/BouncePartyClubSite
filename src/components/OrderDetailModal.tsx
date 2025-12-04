@@ -264,46 +264,61 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     if (!pricingRules || !adminSettings) return;
 
     try {
-      // Always geocode the current address to ensure we have valid coordinates
-      let lat = 0;
-      let lng = 0;
+      // Check if address has changed
+      const addressChanged =
+        editedOrder.address_line1 !== (order.addresses?.line1 || '') ||
+        editedOrder.address_city !== (order.addresses?.city || '') ||
+        editedOrder.address_state !== (order.addresses?.state || '') ||
+        editedOrder.address_zip !== (order.addresses?.zip || '');
 
-      if (editedOrder.address_line1 && editedOrder.address_city && window.google?.maps) {
-        try {
-          const geocoder = new google.maps.Geocoder();
-          const destination = `${editedOrder.address_line1}, ${editedOrder.address_city}, ${editedOrder.address_state} ${editedOrder.address_zip}`;
-          const result = await geocoder.geocode({ address: destination });
-          if (result.results && result.results[0]) {
-            const location = result.results[0].geometry.location;
-            lat = location.lat();
-            lng = location.lng();
+      let distance_miles = 0;
+      let useSavedTravelFee = false;
+
+      // If address hasn't changed, use the stored travel fee and miles
+      if (!addressChanged && order.travel_fee_cents > 0) {
+        distance_miles = parseFloat(order.travel_total_miles) || 0;
+        useSavedTravelFee = true;
+      } else {
+        // Address changed, so recalculate distance
+        let lat = 0;
+        let lng = 0;
+
+        if (editedOrder.address_line1 && editedOrder.address_city && window.google?.maps) {
+          try {
+            const geocoder = new google.maps.Geocoder();
+            const destination = `${editedOrder.address_line1}, ${editedOrder.address_city}, ${editedOrder.address_state} ${editedOrder.address_zip}`;
+            const result = await geocoder.geocode({ address: destination });
+            if (result.results && result.results[0]) {
+              const location = result.results[0].geometry.location;
+              lat = location.lat();
+              lng = location.lng();
+            }
+          } catch (error) {
+            console.error('Geocoding error:', error);
+            // Fall back to order's stored coordinates if geocoding fails
+            lat = parseFloat(order.addresses?.lat) || 0;
+            lng = parseFloat(order.addresses?.lng) || 0;
           }
-        } catch (error) {
-          console.error('Geocoding error:', error);
-          // Fall back to order's stored coordinates if geocoding fails
+        } else {
+          // Use order's stored coordinates if address is incomplete
           lat = parseFloat(order.addresses?.lat) || 0;
           lng = parseFloat(order.addresses?.lng) || 0;
         }
-      } else {
-        // Use order's stored coordinates if address is incomplete
-        lat = parseFloat(order.addresses?.lat) || 0;
-        lng = parseFloat(order.addresses?.lng) || 0;
-      }
 
-      // Only calculate distance if we have valid coordinates
-      let distance_miles = 0;
-      if (lat !== 0 && lng !== 0) {
-        distance_miles = await calculateDrivingDistance(
-          HOME_BASE.lat,
-          HOME_BASE.lng,
-          lat,
-          lng
-        );
-      }
+        // Only calculate distance if we have valid coordinates
+        if (lat !== 0 && lng !== 0) {
+          distance_miles = await calculateDrivingDistance(
+            HOME_BASE.lat,
+            HOME_BASE.lng,
+            lat,
+            lng
+          );
+        }
 
-      // If distance calculation failed or returned 0, use stored travel distance
-      if (distance_miles === 0 && order.travel_total_miles) {
-        distance_miles = parseFloat(order.travel_total_miles) || 0;
+        // If distance calculation failed or returned 0, use stored travel distance
+        if (distance_miles === 0 && order.travel_total_miles) {
+          distance_miles = parseFloat(order.travel_total_miles) || 0;
+        }
       }
 
       // Convert staged items to calculatePrice format
@@ -367,23 +382,39 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       }));
 
       // Build order data using the centralized price breakdown
+      // If address hasn't changed, preserve original travel fee and miles
+      const finalTravelFeeCents = useSavedTravelFee ? order.travel_fee_cents : priceBreakdown.travel_fee_cents;
+      const finalTravelMiles = useSavedTravelFee ? (parseFloat(order.travel_total_miles) || 0) : (priceBreakdown.travel_total_miles || 0);
+
+      // Recalculate tax and total if we're using saved travel fee
+      let finalTaxCents = priceBreakdown.tax_cents;
+      let finalTotalCents = priceBreakdown.total_cents;
+
+      if (useSavedTravelFee && finalTravelFeeCents !== priceBreakdown.travel_fee_cents) {
+        // Recalculate tax based on: subtotal + travel + surface + generator
+        finalTaxCents = Math.round((priceBreakdown.subtotal_cents + finalTravelFeeCents + priceBreakdown.surface_fee_cents + priceBreakdown.generator_fee_cents) * 0.06);
+
+        // Recalculate total: subtotal + all fees + tax
+        finalTotalCents = priceBreakdown.subtotal_cents + finalTravelFeeCents + priceBreakdown.surface_fee_cents + priceBreakdown.same_day_pickup_fee_cents + priceBreakdown.generator_fee_cents + finalTaxCents;
+      }
+
       const updatedOrderData: OrderSummaryData = {
         items: activeItemsForDisplay,
         discounts,
         customFees,
         subtotal_cents: priceBreakdown.subtotal_cents,
-        travel_fee_cents: priceBreakdown.travel_fee_cents,
-        travel_total_miles: priceBreakdown.travel_total_miles || 0,
+        travel_fee_cents: finalTravelFeeCents,
+        travel_total_miles: finalTravelMiles,
         surface_fee_cents: priceBreakdown.surface_fee_cents,
         same_day_pickup_fee_cents: priceBreakdown.same_day_pickup_fee_cents,
         generator_fee_cents: priceBreakdown.generator_fee_cents,
         generator_qty: editedOrder.generator_qty || 0,
-        tax_cents: priceBreakdown.tax_cents,
+        tax_cents: finalTaxCents,
         tip_cents: order.tip_cents || 0,
-        total_cents: priceBreakdown.total_cents,
+        total_cents: finalTotalCents,
         deposit_due_cents: customDepositCents !== null ? customDepositCents : priceBreakdown.deposit_due_cents,
         deposit_paid_cents: order.deposit_paid_cents || 0,
-        balance_due_cents: customDepositCents !== null ? priceBreakdown.total_cents - customDepositCents : priceBreakdown.balance_due_cents,
+        balance_due_cents: customDepositCents !== null ? finalTotalCents - customDepositCents : (finalTotalCents - priceBreakdown.deposit_due_cents),
         custom_deposit_cents: customDepositCents,
         pickup_preference: editedOrder.pickup_preference,
         event_date: editedOrder.event_date,
@@ -406,13 +437,13 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       setCalculatedPricing({
         subtotal_cents: priceBreakdown.subtotal_cents,
         generator_fee_cents: priceBreakdown.generator_fee_cents,
-        travel_fee_cents: priceBreakdown.travel_fee_cents,
-        distance_miles,
+        travel_fee_cents: finalTravelFeeCents,
+        distance_miles: finalTravelMiles,
         surface_fee_cents: priceBreakdown.surface_fee_cents,
         same_day_pickup_fee_cents: priceBreakdown.same_day_pickup_fee_cents,
         custom_fees_total_cents: summary.customFees.reduce((sum, f) => sum + f.amount, 0),
         discount_total_cents: summary.discounts.reduce((sum, d) => sum + d.amount, 0),
-        tax_cents: priceBreakdown.tax_cents,
+        tax_cents: finalTaxCents,
         total_cents: summary.total,
         deposit_due_cents: summary.depositDue,
         balance_due_cents: summary.balanceDue,
