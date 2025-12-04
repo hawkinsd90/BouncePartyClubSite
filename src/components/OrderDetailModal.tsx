@@ -87,13 +87,36 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   useEffect(() => {
     // Load current order summary for display
     const loadCurrentSummary = async () => {
+      let travelMiles = parseFloat(order.travel_total_miles) || 0;
+
+      // If order has travel fee but no miles (old orders), calculate miles from address
+      if (order.travel_fee_cents > 0 && travelMiles === 0 && order.addresses?.lat && order.addresses?.lng) {
+        try {
+          const lat = parseFloat(order.addresses.lat);
+          const lng = parseFloat(order.addresses.lng);
+          if (lat !== 0 && lng !== 0) {
+            travelMiles = await calculateDrivingDistance(HOME_BASE.lat, HOME_BASE.lng, lat, lng);
+
+            // Update the order in database with calculated miles
+            if (travelMiles > 0) {
+              await supabase
+                .from('orders')
+                .update({ travel_total_miles: travelMiles })
+                .eq('id', order.id);
+            }
+          }
+        } catch (error) {
+          console.error('Error calculating travel miles for old order:', error);
+        }
+      }
+
       const summaryData: OrderSummaryData = {
         items: orderItems,
         discounts: discounts.filter(d => !d.is_new),
         customFees: customFees.filter(f => !f.is_new),
         subtotal_cents: order.subtotal_cents,
         travel_fee_cents: order.travel_fee_cents || 0,
-        travel_total_miles: parseFloat(order.travel_total_miles) || 0,
+        travel_total_miles: travelMiles,
         surface_fee_cents: order.surface_fee_cents || 0,
         same_day_pickup_fee_cents: order.same_day_pickup_fee_cents || 0,
         generator_fee_cents: order.generator_fee_cents || 0,
