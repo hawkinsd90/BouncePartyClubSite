@@ -6,6 +6,7 @@ export interface OrderItem {
   qty: number;
   wet_or_dry: 'dry' | 'water';
   unit_price_cents: number;
+  is_new?: boolean;
   units?: {
     name: string;
   };
@@ -53,6 +54,7 @@ export interface OrderSummaryDisplay {
     price: number;
     qty: number;
     lineTotal: number;
+    isNew?: boolean;
   }>;
   fees: Array<{
     name: string;
@@ -152,6 +154,7 @@ export function formatOrderSummary(data: OrderSummaryData): OrderSummaryDisplay 
     price: item.unit_price_cents,
     qty: item.qty,
     lineTotal: item.unit_price_cents * item.qty,
+    isNew: item.is_new || false,
   }));
 
   const fees: Array<{ name: string; amount: number }> = [];

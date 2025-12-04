@@ -289,6 +289,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         qty: item.qty,
         wet_or_dry: item.wet_or_dry,
         unit_price_cents: item.unit_price_cents,
+        is_new: item.is_new || false,
         units: {
           name: item.unit_name,
           price_dry_cents: item.wet_or_dry === 'dry' ? item.unit_price_cents : 0,
@@ -1751,24 +1752,15 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                         <div>
                           <p className="text-xs font-semibold text-slate-700 uppercase mb-2">ITEMS</p>
                           <div className="space-y-1">
-                            {updatedOrderSummary.items.map((item: any, idx: number) => {
-                              // Check if this item exists in original order by matching name and mode
-                              const modeLabel = item.mode === 'Water' ? 'water' : 'dry';
-                              const originalItem = orderItems.find((oi: any) =>
-                                oi.unit_name === item.name && oi.wet_or_dry === modeLabel
-                              );
-                              const isNew = !originalItem;
-
-                              return (
-                                <div key={idx} className="flex justify-between text-sm">
-                                  <span className="text-slate-600">
-                                    {item.name} ({item.mode}) × {item.qty}
-                                    {isNew && <span className="ml-2 text-xs bg-green-600 text-white px-1.5 py-0.5 rounded">NEW</span>}
-                                  </span>
-                                  <span className={isNew ? 'font-medium text-blue-700' : 'text-slate-900'}>{formatCurrency(item.lineTotal)}</span>
-                                </div>
-                              );
-                            })}
+                            {updatedOrderSummary.items.map((item: any, idx: number) => (
+                              <div key={idx} className="flex justify-between text-sm">
+                                <span className="text-slate-600">
+                                  {item.name} ({item.mode}) × {item.qty}
+                                  {item.isNew && <span className="ml-2 text-xs bg-green-600 text-white px-1.5 py-0.5 rounded">NEW</span>}
+                                </span>
+                                <span className={item.isNew ? 'font-medium text-blue-700' : 'text-slate-900'}>{formatCurrency(item.lineTotal)}</span>
+                              </div>
+                            ))}
                           </div>
                         </div>
 
