@@ -185,6 +185,7 @@ export function InvoiceBuilder() {
         city: eventDetails.city,
         zip: eventDetails.zip,
         has_generator: eventDetails.generator_qty > 0,
+        generator_qty: eventDetails.generator_qty,
         rules: pricingRules,
       });
 
@@ -262,7 +263,7 @@ export function InvoiceBuilder() {
   const travelFee = priceBreakdown?.travel_fee_cents || 0;
   const surfaceFee = priceBreakdown?.surface_fee_cents || 0;
   const sameDayPickupFee = priceBreakdown?.same_day_pickup_fee_cents || 0;
-  const generatorFee = pricingRules && eventDetails.generator_qty > 0 ? pricingRules.generator_price_cents * eventDetails.generator_qty : 0;
+  const generatorFee = priceBreakdown?.generator_fee_cents || 0;
   const automaticFees = travelFee + surfaceFee + sameDayPickupFee + generatorFee;
 
   // Use priceBreakdown subtotal if available, otherwise use calculated subtotal
@@ -655,11 +656,11 @@ export function InvoiceBuilder() {
       fees.push({ name: 'Same-Day Pickup Fee', amount: priceBreakdown.same_day_pickup_fee_cents });
     }
 
-    if (eventDetails.generator_qty > 0 && pricingRules) {
+    if (priceBreakdown?.generator_fee_cents > 0) {
       const generatorLabel = eventDetails.generator_qty > 1
         ? `Generator (${eventDetails.generator_qty}x)`
         : 'Generator';
-      fees.push({ name: generatorLabel, amount: pricingRules.generator_price_cents * eventDetails.generator_qty });
+      fees.push({ name: generatorLabel, amount: priceBreakdown.generator_fee_cents });
     }
 
     const summaryDiscounts = discounts.map(discount => {

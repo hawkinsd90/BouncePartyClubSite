@@ -35,6 +35,7 @@ export interface PriceCalculationInput {
   city: string;
   zip: string;
   has_generator: boolean;
+  generator_qty?: number;
   rules: PricingRules;
 }
 
@@ -67,6 +68,7 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
     city,
     zip,
     has_generator,
+    generator_qty = 0,
     rules,
   } = input;
 
@@ -142,8 +144,9 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
   }
 
   let generator_fee_cents = 0;
-  if (has_generator) {
-    generator_fee_cents = rules.generator_price_cents;
+  const actual_generator_qty = generator_qty > 0 ? generator_qty : (has_generator ? 1 : 0);
+  if (actual_generator_qty > 0) {
+    generator_fee_cents = rules.generator_price_cents * actual_generator_qty;
   }
 
   const tax_cents = Math.round((subtotal_cents + travel_fee_cents + surface_fee_cents + generator_fee_cents) * 0.06);
