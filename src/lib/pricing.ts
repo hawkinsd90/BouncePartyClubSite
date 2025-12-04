@@ -164,15 +164,11 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
 
   const balance_due_cents = total_cents - deposit_due_cents;
 
-  // Build display-friendly travel fee name
+  // Build display-friendly travel fee name showing TOTAL miles driven
   let travel_fee_display_name = 'Travel Fee';
   if (travel_fee_cents > 0) {
-    if (travel_is_flat_fee) {
-      travel_fee_display_name = `Travel Fee (${travel_total_miles.toFixed(1)} mi)`;
-    } else if (travel_chargeable_miles > 0) {
-      const perMileDollars = (travel_per_mile_cents / 100).toFixed(2);
-      travel_fee_display_name = `Travel Fee (${travel_chargeable_miles.toFixed(1)} mi × $${perMileDollars}/mi)`;
-    }
+    // Always show total driving distance, not just chargeable miles
+    travel_fee_display_name = `Travel Fee (${travel_total_miles.toFixed(1)} mi)`;
   }
 
   return {
