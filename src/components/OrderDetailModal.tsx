@@ -301,6 +301,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         );
       }
 
+      // If distance calculation failed or returned 0, use stored travel distance
+      if (distance_miles === 0 && order.travel_total_miles) {
+        distance_miles = parseFloat(order.travel_total_miles) || 0;
+      }
+
       // Convert staged items to calculatePrice format
       const activeItems = stagedItems.filter(item => !item.is_deleted);
       const items = activeItems.map(item => ({
