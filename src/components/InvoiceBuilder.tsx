@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { formatCurrency, calculatePrice, calculateDrivingDistance, type PricingRules, type PriceBreakdown } from '../lib/pricing';
 import { HOME_BASE } from '../lib/constants';
-import { Trash2, DollarSign, Percent, Save, UserPlus, Copy, Check, Send, Link as LinkIcon, Calendar, MapPin, Clock, Users } from 'lucide-react';
+import { Trash2, DollarSign, Percent, Save, UserPlus, Copy, Check, Send, Link as LinkIcon, Calendar, MapPin, Clock, Users, Search, X } from 'lucide-react';
 import { AddressAutocomplete } from './AddressAutocomplete';
 import { OrderSummary } from './OrderSummary';
 import { type OrderSummaryDisplay } from '../lib/orderSummary';
@@ -11,6 +11,8 @@ export function InvoiceBuilder() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [units, setUnits] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState('');
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [discounts, setDiscounts] = useState<any[]>([]);
   const [newDiscount, setNewDiscount] = useState({ name: '', amount_cents: 0, percentage: 0 });
@@ -95,6 +97,18 @@ export function InvoiceBuilder() {
       calculatePricing();
     }
   }, [cartItems, pricingRules, eventDetails, discounts, customFees]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (showCustomerDropdown && !target.closest('.customer-search-container')) {
+        setShowCustomerDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showCustomerDropdown]);
 
   async function loadData() {
     const [customersRes, unitsRes, rulesRes] = await Promise.all([
@@ -218,6 +232,18 @@ export function InvoiceBuilder() {
   }
 
   const subtotal = cartItems.reduce((sum, item) => sum + item.adjusted_price_cents * item.qty, 0);
+
+  const selectedCustomerObj = customers.find(c => c.id === selectedCustomer);
+
+  const filteredCustomers = customers.filter(customer => {
+    if (!customerSearchQuery.trim()) return true;
+    const query = customerSearchQuery.toLowerCase();
+    const fullName = `${customer.first_name} ${customer.last_name}`.toLowerCase();
+    const email = customer.email.toLowerCase();
+    const phone = customer.phone?.toLowerCase() || '';
+    const businessName = customer.business_name?.toLowerCase() || '';
+    return fullName.includes(query) || email.includes(query) || phone.includes(query) || businessName.includes(query);
+  });
 
   // Calculate total discount from all discount entries
   const discountTotal = discounts.reduce((sum, d) => {
@@ -592,6 +618,18 @@ export function InvoiceBuilder() {
     setTimeout(() => setCopiedToClipboard(false), 2000);
   }
 
+  function handleSelectCustomer(customer: any) {
+    setSelectedCustomer(customer.id);
+    setCustomerSearchQuery('');
+    setShowCustomerDropdown(false);
+  }
+
+  function handleClearCustomer() {
+    setSelectedCustomer('');
+    setCustomerSearchQuery('');
+    setShowCustomerDropdown(false);
+  }
+
   function buildOrderSummary(): OrderSummaryDisplay | null {
     if (cartItems.length === 0) return null;
 
@@ -729,18 +767,74 @@ export function InvoiceBuilder() {
                 New Customer
               </button>
             </div>
-            <select
-              value={selectedCustomer}
-              onChange={(e) => setSelectedCustomer(e.target.value)}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Choose a customer or leave blank...</option>
-              {customers.map(customer => (
-                <option key={customer.id} value={customer.id}>
-                  {customer.first_name} {customer.last_name} - {customer.email}
-                </option>
-              ))}
-            </select>
+
+            {selectedCustomerObj ? (
+              <div className="mb-3">
+                <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div>
+                    <p className="font-medium text-slate-900">
+                      {selectedCustomerObj.first_name} {selectedCustomerObj.last_name}
+                    </p>
+                    <p className="text-sm text-slate-600">{selectedCustomerObj.email}</p>
+                    {selectedCustomerObj.business_name && (
+                      <p className="text-sm text-slate-600">{selectedCustomerObj.business_name}</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleClearCustomer}
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="relative mb-3 customer-search-container">
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 w-5 h-5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search customers by name, email, phone, or business..."
+                    value={customerSearchQuery}
+                    onChange={(e) => {
+                      setCustomerSearchQuery(e.target.value);
+                      setShowCustomerDropdown(true);
+                    }}
+                    onFocus={() => setShowCustomerDropdown(true)}
+                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                {showCustomerDropdown && filteredCustomers.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                    {filteredCustomers.slice(0, 50).map(customer => (
+                      <button
+                        key={customer.id}
+                        onClick={() => handleSelectCustomer(customer)}
+                        className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-slate-100 last:border-b-0 transition-colors"
+                      >
+                        <p className="font-medium text-slate-900">
+                          {customer.first_name} {customer.last_name}
+                          {customer.business_name && <span className="text-slate-600 ml-2">({customer.business_name})</span>}
+                        </p>
+                        <p className="text-sm text-slate-600">{customer.email}</p>
+                        {customer.phone && <p className="text-sm text-slate-600">{customer.phone}</p>}
+                      </button>
+                    ))}
+                    {filteredCustomers.length > 50 && (
+                      <div className="px-4 py-2 text-sm text-slate-500 bg-slate-50">
+                        Showing first 50 results. Type to refine your search.
+                      </div>
+                    )}
+                  </div>
+                )}
+                {showCustomerDropdown && customerSearchQuery && filteredCustomers.length === 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-lg p-4 text-center text-slate-500">
+                    No customers found matching "{customerSearchQuery}"
+                  </div>
+                )}
+              </div>
+            )}
+
             <p className="text-xs text-slate-500 mt-2">
               Leave blank to generate a shareable link for customer to fill in their details
             </p>
@@ -988,24 +1082,6 @@ export function InvoiceBuilder() {
                 </div>
               )}
 
-              {eventDetails.location_type === 'commercial' && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <label className="flex items-start cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={eventDetails.same_day_responsibility_accepted}
-                      onChange={(e) =>
-                        setEventDetails({ ...eventDetails, same_day_responsibility_accepted: e.target.checked })
-                      }
-                      className="mt-0.5 mr-3"
-                    />
-                    <p className="text-xs text-amber-900 font-medium">
-                      ⚠️ I understand I am legally responsible for the inflatable until Bounce Party Club picks it up by 7:00 PM. *
-                    </p>
-                  </label>
-                </div>
-              )}
-
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Setup Surface</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1032,6 +1108,23 @@ export function InvoiceBuilder() {
                     Sandbags
                   </button>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Generator Quantity</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={eventDetails.generator_qty}
+                  onChange={(e) => setEventDetails({ ...eventDetails, generator_qty: parseInt(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  placeholder="0"
+                />
+                {eventDetails.generator_qty > 0 && pricingRules && (
+                  <p className="text-xs text-slate-600 mt-2">
+                    Generator fee: {formatCurrency(pricingRules.generator_price_cents * eventDetails.generator_qty)}
+                  </p>
+                )}
               </div>
             </div>
           </div>
