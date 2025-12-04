@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Truck, MapPin, CheckCircle, MessageSquare, FileText, Edit2, History, Save, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
-import { formatCurrency } from '../lib/pricing';
+import { formatCurrency, calculateDistance } from '../lib/pricing';
 import { AddressAutocomplete } from './AddressAutocomplete';
 import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { OrderSummary } from './OrderSummary';
@@ -261,18 +261,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     if (!pricingRules || !adminSettings) return;
 
     try {
-      // Calculate subtotal from staged items (excluding deleted)
-      const activeItems = stagedItems.filter(item => !item.is_deleted);
-      let subtotal_cents = activeItems.reduce((sum, item) => {
-        return sum + (item.unit_price_cents * item.qty);
-      }, 0);
-
-      // Apply location multiplier
-      const location_multiplier = editedOrder.location_type === 'residential'
-        ? parseFloat(pricingRules.residential_multiplier)
-        : parseFloat(pricingRules.commercial_multiplier);
-      subtotal_cents = Math.round(subtotal_cents * location_multiplier);
-
       // Calculate travel fee if address changed
       let travel_fee_cents = order.travel_fee_cents;
       let distance_miles = order.distance_miles;
@@ -294,89 +282,64 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         travel_fee_cents = calculateTravelFee(distance_miles, pricingRules);
       }
 
-      // Calculate generator fee
-      const generator_fee_cents = (editedOrder.generator_qty || 0) * (pricingRules.generator_price_cents || 7500);
-
-      // Calculate surface fee
-      let surface_fee_cents = 0;
-      if (editedOrder.surface === 'cement' || editedOrder.surface === 'asphalt' || editedOrder.surface === 'concrete') {
-        surface_fee_cents = pricingRules.surface_sandbag_fee_cents || 3000;
-      }
-
-      // Calculate same day pickup fee
-      let same_day_pickup_fee_cents = 0;
-      const needs_same_day = editedOrder.location_type === 'commercial' || editedOrder.pickup_preference === 'same_day';
-      if (needs_same_day && pricingRules.same_day_matrix_json) {
-        const total_units = activeItems.reduce((sum, item) => sum + item.qty, 0);
-        const has_generator = editedOrder.generator_qty > 0;
-
-        const applicable_rules = pricingRules.same_day_matrix_json
-          .filter((rule: any) => {
-            if (rule.units > total_units) return false;
-            if (rule.generator && !has_generator) return false;
-            if (rule.subtotal_ge_cents > subtotal_cents) return false;
-            return true;
-          })
-          .sort((a: any, b: any) => {
-            if (a.units !== b.units) return b.units - a.units;
-            if (a.generator !== b.generator) return a.generator ? -1 : 1;
-            return b.subtotal_ge_cents - a.subtotal_ge_cents;
-          });
-
-        if (applicable_rules && applicable_rules.length > 0) {
-          same_day_pickup_fee_cents = applicable_rules[0].fee_cents;
+      // Convert staged items to order items format for centralized calculation
+      const activeItems = stagedItems.filter(item => !item.is_deleted).map(item => ({
+        unit_id: item.unit_id,
+        qty: item.qty,
+        wet_or_dry: item.wet_or_dry,
+        unit_price_cents: item.unit_price_cents,
+        units: {
+          name: item.unit_name,
+          price_dry_cents: item.wet_or_dry === 'dry' ? item.unit_price_cents : 0,
+          price_water_cents: item.wet_or_dry === 'water' ? item.unit_price_cents : 0,
         }
-      }
+      }));
 
-      // Apply discounts
-      let discount_total_cents = 0;
-      for (const discount of discounts) {
-        if (discount.amount_cents > 0) {
-          discount_total_cents += discount.amount_cents;
-        } else if (discount.percentage > 0) {
-          const discountable = subtotal_cents + generator_fee_cents + travel_fee_cents + surface_fee_cents;
-          discount_total_cents += Math.round(discountable * (discount.percentage / 100));
-        }
-      }
-
-      // Calculate custom fees total
-      const custom_fees_total_cents = customFees.reduce((sum, fee) => sum + fee.amount_cents, 0);
-
-      console.log('🧮 Admin Panel Price Calculation:');
-      console.log('Subtotal:', subtotal_cents);
-      console.log('Generator Fee:', generator_fee_cents);
-      console.log('Travel Fee:', travel_fee_cents);
-      console.log('Surface Fee:', surface_fee_cents);
-      console.log('Custom Fees Array:', customFees);
-      console.log('Custom Fees Total:', custom_fees_total_cents);
-      console.log('Discounts Array:', discounts);
-      console.log('Discount Total:', discount_total_cents);
-
-      // Calculate tax (includes generator fee and custom fees in taxable amount, after discounts)
-      const taxable_amount = Math.max(0, subtotal_cents + generator_fee_cents + travel_fee_cents + surface_fee_cents + custom_fees_total_cents - discount_total_cents);
-      const tax_cents = Math.round(taxable_amount * 0.06);
-
-      console.log('Taxable Amount:', taxable_amount);
-      console.log('Tax (6%):', tax_cents);
-
-      // Calculate totals
-      const total_cents = subtotal_cents + generator_fee_cents + travel_fee_cents + surface_fee_cents + same_day_pickup_fee_cents + custom_fees_total_cents + tax_cents - discount_total_cents;
-      const deposit_due_cents = activeItems.reduce((sum, item) => sum + item.qty, 0) * 5000;
-      const balance_due_cents = total_cents - deposit_due_cents;
-
-      setCalculatedPricing({
-        subtotal_cents,
-        generator_fee_cents,
+      // Build order data for centralized calculation
+      const updatedOrderData: OrderSummaryData = {
+        items: activeItems,
+        discounts,
+        customFees,
+        subtotal_cents: 0,
         travel_fee_cents,
+        surface_fee_cents: 0,
+        same_day_pickup_fee_cents: 0,
+        generator_fee_cents: 0,
+        generator_qty: editedOrder.generator_qty || 0,
+        tax_cents: 0,
+        tip_cents: order.tip_cents || 0,
+        total_cents: 0,
+        deposit_due_cents: 0,
+        deposit_paid_cents: order.deposit_paid_cents || 0,
+        balance_due_cents: 0,
+        custom_deposit_cents: customDepositCents,
+        pickup_preference: editedOrder.pickup_preference,
+        event_date: editedOrder.event_date,
+        event_end_date: editedOrder.event_end_date,
+        location_type: editedOrder.location_type,
+        surface: editedOrder.surface,
+      };
+
+      // Use centralized calculation
+      const summary = formatOrderSummary(updatedOrderData);
+
+      console.log('🧮 Admin Panel Price Calculation (Centralized):');
+      console.log('Summary:', summary);
+
+      // Store calculated values for display
+      setCalculatedPricing({
+        subtotal_cents: summary.subtotal,
+        generator_fee_cents: summary.fees.find(f => f.name.includes('Generator'))?.amount || 0,
+        travel_fee_cents: summary.fees.find(f => f.name.includes('Travel'))?.amount || 0,
         distance_miles,
-        surface_fee_cents,
-        same_day_pickup_fee_cents,
-        custom_fees_total_cents,
-        discount_total_cents,
-        tax_cents,
-        total_cents,
-        deposit_due_cents,
-        balance_due_cents,
+        surface_fee_cents: summary.fees.find(f => f.name.includes('Surface'))?.amount || 0,
+        same_day_pickup_fee_cents: summary.fees.find(f => f.name.includes('Same-Day'))?.amount || 0,
+        custom_fees_total_cents: summary.customFees.reduce((sum, f) => sum + f.amount, 0),
+        discount_total_cents: summary.discounts.reduce((sum, d) => sum + d.amount, 0),
+        tax_cents: summary.tax,
+        total_cents: summary.total,
+        deposit_due_cents: summary.depositDue,
+        balance_due_cents: summary.balanceDue,
       });
     } catch (error) {
       console.error('Error recalculating pricing:', error);
