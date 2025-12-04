@@ -689,7 +689,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         changes.subtotal_cents = calculatedPricing.subtotal_cents;
         changes.generator_fee_cents = calculatedPricing.generator_fee_cents;
         changes.travel_fee_cents = calculatedPricing.travel_fee_cents;
-        // Note: distance_miles is calculated but not stored in the orders table
+        changes.travel_total_miles = calculatedPricing.travel_total_miles;
+        changes.travel_base_radius_miles = calculatedPricing.travel_base_radius_miles;
+        changes.travel_chargeable_miles = calculatedPricing.travel_chargeable_miles;
+        changes.travel_per_mile_cents = calculatedPricing.travel_per_mile_cents;
+        changes.travel_is_flat_fee = calculatedPricing.travel_is_flat_fee;
         changes.surface_fee_cents = calculatedPricing.surface_fee_cents;
         changes.same_day_pickup_fee_cents = calculatedPricing.same_day_pickup_fee_cents;
         changes.tax_cents = calculatedPricing.tax_cents;

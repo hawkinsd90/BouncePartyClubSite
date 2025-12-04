@@ -86,31 +86,29 @@ import { AvailableUnitsSelector } from '../components/AvailableUnitsSelector';
 />
 ```
 
-## CustomerPortal Price Breakdown Issue
+## Travel Fee Miles Fix
 
 ### Problem
-The "Complete Price Breakdown" section in the awaiting approval flow (lines 1515-1725 in `CustomerPortal.tsx`) manually builds the price breakdown and doesn't consistently show miles in the travel fee.
+The travel fee wasn't showing miles (e.g., "Travel Fee (12.5 mi)") on invoices in the CustomerPortal.
 
-### Solution
-The travel fee DOES show miles (line 1597-1599), but only if `order.travel_total_miles` is populated. This is already present in the code:
-```typescript
-Travel Fee
-{order.travel_total_miles > 0 &&
-  ` (${parseFloat(order.travel_total_miles).toFixed(1)} mi)`
-}
-```
+### Root Cause
+When orders were created or modified, the `travel_total_miles` field (and other travel breakdown fields) were not being saved to the database in two places:
+1. `InvoiceBuilder.tsx` - When admin creates invoices
+2. `OrderDetailModal.tsx` - When admin modifies existing orders
 
-**The issue is that this manual breakdown duplicates logic.** The centralized `OrderSummary` component in `src/lib/orderSummary.ts` already handles this properly via the `formatOrderSummary()` function (lines 165-169):
-```typescript
-if (data.travel_fee_cents > 0) {
-  const travelFeeName = data.travel_total_miles > 0
-    ? `Travel Fee (${data.travel_total_miles.toFixed(1)} mi)`
-    : 'Travel Fee';
-  fees.push({ name: travelFeeName, amount: data.travel_fee_cents });
-}
-```
+### Solution Applied
+Added the missing travel breakdown fields to both components when saving orders:
+- `travel_total_miles` - Total distance in miles
+- `travel_base_radius_miles` - Free radius (e.g., 25 miles)
+- `travel_chargeable_miles` - Miles beyond base that are charged
+- `travel_per_mile_cents` - Rate per mile
+- `travel_is_flat_fee` - Whether it's a flat fee or per-mile
 
-**Recommendation:** The manual "Complete Price Breakdown" section should remain for now as it has special change-tracking functionality (showing old vs new values with strikethrough). Ensure `travel_total_miles` is properly saved in the database when orders are created/updated.
+**Files Modified:**
+- `src/components/InvoiceBuilder.tsx` (lines 483-491)
+- `src/components/OrderDetailModal.tsx` (lines 692-696)
+
+The centralized `OrderSummary` component already had the correct logic to display miles - it just needed the data to be saved properly.
 
 ## Summary of Work Needed
 
