@@ -161,7 +161,7 @@ export function Checkout() {
 
     const fees: Array<{ name: string; amount: number }> = [];
     if (priceBreakdown.travel_fee_cents > 0) {
-      fees.push({ name: 'Travel Fee', amount: priceBreakdown.travel_fee_cents });
+      fees.push({ name: priceBreakdown.travel_fee_display_name || 'Travel Fee', amount: priceBreakdown.travel_fee_cents });
     }
     if (priceBreakdown.surface_fee_cents > 0) {
       fees.push({ name: 'Surface Fee (Sandbags)', amount: priceBreakdown.surface_fee_cents });

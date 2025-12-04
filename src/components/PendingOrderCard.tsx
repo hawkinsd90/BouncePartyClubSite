@@ -371,7 +371,7 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
                               </tr>
                               ${(orderWithItems.travel_fee_cents ?? 0) > 0 ? `
                               <tr>
-                                <td style="color: #64748b; font-size: 14px;">Travel Fee:</td>
+                                <td style="color: #64748b; font-size: 14px;">Travel Fee${(orderWithItems.travel_total_miles ?? 0) > 0 ? ` (${parseFloat(orderWithItems.travel_total_miles).toFixed(1)} mi)` : ''}:</td>
                                 <td style="color: #1e293b; font-size: 14px; text-align: right;">$${((orderWithItems.travel_fee_cents ?? 0) / 100).toFixed(2)}</td>
                               </tr>` : ''}
                               ${(orderWithItems.surface_fee_cents ?? 0) > 0 ? `

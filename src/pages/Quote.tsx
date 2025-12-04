@@ -1021,7 +1021,7 @@ export function Quote() {
                     {priceBreakdown.travel_fee_cents > 0 && (
                       <div className="text-sm text-slate-600 flex items-start mt-2">
                         <span className="text-blue-600 mr-2">•</span>
-                        <span>Travel Fee</span>
+                        <span>{priceBreakdown.travel_fee_display_name || 'Travel Fee'}</span>
                       </div>
                     )}
 

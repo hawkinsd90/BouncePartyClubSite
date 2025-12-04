@@ -1312,8 +1312,8 @@ export function CustomerPortal() {
                           <div className={`flex justify-between text-sm ${hasChanged('travel_fee') ? 'bg-blue-50 -mx-2 px-2 py-1 rounded' : ''}`}>
                             <span className="text-slate-700 flex items-center gap-2">
                               Travel Fee
-                              {order.travel_chargeable_miles > 0 &&
-                                ` (${order.travel_chargeable_miles.toFixed(1)} mi)`
+                              {order.travel_total_miles > 0 &&
+                                ` (${parseFloat(order.travel_total_miles).toFixed(1)} mi)`
                               }
                               {hasChanged('travel_fee') && (
                                 <TrendingUp className="w-4 h-4 text-blue-600" />

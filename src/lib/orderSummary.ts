@@ -31,6 +31,7 @@ export interface OrderSummaryData {
   customFees: OrderCustomFee[];
   subtotal_cents: number;
   travel_fee_cents: number;
+  travel_total_miles: number;
   surface_fee_cents: number;
   same_day_pickup_fee_cents: number;
   generator_fee_cents: number;
@@ -104,6 +105,7 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
       customFees: feesRes.data || [],
       subtotal_cents: order.subtotal_cents,
       travel_fee_cents: order.travel_fee_cents || 0,
+      travel_total_miles: parseFloat(order.travel_total_miles) || 0,
       surface_fee_cents: order.surface_fee_cents || 0,
       same_day_pickup_fee_cents: order.same_day_pickup_fee_cents || 0,
       generator_fee_cents: order.generator_fee_cents || 0,
@@ -160,7 +162,11 @@ export function formatOrderSummary(data: OrderSummaryData): OrderSummaryDisplay 
   const fees: Array<{ name: string; amount: number }> = [];
 
   if (data.travel_fee_cents > 0) {
-    fees.push({ name: 'Travel Fee', amount: data.travel_fee_cents });
+    // Build travel fee display name with total miles
+    const travelFeeName = data.travel_total_miles > 0
+      ? `Travel Fee (${data.travel_total_miles.toFixed(1)} mi)`
+      : 'Travel Fee';
+    fees.push({ name: travelFeeName, amount: data.travel_fee_cents });
   }
 
   if (data.surface_fee_cents > 0) {

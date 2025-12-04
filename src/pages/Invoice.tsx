@@ -320,7 +320,11 @@ export function Invoice() {
               </div>
               {order.travel_fee_cents > 0 && (
                 <div className="flex justify-between text-slate-600">
-                  <span>Travel Fee</span>
+                  <span>
+                    {order.travel_total_miles > 0
+                      ? `Travel Fee (${parseFloat(order.travel_total_miles).toFixed(1)} mi)`
+                      : 'Travel Fee'}
+                  </span>
                   <span>{formatCurrency(order.travel_fee_cents)}</span>
                 </div>
               )}

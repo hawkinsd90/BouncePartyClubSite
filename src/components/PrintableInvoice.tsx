@@ -155,7 +155,9 @@ export function PrintableInvoice({
 
             {priceBreakdown.travel_fee_cents > 0 && (
               <tr className="border-b border-slate-200">
-                <td className="py-3 text-slate-700">Travel Fee</td>
+                <td className="py-3 text-slate-700">
+                  {priceBreakdown.travel_fee_display_name || 'Travel Fee'}
+                </td>
                 <td className="py-3 text-right text-slate-900 font-medium">
                   {formatCurrency(priceBreakdown.travel_fee_cents)}
                 </td>
