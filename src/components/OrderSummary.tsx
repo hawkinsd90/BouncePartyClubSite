@@ -73,14 +73,14 @@ export function OrderSummary({
           {summary.customFees.map((fee, index) => (
             <div key={index} className="flex justify-between text-slate-700">
               <span className="text-slate-700">{fee.name}:</span>
-              <span className="font-medium text-green-700">+{formatCurrency(fee.amount)}</span>
+              <span className="font-medium text-red-600">+{formatCurrency(fee.amount)}</span>
             </div>
           ))}
 
           {summary.discounts.map((discount, index) => (
             <div key={index} className="flex justify-between text-slate-700">
               <span className="text-slate-700">Discount:</span>
-              <span className="font-medium text-red-600">-{formatCurrency(discount.amount)}</span>
+              <span className="font-medium text-green-700">-{formatCurrency(discount.amount)}</span>
             </div>
           ))}
 
