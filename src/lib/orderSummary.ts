@@ -2,6 +2,42 @@ import { supabase } from './supabase';
 import { calculateDrivingDistance } from './pricing';
 import { HOME_BASE } from './constants';
 
+async function estimateDistanceFromFee(travelFeeCents: number): Promise<number> {
+  try {
+    console.log('[estimateDistanceFromFee] Estimating distance from fee:', travelFeeCents / 100);
+
+    const { data: pricingData } = await supabase
+      .from('pricing_rules')
+      .select('base_radius_miles, per_mile_after_base_cents')
+      .single();
+
+    if (!pricingData) {
+      console.warn('[estimateDistanceFromFee] No pricing rules found, cannot estimate');
+      return 0;
+    }
+
+    const baseRadius = parseFloat(pricingData.base_radius_miles?.toString() || '10');
+    const perMileCents = pricingData.per_mile_after_base_cents || 250;
+
+    // Formula: fee = (distance - baseRadius) * perMileCents
+    // Therefore: distance = (fee / perMileCents) + baseRadius
+    const chargeableMiles = travelFeeCents / perMileCents;
+    const estimatedDistance = baseRadius + chargeableMiles;
+
+    console.log('[estimateDistanceFromFee] Estimated distance:', {
+      baseRadius,
+      perMileCents,
+      chargeableMiles: chargeableMiles.toFixed(2),
+      estimatedDistance: estimatedDistance.toFixed(2),
+    });
+
+    return estimatedDistance;
+  } catch (error) {
+    console.error('[estimateDistanceFromFee] Error estimating distance:', error);
+    return 0;
+  }
+}
+
 export interface OrderItem {
   id?: string;
   unit_id: string;
@@ -101,41 +137,70 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
     let travelMiles = parseFloat(order.travel_total_miles) || 0;
 
     // If travel miles not saved and we have travel fee, calculate it in real-time
-    if (travelMiles === 0 && order.travel_fee_cents > 0 && order.addresses) {
-      console.log('[OrderSummary] Attempting real-time travel distance calculation', {
-        orderId,
-        travelFeeCents: order.travel_fee_cents,
-        hasAddresses: !!order.addresses,
-        addressData: order.addresses,
-      });
+    if (travelMiles === 0 && order.travel_fee_cents > 0) {
+      // Strategy 1: Use stored travel_per_mile_cents if available
+      if (order.travel_per_mile_cents && order.travel_per_mile_cents > 0) {
+        console.log('[OrderSummary] Estimating distance from stored per-mile rate');
+        const { data: pricingData } = await supabase
+          .from('pricing_rules')
+          .select('base_radius_miles')
+          .single();
 
-      try {
-        const lat = parseFloat(order.addresses.lat);
-        const lng = parseFloat(order.addresses.lng);
+        const baseRadius = parseFloat(pricingData?.base_radius_miles?.toString() || '10');
+        const chargeableMiles = order.travel_fee_cents / order.travel_per_mile_cents;
+        travelMiles = baseRadius + chargeableMiles;
 
-        console.log('[OrderSummary] Parsed coordinates:', { lat, lng, isValid: !!(lat && lng) });
-
-        if (lat && lng) {
-          console.log('[OrderSummary] Calling calculateDrivingDistance...');
-          travelMiles = await calculateDrivingDistance(HOME_BASE.lat, HOME_BASE.lng, lat, lng);
-          console.log('[OrderSummary] Distance calculation result:', travelMiles, 'miles');
-
-          // Optionally save it for next time (fire and forget, don't await)
-          if (travelMiles > 0) {
-            console.log('[OrderSummary] Saving calculated distance to database');
-            supabase.from('orders').update({ travel_total_miles: travelMiles }).eq('id', orderId);
-          } else {
-            console.warn('[OrderSummary] Calculated distance was 0 or invalid, not saving');
-          }
-        } else {
-          console.warn('[OrderSummary] Invalid coordinates - lat or lng is falsy', { lat, lng });
-        }
-      } catch (error) {
-        console.error('[OrderSummary] Error calculating travel distance on-the-fly:', error);
-        console.error('[OrderSummary] Error details:', {
-          message: error instanceof Error ? error.message : 'Unknown error',
-          stack: error instanceof Error ? error.stack : undefined,
+        console.log('[OrderSummary] Estimated distance:', {
+          baseRadius,
+          chargeableMiles: chargeableMiles.toFixed(2),
+          totalMiles: travelMiles.toFixed(2),
         });
+      }
+      // Strategy 2: Try to calculate from coordinates
+      else if (order.addresses) {
+        console.log('[OrderSummary] Attempting real-time travel distance calculation', {
+          orderId,
+          travelFeeCents: order.travel_fee_cents,
+          hasAddresses: !!order.addresses,
+          addressData: order.addresses,
+        });
+
+        try {
+          const lat = parseFloat(order.addresses.lat);
+          const lng = parseFloat(order.addresses.lng);
+
+          console.log('[OrderSummary] Parsed coordinates:', { lat, lng, isValid: !!(lat && lng) });
+
+          if (lat && lng) {
+            console.log('[OrderSummary] Calling calculateDrivingDistance...');
+            travelMiles = await calculateDrivingDistance(HOME_BASE.lat, HOME_BASE.lng, lat, lng);
+            console.log('[OrderSummary] Distance calculation result:', travelMiles, 'miles');
+
+            // Optionally save it for next time (fire and forget, don't await)
+            if (travelMiles > 0) {
+              console.log('[OrderSummary] Saving calculated distance to database');
+              supabase.from('orders').update({ travel_total_miles: travelMiles }).eq('id', orderId);
+            } else {
+              console.warn('[OrderSummary] Calculated distance was 0 or invalid, not saving');
+            }
+          } else {
+            console.warn('[OrderSummary] Invalid coordinates - lat or lng is falsy', { lat, lng });
+            // Strategy 3: Estimate from current pricing rules
+            travelMiles = await estimateDistanceFromFee(order.travel_fee_cents);
+          }
+        } catch (error) {
+          console.error('[OrderSummary] Error calculating travel distance on-the-fly:', error);
+          console.error('[OrderSummary] Error details:', {
+            message: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined,
+          });
+          // Strategy 3: Estimate from current pricing rules
+          travelMiles = await estimateDistanceFromFee(order.travel_fee_cents);
+        }
+      } else {
+        // Strategy 3: Estimate from current pricing rules
+        console.log('[OrderSummary] No coordinates available, estimating from fee');
+        travelMiles = await estimateDistanceFromFee(order.travel_fee_cents);
       }
     } else {
       console.log('[OrderSummary] Skipping real-time distance calculation:', {
