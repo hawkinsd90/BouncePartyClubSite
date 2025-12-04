@@ -263,19 +263,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     if (!pricingRules || !adminSettings) return;
 
     try {
-      // Get geocoded location for address if changed
-      let lat = parseFloat(order.addresses?.lat) || 0;
-      let lng = parseFloat(order.addresses?.lng) || 0;
+      // Always geocode the current address to ensure we have valid coordinates
+      let lat = 0;
+      let lng = 0;
 
-      const addressChanged =
-        editedOrder.address_line1 !== (order.addresses?.line1 || '') ||
-        editedOrder.address_city !== (order.addresses?.city || '') ||
-        editedOrder.address_state !== (order.addresses?.state || '') ||
-        editedOrder.address_zip !== (order.addresses?.zip || '');
-
-      if (addressChanged && editedOrder.address_line1 && editedOrder.address_city) {
-        // Geocode the new address
-        if (window.google?.maps) {
+      if (editedOrder.address_line1 && editedOrder.address_city && window.google?.maps) {
+        try {
           const geocoder = new google.maps.Geocoder();
           const destination = `${editedOrder.address_line1}, ${editedOrder.address_city}, ${editedOrder.address_state} ${editedOrder.address_zip}`;
           const result = await geocoder.geocode({ address: destination });
@@ -284,16 +277,28 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
             lat = location.lat();
             lng = location.lng();
           }
+        } catch (error) {
+          console.error('Geocoding error:', error);
+          // Fall back to order's stored coordinates if geocoding fails
+          lat = parseFloat(order.addresses?.lat) || 0;
+          lng = parseFloat(order.addresses?.lng) || 0;
         }
+      } else {
+        // Use order's stored coordinates if address is incomplete
+        lat = parseFloat(order.addresses?.lat) || 0;
+        lng = parseFloat(order.addresses?.lng) || 0;
       }
 
-      // Calculate driving distance
-      const distance_miles = await calculateDrivingDistance(
-        HOME_BASE.lat,
-        HOME_BASE.lng,
-        lat,
-        lng
-      );
+      // Only calculate distance if we have valid coordinates
+      let distance_miles = 0;
+      if (lat !== 0 && lng !== 0) {
+        distance_miles = await calculateDrivingDistance(
+          HOME_BASE.lat,
+          HOME_BASE.lng,
+          lat,
+          lng
+        );
+      }
 
       // Convert staged items to calculatePrice format
       const activeItems = stagedItems.filter(item => !item.is_deleted);
