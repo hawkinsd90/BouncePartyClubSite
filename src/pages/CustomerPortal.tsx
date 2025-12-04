@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { formatCurrency } from '../lib/pricing';
+import { formatCurrency, calculateDrivingDistance } from '../lib/pricing';
 import { checkMultipleUnitsAvailability } from '../lib/availability';
+import { HOME_BASE } from '../lib/constants';
 import { CheckCircle, Upload, CreditCard, FileText, Image as ImageIcon, AlertCircle, Sparkles, TrendingUp, Shield, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import WaiverTab from '../components/WaiverTab';
@@ -112,6 +113,26 @@ export function CustomerPortal() {
             business_name: data.customers.business_name || '',
           });
         }
+
+        // Calculate travel miles on-the-fly if missing
+        let travelMiles = parseFloat(data.travel_total_miles) || 0;
+        if (travelMiles === 0 && data.travel_fee_cents > 0 && data.addresses) {
+          try {
+            const lat = parseFloat(data.addresses.lat);
+            const lng = parseFloat(data.addresses.lng);
+            if (lat && lng) {
+              travelMiles = await calculateDrivingDistance(HOME_BASE.lat, HOME_BASE.lng, lat, lng);
+              // Save it back to database for next time
+              if (travelMiles > 0) {
+                supabase.from('orders').update({ travel_total_miles: travelMiles }).eq('id', data.id);
+                data.travel_total_miles = travelMiles;
+              }
+            }
+          } catch (error) {
+            console.error('Error calculating travel distance:', error);
+          }
+        }
+
         setOrder(data);
         if (data.waiver_signed_at) {
           setActiveTab('payment');
