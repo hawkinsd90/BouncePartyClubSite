@@ -57,8 +57,8 @@ export function PrintableInvoice({
               BOUNCE PARTY CLUB
             </h1>
             <p className="text-slate-600">Wayne, Michigan</p>
-            <p className="text-slate-600">Phone: (313) 555-0100</p>
-            <p className="text-slate-600">Email: info@bouncepartyclub.com</p>
+            <p className="text-slate-600">Phone: (313) 889-3860</p>
+            <p className="text-slate-600">Email: bouncepartyclubllc@gmail.com</p>
           </div>
           <div className="text-right">
             <h2 className="text-3xl font-bold text-slate-900 mb-2">
@@ -262,7 +262,7 @@ export function PrintableInvoice({
 
         <div className="mt-8 text-center text-sm text-slate-500">
           <p>Thank you for your business!</p>
-          <p>For questions, please contact us at info@bouncepartyclub.com</p>
+          <p>For questions, please contact us at (313) 889-3860 or bouncepartyclubllc@gmail.com</p>
         </div>
       </div>
     </div>

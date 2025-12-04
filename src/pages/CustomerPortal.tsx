@@ -4,11 +4,12 @@ import { supabase } from '../lib/supabase';
 import { formatCurrency, calculateDrivingDistance } from '../lib/pricing';
 import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { HOME_BASE } from '../lib/constants';
-import { CheckCircle, Upload, CreditCard, FileText, Image as ImageIcon, AlertCircle, Sparkles, TrendingUp, Shield, Loader2 } from 'lucide-react';
+import { CheckCircle, Upload, CreditCard, FileText, Image as ImageIcon, AlertCircle, Sparkles, TrendingUp, Shield, Loader2, Printer, X } from 'lucide-react';
 import { format } from 'date-fns';
 import WaiverTab from '../components/WaiverTab';
 import { loadOrderSummary, formatOrderSummary, OrderSummaryDisplay } from '../lib/orderSummary';
 import { OrderSummary } from '../components/OrderSummary';
+import { PrintableInvoice } from '../components/PrintableInvoice';
 
 export function CustomerPortal() {
   const { orderId, token } = useParams();
@@ -48,6 +49,7 @@ export function CustomerPortal() {
   const [customPaymentAmount, setCustomPaymentAmount] = useState('');
   const [tipAmount, setTipAmount] = useState<'none' | '10' | '15' | '20' | 'custom'>('none');
   const [customTipAmount, setCustomTipAmount] = useState('');
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
 
   useEffect(() => {
     loadOrder();
@@ -246,6 +248,79 @@ export function CustomerPortal() {
   async function handlePayment() {
     alert('Payment processing will be implemented with Stripe integration');
   }
+
+  const handlePrintInvoice = () => {
+    window.print();
+  };
+
+  const prepareInvoiceData = () => {
+    if (!order) return null;
+
+    const quoteData = {
+      event_date: order.event_date,
+      start_window: order.start_window,
+      address_line1: order.addresses?.line1 || '',
+      address_line2: order.addresses?.line2 || '',
+      city: order.addresses?.city || '',
+      state: order.addresses?.state || '',
+      zip: order.addresses?.zip || '',
+      location_type: order.location_type,
+    };
+
+    const totalCents = order.subtotal_cents +
+                       (order.generator_fee_cents || 0) +
+                       order.travel_fee_cents +
+                       order.surface_fee_cents +
+                       (order.same_day_pickup_fee_cents || 0) +
+                       order.tax_cents +
+                       (order.tip_cents || 0);
+
+    const discountTotal = discounts.reduce((sum: number, d: any) => {
+      if (d.amount_cents > 0) {
+        return sum + d.amount_cents;
+      } else if (d.percentage > 0) {
+        const taxableBase = order.subtotal_cents + (order.generator_fee_cents || 0) + order.travel_fee_cents + order.surface_fee_cents;
+        return sum + Math.round(taxableBase * (d.percentage / 100));
+      }
+      return sum;
+    }, 0);
+
+    const customFeesTotal = customFees.reduce((sum: number, f: any) => sum + f.amount_cents, 0);
+
+    const priceBreakdown = {
+      subtotal_cents: order.subtotal_cents,
+      travel_fee_cents: order.travel_fee_cents,
+      travel_fee_display_name: order.travel_total_miles ? `Travel Fee (${order.travel_total_miles.toFixed(1)} mi)` : 'Travel Fee',
+      surface_fee_cents: order.surface_fee_cents,
+      same_day_pickup_fee_cents: order.same_day_pickup_fee_cents || 0,
+      generator_fee_cents: order.generator_fee_cents || 0,
+      discount_cents: discountTotal,
+      custom_fees_cents: customFeesTotal,
+      tax_cents: order.tax_cents,
+      tip_cents: order.tip_cents || 0,
+      total_cents: totalCents - discountTotal + customFeesTotal,
+      deposit_due_cents: order.deposit_due_cents,
+      balance_due_cents: order.balance_due_cents,
+    };
+
+    const cart = orderItems.map((item: any) => ({
+      unit_id: item.unit_id,
+      unit_name: item.units?.name || 'Unknown Unit',
+      wet_or_dry: item.wet_or_dry,
+      unit_price_cents: item.unit_price_cents * item.qty,
+      qty: item.qty,
+    }));
+
+    const contactData = {
+      first_name: order.customers?.first_name || customerInfo.first_name,
+      last_name: order.customers?.last_name || customerInfo.last_name,
+      email: order.customers?.email || customerInfo.email,
+      phone: order.customers?.phone || customerInfo.phone,
+      business_name: order.customers?.business_name || customerInfo.business_name,
+    };
+
+    return { quoteData, priceBreakdown, cart, contactData };
+  };
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
@@ -820,6 +895,14 @@ export function CustomerPortal() {
                     showTip={orderSummary.tip > 0}
                     title="Complete Price Breakdown"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowInvoiceModal(true)}
+                    className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center mt-4"
+                  >
+                    <FileText className="w-5 h-5 mr-2" />
+                    View as Invoice / Print PDF
+                  </button>
                 </div>
               )}
 
@@ -1858,6 +1941,42 @@ export function CustomerPortal() {
           <p>Questions? Call us or text us at the number provided in your confirmation.</p>
         </div>
       </div>
+
+      {showInvoiceModal && prepareInvoiceData() && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-5xl w-full max-h-[90vh] overflow-y-auto relative">
+            <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex justify-between items-center z-10 no-print">
+              <h2 className="text-2xl font-bold text-slate-900">Invoice Preview</h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={handlePrintInvoice}
+                  className="flex items-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                >
+                  <Printer className="w-4 h-4 mr-2" />
+                  Print / Save PDF
+                </button>
+                <button
+                  onClick={() => setShowInvoiceModal(false)}
+                  className="flex items-center bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 px-4 rounded-lg transition-colors"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="p-4">
+              <PrintableInvoice
+                quoteData={prepareInvoiceData()!.quoteData}
+                priceBreakdown={prepareInvoiceData()!.priceBreakdown}
+                cart={prepareInvoiceData()!.cart}
+                contactData={prepareInvoiceData()!.contactData}
+                invoiceNumber={order?.id?.slice(0, 8).toUpperCase()}
+                isPaid={false}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
