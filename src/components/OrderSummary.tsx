@@ -99,7 +99,7 @@ export function OrderSummary({
         <div className="pt-4 border-t-2 border-slate-300 space-y-2">
           <div className="flex justify-between text-slate-700">
             <span>Tax (6%):</span>
-            <span className="line-through text-slate-400">{formatCurrency(summary.taxableAmount * 0.06)}</span>
+            <span className="font-medium">{formatCurrency(summary.tax)}</span>
           </div>
           <div className="flex justify-between text-slate-900 font-bold text-lg">
             <span>Total:</span>
