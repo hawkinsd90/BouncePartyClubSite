@@ -43,6 +43,10 @@ export function CustomerPortal() {
   const [processing, setProcessing] = useState(false);
   const [orderSummary, setOrderSummary] = useState<OrderSummaryDisplay | null>(null);
   const [overnightResponsibilityAccepted, setOvernightResponsibilityAccepted] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
+  const [customPaymentAmount, setCustomPaymentAmount] = useState('');
+  const [tipAmount, setTipAmount] = useState<'none' | '10' | '15' | '20' | 'custom'>('none');
+  const [customTipAmount, setCustomTipAmount] = useState('');
 
   useEffect(() => {
     loadOrder();
@@ -312,11 +316,50 @@ export function CustomerPortal() {
           .eq('id', order.id);
       }
 
-      // Get the deposit amount from invoice link or order
-      const depositCents = invoiceLink?.deposit_cents ?? order.deposit_due_cents ?? 0;
+      // Calculate payment amount based on selection
+      let actualPaymentCents = 0;
+      const totalCents = order.deposit_due_cents + order.balance_due_cents;
 
-      // If deposit is $0, just mark as accepted
-      if (depositCents === 0) {
+      if (paymentAmount === 'deposit') {
+        actualPaymentCents = order.deposit_due_cents;
+      } else if (paymentAmount === 'full') {
+        actualPaymentCents = totalCents;
+      } else if (paymentAmount === 'custom' && customPaymentAmount) {
+        actualPaymentCents = Math.round(parseFloat(customPaymentAmount) * 100);
+        // Ensure it's at least the minimum deposit
+        if (actualPaymentCents < order.deposit_due_cents) {
+          alert(`Payment amount must be at least ${formatCurrency(order.deposit_due_cents)}`);
+          setProcessing(false);
+          return;
+        }
+      } else {
+        alert('Please select a payment amount');
+        setProcessing(false);
+        return;
+      }
+
+      // Calculate tip amount based on selection
+      let tipCents = 0;
+      if (tipAmount === '10') {
+        tipCents = Math.round(totalCents * 0.1);
+      } else if (tipAmount === '15') {
+        tipCents = Math.round(totalCents * 0.15);
+      } else if (tipAmount === '20') {
+        tipCents = Math.round(totalCents * 0.2);
+      } else if (tipAmount === 'custom' && customTipAmount) {
+        tipCents = Math.round(parseFloat(customTipAmount) * 100);
+      }
+
+      // Update order with tip if provided
+      if (tipCents > 0) {
+        await supabase
+          .from('orders')
+          .update({ tip_cents: tipCents })
+          .eq('id', order.id);
+      }
+
+      // If payment is $0, just mark as accepted
+      if (actualPaymentCents === 0) {
         await supabase
           .from('orders')
           .update({
@@ -340,10 +383,10 @@ export function CustomerPortal() {
           },
           body: JSON.stringify({
             orderId: order.id,
-            depositCents: depositCents,
-            tipCents: 0,
-            customerEmail: customerInfo.email,
-            customerName: `${customerInfo.first_name} ${customerInfo.last_name}`,
+            depositCents: actualPaymentCents,
+            tipCents: tipCents,
+            customerEmail: customerInfo.email || order.customers?.email,
+            customerName: customerInfo.first_name ? `${customerInfo.first_name} ${customerInfo.last_name}` : `${order.customers?.first_name} ${order.customers?.last_name}`,
             origin: window.location.origin,
           }),
         }
@@ -759,6 +802,206 @@ export function CustomerPortal() {
                 </div>
               )}
 
+              {/* Payment Amount Selection */}
+              <div className="mb-8">
+                <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center">
+                  <CreditCard className="w-5 h-5 mr-2 text-green-600" />
+                  Payment Amount
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <label className={`relative flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                    paymentAmount === 'deposit' ? 'border-blue-600 bg-blue-50' : 'border-slate-300 hover:border-blue-400'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="paymentAmount"
+                      value="deposit"
+                      checked={paymentAmount === 'deposit'}
+                      onChange={(e) => setPaymentAmount(e.target.value as any)}
+                      className="sr-only"
+                    />
+                    <span className="font-semibold text-slate-900">Minimum Deposit</span>
+                    <span className="text-lg font-bold text-blue-600 mt-1">
+                      {formatCurrency(order.deposit_due_cents)}
+                    </span>
+                    <span className="text-xs text-slate-600 mt-1">Pay balance at event</span>
+                  </label>
+
+                  <label className={`relative flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                    paymentAmount === 'full' ? 'border-green-600 bg-green-50' : 'border-slate-300 hover:border-green-400'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="paymentAmount"
+                      value="full"
+                      checked={paymentAmount === 'full'}
+                      onChange={(e) => setPaymentAmount(e.target.value as any)}
+                      className="sr-only"
+                    />
+                    <span className="font-semibold text-slate-900">Full Payment</span>
+                    <span className="text-lg font-bold text-green-600 mt-1">
+                      {formatCurrency(order.deposit_due_cents + order.balance_due_cents)}
+                    </span>
+                    <span className="text-xs text-slate-600 mt-1">Nothing due at event</span>
+                  </label>
+
+                  <label className={`relative flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                    paymentAmount === 'custom' ? 'border-purple-600 bg-purple-50' : 'border-slate-300 hover:border-purple-400'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="paymentAmount"
+                      value="custom"
+                      checked={paymentAmount === 'custom'}
+                      onChange={(e) => setPaymentAmount(e.target.value as any)}
+                      className="sr-only"
+                    />
+                    <span className="font-semibold text-slate-900">Custom Amount</span>
+                    <span className="text-sm text-slate-600 mt-1">Choose your amount</span>
+                  </label>
+                </div>
+
+                {paymentAmount === 'custom' && (
+                  <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 mb-4">
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Payment Amount * (Minimum: {formatCurrency(order.deposit_due_cents)})
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-slate-600">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min={(order.deposit_due_cents / 100).toFixed(2)}
+                        max={((order.deposit_due_cents + order.balance_due_cents) / 100).toFixed(2)}
+                        value={customPaymentAmount}
+                        onChange={(e) => setCustomPaymentAmount(e.target.value)}
+                        placeholder={(order.deposit_due_cents / 100).toFixed(2)}
+                        className="w-full pl-8 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      />
+                    </div>
+                    <p className="text-xs text-slate-500 mt-2">
+                      Enter any amount between the minimum deposit and the full total
+                    </p>
+                  </div>
+                )}
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm text-blue-900 font-medium">
+                    {paymentAmount === 'deposit' && `Pay ${formatCurrency(order.deposit_due_cents)} now, ${formatCurrency(order.balance_due_cents)} at event`}
+                    {paymentAmount === 'full' && `Pay ${formatCurrency(order.deposit_due_cents + order.balance_due_cents)} now, nothing at event`}
+                    {paymentAmount === 'custom' && customPaymentAmount && `Pay $${customPaymentAmount} now, ${formatCurrency((order.deposit_due_cents + order.balance_due_cents) - Math.round(parseFloat(customPaymentAmount) * 100))} at event`}
+                    {paymentAmount === 'custom' && !customPaymentAmount && 'Enter amount to see payment breakdown'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Tip Selection */}
+              <div className="mb-8">
+                <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center">
+                  <Sparkles className="w-5 h-5 mr-2 text-amber-600" />
+                  Add Tip for Crew
+                </h2>
+                <p className="text-slate-600 mb-4 text-sm">
+                  Show your appreciation for our crew! Tips are optional but greatly appreciated.
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                  <label className={`relative flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                    tipAmount === 'none' ? 'border-slate-600 bg-slate-50' : 'border-slate-300 hover:border-slate-400'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="tipAmount"
+                      value="none"
+                      checked={tipAmount === 'none'}
+                      onChange={(e) => setTipAmount(e.target.value as any)}
+                      className="sr-only"
+                    />
+                    <span className="font-semibold text-slate-900">No Tip</span>
+                    <span className="text-sm text-slate-600 mt-1">$0.00</span>
+                  </label>
+
+                  <label className={`relative flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                    tipAmount === '10' ? 'border-green-600 bg-green-50' : 'border-slate-300 hover:border-green-400'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="tipAmount"
+                      value="10"
+                      checked={tipAmount === '10'}
+                      onChange={(e) => setTipAmount(e.target.value as any)}
+                      className="sr-only"
+                    />
+                    <span className="font-semibold text-slate-900">10%</span>
+                    <span className="text-sm text-green-600 mt-1">
+                      {formatCurrency(Math.round((order.deposit_due_cents + order.balance_due_cents) * 0.1))}
+                    </span>
+                  </label>
+
+                  <label className={`relative flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                    tipAmount === '15' ? 'border-green-600 bg-green-50' : 'border-slate-300 hover:border-green-400'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="tipAmount"
+                      value="15"
+                      checked={tipAmount === '15'}
+                      onChange={(e) => setTipAmount(e.target.value as any)}
+                      className="sr-only"
+                    />
+                    <span className="font-semibold text-slate-900">15%</span>
+                    <span className="text-sm text-green-600 mt-1">
+                      {formatCurrency(Math.round((order.deposit_due_cents + order.balance_due_cents) * 0.15))}
+                    </span>
+                  </label>
+
+                  <label className={`relative flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                    tipAmount === '20' ? 'border-green-600 bg-green-50' : 'border-slate-300 hover:border-green-400'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="tipAmount"
+                      value="20"
+                      checked={tipAmount === '20'}
+                      onChange={(e) => setTipAmount(e.target.value as any)}
+                      className="sr-only"
+                    />
+                    <span className="font-semibold text-slate-900">20%</span>
+                    <span className="text-sm text-green-600 mt-1">
+                      {formatCurrency(Math.round((order.deposit_due_cents + order.balance_due_cents) * 0.2))}
+                    </span>
+                  </label>
+                </div>
+
+                {tipAmount === 'custom' && (
+                  <div className="p-4 bg-purple-50 rounded-lg border-2 border-purple-300 mb-4">
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Custom Tip Amount</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-slate-600">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={customTipAmount}
+                        onChange={(e) => setCustomTipAmount(e.target.value)}
+                        placeholder="10.00"
+                        className="w-full pl-8 pr-4 py-2 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {tipAmount !== 'none' && (tipAmount !== 'custom' || customTipAmount) && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <p className="text-sm text-green-900 font-medium">
+                      {tipAmount === 'custom'
+                        ? `Thank you for tipping $${customTipAmount}! Your crew will greatly appreciate it.`
+                        : `Thank you for tipping ${formatCurrency(Math.round((order.deposit_due_cents + order.balance_due_cents) * (parseInt(tipAmount) / 100)))}! Your crew will greatly appreciate it.`
+                      }
+                    </p>
+                  </div>
+                )}
+              </div>
+
               {needsCustomerInfo && (
                 <div className="mb-8">
                   <h2 className="text-xl font-bold text-slate-900 mb-4">Your Information</h2>
@@ -890,7 +1133,8 @@ export function CustomerPortal() {
                   processing ||
                   !cardOnFileConsent ||
                   !smsConsent ||
-                  (order.pickup_preference === 'next_day' && !overnightResponsibilityAccepted)
+                  (order.pickup_preference === 'next_day' && !overnightResponsibilityAccepted) ||
+                  (paymentAmount === 'custom' && !customPaymentAmount)
                 }
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center"
               >
@@ -899,21 +1143,48 @@ export function CustomerPortal() {
                     <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                     Processing...
                   </>
-                ) : depositCents === 0 ? (
-                  <>
-                    <CheckCircle className="w-5 h-5 mr-2" />
-                    Accept Invoice
-                  </>
-                ) : (
-                  <>
-                    <CreditCard className="w-5 h-5 mr-2" />
-                    Accept & Pay {formatCurrency(depositCents)}
-                  </>
-                )}
+                ) : (() => {
+                  // Calculate total payment including tip
+                  let paymentCents = 0;
+                  const totalCents = order.deposit_due_cents + order.balance_due_cents;
+
+                  if (paymentAmount === 'deposit') {
+                    paymentCents = order.deposit_due_cents;
+                  } else if (paymentAmount === 'full') {
+                    paymentCents = totalCents;
+                  } else if (paymentAmount === 'custom' && customPaymentAmount) {
+                    paymentCents = Math.round(parseFloat(customPaymentAmount) * 100);
+                  }
+
+                  let tipCents = 0;
+                  if (tipAmount === '10') {
+                    tipCents = Math.round(totalCents * 0.1);
+                  } else if (tipAmount === '15') {
+                    tipCents = Math.round(totalCents * 0.15);
+                  } else if (tipAmount === '20') {
+                    tipCents = Math.round(totalCents * 0.2);
+                  } else if (tipAmount === 'custom' && customTipAmount) {
+                    tipCents = Math.round(parseFloat(customTipAmount) * 100);
+                  }
+
+                  const totalPayment = paymentCents + tipCents;
+
+                  return totalPayment === 0 ? (
+                    <>
+                      <CheckCircle className="w-5 h-5 mr-2" />
+                      Accept Invoice
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard className="w-5 h-5 mr-2" />
+                      Accept & Pay {formatCurrency(totalPayment)}
+                    </>
+                  );
+                })()}
               </button>
 
               <p className="text-xs text-slate-500 text-center mt-4">
-                {depositCents === 0
+                {order.deposit_due_cents === 0
                   ? 'By accepting, you acknowledge the order details above'
                   : 'Your payment information is secured with industry-standard encryption'}
               </p>
