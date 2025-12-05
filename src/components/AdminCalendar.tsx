@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { ChevronLeft, ChevronRight, Package, TruckIcon, X, MapPin, Clock, User, Phone, MousePointer } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Package, TruckIcon, X, MapPin, Clock, User, Phone, MousePointer, Route } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, parseISO, addDays } from 'date-fns';
 import { formatCurrency } from '../lib/pricing';
 import { TaskDetailModal } from './TaskDetailModal';
+import { optimizeRoute, type RouteStop } from '../lib/routeOptimization';
 
 interface Task {
   id: string;
@@ -41,6 +42,7 @@ export function AdminCalendar() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showDayModal, setShowDayModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [optimizing, setOptimizing] = useState(false);
 
   useEffect(() => {
     loadTasks();
@@ -221,6 +223,78 @@ export function AdminCalendar() {
     return tasks.filter(task => isSameDay(task.date, date));
   }
 
+  async function optimizeRouteForDay(taskType: 'drop-off' | 'pick-up') {
+    if (!selectedDate) return;
+
+    setOptimizing(true);
+    try {
+      const selectedDayTasks = getTasksForDate(selectedDate);
+      const tasksToOptimize = selectedDayTasks.filter(t => t.type === taskType);
+
+      if (tasksToOptimize.length < 2) {
+        alert('Need at least 2 stops to optimize route');
+        return;
+      }
+
+      for (const task of tasksToOptimize) {
+        if (!task.taskStatus) {
+          const { data, error } = await supabase
+            .from('task_status')
+            .insert({
+              order_id: task.orderId,
+              task_type: task.type,
+              status: 'pending',
+              sort_order: 0,
+            })
+            .select()
+            .single();
+
+          if (error) {
+            console.error('Error creating task status:', error);
+          } else if (data) {
+            task.taskStatus = {
+              id: data.id,
+              status: data.status,
+              sortOrder: data.sort_order || 0,
+              deliveryImages: [],
+              damageImages: [],
+              etaSent: false,
+            };
+          }
+        }
+      }
+
+      const routeStops: RouteStop[] = tasksToOptimize.map(task => ({
+        id: task.taskStatus?.id || '',
+        address: task.address,
+        taskType: task.type,
+      }));
+
+      const optimizedStops = await optimizeRoute(routeStops);
+
+      for (const stop of optimizedStops) {
+        if (stop.id) {
+          const { error } = await supabase
+            .from('task_status')
+            .update({ sort_order: stop.sortOrder })
+            .eq('id', stop.id);
+
+          if (error) {
+            console.error('Error updating sort order:', error);
+          }
+        }
+      }
+
+      await loadTasks();
+      alert(`Route optimized! ${optimizedStops.length} stops reordered for maximum efficiency.`);
+    } catch (error) {
+      console.error('Error optimizing route:', error);
+      alert(`Failed to optimize route: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setOptimizing(false);
+    }
+  }
+
   function handleDateClick(date: Date) {
     setSelectedDate(date);
     setShowDayModal(true);
@@ -363,10 +437,22 @@ export function AdminCalendar() {
 
               {dropOffTasks.length > 0 && (
                 <div>
-                  <h3 className="text-base sm:text-lg font-bold text-green-900 mb-4 flex items-center gap-2">
-                    <TruckIcon className="w-5 h-5" />
-                    Drop-offs / Deliveries ({dropOffTasks.length})
-                  </h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-base sm:text-lg font-bold text-green-900 flex items-center gap-2">
+                      <TruckIcon className="w-5 h-5" />
+                      Drop-offs / Deliveries ({dropOffTasks.length})
+                    </h3>
+                    {dropOffTasks.length > 1 && (
+                      <button
+                        onClick={() => optimizeRouteForDay('drop-off')}
+                        disabled={optimizing}
+                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <Route className="w-4 h-4" />
+                        {optimizing ? 'Optimizing...' : 'Optimize Route'}
+                      </button>
+                    )}
+                  </div>
                   <div className="space-y-3">
                     {dropOffTasks
                       .sort((a, b) => (a.taskStatus?.sortOrder || 0) - (b.taskStatus?.sortOrder || 0))
@@ -457,10 +543,22 @@ export function AdminCalendar() {
 
               {pickUpTasks.length > 0 && (
                 <div>
-                  <h3 className="text-base sm:text-lg font-bold text-orange-900 mb-4 flex items-center gap-2">
-                    <Package className="w-5 h-5" />
-                    Pick-ups / Retrievals ({pickUpTasks.length})
-                  </h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-base sm:text-lg font-bold text-orange-900 flex items-center gap-2">
+                      <Package className="w-5 h-5" />
+                      Pick-ups / Retrievals ({pickUpTasks.length})
+                    </h3>
+                    {pickUpTasks.length > 1 && (
+                      <button
+                        onClick={() => optimizeRouteForDay('pick-up')}
+                        disabled={optimizing}
+                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <Route className="w-4 h-4" />
+                        {optimizing ? 'Optimizing...' : 'Optimize Route'}
+                      </button>
+                    )}
+                  </div>
                   <div className="space-y-3">
                     {pickUpTasks
                       .sort((a, b) => (a.taskStatus?.sortOrder || 0) - (b.taskStatus?.sortOrder || 0))
