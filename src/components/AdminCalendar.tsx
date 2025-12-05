@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Package, TruckIcon, X, MapPin, Clock, User, 
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, parseISO, addDays } from 'date-fns';
 import { formatCurrency } from '../lib/pricing';
 import { TaskDetailModal } from './TaskDetailModal';
-import { optimizeRoute, type RouteStop } from '../lib/routeOptimization';
+import { optimizeMorningRoute, type MorningRouteStop } from '../lib/routeOptimization';
 
 interface Task {
   id: string;
@@ -17,6 +17,8 @@ interface Task {
   customerEmail: string;
   address: string;
   items: string[];
+  equipmentIds: string[];
+  numInflatables: number;
   eventStartTime: string;
   eventEndTime: string;
   notes?: string;
@@ -126,9 +128,17 @@ export function AdminCalendar() {
           ? `${order.addresses.line1}, ${order.addresses.city}, ${order.addresses.state} ${order.addresses.zip}`
           : 'No address';
 
-        const items = orderItems
-          ?.filter(item => item.order_id === order.id)
-          .map(item => `${item.units?.name || 'Unknown'} (${item.wet_or_dry === 'water' ? 'Water' : 'Dry'})`) || [];
+        const orderItemsForOrder = orderItems?.filter(item => item.order_id === order.id) || [];
+
+        const items = orderItemsForOrder
+          .map(item => `${item.units?.name || 'Unknown'} (${item.wet_or_dry === 'water' ? 'Water' : 'Dry'})`);
+
+        const equipmentIds = orderItemsForOrder
+          .map(item => item.unit_id)
+          .filter((id): id is string => !!id);
+
+        const numInflatables = orderItemsForOrder
+          .reduce((sum, item) => sum + (item.qty || 1), 0);
 
         const total = order.subtotal_cents +
                      (order.generator_fee_cents || 0) +
@@ -155,6 +165,8 @@ export function AdminCalendar() {
           customerEmail: order.customers?.email || '',
           address,
           items,
+          equipmentIds,
+          numInflatables,
           eventStartTime: order.start_window || 'TBD',
           eventEndTime: order.end_window || 'TBD',
           notes: order.special_details,
@@ -192,6 +204,8 @@ export function AdminCalendar() {
           customerEmail: order.customers?.email || '',
           address,
           items,
+          equipmentIds,
+          numInflatables,
           eventStartTime: order.start_window || 'TBD',
           eventEndTime: order.end_window || 'TBD',
           notes: order.special_details,
@@ -223,20 +237,35 @@ export function AdminCalendar() {
     return tasks.filter(task => isSameDay(task.date, date));
   }
 
-  async function optimizeRouteForDay(taskType: 'drop-off' | 'pick-up') {
+  async function optimizeMorningRouteForDay() {
     if (!selectedDate) return;
 
     setOptimizing(true);
     try {
       const selectedDayTasks = getTasksForDate(selectedDate);
-      const tasksToOptimize = selectedDayTasks.filter(t => t.type === taskType);
 
-      if (tasksToOptimize.length < 2) {
-        alert('Need at least 2 stops to optimize route');
+      const dropOffTasks = selectedDayTasks.filter(t => t.type === 'drop-off');
+
+      const equipmentNeededToday = new Set<string>();
+      for (const dropOff of dropOffTasks) {
+        for (const equipId of dropOff.equipmentIds) {
+          equipmentNeededToday.add(equipId);
+        }
+      }
+
+      const pickUpTasks = selectedDayTasks.filter(t => {
+        if (t.type !== 'pick-up') return false;
+        return t.equipmentIds.some(equipId => equipmentNeededToday.has(equipId));
+      });
+
+      const morningTasks = [...dropOffTasks, ...pickUpTasks];
+
+      if (morningTasks.length < 2) {
+        alert('Need at least 2 stops to optimize the morning route');
         return;
       }
 
-      for (const task of tasksToOptimize) {
+      for (const task of morningTasks) {
         if (!task.taskStatus) {
           const { data, error } = await supabase
             .from('task_status')
@@ -245,6 +274,7 @@ export function AdminCalendar() {
               task_type: task.type,
               status: 'pending',
               sort_order: 0,
+              task_date: format(selectedDate, 'yyyy-MM-dd'),
             })
             .select()
             .single();
@@ -264,14 +294,20 @@ export function AdminCalendar() {
         }
       }
 
-      const routeStops: RouteStop[] = tasksToOptimize.map(task => ({
+      const morningRouteStops: MorningRouteStop[] = morningTasks.map(task => ({
         id: task.taskStatus?.id || '',
+        taskId: task.id,
+        orderId: task.orderId,
         address: task.address,
-        taskType: task.type,
+        type: task.type,
+        eventStartTime: task.eventStartTime,
+        equipmentIds: task.equipmentIds,
+        numInflatables: task.numInflatables,
       }));
 
-      const optimizedStops = await optimizeRoute(routeStops);
+      const optimizedStops = await optimizeMorningRoute(morningRouteStops);
 
+      let lateStops = 0;
       for (const stop of optimizedStops) {
         if (stop.id) {
           const { error } = await supabase
@@ -282,13 +318,25 @@ export function AdminCalendar() {
           if (error) {
             console.error('Error updating sort order:', error);
           }
+
+          if (stop.estimatedLateness && stop.estimatedLateness > 0) {
+            lateStops++;
+          }
         }
       }
 
       await loadTasks();
-      alert(`Route optimized! ${optimizedStops.length} stops reordered for maximum efficiency.`);
+
+      let message = `Morning route optimized! ${optimizedStops.length} stops reordered.\n`;
+      message += `Departure: 6:30 AM from home base.`;
+
+      if (lateStops > 0) {
+        message += `\n\nWarning: ${lateStops} stop(s) may be late even with optimal routing.`;
+      }
+
+      alert(message);
     } catch (error) {
-      console.error('Error optimizing route:', error);
+      console.error('Error optimizing morning route:', error);
       alert(`Failed to optimize route: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setOptimizing(false);
@@ -442,14 +490,14 @@ export function AdminCalendar() {
                       <TruckIcon className="w-5 h-5" />
                       Drop-offs / Deliveries ({dropOffTasks.length})
                     </h3>
-                    {dropOffTasks.length > 1 && (
+                    {dropOffTasks.length >= 1 && (
                       <button
-                        onClick={() => optimizeRouteForDay('drop-off')}
+                        onClick={() => optimizeMorningRouteForDay()}
                         disabled={optimizing}
                         className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
                         <Route className="w-4 h-4" />
-                        {optimizing ? 'Optimizing...' : 'Optimize Route'}
+                        {optimizing ? 'Optimizing...' : 'Optimize Morning Route'}
                       </button>
                     )}
                   </div>
@@ -548,16 +596,6 @@ export function AdminCalendar() {
                       <Package className="w-5 h-5" />
                       Pick-ups / Retrievals ({pickUpTasks.length})
                     </h3>
-                    {pickUpTasks.length > 1 && (
-                      <button
-                        onClick={() => optimizeRouteForDay('pick-up')}
-                        disabled={optimizing}
-                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      >
-                        <Route className="w-4 h-4" />
-                        {optimizing ? 'Optimizing...' : 'Optimize Route'}
-                      </button>
-                    )}
                   </div>
                   <div className="space-y-3">
                     {pickUpTasks
