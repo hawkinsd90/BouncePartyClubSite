@@ -340,6 +340,91 @@ export function AdminCalendar() {
     }
   }
 
+  async function optimizeAfternoonRouteForDay() {
+    if (!selectedDate) return;
+
+    setOptimizing(true);
+    try {
+      const selectedDayTasks = getTasksForDate(selectedDate);
+
+      const afternoonPickUpTasks = selectedDayTasks.filter(t => {
+        return t.type === 'pick-up' && t.pickupPreference === 'same_day';
+      });
+
+      if (afternoonPickUpTasks.length < 2) {
+        alert('Need at least 2 stops to optimize the afternoon route');
+        return;
+      }
+
+      for (const task of afternoonPickUpTasks) {
+        if (!task.taskStatus) {
+          const { data, error } = await supabase
+            .from('task_status')
+            .insert({
+              order_id: task.orderId,
+              task_type: task.type,
+              status: 'pending',
+              sort_order: 0,
+              task_date: format(selectedDate, 'yyyy-MM-dd'),
+            })
+            .select()
+            .single();
+
+          if (error) {
+            console.error('Error creating task status:', error);
+          } else if (data) {
+            task.taskStatus = {
+              id: data.id,
+              status: data.status,
+              sortOrder: data.sort_order || 0,
+              deliveryImages: [],
+              damageImages: [],
+              etaSent: false,
+            };
+          }
+        }
+      }
+
+      const afternoonRouteStops: MorningRouteStop[] = afternoonPickUpTasks.map(task => ({
+        id: task.taskStatus?.id || '',
+        taskId: task.id,
+        orderId: task.orderId,
+        address: task.address,
+        type: task.type,
+        eventStartTime: task.eventEndTime,
+        equipmentIds: task.equipmentIds,
+        numInflatables: task.numInflatables,
+      }));
+
+      const optimizedStops = await optimizeMorningRoute(afternoonRouteStops);
+
+      for (const stop of optimizedStops) {
+        if (stop.id) {
+          const { error } = await supabase
+            .from('task_status')
+            .update({ sort_order: stop.sortOrder })
+            .eq('id', stop.id);
+
+          if (error) {
+            console.error('Error updating sort order:', error);
+          }
+        }
+      }
+
+      await loadTasks();
+
+      let message = `Afternoon route optimized! ${optimizedStops.length} pickup stops.\n`;
+      message += `\nOptimal route calculated for same-day pickups.`;
+
+      alert(message);
+    } catch (error) {
+      console.error('Error optimizing afternoon route:', error);
+      alert(`Failed to optimize route: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setOptimizing(false);
+    }
+  }
+
   function handleDateClick(date: Date) {
     setSelectedDate(date);
     setShowDayModal(true);
@@ -593,6 +678,16 @@ export function AdminCalendar() {
                       <Package className="w-5 h-5" />
                       Pick-ups / Retrievals ({pickUpTasks.length})
                     </h3>
+                    {pickUpTasks.filter(t => t.pickupPreference === 'same_day').length >= 2 && (
+                      <button
+                        onClick={() => optimizeAfternoonRouteForDay()}
+                        disabled={optimizing}
+                        className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <Route className="w-4 h-4" />
+                        {optimizing ? 'Optimizing...' : 'Optimize Afternoon Route'}
+                      </button>
+                    )}
                   </div>
                   <div className="space-y-3">
                     {pickUpTasks
