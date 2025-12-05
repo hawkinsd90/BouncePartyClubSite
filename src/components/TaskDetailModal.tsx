@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { X, Navigation, CheckCircle, Camera, MessageCircle, Upload, ChevronUp, ChevronDown, Star, AlertTriangle } from 'lucide-react';
+import { X, Navigation, CheckCircle, Camera, MessageCircle, Upload, ChevronUp, ChevronDown, Star, AlertTriangle, RefreshCw } from 'lucide-react';
 import { formatCurrency } from '../lib/pricing';
 import { showAlert } from './CustomModal';
 
@@ -43,7 +43,39 @@ interface TaskDetailModalProps {
 export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetailModalProps) {
   const [processing, setProcessing] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
   const currentStatus = task.taskStatus?.status || 'pending';
+
+  useEffect(() => {
+    const channel = supabase
+      .channel(`order-${task.orderId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `id=eq.${task.orderId}`,
+        },
+        () => {
+          setLastUpdated(new Date());
+          onUpdate();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [task.orderId, onUpdate]);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    setLastUpdated(new Date());
+    await onUpdate();
+    setTimeout(() => setRefreshing(false), 500);
+  }
 
   const tasksOfSameType = allTasks
     .filter(t => t.type === task.type)
@@ -388,26 +420,39 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
               </span>
             </div>
             <p className="text-sm text-slate-600">Order #{task.orderNumber}</p>
-            <div className="flex gap-2 mt-2">
-              <button
-                onClick={() => handleReorder('up')}
-                disabled={!canMoveUp}
-                className="p-1 hover:bg-slate-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
-                title="Move up in route"
-              >
-                <ChevronUp className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => handleReorder('down')}
-                disabled={!canMoveDown}
-                className="p-1 hover:bg-slate-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
-                title="Move down in route"
-              >
-                <ChevronDown className="w-4 h-4" />
-              </button>
-              <span className="text-xs text-slate-500 self-center">
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleReorder('up')}
+                  disabled={!canMoveUp}
+                  className="p-1 hover:bg-slate-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Move up in route"
+                >
+                  <ChevronUp className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleReorder('down')}
+                  disabled={!canMoveDown}
+                  className="p-1 hover:bg-slate-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Move down in route"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              </div>
+              <span className="text-xs text-slate-500">
                 Stop #{currentIndex + 1} of {tasksOfSameType.length}
               </span>
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="ml-auto flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 px-2 py-1 rounded hover:bg-blue-50 disabled:opacity-50"
+                title="Refresh data"
+              >
+                <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">
+                  {refreshing ? 'Refreshing...' : `Updated ${Math.floor((Date.now() - lastUpdated.getTime()) / 1000)}s ago`}
+                </span>
+              </button>
             </div>
           </div>
           <button
