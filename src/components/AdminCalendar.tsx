@@ -245,20 +245,9 @@ export function AdminCalendar() {
       const selectedDayTasks = getTasksForDate(selectedDate);
 
       const dropOffTasks = selectedDayTasks.filter(t => t.type === 'drop-off');
+      const pickUpTasks = selectedDayTasks.filter(t => t.type === 'pick-up');
 
-      const equipmentNeededToday = new Set<string>();
-      for (const dropOff of dropOffTasks) {
-        for (const equipId of dropOff.equipmentIds) {
-          equipmentNeededToday.add(equipId);
-        }
-      }
-
-      const pickUpTasks = selectedDayTasks.filter(t => {
-        if (t.type !== 'pick-up') return false;
-        return t.equipmentIds.some(equipId => equipmentNeededToday.has(equipId));
-      });
-
-      const morningTasks = [...dropOffTasks, ...pickUpTasks];
+      const morningTasks = [...pickUpTasks, ...dropOffTasks];
 
       if (morningTasks.length < 2) {
         alert('Need at least 2 stops to optimize the morning route');
@@ -327,8 +316,13 @@ export function AdminCalendar() {
 
       await loadTasks();
 
-      let message = `Morning route optimized! ${optimizedStops.length} stops reordered.\n`;
-      message += `Departure: 6:30 AM from home base.`;
+      const pickupCount = optimizedStops.filter(s => s.type === 'pick-up').length;
+      const dropOffCount = optimizedStops.filter(s => s.type === 'drop-off').length;
+
+      let message = `Morning route optimized! ${optimizedStops.length} stops:\n`;
+      message += `- ${pickupCount} pickup(s)\n`;
+      message += `- ${dropOffCount} drop-off(s)\n`;
+      message += `\nDeparture: 6:30 AM from home base.`;
 
       if (lateStops > 0) {
         message += `\n\nWarning: ${lateStops} stop(s) may be late even with optimal routing.`;
