@@ -237,6 +237,27 @@ export function AdminCalendar() {
     return tasks.filter(task => isSameDay(task.date, date));
   }
 
+  function getStopNumber(task: Task, selectedDayTasks: Task[]): number {
+    const dropOffTasks = selectedDayTasks.filter(t => t.type === 'drop-off');
+    const morningPickUpTasks = selectedDayTasks.filter(t => t.type === 'pick-up' && t.pickupPreference === 'next_day');
+    const afternoonPickUpTasks = selectedDayTasks.filter(t => t.type === 'pick-up' && t.pickupPreference === 'same_day');
+
+    if (task.type === 'drop-off') {
+      const morningTasks = [...dropOffTasks, ...morningPickUpTasks]
+        .sort((a, b) => (a.taskStatus?.sortOrder || 0) - (b.taskStatus?.sortOrder || 0));
+      return morningTasks.findIndex(t => t.id === task.id) + 1;
+    } else if (task.type === 'pick-up' && task.pickupPreference === 'next_day') {
+      const morningTasks = [...dropOffTasks, ...morningPickUpTasks]
+        .sort((a, b) => (a.taskStatus?.sortOrder || 0) - (b.taskStatus?.sortOrder || 0));
+      return morningTasks.findIndex(t => t.id === task.id) + 1;
+    } else if (task.type === 'pick-up' && task.pickupPreference === 'same_day') {
+      const afternoonTasks = afternoonPickUpTasks
+        .sort((a, b) => (a.taskStatus?.sortOrder || 0) - (b.taskStatus?.sortOrder || 0));
+      return afternoonTasks.findIndex(t => t.id === task.id) + 1;
+    }
+    return 0;
+  }
+
   async function optimizeMorningRouteForDay() {
     if (!selectedDate) return;
 
@@ -586,7 +607,7 @@ export function AdminCalendar() {
                   <div className="space-y-3">
                     {dropOffTasks
                       .sort((a, b) => (a.taskStatus?.sortOrder || 0) - (b.taskStatus?.sortOrder || 0))
-                      .map((task, idx) => (
+                      .map((task) => (
                       <div
                         key={task.id}
                         onClick={() => {
@@ -595,7 +616,7 @@ export function AdminCalendar() {
                         }}
                         className="bg-green-50 border-2 border-green-200 rounded-lg p-3 sm:p-4 cursor-pointer hover:bg-green-100 transition-colors relative">
                         <div className="absolute top-2 right-2 bg-green-700 text-white text-xs font-bold px-2 py-1 rounded">
-                          Stop #{idx + 1}
+                          Stop #{getStopNumber(task, selectedDayTasks)}
                         </div>
                         <div className="flex justify-between items-start mb-3 pr-16">
                           <div>
@@ -692,7 +713,7 @@ export function AdminCalendar() {
                   <div className="space-y-3">
                     {pickUpTasks
                       .sort((a, b) => (a.taskStatus?.sortOrder || 0) - (b.taskStatus?.sortOrder || 0))
-                      .map((task, idx) => (
+                      .map((task) => (
                       <div
                         key={task.id}
                         onClick={() => {
@@ -701,7 +722,7 @@ export function AdminCalendar() {
                         }}
                         className="bg-orange-50 border-2 border-orange-200 rounded-lg p-3 sm:p-4 cursor-pointer hover:bg-orange-100 transition-colors relative">
                         <div className="absolute top-2 right-2 bg-orange-700 text-white text-xs font-bold px-2 py-1 rounded">
-                          Stop #{idx + 1}
+                          Stop #{getStopNumber(task, selectedDayTasks)}
                         </div>
                         <div className="flex justify-between items-start mb-3 pr-16">
                           <div>
