@@ -245,9 +245,12 @@ export function AdminCalendar() {
       const selectedDayTasks = getTasksForDate(selectedDate);
 
       const dropOffTasks = selectedDayTasks.filter(t => t.type === 'drop-off');
-      const pickUpTasks = selectedDayTasks.filter(t => t.type === 'pick-up');
 
-      const morningTasks = [...pickUpTasks, ...dropOffTasks];
+      const morningPickUpTasks = selectedDayTasks.filter(t => {
+        return t.type === 'pick-up' && t.pickupPreference === 'next_day';
+      });
+
+      const morningTasks = [...morningPickUpTasks, ...dropOffTasks];
 
       if (morningTasks.length < 2) {
         alert('Need at least 2 stops to optimize the morning route');
