@@ -239,7 +239,6 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
 }
 
 export async function completeOrderAfterPayment(orderId: string, _paymentIntentId: string) {
-  // Get order details first to get deposit amount
   const { data: order } = await supabase
     .from('orders')
     .select(`
@@ -257,13 +256,28 @@ export async function completeOrderAfterPayment(orderId: string, _paymentIntentI
     throw new Error('Order or customer not found');
   }
 
-  // Update order status and payment info
+  const { data: invoiceLink } = await supabase
+    .from('invoice_links')
+    .select('id')
+    .eq('order_id', orderId)
+    .maybeSingle();
+
+  const isAdminSent = !!invoiceLink;
+
+  const newStatus = isAdminSent ? 'confirmed' : 'pending_review';
+
+  const updateData: any = {
+    status: newStatus,
+    deposit_paid_cents: order.deposit_due_cents,
+  };
+
+  if (isAdminSent) {
+    updateData.invoice_accepted_at = new Date().toISOString();
+  }
+
   const { error: orderError } = await supabase
     .from('orders')
-    .update({
-      status: 'pending_review',
-      deposit_paid_cents: order.deposit_due_cents,
-    })
+    .update(updateData)
     .eq('id', orderId);
 
   if (orderError) throw orderError;
@@ -297,7 +311,6 @@ export async function completeOrderAfterPayment(orderId: string, _paymentIntentI
     status: 'pending',
   });
 
-  //Send SMS notification to admin - COMMENTED OUT FOR TESTING
   try {
     const { data: adminSettings } = await supabase
       .from('admin_settings')
@@ -306,7 +319,9 @@ export async function completeOrderAfterPayment(orderId: string, _paymentIntentI
       .maybeSingle();
 
     if (adminSettings?.value) {
-      const smsMessage = `🎈 NEW BOOKING! ${contactData.first_name} ${contactData.last_name} for ${order.event_date}. Review in admin panel. Order #${order.id.slice(0, 8).toUpperCase()}`;
+      const smsMessage = isAdminSent
+        ? `✅ INVOICE PAID! ${contactData.first_name} ${contactData.last_name} for ${order.event_date}. Order CONFIRMED. #${order.id.slice(0, 8).toUpperCase()}`
+        : `🎈 NEW BOOKING! ${contactData.first_name} ${contactData.last_name} for ${order.event_date}. Review in admin panel. Order #${order.id.slice(0, 8).toUpperCase()}`;
 
       const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
       await fetch(apiUrl, {

@@ -20,6 +20,7 @@ export function Invoice() {
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [responsibilityAccepted, setResponsibilityAccepted] = useState(false);
+  const [isAdminSent, setIsAdminSent] = useState(false);
 
   useEffect(() => {
     if (orderId) {
@@ -49,18 +50,23 @@ export function Invoice() {
       if (orderError) throw orderError;
       if (!orderData) throw new Error('Invoice not found');
 
+      const { data: invoiceLink } = await supabase
+        .from('invoice_links')
+        .select('id')
+        .eq('order_id', id)
+        .maybeSingle();
+
+      setIsAdminSent(!!invoiceLink);
+
       if (orderData.status === 'cancelled') {
         setError('This invoice has been cancelled.');
         setLoading(false);
         return;
       }
 
-      // Check if deposit has been paid
-      // If deposit_required = true and deposit has been paid, show success
-      // If deposit_required = false, no payment needed (manual invoice)
       const depositPaid = orderData.deposit_required
         ? (orderData.deposit_paid_cents ?? 0) >= orderData.deposit_due_cents
-        : true; // No deposit required means consider it "paid"
+        : true;
 
       if (depositPaid && orderData.status !== 'draft') {
         setPaymentSuccess(true);
@@ -198,8 +204,14 @@ export function Invoice() {
             <div className="bg-green-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
               <CheckCircle className="w-12 h-12 text-green-600" />
             </div>
-            <h1 className="text-3xl font-bold text-slate-900 mb-2">Payment Received!</h1>
-            <p className="text-slate-600">Your booking is being reviewed by our team.</p>
+            <h1 className="text-3xl font-bold text-slate-900 mb-2">
+              {isAdminSent ? 'Booking Confirmed!' : 'Payment Received!'}
+            </h1>
+            <p className="text-slate-600">
+              {isAdminSent
+                ? 'Your booking is confirmed and ready for your event!'
+                : 'Your booking is being reviewed by our team.'}
+            </p>
           </div>
 
           <div className="bg-slate-50 rounded-lg p-6 mb-6">
@@ -211,19 +223,25 @@ export function Invoice() {
                 </p>
               </div>
               <div>
-                <span className="text-slate-600">Event Date:</span>
-                <p className="font-semibold text-slate-900">{order.event_date}</p>
+                <span className="text-slate-600">Status:</span>
+                <p className="font-semibold text-green-600">
+                  {isAdminSent ? 'CONFIRMED' : 'PENDING REVIEW'}
+                </p>
               </div>
               <div>
-                <span className="text-slate-600">Deposit Paid:</span>
-                <p className="font-semibold text-green-600">
-                  {formatCurrency(order.deposit_due_cents)}
-                </p>
+                <span className="text-slate-600">Event Date:</span>
+                <p className="font-semibold text-slate-900">{order.event_date}</p>
               </div>
               <div>
                 <span className="text-slate-600">Balance Due:</span>
                 <p className="font-semibold text-slate-900">
                   {formatCurrency(order.balance_due_cents)}
+                </p>
+              </div>
+              <div>
+                <span className="text-slate-600">Deposit Paid:</span>
+                <p className="font-semibold text-green-600">
+                  {formatCurrency(order.deposit_due_cents)}
                 </p>
               </div>
             </div>
@@ -234,8 +252,26 @@ export function Invoice() {
               A confirmation email has been sent to{' '}
               <span className="font-semibold text-slate-900">{customer.email}</span>.
             </p>
-            <p>
-              Our admin team will review your booking and contact you within 24 hours to confirm your delivery time window and finalize your reservation.
+            {isAdminSent ? (
+              <>
+                <p className="text-green-700 font-semibold">
+                  ✅ Your booking is confirmed! We'll contact you 24-48 hours before your event to coordinate delivery details.
+                </p>
+                <p>
+                  The remaining balance of {formatCurrency(order.balance_due_cents)} is due on the day of your event.
+                </p>
+              </>
+            ) : (
+              <p>
+                Our admin team will review your booking and contact you within 24 hours to confirm your delivery time window and finalize your reservation.
+              </p>
+            )}
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <p className="text-sm text-blue-900">
+              <strong>Keep this page open</strong> or bookmark it to access your order details.
+              You can also find your confirmation email for order information.
             </p>
           </div>
 
