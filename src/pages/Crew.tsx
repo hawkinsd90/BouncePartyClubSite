@@ -8,17 +8,39 @@ import {
   Camera,
   Navigation,
   FileText,
+  MapPinned,
+  AlertCircle,
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { getCurrentLocation, calculateETA, CrewLocation } from '../lib/googleMaps';
 
 export function Crew() {
   const [stops, setStops] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedStop, setSelectedStop] = useState<any>(null);
+  const [crewLocation, setCrewLocation] = useState<CrewLocation | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
 
   useEffect(() => {
     loadTodaysStops();
+    requestLocationPermission();
   }, []);
+
+  async function requestLocationPermission() {
+    setLocationLoading(true);
+    try {
+      const location = await getCurrentLocation();
+      setCrewLocation(location);
+      setLocationError(null);
+      console.log('✅ Location access granted:', location);
+    } catch (error: any) {
+      console.error('❌ Location error:', error);
+      setLocationError(error.message);
+    } finally {
+      setLocationLoading(false);
+    }
+  }
 
   async function loadTodaysStops() {
     try {
@@ -56,22 +78,70 @@ export function Crew() {
     type: 'dropoff' | 'pickup'
   ) {
     try {
+      const stop = stops.find((s) => s.id === stopId);
+      if (!stop || !stop.orders) return;
+
+      let currentLocation = crewLocation;
+      let gpsLat = crewLocation?.lat || 0;
+      let gpsLng = crewLocation?.lng || 0;
+
+      if (checkpoint === 'start_day' && !crewLocation) {
+        try {
+          currentLocation = await getCurrentLocation();
+          setCrewLocation(currentLocation);
+          gpsLat = currentLocation.lat;
+          gpsLng = currentLocation.lng;
+        } catch (error) {
+          console.warn('Could not get location for ETA calculation');
+        }
+      }
+
       const now = new Date().toISOString();
+      const customer = stop.orders.customers;
+      const address = stop.orders.addresses;
+
+      let etaMinutes: number | null = null;
+      let etaDistanceMiles: number | null = null;
+      let etaError: string | null = null;
+
+      if (checkpoint === 'start_day' && currentLocation && address) {
+        try {
+          const destinationAddress = `${address.line1}, ${address.city}, ${address.state} ${address.zip}`;
+          const etaResult = await calculateETA(currentLocation, destinationAddress);
+          etaMinutes = etaResult.durationMinutes;
+          const distanceMatch = etaResult.distanceText.match(/[\d.]+/);
+          etaDistanceMiles = distanceMatch ? parseFloat(distanceMatch[0]) : null;
+          console.log(`✅ ETA calculated: ${etaMinutes} min (${etaResult.distanceText})`);
+        } catch (error: any) {
+          etaError = error.message;
+          console.error('ETA calculation failed:', error);
+        }
+      }
 
       await supabase
         .from('route_stops')
         .update({
           checkpoint,
           checkpoint_time: now,
-          gps_lat: 0,
-          gps_lng: 0,
+          gps_lat: gpsLat,
+          gps_lng: gpsLng,
+          calculated_eta_minutes: etaMinutes,
+          calculated_eta_distance_miles: etaDistanceMiles,
+          eta_calculated_at: checkpoint === 'start_day' ? now : undefined,
+          eta_calculation_error: etaError,
         })
         .eq('id', stopId);
 
-      const stop = stops.find((s) => s.id === stopId);
-      if (!stop || !stop.orders) return;
+      if (currentLocation) {
+        await supabase.from('crew_location_history').insert({
+          order_id: stop.order_id,
+          stop_id: stopId,
+          latitude: currentLocation.lat,
+          longitude: currentLocation.lng,
+          checkpoint,
+        });
+      }
 
-      const customer = stop.orders.customers;
       let templateKey = '';
 
       if (checkpoint === 'start_day') {
@@ -85,6 +155,11 @@ export function Crew() {
       }
 
       if (templateKey) {
+        let etaText = 'Arriving soon';
+        if (etaMinutes) {
+          etaText = `${etaMinutes} minutes`;
+        }
+
         await supabase.from('messages').insert({
           order_id: stop.order_id,
           to_phone: customer.phone,
@@ -92,7 +167,9 @@ export function Crew() {
           template_key: templateKey,
           payload_json: {
             name: `${customer.first_name} ${customer.last_name}`,
-            eta: 'Arriving soon',
+            eta: etaText,
+            eta_minutes: etaMinutes,
+            order_id: stop.order_id,
           },
           status: 'pending',
         });
@@ -143,7 +220,49 @@ export function Crew() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <h1 className="text-4xl font-bold text-slate-900 mb-8">Today's Route</h1>
+      <h1 className="text-4xl font-bold text-slate-900 mb-4">Today's Route</h1>
+
+      {locationLoading && (
+        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center">
+          <MapPinned className="w-5 h-5 text-blue-600 mr-3 animate-pulse" />
+          <p className="text-blue-800">Requesting location access for ETA calculations...</p>
+        </div>
+      )}
+
+      {locationError && (
+        <div className="mb-6 bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <div className="flex items-start">
+            <AlertCircle className="w-5 h-5 text-amber-600 mr-3 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-amber-800 font-semibold mb-1">Location Access Required</p>
+              <p className="text-amber-700 text-sm mb-3">{locationError}</p>
+              <button
+                onClick={requestLocationPermission}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors"
+              >
+                Enable Location Access
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {crewLocation && (
+        <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center">
+            <MapPinned className="w-5 h-5 text-green-600 mr-3" />
+            <p className="text-green-800">
+              Location enabled - ETAs will be calculated automatically
+            </p>
+          </div>
+          <button
+            onClick={requestLocationPermission}
+            className="text-green-700 hover:text-green-800 text-sm font-semibold"
+          >
+            Refresh Location
+          </button>
+        </div>
+      )}
 
       <div className="space-y-4">
         {stops.map((stop) => {
