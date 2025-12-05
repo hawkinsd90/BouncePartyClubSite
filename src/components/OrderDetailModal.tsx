@@ -569,15 +569,25 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     setStagedItems([...stagedItems, newItem]);
   }
 
-  function stageRemoveItem(index: number) {
-    const updatedItems = [...stagedItems];
-    if (updatedItems[index].is_new) {
-      // Remove new items entirely
-      updatedItems.splice(index, 1);
-    } else {
-      // Mark existing items as deleted
-      updatedItems[index].is_deleted = true;
-    }
+  function stageRemoveItem(itemToRemove: StagedItem) {
+    const updatedItems = stagedItems.map(item => {
+      // Match by id if it exists, otherwise match by unit_id and wet_or_dry
+      const isMatch = item.id
+        ? item.id === itemToRemove.id
+        : item.unit_id === itemToRemove.unit_id && item.wet_or_dry === itemToRemove.wet_or_dry;
+
+      if (isMatch) {
+        if (item.is_new) {
+          // Don't include new items (filter them out)
+          return null;
+        } else {
+          // Mark existing items as deleted
+          return { ...item, is_deleted: true };
+        }
+      }
+      return item;
+    }).filter((item): item is StagedItem => item !== null);
+
     setStagedItems(updatedItems);
   }
 
@@ -1779,7 +1789,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 <h3 className="font-semibold text-slate-900 mb-4">Order Items</h3>
                 <div className="space-y-2">
                   {activeItems.map((item, index) => (
-                    <div key={index} className={`flex justify-between items-center rounded-lg p-3 ${item.is_new ? 'bg-green-50 border border-green-200' : 'bg-slate-50'}`}>
+                    <div key={item.id || `${item.unit_id}-${item.wet_or_dry}-${index}`} className={`flex justify-between items-center rounded-lg p-3 ${item.is_new ? 'bg-green-50 border border-green-200' : 'bg-slate-50'}`}>
                       <div>
                         <p className="font-medium text-slate-900">
                           {item.unit_name}
@@ -1790,8 +1800,9 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                       <div className="flex items-center gap-3">
                         <p className="font-semibold">{formatCurrency(item.unit_price_cents * item.qty)}</p>
                         <button
-                          onClick={() => stageRemoveItem(stagedItems.indexOf(item))}
+                          onClick={() => stageRemoveItem(item)}
                           className="text-red-600 hover:text-red-800 p-1"
+                          title="Remove item"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
