@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { X, Navigation, CheckCircle, Camera, MessageCircle, Upload, ChevronUp, ChevronDown, Star, AlertTriangle, RefreshCw } from 'lucide-react';
+import { X, Navigation, CheckCircle, Camera, MessageCircle, Upload, ChevronUp, ChevronDown, Star, AlertTriangle, RefreshCw, MapPin } from 'lucide-react';
 import { formatCurrency } from '../lib/pricing';
 import { showAlert } from './CustomModal';
+import { getCurrentLocation, calculateETA } from '../lib/googleMaps';
 
 interface Task {
   id: string;
@@ -111,13 +112,45 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
     try {
       const taskStatusId = await ensureTaskStatus();
 
-      const eta = new Date(Date.now() + 30 * 60000);
+      let etaMinutes = 30;
+      let etaDistance = '';
+      let gpsLat = 0;
+      let gpsLng = 0;
+      let etaCalculationError = null;
+
+      try {
+        const crewLocation = await getCurrentLocation();
+        gpsLat = crewLocation.lat;
+        gpsLng = crewLocation.lng;
+
+        const etaResult = await calculateETA(crewLocation, task.address);
+        etaMinutes = etaResult.durationMinutes;
+        etaDistance = etaResult.distanceText;
+
+        console.log(`✅ Real ETA calculated: ${etaMinutes} minutes (${etaDistance})`);
+
+        await supabase.from('crew_location_history').insert({
+          order_id: task.orderId,
+          latitude: crewLocation.lat,
+          longitude: crewLocation.lng,
+          checkpoint: 'en_route',
+        });
+      } catch (error: any) {
+        console.warn('Could not calculate real ETA, using estimate:', error);
+        etaCalculationError = error.message;
+      }
+
+      const eta = new Date(Date.now() + etaMinutes * 60000);
       const etaStart = new Date(eta.getTime() - 10 * 60000);
       const etaEnd = new Date(eta.getTime() + 10 * 60000);
       const timeFormat = (d: Date) => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
       let message = `Hello ${task.customerName.split(' ')[0]}! We're on our way to ${task.type === 'drop-off' ? 'deliver' : 'pick up'} your rental. `;
-      message += `ETA: ${timeFormat(etaStart)} - ${timeFormat(etaEnd)}. `;
+      message += `ETA: ${timeFormat(etaStart)} - ${timeFormat(etaEnd)}`;
+      if (etaDistance) {
+        message += ` (${etaDistance} away)`;
+      }
+      message += '. ';
 
       if (task.type === 'drop-off') {
         if (!task.waiverSigned || task.balanceDue > 0) {
@@ -155,10 +188,18 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
           eta_sent: true,
           waiver_reminder_sent: !task.waiverSigned,
           payment_reminder_sent: task.balanceDue > 0,
+          calculated_eta_minutes: etaMinutes,
+          gps_lat: gpsLat,
+          gps_lng: gpsLng,
+          eta_calculation_error: etaCalculationError,
         })
         .eq('id', taskStatusId);
 
-      showAlert('En route notification sent successfully!');
+      const successMsg = etaCalculationError
+        ? `En route notification sent! (Used estimated ETA - ${etaCalculationError})`
+        : `En route notification sent with real-time ETA: ${etaMinutes} min (${etaDistance})`;
+
+      showAlert(successMsg);
       onUpdate();
     } catch (error: any) {
       console.error('Error sending en route notification:', error);
