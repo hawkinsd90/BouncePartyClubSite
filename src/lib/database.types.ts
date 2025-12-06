@@ -6,7 +6,7 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export interface Database {
+export type Database = {
   public: {
     Tables: {
       addresses: {
@@ -153,7 +153,22 @@ export interface Database {
           user_agent?: string | null
           created_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "consent_records_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consent_records_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       contacts: {
         Row: {
@@ -163,7 +178,6 @@ export interface Database {
           last_name: string
           email: string
           phone: string | null
-          business_name: string | null
           opt_in_email: boolean
           opt_in_sms: boolean
           source: string
@@ -173,6 +187,7 @@ export interface Database {
           total_spent_cents: number
           created_at: string
           updated_at: string
+          business_name: string | null
         }
         Insert: {
           id?: string
@@ -181,7 +196,6 @@ export interface Database {
           last_name: string
           email: string
           phone?: string | null
-          business_name?: string | null
           opt_in_email?: boolean
           opt_in_sms?: boolean
           source?: string
@@ -191,6 +205,7 @@ export interface Database {
           total_spent_cents?: number
           created_at?: string
           updated_at?: string
+          business_name?: string | null
         }
         Update: {
           id?: string
@@ -199,7 +214,6 @@ export interface Database {
           last_name?: string
           email?: string
           phone?: string | null
-          business_name?: string | null
           opt_in_email?: boolean
           opt_in_sms?: boolean
           source?: string
@@ -209,8 +223,63 @@ export interface Database {
           total_spent_cents?: number
           created_at?: string
           updated_at?: string
+          business_name?: string | null
         }
         Relationships: []
+      }
+      crew_location_history: {
+        Row: {
+          id: string
+          order_id: string | null
+          stop_id: string | null
+          latitude: number
+          longitude: number
+          accuracy: number | null
+          speed: number | null
+          heading: number | null
+          checkpoint: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          order_id?: string | null
+          stop_id?: string | null
+          latitude: number
+          longitude: number
+          accuracy?: number | null
+          speed?: number | null
+          heading?: number | null
+          checkpoint?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          order_id?: string | null
+          stop_id?: string | null
+          latitude?: number
+          longitude?: number
+          accuracy?: number | null
+          speed?: number | null
+          heading?: number | null
+          checkpoint?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crew_location_history_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crew_location_history_stop_id_fkey"
+            columns: ["stop_id"]
+            isOneToOne: false
+            referencedRelation: "route_stops"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       customers: {
         Row: {
@@ -219,8 +288,8 @@ export interface Database {
           last_name: string
           email: string
           phone: string
-          business_name: string | null
           created_at: string
+          business_name: string | null
         }
         Insert: {
           id?: string
@@ -228,8 +297,8 @@ export interface Database {
           last_name: string
           email: string
           phone: string
-          business_name?: string | null
           created_at?: string
+          business_name?: string | null
         }
         Update: {
           id?: string
@@ -237,15 +306,15 @@ export interface Database {
           last_name?: string
           email?: string
           phone?: string
-          business_name?: string | null
           created_at?: string
+          business_name?: string | null
         }
         Relationships: []
       }
       documents: {
         Row: {
           id: string
-          order_id: string
+          order_id: string | null
           kind: string
           url: string
           meta_json: Json | null
@@ -253,7 +322,7 @@ export interface Database {
         }
         Insert: {
           id?: string
-          order_id: string
+          order_id?: string | null
           kind: string
           url: string
           meta_json?: Json | null
@@ -261,7 +330,7 @@ export interface Database {
         }
         Update: {
           id?: string
-          order_id?: string
+          order_id?: string | null
           kind?: string
           url?: string
           meta_json?: Json | null
@@ -276,7 +345,7 @@ export interface Database {
           link_token: string
           customer_filled: boolean
           deposit_cents: number
-          expires_at: string
+          expires_at: string | null
           created_at: string
           updated_at: string
         }
@@ -286,7 +355,7 @@ export interface Database {
           link_token?: string
           customer_filled?: boolean
           deposit_cents?: number
-          expires_at?: string
+          expires_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -296,7 +365,7 @@ export interface Database {
           link_token?: string
           customer_filled?: boolean
           deposit_cents?: number
-          expires_at?: string
+          expires_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -371,7 +440,7 @@ export interface Database {
       messages: {
         Row: {
           id: string
-          order_id: string
+          order_id: string | null
           to_phone: string | null
           to_email: string | null
           channel: string
@@ -383,7 +452,7 @@ export interface Database {
         }
         Insert: {
           id?: string
-          order_id: string
+          order_id?: string | null
           to_phone?: string | null
           to_email?: string | null
           channel: string
@@ -395,7 +464,7 @@ export interface Database {
         }
         Update: {
           id?: string
-          order_id?: string
+          order_id?: string | null
           to_phone?: string | null
           to_email?: string | null
           channel?: string
@@ -497,7 +566,7 @@ export interface Database {
       order_items: {
         Row: {
           id: string
-          order_id: string
+          order_id: string | null
           unit_id: string | null
           wet_or_dry: string
           unit_price_cents: number
@@ -506,7 +575,7 @@ export interface Database {
         }
         Insert: {
           id?: string
-          order_id: string
+          order_id?: string | null
           unit_id?: string | null
           wet_or_dry: string
           unit_price_cents: number
@@ -515,48 +584,33 @@ export interface Database {
         }
         Update: {
           id?: string
-          order_id?: string
+          order_id?: string | null
           unit_id?: string | null
           wet_or_dry?: string
           unit_price_cents?: number
           qty?: number
           notes?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "order_items_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "order_items_unit_id_fkey"
-            columns: ["unit_id"]
-            isOneToOne: false
-            referencedRelation: "units"
-            referencedColumns: ["id"]
-          }
-        ]
+        Relationships: []
       }
       order_notes: {
         Row: {
           id: string
-          order_id: string
+          order_id: string | null
           user_id: string | null
           note: string
           created_at: string
         }
         Insert: {
           id?: string
-          order_id: string
+          order_id?: string | null
           user_id?: string | null
           note: string
           created_at?: string
         }
         Update: {
           id?: string
-          order_id?: string
+          order_id?: string | null
           user_id?: string | null
           note?: string
           created_at?: string
@@ -566,7 +620,7 @@ export interface Database {
       order_refunds: {
         Row: {
           id: string
-          order_id: string
+          order_id: string | null
           amount_cents: number
           reason: string
           stripe_refund_id: string | null
@@ -576,7 +630,7 @@ export interface Database {
         }
         Insert: {
           id?: string
-          order_id: string
+          order_id?: string | null
           amount_cents: number
           reason: string
           stripe_refund_id?: string | null
@@ -586,7 +640,7 @@ export interface Database {
         }
         Update: {
           id?: string
-          order_id?: string
+          order_id?: string | null
           amount_cents?: number
           reason?: string
           stripe_refund_id?: string | null
@@ -617,20 +671,20 @@ export interface Database {
           waiver_text_snapshot: string
           electronic_consent_given: boolean
           electronic_consent_text: string
+          created_at: string
+          updated_at: string
           event_date: string
           event_end_date: string | null
           event_address_line1: string
-          event_address_line2: string | null
+          event_address_line2: string
           event_city: string
           event_state: string
           event_zip: string
-          home_address_line1: string | null
-          home_address_line2: string | null
-          home_city: string | null
-          home_state: string | null
-          home_zip: string | null
-          created_at: string
-          updated_at: string
+          home_address_line1: string
+          home_address_line2: string
+          home_city: string
+          home_state: string
+          home_zip: string
         }
         Insert: {
           id?: string
@@ -652,20 +706,20 @@ export interface Database {
           waiver_text_snapshot: string
           electronic_consent_given?: boolean
           electronic_consent_text: string
+          created_at?: string
+          updated_at?: string
           event_date: string
           event_end_date?: string | null
           event_address_line1: string
-          event_address_line2?: string | null
+          event_address_line2?: string
           event_city: string
           event_state: string
           event_zip: string
-          home_address_line1?: string | null
-          home_address_line2?: string | null
-          home_city?: string | null
-          home_state?: string | null
-          home_zip?: string | null
-          created_at?: string
-          updated_at?: string
+          home_address_line1?: string
+          home_address_line2?: string
+          home_city?: string
+          home_state?: string
+          home_zip?: string
         }
         Update: {
           id?: string
@@ -687,27 +741,27 @@ export interface Database {
           waiver_text_snapshot?: string
           electronic_consent_given?: boolean
           electronic_consent_text?: string
+          created_at?: string
+          updated_at?: string
           event_date?: string
           event_end_date?: string | null
           event_address_line1?: string
-          event_address_line2?: string | null
+          event_address_line2?: string
           event_city?: string
           event_state?: string
           event_zip?: string
-          home_address_line1?: string | null
-          home_address_line2?: string | null
-          home_city?: string | null
-          home_state?: string | null
-          home_zip?: string | null
-          created_at?: string
-          updated_at?: string
+          home_address_line1?: string
+          home_address_line2?: string
+          home_city?: string
+          home_state?: string
+          home_zip?: string
         }
         Relationships: []
       }
       order_workflow_events: {
         Row: {
           id: string
-          order_id: string
+          order_id: string | null
           event_type: string
           user_id: string | null
           eta: string | null
@@ -718,7 +772,7 @@ export interface Database {
         }
         Insert: {
           id?: string
-          order_id: string
+          order_id?: string | null
           event_type: string
           user_id?: string | null
           eta?: string | null
@@ -729,7 +783,7 @@ export interface Database {
         }
         Update: {
           id?: string
-          order_id?: string
+          order_id?: string | null
           event_type?: string
           user_id?: string | null
           eta?: string | null
@@ -757,41 +811,59 @@ export interface Database {
           travel_fee_cents: number
           surface_fee_cents: number
           same_day_pickup_fee_cents: number
-          generator_fee_cents: number
-          generator_qty: number
           tax_cents: number
-          tip_cents: number
           deposit_due_cents: number
           deposit_paid_cents: number
           balance_due_cents: number
+          balance_paid_cents: number
+          damage_charged_cents: number
+          total_refunded_cents: number
           payment_method_id: string | null
           card_on_file_consent_text: string | null
           card_on_file_consented_at: string | null
-          card_on_file_consent: boolean
-          sms_consent: boolean
-          e_signature_consent: boolean
+          created_at: string
           start_date: string
           end_date: string
           overnight_allowed: boolean
           can_use_stakes: boolean
           generator_selected: boolean
+          generator_qty: number
+          generator_fee_cents: number
+          special_details: string | null
+          has_pets: boolean
+          sms_consent_text: string | null
+          sms_consented_at: string | null
+          travel_total_miles: number | null
+          travel_base_radius_miles: number | null
+          travel_chargeable_miles: number | null
+          travel_per_mile_cents: number | null
+          travel_is_flat_fee: boolean
+          stripe_customer_id: string | null
+          stripe_payment_method_id: string | null
+          deposit_required: boolean
+          stripe_payment_status: string
           workflow_status: string
           current_eta: string | null
           waiver_signed_at: string | null
           waiver_signature_data: string | null
+          tip_cents: number
+          awaiting_customer_approval: boolean
+          customer_approval_requested_at: string | null
+          customer_approved_at: string | null
+          edit_summary: string | null
+          custom_deposit_cents: number | null
+          clear_payment_info: boolean
+          admin_message: string | null
           signed_waiver_url: string | null
           signature_id: string | null
-          admin_message: string | null
+          e_signature_consent: boolean
+          sms_consent: boolean
+          card_on_file_consent: boolean
           invoice_sent_at: string | null
           invoice_accepted_at: string | null
-          custom_deposit_cents: number | null
           until_end_of_day: boolean
           same_day_responsibility_accepted: boolean
           overnight_responsibility_accepted: boolean
-          has_pets: boolean
-          special_details: string | null
-          deposit_required: boolean
-          created_at: string
         }
         Insert: {
           id?: string
@@ -809,41 +881,59 @@ export interface Database {
           travel_fee_cents?: number
           surface_fee_cents?: number
           same_day_pickup_fee_cents?: number
-          generator_fee_cents?: number
-          generator_qty?: number
           tax_cents?: number
-          tip_cents?: number
           deposit_due_cents: number
           deposit_paid_cents?: number
           balance_due_cents: number
+          balance_paid_cents?: number
+          damage_charged_cents?: number
+          total_refunded_cents?: number
           payment_method_id?: string | null
           card_on_file_consent_text?: string | null
           card_on_file_consented_at?: string | null
-          card_on_file_consent?: boolean
-          sms_consent?: boolean
-          e_signature_consent?: boolean
+          created_at?: string
           start_date: string
           end_date: string
           overnight_allowed?: boolean
           can_use_stakes?: boolean
           generator_selected?: boolean
+          generator_qty?: number
+          generator_fee_cents?: number
+          special_details?: string | null
+          has_pets?: boolean
+          sms_consent_text?: string | null
+          sms_consented_at?: string | null
+          travel_total_miles?: number | null
+          travel_base_radius_miles?: number | null
+          travel_chargeable_miles?: number | null
+          travel_per_mile_cents?: number | null
+          travel_is_flat_fee?: boolean
+          stripe_customer_id?: string | null
+          stripe_payment_method_id?: string | null
+          deposit_required?: boolean
+          stripe_payment_status?: string
           workflow_status?: string
           current_eta?: string | null
           waiver_signed_at?: string | null
           waiver_signature_data?: string | null
+          tip_cents?: number
+          awaiting_customer_approval?: boolean
+          customer_approval_requested_at?: string | null
+          customer_approved_at?: string | null
+          edit_summary?: string | null
+          custom_deposit_cents?: number | null
+          clear_payment_info?: boolean
+          admin_message?: string | null
           signed_waiver_url?: string | null
           signature_id?: string | null
-          admin_message?: string | null
+          e_signature_consent?: boolean
+          sms_consent?: boolean
+          card_on_file_consent?: boolean
           invoice_sent_at?: string | null
           invoice_accepted_at?: string | null
-          custom_deposit_cents?: number | null
           until_end_of_day?: boolean
           same_day_responsibility_accepted?: boolean
           overnight_responsibility_accepted?: boolean
-          has_pets?: boolean
-          special_details?: string | null
-          deposit_required?: boolean
-          created_at?: string
         }
         Update: {
           id?: string
@@ -861,63 +951,66 @@ export interface Database {
           travel_fee_cents?: number
           surface_fee_cents?: number
           same_day_pickup_fee_cents?: number
-          generator_fee_cents?: number
-          generator_qty?: number
           tax_cents?: number
-          tip_cents?: number
           deposit_due_cents?: number
           deposit_paid_cents?: number
           balance_due_cents?: number
+          balance_paid_cents?: number
+          damage_charged_cents?: number
+          total_refunded_cents?: number
           payment_method_id?: string | null
           card_on_file_consent_text?: string | null
           card_on_file_consented_at?: string | null
-          card_on_file_consent?: boolean
-          sms_consent?: boolean
-          e_signature_consent?: boolean
+          created_at?: string
           start_date?: string
           end_date?: string
           overnight_allowed?: boolean
           can_use_stakes?: boolean
           generator_selected?: boolean
+          generator_qty?: number
+          generator_fee_cents?: number
+          special_details?: string | null
+          has_pets?: boolean
+          sms_consent_text?: string | null
+          sms_consented_at?: string | null
+          travel_total_miles?: number | null
+          travel_base_radius_miles?: number | null
+          travel_chargeable_miles?: number | null
+          travel_per_mile_cents?: number | null
+          travel_is_flat_fee?: boolean
+          stripe_customer_id?: string | null
+          stripe_payment_method_id?: string | null
+          deposit_required?: boolean
+          stripe_payment_status?: string
           workflow_status?: string
           current_eta?: string | null
           waiver_signed_at?: string | null
           waiver_signature_data?: string | null
+          tip_cents?: number
+          awaiting_customer_approval?: boolean
+          customer_approval_requested_at?: string | null
+          customer_approved_at?: string | null
+          edit_summary?: string | null
+          custom_deposit_cents?: number | null
+          clear_payment_info?: boolean
+          admin_message?: string | null
           signed_waiver_url?: string | null
           signature_id?: string | null
-          admin_message?: string | null
+          e_signature_consent?: boolean
+          sms_consent?: boolean
+          card_on_file_consent?: boolean
           invoice_sent_at?: string | null
           invoice_accepted_at?: string | null
-          custom_deposit_cents?: number | null
           until_end_of_day?: boolean
           same_day_responsibility_accepted?: boolean
           overnight_responsibility_accepted?: boolean
-          has_pets?: boolean
-          special_details?: string | null
-          deposit_required?: boolean
-          created_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "orders_address_id_fkey"
-            columns: ["address_id"]
-            isOneToOne: false
-            referencedRelation: "addresses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "orders_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "customers"
-            referencedColumns: ["id"]
-          }
-        ]
+        Relationships: []
       }
       payments: {
         Row: {
           id: string
-          order_id: string
+          order_id: string | null
           type: string
           amount_cents: number
           stripe_payment_intent_id: string | null
@@ -926,7 +1019,7 @@ export interface Database {
         }
         Insert: {
           id?: string
-          order_id: string
+          order_id?: string | null
           type: string
           amount_cents: number
           stripe_payment_intent_id?: string | null
@@ -935,7 +1028,7 @@ export interface Database {
         }
         Update: {
           id?: string
-          order_id?: string
+          order_id?: string | null
           type?: string
           amount_cents?: number
           stripe_payment_intent_id?: string | null
@@ -956,9 +1049,9 @@ export interface Database {
           commercial_multiplier: number
           same_day_matrix_json: Json
           overnight_holiday_only: boolean
+          updated_at: string
           extra_day_pct: number
           generator_price_cents: number
-          updated_at: string
         }
         Insert: {
           id?: string
@@ -971,9 +1064,9 @@ export interface Database {
           commercial_multiplier?: number
           same_day_matrix_json?: Json
           overnight_holiday_only?: boolean
+          updated_at?: string
           extra_day_pct?: number
           generator_price_cents?: number
-          updated_at?: string
         }
         Update: {
           id?: string
@@ -986,16 +1079,16 @@ export interface Database {
           commercial_multiplier?: number
           same_day_matrix_json?: Json
           overnight_holiday_only?: boolean
+          updated_at?: string
           extra_day_pct?: number
           generator_price_cents?: number
-          updated_at?: string
         }
         Relationships: []
       }
       route_stops: {
         Row: {
           id: string
-          order_id: string
+          order_id: string | null
           type: string
           eta: string | null
           checkpoint: string
@@ -1004,10 +1097,14 @@ export interface Database {
           gps_lng: number | null
           notes: string | null
           created_at: string
+          calculated_eta_minutes: number | null
+          calculated_eta_distance_miles: number | null
+          eta_calculated_at: string | null
+          eta_calculation_error: string | null
         }
         Insert: {
           id?: string
-          order_id: string
+          order_id?: string | null
           type: string
           eta?: string | null
           checkpoint?: string
@@ -1016,10 +1113,14 @@ export interface Database {
           gps_lng?: number | null
           notes?: string | null
           created_at?: string
+          calculated_eta_minutes?: number | null
+          calculated_eta_distance_miles?: number | null
+          eta_calculated_at?: string | null
+          eta_calculation_error?: string | null
         }
         Update: {
           id?: string
-          order_id?: string
+          order_id?: string | null
           type?: string
           eta?: string | null
           checkpoint?: string
@@ -1028,6 +1129,10 @@ export interface Database {
           gps_lng?: number | null
           notes?: string | null
           created_at?: string
+          calculated_eta_minutes?: number | null
+          calculated_eta_distance_miles?: number | null
+          eta_calculated_at?: string | null
+          eta_calculation_error?: string | null
         }
         Relationships: []
       }
@@ -1110,15 +1215,7 @@ export interface Database {
           status?: string
           created_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "sms_conversations_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          }
-        ]
+        Relationships: []
       }
       sms_message_templates: {
         Row: {
@@ -1150,35 +1247,85 @@ export interface Database {
         }
         Relationships: []
       }
-      unit_media: {
+      task_status: {
         Row: {
           id: string
-          unit_id: string
-          url: string
-          alt: string
-          sort: number
-          mode: string
+          order_id: string
+          task_type: string
+          task_date: string
+          status: string
+          en_route_time: string | null
+          arrived_time: string | null
+          completed_time: string | null
+          eta_sent: boolean
+          waiver_reminder_sent: boolean
+          payment_reminder_sent: boolean
+          sort_order: number
+          delivery_images: Json
+          damage_images: Json
+          notes: string | null
           created_at: string
+          updated_at: string
+          calculated_eta_minutes: number | null
+          gps_lat: number | null
+          gps_lng: number | null
+          eta_calculation_error: string | null
         }
         Insert: {
           id?: string
-          unit_id: string
-          url: string
-          alt: string
-          sort?: number
-          mode?: string
+          order_id: string
+          task_type: string
+          task_date: string
+          status?: string
+          en_route_time?: string | null
+          arrived_time?: string | null
+          completed_time?: string | null
+          eta_sent?: boolean
+          waiver_reminder_sent?: boolean
+          payment_reminder_sent?: boolean
+          sort_order?: number
+          delivery_images?: Json
+          damage_images?: Json
+          notes?: string | null
           created_at?: string
+          updated_at?: string
+          calculated_eta_minutes?: number | null
+          gps_lat?: number | null
+          gps_lng?: number | null
+          eta_calculation_error?: string | null
         }
         Update: {
           id?: string
-          unit_id?: string
-          url?: string
-          alt?: string
-          sort?: number
-          mode?: string
+          order_id?: string
+          task_type?: string
+          task_date?: string
+          status?: string
+          en_route_time?: string | null
+          arrived_time?: string | null
+          completed_time?: string | null
+          eta_sent?: boolean
+          waiver_reminder_sent?: boolean
+          payment_reminder_sent?: boolean
+          sort_order?: number
+          delivery_images?: Json
+          damage_images?: Json
+          notes?: string | null
           created_at?: string
+          updated_at?: string
+          calculated_eta_minutes?: number | null
+          gps_lat?: number | null
+          gps_lng?: number | null
+          eta_calculation_error?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "task_status_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       units: {
         Row: {
@@ -1197,8 +1344,8 @@ export interface Database {
           indoor_ok: boolean
           outdoor_ok: boolean
           active: boolean
-          quantity_available: number
           created_at: string
+          quantity_available: number
         }
         Insert: {
           id?: string
@@ -1216,8 +1363,8 @@ export interface Database {
           indoor_ok?: boolean
           outdoor_ok?: boolean
           active?: boolean
-          quantity_available?: number
           created_at?: string
+          quantity_available?: number
         }
         Update: {
           id?: string
@@ -1235,8 +1382,38 @@ export interface Database {
           indoor_ok?: boolean
           outdoor_ok?: boolean
           active?: boolean
-          quantity_available?: number
           created_at?: string
+          quantity_available?: number
+        }
+        Relationships: []
+      }
+      unit_media: {
+        Row: {
+          id: string
+          unit_id: string | null
+          url: string
+          alt: string
+          sort: number
+          created_at: string
+          mode: string
+        }
+        Insert: {
+          id?: string
+          unit_id?: string | null
+          url: string
+          alt: string
+          sort?: number
+          created_at?: string
+          mode?: string
+        }
+        Update: {
+          id?: string
+          unit_id?: string | null
+          url?: string
+          alt?: string
+          sort?: number
+          created_at?: string
+          mode?: string
         }
         Relationships: []
       }
@@ -1262,38 +1439,94 @@ export interface Database {
         Relationships: []
       }
     }
-    Views: {
-      [_ in never]: never
-    }
+    Views: {}
     Functions: {
-      check_unit_availability: {
-        Args: {
-          p_unit_ids: string[]
-          p_start_date: string
-          p_end_date: string
-        }
-        Returns: Array<{
-          unit_id: string
-          unit_name: string
-          requested_qty: number
-          available_qty: number
-          available: boolean
-        }>
-      }
-      generate_invoice_number: {
-        Args: Record<string, never>
-        Returns: string
-      }
-      get_admin_users: {
-        Args: Record<string, never>
-        Returns: Array<{ count: number }>
+      is_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
       }
     }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
+    Enums: {}
+    CompositeTypes: {}
   }
 }
+
+export type Tables<
+  PublicTableNameOrOptions extends
+    | keyof (Database["public"]["Tables"] & Database["public"]["Views"])
+    | { schema: keyof Database },
+  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
+    ? keyof (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
+        Database[PublicTableNameOrOptions["schema"]]["Views"])
+    : never = never
+> = PublicTableNameOrOptions extends { schema: keyof Database }
+  ? (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
+      Database[PublicTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : PublicTableNameOrOptions extends keyof (Database["public"]["Tables"] &
+      Database["public"]["Views"])
+  ? (Database["public"]["Tables"] &
+      Database["public"]["Views"])[PublicTableNameOrOptions] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : never
+
+export type TablesInsert<
+  PublicTableNameOrOptions extends
+    | keyof Database["public"]["Tables"]
+    | { schema: keyof Database },
+  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
+    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+    : never = never
+> = PublicTableNameOrOptions extends { schema: keyof Database }
+  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : PublicTableNameOrOptions extends keyof Database["public"]["Tables"]
+  ? Database["public"]["Tables"][PublicTableNameOrOptions] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : never
+
+export type TablesUpdate<
+  PublicTableNameOrOptions extends
+    | keyof Database["public"]["Tables"]
+    | { schema: keyof Database },
+  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
+    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+    : never = never
+> = PublicTableNameOrOptions extends { schema: keyof Database }
+  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : PublicTableNameOrOptions extends keyof Database["public"]["Tables"]
+  ? Database["public"]["Tables"][PublicTableNameOrOptions] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : never
+
+export type Enums<
+  PublicEnumNameOrOptions extends
+    | keyof Database["public"]["Enums"]
+    | { schema: keyof Database },
+  EnumName extends PublicEnumNameOrOptions extends { schema: keyof Database }
+    ? keyof Database[PublicEnumNameOrOptions["schema"]]["Enums"]
+    : never = never
+> = PublicEnumNameOrOptions extends { schema: keyof Database }
+  ? Database[PublicEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : PublicEnumNameOrOptions extends keyof Database["public"]["Enums"]
+  ? Database["public"]["Enums"][PublicEnumNameOrOptions]
+  : never
