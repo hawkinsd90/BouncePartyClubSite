@@ -99,21 +99,23 @@ export default function Sign() {
       setOrder(data as unknown as OrderData);
 
       // Auto-fill typed name and renter information from order
-      const fullName = `${data.customer.first_name} ${data.customer.last_name}`;
+      const customer = data.customers as any;
+      const fullName = `${customer.first_name} ${customer.last_name}`;
       setTypedName(fullName);
       setRenterName(fullName);
-      setRenterPhone(data.customer.phone || '');
-      setRenterEmail(data.customer.email || '');
+      setRenterPhone(customer.phone || '');
+      setRenterEmail(customer.email || '');
       setEventDate(data.start_date || '');
       setEventEndDate(data.end_date || '');
 
       // Auto-fill address from related address record
-      if (data.address) {
-        setEventAddressLine1(data.address.line1 || '');
-        setEventAddressLine2(data.address.line2 || '');
-        setEventCity(data.address.city || '');
-        setEventState(data.address.state || '');
-        setEventZip(data.address.zip || '');
+      const address = data.addresses as any;
+      if (address) {
+        setEventAddressLine1(address.line1 || '');
+        setEventAddressLine2(address.line2 || '');
+        setEventCity(address.city || '');
+        setEventState(address.state || '');
+        setEventZip(address.zip || '');
       }
     } catch (err: any) {
       console.error('Error loading order:', err);

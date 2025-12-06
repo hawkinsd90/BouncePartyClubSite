@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import { X, AlertCircle, Info, CheckCircle } from 'lucide-react';
+import { AlertCircle, Info, CheckCircle } from 'lucide-react';
 
 type ModalType = 'info' | 'warning' | 'success' | 'confirm';
 

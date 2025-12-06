@@ -195,7 +195,7 @@ export function PaymentComplete() {
                           </tr>
                           ${order.travel_fee_cents > 0 ? `
                           <tr>
-                            <td style="color: #64748b; font-size: 14px;">Travel Fee${order.travel_total_miles > 0 ? ` (${parseFloat(order.travel_total_miles).toFixed(1)} mi)` : ''}:</td>
+                            <td style="color: #64748b; font-size: 14px;">Travel Fee${(order.travel_total_miles || 0) > 0 ? ` (${(order.travel_total_miles || 0).toFixed(1)} mi)` : ''}:</td>
                             <td style="color: #1e293b; font-size: 14px; text-align: right;">$${(order.travel_fee_cents / 100).toFixed(2)}</td>
                           </tr>` : ''}
                           ${order.surface_fee_cents > 0 ? `
@@ -410,7 +410,7 @@ export function PaymentComplete() {
                 <div style="background-color: #f8fafc; border-radius: 6px; padding: 18px; margin: 20px 0;">
                   <h3 style="margin: 0 0 12px; color: #1e293b;">Financial Summary</h3>
                   <p style="margin: 5px 0; color: #1e293b;"><strong>Subtotal:</strong> $${(order.subtotal_cents / 100).toFixed(2)}</p>
-                  ${order.travel_fee_cents > 0 ? `<p style="margin: 5px 0; color: #1e293b;"><strong>Travel Fee${order.travel_total_miles > 0 ? ` (${parseFloat(order.travel_total_miles).toFixed(1)} mi)` : ''}:</strong> $${(order.travel_fee_cents / 100).toFixed(2)}</p>` : ''}
+                  ${order.travel_fee_cents > 0 ? `<p style="margin: 5px 0; color: #1e293b;"><strong>Travel Fee${(order.travel_total_miles || 0) > 0 ? ` (${(order.travel_total_miles || 0).toFixed(1)} mi)` : ''}:</strong> $${(order.travel_fee_cents / 100).toFixed(2)}</p>` : ''}
                   ${order.surface_fee_cents > 0 ? `<p style="margin: 5px 0; color: #1e293b;"><strong>Surface Fee:</strong> $${(order.surface_fee_cents / 100).toFixed(2)}</p>` : ''}
                   <p style="margin: 8px 0 0; padding-top: 8px; border-top: 2px solid #e2e8f0; color: #10b981;"><strong>Deposit Due:</strong> $${(order.deposit_due_cents / 100).toFixed(2)}</p>
                   <p style="margin: 5px 0; color: #1e293b;"><strong>Balance Due:</strong> $${(order.balance_due_cents / 100).toFixed(2)}</p>

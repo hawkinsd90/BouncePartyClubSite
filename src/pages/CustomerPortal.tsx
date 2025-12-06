@@ -73,7 +73,7 @@ export function CustomerPortal() {
           return;
         }
 
-        if (new Date(linkData.expires_at) < new Date()) {
+        if (linkData.expires_at && new Date(linkData.expires_at) < new Date()) {
           setLoading(false);
           return;
         }
@@ -106,22 +106,24 @@ export function CustomerPortal() {
 
       if (data) {
         // Pre-fill customer info if available
-        if (data.customers) {
+        const customer = data.customers as any;
+        if (customer) {
           setCustomerInfo({
-            first_name: data.customers.first_name || '',
-            last_name: data.customers.last_name || '',
-            email: data.customers.email || '',
-            phone: data.customers.phone || '',
-            business_name: data.customers.business_name || '',
+            first_name: customer.first_name || '',
+            last_name: customer.last_name || '',
+            email: customer.email || '',
+            phone: customer.phone || '',
+            business_name: customer.business_name || '',
           });
         }
 
         // Calculate travel miles on-the-fly if missing
-        let travelMiles = parseFloat(data.travel_total_miles) || 0;
+        let travelMiles = data.travel_total_miles || 0;
         if (travelMiles === 0 && data.travel_fee_cents > 0 && data.addresses) {
           try {
-            const lat = parseFloat(data.addresses.lat);
-            const lng = parseFloat(data.addresses.lng);
+            const addr = data.addresses as any;
+            const lat = parseFloat(addr.lat);
+            const lng = parseFloat(addr.lng);
             if (lat && lng) {
               travelMiles = await calculateDrivingDistance(HOME_BASE.lat, HOME_BASE.lng, lat, lng);
               // Save it back to database for next time

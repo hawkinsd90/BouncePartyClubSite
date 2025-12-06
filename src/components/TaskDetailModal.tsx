@@ -301,7 +301,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
           .single();
 
         const field = isDamage ? 'damage_images' : 'delivery_images';
-        const existingImages = existingTask.data?.[field] || [];
+        const existingImages = (existingTask.data?.[field] as string[]) || [];
         const allImages = [...existingImages, ...uploadedUrls];
 
         await supabase

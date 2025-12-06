@@ -1449,6 +1449,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_admin_users: {
+        Args: Record<PropertyKey, never>
+        Returns: any[]
+      }
       check_unit_availability: {
         Args: {
           p_unit_ids: string[]

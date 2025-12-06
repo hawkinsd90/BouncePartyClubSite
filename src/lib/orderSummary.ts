@@ -134,7 +134,7 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
     if (!orderRes.data) return null;
 
     const order = orderRes.data;
-    let travelMiles = parseFloat(order.travel_total_miles) || 0;
+    let travelMiles = order.travel_total_miles || 0;
 
     // If travel miles not saved and we have travel fee, calculate it in real-time
     if (travelMiles === 0 && order.travel_fee_cents > 0) {
@@ -166,8 +166,9 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
         });
 
         try {
-          const lat = parseFloat(order.addresses.lat);
-          const lng = parseFloat(order.addresses.lng);
+          const addr = order.addresses as any;
+          const lat = parseFloat(addr.lat);
+          const lng = parseFloat(addr.lng);
 
           console.log('[OrderSummary] Parsed coordinates:', { lat, lng, isValid: !!(lat && lng) });
 

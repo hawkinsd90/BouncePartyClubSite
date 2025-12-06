@@ -32,7 +32,7 @@ export function Setup() {
     try {
       const { data: users } = await supabase.rpc('get_admin_users');
 
-      if (users && users.length > 0) {
+      if (Array.isArray(users) && users.length > 0) {
         setSetupComplete(true);
         setStep('complete');
       } else {

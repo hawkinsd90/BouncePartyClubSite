@@ -228,7 +228,7 @@ async function greedyRouteConstruction(
         lateness,
         score: 0
       };
-      candidate.score = calculateScore(candidate, distanceFromBase, isHighPriority);
+      candidate.score = calculateScore(candidate, distanceFromBase, isHighPriority || false);
 
       if (bestCandidate === null || candidate.score < bestCandidate.score) {
         bestCandidate = candidate;

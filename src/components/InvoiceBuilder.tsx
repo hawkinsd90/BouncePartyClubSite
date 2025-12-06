@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { formatCurrency, calculatePrice, calculateDrivingDistance, type PricingRules, type PriceBreakdown } from '../lib/pricing';
 import { HOME_BASE } from '../lib/constants';
-import { Trash2, DollarSign, Percent, Save, UserPlus, Copy, Check, Send, Link as LinkIcon, Calendar, MapPin, Clock, Users, Search, X } from 'lucide-react';
+import { Trash2, UserPlus, Copy, Check, Send, Search, X } from 'lucide-react';
 import { AddressAutocomplete } from './AddressAutocomplete';
 import { OrderSummary } from './OrderSummary';
 import { type OrderSummaryDisplay } from '../lib/orderSummary';
@@ -650,19 +650,19 @@ export function InvoiceBuilder() {
 
     const fees: Array<{ name: string; amount: number }> = [];
 
-    if (priceBreakdown?.travel_fee_cents > 0) {
+    if (priceBreakdown?.travel_fee_cents && priceBreakdown.travel_fee_cents > 0) {
       fees.push({ name: priceBreakdown.travel_fee_display_name || 'Travel Fee', amount: priceBreakdown.travel_fee_cents });
     }
 
-    if (priceBreakdown?.surface_fee_cents > 0) {
+    if (priceBreakdown?.surface_fee_cents && priceBreakdown.surface_fee_cents > 0) {
       fees.push({ name: 'Surface Fee (Sandbags)', amount: priceBreakdown.surface_fee_cents });
     }
 
-    if (priceBreakdown?.same_day_pickup_fee_cents > 0) {
+    if (priceBreakdown?.same_day_pickup_fee_cents && priceBreakdown.same_day_pickup_fee_cents > 0) {
       fees.push({ name: 'Same-Day Pickup Fee', amount: priceBreakdown.same_day_pickup_fee_cents });
     }
 
-    if (priceBreakdown?.generator_fee_cents > 0) {
+    if (priceBreakdown?.generator_fee_cents && priceBreakdown.generator_fee_cents > 0) {
       const generatorLabel = eventDetails.generator_qty > 1
         ? `Generator (${eventDetails.generator_qty}x)`
         : 'Generator';
