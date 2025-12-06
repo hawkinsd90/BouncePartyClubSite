@@ -21,6 +21,7 @@ interface OrderDetails {
   attendees?: number;
   pets?: boolean;
   special_details?: string;
+  travel_total_miles: number | null;
   customer: {
     first_name: string;
     last_name: string;

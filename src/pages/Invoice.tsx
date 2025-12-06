@@ -73,9 +73,9 @@ export function Invoice() {
       }
 
       setOrder(orderData);
-      setCustomer(orderData.customers);
-      setAddress(orderData.addresses);
-      setOrderItems(orderData.order_items);
+      setCustomer(orderData.customers as any);
+      setAddress(orderData.addresses as any);
+      setOrderItems(orderData.order_items as any);
       setLoading(false);
     } catch (err: any) {
       console.error('Error loading invoice:', err);
@@ -109,7 +109,7 @@ export function Invoice() {
         throw new Error('Unable to verify availability. Please try again.');
       }
 
-      const unavailable = availabilityData?.filter((item: any) => !item.available);
+      const unavailable = (availabilityData as any)?.filter((item: any) => !item.available);
       if (unavailable && unavailable.length > 0) {
         const unitNames = unavailable.map((item: any) => item.unit_name).join(', ');
 

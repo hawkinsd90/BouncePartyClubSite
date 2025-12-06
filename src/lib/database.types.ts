@@ -1445,6 +1445,24 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }
+      generate_invoice_number: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      check_unit_availability: {
+        Args: {
+          p_unit_ids: string[]
+          p_start_date: string
+          p_end_date: string
+        }
+        Returns: {
+          unit_id: string
+          unit_name: string
+          requested_qty: number
+          available_qty: number
+          available: boolean
+        }[]
+      }
     }
     Enums: {}
     CompositeTypes: {}

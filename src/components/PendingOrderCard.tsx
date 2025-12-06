@@ -273,11 +273,15 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
           .eq('id', order.id)
           .single();
 
-        if (orderWithItems && orderWithItems.customers?.email) {
+        const customer = (orderWithItems?.customers as any);
+        const address = (orderWithItems?.addresses as any);
+        const items = (orderWithItems?.order_items as any) || [];
+
+        if (orderWithItems && customer?.email) {
           const logoUrl = 'https://qaagfafagdpgzcijnfbw.supabase.co/storage/v1/object/public/public-assets/bounce-party-club-logo.png';
           const eventDateStr = format(new Date(orderWithItems.event_date + 'T12:00:00'), 'EEEE, MMMM d, yyyy');
 
-          const orderItemsHtml = orderWithItems.order_items.map((item: any) => `
+          const orderItemsHtml = items.map((item: any) => `
             <tr>
               <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; color: #1e293b;">
                 ${item.qty}x ${item.units.name} (${item.wet_or_dry === 'water' ? 'Wet' : 'Dry'})
@@ -308,7 +312,7 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
                       </tr>
                       <tr>
                         <td style="padding: 30px;">
-                          <p style="margin: 0 0 20px; color: #1e293b; font-size: 16px;">Hi ${orderWithItems.customers.first_name},</p>
+                          <p style="margin: 0 0 20px; color: #1e293b; font-size: 16px;">Hi ${customer.first_name},</p>
                           <p style="margin: 0 0 20px; color: #475569; font-size: 15px;">
                             Great news! Your booking is confirmed and your deposit has been processed.
                           </p>
@@ -330,7 +334,7 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
                               </tr>
                               <tr>
                                 <td style="color: #64748b; font-size: 14px;">Location:</td>
-                                <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">${orderWithItems.addresses?.line1}, ${orderWithItems.addresses?.city}</td>
+                                <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">${address?.line1}, ${address?.city}</td>
                               </tr>
                               ${orderWithItems.location_type ? `
                               <tr>
@@ -444,7 +448,7 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              to: orderWithItems.customers.email,
+              to: customer.email,
               subject: `Booking Confirmed - Receipt for Order #${orderWithItems.id.slice(0, 8).toUpperCase()}`,
               html: receiptEmailHtml,
             }),

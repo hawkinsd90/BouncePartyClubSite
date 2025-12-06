@@ -282,7 +282,7 @@ export async function completeOrderAfterPayment(orderId: string, _paymentIntentI
 
   if (orderError) throw orderError;
 
-  const customer = order.customers;
+  const customer = (order.customers as any);
 
   const contactData = {
     first_name: customer.first_name,
@@ -290,7 +290,7 @@ export async function completeOrderAfterPayment(orderId: string, _paymentIntentI
     email: customer.email,
   };
 
-  const cart = (order.order_items ?? []).map((item: any) => ({
+  const cart = ((order.order_items as any) ?? []).map((item: any) => ({
     unit_name: item.units.name,
     qty: item.qty,
   }));
