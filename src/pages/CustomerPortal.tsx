@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { formatCurrency, calculateDrivingDistance } from '../lib/pricing';
 import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { HOME_BASE } from '../lib/constants';
-import { CheckCircle, Upload, CreditCard, FileText, Image as ImageIcon, AlertCircle, Sparkles, TrendingUp, Shield, Loader2, Printer, X } from 'lucide-react';
+import { CheckCircle, Upload, CreditCard, FileText, Image as ImageIcon, AlertCircle, Sparkles, Shield, Loader2, Printer, X } from 'lucide-react';
 import { format } from 'date-fns';
 import WaiverTab from '../components/WaiverTab';
 import { loadOrderSummary, formatOrderSummary, OrderSummaryDisplay } from '../lib/orderSummary';
@@ -18,7 +18,6 @@ export function CustomerPortal() {
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'waiver' | 'payment' | 'pictures'>('waiver');
-  const [signature, setSignature] = useState('');
   const [pictureNotes, setPictureNotes] = useState('');
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);

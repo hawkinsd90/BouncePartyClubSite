@@ -1,17 +1,14 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { formatCurrency } from '../lib/pricing';
 import {
   MapPin,
   Clock,
   CheckCircle,
   Camera,
   Navigation,
-  FileText,
   MapPinned,
   AlertCircle,
 } from 'lucide-react';
-import { format } from 'date-fns';
 import { getCurrentLocation, calculateETA, CrewLocation } from '../lib/googleMaps';
 
 export function Crew() {

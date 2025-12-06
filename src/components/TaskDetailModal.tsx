@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { X, Navigation, CheckCircle, Camera, MessageCircle, Upload, ChevronUp, ChevronDown, Star, AlertTriangle, RefreshCw, MapPin } from 'lucide-react';
+import { X, Navigation, CheckCircle, Camera, MessageCircle, ChevronUp, ChevronDown, Star, AlertTriangle, RefreshCw } from 'lucide-react';
 import { formatCurrency } from '../lib/pricing';
 import { showAlert } from './CustomModal';
 import { getCurrentLocation, calculateETA } from '../lib/googleMaps';

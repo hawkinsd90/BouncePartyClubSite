@@ -54,11 +54,10 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
   }, [order.id]);
 
   async function loadOrderItems() {
-    const { data } = await supabase
+    await supabase
       .from('order_items')
       .select('*, units(name)')
       .eq('order_id', order.id);
-    if (data) setOrderItems(data);
   }
 
   async function loadSmsConversations() {
