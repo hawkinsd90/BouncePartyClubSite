@@ -99,7 +99,7 @@ export default function Sign() {
       setOrder(data as unknown as OrderData);
 
       // Auto-fill typed name and renter information from order
-      const customer = data.customers as any;
+      const customer = data.customer as any;
       const fullName = `${customer.first_name} ${customer.last_name}`;
       setTypedName(fullName);
       setRenterName(fullName);
@@ -109,7 +109,7 @@ export default function Sign() {
       setEventEndDate(data.end_date || '');
 
       // Auto-fill address from related address record
-      const address = data.addresses as any;
+      const address = data.address as any;
       if (address) {
         setEventAddressLine1(address.line1 || '');
         setEventAddressLine2(address.line2 || '');

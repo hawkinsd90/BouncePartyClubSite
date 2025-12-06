@@ -215,7 +215,7 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
       items: (itemsRes.data || []).map(item => ({
         ...item,
         units: item.units || undefined,
-      })) as OrderItem[],
+      })) as unknown as OrderItem[],
       discounts: discountsRes.data || [],
       customFees: feesRes.data || [],
       subtotal_cents: order.subtotal_cents,

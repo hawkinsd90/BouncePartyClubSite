@@ -75,7 +75,7 @@ export function Crew() {
   async function updateCheckpoint(
     stopId: string,
     checkpoint: string,
-    type: 'dropoff' | 'pickup'
+    _type: 'dropoff' | 'pickup'
   ) {
     try {
       const stop = stops.find((s) => s.id === stopId);

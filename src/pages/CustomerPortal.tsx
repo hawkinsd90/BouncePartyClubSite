@@ -843,7 +843,6 @@ export function CustomerPortal() {
   if (!isActive && !needsApproval) {
     // Show invoice acceptance for draft orders (regardless of URL)
     if (order.status === 'draft') {
-      const depositCents = invoiceLink?.deposit_cents ?? order.deposit_due_cents ?? 0;
       const needsCustomerInfo = invoiceLink && !invoiceLink.customer_filled;
 
       return (

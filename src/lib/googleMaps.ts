@@ -40,7 +40,7 @@ export function loadGoogleMapsAPI(): Promise<void> {
         isLoading = false;
         resolve();
       });
-      existingScript.addEventListener('error', (e) => {
+      existingScript.addEventListener('error', () => {
         isLoading = false;
         reject(new Error('Google Maps script failed to load'));
       });

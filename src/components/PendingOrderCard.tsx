@@ -9,7 +9,6 @@ import { Edit2, X } from 'lucide-react';
 
 export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => void }) {
   const [processing, setProcessing] = useState(false);
-  const [orderItems, setOrderItems] = useState<any[]>([]);
   const [smsConversations, setSmsConversations] = useState<any[]>([]);
   const [showSmsReply, setShowSmsReply] = useState(false);
   const [replyMessage, setReplyMessage] = useState('');

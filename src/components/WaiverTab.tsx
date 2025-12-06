@@ -7,9 +7,10 @@ import { format } from 'date-fns';
 interface WaiverTabProps {
   orderId: string;
   order: any;
+  onWaiverChange?: () => void;
 }
 
-export default function WaiverTab({ orderId, order }: WaiverTabProps) {
+export default function WaiverTab({ orderId }: WaiverTabProps) {
   const navigate = useNavigate();
   const [signatureData, setSignatureData] = useState<any>(null);
   const [loading, setLoading] = useState(true);

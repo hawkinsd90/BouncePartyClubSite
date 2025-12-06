@@ -21,8 +21,6 @@ export function InvoiceBuilder() {
   const [customFees, setCustomFees] = useState<any[]>([]);
   const [newCustomFee, setNewCustomFee] = useState({ name: '', amount_cents: 0 });
   const [customFeeInput, setCustomFeeInput] = useState('0.00');
-  const [savedDiscountTemplates, setSavedDiscountTemplates] = useState<any[]>([]);
-  const [savedFeeTemplates, setSavedFeeTemplates] = useState<any[]>([]);
   const [saveDiscountAsTemplate, setSaveDiscountAsTemplate] = useState(false);
   const [saveFeeAsTemplate, setSaveFeeAsTemplate] = useState(false);
   const [adminMessage, setAdminMessage] = useState('');

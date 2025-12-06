@@ -1,6 +1,4 @@
-import { supabase } from './supabase';
-
-async function reportError(error: Error | string, additionalInfo?: Record<string, any>) {
+async function reportError(error: Error | string, _additionalInfo?: Record<string, any>) {
   try {
     const errorMessage = typeof error === 'string' ? error : error.message;
     const errorStack = typeof error === 'string' ? undefined : error.stack;
