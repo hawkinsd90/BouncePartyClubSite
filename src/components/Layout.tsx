@@ -106,13 +106,18 @@ export function Layout() {
               </a>
               <div className="hidden md:flex items-center space-x-4">
                 {user ? (
-                  <button
-                    onClick={handleSignOut}
-                    className="flex items-center text-slate-600 hover:text-blue-600 transition-colors min-h-[44px] px-2"
-                  >
-                    <LogOut className="w-5 h-5 mr-2" />
-                    <span className="font-medium">Sign Out</span>
-                  </button>
+                  <div className="flex items-center space-x-3">
+                    <span className="text-sm text-slate-600 font-medium">
+                      {user.email}
+                    </span>
+                    <button
+                      onClick={handleSignOut}
+                      className="flex items-center text-slate-600 hover:text-blue-600 transition-colors min-h-[44px] px-2"
+                    >
+                      <LogOut className="w-5 h-5 mr-2" />
+                      <span className="font-medium">Sign Out</span>
+                    </button>
+                  </div>
                 ) : (
                   <Link
                     to="/login"
@@ -199,16 +204,21 @@ export function Layout() {
                   <span className="font-medium">(313) 889-3860</span>
                 </a>
                 {user ? (
-                  <button
-                    onClick={() => {
-                      handleSignOut();
-                      setMobileMenuOpen(false);
-                    }}
-                    className="flex items-center text-slate-600 hover:text-blue-600 py-3 px-2 transition-colors w-full text-left min-h-[44px] rounded-lg hover:bg-blue-50"
-                  >
-                    <LogOut className="w-5 h-5 mr-3" />
-                    <span className="font-medium">Sign Out</span>
-                  </button>
+                  <>
+                    <div className="py-3 px-2 text-sm text-slate-600 font-medium">
+                      {user.email}
+                    </div>
+                    <button
+                      onClick={() => {
+                        handleSignOut();
+                        setMobileMenuOpen(false);
+                      }}
+                      className="flex items-center text-slate-600 hover:text-blue-600 py-3 px-2 transition-colors w-full text-left min-h-[44px] rounded-lg hover:bg-blue-50"
+                    >
+                      <LogOut className="w-5 h-5 mr-3" />
+                      <span className="font-medium">Sign Out</span>
+                    </button>
+                  </>
                 ) : (
                   <Link
                     to="/login"
