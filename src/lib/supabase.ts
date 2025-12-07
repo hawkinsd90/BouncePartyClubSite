@@ -18,4 +18,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
 const finalUrl = supabaseUrl || 'https://placeholder.supabase.co';
 const finalKey = supabaseAnonKey || 'placeholder-key';
 
-export const supabase = createClient<Database>(finalUrl, finalKey);
+export const supabase = createClient<Database>(finalUrl, finalKey, {
+  auth: {
+    persistSession: true,
+    storageKey: 'bpc-auth',
+    storage: window.localStorage,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});
