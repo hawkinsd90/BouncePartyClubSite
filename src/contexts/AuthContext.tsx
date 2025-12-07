@@ -26,20 +26,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   async function loadUserRoles(userId: string) {
-    const { data, error } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId);
+    console.log('[Auth] Loading roles for user:', userId);
 
-    if (!error && data) {
-      const userRoles = data.map(r => r.role);
-      setRoles(userRoles);
+    try {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId);
 
-      // Set primary role (highest in hierarchy)
-      const roleHierarchy = ['MASTER', 'ADMIN', 'CREW', 'CUSTOMER'];
-      const highestRole = roleHierarchy.find(r => userRoles.includes(r)) as UserRole;
-      setRole(highestRole || 'CUSTOMER');
-    } else {
+      console.log('[Auth] Roles query result:', { data, error });
+
+      if (!error && data) {
+        const userRoles = data.map(r => r.role);
+        console.log('[Auth] User roles:', userRoles);
+        setRoles(userRoles);
+
+        // Set primary role (highest in hierarchy)
+        const roleHierarchy = ['MASTER', 'ADMIN', 'CREW', 'CUSTOMER'];
+        const highestRole = roleHierarchy.find(r => userRoles.includes(r)) as UserRole;
+        setRole(highestRole || 'CUSTOMER');
+        console.log('[Auth] Primary role set to:', highestRole || 'CUSTOMER');
+      } else {
+        console.warn('[Auth] No roles found or error occurred, defaulting to CUSTOMER');
+        setRoles([]);
+        setRole('CUSTOMER');
+      }
+    } catch (err) {
+      console.error('[Auth] Exception loading roles:', err);
       setRoles([]);
       setRole('CUSTOMER');
     }
@@ -47,16 +60,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      console.log('[Auth] Initial session check:', session?.user?.id);
       setUser(session?.user ?? null);
       if (session?.user) {
         await loadUserRoles(session.user.id);
       }
+      setLoading(false);
+    }).catch(err => {
+      console.error('[Auth] Error getting initial session:', err);
       setLoading(false);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      console.log('[Auth] Auth state changed:', _event, session?.user?.id);
       setUser(session?.user ?? null);
       if (session?.user) {
         await loadUserRoles(session.user.id);
