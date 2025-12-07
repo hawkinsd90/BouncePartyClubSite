@@ -36,16 +36,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('user_id', userId)
         .maybeSingle();
 
-      console.log('[Auth] Roles query result:', { data, error, userId });
+      console.log('[Auth] Roles query result:', JSON.stringify({ data, error, userId }));
 
       if (!error && data?.role) {
         const userRole = data.role as string;
-        console.log('[Auth] User role:', userRole);
+        console.log('[Auth] Setting user role to:', userRole);
         setRoles([userRole]);
         setRole(userRole as UserRole);
-        console.log('[Auth] Role set to:', userRole);
+        console.log('[Auth] State updated - role:', userRole, 'roles:', [userRole]);
       } else {
-        console.warn('[Auth] No role found or error occurred:', error, 'defaulting to MASTER');
+        console.warn('[Auth] No role found, error:', JSON.stringify(error), 'defaulting to MASTER');
         setRoles(['MASTER']);
         setRole('MASTER');
       }
