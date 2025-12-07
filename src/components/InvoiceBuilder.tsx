@@ -140,13 +140,10 @@ export function InvoiceBuilder() {
   }
 
   async function loadSavedTemplates() {
-    const [discountsRes, feesRes] = await Promise.all([
+    await Promise.all([
       supabase.from('saved_discount_templates').select('*').order('name'),
       supabase.from('saved_fee_templates').select('*').order('name'),
     ]);
-
-    if (discountsRes.data) setSavedDiscountTemplates(discountsRes.data);
-    if (feesRes.data) setSavedFeeTemplates(feesRes.data);
   }
 
   async function calculatePricing() {
