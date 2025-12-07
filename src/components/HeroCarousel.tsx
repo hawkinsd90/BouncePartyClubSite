@@ -26,6 +26,7 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
   const [editingMedia, setEditingMedia] = useState<CarouselMedia | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [uploadMethod, setUploadMethod] = useState<'file' | 'url'>('file');
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -55,20 +56,27 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
   async function loadMedia() {
     try {
       setLoading(true);
+      setError(null);
+      console.log('[Carousel] Loading media...');
+
       const { data, error } = await supabase
         .from('hero_carousel_images')
         .select('*')
         .eq('is_active', true)
         .order('display_order');
 
+      console.log('[Carousel] Query result:', { data, error });
+
       if (error) {
-        console.error('Error loading carousel:', error);
+        console.error('[Carousel] Error loading carousel:', error);
+        setError(`Error: ${error.message}`);
         setMedia([]);
         setLoading(false);
         return;
       }
 
       if (data) {
+        console.log(`[Carousel] Found ${data.length} items`);
         const mediaWithUrls = await Promise.all(
           data.map(async (item) => {
             if (item.storage_path) {
@@ -81,10 +89,12 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
           })
         );
         setMedia(mediaWithUrls);
+        console.log('[Carousel] Media loaded successfully');
       }
       setLoading(false);
     } catch (err) {
-      console.error('Exception loading carousel:', err);
+      console.error('[Carousel] Exception loading carousel:', err);
+      setError(`Exception: ${err instanceof Error ? err.message : String(err)}`);
       setMedia([]);
       setLoading(false);
     }
@@ -242,7 +252,24 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
   if (loading) {
     return (
       <div className="w-full h-96 bg-slate-200 animate-pulse flex items-center justify-center">
-        <p className="text-slate-500">Loading...</p>
+        <p className="text-slate-500">Loading carousel...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="w-full h-96 bg-red-50 flex items-center justify-center">
+        <div className="text-center p-4">
+          <p className="text-red-600 font-semibold mb-2">Failed to load carousel</p>
+          <p className="text-red-500 text-sm">{error}</p>
+          <button
+            onClick={loadMedia}
+            className="mt-4 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
