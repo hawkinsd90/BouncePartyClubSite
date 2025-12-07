@@ -29,38 +29,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('[Auth] Loading roles for user:', userId);
 
     try {
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Roles query timeout')), 10000)
-      );
+      // Use RPC call instead of direct query to avoid hanging
+      const { data, error } = await supabase.rpc('get_user_role', {
+        user_id_input: userId
+      });
 
-      const queryPromise = supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId);
-
-      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
-
-      console.log('[Auth] Roles query result:', { data, error, userId });
+      console.log('[Auth] Roles RPC result:', { data, error, userId });
 
       if (!error && data) {
-        const userRoles = data.map((r: any) => r.role);
-        console.log('[Auth] User roles:', userRoles);
-        setRoles(userRoles);
-
-        // Set primary role (highest in hierarchy)
-        const roleHierarchy = ['MASTER', 'ADMIN', 'CREW', 'CUSTOMER'];
-        const highestRole = roleHierarchy.find(r => userRoles.includes(r)) as UserRole;
-        setRole(highestRole || 'CUSTOMER');
-        console.log('[Auth] Primary role set to:', highestRole || 'CUSTOMER');
+        const userRole = data as string;
+        console.log('[Auth] User role:', userRole);
+        setRoles([userRole]);
+        setRole(userRole as UserRole);
+        console.log('[Auth] Role set to:', userRole);
       } else {
-        console.warn('[Auth] No roles found or error occurred:', error, 'defaulting to CUSTOMER');
-        setRoles([]);
+        console.warn('[Auth] No role found or error occurred:', error, 'defaulting to CUSTOMER');
+        setRoles(['CUSTOMER']);
         setRole('CUSTOMER');
       }
     } catch (err) {
       console.error('[Auth] Exception loading roles:', err);
-      setRoles([]);
+      setRoles(['CUSTOMER']);
       setRole('CUSTOMER');
     }
   }
