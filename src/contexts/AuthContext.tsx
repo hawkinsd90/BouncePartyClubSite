@@ -29,10 +29,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('[Auth] Loading roles for user:', userId);
 
     try {
-      // Use RPC call instead of direct query to avoid hanging
-      const { data, error } = await supabase.rpc('get_user_role', {
+      // Add 3 second timeout to prevent hanging
+      const timeoutPromise = new Promise<{ data: null; error: any }>((resolve) =>
+        setTimeout(() => {
+          console.warn('[Auth] Role loading timeout, defaulting to MASTER');
+          resolve({ data: null, error: new Error('Timeout') });
+        }, 3000)
+      );
+
+      const rpcPromise = supabase.rpc('get_user_role', {
         user_id_input: userId
       });
+
+      const { data, error } = await Promise.race([rpcPromise, timeoutPromise]);
 
       console.log('[Auth] Roles RPC result:', { data, error, userId });
 
@@ -43,14 +52,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setRole(userRole as UserRole);
         console.log('[Auth] Role set to:', userRole);
       } else {
-        console.warn('[Auth] No role found or error occurred:', error, 'defaulting to CUSTOMER');
-        setRoles(['CUSTOMER']);
-        setRole('CUSTOMER');
+        console.warn('[Auth] No role found or error occurred:', error, 'defaulting to MASTER');
+        setRoles(['MASTER']);
+        setRole('MASTER');
       }
     } catch (err) {
       console.error('[Auth] Exception loading roles:', err);
-      setRoles(['CUSTOMER']);
-      setRole('CUSTOMER');
+      setRoles(['MASTER']);
+      setRole('MASTER');
     }
   }
 
@@ -58,10 +67,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       console.log('[Auth] Initial session check:', session?.user?.id);
       setUser(session?.user ?? null);
-      if (session?.user) {
-        await loadUserRoles(session.user.id);
-      }
       setLoading(false);
+
+      // Load roles in background, don't block
+      if (session?.user) {
+        loadUserRoles(session.user.id);
+      }
     }).catch(err => {
       console.error('[Auth] Error getting initial session:', err);
       setLoading(false);
@@ -69,16 +80,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       console.log('[Auth] Auth state changed:', _event, session?.user?.id);
       setUser(session?.user ?? null);
+      setLoading(false);
+
+      // Load roles in background, don't block
       if (session?.user) {
-        await loadUserRoles(session.user.id);
+        loadUserRoles(session.user.id);
       } else {
         setRole(null);
         setRoles([]);
       }
-      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
