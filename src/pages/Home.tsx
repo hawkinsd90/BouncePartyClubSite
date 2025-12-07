@@ -40,41 +40,42 @@ export function Home() {
 
   return (
     <div className="relative">
-      {/* Admin Test Booking Button - Floating */}
-      {role === 'ADMIN' && (
-        <button
-          onClick={async () => {
-            console.log('🎬 [HOME] Create Test Booking button clicked');
+      <HeroCarousel
+        adminControls={
+          role === 'ADMIN' ? (
+            <button
+              onClick={async () => {
+                console.log('🎬 [HOME] Create Test Booking button clicked');
 
-            console.log('🧹 [HOME] Clearing existing localStorage data...');
-            localStorage.removeItem('bpc_cart');
-            localStorage.removeItem('bpc_quote_form');
-            localStorage.removeItem('bpc_price_breakdown');
-            localStorage.removeItem('bpc_contact_data');
-            localStorage.removeItem('test_booking_tip');
+                console.log('🧹 [HOME] Clearing existing localStorage data...');
+                localStorage.removeItem('bpc_cart');
+                localStorage.removeItem('bpc_quote_form');
+                localStorage.removeItem('bpc_price_breakdown');
+                localStorage.removeItem('bpc_contact_data');
+                localStorage.removeItem('test_booking_tip');
 
-            setCreatingTestBooking(true);
-            console.log('⏳ [HOME] Calling createTestBooking()...');
-            const result = await createTestBooking();
-            console.log('📊 [HOME] createTestBooking() result:', result);
-            setCreatingTestBooking(false);
-            if (result.success) {
-              console.log('✅ [HOME] Test booking created successfully, navigating to /checkout');
-              navigate('/checkout');
-            } else {
-              console.error('❌ [HOME] Test booking failed:', result.error);
-              alert('Failed to create test booking: ' + result.error);
-            }
-          }}
-          disabled={creatingTestBooking}
-          className="fixed top-20 left-4 sm:left-auto sm:right-4 z-50 flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-3 sm:px-4 py-2 rounded-lg font-semibold transition-colors text-xs sm:text-sm shadow-lg"
-        >
-          <Zap className="w-3 h-3 sm:w-4 sm:h-4" />
-          {creatingTestBooking ? 'Creating...' : 'Create Test Booking'}
-        </button>
-      )}
-      <div>
-      <HeroCarousel />
+                setCreatingTestBooking(true);
+                console.log('⏳ [HOME] Calling createTestBooking()...');
+                const result = await createTestBooking();
+                console.log('📊 [HOME] createTestBooking() result:', result);
+                setCreatingTestBooking(false);
+                if (result.success) {
+                  console.log('✅ [HOME] Test booking created successfully, navigating to /checkout');
+                  navigate('/checkout');
+                } else {
+                  console.error('❌ [HOME] Test booking failed:', result.error);
+                  alert('Failed to create test booking: ' + result.error);
+                }
+              }}
+              disabled={creatingTestBooking}
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-3 sm:px-4 py-2 rounded-lg inline-flex items-center gap-2 font-semibold transition-colors text-xs sm:text-sm"
+            >
+              <Zap className="w-3 h-3 sm:w-4 sm:h-4" />
+              {creatingTestBooking ? 'Creating...' : 'Create Test Booking'}
+            </button>
+          ) : undefined
+        }
+      />
 
       <section className="relative bg-gradient-to-br from-blue-600 to-cyan-500 text-white">
         <div className="absolute inset-0 bg-black opacity-10"></div>
@@ -258,7 +259,6 @@ export function Home() {
           </div>
         </div>
       </section>
-      </div>
     </div>
   );
 }

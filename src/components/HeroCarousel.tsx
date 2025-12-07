@@ -14,7 +14,11 @@ interface CarouselMedia {
   is_active: boolean;
 }
 
-export function HeroCarousel() {
+interface HeroCarouselProps {
+  adminControls?: React.ReactNode;
+}
+
+export function HeroCarousel({ adminControls }: HeroCarouselProps) {
   const { role } = useAuth();
   const [media, setMedia] = useState<CarouselMedia[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -255,10 +259,11 @@ export function HeroCarousel() {
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
       <div className="relative">
         {role === 'ADMIN' && (
-          <div className="flex justify-end gap-2 mb-4">
+          <div className="flex flex-wrap justify-end gap-2 mb-4">
+            {adminControls}
             <button
               onClick={() => setIsEditMode(!isEditMode)}
-              className="bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-2 text-sm"
+              className="bg-slate-600 hover:bg-slate-700 text-white px-3 sm:px-4 py-2 rounded-lg inline-flex items-center gap-2 text-xs sm:text-sm"
             >
               {isEditMode ? <X className="w-4 h-4" /> : <Edit2 className="w-4 h-4" />}
               {isEditMode ? 'Exit Edit Mode' : 'Edit Carousel'}
@@ -266,7 +271,7 @@ export function HeroCarousel() {
             {isEditMode && (
               <button
                 onClick={() => setShowAddForm(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-2 text-sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3 sm:px-4 py-2 rounded-lg inline-flex items-center gap-2 text-xs sm:text-sm"
               >
                 <Plus className="w-4 h-4" />
                 Add Media
