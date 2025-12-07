@@ -59,20 +59,30 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
       setError(null);
       console.log('[Carousel] Loading media...');
       console.log('[Carousel] Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
+      console.log('[Carousel] Has anon key:', !!import.meta.env.VITE_SUPABASE_ANON_KEY);
+
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/hero_carousel_images?is_active=eq.true&order=display_order`;
+      console.log('[Carousel] Trying direct fetch to:', url);
 
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Query timeout after 10 seconds')), 10000)
       );
 
-      const queryPromise = supabase
-        .from('hero_carousel_images')
-        .select('*')
-        .eq('is_active', true)
-        .order('display_order');
+      const fetchPromise = fetch(url, {
+        headers: {
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+      }).then(res => {
+        console.log('[Carousel] Fetch response status:', res.status);
+        return res.json();
+      });
 
-      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+      const data = await Promise.race([fetchPromise, timeoutPromise]) as any;
 
-      console.log('[Carousel] Query result:', { data, error });
+      console.log('[Carousel] Query result:', { data });
+
+      const error = null;
 
       if (error) {
         console.error('[Carousel] Error loading carousel:', error);
