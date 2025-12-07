@@ -29,15 +29,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('[Auth] Loading roles for user:', userId);
 
     try {
-      const { data, error } = await supabase
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Roles query timeout')), 10000)
+      );
+
+      const queryPromise = supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', userId);
 
-      console.log('[Auth] Roles query result:', { data, error });
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+
+      console.log('[Auth] Roles query result:', { data, error, userId });
 
       if (!error && data) {
-        const userRoles = data.map(r => r.role);
+        const userRoles = data.map((r: any) => r.role);
         console.log('[Auth] User roles:', userRoles);
         setRoles(userRoles);
 
@@ -47,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setRole(highestRole || 'CUSTOMER');
         console.log('[Auth] Primary role set to:', highestRole || 'CUSTOMER');
       } else {
-        console.warn('[Auth] No roles found or error occurred, defaulting to CUSTOMER');
+        console.warn('[Auth] No roles found or error occurred:', error, 'defaulting to CUSTOMER');
         setRoles([]);
         setRole('CUSTOMER');
       }
