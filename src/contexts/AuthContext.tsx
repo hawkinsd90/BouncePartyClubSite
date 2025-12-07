@@ -29,24 +29,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('[Auth] Loading roles for user:', userId);
 
     try {
-      // Add 3 second timeout to prevent hanging
-      const timeoutPromise = new Promise<{ data: null; error: any }>((resolve) =>
-        setTimeout(() => {
-          console.warn('[Auth] Role loading timeout, defaulting to MASTER');
-          resolve({ data: null, error: new Error('Timeout') });
-        }, 3000)
-      );
+      // Query the table directly instead of using RPC
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .maybeSingle();
 
-      const rpcPromise = supabase.rpc('get_user_role', {
-        user_id_input: userId
-      });
+      console.log('[Auth] Roles query result:', { data, error, userId });
 
-      const { data, error } = await Promise.race([rpcPromise, timeoutPromise]);
-
-      console.log('[Auth] Roles RPC result:', { data, error, userId });
-
-      if (!error && data) {
-        const userRole = data as string;
+      if (!error && data?.role) {
+        const userRole = data.role as string;
         console.log('[Auth] User role:', userRole);
         setRoles([userRole]);
         setRole(userRole as UserRole);
