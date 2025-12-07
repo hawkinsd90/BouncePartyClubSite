@@ -8,7 +8,7 @@ import { createTestBooking } from '../lib/testBooking';
 
 export function Home() {
   const navigate = useNavigate();
-  const { role } = useAuth();
+  const { isAdmin } = useAuth();
   const [eventDate, setEventDate] = useState('');
   const [addressData, setAddressData] = useState<any>(null);
   const [locationType, setLocationType] = useState<'residential' | 'commercial'>('residential');
@@ -42,7 +42,7 @@ export function Home() {
     <div className="relative">
       <HeroCarousel
         adminControls={
-          role === 'ADMIN' ? (
+          isAdmin ? (
             <button
               onClick={async () => {
                 console.log('🎬 [HOME] Create Test Booking button clicked');

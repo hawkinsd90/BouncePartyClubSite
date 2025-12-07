@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useState, useEffect } from 'react';
 
 export function Layout() {
-  const { user, role, signOut } = useAuth();
+  const { user, isAdmin, hasRole, signOut } = useAuth();
   const navigate = useNavigate();
   const [cartCount, setCartCount] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -78,7 +78,7 @@ export function Layout() {
               >
                 About Us
               </Link>
-              {role === 'ADMIN' && (
+              {isAdmin && (
                 <Link
                   to="/admin"
                   className="text-slate-700 hover:text-blue-600 font-medium transition-colors"
@@ -86,7 +86,7 @@ export function Layout() {
                   Admin
                 </Link>
               )}
-              {(role === 'ADMIN' || role === 'CREW') && (
+              {(isAdmin || hasRole('CREW')) && (
                 <Link
                   to="/crew"
                   className="text-slate-700 hover:text-blue-600 font-medium transition-colors"
@@ -172,7 +172,7 @@ export function Layout() {
               >
                 About Us
               </Link>
-              {role === 'ADMIN' && (
+              {isAdmin && (
                 <Link
                   to="/admin"
                   className="block text-slate-700 hover:text-blue-600 font-medium py-3 px-2 transition-colors text-base rounded-lg hover:bg-blue-50"
@@ -181,7 +181,7 @@ export function Layout() {
                   Admin
                 </Link>
               )}
-              {(role === 'ADMIN' || role === 'CREW') && (
+              {(isAdmin || hasRole('CREW')) && (
                 <Link
                   to="/crew"
                   className="block text-slate-700 hover:text-blue-600 font-medium py-3 px-2 transition-colors text-base rounded-lg hover:bg-blue-50"
