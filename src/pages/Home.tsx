@@ -67,9 +67,9 @@ export function Home() {
             }
           }}
           disabled={creatingTestBooking}
-          className="fixed top-20 right-4 z-50 flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg font-semibold transition-colors text-sm shadow-lg"
+          className="fixed top-20 left-4 sm:left-auto sm:right-4 z-50 flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-3 sm:px-4 py-2 rounded-lg font-semibold transition-colors text-xs sm:text-sm shadow-lg"
         >
-          <Zap className="w-4 h-4" />
+          <Zap className="w-3 h-3 sm:w-4 sm:h-4" />
           {creatingTestBooking ? 'Creating...' : 'Create Test Booking'}
         </button>
       )}
