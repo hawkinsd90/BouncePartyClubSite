@@ -53,28 +53,41 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
   }, [media.length]);
 
   async function loadMedia() {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('hero_carousel_images')
-      .select('*')
-      .eq('is_active', true)
-      .order('display_order');
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('hero_carousel_images')
+        .select('*')
+        .eq('is_active', true)
+        .order('display_order');
 
-    if (!error && data) {
-      const mediaWithUrls = await Promise.all(
-        data.map(async (item) => {
-          if (item.storage_path) {
-            const { data: urlData } = supabase.storage
-              .from('carousel-media')
-              .getPublicUrl(item.storage_path);
-            return { ...item, image_url: urlData.publicUrl };
-          }
-          return item;
-        })
-      );
-      setMedia(mediaWithUrls);
+      if (error) {
+        console.error('Error loading carousel:', error);
+        setMedia([]);
+        setLoading(false);
+        return;
+      }
+
+      if (data) {
+        const mediaWithUrls = await Promise.all(
+          data.map(async (item) => {
+            if (item.storage_path) {
+              const { data: urlData } = supabase.storage
+                .from('carousel-media')
+                .getPublicUrl(item.storage_path);
+              return { ...item, image_url: urlData.publicUrl };
+            }
+            return item;
+          })
+        );
+        setMedia(mediaWithUrls);
+      }
+      setLoading(false);
+    } catch (err) {
+      console.error('Exception loading carousel:', err);
+      setMedia([]);
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   async function handleFileUpload() {
