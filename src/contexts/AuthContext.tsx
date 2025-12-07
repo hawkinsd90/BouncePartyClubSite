@@ -100,8 +100,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    setRole(null);
+    setRoles([]);
+    setUser(null);
     const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase sign out error:', error);
+      throw error;
+    }
   };
 
   const hasRole = (checkRole: string): boolean => {
