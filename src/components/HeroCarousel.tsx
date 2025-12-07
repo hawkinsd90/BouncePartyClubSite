@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { ChevronLeft, ChevronRight, Plus, Trash2, Edit2, Save, X, MoveUp, MoveDown } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Trash2, Edit2, Save, X, MoveUp, MoveDown, Upload, Link as LinkIcon } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
-interface CarouselImage {
+interface CarouselMedia {
   id: string;
   image_url: string;
+  media_type: 'image' | 'video';
+  storage_path: string | null;
   title: string | null;
   description: string | null;
   display_order: number;
@@ -14,29 +16,39 @@ interface CarouselImage {
 
 export function HeroCarousel() {
   const { role } = useAuth();
-  const [images, setImages] = useState<CarouselImage[]>([]);
+  const [media, setMedia] = useState<CarouselMedia[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isEditMode, setIsEditMode] = useState(false);
-  const [editingImage, setEditingImage] = useState<CarouselImage | null>(null);
-  const [newImage, setNewImage] = useState({ image_url: '', title: '', description: '' });
+  const [editingMedia, setEditingMedia] = useState<CarouselMedia | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [uploadMethod, setUploadMethod] = useState<'file' | 'url'>('file');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [newMedia, setNewMedia] = useState({
+    file: null as File | null,
+    url: '',
+    title: '',
+    description: '',
+    mediaType: 'image' as 'image' | 'video',
+  });
 
   useEffect(() => {
-    loadImages();
+    loadMedia();
   }, []);
 
   useEffect(() => {
-    if (images.length === 0) return;
+    if (media.length === 0) return;
 
     const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % images.length);
+      setCurrentIndex((prev) => (prev + 1) % media.length);
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [images.length]);
+  }, [media.length]);
 
-  async function loadImages() {
+  async function loadMedia() {
     setLoading(true);
     const { data, error } = await supabase
       .from('hero_carousel_images')
@@ -45,53 +57,109 @@ export function HeroCarousel() {
       .order('display_order');
 
     if (!error && data) {
-      setImages(data);
+      const mediaWithUrls = await Promise.all(
+        data.map(async (item) => {
+          if (item.storage_path) {
+            const { data: urlData } = supabase.storage
+              .from('carousel-media')
+              .getPublicUrl(item.storage_path);
+            return { ...item, image_url: urlData.publicUrl };
+          }
+          return item;
+        })
+      );
+      setMedia(mediaWithUrls);
     }
     setLoading(false);
   }
 
-  async function addImage() {
-    if (!newImage.image_url.trim()) return;
+  async function handleFileUpload() {
+    if (!newMedia.file) return;
 
-    const maxOrder = images.length > 0 ? Math.max(...images.map(img => img.display_order)) : 0;
+    setUploading(true);
+    const fileExt = newMedia.file.name.split('.').pop();
+    const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('carousel-media')
+      .upload(filePath, newMedia.file);
+
+    if (uploadError) {
+      alert('Failed to upload file: ' + uploadError.message);
+      setUploading(false);
+      return;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('carousel-media')
+      .getPublicUrl(filePath);
+
+    await addMediaToDatabase(urlData.publicUrl, filePath);
+    setUploading(false);
+  }
+
+  async function addMediaToDatabase(url: string, storagePath: string | null = null) {
+    const maxOrder = media.length > 0 ? Math.max(...media.map(m => m.display_order)) : 0;
 
     const { error } = await supabase
       .from('hero_carousel_images')
       .insert({
-        image_url: newImage.image_url,
-        title: newImage.title || null,
-        description: newImage.description || null,
+        image_url: url,
+        media_type: newMedia.mediaType,
+        storage_path: storagePath,
+        title: newMedia.title || null,
+        description: newMedia.description || null,
         display_order: maxOrder + 1,
         is_active: true,
       });
 
     if (!error) {
-      setNewImage({ image_url: '', title: '', description: '' });
+      setNewMedia({ file: null, url: '', title: '', description: '', mediaType: 'image' });
       setShowAddForm(false);
-      loadImages();
+      loadMedia();
+    } else {
+      alert('Failed to add media: ' + error.message);
     }
   }
 
-  async function updateImage() {
-    if (!editingImage) return;
+  async function handleAddMedia() {
+    if (uploadMethod === 'file') {
+      await handleFileUpload();
+    } else {
+      if (!newMedia.url.trim()) {
+        alert('Please enter a URL');
+        return;
+      }
+      await addMediaToDatabase(newMedia.url);
+    }
+  }
+
+  async function updateMedia() {
+    if (!editingMedia) return;
 
     const { error } = await supabase
       .from('hero_carousel_images')
       .update({
-        image_url: editingImage.image_url,
-        title: editingImage.title || null,
-        description: editingImage.description || null,
+        title: editingMedia.title || null,
+        description: editingMedia.description || null,
       })
-      .eq('id', editingImage.id);
+      .eq('id', editingMedia.id);
 
     if (!error) {
-      setEditingImage(null);
-      loadImages();
+      setEditingMedia(null);
+      loadMedia();
     }
   }
 
-  async function deleteImage(id: string) {
-    if (!confirm('Are you sure you want to delete this image?')) return;
+  async function deleteMedia(id: string, storagePath: string | null) {
+    if (!confirm('Are you sure you want to delete this media?')) return;
+
+    if (storagePath) {
+      await supabase.storage
+        .from('carousel-media')
+        .remove([storagePath]);
+    }
 
     const { error } = await supabase
       .from('hero_carousel_images')
@@ -99,35 +167,35 @@ export function HeroCarousel() {
       .eq('id', id);
 
     if (!error) {
-      loadImages();
-      if (currentIndex >= images.length - 1) {
+      loadMedia();
+      if (currentIndex >= media.length - 1) {
         setCurrentIndex(0);
       }
     }
   }
 
-  async function moveImage(id: string, direction: 'up' | 'down') {
-    const currentImage = images.find(img => img.id === id);
-    if (!currentImage) return;
+  async function moveMedia(id: string, direction: 'up' | 'down') {
+    const currentMedia = media.find(m => m.id === id);
+    if (!currentMedia) return;
 
     const targetOrder = direction === 'up'
-      ? currentImage.display_order - 1
-      : currentImage.display_order + 1;
+      ? currentMedia.display_order - 1
+      : currentMedia.display_order + 1;
 
-    const targetImage = images.find(img => img.display_order === targetOrder);
-    if (!targetImage) return;
+    const targetMedia = media.find(m => m.display_order === targetOrder);
+    if (!targetMedia) return;
 
     await supabase
       .from('hero_carousel_images')
       .update({ display_order: targetOrder })
-      .eq('id', currentImage.id);
+      .eq('id', currentMedia.id);
 
     await supabase
       .from('hero_carousel_images')
-      .update({ display_order: currentImage.display_order })
-      .eq('id', targetImage.id);
+      .update({ display_order: currentMedia.display_order })
+      .eq('id', targetMedia.id);
 
-    loadImages();
+    loadMedia();
   }
 
   const goToSlide = (index: number) => {
@@ -135,11 +203,23 @@ export function HeroCarousel() {
   };
 
   const goToPrevious = () => {
-    setCurrentIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
+    setCurrentIndex((prev) => (prev === 0 ? media.length - 1 : prev - 1));
   };
 
   const goToNext = () => {
-    setCurrentIndex((prev) => (prev + 1) % images.length);
+    setCurrentIndex((prev) => (prev + 1) % media.length);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const isVideo = file.type.startsWith('video/');
+    setNewMedia({
+      ...newMedia,
+      file,
+      mediaType: isVideo ? 'video' : 'image',
+    });
   };
 
   if (loading) {
@@ -150,79 +230,22 @@ export function HeroCarousel() {
     );
   }
 
-  if (images.length === 0 && role !== 'ADMIN') {
+  if (media.length === 0 && role !== 'ADMIN') {
     return null;
   }
 
-  if (images.length === 0 && role === 'ADMIN') {
+  if (media.length === 0 && role === 'ADMIN') {
     return (
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-slate-100 rounded-lg p-8 text-center">
-          <p className="text-slate-600 mb-4">No carousel images yet. Add your first image!</p>
+          <p className="text-slate-600 mb-4">No carousel media yet. Add your first image or video!</p>
           <button
             onClick={() => setShowAddForm(true)}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            Add First Image
+            Add First Media
           </button>
-          {showAddForm && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg p-6 max-w-md w-full">
-                <h3 className="text-xl font-bold mb-4">Add Carousel Image</h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Image URL
-                    </label>
-                    <input
-                      type="text"
-                      value={newImage.image_url}
-                      onChange={(e) => setNewImage({ ...newImage, image_url: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                      placeholder="https://images.pexels.com/..."
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Title (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={newImage.title}
-                      onChange={(e) => setNewImage({ ...newImage, title: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Description (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={newImage.description}
-                      onChange={(e) => setNewImage({ ...newImage, description: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={addImage}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
-                    >
-                      Add Image
-                    </button>
-                    <button
-                      onClick={() => setShowAddForm(false)}
-                      className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-lg"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </section>
     );
@@ -246,7 +269,7 @@ export function HeroCarousel() {
                 className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-2 text-sm"
               >
                 <Plus className="w-4 h-4" />
-                Add Image
+                Add Media
               </button>
             )}
           </div>
@@ -254,26 +277,37 @@ export function HeroCarousel() {
 
         <div className="relative rounded-xl overflow-hidden shadow-2xl">
           <div className="relative h-96 sm:h-[500px]">
-            {images.map((image, index) => (
+            {media.map((item, index) => (
               <div
-                key={image.id}
+                key={item.id}
                 className={`absolute inset-0 transition-opacity duration-1000 ${
                   index === currentIndex ? 'opacity-100' : 'opacity-0'
                 }`}
               >
-                <img
-                  src={image.image_url}
-                  alt={image.title || 'Carousel image'}
-                  className="w-full h-full object-cover"
-                />
+                {item.media_type === 'video' ? (
+                  <video
+                    src={item.image_url}
+                    className="w-full h-full object-cover"
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                  />
+                ) : (
+                  <img
+                    src={item.image_url}
+                    alt={item.title || 'Carousel media'}
+                    className="w-full h-full object-cover"
+                  />
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
-                {(image.title || image.description) && (
+                {(item.title || item.description) && (
                   <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8 text-white">
-                    {image.title && (
-                      <h3 className="text-2xl sm:text-4xl font-bold mb-2">{image.title}</h3>
+                    {item.title && (
+                      <h3 className="text-2xl sm:text-4xl font-bold mb-2">{item.title}</h3>
                     )}
-                    {image.description && (
-                      <p className="text-lg sm:text-xl text-white/90">{image.description}</p>
+                    {item.description && (
+                      <p className="text-lg sm:text-xl text-white/90">{item.description}</p>
                     )}
                   </div>
                 )}
@@ -281,7 +315,7 @@ export function HeroCarousel() {
             ))}
           </div>
 
-          {images.length > 1 && (
+          {media.length > 1 && (
             <>
               <button
                 onClick={goToPrevious}
@@ -299,7 +333,7 @@ export function HeroCarousel() {
               </button>
 
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
-                {images.map((_, index) => (
+                {media.map((_, index) => (
                   <button
                     key={index}
                     onClick={() => goToSlide(index)}
@@ -318,40 +352,53 @@ export function HeroCarousel() {
 
         {isEditMode && (
           <div className="mt-4 space-y-2">
-            {images.map((image, index) => (
-              <div key={image.id} className="bg-white border border-slate-200 rounded-lg p-4 flex items-center gap-4">
-                <img
-                  src={image.image_url}
-                  alt={image.title || 'Carousel image'}
-                  className="w-24 h-16 object-cover rounded"
-                />
+            {media.map((item, index) => (
+              <div key={item.id} className="bg-white border border-slate-200 rounded-lg p-4 flex items-center gap-4">
+                {item.media_type === 'video' ? (
+                  <video
+                    src={item.image_url}
+                    className="w-24 h-16 object-cover rounded"
+                    muted
+                  />
+                ) : (
+                  <img
+                    src={item.image_url}
+                    alt={item.title || 'Carousel media'}
+                    className="w-24 h-16 object-cover rounded"
+                  />
+                )}
                 <div className="flex-1">
-                  <p className="font-medium">{image.title || 'Untitled'}</p>
-                  <p className="text-sm text-slate-500">{image.description || 'No description'}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">{item.title || 'Untitled'}</p>
+                    <span className="text-xs px-2 py-0.5 bg-slate-100 rounded">
+                      {item.media_type}
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-500">{item.description || 'No description'}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => moveImage(image.id, 'up')}
+                    onClick={() => moveMedia(item.id, 'up')}
                     disabled={index === 0}
                     className="p-2 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     <MoveUp className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => moveImage(image.id, 'down')}
-                    disabled={index === images.length - 1}
+                    onClick={() => moveMedia(item.id, 'down')}
+                    disabled={index === media.length - 1}
                     className="p-2 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     <MoveDown className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => setEditingImage(image)}
+                    onClick={() => setEditingMedia(item)}
                     className="p-2 text-blue-600 hover:bg-blue-50 rounded"
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => deleteImage(image.id)}
+                    onClick={() => deleteMedia(item.id, item.storage_path)}
                     className="p-2 text-red-600 hover:bg-red-50 rounded"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -365,30 +412,94 @@ export function HeroCarousel() {
 
       {showAddForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-xl font-bold mb-4">Add Carousel Image</h3>
+          <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-bold mb-4">Add Carousel Media</h3>
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Image URL
-                </label>
-                <input
-                  type="text"
-                  value={newImage.image_url}
-                  onChange={(e) => setNewImage({ ...newImage, image_url: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                  placeholder="https://images.pexels.com/..."
-                />
-                <p className="text-xs text-slate-500 mt-1">Use Pexels or other stock photo URLs</p>
+              <div className="flex gap-2 mb-4">
+                <button
+                  onClick={() => setUploadMethod('file')}
+                  className={`flex-1 py-2 px-4 rounded-lg flex items-center justify-center gap-2 ${
+                    uploadMethod === 'file'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <Upload className="w-4 h-4" />
+                  Upload File
+                </button>
+                <button
+                  onClick={() => setUploadMethod('url')}
+                  className={`flex-1 py-2 px-4 rounded-lg flex items-center justify-center gap-2 ${
+                    uploadMethod === 'url'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <LinkIcon className="w-4 h-4" />
+                  Use URL
+                </button>
               </div>
+
+              {uploadMethod === 'file' ? (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Upload Image or Video
+                  </label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,video/*"
+                    onChange={handleFileSelect}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  />
+                  {newMedia.file && (
+                    <p className="text-sm text-slate-600 mt-2">
+                      Selected: {newMedia.file.name} ({newMedia.mediaType})
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Media Type
+                    </label>
+                    <select
+                      value={newMedia.mediaType}
+                      onChange={(e) => setNewMedia({ ...newMedia, mediaType: e.target.value as 'image' | 'video' })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    >
+                      <option value="image">Image</option>
+                      <option value="video">Video</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      {newMedia.mediaType === 'video' ? 'Video URL' : 'Image URL'}
+                    </label>
+                    <input
+                      type="text"
+                      value={newMedia.url}
+                      onChange={(e) => setNewMedia({ ...newMedia, url: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                      placeholder={
+                        newMedia.mediaType === 'video'
+                          ? 'https://example.com/video.mp4'
+                          : 'https://images.pexels.com/...'
+                      }
+                    />
+                  </div>
+                </>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Title (Optional)
                 </label>
                 <input
                   type="text"
-                  value={newImage.title}
-                  onChange={(e) => setNewImage({ ...newImage, title: e.target.value })}
+                  value={newMedia.title}
+                  onChange={(e) => setNewMedia({ ...newMedia, title: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                   placeholder="Birthday Parties"
                 />
@@ -399,23 +510,25 @@ export function HeroCarousel() {
                 </label>
                 <input
                   type="text"
-                  value={newImage.description}
-                  onChange={(e) => setNewImage({ ...newImage, description: e.target.value })}
+                  value={newMedia.description}
+                  onChange={(e) => setNewMedia({ ...newMedia, description: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                   placeholder="Make your celebration unforgettable"
                 />
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={addImage}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+                  onClick={handleAddMedia}
+                  disabled={uploading || (uploadMethod === 'file' && !newMedia.file) || (uploadMethod === 'url' && !newMedia.url)}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-4 py-2 rounded-lg"
                 >
-                  Add Image
+                  {uploading ? 'Uploading...' : 'Add Media'}
                 </button>
                 <button
                   onClick={() => {
                     setShowAddForm(false);
-                    setNewImage({ image_url: '', title: '', description: '' });
+                    setNewMedia({ file: null, url: '', title: '', description: '', mediaType: 'image' });
+                    if (fileInputRef.current) fileInputRef.current.value = '';
                   }}
                   className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-lg"
                 >
@@ -427,30 +540,19 @@ export function HeroCarousel() {
         </div>
       )}
 
-      {editingImage && (
+      {editingMedia && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-xl font-bold mb-4">Edit Carousel Image</h3>
+            <h3 className="text-xl font-bold mb-4">Edit Carousel Media</h3>
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Image URL
-                </label>
-                <input
-                  type="text"
-                  value={editingImage.image_url}
-                  onChange={(e) => setEditingImage({ ...editingImage, image_url: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                />
-              </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Title (Optional)
                 </label>
                 <input
                   type="text"
-                  value={editingImage.title || ''}
-                  onChange={(e) => setEditingImage({ ...editingImage, title: e.target.value })}
+                  value={editingMedia.title || ''}
+                  onChange={(e) => setEditingMedia({ ...editingMedia, title: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                 />
               </div>
@@ -460,21 +562,21 @@ export function HeroCarousel() {
                 </label>
                 <input
                   type="text"
-                  value={editingImage.description || ''}
-                  onChange={(e) => setEditingImage({ ...editingImage, description: e.target.value })}
+                  value={editingMedia.description || ''}
+                  onChange={(e) => setEditingMedia({ ...editingMedia, description: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                 />
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={updateImage}
+                  onClick={updateMedia}
                   className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg inline-flex items-center justify-center gap-2"
                 >
                   <Save className="w-4 h-4" />
                   Save Changes
                 </button>
                 <button
-                  onClick={() => setEditingImage(null)}
+                  onClick={() => setEditingMedia(null)}
                   className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-lg"
                 >
                   Cancel
