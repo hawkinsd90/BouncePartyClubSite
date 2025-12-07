@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Calendar, Search, Star, Shield, Clock, DollarSign, Home as HomeIcon, Building2, Zap } from 'lucide-react';
 import { AddressAutocomplete } from '../components/AddressAutocomplete';
+import { HeroCarousel } from '../components/HeroCarousel';
 import { useAuth } from '../contexts/AuthContext';
 import { createTestBooking } from '../lib/testBooking';
 
@@ -37,59 +38,41 @@ export function Home() {
     navigate('/catalog');
   };
 
-  // TEMPORARY: Display Supabase URL for verification - REMOVE AFTER CONFIRMING
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-  const displayUrl = supabaseUrl ? `${supabaseUrl.substring(0, 30)}...${supabaseUrl.substring(supabaseUrl.length - 20)}` : 'Not configured';
-
   return (
-    <div>
-      {/* TEMPORARY DEV DISPLAY - REMOVE THIS BLOCK AFTER CONFIRMING URL */}
-      <div className="bg-yellow-100 border-l-4 border-yellow-500 p-2 sm:p-3">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div className="flex items-center overflow-hidden">
-              <span className="font-bold text-yellow-800 mr-2 text-xs sm:text-sm shrink-0">DEV:</span>
-              <span className="text-yellow-900 text-xs font-mono truncate">{displayUrl}</span>
-            </div>
-            <div className="flex items-center gap-2 sm:gap-4">
-              <span className="text-xs text-yellow-700 italic hidden lg:inline">Check .env.local is being used</span>
-              {role === 'ADMIN' && (
-                <button
-                  onClick={async () => {
-                    console.log('🎬 [HOME] Create Test Booking button clicked');
+    <div className="relative">
+      {/* Admin Test Booking Button - Floating */}
+      {role === 'ADMIN' && (
+        <button
+          onClick={async () => {
+            console.log('🎬 [HOME] Create Test Booking button clicked');
 
-                    console.log('🧹 [HOME] Clearing existing localStorage data...');
-                    localStorage.removeItem('bpc_cart');
-                    localStorage.removeItem('bpc_quote_form');
-                    localStorage.removeItem('bpc_price_breakdown');
-                    localStorage.removeItem('bpc_contact_data');
-                    localStorage.removeItem('test_booking_tip');
+            console.log('🧹 [HOME] Clearing existing localStorage data...');
+            localStorage.removeItem('bpc_cart');
+            localStorage.removeItem('bpc_quote_form');
+            localStorage.removeItem('bpc_price_breakdown');
+            localStorage.removeItem('bpc_contact_data');
+            localStorage.removeItem('test_booking_tip');
 
-                    setCreatingTestBooking(true);
-                    console.log('⏳ [HOME] Calling createTestBooking()...');
-                    const result = await createTestBooking();
-                    console.log('📊 [HOME] createTestBooking() result:', result);
-                    setCreatingTestBooking(false);
-                    if (result.success) {
-                      console.log('✅ [HOME] Test booking created successfully, navigating to /checkout');
-                      navigate('/checkout');
-                    } else {
-                      console.error('❌ [HOME] Test booking failed:', result.error);
-                      alert('Failed to create test booking: ' + result.error);
-                    }
-                  }}
-                  disabled={creatingTestBooking}
-                  className="flex items-center gap-1.5 sm:gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold transition-colors text-xs sm:text-sm whitespace-nowrap"
-                >
-                  <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <span className="hidden sm:inline">{creatingTestBooking ? 'Creating...' : 'Create Test Booking'}</span>
-                  <span className="sm:hidden">{creatingTestBooking ? 'Creating...' : 'Test Booking'}</span>
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+            setCreatingTestBooking(true);
+            console.log('⏳ [HOME] Calling createTestBooking()...');
+            const result = await createTestBooking();
+            console.log('📊 [HOME] createTestBooking() result:', result);
+            setCreatingTestBooking(false);
+            if (result.success) {
+              console.log('✅ [HOME] Test booking created successfully, navigating to /checkout');
+              navigate('/checkout');
+            } else {
+              console.error('❌ [HOME] Test booking failed:', result.error);
+              alert('Failed to create test booking: ' + result.error);
+            }
+          }}
+          disabled={creatingTestBooking}
+          className="fixed top-20 right-4 z-50 flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg font-semibold transition-colors text-sm shadow-lg"
+        >
+          <Zap className="w-4 h-4" />
+          {creatingTestBooking ? 'Creating...' : 'Create Test Booking'}
+        </button>
+      )}
       <div>
       <section className="relative bg-gradient-to-br from-blue-600 to-cyan-500 text-white">
         <div className="absolute inset-0 bg-black opacity-10"></div>
@@ -199,6 +182,8 @@ export function Home() {
           </div>
         </div>
       </section>
+
+      <HeroCarousel />
 
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
         <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 text-center mb-8 sm:mb-12">
