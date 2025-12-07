@@ -441,8 +441,8 @@ export function Checkout() {
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                   />
                 </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="col-span-1">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="sm:col-span-1">
                     <label className="block text-sm font-medium text-slate-700 mb-2">
                       City *
                     </label>

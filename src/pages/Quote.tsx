@@ -398,8 +398,8 @@ export function Quote() {
                           <div className="flex items-center gap-2">
                             <h3 className="font-semibold text-slate-900">{item.unit_name}</h3>
                             {item.isAvailable === false && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
-                                <XCircle className="w-3 h-3" />
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-sm font-medium bg-red-100 text-red-800">
+                                <XCircle className="w-4 h-4" />
                                 Not Available
                               </span>
                             )}
@@ -409,9 +409,10 @@ export function Quote() {
                         <button
                           type="button"
                           onClick={() => removeFromCart(index)}
-                          className="text-red-600 hover:text-red-700 ml-4"
+                          className="text-red-600 hover:text-red-700 ml-4 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                          aria-label="Remove from cart"
                         >
-                          <Trash2 className="w-5 h-5" />
+                          <Trash2 className="w-6 h-6" />
                         </button>
                       </div>
 

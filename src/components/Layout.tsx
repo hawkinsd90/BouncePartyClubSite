@@ -99,49 +99,49 @@ export function Layout() {
             <div className="flex items-center space-x-2 sm:space-x-4">
               <a
                 href="tel:+13138893860"
-                className="hidden lg:flex items-center text-slate-600 hover:text-blue-600 transition-colors"
+                className="hidden lg:flex items-center text-slate-600 hover:text-blue-600 transition-colors min-h-[44px]"
               >
-                <Phone className="w-4 h-4 mr-1" />
-                <span className="text-sm font-medium">(313) 889-3860</span>
+                <Phone className="w-5 h-5 mr-2" />
+                <span className="font-medium">(313) 889-3860</span>
               </a>
               <div className="hidden md:flex items-center space-x-4">
                 {user ? (
                   <button
                     onClick={handleSignOut}
-                    className="flex items-center text-slate-600 hover:text-blue-600 transition-colors"
+                    className="flex items-center text-slate-600 hover:text-blue-600 transition-colors min-h-[44px] px-2"
                   >
-                    <LogOut className="w-4 h-4 mr-1" />
-                    <span className="text-sm font-medium">Sign Out</span>
+                    <LogOut className="w-5 h-5 mr-2" />
+                    <span className="font-medium">Sign Out</span>
                   </button>
                 ) : (
                   <Link
                     to="/login"
-                    className="flex items-center text-slate-600 hover:text-blue-600 transition-colors"
+                    className="flex items-center text-slate-600 hover:text-blue-600 transition-colors min-h-[44px] px-2"
                   >
-                    <LogIn className="w-4 h-4 mr-1" />
-                    <span className="text-sm font-medium">Login</span>
+                    <LogIn className="w-5 h-5 mr-2" />
+                    <span className="font-medium">Login</span>
                   </Link>
                 )}
               </div>
               <Link
                 to="/quote"
-                className="relative flex items-center justify-center w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 transition-colors"
+                className="relative flex items-center justify-center w-11 h-11 rounded-full bg-blue-600 hover:bg-blue-700 transition-colors"
                 title="View Cart"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                <ShoppingCart className="w-5 h-5 text-white" />
+                <ShoppingCart className="w-6 h-6 text-white" />
                 {cartCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                  <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
                     {cartCount}
                   </span>
                 )}
               </Link>
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden flex items-center justify-center w-10 h-10 text-slate-700 hover:text-blue-600 transition-colors"
+                className="md:hidden flex items-center justify-center w-11 h-11 text-slate-700 hover:text-blue-600 transition-colors"
                 aria-label="Toggle menu"
               >
-                {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                {mobileMenuOpen ? <X className="w-7 h-7" /> : <Menu className="w-7 h-7" />}
               </button>
             </div>
           </div>
@@ -150,24 +150,24 @@ export function Layout() {
         {/* Mobile menu */}
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-slate-200">
-            <nav className="px-4 py-4 space-y-3">
+            <nav className="px-4 py-4 space-y-1">
               <Link
                 to="/catalog"
-                className="block text-slate-700 hover:text-blue-600 font-medium py-2 transition-colors"
+                className="block text-slate-700 hover:text-blue-600 font-medium py-3 px-2 transition-colors text-base rounded-lg hover:bg-blue-50"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Browse Inflatables
               </Link>
               <Link
                 to="/contact"
-                className="block text-slate-700 hover:text-blue-600 font-medium py-2 transition-colors"
+                className="block text-slate-700 hover:text-blue-600 font-medium py-3 px-2 transition-colors text-base rounded-lg hover:bg-blue-50"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Get Quote
               </Link>
               <Link
                 to="/about"
-                className="block text-slate-700 hover:text-blue-600 font-medium py-2 transition-colors"
+                className="block text-slate-700 hover:text-blue-600 font-medium py-3 px-2 transition-colors text-base rounded-lg hover:bg-blue-50"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 About Us
@@ -175,7 +175,7 @@ export function Layout() {
               {role === 'ADMIN' && (
                 <Link
                   to="/admin"
-                  className="block text-slate-700 hover:text-blue-600 font-medium py-2 transition-colors"
+                  className="block text-slate-700 hover:text-blue-600 font-medium py-3 px-2 transition-colors text-base rounded-lg hover:bg-blue-50"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Admin
@@ -184,19 +184,19 @@ export function Layout() {
               {(role === 'ADMIN' || role === 'CREW') && (
                 <Link
                   to="/crew"
-                  className="block text-slate-700 hover:text-blue-600 font-medium py-2 transition-colors"
+                  className="block text-slate-700 hover:text-blue-600 font-medium py-3 px-2 transition-colors text-base rounded-lg hover:bg-blue-50"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Crew
                 </Link>
               )}
-              <div className="border-t border-slate-200 pt-3 mt-3">
+              <div className="border-t border-slate-200 pt-3 mt-3 space-y-1">
                 <a
                   href="tel:+13138893860"
-                  className="flex items-center text-slate-600 hover:text-blue-600 py-2 transition-colors"
+                  className="flex items-center text-slate-600 hover:text-blue-600 py-3 px-2 transition-colors min-h-[44px] rounded-lg hover:bg-blue-50"
                 >
-                  <Phone className="w-4 h-4 mr-2" />
-                  <span className="text-sm font-medium">(313) 889-3860</span>
+                  <Phone className="w-5 h-5 mr-3" />
+                  <span className="font-medium">(313) 889-3860</span>
                 </a>
                 {user ? (
                   <button
@@ -204,19 +204,19 @@ export function Layout() {
                       handleSignOut();
                       setMobileMenuOpen(false);
                     }}
-                    className="flex items-center text-slate-600 hover:text-blue-600 py-2 transition-colors w-full"
+                    className="flex items-center text-slate-600 hover:text-blue-600 py-3 px-2 transition-colors w-full text-left min-h-[44px] rounded-lg hover:bg-blue-50"
                   >
-                    <LogOut className="w-4 h-4 mr-2" />
-                    <span className="text-sm font-medium">Sign Out</span>
+                    <LogOut className="w-5 h-5 mr-3" />
+                    <span className="font-medium">Sign Out</span>
                   </button>
                 ) : (
                   <Link
                     to="/login"
-                    className="flex items-center text-slate-600 hover:text-blue-600 py-2 transition-colors"
+                    className="flex items-center text-slate-600 hover:text-blue-600 py-3 px-2 transition-colors min-h-[44px] rounded-lg hover:bg-blue-50"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    <LogIn className="w-4 h-4 mr-2" />
-                    <span className="text-sm font-medium">Login</span>
+                    <LogIn className="w-5 h-5 mr-3" />
+                    <span className="font-medium">Login</span>
                   </Link>
                 )}
               </div>
