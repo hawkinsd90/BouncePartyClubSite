@@ -118,14 +118,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    setRole(null);
-    setRoles([]);
-    setUser(null);
+    console.log('[Auth] Signing out...');
     const { error } = await supabase.auth.signOut();
     if (error) {
-      console.error('Supabase sign out error:', error);
+      console.error('[Auth] Supabase sign out error:', error);
       throw error;
     }
+    console.log('[Auth] Sign out successful');
+    // State will be cleared by onAuthStateChange listener
   };
 
   const hasRole = (checkRole: string): boolean => {
