@@ -58,12 +58,19 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
       setLoading(true);
       setError(null);
       console.log('[Carousel] Loading media...');
+      console.log('[Carousel] Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
 
-      const { data, error } = await supabase
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Query timeout after 10 seconds')), 10000)
+      );
+
+      const queryPromise = supabase
         .from('hero_carousel_images')
         .select('*')
         .eq('is_active', true)
         .order('display_order');
+
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
 
       console.log('[Carousel] Query result:', { data, error });
 
