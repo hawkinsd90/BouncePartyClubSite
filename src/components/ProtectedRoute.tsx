@@ -3,11 +3,11 @@ import { useAuth } from '../contexts/AuthContext';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedRoles: ('ADMIN' | 'CREW')[];
+  allowedRoles: ('ADMIN' | 'CREW' | 'MASTER')[];
 }
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-  const { user, role, loading } = useAuth();
+  const { user, isAdmin, hasRole, loading } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -25,7 +25,15 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (role && !allowedRoles.includes(role)) {
+  // Check if user has any of the allowed roles
+  const hasAccess = allowedRoles.some(allowedRole => {
+    if (allowedRole === 'ADMIN' || allowedRole === 'MASTER') {
+      return isAdmin; // MASTER and ADMIN both have admin access
+    }
+    return hasRole(allowedRole);
+  });
+
+  if (!hasAccess) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="max-w-md mx-auto px-4 text-center">

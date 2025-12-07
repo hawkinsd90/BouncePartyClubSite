@@ -234,25 +234,24 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
     );
   }
 
-  if (media.length === 0 && !isAdmin) {
+  if (media.length === 0) {
+    if (isAdmin) {
+      return (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="bg-slate-100 rounded-lg p-8 text-center">
+            <p className="text-slate-600 mb-4">No carousel media yet. Add your first image or video!</p>
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Add First Media
+            </button>
+          </div>
+        </section>
+      );
+    }
     return null;
-  }
-
-  if (media.length === 0 && isAdmin) {
-    return (
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-slate-100 rounded-lg p-8 text-center">
-          <p className="text-slate-600 mb-4">No carousel media yet. Add your first image or video!</p>
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Add First Media
-          </button>
-        </div>
-      </section>
-    );
   }
 
   return (
