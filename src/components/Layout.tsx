@@ -83,6 +83,14 @@ export function Layout() {
               >
                 About Us
               </Link>
+              {user && (
+                <Link
+                  to="/my-orders"
+                  className="text-slate-700 hover:text-blue-600 font-medium transition-colors"
+                >
+                  My Orders
+                </Link>
+              )}
               {isAdmin && (
                 <Link
                   to="/admin"
@@ -182,6 +190,15 @@ export function Layout() {
               >
                 About Us
               </Link>
+              {user && (
+                <Link
+                  to="/my-orders"
+                  className="block text-slate-700 hover:text-blue-600 font-medium py-3 px-2 transition-colors text-base rounded-lg hover:bg-blue-50"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  My Orders
+                </Link>
+              )}
               {isAdmin && (
                 <Link
                   to="/admin"

@@ -19,6 +19,7 @@ import { PaymentComplete } from './pages/PaymentComplete';
 import { PaymentCanceled } from './pages/PaymentCanceled';
 import { UnitForm } from './pages/UnitForm';
 import { CustomerPortal } from './pages/CustomerPortal';
+import { CustomerDashboard } from './pages/CustomerDashboard';
 import Sign from './pages/Sign';
 
 function App() {
@@ -45,6 +46,14 @@ function App() {
             <Route path="contact" element={<Contact />} />
             <Route path="checkout" element={<Checkout />} />
             <Route path="about" element={<About />} />
+            <Route
+              path="my-orders"
+              element={
+                <ProtectedRoute allowedRoles={['CUSTOMER', 'ADMIN', 'CREW', 'MASTER']}>
+                  <CustomerDashboard />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="admin"
               element={
