@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import {
   calculatePrice,
   calculateDrivingDistance,
@@ -46,6 +47,7 @@ interface QuoteFormData {
 
 export function Quote() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [pricingRules, setPricingRules] = useState<PricingRules | null>(null);
   const [addressInput, setAddressInput] = useState('');
@@ -104,6 +106,13 @@ export function Quote() {
     loadPricingRules();
     loadPrefillData();
   }, []);
+
+  // Reload prefill data when user logs in
+  useEffect(() => {
+    if (user) {
+      loadPrefillData();
+    }
+  }, [user]);
 
   useEffect(() => {
     if (formData.event_date && !formData.event_end_date) {
@@ -173,7 +182,48 @@ export function Quote() {
     }
   }, [formData.pickup_preference, formData.location_type, formData.event_date]);
 
-  function loadPrefillData() {
+  async function loadPrefillData() {
+    // If user is logged in, fetch their data from database
+    if (user) {
+      try {
+        const { data, error } = await supabase.rpc('get_user_order_prefill');
+
+        if (error) {
+          console.error('Error fetching user prefill data:', error);
+        } else if (data && data.length > 0) {
+          const userData = data[0];
+          console.log('Auto-filling form with user data:', userData);
+
+          // Auto-fill address if available
+          if (userData.address_line1 || userData.city) {
+            const addressParts = [
+              userData.address_line1,
+              userData.city,
+              userData.state,
+              userData.zip,
+            ].filter(Boolean);
+
+            if (addressParts.length > 0) {
+              setAddressInput(addressParts.join(', '));
+              setFormData(prev => ({
+                ...prev,
+                address_line1: userData.address_line1 || '',
+                address_line2: userData.address_line2 || '',
+                city: userData.city || 'Detroit',
+                state: userData.state || 'MI',
+                zip: userData.zip || '',
+                lat: userData.lat ? Number(userData.lat) : 0,
+                lng: userData.lng ? Number(userData.lng) : 0,
+              }));
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading user prefill data:', error);
+      }
+    }
+
+    // Also check localStorage for prefill data (from home page, etc.)
     const prefillData = localStorage.getItem('bpc_quote_prefill');
     if (prefillData) {
       try {
