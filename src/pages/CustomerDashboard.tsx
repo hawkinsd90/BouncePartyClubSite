@@ -222,43 +222,41 @@ export function CustomerDashboard() {
     const isMultiDay = eventStartDate.toDateString() !== eventEndDate.toDateString();
 
     return (
-      <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
-              <h3 className="text-lg font-semibold text-gray-900">
-                {isMultiDay
-                  ? `${format(eventStartDate, 'MMM d')} - ${format(eventEndDate, 'MMM d, yyyy')}`
-                  : format(eventStartDate, 'MMMM d, yyyy')}
-              </h3>
-              {getStatusBadge(order)}
-            </div>
-            <p className="text-sm text-gray-500">
-              Order #{order.id.slice(0, 8).toUpperCase()}
-            </p>
+      <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 hover:shadow-lg transition-shadow">
+        <div className="mb-4">
+          <div className="flex items-start gap-2 mb-2 flex-wrap">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900 flex-grow min-w-0">
+              {isMultiDay
+                ? `${format(eventStartDate, 'MMM d')} - ${format(eventEndDate, 'MMM d, yyyy')}`
+                : format(eventStartDate, 'MMMM d, yyyy')}
+            </h3>
+            {getStatusBadge(order)}
           </div>
+          <p className="text-xs sm:text-sm text-gray-500">
+            Order #{order.id.slice(0, 8).toUpperCase()}
+          </p>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-2.5 sm:space-y-3">
           {order.addresses && (
-            <div className="flex items-start gap-2 text-sm text-gray-600">
+            <div className="flex items-start gap-2 text-xs sm:text-sm text-gray-600">
               <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
-              <div>
-                <div>{order.addresses.line1}</div>
-                {order.addresses.line2 && <div>{order.addresses.line2}</div>}
+              <div className="min-w-0">
+                <div className="break-words">{order.addresses.line1}</div>
+                {order.addresses.line2 && <div className="break-words">{order.addresses.line2}</div>}
                 <div>{order.addresses.city}, {order.addresses.state} {order.addresses.zip}</div>
               </div>
             </div>
           )}
 
-          <div className="flex items-center gap-2 text-sm text-gray-600">
-            <Package className="w-4 h-4" />
+          <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
+            <Package className="w-4 h-4 flex-shrink-0" />
             <span className="capitalize">{order.location_type} Event</span>
           </div>
 
-          <div className="flex items-center gap-2 text-sm text-gray-600">
-            <DollarSign className="w-4 h-4" />
-            <div className="flex items-center gap-3">
+          <div className="flex items-start gap-2 text-xs sm:text-sm text-gray-600">
+            <DollarSign className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
               <div>
                 <span className="text-gray-600">Total: </span>
                 <span className="font-semibold text-gray-900">
@@ -273,14 +271,14 @@ export function CustomerDashboard() {
                   ) / 100)}
                 </span>
               </div>
-              <span className="text-gray-400">•</span>
+              <span className="text-gray-400 hidden sm:inline">•</span>
               {getPaymentStatus(order)}
             </div>
           </div>
 
           {order.waiver_signed_at && (
-            <div className="flex items-center gap-2 text-sm text-green-600">
-              <CheckCircle className="w-4 h-4" />
+            <div className="flex items-center gap-2 text-xs sm:text-sm text-green-600">
+              <CheckCircle className="w-4 h-4 flex-shrink-0" />
               <span>Waiver Signed</span>
             </div>
           )}
@@ -289,18 +287,19 @@ export function CustomerDashboard() {
         <div className="mt-4 pt-4 border-t border-gray-200 flex gap-2">
           <button
             onClick={() => navigate(`/customer-portal/${order.id}`)}
-            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+            className="flex-1 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-1.5 sm:gap-2 text-sm"
           >
-            <Eye className="w-4 h-4" />
-            View Details
+            <Eye className="w-4 h-4 flex-shrink-0" />
+            <span className="hidden xs:inline">View Details</span>
+            <span className="xs:hidden">Details</span>
           </button>
           {order.signed_waiver_url && (
             <button
               onClick={() => window.open(order.signed_waiver_url!, '_blank')}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
+              className="px-3 sm:px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-1.5 sm:gap-2 text-sm"
             >
-              <FileText className="w-4 h-4" />
-              Waiver
+              <FileText className="w-4 h-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Waiver</span>
             </button>
           )}
         </div>
@@ -328,33 +327,34 @@ export function CustomerDashboard() {
   const currentOrders = activeTab === 'active' ? activeOrders : activeTab === 'upcoming' ? upcomingOrders : pastOrders;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 py-4 sm:py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">My Orders</h1>
-          <p className="text-gray-600">View and manage your bounce house rentals</p>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">My Orders</h1>
+          <p className="text-sm sm:text-base text-gray-600">View and manage your bounce house rentals</p>
         </div>
 
         {totalOrders > 0 ? (
           <>
             {/* Tabs */}
-            <div className="border-b border-gray-200 mb-6">
-              <nav className="-mb-px flex gap-8" aria-label="Tabs">
+            <div className="border-b border-gray-200 mb-6 -mx-4 sm:mx-0 px-4 sm:px-0 overflow-x-auto">
+              <nav className="-mb-px flex gap-4 sm:gap-8 min-w-min" aria-label="Tabs">
                 <button
                   onClick={() => setActiveTab('active')}
                   className={`
-                    whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                    whitespace-nowrap py-3 md:py-4 px-1 border-b-2 font-medium text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 transition-colors
                     ${activeTab === 'active'
                       ? 'border-blue-600 text-blue-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }
                   `}
                 >
-                  <Clock className="w-5 h-5" />
-                  Active Orders
+                  <Clock className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                  <span className="hidden sm:inline">Active Orders</span>
+                  <span className="sm:hidden">Active</span>
                   {activeOrders.length > 0 && (
                     <span className={`
-                      ml-2 py-0.5 px-2 rounded-full text-xs font-medium
+                      ml-1 sm:ml-2 py-0.5 px-1.5 sm:px-2 rounded-full text-xs font-medium flex-shrink-0
                       ${activeTab === 'active' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}
                     `}>
                       {activeOrders.length}
@@ -365,18 +365,19 @@ export function CustomerDashboard() {
                 <button
                   onClick={() => setActiveTab('upcoming')}
                   className={`
-                    whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                    whitespace-nowrap py-3 md:py-4 px-1 border-b-2 font-medium text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 transition-colors
                     ${activeTab === 'upcoming'
                       ? 'border-blue-600 text-blue-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }
                   `}
                 >
-                  <Calendar className="w-5 h-5" />
-                  Upcoming Orders
+                  <Calendar className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                  <span className="hidden sm:inline">Upcoming Orders</span>
+                  <span className="sm:hidden">Upcoming</span>
                   {upcomingOrders.length > 0 && (
                     <span className={`
-                      ml-2 py-0.5 px-2 rounded-full text-xs font-medium
+                      ml-1 sm:ml-2 py-0.5 px-1.5 sm:px-2 rounded-full text-xs font-medium flex-shrink-0
                       ${activeTab === 'upcoming' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}
                     `}>
                       {upcomingOrders.length}
@@ -387,18 +388,19 @@ export function CustomerDashboard() {
                 <button
                   onClick={() => setActiveTab('past')}
                   className={`
-                    whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                    whitespace-nowrap py-3 md:py-4 px-1 border-b-2 font-medium text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 transition-colors
                     ${activeTab === 'past'
                       ? 'border-blue-600 text-blue-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }
                   `}
                 >
-                  <CheckCircle className="w-5 h-5" />
-                  Past Orders
+                  <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                  <span className="hidden sm:inline">Past Orders</span>
+                  <span className="sm:hidden">Past</span>
                   {pastOrders.length > 0 && (
                     <span className={`
-                      ml-2 py-0.5 px-2 rounded-full text-xs font-medium
+                      ml-1 sm:ml-2 py-0.5 px-1.5 sm:px-2 rounded-full text-xs font-medium flex-shrink-0
                       ${activeTab === 'past' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}
                     `}>
                       {pastOrders.length}
@@ -410,28 +412,28 @@ export function CustomerDashboard() {
 
             {/* Tab Content */}
             {currentOrders.length > 0 ? (
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {currentOrders.map(order => (
                   <OrderCard key={order.id} order={order} />
                 ))}
               </div>
             ) : (
-              <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-                <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500">
+              <div className="text-center py-8 sm:py-12 bg-white rounded-lg border border-gray-200">
+                <Package className="w-10 h-10 sm:w-12 sm:h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-sm sm:text-base text-gray-500">
                   No {activeTab} orders
                 </p>
               </div>
             )}
           </>
         ) : (
-          <div className="text-center py-12">
-            <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No Orders Yet</h3>
-            <p className="text-gray-600 mb-6">Start by browsing our catalog and booking your first rental!</p>
+          <div className="text-center py-8 sm:py-12">
+            <Package className="w-12 h-12 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">No Orders Yet</h3>
+            <p className="text-sm sm:text-base text-gray-600 mb-6 px-4">Start by browsing our catalog and booking your first rental!</p>
             <button
               onClick={() => navigate('/catalog')}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="px-5 sm:px-6 py-2.5 sm:py-3 bg-blue-600 text-white text-sm sm:text-base rounded-lg hover:bg-blue-700 transition-colors"
             >
               Browse Catalog
             </button>
