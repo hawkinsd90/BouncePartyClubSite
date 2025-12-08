@@ -57,37 +57,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      console.log('[Auth] Initial session check:', session?.user?.id);
+    console.log('[Auth] AuthProvider mounted, checking session...');
+    console.log('[Auth] Current URL:', window.location.href);
+    console.log('[Auth] URL params:', window.location.search);
+    console.log('[Auth] URL hash:', window.location.hash);
+
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+      console.log('[Auth] Initial session check result:', {
+        hasSession: !!session,
+        userId: session?.user?.id,
+        email: session?.user?.email,
+        error: error
+      });
+
+      if (error) {
+        console.error('[Auth] Error in getSession:', error);
+      }
+
       setUser(session?.user ?? null);
       setLoading(false);
 
       // Load roles in background, don't block
       if (session?.user) {
+        console.log('[Auth] Session found, loading roles...');
         loadUserRoles(session.user.id);
+      } else {
+        console.log('[Auth] No session found');
       }
     }).catch(err => {
-      console.error('[Auth] Error getting initial session:', err);
+      console.error('[Auth] Exception getting initial session:', err);
       setLoading(false);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      console.log('[Auth] Auth state changed:', _event, session?.user?.id);
+      console.log('[Auth] ===== AUTH STATE CHANGE =====');
+      console.log('[Auth] Event:', _event);
+      console.log('[Auth] Session:', {
+        hasSession: !!session,
+        userId: session?.user?.id,
+        email: session?.user?.email,
+        provider: session?.user?.app_metadata?.provider
+      });
+      console.log('[Auth] Current URL:', window.location.href);
+      console.log('[Auth] ==============================');
+
       setUser(session?.user ?? null);
       setLoading(false);
 
       // Load roles in background, don't block
       if (session?.user) {
+        console.log('[Auth] User logged in, loading roles...');
         loadUserRoles(session.user.id);
       } else {
+        console.log('[Auth] User logged out, clearing roles');
         setRole(null);
         setRoles([]);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      console.log('[Auth] AuthProvider unmounting, cleaning up subscription');
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
@@ -99,13 +132,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
+    const redirectUrl = `${window.location.origin}/`;
+    console.log('[Auth] Starting Google sign-in...');
+    console.log('[Auth] Current URL:', window.location.href);
+    console.log('[Auth] Origin:', window.location.origin);
+    console.log('[Auth] Redirect URL:', redirectUrl);
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/`,
+        redirectTo: redirectUrl,
       },
     });
-    if (error) throw error;
+
+    console.log('[Auth] signInWithOAuth response:', { data, error });
+
+    if (error) {
+      console.error('[Auth] Google sign-in error:', error);
+      throw error;
+    }
+
+    console.log('[Auth] Google sign-in initiated successfully, redirecting to:', data?.url);
   };
 
   const signUp = async (email: string, password: string, metadata?: any) => {

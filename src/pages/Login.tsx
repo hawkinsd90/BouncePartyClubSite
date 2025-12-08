@@ -51,11 +51,25 @@ export function Login() {
   };
 
   const handleGoogleSignIn = async () => {
+    console.log('[Login] Google sign-in button clicked');
+    console.log('[Login] Current location:', window.location.href);
+
     setError('');
     setLoading(true);
+
     try {
+      console.log('[Login] Calling signInWithGoogle...');
       await signInWithGoogle();
+      console.log('[Login] signInWithGoogle completed (user should be redirecting to Google)');
+      // Note: loading state will remain true as we're navigating away
     } catch (err: any) {
+      console.error('[Login] Google sign-in failed:', err);
+      console.error('[Login] Error details:', {
+        message: err.message,
+        status: err.status,
+        code: err.code,
+        details: err
+      });
       setError(err.message || 'Failed to sign in with Google');
       setLoading(false);
     }
