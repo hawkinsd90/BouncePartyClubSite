@@ -57,12 +57,24 @@ export function CustomerDashboard() {
   const [activeOrders, setActiveOrders] = useState<Order[]>([]);
   const [pastOrders, setPastOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'active' | 'upcoming' | 'past'>('active');
 
   useEffect(() => {
     if (!authLoading && user) {
       loadOrders();
     }
   }, [user, authLoading]);
+
+  // Auto-select first non-empty tab
+  useEffect(() => {
+    if (activeOrders.length > 0 && activeTab !== 'active') {
+      setActiveTab('active');
+    } else if (activeOrders.length === 0 && upcomingOrders.length > 0 && activeTab === 'active') {
+      setActiveTab('upcoming');
+    } else if (activeOrders.length === 0 && upcomingOrders.length === 0 && pastOrders.length > 0) {
+      setActiveTab('past');
+    }
+  }, [activeOrders, upcomingOrders, pastOrders]);
 
   async function loadOrders() {
     if (!user) return;
@@ -187,6 +199,11 @@ export function CustomerDashboard() {
   }
 
   function getPaymentStatus(order: Order) {
+    // If order is awaiting approval, don't show payment status yet
+    if (order.status === 'awaiting_customer_approval' || order.status === 'draft' || order.status === 'pending') {
+      return <span className="text-gray-600 font-medium">Pending Quote</span>;
+    }
+
     const totalPaid = order.deposit_paid_cents + order.balance_paid_cents;
     const totalDue = order.deposit_due_cents + order.balance_due_cents;
 
@@ -195,7 +212,7 @@ export function CustomerDashboard() {
     } else if (order.deposit_paid_cents > 0) {
       return <span className="text-blue-600 font-medium">Deposit Paid</span>;
     } else {
-      return <span className="text-orange-600 font-medium">Payment Pending</span>;
+      return <span className="text-orange-600 font-medium">Payment Due</span>;
     }
   }
 
@@ -242,9 +259,20 @@ export function CustomerDashboard() {
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <DollarSign className="w-4 h-4" />
             <div className="flex items-center gap-3">
-              <span className="font-semibold text-gray-900">
-                {formatCurrency((order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.tax_cents) / 100)}
-              </span>
+              <div>
+                <span className="text-gray-600">Total: </span>
+                <span className="font-semibold text-gray-900">
+                  {formatCurrency((
+                    order.subtotal_cents +
+                    order.travel_fee_cents +
+                    order.surface_fee_cents +
+                    (order.same_day_pickup_fee_cents || 0) +
+                    (order.generator_fee_cents || 0) +
+                    order.tax_cents +
+                    (order.tip_cents || 0)
+                  ) / 100)}
+                </span>
+              </div>
               <span className="text-gray-400">•</span>
               {getPaymentStatus(order)}
             </div>
@@ -296,6 +324,9 @@ export function CustomerDashboard() {
     return null;
   }
 
+  const totalOrders = activeOrders.length + upcomingOrders.length + pastOrders.length;
+  const currentOrders = activeTab === 'active' ? activeOrders : activeTab === 'upcoming' ? upcomingOrders : pastOrders;
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -304,49 +335,96 @@ export function CustomerDashboard() {
           <p className="text-gray-600">View and manage your bounce house rentals</p>
         </div>
 
-        {activeOrders.length > 0 && (
-          <section className="mb-12">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <Clock className="w-6 h-6 text-blue-600" />
-              Active Orders
-            </h2>
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {activeOrders.map(order => (
-                <OrderCard key={order.id} order={order} />
-              ))}
-            </div>
-          </section>
-        )}
+        {totalOrders > 0 ? (
+          <>
+            {/* Tabs */}
+            <div className="border-b border-gray-200 mb-6">
+              <nav className="-mb-px flex gap-8" aria-label="Tabs">
+                <button
+                  onClick={() => setActiveTab('active')}
+                  className={`
+                    whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                    ${activeTab === 'active'
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }
+                  `}
+                >
+                  <Clock className="w-5 h-5" />
+                  Active Orders
+                  {activeOrders.length > 0 && (
+                    <span className={`
+                      ml-2 py-0.5 px-2 rounded-full text-xs font-medium
+                      ${activeTab === 'active' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}
+                    `}>
+                      {activeOrders.length}
+                    </span>
+                  )}
+                </button>
 
-        {upcomingOrders.length > 0 && (
-          <section className="mb-12">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <Calendar className="w-6 h-6 text-green-600" />
-              Upcoming Orders
-            </h2>
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {upcomingOrders.map(order => (
-                <OrderCard key={order.id} order={order} />
-              ))}
-            </div>
-          </section>
-        )}
+                <button
+                  onClick={() => setActiveTab('upcoming')}
+                  className={`
+                    whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                    ${activeTab === 'upcoming'
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }
+                  `}
+                >
+                  <Calendar className="w-5 h-5" />
+                  Upcoming Orders
+                  {upcomingOrders.length > 0 && (
+                    <span className={`
+                      ml-2 py-0.5 px-2 rounded-full text-xs font-medium
+                      ${activeTab === 'upcoming' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}
+                    `}>
+                      {upcomingOrders.length}
+                    </span>
+                  )}
+                </button>
 
-        {pastOrders.length > 0 && (
-          <section className="mb-12">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <CheckCircle className="w-6 h-6 text-gray-600" />
-              Past Orders
-            </h2>
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {pastOrders.map(order => (
-                <OrderCard key={order.id} order={order} />
-              ))}
+                <button
+                  onClick={() => setActiveTab('past')}
+                  className={`
+                    whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                    ${activeTab === 'past'
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }
+                  `}
+                >
+                  <CheckCircle className="w-5 h-5" />
+                  Past Orders
+                  {pastOrders.length > 0 && (
+                    <span className={`
+                      ml-2 py-0.5 px-2 rounded-full text-xs font-medium
+                      ${activeTab === 'past' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}
+                    `}>
+                      {pastOrders.length}
+                    </span>
+                  )}
+                </button>
+              </nav>
             </div>
-          </section>
-        )}
 
-        {upcomingOrders.length === 0 && activeOrders.length === 0 && pastOrders.length === 0 && (
+            {/* Tab Content */}
+            {currentOrders.length > 0 ? (
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {currentOrders.map(order => (
+                  <OrderCard key={order.id} order={order} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+                <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">
+                  No {activeTab} orders
+                </p>
+              </div>
+            )}
+          </>
+        ) : (
           <div className="text-center py-12">
             <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2">No Orders Yet</h3>
