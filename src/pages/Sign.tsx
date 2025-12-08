@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FileCheck, AlertCircle, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import SignaturePad from '../components/SignaturePad';
@@ -64,6 +64,7 @@ export default function Sign() {
   const [homeCity, setHomeCity] = useState('');
   const [homeState, setHomeState] = useState('');
   const [homeZip, setHomeZip] = useState('');
+  const [sameAsEventAddress, setSameAsEventAddress] = useState(false);
 
   useEffect(() => {
     loadOrder();
@@ -297,6 +298,13 @@ export default function Sign() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4">
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-lg shadow-xl overflow-hidden">
+          <Link to="/" className="block bg-white px-8 py-4 border-b border-gray-200 hover:bg-gray-50 transition-colors">
+            <img
+              src="/bounce party club logo.png"
+              alt="Bounce Party Club"
+              className="h-16 object-contain"
+            />
+          </Link>
           <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-6">
             <h1 className="text-3xl font-bold text-white mb-2">Electronic Waiver Signature</h1>
             <p className="text-blue-100">
@@ -478,63 +486,85 @@ export default function Sign() {
                   <h4 className="font-semibold text-gray-900 mb-3 mt-4">
                     Home Address (if different from event address)
                   </h4>
+                  <label className="flex items-center gap-2 cursor-pointer mb-4">
+                    <input
+                      type="checkbox"
+                      checked={sameAsEventAddress}
+                      onChange={(e) => {
+                        setSameAsEventAddress(e.target.checked);
+                        if (e.target.checked) {
+                          setHomeAddressLine1('');
+                          setHomeAddressLine2('');
+                          setHomeCity('');
+                          setHomeState('');
+                          setHomeZip('');
+                        }
+                      }}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700">Same as event address</span>
+                  </label>
                 </div>
 
-                <div className="md:col-span-2">
-                  <input
-                    id="home-address-line1"
-                    type="text"
-                    value={homeAddressLine1}
-                    onChange={(e) => setHomeAddressLine1(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Street Address"
-                  />
-                </div>
+                {!sameAsEventAddress && (
+                  <>
+                    <div className="md:col-span-2">
+                      <input
+                        id="home-address-line1"
+                        type="text"
+                        value={homeAddressLine1}
+                        onChange={(e) => setHomeAddressLine1(e.target.value)}
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Street Address"
+                      />
+                    </div>
 
-                <div className="md:col-span-2">
-                  <input
-                    id="home-address-line2"
-                    type="text"
-                    value={homeAddressLine2}
-                    onChange={(e) => setHomeAddressLine2(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Apt, Suite, etc."
-                  />
-                </div>
+                    <div className="md:col-span-2">
+                      <input
+                        id="home-address-line2"
+                        type="text"
+                        value={homeAddressLine2}
+                        onChange={(e) => setHomeAddressLine2(e.target.value)}
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Apt, Suite, etc."
+                      />
+                    </div>
 
-                <div>
-                  <input
-                    id="home-city"
-                    type="text"
-                    value={homeCity}
-                    onChange={(e) => setHomeCity(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="City"
-                  />
-                </div>
+                    <div>
+                      <input
+                        id="home-city"
+                        type="text"
+                        value={homeCity}
+                        onChange={(e) => setHomeCity(e.target.value)}
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="City"
+                      />
+                    </div>
 
-                <div>
-                  <input
-                    id="home-state"
-                    type="text"
-                    value={homeState}
-                    onChange={(e) => setHomeState(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="State"
-                    maxLength={2}
-                  />
-                </div>
+                    <div>
+                      <input
+                        id="home-state"
+                        type="text"
+                        value={homeState}
+                        onChange={(e) => setHomeState(e.target.value)}
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="State"
+                        maxLength={2}
+                      />
+                    </div>
 
-                <div className="md:col-span-2">
-                  <input
-                    id="home-zip"
-                    type="text"
-                    value={homeZip}
-                    onChange={(e) => setHomeZip(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="ZIP Code"
-                  />
-                </div>
+                    <div className="md:col-span-2">
+                      <input
+                        id="home-zip"
+                        type="text"
+                        value={homeZip}
+                        onChange={(e) => setHomeZip(e.target.value)}
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="ZIP Code"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -601,7 +631,7 @@ export default function Sign() {
             <div className="flex gap-4">
               <button
                 type="button"
-                onClick={() => navigate('/customer-portal')}
+                onClick={() => navigate(-1)}
                 className="flex-1 bg-gray-200 text-gray-700 rounded-lg px-6 py-4 font-semibold hover:bg-gray-300 transition-colors"
                 disabled={submitting}
               >
