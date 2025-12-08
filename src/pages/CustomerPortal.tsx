@@ -325,19 +325,39 @@ export function CustomerPortal() {
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
-    if (!files) return;
+    if (!files || files.length === 0) return;
 
-    const file = files[0];
-    if (!file.type.startsWith('image/')) {
-      alert('Please upload an image file');
-      return;
+    const newImages: string[] = [];
+    const fileArray = Array.from(files);
+
+    // Validate all files are images
+    for (const file of fileArray) {
+      if (!file.type.startsWith('image/')) {
+        alert('Please upload only image files');
+        return;
+      }
     }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setUploadedImages([...uploadedImages, reader.result as string]);
-    };
-    reader.readAsDataURL(file);
+    // Read all files
+    const readPromises = fileArray.map(file => {
+      return new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          resolve(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+
+    const results = await Promise.all(readPromises);
+    setUploadedImages([...uploadedImages, ...results]);
+
+    // Reset input so same files can be selected again
+    e.target.value = '';
+  }
+
+  function handleRemoveImage(index: number) {
+    setUploadedImages(uploadedImages.filter((_, idx) => idx !== index));
   }
 
   async function handleSubmitPictures() {
@@ -1891,21 +1911,33 @@ export function CustomerPortal() {
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Upload Pictures
+                    Upload Pictures {uploadedImages.length > 0 && <span className="text-slate-500">({uploadedImages.length} selected)</span>}
                   </label>
                   <input
                     type="file"
                     accept="image/*"
+                    multiple
                     onChange={handleImageUpload}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                   />
+                  <p className="text-xs text-slate-500 mt-1">
+                    You can select multiple images at once
+                  </p>
                 </div>
 
                 {uploadedImages.length > 0 && (
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {uploadedImages.map((img, idx) => (
-                      <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-slate-300">
+                      <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-slate-300 group">
                         <img src={img} alt={`Upload ${idx + 1}`} className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveImage(idx)}
+                          className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                          aria-label="Remove image"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
                       </div>
                     ))}
                   </div>

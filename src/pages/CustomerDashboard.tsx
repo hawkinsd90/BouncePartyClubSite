@@ -201,7 +201,7 @@ export function CustomerDashboard() {
   function getPaymentStatus(order: Order) {
     // If order is awaiting approval, don't show payment status yet
     if (order.status === 'awaiting_customer_approval' || order.status === 'draft' || order.status === 'pending') {
-      return <span className="text-gray-600 font-medium">No Payment Required Yet</span>;
+      return <span className="text-gray-600 font-medium">Awaiting Order Approval</span>;
     }
 
     const totalPaid = order.deposit_paid_cents + order.balance_paid_cents;
