@@ -37,7 +37,15 @@ I acknowledge that I have inspected the equipment and found it in good working c
 
 6. CANCELLATIONS AND REFUNDS
 
-This agreement does not entitle me to a refund due to inclement weather unless otherwise agreed upon in writing by Bounce Party Club.
+I understand and agree that all payments made toward a reservation, including any deposit or partial payment, are generally non-refundable.
+
+If Bounce Party Club determines that weather or safety conditions make delivery or setup unsafe, my reservation will be eligible for one (1) free reschedule within twelve (12) months. No monetary refunds will be issued for weather-related cancellations.
+
+If I choose to cancel my reservation for any reason, whether due to weather or personal circumstances, I may be offered one (1) reschedule at the discretion of Bounce Party Club, subject to availability. Monetary refunds are not guaranteed.
+
+If Bounce Party Club must cancel my reservation for operational reasons unrelated to weather or safety, I may be entitled to a refund or reschedule at the sole discretion of Bounce Party Club.
+
+I understand that once the equipment has been delivered and setup has begun, no refunds or credits of any kind will be provided.
 
 7. PHOTO AND VIDEO RELEASE (Optional)
 
