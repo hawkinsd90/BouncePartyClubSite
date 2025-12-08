@@ -46,25 +46,83 @@ export default function WaiverViewer({
 
   const renderWaiverWithInitials = () => {
     const sections = waiverText.split('\n\n');
-    return sections.map((section, index) => {
+    const renderedSections: JSX.Element[] = [];
+    let currentSectionNeedsInitials: string | undefined;
+    let currentSectionElements: JSX.Element[] = [];
+    let currentSectionIndex = 0;
+
+    sections.forEach((section, index) => {
+      // Check if this section header needs initials
       const needsInitials = initialsRequired.find((req) =>
         section.toLowerCase().includes(req.toLowerCase())
       );
 
-      return (
-        <div key={index} className="mb-6">
-          <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">{section}</p>
-          {needsInitials && (
-            <div className="mt-3 flex items-center gap-3 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+      // Check if this is a numbered section header (e.g., "1. ACKNOWLEDGMENT")
+      const isHeader = /^\d+\.\s+[A-Z\s]+$/.test(section.trim());
+
+      // If we hit a new section header and we have pending initials, render them first
+      if (isHeader && currentSectionNeedsInitials && currentSectionElements.length > 0) {
+        renderedSections.push(
+          <div key={`section-${currentSectionIndex}`} className="mb-6">
+            {currentSectionElements}
+            <div className="mt-4 flex items-center gap-3 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
               <label className="text-sm font-medium text-gray-700">
-                Initial here to acknowledge "{needsInitials}":
+                Initial here to acknowledge "{currentSectionNeedsInitials}":
               </label>
               <input
                 type="text"
                 maxLength={4}
-                value={initials[needsInitials] || ''}
+                value={initials[currentSectionNeedsInitials] || ''}
                 onChange={(e) =>
-                  onInitialsChange(needsInitials, e.target.value.toUpperCase())
+                  onInitialsChange(currentSectionNeedsInitials, e.target.value.toUpperCase())
+                }
+                className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center font-semibold uppercase"
+                placeholder="AB"
+              />
+            </div>
+          </div>
+        );
+        currentSectionElements = [];
+        currentSectionNeedsInitials = undefined;
+        currentSectionIndex++;
+      }
+
+      // Render the section with appropriate styling
+      if (isHeader) {
+        currentSectionElements.push(
+          <p key={`${currentSectionIndex}-${index}`} className="text-gray-900 font-bold text-lg leading-relaxed whitespace-pre-wrap mb-3">
+            {section}
+          </p>
+        );
+        // Mark if this section needs initials
+        if (needsInitials) {
+          currentSectionNeedsInitials = needsInitials;
+        }
+      } else {
+        currentSectionElements.push(
+          <p key={`${currentSectionIndex}-${index}`} className="text-gray-800 leading-relaxed whitespace-pre-wrap mb-3">
+            {section}
+          </p>
+        );
+      }
+    });
+
+    // Render any remaining section
+    if (currentSectionElements.length > 0) {
+      renderedSections.push(
+        <div key={`section-${currentSectionIndex}`} className="mb-6">
+          {currentSectionElements}
+          {currentSectionNeedsInitials && (
+            <div className="mt-4 flex items-center gap-3 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <label className="text-sm font-medium text-gray-700">
+                Initial here to acknowledge "{currentSectionNeedsInitials}":
+              </label>
+              <input
+                type="text"
+                maxLength={4}
+                value={initials[currentSectionNeedsInitials] || ''}
+                onChange={(e) =>
+                  onInitialsChange(currentSectionNeedsInitials, e.target.value.toUpperCase())
                 }
                 className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center font-semibold uppercase"
                 placeholder="AB"
@@ -73,7 +131,9 @@ export default function WaiverViewer({
           )}
         </div>
       );
-    });
+    }
+
+    return renderedSections;
   };
 
   return (
