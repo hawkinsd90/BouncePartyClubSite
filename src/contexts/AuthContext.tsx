@@ -106,6 +106,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user ?? null);
       setLoading(false);
 
+      // Clean up OAuth hash from URL after successful sign-in
+      if (_event === 'SIGNED_IN' && window.location.hash) {
+        console.log('[Auth] Cleaning up OAuth hash from URL');
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+
       // Load roles in background, don't block
       if (session?.user) {
         console.log('[Auth] User logged in, loading roles...');
