@@ -224,17 +224,12 @@ export function Quote() {
     }
 
     // Also check localStorage for prefill data (from home page, etc.)
+    // Note: We only prefill address and location type, NOT dates
     const prefillData = localStorage.getItem('bpc_quote_prefill');
     if (prefillData) {
       try {
         const data = JSON.parse(prefillData);
-        if (data.event_date) {
-          setFormData(prev => ({
-            ...prev,
-            event_date: data.event_date,
-            event_end_date: data.event_date,
-          }));
-        }
+        // Don't auto-fill dates - user should always select their desired date
         if (data.address) {
           setAddressInput(data.address.formatted_address || data.address.street || '');
           setFormData(prev => ({

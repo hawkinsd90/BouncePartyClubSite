@@ -37,9 +37,12 @@ import { PrintableInvoice } from '../components/PrintableInvoice';
 import { createOrderBeforePayment } from '../lib/orderCreation';
 import { OrderSummary } from '../components/OrderSummary';
 import { type OrderSummaryDisplay } from '../lib/orderSummary';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 
 export function Checkout() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [quoteData, setQuoteData] = useState<any>(null);
   const [priceBreakdown, setPriceBreakdown] = useState<any>(null);
   const [cart, setCart] = useState<any[]>([]);
@@ -69,65 +72,95 @@ export function Checkout() {
   });
 
   useEffect(() => {
-    const savedForm = localStorage.getItem('bpc_quote_form');
-    const savedBreakdown = localStorage.getItem('bpc_price_breakdown');
-    const savedCart = localStorage.getItem('bpc_cart');
-    const savedContactData = localStorage.getItem('bpc_contact_data');
-    const savedTip = localStorage.getItem('test_booking_tip');
+    async function loadCheckoutData() {
+      const savedForm = localStorage.getItem('bpc_quote_form');
+      const savedBreakdown = localStorage.getItem('bpc_price_breakdown');
+      const savedCart = localStorage.getItem('bpc_cart');
+      const savedContactData = localStorage.getItem('bpc_contact_data');
+      const savedTip = localStorage.getItem('test_booking_tip');
 
-    if (!savedForm || !savedBreakdown || !savedCart) {
-      navigate('/quote');
-      return;
-    }
-
-    const formData = JSON.parse(savedForm);
-    setQuoteData(formData);
-    setPriceBreakdown(JSON.parse(savedBreakdown));
-
-    const cartData = JSON.parse(savedCart);
-    const validCart = cartData.filter((item: any) => {
-      const isValid = item.unit_id && typeof item.unit_id === 'string' && item.unit_id !== 'undefined';
-      if (!isValid) {
-        console.log('Checkout: Filtering out invalid cart item:', item);
+      if (!savedForm || !savedBreakdown || !savedCart) {
+        navigate('/quote');
+        return;
       }
-      return isValid;
-    });
 
-    if (validCart.length !== cartData.length) {
-      console.log(`Checkout: Removed ${cartData.length - validCart.length} invalid cart items`);
-      localStorage.setItem('bpc_cart', JSON.stringify(validCart));
-    }
+      const formData = JSON.parse(savedForm);
+      setQuoteData(formData);
+      setPriceBreakdown(JSON.parse(savedBreakdown));
 
-    setCart(validCart);
-
-    if (savedContactData) {
-      const contactInfo = JSON.parse(savedContactData);
-      setContactData({
-        first_name: contactInfo.first_name || '',
-        last_name: contactInfo.last_name || '',
-        email: contactInfo.email || '',
-        phone: contactInfo.phone || '',
-        business_name: contactInfo.business_name || '',
+      const cartData = JSON.parse(savedCart);
+      const validCart = cartData.filter((item: any) => {
+        const isValid = item.unit_id && typeof item.unit_id === 'string' && item.unit_id !== 'undefined';
+        if (!isValid) {
+          console.log('Checkout: Filtering out invalid cart item:', item);
+        }
+        return isValid;
       });
-      setSmsConsent(true);
-      setCardOnFileConsent(true);
+
+      if (validCart.length !== cartData.length) {
+        console.log(`Checkout: Removed ${cartData.length - validCart.length} invalid cart items`);
+        localStorage.setItem('bpc_cart', JSON.stringify(validCart));
+      }
+
+      setCart(validCart);
+
+      // If user is logged in, fetch their contact information from database
+      if (user) {
+        try {
+          const { data, error } = await supabase.rpc('get_user_order_prefill');
+
+          if (error) {
+            console.error('Error fetching user contact data:', error);
+          } else if (data && data.length > 0) {
+            const userData = data[0];
+            console.log('Auto-filling contact info with user data:', userData);
+
+            setContactData({
+              first_name: userData.first_name || '',
+              last_name: userData.last_name || '',
+              email: userData.email || '',
+              phone: userData.phone || '',
+              business_name: '',
+            });
+          }
+        } catch (error) {
+          console.error('Error loading user contact data:', error);
+        }
+      } else if (savedContactData) {
+        // Fallback to localStorage if not logged in
+        const contactInfo = JSON.parse(savedContactData);
+        setContactData({
+          first_name: contactInfo.first_name || '',
+          last_name: contactInfo.last_name || '',
+          email: contactInfo.email || '',
+          phone: contactInfo.phone || '',
+          business_name: contactInfo.business_name || '',
+        });
+      }
+
+      if (savedContactData) {
+        setSmsConsent(true);
+        setCardOnFileConsent(true);
+      }
+
+      if (savedTip) {
+        const tipCents = parseInt(savedTip, 10);
+        setCustomTip((tipCents / 100).toFixed(2));
+        setTipAmount('custom');
+        localStorage.removeItem('test_booking_tip');
+      }
+
+      setBillingAddress({
+        line1: formData.address_line1 || '',
+        line2: formData.address_line2 || '',
+        city: formData.city || '',
+        state: formData.state || '',
+        zip: formData.zip || '',
+      });
     }
 
-    if (savedTip) {
-      const tipCents = parseInt(savedTip, 10);
-      setCustomTip((tipCents / 100).toFixed(2));
-      setTipAmount('custom');
-      localStorage.removeItem('test_booking_tip');
-    }
-
-    setBillingAddress({
-      line1: formData.address_line1 || '',
-      line2: formData.address_line2 || '',
-      city: formData.city || '',
-      state: formData.state || '',
-      zip: formData.zip || '',
-    });
-  }, [navigate]);
+    loadCheckoutData();
+  }, [navigate, user]);
 
   const getPaymentAmountCents = () => {
     if (paymentAmount === 'full') {
