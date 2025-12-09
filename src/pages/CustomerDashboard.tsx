@@ -313,12 +313,19 @@ export function CustomerDashboard() {
     try {
       console.log('[Duplicate Order] Starting duplication for order:', orderId);
 
-      // Load order details including items
+      // Load order details including items and customer info
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .select(`
           *,
-          addresses (*)
+          addresses (*),
+          customers (
+            first_name,
+            last_name,
+            email,
+            phone,
+            business_name
+          )
         `)
         .eq('id', orderId)
         .single();
@@ -436,7 +443,20 @@ export function CustomerDashboard() {
       localStorage.setItem('bpc_quote_prefill', JSON.stringify(prefillData));
       localStorage.setItem('bpc_duplicate_order', 'true');
 
-      console.log('[Duplicate Order] Cart and prefill data saved, navigating to quote page');
+      // Store contact information for checkout page autofill
+      if (orderData.customers) {
+        const contactData = {
+          first_name: orderData.customers.first_name || '',
+          last_name: orderData.customers.last_name || '',
+          email: orderData.customers.email || '',
+          phone: orderData.customers.phone || '',
+          business_name: orderData.customers.business_name || '',
+        };
+        localStorage.setItem('bpc_contact_data', JSON.stringify(contactData));
+        console.log('[Duplicate Order] Contact data saved:', contactData);
+      }
+
+      console.log('[Duplicate Order] Cart, prefill data, and contact info saved, navigating to quote page');
 
       // Navigate to quote page
       navigate('/quote');
