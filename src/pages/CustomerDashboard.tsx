@@ -326,13 +326,21 @@ export function CustomerDashboard() {
         return;
       }
 
-      // Load order items
+      // Load order items with unit names
       const { data: itemsData, error: itemsError } = await supabase
         .from('order_items')
-        .select('*')
+        .select(`
+          *,
+          units (
+            id,
+            name,
+            is_active
+          )
+        `)
         .eq('order_id', orderId);
 
       if (itemsError || !itemsData) {
+        console.error('Failed to load order items:', itemsError);
         alert('Failed to load order items');
         return;
       }
@@ -342,37 +350,18 @@ export function CustomerDashboard() {
         return;
       }
 
-      // Get all unit IDs from the order
-      const unitIds = itemsData.map(item => item.unit_id);
-
-      // Check which units still exist and are active
-      const { data: unitsData, error: unitsError } = await supabase
-        .from('units')
-        .select('id, name, is_active')
-        .in('id', unitIds);
-
-      if (unitsError) {
-        console.error('Error checking units:', unitsError);
-        alert('Failed to validate rental items');
-        return;
-      }
-
-      // Create a map of valid units
-      const validUnitsMap = new Map(
-        (unitsData || [])
-          .filter(unit => unit.is_active !== false)
-          .map(unit => [unit.id, unit])
-      );
-
-      // Separate valid and invalid items
+      // Separate valid and invalid items based on unit availability
       const validItems: any[] = [];
       const unavailableItems: string[] = [];
 
       itemsData.forEach(item => {
-        if (validUnitsMap.has(item.unit_id)) {
+        // Check if unit exists and is active
+        if (item.units && item.units.is_active !== false) {
           validItems.push(item);
         } else {
-          unavailableItems.push(item.unit_name);
+          // Unit is either deleted or inactive
+          const unitName = item.units?.name || 'Unknown Item';
+          unavailableItems.push(unitName);
         }
       });
 
@@ -397,11 +386,11 @@ export function CustomerDashboard() {
       // Create cart items from valid items only
       const cartItems = validItems.map(item => ({
         unit_id: item.unit_id,
-        unit_name: item.unit_name,
+        unit_name: item.units.name,
         wet_or_dry: item.wet_or_dry as 'dry' | 'water',
         unit_price_cents: item.unit_price_cents,
         qty: item.qty,
-        is_combo: item.is_combo || false,
+        is_combo: false, // This field doesn't exist in order_items, default to false
       }));
 
       // Store cart in localStorage
