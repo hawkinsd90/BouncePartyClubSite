@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '../lib/pricing';
 import { useNavigate } from 'react-router-dom';
+import { OrderSummary } from '../components/OrderSummary';
+import { loadOrderSummary, formatOrderSummary, OrderSummaryDisplay } from '../lib/orderSummary';
 
 interface Payment {
   id: string;
@@ -84,6 +86,8 @@ export function CustomerDashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'active' | 'upcoming' | 'past'>('active');
   const [selectedReceipt, setSelectedReceipt] = useState<{ order: Order; payment: Payment } | null>(null);
+  const [receiptSummary, setReceiptSummary] = useState<OrderSummaryDisplay | null>(null);
+  const [loadingReceipt, setLoadingReceipt] = useState(false);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -101,6 +105,23 @@ export function CustomerDashboard() {
       setActiveTab('past');
     }
   }, [activeOrders, upcomingOrders, pastOrders]);
+
+  async function openReceipt(order: Order, payment: Payment) {
+    setSelectedReceipt({ order, payment });
+    setLoadingReceipt(true);
+
+    try {
+      const summaryData = await loadOrderSummary(order.id);
+      if (summaryData) {
+        const formattedSummary = formatOrderSummary(summaryData);
+        setReceiptSummary(formattedSummary);
+      }
+    } catch (error) {
+      console.error('Error loading receipt summary:', error);
+    } finally {
+      setLoadingReceipt(false);
+    }
+  }
 
   async function loadOrders() {
     if (!user) return;
@@ -304,7 +325,7 @@ export function CustomerDashboard() {
                   .map(payment => (
                     <button
                       key={payment.id}
-                      onClick={() => setSelectedReceipt({ order, payment })}
+                      onClick={() => openReceipt(order, payment)}
                       className="text-blue-600 hover:text-blue-700 underline"
                     >
                       View {payment.type === 'deposit' ? 'Deposit' : 'Balance'} Receipt
@@ -481,157 +502,177 @@ export function CustomerDashboard() {
 
       {/* Receipt Modal */}
       {selectedReceipt && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-4xl w-full my-8">
             <div className="p-6">
               {/* Header */}
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-bold text-gray-900">Payment Receipt</h2>
                 <button
-                  onClick={() => setSelectedReceipt(null)}
+                  onClick={() => {
+                    setSelectedReceipt(null);
+                    setReceiptSummary(null);
+                  }}
                   className="text-gray-400 hover:text-gray-600"
                 >
                   <X className="w-6 h-6" />
                 </button>
               </div>
 
-              {/* Receipt Content */}
-              <div className="space-y-6">
-                {/* Business Info */}
-                <div className="text-center pb-6 border-b border-gray-200">
-                  <h3 className="text-xl font-bold text-gray-900">Bounce Party Club</h3>
-                  <p className="text-gray-600 mt-1">(313) 889-3860</p>
+              {loadingReceipt ? (
+                <div className="py-12 text-center">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <p className="mt-4 text-gray-600">Loading receipt details...</p>
                 </div>
+              ) : (
+                <div className="space-y-6 max-h-[calc(90vh-200px)] overflow-y-auto">
+                  {/* Business Info */}
+                  <div className="text-center pb-6 border-b border-gray-200">
+                    <h3 className="text-xl font-bold text-gray-900">Bounce Party Club</h3>
+                    <p className="text-gray-600 mt-1">(313) 889-3860</p>
+                  </div>
 
-                {/* Payment Details */}
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-gray-600">Receipt Date</p>
-                    <p className="font-semibold text-gray-900">
-                      {format(new Date(selectedReceipt.payment.created_at), 'MMM d, yyyy h:mm a')}
-                    </p>
+                  {/* Payment Details */}
+                  <div className="grid grid-cols-2 gap-4 text-sm bg-blue-50 p-4 rounded-lg">
+                    <div>
+                      <p className="text-gray-600">Receipt Date</p>
+                      <p className="font-semibold text-gray-900">
+                        {format(new Date(selectedReceipt.payment.created_at), 'MMM d, yyyy h:mm a')}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Payment Type</p>
+                      <p className="font-semibold text-gray-900 capitalize">
+                        {selectedReceipt.payment.type}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Order ID</p>
+                      <p className="font-semibold text-gray-900 text-xs">
+                        #{selectedReceipt.order.id.slice(0, 8)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Payment ID</p>
+                      <p className="font-semibold text-gray-900 text-xs">
+                        #{selectedReceipt.payment.id.slice(0, 8)}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-gray-600">Payment Type</p>
-                    <p className="font-semibold text-gray-900 capitalize">
-                      {selectedReceipt.payment.type}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">Order ID</p>
-                    <p className="font-semibold text-gray-900 text-xs">
-                      #{selectedReceipt.order.id.slice(0, 8)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">Payment ID</p>
-                    <p className="font-semibold text-gray-900 text-xs">
-                      #{selectedReceipt.payment.id.slice(0, 8)}
-                    </p>
-                  </div>
-                </div>
 
-                {/* Customer Info */}
-                <div className="pt-4 border-t border-gray-200">
-                  <h4 className="font-semibold text-gray-900 mb-3">Customer Information</h4>
-                  <div className="text-sm space-y-2">
-                    <p>
-                      <span className="text-gray-600">Name: </span>
-                      <span className="font-medium text-gray-900">
-                        {selectedReceipt.order.customers.first_name} {selectedReceipt.order.customers.last_name}
+                  {/* Amount Paid Highlight */}
+                  <div className="bg-green-50 p-4 rounded-lg border-2 border-green-200">
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-semibold text-gray-900">Amount Paid</span>
+                      <span className="text-2xl font-bold text-green-600">
+                        {formatCurrency(selectedReceipt.payment.amount_cents / 100)}
                       </span>
-                    </p>
-                    <p>
-                      <span className="text-gray-600">Email: </span>
-                      <span className="font-medium text-gray-900">{selectedReceipt.order.customers.email}</span>
-                    </p>
-                    <p>
-                      <span className="text-gray-600">Phone: </span>
-                      <span className="font-medium text-gray-900">{selectedReceipt.order.customers.phone}</span>
-                    </p>
+                    </div>
                   </div>
-                </div>
 
-                {/* Event Info */}
-                <div className="pt-4 border-t border-gray-200">
-                  <h4 className="font-semibold text-gray-900 mb-3">Event Information</h4>
-                  <div className="text-sm space-y-2">
-                    <p>
-                      <span className="text-gray-600">Date: </span>
-                      <span className="font-medium text-gray-900">
-                        {format(new Date(selectedReceipt.order.event_date), 'MMMM d, yyyy')}
-                        {selectedReceipt.order.event_end_date && selectedReceipt.order.event_end_date !== selectedReceipt.order.event_date && (
-                          <> - {format(new Date(selectedReceipt.order.event_end_date), 'MMMM d, yyyy')}</>
-                        )}
-                      </span>
-                    </p>
-                    {selectedReceipt.order.addresses && (
+                  {/* Customer Info */}
+                  <div className="pt-4 border-t border-gray-200">
+                    <h4 className="font-semibold text-gray-900 mb-3">Customer Information</h4>
+                    <div className="text-sm space-y-2">
                       <p>
-                        <span className="text-gray-600">Location: </span>
+                        <span className="text-gray-600">Name: </span>
                         <span className="font-medium text-gray-900">
-                          {selectedReceipt.order.addresses.line1}, {selectedReceipt.order.addresses.city}, {selectedReceipt.order.addresses.state} {selectedReceipt.order.addresses.zip}
+                          {selectedReceipt.order.customers.first_name} {selectedReceipt.order.customers.last_name}
                         </span>
                       </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Payment Amount */}
-                <div className="pt-4 border-t border-gray-200">
-                  <div className="flex justify-between items-center text-lg">
-                    <span className="font-semibold text-gray-900">Amount Paid</span>
-                    <span className="font-bold text-green-600">
-                      {formatCurrency(selectedReceipt.payment.amount_cents / 100)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Order Summary */}
-                <div className="pt-4 border-t border-gray-200 text-sm">
-                  <h4 className="font-semibold text-gray-900 mb-3">Order Summary</h4>
-                  <div className="space-y-2 text-gray-700">
-                    <div className="flex justify-between">
-                      <span>Order Total:</span>
-                      <span className="font-medium">{formatCurrency(calculateOrderTotal(selectedReceipt.order) / 100)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Deposit Paid:</span>
-                      <span className="font-medium">{formatCurrency(selectedReceipt.order.deposit_paid_cents / 100)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Balance Paid:</span>
-                      <span className="font-medium">{formatCurrency(selectedReceipt.order.balance_paid_cents / 100)}</span>
-                    </div>
-                    <div className="flex justify-between pt-2 border-t border-gray-200 font-semibold text-gray-900">
-                      <span>Remaining Balance:</span>
-                      <span>
-                        {formatCurrency(
-                          (calculateOrderTotal(selectedReceipt.order) -
-                           selectedReceipt.order.deposit_paid_cents -
-                           selectedReceipt.order.balance_paid_cents) / 100
-                        )}
-                      </span>
+                      <p>
+                        <span className="text-gray-600">Email: </span>
+                        <span className="font-medium text-gray-900">{selectedReceipt.order.customers.email}</span>
+                      </p>
+                      <p>
+                        <span className="text-gray-600">Phone: </span>
+                        <span className="font-medium text-gray-900">{selectedReceipt.order.customers.phone}</span>
+                      </p>
                     </div>
                   </div>
-                </div>
 
-                {/* Footer */}
-                <div className="pt-6 border-t border-gray-200 text-center text-sm text-gray-600">
-                  <p>Thank you for your business!</p>
-                  <p className="mt-2">Questions? Contact us at (313) 889-3860</p>
+                  {/* Event Info */}
+                  <div className="pt-4 border-t border-gray-200">
+                    <h4 className="font-semibold text-gray-900 mb-3">Event Information</h4>
+                    <div className="text-sm space-y-2">
+                      <p>
+                        <span className="text-gray-600">Date: </span>
+                        <span className="font-medium text-gray-900">
+                          {format(new Date(selectedReceipt.order.event_date), 'MMMM d, yyyy')}
+                          {selectedReceipt.order.event_end_date && selectedReceipt.order.event_end_date !== selectedReceipt.order.event_date && (
+                            <> - {format(new Date(selectedReceipt.order.event_end_date), 'MMMM d, yyyy')}</>
+                          )}
+                        </span>
+                      </p>
+                      {selectedReceipt.order.addresses && (
+                        <p>
+                          <span className="text-gray-600">Location: </span>
+                          <span className="font-medium text-gray-900">
+                            {selectedReceipt.order.addresses.line1}, {selectedReceipt.order.addresses.city}, {selectedReceipt.order.addresses.state} {selectedReceipt.order.addresses.zip}
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Itemized Order Summary */}
+                  {receiptSummary && (
+                    <div className="pt-4 border-t-2 border-gray-300">
+                      <OrderSummary
+                        summary={receiptSummary}
+                        title="Complete Order Details"
+                        showDeposit={false}
+                        showTip={true}
+                      />
+                    </div>
+                  )}
+
+                  {/* Payment Status Summary */}
+                  <div className="pt-4 border-t-2 border-gray-300">
+                    <h4 className="font-semibold text-gray-900 mb-3">Payment Status</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-700">Deposit Paid:</span>
+                        <span className="font-medium text-green-600">{formatCurrency(selectedReceipt.order.deposit_paid_cents / 100)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-700">Balance Paid:</span>
+                        <span className="font-medium text-green-600">{formatCurrency(selectedReceipt.order.balance_paid_cents / 100)}</span>
+                      </div>
+                      <div className="flex justify-between pt-2 border-t border-gray-200 font-semibold text-lg">
+                        <span className="text-gray-900">Remaining Balance:</span>
+                        <span className="text-blue-700">
+                          {receiptSummary
+                            ? formatCurrency((receiptSummary.total - selectedReceipt.order.deposit_paid_cents - selectedReceipt.order.balance_paid_cents) / 100)
+                            : formatCurrency((calculateOrderTotal(selectedReceipt.order) - selectedReceipt.order.deposit_paid_cents - selectedReceipt.order.balance_paid_cents) / 100)
+                          }
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="pt-6 border-t border-gray-200 text-center text-sm text-gray-600">
+                    <p>Thank you for your business!</p>
+                    <p className="mt-2">Questions? Contact us at (313) 889-3860</p>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Actions */}
-              <div className="mt-6 flex gap-3">
+              <div className="mt-6 pt-4 border-t border-gray-200 flex gap-3">
                 <button
                   onClick={() => window.print()}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  disabled={loadingReceipt}
                 >
                   Print Receipt
                 </button>
                 <button
-                  onClick={() => setSelectedReceipt(null)}
+                  onClick={() => {
+                    setSelectedReceipt(null);
+                    setReceiptSummary(null);
+                  }}
                   className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
                 >
                   Close
