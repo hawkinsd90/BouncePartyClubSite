@@ -37,15 +37,15 @@ I acknowledge that I have inspected the equipment and found it in good working c
 
 6. CANCELLATIONS AND REFUNDS
 
-I understand and agree that all payments made toward a reservation, including any deposit or partial payment, are generally non-refundable.
+I understand and agree that any deposit or initial payment made toward my reservation is refundable only if I cancel seventy-two (72) hours or more before the scheduled event time.
+
+If I cancel less than seventy-two (72) hours before the event, I understand that my deposit or initial payment is non-refundable, but may be applied one (1) time toward a rescheduled date within twelve (12) months, subject to availability and the discretion of Bounce Party Club.
 
 If Bounce Party Club determines that weather or safety conditions make delivery or setup unsafe, my reservation will be eligible for one (1) free reschedule within twelve (12) months. No monetary refunds will be issued for weather-related cancellations.
 
-If I choose to cancel my reservation for any reason, whether due to weather or personal circumstances, I may be offered one (1) reschedule at the discretion of Bounce Party Club, subject to availability. Monetary refunds are not guaranteed.
+If Bounce Party Club must cancel my reservation for operational reasons unrelated to weather or safety, I may be offered a refund or a rescheduled date at the sole discretion of Bounce Party Club.
 
-If Bounce Party Club must cancel my reservation for operational reasons unrelated to weather or safety, I may be entitled to a refund or reschedule at the sole discretion of Bounce Party Club.
-
-I understand that once the equipment has been delivered and setup has begun, no refunds or credits of any kind will be provided.
+Once delivery has begun or setup has started at the event location, I understand that no refunds or credits of any kind will be provided.
 
 7. PHOTO AND VIDEO RELEASE (Optional)
 
