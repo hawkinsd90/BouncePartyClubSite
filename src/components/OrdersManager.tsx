@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { format, isToday, isFuture, isPast, parse } from 'date-fns';
-import { Search, Calendar, User, Phone, Mail } from 'lucide-react';
+import { format, isToday, isFuture, isPast } from 'date-fns';
+import { Search, Calendar, User, Phone } from 'lucide-react';
 import { OrderDetailModal } from './OrderDetailModal';
 import { PendingOrderCard } from './PendingOrderCard';
 

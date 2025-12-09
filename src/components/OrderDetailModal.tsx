@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { X, Truck, MapPin, CheckCircle, MessageSquare, FileText, Edit2, History, Save, Plus, Trash2, AlertTriangle } from 'lucide-react';
+import { X, Truck, CheckCircle, MessageSquare, FileText, Edit2, History, Save, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
-import { formatCurrency, calculateDistance, calculatePrice, calculateDrivingDistance, type PricingRules, type PriceBreakdown } from '../lib/pricing';
+import { formatCurrency, calculatePrice, calculateDrivingDistance, type PricingRules } from '../lib/pricing';
 import { HOME_BASE } from '../lib/constants';
 import { AddressAutocomplete } from './AddressAutocomplete';
 import { checkMultipleUnitsAvailability } from '../lib/availability';
@@ -35,8 +35,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [availableUnits, setAvailableUnits] = useState<any[]>([]);
   const [newNote, setNewNote] = useState('');
   const [savingNote, setSavingNote] = useState(false);
-  const [eta, setEta] = useState('');
-  const [isEditing, setIsEditing] = useState(true);
   const [editedOrder, setEditedOrder] = useState<any>({
     location_type: order.location_type,
     surface: order.surface,
@@ -1057,33 +1055,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     });
   }
 
-  async function calculateDistance(origin: { lat: number; lng: number }, destination: string): Promise<number> {
-    return new Promise((resolve) => {
-      if (!window.google?.maps) {
-        resolve(0);
-        return;
-      }
-
-      const service = new google.maps.DistanceMatrixService();
-      service.getDistanceMatrix(
-        {
-          origins: [new google.maps.LatLng(origin.lat, origin.lng)],
-          destinations: [destination],
-          travelMode: google.maps.TravelMode.DRIVING,
-          unitSystem: google.maps.UnitSystem.IMPERIAL,
-        },
-        (response, status) => {
-          if (status === 'OK' && response?.rows[0]?.elements[0]?.distance) {
-            const distanceInMeters = response.rows[0].elements[0].distance.value;
-            resolve(distanceInMeters / 1609.34);
-          } else {
-            resolve(0);
-          }
-        }
-      );
-    });
-  }
-
   async function handleAddDiscount() {
     if (!newDiscount.name.trim()) {
       alert('Please enter a discount name');
@@ -1363,7 +1334,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
   }
 
-  const totalOrder = calculatedPricing?.total_cents || (order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents);
   const activeItems = stagedItems.filter(item => !item.is_deleted);
 
   // Filter available units - only show units that:

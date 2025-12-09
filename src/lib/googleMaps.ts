@@ -1,10 +1,8 @@
 let isLoading = false;
-let isLoaded = false;
 
 export function loadGoogleMapsAPI(): Promise<void> {
   return new Promise((resolve, reject) => {
     if (window.google?.maps?.DistanceMatrixService) {
-      isLoaded = true;
       resolve();
       return;
     }
@@ -12,7 +10,6 @@ export function loadGoogleMapsAPI(): Promise<void> {
     if (isLoading) {
       const checkInterval = setInterval(() => {
         if (window.google?.maps?.DistanceMatrixService) {
-          isLoaded = true;
           clearInterval(checkInterval);
           resolve();
         }
@@ -36,7 +33,6 @@ export function loadGoogleMapsAPI(): Promise<void> {
     const existingScript = document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]');
     if (existingScript) {
       existingScript.addEventListener('load', () => {
-        isLoaded = true;
         isLoading = false;
         resolve();
       });
@@ -53,7 +49,6 @@ export function loadGoogleMapsAPI(): Promise<void> {
     script.async = true;
     script.defer = true;
     script.onload = () => {
-      isLoaded = true;
       isLoading = false;
       console.log('✅ Google Maps API loaded successfully');
       resolve();

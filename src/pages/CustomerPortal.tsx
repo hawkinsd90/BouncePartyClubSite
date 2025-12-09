@@ -327,7 +327,6 @@ export function CustomerPortal() {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const newImages: string[] = [];
     const fileArray = Array.from(files);
 
     // Validate all files are images
