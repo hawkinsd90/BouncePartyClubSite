@@ -339,7 +339,7 @@ export function CustomerDashboard() {
           units (
             id,
             name,
-            is_active
+            active
           )
         `)
         .eq('order_id', orderId);
@@ -364,14 +364,14 @@ export function CustomerDashboard() {
 
       itemsData.forEach(item => {
         // Check if unit exists and is active
-        if (item.units && item.units.is_active !== false) {
+        if (item.units && item.units.active !== false) {
           validItems.push(item);
           console.log('[Duplicate Order] Valid item:', item.units.name);
         } else {
           // Unit is either deleted or inactive
           const unitName = item.units?.name || 'Unknown Item';
           unavailableItems.push(unitName);
-          console.warn('[Duplicate Order] Unavailable item:', unitName, 'is_active:', item.units?.is_active);
+          console.warn('[Duplicate Order] Unavailable item:', unitName, 'active:', item.units?.active);
         }
       });
 
