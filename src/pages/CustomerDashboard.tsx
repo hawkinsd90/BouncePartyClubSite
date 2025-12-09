@@ -16,7 +16,7 @@ import {
   Copy
 } from 'lucide-react';
 import { formatCurrency } from '../lib/pricing';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { OrderSummary } from '../components/OrderSummary';
 import { loadOrderSummary, formatOrderSummary, OrderSummaryDisplay } from '../lib/orderSummary';
 
@@ -108,14 +108,23 @@ function formatTime(timeString: string): string {
 export function CustomerDashboard() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [upcomingOrders, setUpcomingOrders] = useState<Order[]>([]);
   const [activeOrders, setActiveOrders] = useState<Order[]>([]);
   const [pastOrders, setPastOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'active' | 'upcoming' | 'past'>('active');
   const [selectedReceipt, setSelectedReceipt] = useState<{ order: Order; payment: Payment } | null>(null);
   const [receiptSummary, setReceiptSummary] = useState<OrderSummaryDisplay | null>(null);
   const [loadingReceipt, setLoadingReceipt] = useState(false);
+
+  // Get active tab from URL params or default to 'active'
+  const urlTab = searchParams.get('tab') as 'active' | 'upcoming' | 'past' | null;
+  const activeTab = (urlTab && ['active', 'upcoming', 'past'].includes(urlTab)) ? urlTab : 'active';
+
+  // Function to change tab and update URL
+  const changeTab = (tab: 'active' | 'upcoming' | 'past') => {
+    setSearchParams({ tab });
+  };
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -123,16 +132,18 @@ export function CustomerDashboard() {
     }
   }, [user, authLoading]);
 
-  // Auto-select first non-empty tab
+  // Auto-select first non-empty tab only if no tab is specified in URL
   useEffect(() => {
-    if (activeOrders.length > 0 && activeTab !== 'active') {
-      setActiveTab('active');
-    } else if (activeOrders.length === 0 && upcomingOrders.length > 0 && activeTab === 'active') {
-      setActiveTab('upcoming');
-    } else if (activeOrders.length === 0 && upcomingOrders.length === 0 && pastOrders.length > 0) {
-      setActiveTab('past');
+    if (!urlTab) {
+      if (activeOrders.length > 0) {
+        changeTab('active');
+      } else if (upcomingOrders.length > 0) {
+        changeTab('upcoming');
+      } else if (pastOrders.length > 0) {
+        changeTab('past');
+      }
     }
-  }, [activeOrders, upcomingOrders, pastOrders]);
+  }, [activeOrders, upcomingOrders, pastOrders, urlTab]);
 
   async function openReceipt(order: Order, payment: Payment) {
     setSelectedReceipt({ order, payment });
@@ -606,7 +617,7 @@ export function CustomerDashboard() {
             <div className="border-b border-gray-200 mb-6 -mx-4 sm:mx-0 px-4 sm:px-0 overflow-x-auto">
               <nav className="-mb-px flex gap-4 sm:gap-8 min-w-min" aria-label="Tabs">
                 <button
-                  onClick={() => setActiveTab('active')}
+                  onClick={() => changeTab('active')}
                   className={`
                     whitespace-nowrap py-3 md:py-4 px-1 border-b-2 font-medium text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 transition-colors
                     ${activeTab === 'active'
@@ -629,7 +640,7 @@ export function CustomerDashboard() {
                 </button>
 
                 <button
-                  onClick={() => setActiveTab('upcoming')}
+                  onClick={() => changeTab('upcoming')}
                   className={`
                     whitespace-nowrap py-3 md:py-4 px-1 border-b-2 font-medium text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 transition-colors
                     ${activeTab === 'upcoming'
@@ -652,7 +663,7 @@ export function CustomerDashboard() {
                 </button>
 
                 <button
-                  onClick={() => setActiveTab('past')}
+                  onClick={() => changeTab('past')}
                   className={`
                     whitespace-nowrap py-3 md:py-4 px-1 border-b-2 font-medium text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 transition-colors
                     ${activeTab === 'past'
