@@ -32,10 +32,13 @@ interface Payment {
 
 interface OrderItem {
   id: string;
-  unit_name: string;
+  unit_id: string;
   wet_or_dry: string;
   qty: number;
   unit_price_cents: number;
+  units: {
+    name: string;
+  };
 }
 
 interface Order {
@@ -186,7 +189,12 @@ export function CustomerDashboard() {
           customers (*),
           addresses (*),
           payments (*),
-          order_items (*)
+          order_items (
+            *,
+            units (
+              name
+            )
+          )
         `)
         .in('customer_id', customerIds)
         .order('event_date', { ascending: false });
@@ -457,7 +465,7 @@ export function CustomerDashboard() {
                     <div className="flex items-center gap-2">
                       <span className="text-gray-600">
                         {item.qty > 1 && `${item.qty}x `}
-                        {item.unit_name}
+                        {item.units.name}
                       </span>
                       <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-medium">
                         {item.wet_or_dry === 'water' ? 'Wet' : 'Dry'}
