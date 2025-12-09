@@ -311,6 +311,8 @@ export function CustomerDashboard() {
 
   async function handleDuplicateOrder(orderId: string) {
     try {
+      console.log('[Duplicate Order] Starting duplication for order:', orderId);
+
       // Load order details including items
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
@@ -322,9 +324,12 @@ export function CustomerDashboard() {
         .single();
 
       if (orderError || !orderData) {
+        console.error('[Duplicate Order] Failed to load order:', orderError);
         alert('Failed to load order details');
         return;
       }
+
+      console.log('[Duplicate Order] Order loaded, fetching items...');
 
       // Load order items with unit names
       const { data: itemsData, error: itemsError } = await supabase
@@ -340,12 +345,15 @@ export function CustomerDashboard() {
         .eq('order_id', orderId);
 
       if (itemsError || !itemsData) {
-        console.error('Failed to load order items:', itemsError);
+        console.error('[Duplicate Order] Failed to load items:', itemsError);
         alert('Failed to load order items');
         return;
       }
 
+      console.log('[Duplicate Order] Loaded items:', itemsData.length);
+
       if (itemsData.length === 0) {
+        console.warn('[Duplicate Order] No items found in order');
         alert('This order has no items to duplicate.');
         return;
       }
@@ -358,12 +366,16 @@ export function CustomerDashboard() {
         // Check if unit exists and is active
         if (item.units && item.units.is_active !== false) {
           validItems.push(item);
+          console.log('[Duplicate Order] Valid item:', item.units.name);
         } else {
           // Unit is either deleted or inactive
           const unitName = item.units?.name || 'Unknown Item';
           unavailableItems.push(unitName);
+          console.warn('[Duplicate Order] Unavailable item:', unitName, 'is_active:', item.units?.is_active);
         }
       });
+
+      console.log('[Duplicate Order] Validation complete - Valid:', validItems.length, 'Unavailable:', unavailableItems.length);
 
       // Show feedback to user
       if (unavailableItems.length > 0 && validItems.length === 0) {
@@ -424,10 +436,12 @@ export function CustomerDashboard() {
       localStorage.setItem('bpc_quote_prefill', JSON.stringify(prefillData));
       localStorage.setItem('bpc_duplicate_order', 'true');
 
+      console.log('[Duplicate Order] Cart and prefill data saved, navigating to quote page');
+
       // Navigate to quote page
       navigate('/quote');
     } catch (error) {
-      console.error('Error duplicating order:', error);
+      console.error('[Duplicate Order] Unexpected error:', error);
       alert('Failed to duplicate order');
     }
   }
