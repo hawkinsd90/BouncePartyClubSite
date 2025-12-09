@@ -528,6 +528,11 @@ export function CustomerDashboard() {
                 <div className="space-y-6 max-h-[calc(90vh-200px)] overflow-y-auto">
                   {/* Business Info */}
                   <div className="text-center pb-6 border-b border-gray-200">
+                    <img
+                      src="/bounce%20party%20club%20logo.png"
+                      alt="Bounce Party Club"
+                      className="h-20 mx-auto mb-3 object-contain"
+                    />
                     <h3 className="text-xl font-bold text-gray-900">Bounce Party Club</h3>
                     <p className="text-gray-600 mt-1">(313) 889-3860</p>
                   </div>
