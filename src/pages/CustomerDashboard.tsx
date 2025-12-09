@@ -30,6 +30,14 @@ interface Payment {
   paid_at: string | null;
 }
 
+interface OrderItem {
+  id: string;
+  unit_name: string;
+  wet_or_dry: string;
+  qty: number;
+  unit_price_cents: number;
+}
+
 interface Order {
   id: string;
   status: string;
@@ -65,6 +73,7 @@ interface Order {
   signed_waiver_url: string | null;
   customer_id: string;
   payments?: Payment[];
+  order_items?: OrderItem[];
 }
 
 function calculateOrderTotal(order: Order): number {
@@ -176,7 +185,8 @@ export function CustomerDashboard() {
           *,
           customers (*),
           addresses (*),
-          payments (*)
+          payments (*),
+          order_items (*)
         `)
         .in('customer_id', customerIds)
         .order('event_date', { ascending: false });
@@ -437,6 +447,30 @@ export function CustomerDashboard() {
             <Package className="w-4 h-4 flex-shrink-0" />
             <span className="capitalize">{order.location_type} Event</span>
           </div>
+
+          {order.order_items && order.order_items.length > 0 && (
+            <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+              <h4 className="text-xs font-semibold text-gray-700 mb-2">Rental Items:</h4>
+              <div className="space-y-1.5">
+                {order.order_items.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-600">
+                        {item.qty > 1 && `${item.qty}x `}
+                        {item.unit_name}
+                      </span>
+                      <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-medium">
+                        {item.wet_or_dry === 'water' ? 'Wet' : 'Dry'}
+                      </span>
+                    </div>
+                    <span className="text-gray-500 text-[11px]">
+                      {formatCurrency(item.unit_price_cents * item.qty)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="flex items-start gap-2 text-xs sm:text-sm text-gray-600">
             <DollarSign className="w-4 h-4 mt-0.5 flex-shrink-0" />
