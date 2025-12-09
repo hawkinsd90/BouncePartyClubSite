@@ -223,18 +223,21 @@ export function Quote() {
       }
     }
 
-    // Also check localStorage for prefill data (from home page, etc.)
+    // Also check localStorage for prefill data (from home page, duplicate orders, etc.)
     // Note: We only prefill address and location type, NOT dates
     const prefillData = localStorage.getItem('bpc_quote_prefill');
     if (prefillData) {
       try {
         const data = JSON.parse(prefillData);
+        const isDuplicateOrder = localStorage.getItem('bpc_duplicate_order') === 'true';
+
         // Don't auto-fill dates - user should always select their desired date
         if (data.address) {
           setAddressInput(data.address.formatted_address || data.address.street || '');
           setFormData(prev => ({
             ...prev,
             address_line1: data.address.street || '',
+            address_line2: data.address_line2 || '',
             city: data.address.city || 'Detroit',
             state: data.address.state || 'MI',
             zip: data.address.zip || '',
@@ -242,12 +245,32 @@ export function Quote() {
             lng: data.address.lng || 0,
           }));
         }
-        if (data.location_type) {
+
+        // If this is a duplicate order, load all the additional settings
+        if (isDuplicateOrder) {
+          setFormData(prev => ({
+            ...prev,
+            location_type: data.location_type || prev.location_type,
+            pickup_preference: data.pickup_preference || prev.pickup_preference,
+            can_stake: data.can_stake !== undefined ? data.can_stake : prev.can_stake,
+            has_generator: data.has_generator !== undefined ? data.has_generator : prev.has_generator,
+            has_pets: data.has_pets !== undefined ? data.has_pets : prev.has_pets,
+            special_details: data.special_details || prev.special_details,
+            start_window: data.start_window || prev.start_window,
+            end_window: data.end_window || prev.end_window,
+          }));
+          // Clear the duplicate flag
+          localStorage.removeItem('bpc_duplicate_order');
+        } else if (data.location_type) {
+          // For regular prefill, just set location type
           setFormData(prev => ({
             ...prev,
             location_type: data.location_type,
           }));
         }
+
+        // Clear the prefill data after using it
+        localStorage.removeItem('bpc_quote_prefill');
       } catch (error) {
         console.error('Error loading prefill data:', error);
       }

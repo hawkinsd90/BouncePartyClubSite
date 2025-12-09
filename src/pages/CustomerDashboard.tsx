@@ -12,7 +12,8 @@ import {
   AlertCircle,
   Package,
   X,
-  Eye
+  Eye,
+  Copy
 } from 'lucide-react';
 import { formatCurrency } from '../lib/pricing';
 import { useNavigate } from 'react-router-dom';
@@ -265,6 +266,83 @@ export function CustomerDashboard() {
     }
   }
 
+  async function handleDuplicateOrder(orderId: string) {
+    try {
+      // Load order details including items
+      const { data: orderData, error: orderError } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          addresses (*)
+        `)
+        .eq('id', orderId)
+        .single();
+
+      if (orderError || !orderData) {
+        alert('Failed to load order details');
+        return;
+      }
+
+      // Load order items
+      const { data: itemsData, error: itemsError } = await supabase
+        .from('order_items')
+        .select('*')
+        .eq('order_id', orderId);
+
+      if (itemsError || !itemsData) {
+        alert('Failed to load order items');
+        return;
+      }
+
+      // Create cart items from order items
+      const cartItems = itemsData.map(item => ({
+        unit_id: item.unit_id,
+        unit_name: item.unit_name,
+        wet_or_dry: item.wet_or_dry as 'dry' | 'water',
+        unit_price_cents: item.unit_price_cents,
+        qty: item.qty,
+        is_combo: item.is_combo || false,
+      }));
+
+      // Store cart in localStorage
+      localStorage.setItem('bpc_cart', JSON.stringify(cartItems));
+
+      // Store quote prefill data (address and settings, but NOT dates)
+      const prefillData = {
+        address: orderData.addresses ? {
+          street: orderData.addresses.line1,
+          city: orderData.addresses.city,
+          state: orderData.addresses.state,
+          zip: orderData.addresses.zip,
+          lat: orderData.addresses.lat,
+          lng: orderData.addresses.lng,
+          formatted_address: `${orderData.addresses.line1}, ${orderData.addresses.city}, ${orderData.addresses.state} ${orderData.addresses.zip}`,
+        } : null,
+        location_type: orderData.location_type,
+        pickup_preference: orderData.pickup_preference || 'next_day',
+        can_stake: orderData.can_stake,
+        has_generator: orderData.generator_qty > 0,
+        has_pets: orderData.has_pets,
+        special_details: orderData.special_details || '',
+        address_line2: orderData.addresses?.line2 || '',
+        // Explicitly clear dates - customer must select new ones
+        event_date: '',
+        event_end_date: '',
+        start_window: orderData.start_window || '09:00',
+        end_window: orderData.end_window || '17:00',
+      };
+
+      localStorage.setItem('bpc_quote_prefill', JSON.stringify(prefillData));
+      localStorage.setItem('bpc_duplicate_order', 'true');
+
+      // Navigate to quote page
+      navigate('/quote');
+    } catch (error) {
+      console.error('Error duplicating order:', error);
+      alert('Failed to duplicate order');
+    }
+  }
+
   function OrderCard({ order }: { order: Order }) {
     const eventStartDate = new Date(order.event_date);
     const eventEndDate = order.event_end_date ? new Date(order.event_end_date) : eventStartDate;
@@ -344,24 +422,33 @@ export function CustomerDashboard() {
           )}
         </div>
 
-        <div className="mt-4 pt-4 border-t border-gray-200 flex gap-2">
-          <button
-            onClick={() => navigate(`/customer-portal/${order.id}`)}
-            className="flex-1 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-1.5 sm:gap-2 text-sm"
-          >
-            <Eye className="w-4 h-4 flex-shrink-0" />
-            <span className="hidden xs:inline">View Details</span>
-            <span className="xs:hidden">Details</span>
-          </button>
-          {order.signed_waiver_url && (
+        <div className="mt-4 pt-4 border-t border-gray-200 flex flex-col gap-2">
+          <div className="flex gap-2">
             <button
-              onClick={() => window.open(order.signed_waiver_url!, '_blank')}
-              className="px-3 sm:px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-1.5 sm:gap-2 text-sm"
+              onClick={() => navigate(`/customer-portal/${order.id}`)}
+              className="flex-1 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-1.5 sm:gap-2 text-sm"
             >
-              <FileText className="w-4 h-4 flex-shrink-0" />
-              <span className="hidden sm:inline">Waiver</span>
+              <Eye className="w-4 h-4 flex-shrink-0" />
+              <span className="hidden xs:inline">View Details</span>
+              <span className="xs:hidden">Details</span>
             </button>
-          )}
+            {order.signed_waiver_url && (
+              <button
+                onClick={() => window.open(order.signed_waiver_url!, '_blank')}
+                className="px-3 sm:px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-1.5 sm:gap-2 text-sm"
+              >
+                <FileText className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Waiver</span>
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => handleDuplicateOrder(order.id)}
+            className="w-full px-3 sm:px-4 py-2 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 transition-colors flex items-center justify-center gap-1.5 sm:gap-2 text-sm font-medium"
+          >
+            <Copy className="w-4 h-4 flex-shrink-0" />
+            <span>Duplicate Order</span>
+          </button>
         </div>
       </div>
     );
