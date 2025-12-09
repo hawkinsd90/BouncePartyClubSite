@@ -101,7 +101,10 @@ Deno.serve(async (req: Request) => {
           if (piId) {
             await supabaseClient
               .from("payments")
-              .update({ status: "succeeded" })
+              .update({
+                status: "succeeded",
+                paid_at: new Date().toISOString()
+              })
               .eq("stripe_payment_intent_id", piId);
           }
         }
@@ -116,7 +119,10 @@ Deno.serve(async (req: Request) => {
         // Mark the payment row as succeeded
         await supabaseClient
           .from("payments")
-          .update({ status: "succeeded" })
+          .update({
+            status: "succeeded",
+            paid_at: new Date().toISOString()
+          })
           .eq("stripe_payment_intent_id", paymentIntent.id);
 
         if (orderId && paymentType === "deposit") {
@@ -151,7 +157,10 @@ Deno.serve(async (req: Request) => {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         await supabaseClient
           .from("payments")
-          .update({ status: "failed" })
+          .update({
+            status: "failed",
+            failed_at: new Date().toISOString()
+          })
           .eq("stripe_payment_intent_id", paymentIntent.id);
         break;
       }
@@ -177,31 +186,12 @@ Deno.serve(async (req: Request) => {
             refunded_by: null,
             status: charge.refunded ? "succeeded" : "pending",
           });
-
-          // Update running total on the order
-          const { data: order } = await supabaseClient
-            .from("orders")
-            .select("total_refunded_cents")
-            .eq("id", payment.order_id)
-            .single();
-
-          if (order) {
-            await supabaseClient
-              .from("orders")
-              .update({
-                total_refunded_cents:
-                  (order.total_refunded_cents || 0) +
-                  (charge.amount_refunded || 0),
-              })
-              .eq("id", payment.order_id);
-          }
         }
         break;
       }
 
       default:
-        // No-op for other event types
-        break;
+        console.log(`ℹ️ [WEBHOOK] Unhandled event type: ${event.type}`);
     }
 
     return new Response(JSON.stringify({ received: true }), {
@@ -209,10 +199,13 @@ Deno.serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
-    console.error("Webhook error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("❌ [WEBHOOK] Error:", error);
+    return new Response(
+      JSON.stringify({ error: error.message || "Internal server error" }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   }
 });

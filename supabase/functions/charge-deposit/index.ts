@@ -168,6 +168,7 @@ Deno.serve(async (req: Request) => {
       amount_cents: amountCents,
       type: "deposit",
       status: "succeeded",
+      paid_at: new Date().toISOString(),
     });
 
     if (paymentError) {

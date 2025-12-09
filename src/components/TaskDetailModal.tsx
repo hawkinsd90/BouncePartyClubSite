@@ -24,6 +24,13 @@ interface Task {
   waiverSigned: boolean;
   balanceDue: number;
   pickupPreference?: string;
+  payments?: Array<{
+    id: string;
+    amount_cents: number;
+    status: string;
+    paid_at: string | null;
+    type: string;
+  }>;
   taskStatus?: {
     id: string;
     status: string;
@@ -517,6 +524,24 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
               )}
               {task.balanceDue > 0 && (
                 <div className="text-red-700 font-semibold">⚠️ Balance due: {formatCurrency(task.balanceDue)}</div>
+              )}
+              {task.payments && task.payments.filter(p => p.status === 'succeeded').length > 0 && (
+                <div className="mt-3 pt-3 border-t border-slate-200">
+                  <div className="font-semibold text-slate-700 mb-2">💳 Payments Received:</div>
+                  {task.payments
+                    .filter(p => p.status === 'succeeded')
+                    .map(payment => (
+                      <div key={payment.id} className="text-xs text-green-700 ml-2">
+                        ✓ {formatCurrency(payment.amount_cents)} ({payment.type}) - {payment.paid_at ? new Date(payment.paid_at).toLocaleString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit'
+                        }) : 'Completed'}
+                      </div>
+                    ))
+                  }
+                </div>
               )}
             </div>
           </div>

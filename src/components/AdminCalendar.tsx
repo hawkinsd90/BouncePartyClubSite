@@ -26,6 +26,13 @@ interface Task {
   waiverSigned: boolean;
   balanceDue: number;
   pickupPreference?: string;
+  payments?: Array<{
+    id: string;
+    amount_cents: number;
+    status: string;
+    paid_at: string | null;
+    type: string;
+  }>;
   taskStatus?: {
     id: string;
     status: string;
@@ -90,7 +97,8 @@ export function AdminCalendar() {
         .select(`
           *,
           customers (first_name, last_name, phone, email),
-          addresses (line1, city, state, zip)
+          addresses (line1, city, state, zip),
+          payments (id, amount_cents, status, paid_at, type)
         `)
         .gte('event_date', format(monthStart, 'yyyy-MM-dd'))
         .lte('event_date', format(monthEnd, 'yyyy-MM-dd'))
@@ -176,6 +184,7 @@ export function AdminCalendar() {
           waiverSigned: !!order.waiver_signed_at,
           balanceDue,
           pickupPreference: order.pickup_preference,
+          payments: order.payments as any || [],
           taskStatus: dropOffStatus ? {
             id: dropOffStatus.id,
             status: dropOffStatus.status,
@@ -215,6 +224,7 @@ export function AdminCalendar() {
           waiverSigned: !!order.waiver_signed_at,
           balanceDue,
           pickupPreference: order.pickup_preference,
+          payments: order.payments as any || [],
           taskStatus: pickUpStatus ? {
             id: pickUpStatus.id,
             status: pickUpStatus.status,

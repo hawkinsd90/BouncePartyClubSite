@@ -26,6 +26,7 @@ interface Payment {
   status: string;
   stripe_payment_intent_id: string | null;
   created_at: string;
+  paid_at: string | null;
 }
 
 interface Order {
@@ -540,9 +541,9 @@ export function CustomerDashboard() {
                   {/* Payment Details */}
                   <div className="grid grid-cols-2 gap-4 text-sm bg-blue-50 p-4 rounded-lg">
                     <div>
-                      <p className="text-gray-600">Receipt Date</p>
+                      <p className="text-gray-600">Payment Received</p>
                       <p className="font-semibold text-gray-900">
-                        {format(new Date(selectedReceipt.payment.created_at), 'MMM d, yyyy h:mm a')}
+                        {format(new Date(selectedReceipt.payment.paid_at || selectedReceipt.payment.created_at), 'MMM d, yyyy h:mm a')}
                       </p>
                     </div>
                     <div>
