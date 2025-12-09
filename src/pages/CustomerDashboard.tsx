@@ -308,7 +308,7 @@ export function CustomerDashboard() {
               <div>
                 <span className="text-gray-600">Total: </span>
                 <span className="font-semibold text-gray-900">
-                  {formatCurrency(calculateOrderTotal(order) / 100)}
+                  {formatCurrency(calculateOrderTotal(order))}
                 </span>
               </div>
               <span className="text-gray-400 hidden sm:inline">•</span>
@@ -570,7 +570,7 @@ export function CustomerDashboard() {
                     <div className="flex justify-between items-center">
                       <span className="text-lg font-semibold text-gray-900">Amount Paid</span>
                       <span className="text-2xl font-bold text-green-600">
-                        {formatCurrency(selectedReceipt.payment.amount_cents / 100)}
+                        {formatCurrency(selectedReceipt.payment.amount_cents)}
                       </span>
                     </div>
                   </div>
@@ -638,18 +638,18 @@ export function CustomerDashboard() {
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-gray-700">Deposit Paid:</span>
-                        <span className="font-medium text-green-600">{formatCurrency(selectedReceipt.order.deposit_paid_cents / 100)}</span>
+                        <span className="font-medium text-green-600">{formatCurrency(selectedReceipt.order.deposit_paid_cents)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-700">Balance Paid:</span>
-                        <span className="font-medium text-green-600">{formatCurrency(selectedReceipt.order.balance_paid_cents / 100)}</span>
+                        <span className="font-medium text-green-600">{formatCurrency(selectedReceipt.order.balance_paid_cents)}</span>
                       </div>
                       <div className="flex justify-between pt-2 border-t border-gray-200 font-semibold text-lg">
                         <span className="text-gray-900">Remaining Balance:</span>
                         <span className="text-blue-700">
                           {receiptSummary
-                            ? formatCurrency((receiptSummary.total - selectedReceipt.order.deposit_paid_cents - selectedReceipt.order.balance_paid_cents) / 100)
-                            : formatCurrency((calculateOrderTotal(selectedReceipt.order) - selectedReceipt.order.deposit_paid_cents - selectedReceipt.order.balance_paid_cents) / 100)
+                            ? formatCurrency(receiptSummary.total - selectedReceipt.order.deposit_paid_cents - selectedReceipt.order.balance_paid_cents)
+                            : formatCurrency(calculateOrderTotal(selectedReceipt.order) - selectedReceipt.order.deposit_paid_cents - selectedReceipt.order.balance_paid_cents)
                           }
                         </span>
                       </div>
