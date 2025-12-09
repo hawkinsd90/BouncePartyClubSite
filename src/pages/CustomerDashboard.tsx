@@ -294,8 +294,65 @@ export function CustomerDashboard() {
         return;
       }
 
-      // Create cart items from order items
-      const cartItems = itemsData.map(item => ({
+      if (itemsData.length === 0) {
+        alert('This order has no items to duplicate.');
+        return;
+      }
+
+      // Get all unit IDs from the order
+      const unitIds = itemsData.map(item => item.unit_id);
+
+      // Check which units still exist and are active
+      const { data: unitsData, error: unitsError } = await supabase
+        .from('units')
+        .select('id, name, is_active')
+        .in('id', unitIds);
+
+      if (unitsError) {
+        console.error('Error checking units:', unitsError);
+        alert('Failed to validate rental items');
+        return;
+      }
+
+      // Create a map of valid units
+      const validUnitsMap = new Map(
+        (unitsData || [])
+          .filter(unit => unit.is_active !== false)
+          .map(unit => [unit.id, unit])
+      );
+
+      // Separate valid and invalid items
+      const validItems: any[] = [];
+      const unavailableItems: string[] = [];
+
+      itemsData.forEach(item => {
+        if (validUnitsMap.has(item.unit_id)) {
+          validItems.push(item);
+        } else {
+          unavailableItems.push(item.unit_name);
+        }
+      });
+
+      // Show feedback to user
+      if (unavailableItems.length > 0 && validItems.length === 0) {
+        alert(
+          'Unable to duplicate this order.\n\n' +
+          'The following items are no longer available:\n' +
+          unavailableItems.map(name => `• ${name}`).join('\n') +
+          '\n\nPlease browse our catalog to see current rental options.'
+        );
+        return;
+      } else if (unavailableItems.length > 0) {
+        const proceed = confirm(
+          'Some items from this order are no longer available:\n\n' +
+          unavailableItems.map(name => `• ${name}`).join('\n') +
+          '\n\nThe remaining items will be added to your cart. Continue?'
+        );
+        if (!proceed) return;
+      }
+
+      // Create cart items from valid items only
+      const cartItems = validItems.map(item => ({
         unit_id: item.unit_id,
         unit_name: item.unit_name,
         wet_or_dry: item.wet_or_dry as 'dry' | 'water',
