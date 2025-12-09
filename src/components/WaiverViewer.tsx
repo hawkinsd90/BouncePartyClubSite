@@ -72,9 +72,9 @@ export default function WaiverViewer({
               <input
                 type="text"
                 maxLength={4}
-                value={initials[currentSectionNeedsInitials] || ''}
+                value={initials[currentSectionNeedsInitials || ''] || ''}
                 onChange={(e) =>
-                  onInitialsChange(currentSectionNeedsInitials, e.target.value.toUpperCase())
+                  currentSectionNeedsInitials && onInitialsChange(currentSectionNeedsInitials, e.target.value.toUpperCase())
                 }
                 className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center font-semibold uppercase"
                 placeholder="AB"
@@ -120,9 +120,9 @@ export default function WaiverViewer({
               <input
                 type="text"
                 maxLength={4}
-                value={initials[currentSectionNeedsInitials] || ''}
+                value={initials[currentSectionNeedsInitials || ''] || ''}
                 onChange={(e) =>
-                  onInitialsChange(currentSectionNeedsInitials, e.target.value.toUpperCase())
+                  currentSectionNeedsInitials && onInitialsChange(currentSectionNeedsInitials, e.target.value.toUpperCase())
                 }
                 className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center font-semibold uppercase"
                 placeholder="AB"

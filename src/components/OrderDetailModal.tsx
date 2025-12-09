@@ -442,7 +442,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         pickup_preference: editedOrder.pickup_preference,
         event_date: editedOrder.event_date,
         event_end_date: editedOrder.event_end_date,
-        surface: editedOrder.surface,
       };
 
       // Use centralized calculation for summary display

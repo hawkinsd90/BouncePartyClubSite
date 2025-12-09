@@ -86,7 +86,7 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
 
       if (error) {
         console.error('[Carousel] Error loading carousel:', error);
-        setError(`Error: ${error.message}`);
+        setError(`Error: ${(error as any)?.message || 'Unknown error'}`);
         setMedia([]);
         setLoading(false);
         return;
@@ -95,7 +95,7 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
       if (data) {
         console.log(`[Carousel] Found ${data.length} items`);
         const mediaWithUrls = await Promise.all(
-          data.map(async (item) => {
+          data.map(async (item: any) => {
             if (item.storage_path) {
               const { data: urlData } = supabase.storage
                 .from('carousel-media')

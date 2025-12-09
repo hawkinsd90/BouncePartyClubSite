@@ -66,7 +66,7 @@ export function UnitDetail() {
 
       if (mediaError) throw mediaError;
 
-      setUnit({ ...unitData, media: mediaData || [] });
+      setUnit({ ...unitData, media: (mediaData || []) as any } as any);
     } catch (error) {
       console.error('Error loading unit:', error);
     } finally {

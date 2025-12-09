@@ -59,7 +59,7 @@ export function Catalog() {
         media: mediaData.filter((m) => m.unit_id === unit.id),
       }));
 
-      setUnits(unitsWithMedia);
+      setUnits(unitsWithMedia as any);
     } catch (error) {
       console.error('Error loading units:', error);
     } finally {
