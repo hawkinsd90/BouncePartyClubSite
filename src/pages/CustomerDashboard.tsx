@@ -546,21 +546,9 @@ export function CustomerDashboard() {
                       </p>
                     </div>
                     <div>
-                      <p className="text-gray-600">Payment Type</p>
-                      <p className="font-semibold text-gray-900 capitalize">
-                        {selectedReceipt.payment.type}
-                      </p>
-                    </div>
-                    <div>
                       <p className="text-gray-600">Order ID</p>
                       <p className="font-semibold text-gray-900 text-xs">
                         #{selectedReceipt.order.id.slice(0, 8)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-600">Payment ID</p>
-                      <p className="font-semibold text-gray-900 text-xs">
-                        #{selectedReceipt.payment.id.slice(0, 8)}
                       </p>
                     </div>
                   </div>
