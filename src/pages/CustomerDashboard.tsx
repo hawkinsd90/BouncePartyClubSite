@@ -35,8 +35,10 @@ interface Order {
   subtotal_cents: number;
   travel_fee_cents: number;
   surface_fee_cents: number;
+  same_day_pickup_fee_cents?: number;
+  generator_fee_cents?: number;
   tax_cents: number;
-  total_cents: number;
+  tip_cents?: number;
   deposit_due_cents: number;
   deposit_paid_cents: number;
   balance_due_cents: number;
@@ -59,6 +61,18 @@ interface Order {
   signed_waiver_url: string | null;
   customer_id: string;
   payments?: Payment[];
+}
+
+function calculateOrderTotal(order: Order): number {
+  return (
+    order.subtotal_cents +
+    order.travel_fee_cents +
+    order.surface_fee_cents +
+    (order.same_day_pickup_fee_cents || 0) +
+    (order.generator_fee_cents || 0) +
+    order.tax_cents +
+    (order.tip_cents || 0)
+  );
 }
 
 export function CustomerDashboard() {
@@ -273,7 +287,7 @@ export function CustomerDashboard() {
               <div>
                 <span className="text-gray-600">Total: </span>
                 <span className="font-semibold text-gray-900">
-                  {formatCurrency(order.total_cents / 100)}
+                  {formatCurrency(calculateOrderTotal(order) / 100)}
                 </span>
               </div>
               <span className="text-gray-400 hidden sm:inline">•</span>
@@ -281,7 +295,7 @@ export function CustomerDashboard() {
             </div>
           </div>
 
-          {order.payments && order.payments.filter(p => p.status === 'succeeded').length > 0 && (
+          {Array.isArray(order.payments) && order.payments.filter(p => p.status === 'succeeded').length > 0 && (
             <div className="flex items-start gap-2 text-xs sm:text-sm">
               <FileText className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-400" />
               <div className="flex gap-2 flex-wrap">
@@ -578,7 +592,7 @@ export function CustomerDashboard() {
                   <div className="space-y-2 text-gray-700">
                     <div className="flex justify-between">
                       <span>Order Total:</span>
-                      <span className="font-medium">{formatCurrency(selectedReceipt.order.total_cents / 100)}</span>
+                      <span className="font-medium">{formatCurrency(calculateOrderTotal(selectedReceipt.order) / 100)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Deposit Paid:</span>
@@ -592,7 +606,7 @@ export function CustomerDashboard() {
                       <span>Remaining Balance:</span>
                       <span>
                         {formatCurrency(
-                          (selectedReceipt.order.total_cents -
+                          (calculateOrderTotal(selectedReceipt.order) -
                            selectedReceipt.order.deposit_paid_cents -
                            selectedReceipt.order.balance_paid_cents) / 100
                         )}
