@@ -166,7 +166,7 @@ Deno.serve(async (req: Request) => {
       order_id: orderId,
       stripe_payment_intent_id: paymentIntent.id,
       amount_cents: amountCents,
-      payment_type: "deposit",
+      type: "deposit",
       status: "succeeded",
     });
 
