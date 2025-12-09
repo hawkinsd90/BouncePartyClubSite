@@ -46,6 +46,8 @@ interface Order {
   status: string;
   event_date: string;
   event_end_date: string;
+  event_start_time: string | null;
+  event_end_time: string | null;
   location_type: string;
   subtotal_cents: number;
   travel_fee_cents: number;
@@ -89,6 +91,16 @@ function calculateOrderTotal(order: Order): number {
     order.tax_cents +
     (order.tip_cents || 0)
   );
+}
+
+function formatTime(timeString: string): string {
+  // timeString is in format "HH:MM:SS"
+  const [hours, minutes] = timeString.split(':');
+  const hour = parseInt(hours, 10);
+  const minute = parseInt(minutes, 10);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  return `${displayHour}:${minute.toString().padStart(2, '0')} ${ampm}`;
 }
 
 export function CustomerDashboard() {
@@ -451,6 +463,17 @@ export function CustomerDashboard() {
             </div>
           )}
 
+          {(order.event_start_time || order.event_end_time) && (
+            <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
+              <Clock className="w-4 h-4 flex-shrink-0" />
+              <span>
+                {order.event_start_time && formatTime(order.event_start_time)}
+                {order.event_start_time && order.event_end_time && ' - '}
+                {order.event_end_time && formatTime(order.event_end_time)}
+              </span>
+            </div>
+          )}
+
           <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
             <Package className="w-4 h-4 flex-shrink-0" />
             <span className="capitalize">{order.location_type} Event</span>
@@ -779,6 +802,16 @@ export function CustomerDashboard() {
                           )}
                         </span>
                       </p>
+                      {(selectedReceipt.order.event_start_time || selectedReceipt.order.event_end_time) && (
+                        <p>
+                          <span className="text-gray-600">Time: </span>
+                          <span className="font-medium text-gray-900">
+                            {selectedReceipt.order.event_start_time && formatTime(selectedReceipt.order.event_start_time)}
+                            {selectedReceipt.order.event_start_time && selectedReceipt.order.event_end_time && ' - '}
+                            {selectedReceipt.order.event_end_time && formatTime(selectedReceipt.order.event_end_time)}
+                          </span>
+                        </p>
+                      )}
                       {selectedReceipt.order.addresses && (
                         <p>
                           <span className="text-gray-600">Location: </span>
