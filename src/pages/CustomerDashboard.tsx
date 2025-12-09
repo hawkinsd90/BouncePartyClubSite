@@ -48,6 +48,8 @@ interface Order {
   event_end_date: string;
   event_start_time: string | null;
   event_end_time: string | null;
+  start_window: string | null;
+  end_window: string | null;
   location_type: string;
   subtotal_cents: number;
   travel_fee_cents: number;
@@ -463,13 +465,13 @@ export function CustomerDashboard() {
             </div>
           )}
 
-          {(order.event_start_time || order.event_end_time) && (
+          {(order.start_window || order.end_window || order.event_start_time || order.event_end_time) && (
             <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
               <Clock className="w-4 h-4 flex-shrink-0" />
               <span>
-                {order.event_start_time && formatTime(order.event_start_time)}
-                {order.event_start_time && order.event_end_time && ' - '}
-                {order.event_end_time && formatTime(order.event_end_time)}
+                {(order.start_window || order.event_start_time) && formatTime(order.start_window || order.event_start_time)}
+                {(order.start_window || order.event_start_time) && (order.end_window || order.event_end_time) && ' - '}
+                {(order.end_window || order.event_end_time) && formatTime(order.end_window || order.event_end_time)}
               </span>
             </div>
           )}
@@ -802,13 +804,13 @@ export function CustomerDashboard() {
                           )}
                         </span>
                       </p>
-                      {(selectedReceipt.order.event_start_time || selectedReceipt.order.event_end_time) && (
+                      {(selectedReceipt.order.start_window || selectedReceipt.order.end_window || selectedReceipt.order.event_start_time || selectedReceipt.order.event_end_time) && (
                         <p>
                           <span className="text-gray-600">Time: </span>
                           <span className="font-medium text-gray-900">
-                            {selectedReceipt.order.event_start_time && formatTime(selectedReceipt.order.event_start_time)}
-                            {selectedReceipt.order.event_start_time && selectedReceipt.order.event_end_time && ' - '}
-                            {selectedReceipt.order.event_end_time && formatTime(selectedReceipt.order.event_end_time)}
+                            {(selectedReceipt.order.start_window || selectedReceipt.order.event_start_time) && formatTime(selectedReceipt.order.start_window || selectedReceipt.order.event_start_time)}
+                            {(selectedReceipt.order.start_window || selectedReceipt.order.event_start_time) && (selectedReceipt.order.end_window || selectedReceipt.order.event_end_time) && ' - '}
+                            {(selectedReceipt.order.end_window || selectedReceipt.order.event_end_time) && formatTime(selectedReceipt.order.end_window || selectedReceipt.order.event_end_time)}
                           </span>
                         </p>
                       )}
