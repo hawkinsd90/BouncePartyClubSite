@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../lib/pricing';
 import { format } from 'date-fns';
@@ -21,6 +21,7 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
   const [selectedImage, setSelectedImage] = useState<{ url: string; label: string } | null>(null);
   const [contact, setContact] = useState<any>(null);
   const [orderSummary, setOrderSummary] = useState<any>(null);
+  const loadingSummaryRef = useRef(false);
 
   // Format customer display name (business name if available, otherwise personal name)
   const getCustomerDisplayName = () => {
@@ -39,9 +40,20 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
   }, [order.id]);
 
   async function loadSummary() {
-    const data = await loadOrderSummary(order.id);
-    if (data) {
-      setOrderSummary(formatOrderSummary(data));
+    if (loadingSummaryRef.current) {
+      return;
+    }
+
+    loadingSummaryRef.current = true;
+    try {
+      const data = await loadOrderSummary(order.id);
+      if (data) {
+        setOrderSummary(formatOrderSummary(data));
+      }
+    } catch (error) {
+      console.error('[PendingOrderCard] Error loading order summary:', error);
+    } finally {
+      loadingSummaryRef.current = false;
     }
   }
 
