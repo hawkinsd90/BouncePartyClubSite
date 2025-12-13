@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, Truck, MessageSquare, FileText, Edit2, History, Save, Trash2, AlertTriangle, CheckCircle } from 'lucide-react';
+import { X, Truck, MessageSquare, FileText, Edit2, History, Save, Trash2, AlertTriangle, CheckCircle, CreditCard, RotateCcw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
 import { formatCurrency, calculatePrice, calculateDrivingDistance, type PricingRules } from '../lib/pricing';
@@ -33,11 +33,16 @@ interface StagedItem {
 }
 
 export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalProps) {
-  const [activeSection, setActiveSection] = useState<'details' | 'workflow' | 'notes' | 'changelog'>('details');
+  const [activeSection, setActiveSection] = useState<'details' | 'workflow' | 'notes' | 'changelog' | 'payments'>('details');
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [notes, setNotes] = useState<any[]>([]);
   const [workflowEvents, setWorkflowEvents] = useState<any[]>([]);
   const [changelog, setChangelog] = useState<any[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
+  const [refunding, setRefunding] = useState(false);
+  const [refundAmount, setRefundAmount] = useState('');
+  const [refundReason, setRefundReason] = useState('');
+  const [showRefundForm, setShowRefundForm] = useState(false);
   const [availableUnits, setAvailableUnits] = useState<any[]>([]);
   const [editedOrder, setEditedOrder] = useState<any>({
     location_type: order.location_type,
