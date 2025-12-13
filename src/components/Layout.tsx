@@ -2,6 +2,7 @@ import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { Phone, Mail, LogOut, LogIn, ShoppingCart, Menu, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useState, useEffect } from 'react';
+import { notifyError } from '../lib/notifications';
 
 export function Layout() {
   const { user, isAdmin, hasRole, signOut } = useAuth();
@@ -37,7 +38,7 @@ export function Layout() {
       navigate('/');
     } catch (error) {
       console.error('Sign out error:', error);
-      alert('Failed to sign out. Please try again.');
+      notifyError('Failed to sign out. Please try again.');
     }
   };
 

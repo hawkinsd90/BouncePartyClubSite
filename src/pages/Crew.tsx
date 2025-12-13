@@ -10,6 +10,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { getCurrentLocation, calculateETA, CrewLocation } from '../lib/googleMaps';
+import { notifySuccess, notifyError, notify } from '../lib/notifications';
 
 export function Crew() {
   const [stops, setStops] = useState<any[]>([]);
@@ -174,15 +175,15 @@ export function Crew() {
 
       await loadTodaysStops();
       setSelectedStop(null);
-      alert(`Checkpoint "${checkpoint}" updated successfully!`);
+      notifySuccess(`Checkpoint "${checkpoint}" updated successfully!`);
     } catch (error) {
       console.error('Error updating checkpoint:', error);
-      alert('Error updating checkpoint');
+      notifyError('Error updating checkpoint');
     }
   }
 
   const handlePhotoCapture = () => {
-    alert(
+    notify(
       'Photo capture would activate camera here. In production, this would use the device camera API or file input.'
     );
   };

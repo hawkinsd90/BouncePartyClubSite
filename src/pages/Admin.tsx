@@ -9,6 +9,7 @@ import { OrdersManager } from '../components/OrdersManager';
 import { InvoiceBuilder } from '../components/InvoiceBuilder';
 import { PendingOrderCard } from '../components/PendingOrderCard';
 import { AdminCalendar } from '../components/AdminCalendar';
+import { notifyError, notifySuccess, notifyWarning, showConfirm, notify } from '../lib/notifications';
 
 type AdminTab =
   | 'overview'
@@ -127,15 +128,15 @@ function AdminDashboard() {
         }
       }
 
-      alert('Settings saved successfully!');
+      notifySuccess('Settings saved successfully!');
     } catch (error: any) {
       console.error('Error saving settings:', error);
       const errorMessage = error.message || 'Failed to save settings. Please try again.';
 
       if (errorMessage.includes('row-level security')) {
-        alert('Permission denied: You must be logged in as an admin user to update settings. Please make sure you are logged in as admin@bouncepartyclub.com');
+        notifyError('Permission denied: You must be logged in as an admin user to update settings. Please make sure you are logged in as admin@bouncepartyclub.com');
       } else {
-        alert(`Failed to save settings: ${errorMessage}`);
+        notifyError(`Failed to save settings: ${errorMessage}`);
       }
     } finally {
       setSavingTwilio(false);
@@ -171,18 +172,18 @@ function AdminDashboard() {
       });
 
       if (testResponse.ok) {
-        alert('Stripe settings saved successfully! The payment system is now ready.');
+        notifySuccess('Stripe settings saved successfully! The payment system is now ready.');
       } else {
-        alert('Stripe settings saved, but there may be an issue with the edge function. Please test a payment.');
+        notifyWarning('Stripe settings saved, but there may be an issue with the edge function. Please test a payment.');
       }
     } catch (error: any) {
       console.error('Error saving Stripe settings:', error);
       const errorMessage = error.message || 'Failed to save settings. Please try again.';
 
       if (errorMessage.includes('row-level security')) {
-        alert('Permission denied: You must be logged in as an admin user to update settings.');
+        notifyError('Permission denied: You must be logged in as an admin user to update settings.');
       } else {
-        alert(`Failed to save Stripe settings: ${errorMessage}`);
+        notifyError(`Failed to save Stripe settings: ${errorMessage}`);
       }
     } finally {
       setSavingStripe(false);
@@ -201,33 +202,33 @@ function AdminDashboard() {
 
       if (error) throw error;
 
-      alert('Template saved successfully!');
+      notifySuccess('Template saved successfully!');
       setEditingTemplate(null);
       await loadData();
     } catch (error) {
       console.error('Error saving template:', error);
-      alert('Failed to save template. Please try again.');
+      notifyError('Failed to save template. Please try again.');
     } finally {
       setSavingTemplate(false);
     }
   }
 
   const handleExportMenu = () => {
-    alert('Menu export feature coming soon - will generate PNG/PDF with current pricing');
+    notify('Menu export feature coming soon - will generate PNG/PDF with current pricing');
   };
 
   async function handleDeleteUnit(unitId: string, unitName: string) {
-    if (!confirm(`Are you sure you want to delete "${unitName}"?`)) return;
+    if (!await showConfirm(`Are you sure you want to delete "${unitName}"?`)) return;
 
     try {
       const { error } = await supabase.from('units').delete().eq('id', unitId);
       if (error) throw error;
 
-      alert('Unit deleted successfully');
+      notifySuccess('Unit deleted successfully');
       loadData();
     } catch (error) {
       console.error('Error deleting unit:', error);
-      alert('Failed to delete unit');
+      notifyError('Failed to delete unit');
     }
   }
 

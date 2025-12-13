@@ -19,6 +19,7 @@ import { formatCurrency } from '../lib/pricing';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { OrderSummary } from '../components/OrderSummary';
 import { loadOrderSummary, formatOrderSummary, OrderSummaryDisplay } from '../lib/orderSummary';
+import { notifyError, notifyWarning, showConfirm } from '../lib/notifications';
 
 interface Payment {
   id: string;
@@ -332,7 +333,7 @@ export function CustomerDashboard() {
 
       if (orderError || !orderData) {
         console.error('[Duplicate Order] Failed to load order:', orderError);
-        alert('Failed to load order details');
+        notifyError('Failed to load order details');
         return;
       }
 
@@ -353,7 +354,7 @@ export function CustomerDashboard() {
 
       if (itemsError || !itemsData) {
         console.error('[Duplicate Order] Failed to load items:', itemsError);
-        alert('Failed to load order items');
+        notifyError('Failed to load order items');
         return;
       }
 
@@ -361,7 +362,7 @@ export function CustomerDashboard() {
 
       if (itemsData.length === 0) {
         console.warn('[Duplicate Order] No items found in order');
-        alert('This order has no items to duplicate.');
+        notifyWarning('This order has no items to duplicate.');
         return;
       }
 
@@ -386,7 +387,7 @@ export function CustomerDashboard() {
 
       // Show feedback to user
       if (unavailableItems.length > 0 && validItems.length === 0) {
-        alert(
+        notifyError(
           'Unable to duplicate this order.\n\n' +
           'The following items are no longer available:\n' +
           unavailableItems.map(name => `• ${name}`).join('\n') +
@@ -394,7 +395,7 @@ export function CustomerDashboard() {
         );
         return;
       } else if (unavailableItems.length > 0) {
-        const proceed = confirm(
+        const proceed = await showConfirm(
           'Some items from this order are no longer available:\n\n' +
           unavailableItems.map(name => `• ${name}`).join('\n') +
           '\n\nThe remaining items will be added to your cart. Continue?'
@@ -462,7 +463,7 @@ export function CustomerDashboard() {
       navigate('/quote');
     } catch (error) {
       console.error('[Duplicate Order] Unexpected error:', error);
-      alert('Failed to duplicate order');
+      notifyError('Failed to duplicate order');
     }
   }
 

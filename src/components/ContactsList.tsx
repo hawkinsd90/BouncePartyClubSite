@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Mail, Phone, Calendar, Edit2, X } from 'lucide-react';
 import { format } from 'date-fns';
+import { notifySuccess, notifyError } from '../lib/notifications';
 
 export function ContactsList() {
   const [contacts, setContacts] = useState<any[]>([]);
@@ -62,13 +63,13 @@ export function ContactsList() {
 
       if (error) throw error;
 
-      alert('Contact updated successfully!');
+      notifySuccess('Contact updated successfully!');
       setShowEditModal(false);
       setEditingContact(null);
       await loadContacts();
     } catch (error) {
       console.error('Error updating contact:', error);
-      alert('Failed to update contact. Please try again.');
+      notifyError('Failed to update contact. Please try again.');
     } finally {
       setSaving(false);
     }

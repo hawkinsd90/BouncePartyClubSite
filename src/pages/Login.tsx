@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Lock, Loader2, Eye, EyeOff } from 'lucide-react';
+import { notifySuccess } from '../lib/notifications';
 
 export function Login() {
   const navigate = useNavigate();
@@ -37,7 +38,7 @@ export function Login() {
         }
         await signUp(email, password, { name: displayName });
         setError('');
-        alert('Account created! Please check your email to verify your account.');
+        notifySuccess('Account created! Please check your email to verify your account.');
         setMode('signin');
       } else {
         await signIn(email, password);

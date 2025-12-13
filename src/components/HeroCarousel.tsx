@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { ChevronLeft, ChevronRight, Plus, Trash2, Edit2, Save, X, MoveUp, MoveDown, Upload, Link as LinkIcon } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { notifyError, showConfirm } from '../lib/notifications';
 
 interface CarouselMedia {
   id: string;
@@ -130,7 +131,7 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
       .upload(filePath, newMedia.file);
 
     if (uploadError) {
-      alert('Failed to upload file: ' + uploadError.message);
+      notifyError('Failed to upload file: ' + uploadError.message);
       setUploading(false);
       return;
     }
@@ -163,7 +164,7 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
       setShowAddForm(false);
       loadMedia();
     } else {
-      alert('Failed to add media: ' + error.message);
+      notifyError('Failed to add media: ' + error.message);
     }
   }
 
@@ -172,7 +173,7 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
       await handleFileUpload();
     } else {
       if (!newMedia.url.trim()) {
-        alert('Please enter a URL');
+        notifyError('Please enter a URL');
         return;
       }
       await addMediaToDatabase(newMedia.url);
@@ -197,7 +198,7 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
   }
 
   async function deleteMedia(id: string, storagePath: string | null) {
-    if (!confirm('Are you sure you want to delete this media?')) return;
+    if (!await showConfirm('Are you sure you want to delete this media?')) return;
 
     if (storagePath) {
       await supabase.storage

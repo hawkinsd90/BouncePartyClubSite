@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ArrowLeft, Save, Upload, X } from 'lucide-react';
+import { notifyError, notifySuccess } from '../lib/notifications';
 
 export function UnitForm() {
   const navigate = useNavigate();
@@ -178,12 +179,12 @@ export function UnitForm() {
     const isComboOrWaterSlide = formData.type === 'Combo' || formData.type === 'Water Slide';
 
     if (dryImages.length === 0) {
-      alert('Please add at least one image for dry mode');
+      notifyError('Please add at least one image for dry mode');
       return;
     }
 
     if (isComboOrWaterSlide && !useWetSameAsDry && wetImages.length === 0) {
-      alert('Please add at least one image for wet mode, or check "Same as dry"');
+      notifyError('Please add at least one image for wet mode, or check "Same as dry"');
       return;
     }
 
@@ -236,11 +237,11 @@ export function UnitForm() {
         if (mediaError) throw mediaError;
       }
 
-      alert(isEdit ? 'Unit updated successfully!' : 'Unit created successfully!');
+      notifySuccess(isEdit ? 'Unit updated successfully!' : 'Unit created successfully!');
       navigate('/admin?tab=inventory');
     } catch (error: any) {
       console.error('Error saving unit:', error);
-      alert(`Failed to save unit: ${error.message}`);
+      notifyError(`Failed to save unit: ${error.message}`);
     } finally {
       setSaving(false);
       setUploadingImages(false);

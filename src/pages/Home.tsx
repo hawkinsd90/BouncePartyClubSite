@@ -5,6 +5,7 @@ import { AddressAutocomplete } from '../components/AddressAutocomplete';
 import { HeroCarousel } from '../components/HeroCarousel';
 import { useAuth } from '../contexts/AuthContext';
 import { createTestBooking } from '../lib/testBooking';
+import { notifyError } from '../lib/notifications';
 
 export function Home() {
   const navigate = useNavigate();
@@ -19,12 +20,12 @@ export function Home() {
     e.preventDefault();
 
     if (!eventDate) {
-      alert('Please select an event date');
+      notifyError('Please select an event date');
       return;
     }
 
     if (!addressData) {
-      alert('Please enter an event address');
+      notifyError('Please enter an event address');
       return;
     }
 
@@ -64,7 +65,7 @@ export function Home() {
                   navigate('/checkout');
                 } else {
                   console.error('❌ [HOME] Test booking failed:', result.error);
-                  alert('Failed to create test booking: ' + result.error);
+                  notifyError('Failed to create test booking: ' + result.error);
                 }
               }}
               disabled={creatingTestBooking}

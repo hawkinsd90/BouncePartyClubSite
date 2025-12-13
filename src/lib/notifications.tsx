@@ -130,6 +130,73 @@ export function showAlert(message: string) {
   showNotification('info', message, { duration: 0 });
 }
 
+// Drop-in replacement for confirm()
+export function showConfirm(
+  message: string,
+  options?: {
+    confirmText?: string;
+    cancelText?: string;
+    type?: 'warning' | 'info';
+  }
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    const container = getNotificationContainer();
+    const wrapper = document.createElement('div');
+
+    wrapper.style.position = 'fixed';
+    wrapper.style.top = '0';
+    wrapper.style.left = '0';
+    wrapper.style.right = '0';
+    wrapper.style.bottom = '0';
+    wrapper.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+    wrapper.style.display = 'flex';
+    wrapper.style.alignItems = 'center';
+    wrapper.style.justifyContent = 'center';
+    wrapper.style.zIndex = '10000';
+    wrapper.style.pointerEvents = 'auto';
+
+    document.body.appendChild(wrapper);
+    const root = createRoot(wrapper);
+
+    const handleClose = (confirmed: boolean) => {
+      root.unmount();
+      document.body.removeChild(wrapper);
+      resolve(confirmed);
+    };
+
+    const ConfirmDialog = () => {
+      const { confirmText = 'Confirm', cancelText = 'Cancel', type = 'warning' } = options || {};
+      const Icon = type === 'warning' ? AlertCircle : Info;
+      const iconColor = type === 'warning' ? 'text-yellow-600' : 'text-blue-600';
+
+      return (
+        <div className="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4 animate-scale-in">
+          <div className="flex items-start gap-3 mb-4">
+            <Icon className={`w-6 h-6 flex-shrink-0 ${iconColor}`} />
+            <p className="text-gray-800 text-base">{message}</p>
+          </div>
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={() => handleClose(false)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            >
+              {cancelText}
+            </button>
+            <button
+              onClick={() => handleClose(true)}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+            >
+              {confirmText}
+            </button>
+          </div>
+        </div>
+      );
+    };
+
+    root.render(<ConfirmDialog />);
+  });
+}
+
 // Add animation styles
 if (typeof document !== 'undefined') {
   const style = document.createElement('style');
@@ -153,6 +220,19 @@ if (typeof document !== 'undefined') {
         transform: translateX(400px);
         opacity: 0;
       }
+    }
+    @keyframes scaleIn {
+      from {
+        transform: scale(0.95);
+        opacity: 0;
+      }
+      to {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+    .animate-scale-in {
+      animation: scaleIn 0.2s ease-out;
     }
   `;
   document.head.appendChild(style);

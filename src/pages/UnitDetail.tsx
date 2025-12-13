@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { notifyWarning } from '../lib/notifications';
 import {
   Users,
   Maximize,
@@ -275,7 +276,7 @@ export function UnitDetail() {
 
               // Check if we can add more
               if (existingCount >= unit.quantity_available) {
-                alert(`Sorry, we only have ${unit.quantity_available} of this item available. You already have ${existingCount} in your cart.`);
+                notifyWarning(`Sorry, we only have ${unit.quantity_available} of this item available. You already have ${existingCount} in your cart.`);
                 return;
               }
 
