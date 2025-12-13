@@ -29,6 +29,9 @@ interface Payment {
   stripe_payment_intent_id: string | null;
   created_at: string;
   paid_at: string | null;
+  payment_method: string | null;
+  payment_brand: string | null;
+  last_four: string | null;
 }
 
 interface OrderItem {
@@ -817,6 +820,32 @@ export function CustomerDashboard() {
                         {formatCurrency(selectedReceipt.payment.amount_cents)}
                       </span>
                     </div>
+                    {selectedReceipt.payment.payment_method && (
+                      <div className="mt-3 pt-3 border-t border-green-200">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-700">Payment Method:</span>
+                          <span className="font-medium text-gray-900">
+                            {(() => {
+                              const method = selectedReceipt.payment.payment_method;
+                              const brand = selectedReceipt.payment.payment_brand;
+                              const lastFour = selectedReceipt.payment.last_four;
+
+                              if (method === 'card' && brand) {
+                                const brandName = brand.charAt(0).toUpperCase() + brand.slice(1);
+                                return lastFour ? `${brandName} ****${lastFour}` : brandName;
+                              }
+                              if (method === 'apple_pay') return 'Apple Pay';
+                              if (method === 'google_pay') return 'Google Pay';
+                              if (method === 'link') return 'Link';
+                              if (method === 'us_bank_account') return 'Bank Account';
+                              if (method === 'cash') return 'Cash';
+                              if (method === 'check') return 'Check';
+                              return method.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                            })()}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Customer Info */}
