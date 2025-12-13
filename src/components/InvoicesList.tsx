@@ -114,7 +114,7 @@ Event Date: ${invoice.orders?.event_date}
 
 CHARGES:
 Subtotal: ${formatCurrency(invoice.subtotal_cents)}
-Travel Fee${invoice.travel_total_miles > 0 ? ` (${parseFloat(String(invoice.travel_total_miles)).toFixed(1)} mi)` : ''}: ${formatCurrency(invoice.travel_fee_cents)}
+Travel Fee${Number(invoice.travel_total_miles) > 0 ? ` (${parseFloat(String(invoice.travel_total_miles)).toFixed(1)} mi)` : ''}: ${formatCurrency(invoice.travel_fee_cents)}
 Surface Fee: ${formatCurrency(invoice.surface_fee_cents)}
 Same Day Pickup: ${formatCurrency(invoice.same_day_pickup_fee_cents)}
 Tax: ${formatCurrency(invoice.tax_cents)}

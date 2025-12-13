@@ -39,6 +39,7 @@ interface OrderItem {
   unit_price_cents: number;
   units: {
     name: string;
+    active?: boolean;
   };
 }
 
@@ -64,18 +65,26 @@ interface Order {
   balance_due_cents: number;
   balance_paid_cents: number;
   created_at: string;
+  can_stake?: boolean;
+  generator_qty?: number;
+  has_pets?: boolean;
+  special_details?: string | null;
+  pickup_preference?: string | null;
   customers: {
     first_name: string;
     last_name: string;
     email: string;
-    phone: string;
+    phone: string | null;
+    business_name?: string | null;
   };
   addresses: {
     line1: string;
-    line2?: string;
+    line2?: string | null;
     city: string;
     state: string;
     zip: string;
+    lat?: number;
+    lng?: number;
   } | null;
   waiver_signed_at: string | null;
   signed_waiver_url: string | null;
@@ -96,7 +105,8 @@ function calculateOrderTotal(order: Order): number {
   );
 }
 
-function formatTime(timeString: string): string {
+function formatTime(timeString: string | null): string {
+  if (!timeString) return '';
   // timeString is in format "HH:MM:SS"
   const [hours, minutes] = timeString.split(':');
   const hour = parseInt(hours, 10);
@@ -315,7 +325,7 @@ export function CustomerDashboard() {
       console.log('[Duplicate Order] Starting duplication for order:', orderId);
 
       // Load order details including items and customer info
-      const { data: orderData, error: orderError } = await supabase
+      const { data: orderDataRaw, error: orderError } = await supabase
         .from('orders')
         .select(`
           *,
@@ -331,16 +341,18 @@ export function CustomerDashboard() {
         .eq('id', orderId)
         .single();
 
-      if (orderError || !orderData) {
+      if (orderError || !orderDataRaw) {
         console.error('[Duplicate Order] Failed to load order:', orderError);
         notifyError('Failed to load order details');
         return;
       }
 
+      const orderData = orderDataRaw as any;
+
       console.log('[Duplicate Order] Order loaded, fetching items...');
 
       // Load order items with unit names
-      const { data: itemsData, error: itemsError } = await supabase
+      const { data: itemsDataRaw, error: itemsError } = await supabase
         .from('order_items')
         .select(`
           *,
@@ -352,11 +364,13 @@ export function CustomerDashboard() {
         `)
         .eq('order_id', orderId);
 
-      if (itemsError || !itemsData) {
+      if (itemsError || !itemsDataRaw) {
         console.error('[Duplicate Order] Failed to load items:', itemsError);
         notifyError('Failed to load order items');
         return;
       }
+
+      const itemsData = itemsDataRaw as any[];
 
       console.log('[Duplicate Order] Loaded items:', itemsData.length);
 
@@ -370,7 +384,7 @@ export function CustomerDashboard() {
       const validItems: any[] = [];
       const unavailableItems: string[] = [];
 
-      itemsData.forEach(item => {
+      itemsData.forEach((item: any) => {
         // Check if unit exists and is active
         if (item.units && item.units.active !== false) {
           validItems.push(item);

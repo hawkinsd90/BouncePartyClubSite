@@ -1,16 +1,11 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { formatCurrency, calculatePrice, calculateDrivingDistance, type PricingRules, type PriceBreakdown } from '../lib/pricing';
 import { HOME_BASE } from '../lib/constants';
-import { Copy, Check, Send } from 'lucide-react';
+import { Copy, Check, Send, UserPlus, X, Search, Trash2 } from 'lucide-react';
 import { OrderSummary } from './OrderSummary';
 import { type OrderSummaryDisplay } from '../lib/orderSummary';
-import { CustomerSelector } from './invoice/CustomerSelector';
-import { NewCustomerForm } from './invoice/NewCustomerForm';
-import { CartItemsList } from './invoice/CartItemsList';
-import { InvoiceEventDetails } from './invoice/InvoiceEventDetails';
-import { DiscountsManager } from './order-detail/DiscountsManager';
-import { CustomFeesManager } from './order-detail/CustomFeesManager';
+import { AddressAutocomplete } from './AddressAutocomplete';
 import { showToast } from '../lib/notifications';
 
 export function InvoiceBuilder() {
@@ -991,7 +986,7 @@ export function InvoiceBuilder() {
                 <label className="block text-sm font-medium text-slate-700 mb-2">Street Address *</label>
                 <AddressAutocomplete
                   value={eventDetails.address_line1}
-                  onSelect={(address) => {
+                  onSelect={(address: { street: string; city: string; state: string; zip: string; lat: number; lng: number }) => {
                     setEventDetails({
                       ...eventDetails,
                       address_line1: address.street,

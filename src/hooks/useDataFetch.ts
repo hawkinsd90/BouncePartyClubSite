@@ -64,7 +64,7 @@ export function useDataFetch<T>(
   return { data, loading, error, refetch: fetchData };
 }
 
-interface MutationOptions<TData, TVariables> {
+interface MutationOptions<TData> {
   onSuccess?: (data: TData) => void;
   onError?: (error: any) => void;
   successMessage?: string;
@@ -82,7 +82,7 @@ interface MutationResult<TData, TVariables> {
 
 export function useMutation<TData = any, TVariables = any>(
   mutateFn: (variables: TVariables) => Promise<TData>,
-  options: MutationOptions<TData, TVariables> = {}
+  options: MutationOptions<TData> = {}
 ): MutationResult<TData, TVariables> {
   const {
     onSuccess,

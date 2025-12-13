@@ -1,10 +1,9 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { X, Truck, MessageSquare, FileText, Edit2, History, Save, Plus, Trash2, AlertTriangle } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { X, Truck, MessageSquare, FileText, Edit2, History, Save, Trash2, AlertTriangle, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
 import { formatCurrency, calculatePrice, calculateDrivingDistance, type PricingRules } from '../lib/pricing';
 import { HOME_BASE } from '../lib/constants';
-import { AddressAutocomplete } from './AddressAutocomplete';
 import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { OrderSummary } from './OrderSummary';
 import { formatOrderSummary, type OrderSummaryData } from '../lib/orderSummary';
@@ -14,8 +13,6 @@ import { OrderNotesTab } from './order-detail/OrderNotesTab';
 import { OrderWorkflowTab } from './order-detail/OrderWorkflowTab';
 import { OrderChangelogTab } from './order-detail/OrderChangelogTab';
 import { OrderItemsEditor } from './order-detail/OrderItemsEditor';
-import { DiscountsManager } from './order-detail/DiscountsManager';
-import { CustomFeesManager } from './order-detail/CustomFeesManager';
 import { EventDetailsEditor } from './order-detail/EventDetailsEditor';
 
 interface OrderDetailModalProps {
@@ -1231,43 +1228,17 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
   function initiateStatusChange(newStatus: string) {
     setPendingStatus(newStatus);
-    setStatusChangeReason('');
     setShowStatusDialog(true);
   }
 
-  // Memoized computations to prevent unnecessary recalculations
-  const activeItems = useMemo(() =>
-    stagedItems.filter(item => !item.is_deleted),
-    [stagedItems]
-  );
-
-  // Filter available units - only show units that:
-  // 1. Are not already in the order, OR
-  // 2. Have quantity_available > 1 (meaning we can add more)
-  const unitsAvailableToAdd = useMemo(() =>
-    availableUnits.filter(unit => {
-      // Check if this unit is already in the order (not deleted)
-      const existingItem = activeItems.find(item => item.unit_id === unit.id);
-
-      if (!existingItem) {
-        // Unit not in order, so it's available to add
-        return true;
-      }
-
-      // Unit is in order - only show if we have multiple units in inventory
-      return (unit.quantity_available || 1) > 1;
-    }),
-    [availableUnits, activeItems]
-  );
-
   // Memoized callbacks to prevent child component re-renders
   const handleOrderChange = useCallback((updates: any) => {
-    setEditedOrder(prev => ({ ...prev, ...updates }));
+    setEditedOrder((prev: any) => ({ ...prev, ...updates }));
     setHasChanges(true);
   }, []);
 
   const handleAddressSelect = useCallback((result: any) => {
-    setEditedOrder(prev => ({
+    setEditedOrder((prev: any) => ({
       ...prev,
       address_line1: result.street,
       address_city: result.city,
