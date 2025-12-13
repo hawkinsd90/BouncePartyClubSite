@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../lib/pricing';
@@ -57,57 +57,65 @@ function AdminDashboard() {
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
   const [savingTemplate, setSavingTemplate] = useState(false);
 
+  const fetchAdminData = useCallback(async () => {
+    const [unitsRes, ordersRes, pricingRes, settingsRes, templatesRes] = await Promise.all([
+      supabase.from('units').select('*').order('name'),
+      supabase.from('orders').select(`
+        *,
+        customers (first_name, last_name, email, phone),
+        addresses (line1, city, state, zip)
+      `).in('status', ['pending_review', 'draft', 'confirmed']).order('created_at', { ascending: false }).limit(50),
+      supabase.from('pricing_rules').select('*').limit(1).maybeSingle(),
+      supabase.from('admin_settings').select('*').in('key', ['twilio_account_sid', 'twilio_auth_token', 'twilio_from_number', 'admin_email', 'stripe_secret_key', 'stripe_publishable_key']),
+      supabase.from('sms_message_templates').select('*').order('template_name'),
+    ]);
+
+    if (unitsRes.error) throw unitsRes.error;
+    if (ordersRes.error) throw ordersRes.error;
+    if (pricingRes.error) throw pricingRes.error;
+    if (settingsRes.error) throw settingsRes.error;
+    if (templatesRes.error) throw templatesRes.error;
+
+    const settings: any = {};
+    const stripeSet: any = {};
+    let email = '';
+
+    settingsRes.data?.forEach((s: any) => {
+      if (s.key === 'twilio_account_sid') settings.account_sid = s.value;
+      if (s.key === 'twilio_auth_token') settings.auth_token = s.value;
+      if (s.key === 'twilio_from_number') settings.from_number = s.value;
+      if (s.key === 'admin_email') email = s.value;
+      if (s.key === 'stripe_secret_key') stripeSet.secret_key = s.value;
+      if (s.key === 'stripe_publishable_key') stripeSet.publishable_key = s.value;
+    });
+
+    return {
+      units: unitsRes.data || [],
+      orders: ordersRes.data || [],
+      pricingRules: pricingRes.data,
+      twilioSettings: settings,
+      stripeSettings: stripeSet,
+      adminEmail: email,
+      smsTemplates: templatesRes.data || [],
+    };
+  }, []);
+
+  const handleDataSuccess = useCallback((data: AdminData) => {
+    setTwilioSettings(data.twilioSettings);
+    setStripeSettings(data.stripeSettings);
+    setAdminEmail(data.adminEmail);
+  }, []);
+
+  const handleDataError = useCallback((error: any) => {
+    handleError(error, 'Admin.loadData');
+  }, []);
+
   const { data, loading, refetch } = useDataFetch<AdminData>(
-    async () => {
-      const [unitsRes, ordersRes, pricingRes, settingsRes, templatesRes] = await Promise.all([
-        supabase.from('units').select('*').order('name'),
-        supabase.from('orders').select(`
-          *,
-          customers (first_name, last_name, email, phone),
-          addresses (line1, city, state, zip)
-        `).in('status', ['pending_review', 'draft', 'confirmed']).order('created_at', { ascending: false }).limit(50),
-        supabase.from('pricing_rules').select('*').limit(1).maybeSingle(),
-        supabase.from('admin_settings').select('*').in('key', ['twilio_account_sid', 'twilio_auth_token', 'twilio_from_number', 'admin_email', 'stripe_secret_key', 'stripe_publishable_key']),
-        supabase.from('sms_message_templates').select('*').order('template_name'),
-      ]);
-
-      if (unitsRes.error) throw unitsRes.error;
-      if (ordersRes.error) throw ordersRes.error;
-      if (pricingRes.error) throw pricingRes.error;
-      if (settingsRes.error) throw settingsRes.error;
-      if (templatesRes.error) throw templatesRes.error;
-
-      const settings: any = {};
-      const stripeSet: any = {};
-      let email = '';
-
-      settingsRes.data?.forEach((s: any) => {
-        if (s.key === 'twilio_account_sid') settings.account_sid = s.value;
-        if (s.key === 'twilio_auth_token') settings.auth_token = s.value;
-        if (s.key === 'twilio_from_number') settings.from_number = s.value;
-        if (s.key === 'admin_email') email = s.value;
-        if (s.key === 'stripe_secret_key') stripeSet.secret_key = s.value;
-        if (s.key === 'stripe_publishable_key') stripeSet.publishable_key = s.value;
-      });
-
-      return {
-        units: unitsRes.data || [],
-        orders: ordersRes.data || [],
-        pricingRules: pricingRes.data,
-        twilioSettings: settings,
-        stripeSettings: stripeSet,
-        adminEmail: email,
-        smsTemplates: templatesRes.data || [],
-      };
-    },
+    fetchAdminData,
     {
       errorMessage: 'Failed to load admin data',
-      onSuccess: (data) => {
-        setTwilioSettings(data.twilioSettings);
-        setStripeSettings(data.stripeSettings);
-        setAdminEmail(data.adminEmail);
-      },
-      onError: (error) => handleError(error, 'Admin.loadData'),
+      onSuccess: handleDataSuccess,
+      onError: handleDataError,
     }
   );
 
