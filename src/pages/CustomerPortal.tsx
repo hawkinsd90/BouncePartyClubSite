@@ -14,6 +14,7 @@ import { ApprovalModal } from '../components/customer-portal/ApprovalModal';
 import { RejectionModal } from '../components/customer-portal/RejectionModal';
 import { PaymentTab } from '../components/customer-portal/PaymentTab';
 import { PicturesTab } from '../components/customer-portal/PicturesTab';
+import { RentalTerms } from '../components/RentalTerms';
 
 export function CustomerPortal() {
   const { orderId, token } = useParams();
@@ -894,6 +895,10 @@ export function CustomerPortal() {
                   </div>
                 </div>
               )}
+
+              <div className="mb-8">
+                <RentalTerms />
+              </div>
 
               <div className="mb-8 space-y-4">
                 {order.pickup_preference === 'next_day' && (
