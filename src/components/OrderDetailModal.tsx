@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Truck, CheckCircle, MessageSquare, FileText, Edit2, History, Save, Plus, Trash2, AlertTriangle } from 'lucide-react';
+import { X, Truck, MessageSquare, FileText, Edit2, History, Save, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
 import { formatCurrency, calculatePrice, calculateDrivingDistance, type PricingRules } from '../lib/pricing';
@@ -8,7 +8,11 @@ import { AddressAutocomplete } from './AddressAutocomplete';
 import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { OrderSummary } from './OrderSummary';
 import { formatOrderSummary, type OrderSummaryData } from '../lib/orderSummary';
-import { showToast, showConfirm } from '../lib/notifications';
+import { showToast } from '../lib/notifications';
+import { StatusChangeDialog } from './order-detail/StatusChangeDialog';
+import { OrderNotesTab } from './order-detail/OrderNotesTab';
+import { OrderWorkflowTab } from './order-detail/OrderWorkflowTab';
+import { OrderChangelogTab } from './order-detail/OrderChangelogTab';
 
 interface OrderDetailModalProps {
   order: any;
@@ -34,8 +38,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [workflowEvents, setWorkflowEvents] = useState<any[]>([]);
   const [changelog, setChangelog] = useState<any[]>([]);
   const [availableUnits, setAvailableUnits] = useState<any[]>([]);
-  const [newNote, setNewNote] = useState('');
-  const [savingNote, setSavingNote] = useState(false);
   const [editedOrder, setEditedOrder] = useState<any>({
     location_type: order.location_type,
     surface: order.surface,
@@ -71,7 +73,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [selectedFeeTemplateId, setSelectedFeeTemplateId] = useState<string>('');
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [pendingStatus, setPendingStatus] = useState('');
-  const [statusChangeReason, setStatusChangeReason] = useState('');
   const [pricingRules, setPricingRules] = useState<any>(null);
   const [adminSettings, setAdminSettings] = useState<any>(null);
   const [adminOverrideApproval, setAdminOverrideApproval] = useState(false);
@@ -508,29 +509,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       if (feeTemplatesRes.data) setSavedFeeTemplates(feeTemplatesRes.data);
     } catch (error) {
       console.error('Error loading saved templates:', error);
-    }
-  }
-
-  async function handleAddNote() {
-    if (!newNote.trim()) return;
-
-    setSavingNote(true);
-    try {
-      const { error } = await supabase.from('order_notes').insert({
-        order_id: order.id,
-        user_id: (await supabase.auth.getUser()).data.user?.id,
-        note: newNote,
-      });
-
-      if (error) throw error;
-
-      setNewNote('');
-      await loadOrderDetails();
-    } catch (error) {
-      console.error('Error adding note:', error);
-      showToast('Failed to add note', 'error');
-    } finally {
-      setSavingNote(false);
     }
   }
 
@@ -1255,86 +1233,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     setShowStatusDialog(true);
   }
 
-  async function confirmStatusChange() {
-    if (!statusChangeReason.trim()) {
-      showToast('Please provide a reason for the status change', 'error');
-      return;
-    }
-
-    try {
-      // Check availability if confirming the order
-      if (pendingStatus === 'confirmed') {
-        const activeItems = stagedItems.filter(item => !item.is_deleted);
-        const checks = activeItems.map(item => ({
-          unitId: item.unit_id,
-          wetOrDry: item.wet_or_dry,
-          quantity: item.qty,
-          eventStartDate: editedOrder.event_date,
-          eventEndDate: editedOrder.event_end_date,
-          excludeOrderId: order.id,
-        }));
-
-        const availabilityResults = await checkMultipleUnitsAvailability(checks);
-        const conflicts = availabilityResults.filter(result => !result.isAvailable);
-
-        if (conflicts.length > 0) {
-          const conflictList = conflicts
-            .map(c => {
-              const item = activeItems.find(i => i.unit_id === c.unitId);
-              return item?.unit_name || 'Unknown unit';
-            })
-            .join(', ');
-
-          showToast(
-            `Cannot confirm order: The following equipment is not available for the selected dates: ${conflictList}. ` +
-            'Please adjust the order dates or equipment before confirming.',
-            'error'
-          );
-          return;
-        }
-      }
-
-      // Update order status
-      const { error: updateError } = await supabase.from('orders').update({ status: pendingStatus }).eq('id', order.id);
-      if (updateError) {
-        console.error('Error updating order status:', updateError);
-        throw new Error(`Failed to update order status: ${updateError.message}`);
-      }
-
-      // Get current user for logging
-      const { data: { user } } = await supabase.auth.getUser();
-
-      // Log status change in changelog with reason
-      // Store reason in the new_value field in format: "status | Reason: reason text"
-      const changeDescription = `${pendingStatus} | Reason: ${statusChangeReason}`;
-      const { error: logError } = await supabase.from('order_changelog').insert({
-        order_id: order.id,
-        user_id: user?.id,
-        field_changed: 'status',
-        old_value: order.status,
-        new_value: changeDescription,
-        change_type: 'status_change',
-      });
-
-      if (logError) {
-        console.error('Error logging status change:', logError);
-        // Don't throw here - the status was already updated successfully
-      }
-
-      console.log('✅ Status changed from', order.status, 'to', pendingStatus, 'Reason:', statusChangeReason);
-
-      setShowStatusDialog(false);
-      setPendingStatus('');
-      setStatusChangeReason('');
-      await loadOrderDetails();
-      onUpdate();
-      showToast('Status updated successfully!', 'success');
-    } catch (error) {
-      console.error('Error updating status:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      showToast(`Failed to update status: ${errorMessage}`, 'error');
-    }
-  }
 
   const activeItems = stagedItems.filter(item => !item.is_deleted);
 
@@ -2193,147 +2091,36 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           )}
 
           {activeSection === 'workflow' && (
-            <div className="space-y-4">
-              <h3 className="font-semibold text-slate-900">Workflow Events</h3>
-              {workflowEvents.length === 0 ? (
-                <p className="text-slate-600">No workflow events yet</p>
-              ) : (
-                <div className="space-y-2">
-                  {workflowEvents.map(event => (
-                    <div key={event.id} className="bg-slate-50 rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <CheckCircle className="w-4 h-4 text-green-600" />
-                        <p className="font-medium text-sm">{event.event_type}</p>
-                        <span className="text-xs text-slate-500 ml-auto">
-                          {format(new Date(event.created_at), 'MMM d, yyyy h:mm a')}
-                        </span>
-                      </div>
-                      {event.description && (
-                        <p className="text-sm text-slate-600 ml-6">{event.description}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <OrderWorkflowTab workflowEvents={workflowEvents} />
           )}
 
           {activeSection === 'notes' && (
-            <div className="space-y-4">
-              <div>
-                <h3 className="font-semibold text-slate-900 mb-3">Add Note</h3>
-                <textarea
-                  value={newNote}
-                  onChange={(e) => setNewNote(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded mb-2 h-24"
-                  placeholder="Enter note..."
-                />
-                <button
-                  onClick={handleAddNote}
-                  disabled={savingNote || !newNote.trim()}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium disabled:opacity-50"
-                >
-                  {savingNote ? 'Saving...' : 'Add Note'}
-                </button>
-              </div>
-
-              <div>
-                <h3 className="font-semibold text-slate-900 mb-3">Notes History</h3>
-                {notes.length === 0 ? (
-                  <p className="text-slate-600">No notes yet</p>
-                ) : (
-                  <div className="space-y-2">
-                    {notes.map(note => (
-                      <div key={note.id} className="bg-slate-50 rounded-lg p-3">
-                        <p className="text-sm mb-2">{note.note}</p>
-                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                          <span>{note.user?.email}</span>
-                          <span>•</span>
-                          <span>{format(new Date(note.created_at), 'MMM d, yyyy h:mm a')}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+            <OrderNotesTab orderId={order.id} notes={notes} onNotesChanged={loadOrderDetails} />
           )}
 
           {activeSection === 'changelog' && (
-            <div className="space-y-4">
-              <h3 className="font-semibold text-slate-900">Change History</h3>
-              {changelog.length === 0 ? (
-                <p className="text-slate-600">No changes recorded yet</p>
-              ) : (
-                <div className="space-y-2">
-                  {changelog.map(change => (
-                    <div key={change.id} className="bg-slate-50 rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <History className="w-4 h-4 text-blue-600" />
-                        <p className="font-medium text-sm">{change.field_name}</p>
-                        <span className="text-xs text-slate-500 ml-auto">
-                          {format(new Date(change.created_at), 'MMM d, yyyy h:mm a')}
-                        </span>
-                      </div>
-                      <div className="ml-6 text-sm">
-                        <p className="text-slate-600">
-                          <span className="text-red-600 line-through">{change.old_value || '(empty)'}</span>
-                          {' → '}
-                          <span className="text-green-600 font-medium">{change.new_value || '(empty)'}</span>
-                        </p>
-                        <p className="text-xs text-slate-500 mt-1">{change.user?.email}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <OrderChangelogTab changelog={changelog} />
           )}
         </div>
       </div>
 
-      {/* Status Change Confirmation Dialog */}
-      {showStatusDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-bold text-slate-900 mb-4">Confirm Status Change</h3>
-            <p className="text-slate-700 mb-4">
-              You are changing the order status to <span className="font-semibold">{pendingStatus.replace('_', ' ').toUpperCase()}</span>.
-            </p>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Reason for status change <span className="text-red-600">*</span>
-              </label>
-              <textarea
-                value={statusChangeReason}
-                onChange={(e) => setStatusChangeReason(e.target.value)}
-                placeholder="Example: Customer called to confirm. Payment received. Equipment ready for delivery."
-                rows={3}
-                className="w-full px-3 py-2 border border-slate-300 rounded text-sm resize-none"
-                autoFocus
-              />
-            </div>
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => {
-                  setShowStatusDialog(false);
-                  setPendingStatus('');
-                  setStatusChangeReason('');
-                }}
-                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmStatusChange}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium"
-              >
-                Confirm Change
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <StatusChangeDialog
+        isOpen={showStatusDialog}
+        onClose={() => {
+          setShowStatusDialog(false);
+          setPendingStatus('');
+        }}
+        orderId={order.id}
+        currentStatus={order.status}
+        pendingStatus={pendingStatus}
+        stagedItems={stagedItems}
+        eventDate={editedOrder.event_date}
+        eventEndDate={editedOrder.event_end_date}
+        onStatusChanged={async () => {
+          await loadOrderDetails();
+          onUpdate();
+        }}
+      />
     </div>
   );
 }
