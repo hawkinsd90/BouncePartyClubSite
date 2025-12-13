@@ -105,40 +105,12 @@ export function Checkout() {
       setCart(validCart);
 
       // Try to auto-fill contact information
+      // Priority: localStorage (test bookings) > database (previous orders)
       let contactInfoLoaded = false;
 
-      // If user is logged in, fetch their contact information from database
-      if (user) {
-        try {
-          const { data, error } = await supabase.rpc('get_user_order_prefill');
-
-          if (error) {
-            console.error('Error fetching user contact data:', error);
-          } else if (data && data.length > 0) {
-            const userData = data[0];
-            // Check if we got meaningful data (need at least first name AND email)
-            if (userData.first_name && userData.email) {
-              console.log('Auto-filling contact info with user data:', userData);
-              setContactData({
-                first_name: userData.first_name || '',
-                last_name: userData.last_name || '',
-                email: userData.email || '',
-                phone: userData.phone || '',
-                business_name: '',
-              });
-              contactInfoLoaded = true;
-            } else {
-              console.log('Database returned incomplete contact data, will try localStorage fallback');
-            }
-          }
-        } catch (error) {
-          console.error('Error loading user contact data:', error);
-        }
-      }
-
-      // Fallback to localStorage if database had no data
-      if (!contactInfoLoaded && savedContactData) {
-        console.log('Falling back to localStorage for contact info');
+      // First check localStorage (for test bookings or unsaved cart data)
+      if (savedContactData) {
+        console.log('Using contact info from localStorage (test booking or cart)');
         const contactInfo = JSON.parse(savedContactData);
         setContactData({
           first_name: contactInfo.first_name || '',
@@ -147,6 +119,32 @@ export function Checkout() {
           phone: contactInfo.phone || '',
           business_name: contactInfo.business_name || '',
         });
+        contactInfoLoaded = true;
+      }
+
+      // Fallback to database if no localStorage data and user is logged in
+      if (!contactInfoLoaded && user) {
+        try {
+          const { data, error } = await supabase.rpc('get_user_order_prefill');
+
+          if (error) {
+            console.error('Error fetching user contact data:', error);
+          } else if (data && data.length > 0) {
+            const userData = data[0];
+            if (userData.first_name && userData.email) {
+              console.log('Auto-filling contact info with user data from database');
+              setContactData({
+                first_name: userData.first_name || '',
+                last_name: userData.last_name || '',
+                email: userData.email || '',
+                phone: userData.phone || '',
+                business_name: '',
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Error loading user contact data:', error);
+        }
       }
 
       if (savedContactData) {
