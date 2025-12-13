@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Mail, Phone, Calendar, Edit2, X } from 'lucide-react';
 import { format } from 'date-fns';
@@ -24,47 +24,53 @@ export function ContactsList() {
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
 
+  const fetchContacts = useCallback(async () => {
+    const result = await supabase
+      .from('contacts')
+      .select('*')
+      .order('created_at', { ascending: false });
+    return result;
+  }, []);
+
   const { data: contactsData, loading, refetch } = useSupabaseQuery<Contact[]>(
-    async () => {
-      const result = await supabase
-        .from('contacts')
-        .select('*')
-        .order('created_at', { ascending: false });
-      return result;
-    },
+    fetchContacts,
     { errorMessage: 'Failed to load contacts' }
   );
 
   const contacts = contactsData || [];
 
-  const { mutate: updateContact, loading: saving } = useMutation<Contact, Contact>(
-    async (contact: Contact) => {
-      const { data, error } = await supabase
-        .from('contacts')
-        .update({
-          business_name: contact.business_name || null,
-          first_name: contact.first_name,
-          last_name: contact.last_name,
-          email: contact.email,
-          phone: contact.phone,
-          opt_in_email: contact.opt_in_email,
-          opt_in_sms: contact.opt_in_sms,
-        })
-        .eq('id', contact.id)
-        .select()
-        .single();
+  const updateContactFn = useCallback(async (contact: Contact) => {
+    const { data, error } = await supabase
+      .from('contacts')
+      .update({
+        business_name: contact.business_name || null,
+        first_name: contact.first_name,
+        last_name: contact.last_name,
+        email: contact.email,
+        phone: contact.phone,
+        opt_in_email: contact.opt_in_email,
+        opt_in_sms: contact.opt_in_sms,
+      })
+      .eq('id', contact.id)
+      .select()
+      .single();
 
-      if (error) throw error;
-      return data;
-    },
+    if (error) throw error;
+    return data;
+  }, []);
+
+  const handleUpdateSuccess = useCallback(() => {
+    setShowEditModal(false);
+    setEditingContact(null);
+    refetch();
+  }, [refetch]);
+
+  const { mutate: updateContact, loading: saving } = useMutation<Contact, Contact>(
+    updateContactFn,
     {
       successMessage: 'Contact updated successfully!',
       errorMessage: 'Failed to update contact',
-      onSuccess: () => {
-        setShowEditModal(false);
-        setEditingContact(null);
-        refetch();
-      },
+      onSuccess: handleUpdateSuccess,
     }
   );
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { format, isToday, isFuture, isPast } from 'date-fns';
 import { Search, Calendar, User, Phone } from 'lucide-react';
@@ -21,34 +21,40 @@ export function OrdersManager() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
 
+  const fetchOrdersData = useCallback(async () => {
+    const { data: ordersData, error } = await supabase
+      .from('orders')
+      .select(`
+        *,
+        customers (first_name, last_name, email, phone),
+        addresses (line1, line2, city, state, zip)
+      `)
+      .order('event_date', { ascending: true });
+
+    if (error) throw error;
+
+    const { data: contacts } = await supabase
+      .from('contacts')
+      .select('email, business_name');
+
+    const contactsMap = new Map();
+    contacts?.forEach(c => contactsMap.set(c.email, c));
+
+    return {
+      orders: ordersData || [],
+      contactsMap,
+    };
+  }, []);
+
+  const handleOrdersError = useCallback((error: any) => {
+    handleError(error, 'OrdersManager.loadOrders');
+  }, []);
+
   const { data, loading, refetch } = useDataFetch<OrdersData>(
-    async () => {
-      const { data: ordersData, error } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          customers (first_name, last_name, email, phone),
-          addresses (line1, line2, city, state, zip)
-        `)
-        .order('event_date', { ascending: true });
-
-      if (error) throw error;
-
-      const { data: contacts } = await supabase
-        .from('contacts')
-        .select('email, business_name');
-
-      const contactsMap = new Map();
-      contacts?.forEach(c => contactsMap.set(c.email, c));
-
-      return {
-        orders: ordersData || [],
-        contactsMap,
-      };
-    },
+    fetchOrdersData,
     {
       errorMessage: 'Failed to load orders',
-      onError: (error) => handleError(error, 'OrdersManager.loadOrders'),
+      onError: handleOrdersError,
     }
   );
 

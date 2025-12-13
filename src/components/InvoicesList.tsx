@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { FileText, Calendar, Eye } from 'lucide-react';
 import { format } from 'date-fns';
@@ -33,18 +33,20 @@ interface Invoice {
 export function InvoicesList() {
   const [filter, setFilter] = useState('all');
 
+  const fetchInvoices = useCallback(async () => {
+    const result = await supabase
+      .from('invoices')
+      .select(`
+        *,
+        customers (first_name, last_name, email),
+        orders (event_date)
+      `)
+      .order('created_at', { ascending: false });
+    return result;
+  }, []);
+
   const { data: invoicesData, loading, refetch } = useSupabaseQuery<any[]>(
-    async () => {
-      const result = await supabase
-        .from('invoices')
-        .select(`
-          *,
-          customers (first_name, last_name, email),
-          orders (event_date)
-        `)
-        .order('created_at', { ascending: false });
-      return result;
-    },
+    fetchInvoices,
     { errorMessage: 'Failed to load invoices' }
   );
 
