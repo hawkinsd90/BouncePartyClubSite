@@ -116,8 +116,8 @@ export function Checkout() {
             console.error('Error fetching user contact data:', error);
           } else if (data && data.length > 0) {
             const userData = data[0];
-            // Check if we got meaningful data (at least email or name)
-            if (userData.email || userData.first_name) {
+            // Check if we got meaningful data (need at least first name AND email)
+            if (userData.first_name && userData.email) {
               console.log('Auto-filling contact info with user data:', userData);
               setContactData({
                 first_name: userData.first_name || '',
@@ -127,6 +127,8 @@ export function Checkout() {
                 business_name: '',
               });
               contactInfoLoaded = true;
+            } else {
+              console.log('Database returned incomplete contact data, will try localStorage fallback');
             }
           }
         } catch (error) {
