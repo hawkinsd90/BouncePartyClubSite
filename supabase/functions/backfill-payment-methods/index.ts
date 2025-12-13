@@ -8,10 +8,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-  apiVersion: "2024-10-28.acacia",
-});
-
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -22,6 +18,24 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
+
+    // Get Stripe secret key from database
+    const { data: stripeKeyData, error: keyError } = await supabaseClient
+      .from("admin_settings")
+      .select("value")
+      .eq("key", "stripe_secret_key")
+      .maybeSingle();
+
+    if (keyError || !stripeKeyData?.value) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Stripe not configured" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const stripe = new Stripe(stripeKeyData.value, {
+      apiVersion: "2024-10-28.acacia",
+    });
 
     // Get all payments that have a stripe_payment_intent_id but no payment_method
     const { data: payments, error: fetchError } = await supabaseClient
