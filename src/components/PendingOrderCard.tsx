@@ -283,6 +283,17 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
           .eq('id', order.id)
           .single();
 
+        // Fetch payment details
+        const { data: payment } = await supabase
+          .from('payments')
+          .select('*')
+          .eq('order_id', order.id)
+          .eq('type', 'deposit')
+          .eq('status', 'completed')
+          .order('paid_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
         const customer = (orderWithItems?.customers as any);
         const address = (orderWithItems?.addresses as any);
         const items = (orderWithItems?.order_items as any) || [];
@@ -417,6 +428,43 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
                               </tr>
                             </table>
                           </div>
+
+                          ${payment ? `
+                          <div style="background-color: #f0fdf4; border: 2px solid #10b981; border-radius: 6px; padding: 20px; margin: 25px 0;">
+                            <h3 style="margin: 0 0 15px; color: #15803d; font-size: 16px; font-weight: 600;">Payment Receipt</h3>
+                            <table width="100%" cellpadding="6" cellspacing="0">
+                              <tr>
+                                <td style="color: #64748b; font-size: 14px;">Payment Method:</td>
+                                <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">
+                                  ${payment.payment_brand || 'Card'} ${payment.payment_last4 ? `•••• ${payment.payment_last4}` : ''}
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style="color: #64748b; font-size: 14px;">Amount Paid:</td>
+                                <td style="color: #10b981; font-size: 14px; font-weight: 600; text-align: right;">$${((payment.amount_cents || 0) / 100).toFixed(2)}</td>
+                              </tr>
+                              <tr>
+                                <td style="color: #64748b; font-size: 14px;">Payment Date:</td>
+                                <td style="color: #1e293b; font-size: 14px; font-weight: 600; text-align: right;">
+                                  ${payment.paid_at ? new Date(payment.paid_at).toLocaleString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                    hour12: true
+                                  }) : 'N/A'}
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style="color: #64748b; font-size: 14px;">Transaction ID:</td>
+                                <td style="color: #64748b; font-size: 13px; text-align: right; font-family: monospace;">
+                                  ${payment.id.slice(0, 8).toUpperCase()}
+                                </td>
+                              </tr>
+                            </table>
+                          </div>
+                          ` : ''}
 
                           <div style="background-color: #eff6ff; border: 2px solid #3b82f6; border-radius: 6px; padding: 18px; margin: 25px 0;">
                             <h3 style="margin: 0 0 12px; color: #1e40af; font-size: 15px; font-weight: 600;">What's Next?</h3>
