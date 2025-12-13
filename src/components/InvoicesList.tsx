@@ -18,22 +18,22 @@ interface Invoice {
   same_day_pickup_fee_cents: number;
   total_cents: number;
   paid_amount_cents: number;
-  travel_total_miles: number;
+  travel_total_miles: number | string;
   payment_method: string;
-  customers: {
+  customers?: {
     first_name: string;
     last_name: string;
     email: string;
-  };
-  orders: {
+  } | null;
+  orders?: {
     event_date: string;
-  };
+  } | null;
 }
 
 export function InvoicesList() {
   const [filter, setFilter] = useState('all');
 
-  const { data: invoices = [], loading, refetch } = useSupabaseQuery<Invoice[]>(
+  const { data: invoicesData, loading, refetch } = useSupabaseQuery<any[]>(
     async () => {
       const result = await supabase
         .from('invoices')
@@ -47,6 +47,8 @@ export function InvoicesList() {
     },
     { errorMessage: 'Failed to load invoices' }
   );
+
+  const invoices = (invoicesData || []) as Invoice[];
 
   const { mutate: generateInvoice } = useMutation(
     async (orderId: string) => {
@@ -112,7 +114,7 @@ Event Date: ${invoice.orders?.event_date}
 
 CHARGES:
 Subtotal: ${formatCurrency(invoice.subtotal_cents)}
-Travel Fee${invoice.travel_total_miles > 0 ? ` (${parseFloat(invoice.travel_total_miles).toFixed(1)} mi)` : ''}: ${formatCurrency(invoice.travel_fee_cents)}
+Travel Fee${invoice.travel_total_miles > 0 ? ` (${parseFloat(String(invoice.travel_total_miles)).toFixed(1)} mi)` : ''}: ${formatCurrency(invoice.travel_fee_cents)}
 Surface Fee: ${formatCurrency(invoice.surface_fee_cents)}
 Same Day Pickup: ${formatCurrency(invoice.same_day_pickup_fee_cents)}
 Tax: ${formatCurrency(invoice.tax_cents)}

@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { formatCurrency, calculateDrivingDistance } from '../lib/pricing';
-import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { HOME_BASE } from '../lib/constants';
 import { FileText, Image as ImageIcon, AlertCircle, Sparkles, Shield, Loader2, Printer, X, CreditCard, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns';
@@ -1311,10 +1310,9 @@ export function CustomerPortal() {
                 <div className="flex gap-4">
                   <button
                     onClick={handleApproveChanges}
-                    disabled={submitting}
-                    className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-bold py-4 px-6 rounded-lg transition-colors text-lg shadow-lg"
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg transition-colors text-lg shadow-lg"
                   >
-                    {submitting ? 'Processing...' : 'Approve Changes'}
+                    Approve Changes
                   </button>
                   <a
                     href="tel:+13138893860"
@@ -1325,8 +1323,7 @@ export function CustomerPortal() {
                 </div>
                 <button
                   onClick={handleRejectChanges}
-                  disabled={submitting}
-                  className="w-full bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-bold py-3 px-6 rounded-lg transition-colors shadow-lg"
+                  className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors shadow-lg"
                 >
                   Reject Changes & Cancel Order
                 </button>

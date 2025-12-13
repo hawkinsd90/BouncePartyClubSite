@@ -24,7 +24,7 @@ export function ContactsList() {
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
 
-  const { data: contacts = [], loading, refetch } = useSupabaseQuery<Contact[]>(
+  const { data: contactsData, loading, refetch } = useSupabaseQuery<Contact[]>(
     async () => {
       const result = await supabase
         .from('contacts')
@@ -34,6 +34,8 @@ export function ContactsList() {
     },
     { errorMessage: 'Failed to load contacts' }
   );
+
+  const contacts = contactsData || [];
 
   const { mutate: updateContact, loading: saving } = useMutation<Contact, Contact>(
     async (contact: Contact) => {
