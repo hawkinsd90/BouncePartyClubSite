@@ -272,6 +272,15 @@ export function CustomerDashboard() {
           }
         });
 
+        // Sort upcoming orders by event date (earliest first)
+        upcoming.sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime());
+
+        // Sort active orders by event date (earliest first)
+        active.sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime());
+
+        // Sort past orders by event date (most recent first)
+        past.sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime());
+
         setUpcomingOrders(upcoming);
         setActiveOrders(active);
         setPastOrders(past);

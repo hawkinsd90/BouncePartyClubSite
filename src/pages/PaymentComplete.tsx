@@ -554,12 +554,6 @@ export function PaymentComplete() {
         localStorage.removeItem('bpc_price_breakdown');
         localStorage.removeItem('bpc_contact_data');
         localStorage.removeItem('test_booking_tip');
-
-        // Close window after short delay
-        setTimeout(() => {
-          console.log('� [PAYMENT-COMPLETE] Closing window...');
-          window.close();
-        }, 2000);
       } catch (err: any) {
         console.error('❌ [PAYMENT-COMPLETE] Error:', err);
         setError(err.message);

@@ -77,6 +77,16 @@ Deno.serve(async (req: Request) => {
                   ? session.customer
                   : (session.customer as any)?.id;
 
+              // Check if this order was created via admin invoice
+              const { data: invoiceLink } = await supabaseClient
+                .from("invoice_links")
+                .select("id")
+                .eq("order_id", orderId)
+                .maybeSingle();
+
+              // If admin-created invoice, go straight to confirmed, otherwise pending_review
+              const newStatus = invoiceLink ? "confirmed" : "pending_review";
+
               // Update order with card on file
               await supabaseClient
                 .from("orders")
@@ -84,7 +94,7 @@ Deno.serve(async (req: Request) => {
                   stripe_payment_status: "card_on_file",
                   stripe_payment_method_id: paymentMethodId,
                   stripe_customer_id: stripeCustomerId,
-                  status: "pending_review",
+                  status: newStatus,
                 })
                 .eq("id", orderId);
 

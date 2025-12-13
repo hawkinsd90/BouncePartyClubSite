@@ -161,6 +161,34 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Get payment method details
+    let paymentMethod = null;
+    let paymentBrand = null;
+    let paymentLast4 = null;
+
+    if (paymentIntent.payment_method) {
+      const pmId = typeof paymentIntent.payment_method === "string"
+        ? paymentIntent.payment_method
+        : paymentIntent.payment_method.id;
+
+      try {
+        const pm = await stripe.paymentMethods.retrieve(pmId);
+
+        if (pm.type === "card" && pm.card) {
+          paymentMethod = "card";
+          paymentBrand = pm.card.brand;
+          paymentLast4 = pm.card.last4;
+        } else if (pm.type === "us_bank_account") {
+          paymentMethod = "bank_account";
+          paymentLast4 = pm.us_bank_account?.last4;
+        } else {
+          paymentMethod = pm.type;
+        }
+      } catch (pmError) {
+        console.error("Failed to retrieve payment method details:", pmError);
+      }
+    }
+
     // Record payment
     const { error: paymentError } = await supabaseClient.from("payments").insert({
       order_id: orderId,
@@ -169,6 +197,9 @@ Deno.serve(async (req: Request) => {
       type: "deposit",
       status: "succeeded",
       paid_at: new Date().toISOString(),
+      payment_method: paymentMethod,
+      payment_brand: paymentBrand,
+      payment_last4: paymentLast4,
     });
 
     if (paymentError) {
