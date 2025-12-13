@@ -4,20 +4,47 @@ import { FileText, Calendar, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatCurrency } from '../lib/pricing';
 import { useSupabaseQuery, useMutation } from '../hooks/useDataFetch';
-import { notifySuccess, notifyError } from '../lib/notifications';
+import { notifySuccess } from '../lib/notifications';
+
+interface Invoice {
+  id: string;
+  invoice_number: string;
+  invoice_date: string;
+  status: string;
+  subtotal_cents: number;
+  tax_cents: number;
+  travel_fee_cents: number;
+  surface_fee_cents: number;
+  same_day_pickup_fee_cents: number;
+  total_cents: number;
+  paid_amount_cents: number;
+  travel_total_miles: number;
+  payment_method: string;
+  customers: {
+    first_name: string;
+    last_name: string;
+    email: string;
+  };
+  orders: {
+    event_date: string;
+  };
+}
 
 export function InvoicesList() {
   const [filter, setFilter] = useState('all');
 
-  const { data: invoices = [], loading, refetch } = useSupabaseQuery(
-    () => supabase
-      .from('invoices')
-      .select(`
-        *,
-        customers (first_name, last_name, email),
-        orders (event_date)
-      `)
-      .order('created_at', { ascending: false }),
+  const { data: invoices = [], loading, refetch } = useSupabaseQuery<Invoice[]>(
+    async () => {
+      const result = await supabase
+        .from('invoices')
+        .select(`
+          *,
+          customers (first_name, last_name, email),
+          orders (event_date)
+        `)
+        .order('created_at', { ascending: false });
+      return result;
+    },
     { errorMessage: 'Failed to load invoices' }
   );
 
@@ -73,7 +100,7 @@ export function InvoicesList() {
     generateInvoice(orderIdPrompt);
   }
 
-  async function handleViewInvoice(invoice: any) {
+  async function handleViewInvoice(invoice: Invoice) {
     const invoiceDetails = `
 BOUNCE PARTY CLUB
 Invoice: ${invoice.invoice_number}
@@ -101,7 +128,7 @@ Payment Method: ${invoice.payment_method || 'N/A'}
     alert(invoiceDetails);
   }
 
-  const filteredInvoices = invoices.filter(invoice => {
+  const filteredInvoices = invoices.filter((invoice: Invoice) => {
     if (filter === 'paid') return invoice.status === 'paid';
     if (filter === 'unpaid') return invoice.status !== 'paid' && invoice.status !== 'cancelled';
     if (filter === 'draft') return invoice.status === 'draft';
@@ -202,7 +229,7 @@ Payment Method: ${invoice.payment_method || 'N/A'}
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-slate-200">
-            {filteredInvoices.map((invoice) => (
+            {filteredInvoices.map((invoice: Invoice) => (
               <tr key={invoice.id} className="hover:bg-slate-50">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center text-sm">

@@ -145,7 +145,6 @@ export function showConfirm(
   }
 ): Promise<boolean> {
   return new Promise((resolve) => {
-    const container = getNotificationContainer();
     const wrapper = document.createElement('div');
 
     wrapper.style.position = 'fixed';

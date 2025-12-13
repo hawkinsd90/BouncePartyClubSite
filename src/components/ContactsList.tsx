@@ -4,21 +4,39 @@ import { Mail, Phone, Calendar, Edit2, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { useSupabaseQuery, useMutation } from '../hooks/useDataFetch';
 
+interface Contact {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string | null;
+  business_name: string | null;
+  opt_in_email: boolean;
+  opt_in_sms: boolean;
+  source: string;
+  total_bookings: number;
+  total_spent_cents: number;
+  created_at: string;
+}
+
 export function ContactsList() {
   const [filter, setFilter] = useState('all');
-  const [editingContact, setEditingContact] = useState<any>(null);
+  const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
 
-  const { data: contacts = [], loading, refetch } = useSupabaseQuery(
-    () => supabase
-      .from('contacts')
-      .select('*')
-      .order('created_at', { ascending: false }),
+  const { data: contacts = [], loading, refetch } = useSupabaseQuery<Contact[]>(
+    async () => {
+      const result = await supabase
+        .from('contacts')
+        .select('*')
+        .order('created_at', { ascending: false });
+      return result;
+    },
     { errorMessage: 'Failed to load contacts' }
   );
 
-  const { mutate: updateContact, loading: saving } = useMutation(
-    async (contact: any) => {
+  const { mutate: updateContact, loading: saving } = useMutation<Contact, Contact>(
+    async (contact: Contact) => {
       const { data, error } = await supabase
         .from('contacts')
         .update({
@@ -48,13 +66,13 @@ export function ContactsList() {
     }
   );
 
-  const filteredContacts = contacts.filter(contact => {
+  const filteredContacts = contacts.filter((contact: Contact) => {
     if (filter === 'email') return contact.opt_in_email;
     if (filter === 'sms') return contact.opt_in_sms;
     return true;
   });
 
-  function handleEditClick(contact: any) {
+  function handleEditClick(contact: Contact) {
     setEditingContact({ ...contact });
     setShowEditModal(true);
   }
@@ -74,7 +92,7 @@ export function ContactsList() {
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Contacts & Phonebook</h2>
           <p className="text-slate-600 mt-1">
-            {contacts.length} total contacts | {contacts.filter(c => c.opt_in_email).length} email subscribers | {contacts.filter(c => c.opt_in_sms).length} SMS subscribers
+            {contacts.length} total contacts | {contacts.filter((c: Contact) => c.opt_in_email).length} email subscribers | {contacts.filter((c: Contact) => c.opt_in_sms).length} SMS subscribers
           </p>
         </div>
         <div className="flex gap-2">
@@ -139,7 +157,7 @@ export function ContactsList() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-slate-200">
-            {filteredContacts.map((contact) => (
+            {filteredContacts.map((contact: Contact) => (
               <tr key={contact.id} className="hover:bg-slate-50">
                 <td className="px-6 py-4 whitespace-nowrap">
                   {contact.business_name && (

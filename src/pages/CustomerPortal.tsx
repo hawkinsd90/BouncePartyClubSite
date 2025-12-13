@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { formatCurrency, calculateDrivingDistance } from '../lib/pricing';
 import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { HOME_BASE } from '../lib/constants';
-import { FileText, Image as ImageIcon, AlertCircle, Sparkles, Shield, Loader2, Printer, X } from 'lucide-react';
+import { FileText, Image as ImageIcon, AlertCircle, Sparkles, Shield, Loader2, Printer, X, CreditCard, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import WaiverTab from '../components/WaiverTab';
 import { loadOrderSummary, formatOrderSummary, OrderSummaryDisplay } from '../lib/orderSummary';
@@ -322,43 +322,7 @@ export function CustomerPortal() {
     return { quoteData, priceBreakdown, cart, contactData };
   };
 
-  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    const fileArray = Array.from(files);
-
-    // Validate all files are images
-    for (const file of fileArray) {
-      if (!file.type.startsWith('image/')) {
-        showToast('Please upload only image files', 'error');
-        return;
-      }
-    }
-
-    // Read all files
-    const readPromises = fileArray.map(file => {
-      return new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          resolve(reader.result as string);
-        };
-        reader.readAsDataURL(file);
-      });
-    });
-
-    const results = await Promise.all(readPromises);
-    setUploadedImages([...uploadedImages, ...results]);
-
-    // Reset input so same files can be selected again
-    e.target.value = '';
-  }
-
-  function handleRemoveImage(index: number) {
-    setUploadedImages(uploadedImages.filter((_, idx) => idx !== index));
-  }
-
-  async function handleSubmitPictures(images: string[], notes: string) {
+  async function handleSubmitPictures(_images: string[], _notes: string) {
     try {
       showToast('Picture submission feature coming soon - images will be stored in Supabase Storage', 'info');
     } catch (error) {
@@ -548,263 +512,8 @@ export function CustomerPortal() {
     setShowApproveModal(true);
   }
 
-  async function confirmApproveChanges() {
-    if (!orderId) {
-      showToast('Order ID is missing. Please try again.', 'error');
-      return;
-    }
-    if (!order.customers) {
-      showToast('Customer information is missing. Please contact support.', 'error');
-      return;
-    }
-    const expectedName = `${order.customers.first_name} ${order.customers.last_name}`.toLowerCase().trim();
-    if (approveConfirmName.toLowerCase().trim() !== expectedName) {
-      showToast('The name you entered does not match the customer name on this order. Please try again.', 'error');
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      // Check availability before approving
-      const checks = orderItems.map((item: any) => ({
-        unitId: item.unit_id,
-        wetOrDry: item.wet_or_dry,
-        quantity: item.qty,
-        eventStartDate: order.event_date,
-        eventEndDate: order.event_end_date,
-        excludeOrderId: order.id,
-      }));
-
-      const availabilityResults = await checkMultipleUnitsAvailability(checks);
-      const conflicts = availabilityResults.filter(result => !result.isAvailable);
-
-      if (conflicts.length > 0) {
-        const conflictList = conflicts
-          .map(c => {
-            const item = orderItems.find((i: any) => i.unit_id === c.unitId);
-            return item?.units?.name || 'Unknown unit';
-          })
-          .join(', ');
-
-        showToast(
-          `We're sorry, but the following equipment is no longer available for your selected dates: ${conflictList}. ` +
-          'Please call us at (313) 889-3860 to discuss alternative dates or equipment options.',
-          'error'
-        );
-        setSubmitting(false);
-        return;
-      }
-
-      const { error } = await supabase
-        .from('orders')
-        .update({ status: 'pending_review' })
-        .eq('id', orderId);
-
-      if (error) throw error;
-
-      // Send admin SMS notification
-      try {
-        const { data: adminSettings } = await supabase
-          .from('admin_settings')
-          .select('value')
-          .eq('key', 'admin_notification_phone')
-          .maybeSingle();
-
-        if (adminSettings?.value) {
-          const adminPhone = adminSettings.value as string;
-          const adminSmsMessage =
-            `Customer approved order changes! ` +
-            `${order.customers?.first_name || 'Unknown'} ${order.customers?.last_name || ''} - ` +
-            `Order #${order.id.slice(0, 8).toUpperCase()}. ` +
-            `Review pending orders now.`;
-
-          const smsApiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
-          await fetch(smsApiUrl, {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              to: adminPhone,
-              message: adminSmsMessage,
-              // Don't link admin notifications to order
-            }),
-          });
-        }
-      } catch (smsError) {
-        console.error('Error sending admin SMS:', smsError);
-        // Don't fail the approval if SMS fails
-      }
-
-      setShowApproveModal(false);
-      setApproveConfirmName('');
-      setApprovalSuccess(true);
-    } catch (error) {
-      console.error('Error approving changes:', error);
-      showToast('Failed to approve changes', 'error');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   async function handleRejectChanges() {
     setShowRejectModal(true);
-  }
-
-  async function confirmRejectChanges() {
-    if (!orderId) {
-      showToast('Order ID is missing. Please try again.', 'error');
-      return;
-    }
-    if (!order.customers) {
-      showToast('Customer information is missing. Please contact support.', 'error');
-      return;
-    }
-    const expectedName = `${order.customers.first_name} ${order.customers.last_name}`.toLowerCase().trim();
-    if (rejectConfirmName.toLowerCase().trim() !== expectedName) {
-      showToast('The name you entered does not match the customer name on this order. Please try again.', 'error');
-      return;
-    }
-
-    const rejectionReason = rejectReason.trim() || 'No reason provided';
-
-    setSubmitting(true);
-    try {
-      const { error } = await supabase
-        .from('orders')
-        .update({
-          status: 'cancelled',
-          admin_message: `Customer rejected changes. Reason: ${rejectionReason}`
-        })
-        .eq('id', orderId);
-
-      if (error) throw error;
-
-      // Send admin notifications
-      try {
-        // Get admin contact info
-        const { data: adminPhone } = await supabase
-          .from('admin_settings')
-          .select('value')
-          .eq('key', 'admin_notification_phone')
-          .maybeSingle();
-
-        const { data: adminEmail } = await supabase
-          .from('admin_settings')
-          .select('value')
-          .eq('key', 'admin_notification_email')
-          .maybeSingle();
-
-        const customerName = order.customers ? `${order.customers.first_name} ${order.customers.last_name}` : 'Unknown Customer';
-        const orderNum = order.id.slice(0, 8).toUpperCase();
-
-        // Send SMS
-        if (adminPhone?.value) {
-          const adminSmsMessage =
-            `⚠️ CUSTOMER REJECTED CHANGES! ` +
-            `${customerName} rejected order changes for Order #${orderNum}. ` +
-            `Reason: ${rejectionReason}. ` +
-            `Order has been cancelled.`;
-
-          const smsApiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
-          await fetch(smsApiUrl, {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              to: adminPhone.value,
-              message: adminSmsMessage,
-            }),
-          });
-        }
-
-        // Send Email
-        if (adminEmail?.value) {
-          const logoUrl = 'https://qaagfafagdpgzcijnfbw.supabase.co/storage/v1/object/public/public-assets/bounce-party-club-logo.png';
-
-          const emailHtml = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <meta charset="utf-8">
-              <title>Customer Rejected Order Changes</title>
-            </head>
-            <body style="font-family: Arial, sans-serif; padding: 20px; background-color: #f8fafc;">
-              <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: 3px solid #ef4444;">
-                <div style="text-align: center; border-bottom: 2px solid #ef4444; padding-bottom: 20px; margin-bottom: 25px;">
-                  <img src="${logoUrl}" alt="Bounce Party Club" style="height: 70px; width: auto;" />
-                  <h2 style="color: #ef4444; margin: 15px 0 0;">⚠️ Customer Rejected Changes</h2>
-                </div>
-                <p style="margin: 0 0 20px; color: #475569; font-size: 16px;">
-                  <strong>${customerName}</strong> has rejected the proposed changes for their booking.
-                </p>
-
-                <div style="background-color: #fee2e2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0; border-radius: 4px;">
-                  <p style="margin: 0; color: #991b1b; font-weight: bold;">Order Details:</p>
-                  <p style="margin: 10px 0 0; color: #7f1d1d;">
-                    <strong>Order #:</strong> ${orderNum}<br>
-                    <strong>Customer:</strong> ${customerName}<br>
-                    <strong>Email:</strong> ${order.customers?.email || 'N/A'}<br>
-                    <strong>Phone:</strong> ${order.customers?.phone || 'N/A'}<br>
-                    <strong>Event Date:</strong> ${format(new Date(order.event_date), 'MMMM d, yyyy')}
-                  </p>
-                </div>
-
-                <div style="background-color: #f1f5f9; padding: 15px; margin: 20px 0; border-radius: 4px;">
-                  <p style="margin: 0; color: #334155; font-weight: bold;">Rejection Reason:</p>
-                  <p style="margin: 10px 0 0; color: #475569;">${rejectionReason}</p>
-                </div>
-
-                <div style="background-color: #fef3c7; border: 2px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 4px;">
-                  <p style="margin: 0; color: #92400e; font-weight: bold;">⚠️ Action Required:</p>
-                  <p style="margin: 10px 0 0; color: #92400e;">
-                    The order has been automatically cancelled. Please contact the customer to discuss their concerns and potentially create a new booking that meets their needs.
-                  </p>
-                </div>
-
-                <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
-                  <p style="margin: 0; color: #64748b; font-size: 14px;">
-                    Customer Contact: ${order.customers?.phone || 'N/A'} | ${order.customers?.email || 'N/A'}
-                  </p>
-                </div>
-              </div>
-            </body>
-            </html>
-          `;
-
-          const emailApiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`;
-          await fetch(emailApiUrl, {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              to: adminEmail.value,
-              subject: `⚠️ Customer Rejected Changes - Order #${orderNum}`,
-              html: emailHtml,
-            }),
-          });
-        }
-      } catch (notificationError) {
-        console.error('Error sending notifications:', notificationError);
-        // Don't fail the rejection if notifications fail
-      }
-
-      setShowRejectModal(false);
-      setRejectConfirmName('');
-      setRejectReason('');
-      showToast('Your order has been cancelled. We\'re sorry we couldn\'t meet your needs. Our team will be in touch shortly.', 'info');
-      await loadOrder();
-    } catch (error) {
-      console.error('Error rejecting changes:', error);
-      showToast('Failed to process rejection. Please call us at (313) 889-3860.', 'error');
-    } finally {
-      setSubmitting(false);
-    }
   }
 
   // Show success screen after approval
@@ -1634,7 +1343,7 @@ export function CustomerPortal() {
               order={order}
               onSuccess={async () => {
                 setApprovalSuccess(true);
-                await loadOrderData();
+                await loadOrder();
               }}
             />
 
@@ -1643,7 +1352,7 @@ export function CustomerPortal() {
               onClose={() => setShowRejectModal(false)}
               order={order}
               onSuccess={async () => {
-                await loadOrderData();
+                await loadOrder();
               }}
             />
           </div>
