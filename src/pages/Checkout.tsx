@@ -104,6 +104,9 @@ export function Checkout() {
 
       setCart(validCart);
 
+      // Try to auto-fill contact information
+      let contactInfoLoaded = false;
+
       // If user is logged in, fetch their contact information from database
       if (user) {
         try {
@@ -113,21 +116,27 @@ export function Checkout() {
             console.error('Error fetching user contact data:', error);
           } else if (data && data.length > 0) {
             const userData = data[0];
-            console.log('Auto-filling contact info with user data:', userData);
-
-            setContactData({
-              first_name: userData.first_name || '',
-              last_name: userData.last_name || '',
-              email: userData.email || '',
-              phone: userData.phone || '',
-              business_name: '',
-            });
+            // Check if we got meaningful data (at least email or name)
+            if (userData.email || userData.first_name) {
+              console.log('Auto-filling contact info with user data:', userData);
+              setContactData({
+                first_name: userData.first_name || '',
+                last_name: userData.last_name || '',
+                email: userData.email || '',
+                phone: userData.phone || '',
+                business_name: '',
+              });
+              contactInfoLoaded = true;
+            }
           }
         } catch (error) {
           console.error('Error loading user contact data:', error);
         }
-      } else if (savedContactData) {
-        // Fallback to localStorage if not logged in
+      }
+
+      // Fallback to localStorage if database had no data
+      if (!contactInfoLoaded && savedContactData) {
+        console.log('Falling back to localStorage for contact info');
         const contactInfo = JSON.parse(savedContactData);
         setContactData({
           first_name: contactInfo.first_name || '',
