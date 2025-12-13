@@ -10,6 +10,9 @@ interface Payment {
   status: string;
   description: string;
   created_at: string;
+  payment_method?: string;
+  payment_brand?: string;
+  payment_last4?: string;
 }
 
 interface Order {
@@ -42,6 +45,26 @@ export function PaymentManagement({ order, payments, onRefresh }: PaymentManagem
   }
 
   const hasPaymentMethod = order.stripe_customer_id && order.stripe_payment_method_id;
+
+  const formatPaymentMethod = (payment: Payment) => {
+    if (!payment.payment_method) return null;
+
+    if (payment.payment_method === 'card' && payment.payment_brand && payment.payment_last4) {
+      const brandName = payment.payment_brand.charAt(0).toUpperCase() + payment.payment_brand.slice(1);
+      return `${brandName} •••• ${payment.payment_last4}`;
+    }
+
+    const methodMap: Record<string, string> = {
+      card: 'Card',
+      apple_pay: 'Apple Pay',
+      google_pay: 'Google Pay',
+      link: 'Link',
+      cash: 'Cash',
+      us_bank_account: 'Bank Account',
+    };
+
+    return methodMap[payment.payment_method] || payment.payment_method;
+  };
 
   const handleCharge = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -266,7 +289,12 @@ export function PaymentManagement({ order, payments, onRefresh }: PaymentManagem
                   {payment.description && (
                     <div className="text-xs text-slate-600">{payment.description}</div>
                   )}
-                  <div className="text-xs text-slate-500">
+                  {formatPaymentMethod(payment) && (
+                    <div className="text-xs text-slate-600 mt-0.5">
+                      {formatPaymentMethod(payment)}
+                    </div>
+                  )}
+                  <div className="text-xs text-slate-500 mt-0.5">
                     {new Date(payment.created_at).toLocaleDateString()}
                   </div>
                 </div>

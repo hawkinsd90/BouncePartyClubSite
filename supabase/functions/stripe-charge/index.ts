@@ -118,6 +118,24 @@ Deno.serve(async (req: Request) => {
       },
     });
 
+    // Extract payment method details
+    let paymentMethodType: string | null = null;
+    let paymentBrand: string | null = null;
+    let paymentLast4: string | null = null;
+
+    if (order.stripe_payment_method_id) {
+      try {
+        const pm = await stripe.paymentMethods.retrieve(order.stripe_payment_method_id);
+        paymentMethodType = pm.type || null;
+        if (pm.card) {
+          paymentBrand = pm.card.brand || null;
+          paymentLast4 = pm.card.last4 || null;
+        }
+      } catch (err) {
+        console.error("Error retrieving payment method:", err);
+      }
+    }
+
     const { data: payment } = await supabaseClient.from("payments").insert({
       order_id: orderId,
       stripe_payment_intent_id: paymentIntent.id,
@@ -126,6 +144,9 @@ Deno.serve(async (req: Request) => {
       payment_type: paymentType,
       status: paymentIntent.status === "succeeded" ? "succeeded" : "pending",
       description: description || `${paymentType} charge`,
+      payment_method: paymentMethodType,
+      payment_brand: paymentBrand,
+      payment_last4: paymentLast4,
     }).select().single();
 
     if (paymentIntent.status === "succeeded") {

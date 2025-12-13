@@ -14,6 +14,9 @@ interface PrintableInvoiceProps {
   };
   invoiceNumber?: string;
   isPaid?: boolean;
+  paymentMethod?: string;
+  paymentBrand?: string;
+  paymentLast4?: string;
 }
 
 export function PrintableInvoice({
@@ -23,8 +26,31 @@ export function PrintableInvoice({
   contactData,
   invoiceNumber,
   isPaid = false,
+  paymentMethod,
+  paymentBrand,
+  paymentLast4,
 }: PrintableInvoiceProps) {
   const today = format(new Date(), 'MMMM d, yyyy');
+
+  const formatPaymentMethod = () => {
+    if (!paymentMethod) return null;
+
+    if (paymentMethod === 'card' && paymentBrand && paymentLast4) {
+      const brandName = paymentBrand.charAt(0).toUpperCase() + paymentBrand.slice(1);
+      return `${brandName} •••• ${paymentLast4}`;
+    }
+
+    const methodMap: Record<string, string> = {
+      card: 'Card',
+      apple_pay: 'Apple Pay',
+      google_pay: 'Google Pay',
+      link: 'Link',
+      cash: 'Cash',
+      us_bank_account: 'Bank Account',
+    };
+
+    return methodMap[paymentMethod] || paymentMethod;
+  };
 
   return (
     <div className="bg-white p-8 max-w-4xl mx-auto" id="printable-invoice">
@@ -69,9 +95,16 @@ export function PrintableInvoice({
             )}
             <p className="text-slate-600">{today}</p>
             {isPaid && (
-              <span className="inline-block mt-2 bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">
-                PAID
-              </span>
+              <>
+                <span className="inline-block mt-2 bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">
+                  PAID
+                </span>
+                {formatPaymentMethod() && (
+                  <p className="text-sm text-slate-600 mt-2">
+                    {formatPaymentMethod()}
+                  </p>
+                )}
+              </>
             )}
           </div>
         </div>

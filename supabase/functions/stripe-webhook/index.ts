@@ -67,6 +67,10 @@ Deno.serve(async (req: Request) => {
         let paymentMethodId: string | null = null;
         let amountPaid = session.amount_total || 0;
 
+        let paymentMethodType: string | null = null;
+        let paymentBrand: string | null = null;
+        let paymentLast4: string | null = null;
+
         if (piId) {
           const pi = await stripe.paymentIntents.retrieve(piId, {
             expand: ["payment_method"],
@@ -75,6 +79,13 @@ Deno.serve(async (req: Request) => {
             paymentMethodId = pi.payment_method;
           } else if (pi.payment_method?.id) {
             paymentMethodId = pi.payment_method.id;
+            // Extract payment method details
+            const pm = pi.payment_method as any;
+            paymentMethodType = pm.type || null;
+            if (pm.card) {
+              paymentBrand = pm.card.brand || null;
+              paymentLast4 = pm.card.last4 || null;
+            }
           }
           amountPaid = pi.amount_received || session.amount_total || 0;
         }
@@ -103,7 +114,10 @@ Deno.serve(async (req: Request) => {
               .from("payments")
               .update({
                 status: "succeeded",
-                paid_at: new Date().toISOString()
+                paid_at: new Date().toISOString(),
+                payment_method: paymentMethodType,
+                payment_brand: paymentBrand,
+                payment_last4: paymentLast4
               })
               .eq("stripe_payment_intent_id", piId);
           }
@@ -116,12 +130,33 @@ Deno.serve(async (req: Request) => {
         const orderId = paymentIntent.metadata?.order_id || null;
         const paymentType = paymentIntent.metadata?.payment_type || null;
 
+        // Extract payment method details
+        let paymentMethodType: string | null = null;
+        let paymentBrand: string | null = null;
+        let paymentLast4: string | null = null;
+
+        if (paymentIntent.payment_method) {
+          const pm = await stripe.paymentMethods.retrieve(
+            typeof paymentIntent.payment_method === "string"
+              ? paymentIntent.payment_method
+              : paymentIntent.payment_method.id
+          );
+          paymentMethodType = pm.type || null;
+          if (pm.card) {
+            paymentBrand = pm.card.brand || null;
+            paymentLast4 = pm.card.last4 || null;
+          }
+        }
+
         // Mark the payment row as succeeded
         await supabaseClient
           .from("payments")
           .update({
             status: "succeeded",
-            paid_at: new Date().toISOString()
+            paid_at: new Date().toISOString(),
+            payment_method: paymentMethodType,
+            payment_brand: paymentBrand,
+            payment_last4: paymentLast4
           })
           .eq("stripe_payment_intent_id", paymentIntent.id);
 
