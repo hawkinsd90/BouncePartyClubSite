@@ -4,13 +4,17 @@ import { supabase } from '../lib/supabase';
 import { formatCurrency, calculateDrivingDistance } from '../lib/pricing';
 import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { HOME_BASE } from '../lib/constants';
-import { CheckCircle, Upload, CreditCard, FileText, Image as ImageIcon, AlertCircle, Sparkles, Shield, Loader2, Printer, X } from 'lucide-react';
+import { FileText, Image as ImageIcon, AlertCircle, Sparkles, Shield, Loader2, Printer, X } from 'lucide-react';
 import { format } from 'date-fns';
 import WaiverTab from '../components/WaiverTab';
 import { loadOrderSummary, formatOrderSummary, OrderSummaryDisplay } from '../lib/orderSummary';
 import { OrderSummary } from '../components/OrderSummary';
 import { PrintableInvoice } from '../components/PrintableInvoice';
 import { showToast } from '../lib/notifications';
+import { ApprovalModal } from '../components/customer-portal/ApprovalModal';
+import { RejectionModal } from '../components/customer-portal/RejectionModal';
+import { PaymentTab } from '../components/customer-portal/PaymentTab';
+import { PicturesTab } from '../components/customer-portal/PicturesTab';
 
 export function CustomerPortal() {
   const { orderId, token } = useParams();
@@ -19,19 +23,13 @@ export function CustomerPortal() {
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'waiver' | 'payment' | 'pictures'>('waiver');
-  const [pictureNotes, setPictureNotes] = useState('');
-  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
-  const [submitting, setSubmitting] = useState(false);
   const [approvalSuccess, setApprovalSuccess] = useState(false);
   const [changelog, setChangelog] = useState<any[]>([]);
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [discounts, setDiscounts] = useState<any[]>([]);
   const [customFees, setCustomFees] = useState<any[]>([]);
   const [showRejectModal, setShowRejectModal] = useState(false);
-  const [rejectReason, setRejectReason] = useState('');
-  const [rejectConfirmName, setRejectConfirmName] = useState('');
   const [showApproveModal, setShowApproveModal] = useState(false);
-  const [approveConfirmName, setApproveConfirmName] = useState('');
   const [invoiceLink, setInvoiceLink] = useState<any>(null);
   const [customerInfo, setCustomerInfo] = useState({
     first_name: '',
@@ -360,20 +358,13 @@ export function CustomerPortal() {
     setUploadedImages(uploadedImages.filter((_, idx) => idx !== index));
   }
 
-  async function handleSubmitPictures() {
-    if (uploadedImages.length === 0) {
-      showToast('Please upload at least one picture', 'error');
-      return;
-    }
-
-    setSubmitting(true);
+  async function handleSubmitPictures(images: string[], notes: string) {
     try {
       showToast('Picture submission feature coming soon - images will be stored in Supabase Storage', 'info');
-      setSubmitting(false);
     } catch (error) {
       console.error('Error submitting pictures:', error);
       showToast('Failed to submit pictures', 'error');
-      setSubmitting(false);
+      throw error;
     }
   }
 
@@ -1637,116 +1628,24 @@ export function CustomerPortal() {
               </p>
             </div>
 
-            {/* Custom Approval Modal */}
-            {showApproveModal && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-                  <div className="p-4 md:p-6">
-                    <h3 className="text-lg md:text-xl font-bold text-green-900 mb-3">Approve Order Changes</h3>
-                    <p className="text-sm md:text-base text-slate-700 mb-4">
-                      By approving these changes, you confirm that you have reviewed and accept the updated order details.
-                    </p>
+            <ApprovalModal
+              isOpen={showApproveModal}
+              onClose={() => setShowApproveModal(false)}
+              order={order}
+              onSuccess={async () => {
+                setApprovalSuccess(true);
+                await loadOrderData();
+              }}
+            />
 
-                    <div className="mb-6">
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        To confirm, enter your full name: <span className="text-red-600">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={approveConfirmName}
-                        onChange={(e) => setApproveConfirmName(e.target.value)}
-                        placeholder={`${order.customers?.first_name || 'Unknown'} ${order.customers?.last_name || ''}`}
-                        className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:outline-none focus:border-green-500 text-sm md:text-base"
-                      />
-                      <p className="text-xs text-slate-500 mt-1">Must match: {order.customers?.first_name || 'Unknown'} {order.customers?.last_name || ''}</p>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <button
-                        onClick={() => {
-                          setShowApproveModal(false);
-                          setApproveConfirmName('');
-                        }}
-                        className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold py-2.5 md:py-3 px-4 rounded-lg transition-colors text-sm md:text-base"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={confirmApproveChanges}
-                        disabled={!approveConfirmName.trim() || submitting}
-                        className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed text-white font-bold py-2.5 md:py-3 px-4 rounded-lg transition-colors text-sm md:text-base"
-                      >
-                        {submitting ? 'Processing...' : 'Confirm Approval'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Custom Rejection Modal */}
-            {showRejectModal && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-                  <div className="p-4 md:p-6">
-                    <h3 className="text-lg md:text-xl font-bold text-red-900 mb-3">Reject Changes & Cancel Order</h3>
-                    <p className="text-sm md:text-base text-slate-700 mb-4">
-                      Are you sure you want to reject these changes? This will cancel your order.
-                    </p>
-                    <p className="text-sm text-slate-600 mb-4">
-                      If you have questions, please call us at <a href="tel:+13138893860" className="text-blue-600 font-semibold">(313) 889-3860</a> instead.
-                    </p>
-
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        To confirm, enter your full name: <span className="text-red-600">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={rejectConfirmName}
-                        onChange={(e) => setRejectConfirmName(e.target.value)}
-                        placeholder={`${order.customers?.first_name || 'Unknown'} ${order.customers?.last_name || ''}`}
-                        className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:outline-none focus:border-red-500 text-sm md:text-base"
-                      />
-                      <p className="text-xs text-slate-500 mt-1">Must match: {order.customers?.first_name || 'Unknown'} {order.customers?.last_name || ''}</p>
-                    </div>
-
-                    <div className="mb-6">
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Reason for rejection (optional):
-                      </label>
-                      <textarea
-                        value={rejectReason}
-                        onChange={(e) => setRejectReason(e.target.value)}
-                        placeholder="Let us know why you're rejecting these changes..."
-                        rows={3}
-                        className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:outline-none focus:border-red-500 resize-none text-sm md:text-base"
-                      />
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <button
-                        onClick={() => {
-                          setShowRejectModal(false);
-                          setRejectConfirmName('');
-                          setRejectReason('');
-                        }}
-                        className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold py-2.5 md:py-3 px-4 rounded-lg transition-colors text-sm md:text-base"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={confirmRejectChanges}
-                        disabled={!rejectConfirmName.trim() || submitting}
-                        className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed text-white font-bold py-2.5 md:py-3 px-4 rounded-lg transition-colors text-sm md:text-base"
-                      >
-                        {submitting ? 'Processing...' : 'Confirm Rejection'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+            <RejectionModal
+              isOpen={showRejectModal}
+              onClose={() => setShowRejectModal(false)}
+              order={order}
+              onSuccess={async () => {
+                await loadOrderData();
+              }}
+            />
           </div>
         </div>
       </div>
@@ -1851,121 +1750,11 @@ export function CustomerPortal() {
             )}
 
             {activeTab === 'payment' && (
-              <div className="space-y-6">
-                {balanceDue <= 0 ? (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
-                    <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-3" />
-                    <h3 className="text-lg font-semibold text-green-900">Payment Complete</h3>
-                    <p className="text-sm text-green-700 mt-2">
-                      No balance due. Thank you for your payment!
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
-                      <h3 className="text-lg font-semibold text-slate-900 mb-4">Payment Summary</h3>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-600">Total Order:</span>
-                          <span className="font-semibold text-slate-900">
-                            {formatCurrency(order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-600">Already Paid:</span>
-                          <span className="font-semibold text-green-700">
-                            {formatCurrency((order.deposit_paid_cents || 0) + (order.balance_paid_cents || 0))}
-                          </span>
-                        </div>
-                        <div className="flex justify-between pt-2 border-t border-slate-300">
-                          <span className="font-semibold text-slate-900">Balance Due:</span>
-                          <span className="text-xl font-bold text-blue-600">
-                            {formatCurrency(balanceDue)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={handlePayment}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                      <CreditCard className="w-5 h-5" />
-                      Pay Balance Now
-                    </button>
-
-                    <p className="text-xs text-slate-500 text-center">
-                      Secure payment powered by Stripe. We accept all major credit cards.
-                    </p>
-                  </>
-                )}
-              </div>
+              <PaymentTab order={order} balanceDue={balanceDue} onPayment={handlePayment} />
             )}
 
             {activeTab === 'pictures' && (
-              <div className="space-y-6">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-sm text-blue-900">
-                    <strong>Optional:</strong> Upload pictures of the setup area or any concerns you have about the equipment condition.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Upload Pictures {uploadedImages.length > 0 && <span className="text-slate-500">({uploadedImages.length} selected)</span>}
-                  </label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handleImageUpload}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                  />
-                  <p className="text-xs text-slate-500 mt-1">
-                    You can select multiple images at once
-                  </p>
-                </div>
-
-                {uploadedImages.length > 0 && (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {uploadedImages.map((img, idx) => (
-                      <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-slate-300 group">
-                        <img src={img} alt={`Upload ${idx + 1}`} className="w-full h-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveImage(idx)}
-                          className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                          aria-label="Remove image"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Notes (Optional)
-                  </label>
-                  <textarea
-                    value={pictureNotes}
-                    onChange={(e) => setPictureNotes(e.target.value)}
-                    placeholder="Any concerns or notes about the setup area..."
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg resize-none"
-                    rows={4}
-                  />
-                </div>
-
-                <button
-                  onClick={handleSubmitPictures}
-                  disabled={submitting || uploadedImages.length === 0}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
-                >
-                  <Upload className="w-5 h-5" />
-                  {submitting ? 'Submitting...' : 'Submit Pictures'}
-                </button>
-              </div>
+              <PicturesTab onSubmit={handleSubmitPictures} />
             )}
           </div>
         </div>
