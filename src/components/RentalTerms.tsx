@@ -14,12 +14,16 @@ export function RentalTerms() {
           <p className="text-slate-700 leading-relaxed mb-2">
             This booking requires a minimum $50 deposit per inflatable to reserve your event date with Bounce Party Club. The remaining balance is due on or before the day of your event. You may choose to pay the full amount at booking.
           </p>
-          <p className="font-medium text-slate-900 mb-1">Cancellation Policy:</p>
-          <ul className="list-disc pl-5 space-y-1 text-slate-600">
-            <li>Full refund if cancelled more than 48 hours in advance</li>
-            <li>One-time reschedule option available with 24-48 hours' notice</li>
-            <li>No refund or rescheduling available if cancelled with less than 24 hours' notice</li>
+          <p className="font-medium text-slate-900 mb-2">Cancellation & Weather Policy Summary</p>
+          <ul className="list-disc pl-5 space-y-1 text-slate-600 mb-3">
+            <li>Deposits and payments are subject to the terms of the Bounce Party Club Rental Agreement and Liability Waiver.</li>
+            <li>Refund eligibility is limited and depends on cancellation timing.</li>
+            <li>Weather-related cancellations receive a one-time reschedule, not a refund.</li>
+            <li>No refunds are issued once delivery or setup has begun.</li>
           </ul>
+          <p className="text-sm text-slate-600 italic">
+            Full cancellation and refund terms are outlined in the waiver you will be required to review and sign before final payment.
+          </p>
         </div>
 
         <div className="border-t border-slate-200 pt-4">
