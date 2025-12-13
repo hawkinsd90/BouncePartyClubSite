@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { formatCurrency, calculateDrivingDistance } from '../lib/pricing';

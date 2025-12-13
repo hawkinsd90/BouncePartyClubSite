@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { formatCurrency, calculatePrice, calculateDrivingDistance, type PricingRules, type PriceBreakdown } from '../lib/pricing';
 import { HOME_BASE } from '../lib/constants';
@@ -247,39 +247,61 @@ export function InvoiceBuilder() {
     return fullName.includes(query) || email.includes(query) || phone.includes(query) || businessName.includes(query);
   });
 
-  // Calculate total discount from all discount entries
-  const discountTotal = discounts.reduce((sum, d) => {
-    if (d.amount_cents > 0) {
-      return sum + d.amount_cents;
-    } else if (d.percentage > 0) {
-      return sum + Math.round(subtotal * (d.percentage / 100));
-    }
-    return sum;
-  }, 0);
+  // Memoized calculations to prevent unnecessary recalculations
+  const discountTotal = useMemo(() =>
+    discounts.reduce((sum, d) => {
+      if (d.amount_cents > 0) {
+        return sum + d.amount_cents;
+      } else if (d.percentage > 0) {
+        return sum + Math.round(subtotal * (d.percentage / 100));
+      }
+      return sum;
+    }, 0),
+    [discounts, subtotal]
+  );
 
-  // Calculate total custom fees
-  const customFeesTotal = customFees.reduce((sum, f) => sum + f.amount_cents, 0);
+  const customFeesTotal = useMemo(() =>
+    customFees.reduce((sum, f) => sum + f.amount_cents, 0),
+    [customFees]
+  );
 
-  // Get automatic fees from priceBreakdown
-  const travelFee = priceBreakdown?.travel_fee_cents || 0;
-  const surfaceFee = priceBreakdown?.surface_fee_cents || 0;
-  const sameDayPickupFee = priceBreakdown?.same_day_pickup_fee_cents || 0;
-  const generatorFee = priceBreakdown?.generator_fee_cents || 0;
-  const automaticFees = travelFee + surfaceFee + sameDayPickupFee + generatorFee;
+  const automaticFees = useMemo(() => {
+    const travelFee = priceBreakdown?.travel_fee_cents || 0;
+    const surfaceFee = priceBreakdown?.surface_fee_cents || 0;
+    const sameDayPickupFee = priceBreakdown?.same_day_pickup_fee_cents || 0;
+    const generatorFee = priceBreakdown?.generator_fee_cents || 0;
+    return travelFee + surfaceFee + sameDayPickupFee + generatorFee;
+  }, [priceBreakdown]);
 
-  // Use priceBreakdown subtotal if available, otherwise use calculated subtotal
-  const actualSubtotal = priceBreakdown?.subtotal_cents || subtotal;
+  const actualSubtotal = useMemo(() =>
+    priceBreakdown?.subtotal_cents || subtotal,
+    [priceBreakdown, subtotal]
+  );
 
-  // Calculate tax on taxable amount (subtotal + automatic fees - discounts + custom fees)
-  const taxableAmount = Math.max(0, actualSubtotal + automaticFees - discountTotal + customFeesTotal);
-  const taxCents = Math.round(taxableAmount * 0.06);
+  const taxableAmount = useMemo(() =>
+    Math.max(0, actualSubtotal + automaticFees - discountTotal + customFeesTotal),
+    [actualSubtotal, automaticFees, discountTotal, customFeesTotal]
+  );
 
-  // Calculate total
-  const totalCents = actualSubtotal + automaticFees - discountTotal + customFeesTotal + taxCents;
+  const taxCents = useMemo(() =>
+    Math.round(taxableAmount * 0.06),
+    [taxableAmount]
+  );
 
-  // Calculate deposit - $50 per unit/item
-  const defaultDeposit = cartItems.reduce((sum, item) => sum + (item.qty * 5000), 0);
-  const depositRequired = customDepositCents !== null ? customDepositCents : defaultDeposit;
+  const totalCents = useMemo(() =>
+    actualSubtotal + automaticFees - discountTotal + customFeesTotal + taxCents,
+    [actualSubtotal, automaticFees, discountTotal, customFeesTotal, taxCents]
+  );
+
+  const defaultDeposit = useMemo(() =>
+    cartItems.reduce((sum, item) => sum + (item.qty * 5000), 0),
+    [cartItems]
+  );
+
+  const depositRequired = useMemo(() =>
+    customDepositCents !== null ? customDepositCents : defaultDeposit,
+    [customDepositCents, defaultDeposit]
+  );
 
   async function handleCreateNewCustomer() {
     if (!newCustomer.first_name || !newCustomer.last_name || !newCustomer.email || !newCustomer.phone) {

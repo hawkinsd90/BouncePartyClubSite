@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { X, Truck, MessageSquare, FileText, Edit2, History, Save, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
@@ -532,7 +532,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
   }
 
-  function stageAddItem(unit: any, mode: 'dry' | 'water') {
+  const stageAddItem = useCallback((unit: any, mode: 'dry' | 'water') => {
     const price = mode === 'water' && unit.price_water_cents ? unit.price_water_cents : unit.price_dry_cents;
 
     const newItem: StagedItem = {
@@ -545,11 +545,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       is_deleted: false,
     };
 
-    setStagedItems([...stagedItems, newItem]);
-  }
+    setStagedItems(prev => [...prev, newItem]);
+  }, []);
 
-  function stageRemoveItem(itemToRemove: StagedItem) {
-    const updatedItems = stagedItems.map(item => {
+  const stageRemoveItem = useCallback((itemToRemove: StagedItem) => {
+    setStagedItems(prev => prev.map(item => {
       // Match by id if it exists, otherwise match by unit_id and wet_or_dry
       const isMatch = item.id
         ? item.id === itemToRemove.id
@@ -565,10 +565,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         }
       }
       return item;
-    }).filter((item): item is StagedItem => item !== null);
-
-    setStagedItems(updatedItems);
-  }
+    }).filter((item): item is StagedItem => item !== null));
+  }, []);
 
   async function handleSaveChanges() {
     // Check availability one final time before saving
@@ -1237,24 +1235,47 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     setShowStatusDialog(true);
   }
 
-
-  const activeItems = stagedItems.filter(item => !item.is_deleted);
+  // Memoized computations to prevent unnecessary recalculations
+  const activeItems = useMemo(() =>
+    stagedItems.filter(item => !item.is_deleted),
+    [stagedItems]
+  );
 
   // Filter available units - only show units that:
   // 1. Are not already in the order, OR
   // 2. Have quantity_available > 1 (meaning we can add more)
-  const unitsAvailableToAdd = availableUnits.filter(unit => {
-    // Check if this unit is already in the order (not deleted)
-    const existingItem = activeItems.find(item => item.unit_id === unit.id);
+  const unitsAvailableToAdd = useMemo(() =>
+    availableUnits.filter(unit => {
+      // Check if this unit is already in the order (not deleted)
+      const existingItem = activeItems.find(item => item.unit_id === unit.id);
 
-    if (!existingItem) {
-      // Unit not in order, so it's available to add
-      return true;
-    }
+      if (!existingItem) {
+        // Unit not in order, so it's available to add
+        return true;
+      }
 
-    // Unit is in order - only show if we have multiple units in inventory
-    return (unit.quantity_available || 1) > 1;
-  });
+      // Unit is in order - only show if we have multiple units in inventory
+      return (unit.quantity_available || 1) > 1;
+    }),
+    [availableUnits, activeItems]
+  );
+
+  // Memoized callbacks to prevent child component re-renders
+  const handleOrderChange = useCallback((updates: any) => {
+    setEditedOrder(prev => ({ ...prev, ...updates }));
+    setHasChanges(true);
+  }, []);
+
+  const handleAddressSelect = useCallback((result: any) => {
+    setEditedOrder(prev => ({
+      ...prev,
+      address_line1: result.street,
+      address_city: result.city,
+      address_state: result.state,
+      address_zip: result.zip,
+    }));
+    setHasChanges(true);
+  }, []);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-0 md:p-4 overflow-y-auto">
@@ -1434,20 +1455,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               <EventDetailsEditor
                 editedOrder={editedOrder}
                 pricingRules={pricingRules}
-                onOrderChange={(updates) => {
-                  setEditedOrder({ ...editedOrder, ...updates });
-                  setHasChanges(true);
-                }}
-                onAddressSelect={(result: any) => {
-                  setEditedOrder({
-                    ...editedOrder,
-                    address_line1: result.street,
-                    address_city: result.city,
-                    address_state: result.state,
-                    address_zip: result.zip,
-                  });
-                  setHasChanges(true);
-                }}
+                onOrderChange={handleOrderChange}
+                onAddressSelect={handleAddressSelect}
               />
 
               <OrderItemsEditor
