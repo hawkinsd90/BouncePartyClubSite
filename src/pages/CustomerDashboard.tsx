@@ -31,7 +31,7 @@ interface Payment {
   paid_at: string | null;
   payment_method: string | null;
   payment_brand: string | null;
-  last_four: string | null;
+  payment_last4: string | null;
 }
 
 interface OrderItem {
@@ -828,7 +828,7 @@ export function CustomerDashboard() {
                             {(() => {
                               const method = selectedReceipt.payment.payment_method;
                               const brand = selectedReceipt.payment.payment_brand;
-                              const lastFour = selectedReceipt.payment.last_four;
+                              const lastFour = selectedReceipt.payment.payment_last4;
 
                               if (method === 'card' && brand) {
                                 const brandName = brand.charAt(0).toUpperCase() + brand.slice(1);
