@@ -13,6 +13,10 @@ import { StatusChangeDialog } from './order-detail/StatusChangeDialog';
 import { OrderNotesTab } from './order-detail/OrderNotesTab';
 import { OrderWorkflowTab } from './order-detail/OrderWorkflowTab';
 import { OrderChangelogTab } from './order-detail/OrderChangelogTab';
+import { OrderItemsEditor } from './order-detail/OrderItemsEditor';
+import { DiscountsManager } from './order-detail/DiscountsManager';
+import { CustomFeesManager } from './order-detail/CustomFeesManager';
+import { EventDetailsEditor } from './order-detail/EventDetailsEditor';
 
 interface OrderDetailModalProps {
   order: any;
@@ -1427,298 +1431,31 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 </div>
               )}
 
-              {/* EVENT DETAILS SECTION */}
-              <div className="bg-white border border-slate-200 rounded-lg p-4">
-                <h3 className="font-semibold text-slate-900 mb-4">Event Details</h3>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">Event Start Date</label>
-                      <input
-                        type="date"
-                        value={editedOrder.event_date}
-                        onChange={(e) => {
-                          const newStart = e.target.value;
-                          setEditedOrder({
-                            ...editedOrder,
-                            event_date: newStart,
-                            event_end_date: newStart > editedOrder.event_end_date ? newStart : editedOrder.event_end_date
-                          });
-                        }}
-                        className="w-full px-3 py-2 border border-slate-300 rounded"
-                      />
-                    </div>
+              <EventDetailsEditor
+                editedOrder={editedOrder}
+                pricingRules={pricingRules}
+                onOrderChange={(updates) => {
+                  setEditedOrder({ ...editedOrder, ...updates });
+                  setHasChanges(true);
+                }}
+                onAddressSelect={(result: any) => {
+                  setEditedOrder({
+                    ...editedOrder,
+                    address_line1: result.street,
+                    address_city: result.city,
+                    address_state: result.state,
+                    address_zip: result.zip,
+                  });
+                  setHasChanges(true);
+                }}
+              />
 
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">Event End Date</label>
-                      <input
-                        type="date"
-                        value={editedOrder.event_end_date}
-                        onChange={(e) => setEditedOrder({ ...editedOrder, event_end_date: e.target.value })}
-                        min={editedOrder.event_date}
-                        disabled={editedOrder.pickup_preference === 'same_day' || editedOrder.location_type === 'commercial'}
-                        className="w-full px-3 py-2 border border-slate-300 rounded disabled:bg-slate-100"
-                      />
-                    </div>
-                  </div>
-                  {(editedOrder.pickup_preference === 'same_day' || editedOrder.location_type === 'commercial') && (
-                    <p className="text-xs text-slate-500">Same-day events cannot span multiple days</p>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">Start Time</label>
-                      <input
-                        type="time"
-                        value={editedOrder.start_window}
-                        onChange={(e) => setEditedOrder({ ...editedOrder, start_window: e.target.value })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">End Time</label>
-                      <input
-                        type="time"
-                        value={editedOrder.end_window}
-                        onChange={(e) => setEditedOrder({ ...editedOrder, end_window: e.target.value })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Location Type</label>
-                    <select
-                      value={editedOrder.location_type}
-                      onChange={(e) => {
-                        const newType = e.target.value;
-                        setEditedOrder({
-                          ...editedOrder,
-                          location_type: newType,
-                          pickup_preference: newType === 'commercial' ? 'same_day' : editedOrder.pickup_preference
-                        });
-                      }}
-                      className="w-full px-3 py-2 border border-slate-300 rounded"
-                    >
-                      <option value="residential">Residential</option>
-                      <option value="commercial">Commercial</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {editedOrder.location_type === 'residential' && (
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                  <label className="block text-sm font-medium text-slate-700 mb-3">Pickup Preference</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setEditedOrder({ ...editedOrder, pickup_preference: 'next_day' })}
-                      className={`flex flex-col items-center p-4 rounded-lg border-2 transition-all ${
-                        editedOrder.pickup_preference === 'next_day'
-                          ? 'border-green-600 bg-green-50'
-                          : 'border-slate-300 hover:border-green-400'
-                      }`}
-                    >
-                      <span className={`font-semibold text-center ${
-                        editedOrder.pickup_preference === 'next_day' ? 'text-green-900' : 'text-slate-700'
-                      }`}>
-                        Next Morning
-                      </span>
-                      <span className="text-xs text-slate-600 text-center mt-1">Equipment stays overnight</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (editedOrder.event_date === editedOrder.event_end_date) {
-                          setEditedOrder({ ...editedOrder, pickup_preference: 'same_day' });
-                        }
-                      }}
-                      disabled={editedOrder.event_date !== editedOrder.event_end_date}
-                      className={`flex flex-col items-center p-4 rounded-lg border-2 transition-all ${
-                        editedOrder.pickup_preference === 'same_day'
-                          ? 'border-orange-600 bg-orange-50'
-                          : editedOrder.event_date !== editedOrder.event_end_date
-                          ? 'border-slate-200 bg-slate-100 opacity-50 cursor-not-allowed'
-                          : 'border-slate-300 hover:border-orange-400'
-                      }`}
-                    >
-                      <span className={`font-semibold text-center ${
-                        editedOrder.pickup_preference === 'same_day' ? 'text-orange-900' : 'text-slate-700'
-                      }`}>
-                        Same Day
-                      </span>
-                      <span className="text-xs text-slate-600 text-center mt-1">Pickup same evening</span>
-                    </button>
-                  </div>
-                  {editedOrder.event_date !== editedOrder.event_end_date && (
-                    <p className="text-xs text-amber-600 mt-3">
-                      Multi-day rentals require next morning pickup
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* EVENT ADDRESS SECTION */}
-              <div className="bg-white border border-slate-200 rounded-lg p-4">
-                <h3 className="font-semibold text-slate-900 mb-4">Event Address</h3>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Street Address</label>
-                    <AddressAutocomplete
-                      value={editedOrder.address_line1}
-                      onSelect={(result) => {
-                        setEditedOrder({
-                          ...editedOrder,
-                          address_line1: result.street,
-                          address_city: result.city,
-                          address_state: result.state,
-                          address_zip: result.zip,
-                        });
-                      }}
-                      placeholder="Enter event address"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Address Line 2 (optional)</label>
-                    <input
-                      type="text"
-                      value={editedOrder.address_line2}
-                      onChange={(e) => setEditedOrder({ ...editedOrder, address_line2: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                      placeholder="Apt, Suite, Unit, etc."
-                    />
-                  </div>
-                  <p className="text-xs text-amber-600">Address changes will recalculate travel fees when saved</p>
-                </div>
-              </div>
-
-              {/* SETUP DETAILS SECTION */}
-              <div className="bg-white border border-slate-200 rounded-lg p-4">
-                <h3 className="font-semibold text-slate-900 mb-4">Setup Details</h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Setup Surface</label>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setEditedOrder({ ...editedOrder, can_stake: true, surface: 'grass' })}
-                        className={`flex-1 px-3 py-2 border-2 rounded font-medium transition-all ${
-                          editedOrder.can_stake
-                            ? 'border-green-600 bg-green-50 text-green-900'
-                            : 'border-slate-300 bg-white text-slate-700 hover:border-green-400'
-                        }`}
-                      >
-                        Grass
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditedOrder({ ...editedOrder, can_stake: false, surface: 'cement' })}
-                        className={`flex-1 px-3 py-2 border-2 rounded font-medium transition-all ${
-                          !editedOrder.can_stake
-                            ? 'border-orange-600 bg-orange-50 text-orange-900'
-                            : 'border-slate-300 bg-white text-slate-700 hover:border-orange-400'
-                        }`}
-                      >
-                        Sandbags
-                      </button>
-                    </div>
-                    {!editedOrder.can_stake && (
-                      <p className="text-xs text-amber-600 mt-1">Sandbag fee ({formatCurrency(pricingRules?.surface_sandbag_fee_cents || 3000)}) will be applied</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Generators</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={editedOrder.generator_qty}
-                      onChange={(e) => {
-                        const qty = parseInt(e.target.value) || 0;
-                        setEditedOrder({ ...editedOrder, generator_qty: qty });
-                        setHasChanges(true);
-                      }}
-                      className="w-full px-3 py-2 border border-slate-300 rounded"
-                    />
-                    {editedOrder.generator_qty > 0 && pricingRules?.generator_price_cents && (
-                      <p className="text-xs text-blue-600 mt-1">
-                        {editedOrder.generator_qty} × {formatCurrency(pricingRules.generator_price_cents)} = {formatCurrency(editedOrder.generator_qty * pricingRules.generator_price_cents)}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* ORDER ITEMS SECTION */}
-              <div className="bg-white border border-slate-200 rounded-lg p-4">
-                <h3 className="font-semibold text-slate-900 mb-4">Order Items</h3>
-                <div className="space-y-2">
-                  {activeItems.map((item, index) => (
-                    <div key={item.id || `${item.unit_id}-${item.wet_or_dry}-${index}`} className={`flex justify-between items-center rounded-lg p-3 ${item.is_new ? 'bg-green-50 border border-green-200' : 'bg-slate-50'}`}>
-                      <div>
-                        <p className="font-medium text-slate-900">
-                          {item.unit_name}
-                          {item.is_new && <span className="ml-2 text-xs bg-green-600 text-white px-2 py-0.5 rounded">NEW</span>}
-                        </p>
-                        <p className="text-sm text-slate-600">{item.wet_or_dry === 'water' ? 'Water' : 'Dry'} • Qty: {item.qty}</p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <p className="font-semibold">{formatCurrency(item.unit_price_cents * item.qty)}</p>
-                        <button
-                          onClick={() => stageRemoveItem(item)}
-                          className="text-red-600 hover:text-red-800 p-1"
-                          title="Remove item"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-4 border-t border-slate-200 pt-4">
-                  <h4 className="font-medium text-slate-900 mb-3 flex items-center gap-2">
-                    <Plus className="w-4 h-4" />
-                    Add Item
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
-                    {unitsAvailableToAdd.length > 0 ? (
-                      unitsAvailableToAdd.map(unit => (
-                        <div key={unit.id} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                          <p className="font-medium text-slate-900 mb-2">
-                            {unit.name}
-                            {(unit.quantity_available || 1) > 1 && (
-                              <span className="ml-2 text-xs text-slate-600">({unit.quantity_available} available)</span>
-                            )}
-                          </p>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => stageAddItem(unit, 'dry')}
-                              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 px-3 rounded"
-                            >
-                              Add Dry ({formatCurrency(unit.price_dry_cents)})
-                            </button>
-                            {unit.price_water_cents && (
-                              <button
-                                onClick={() => stageAddItem(unit, 'water')}
-                                className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white text-xs py-2 px-3 rounded"
-                              >
-                                Add Water ({formatCurrency(unit.price_water_cents)})
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="col-span-2 text-center py-6 text-slate-500">
-                        All available units have been added to this order
-                      </div>
-                    )}
-                  </div>
-              </div>
+              <OrderItemsEditor
+                stagedItems={stagedItems}
+                availableUnits={availableUnits}
+                onRemoveItem={stageRemoveItem}
+                onAddItem={stageAddItem}
+              />
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {/* Current/Original Pricing */}
@@ -2087,7 +1824,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 </div>
               </div>
             </div>
-          </div>
           )}
 
           {activeSection === 'workflow' && (
