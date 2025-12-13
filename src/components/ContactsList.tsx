@@ -1,36 +1,52 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Mail, Phone, Calendar, Edit2, X } from 'lucide-react';
 import { format } from 'date-fns';
-import { notifySuccess, notifyError } from '../lib/notifications';
+import { useSupabaseQuery, useMutation } from '../hooks/useDataFetch';
 
 export function ContactsList() {
-  const [contacts, setContacts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [editingContact, setEditingContact] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    loadContacts();
-  }, []);
+  const { data: contacts = [], loading, refetch } = useSupabaseQuery(
+    () => supabase
+      .from('contacts')
+      .select('*')
+      .order('created_at', { ascending: false }),
+    { errorMessage: 'Failed to load contacts' }
+  );
 
-  async function loadContacts() {
-    setLoading(true);
-    try {
-      const { data } = await supabase
+  const { mutate: updateContact, loading: saving } = useMutation(
+    async (contact: any) => {
+      const { data, error } = await supabase
         .from('contacts')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .update({
+          business_name: contact.business_name || null,
+          first_name: contact.first_name,
+          last_name: contact.last_name,
+          email: contact.email,
+          phone: contact.phone,
+          opt_in_email: contact.opt_in_email,
+          opt_in_sms: contact.opt_in_sms,
+        })
+        .eq('id', contact.id)
+        .select()
+        .single();
 
-      if (data) setContacts(data);
-    } catch (error) {
-      console.error('Error loading contacts:', error);
-    } finally {
-      setLoading(false);
+      if (error) throw error;
+      return data;
+    },
+    {
+      successMessage: 'Contact updated successfully!',
+      errorMessage: 'Failed to update contact',
+      onSuccess: () => {
+        setShowEditModal(false);
+        setEditingContact(null);
+        refetch();
+      },
     }
-  }
+  );
 
   const filteredContacts = contacts.filter(contact => {
     if (filter === 'email') return contact.opt_in_email;
@@ -43,36 +59,9 @@ export function ContactsList() {
     setShowEditModal(true);
   }
 
-  async function handleSaveContact() {
+  function handleSaveContact() {
     if (!editingContact) return;
-
-    setSaving(true);
-    try {
-      const { error } = await supabase
-        .from('contacts')
-        .update({
-          business_name: editingContact.business_name || null,
-          first_name: editingContact.first_name,
-          last_name: editingContact.last_name,
-          email: editingContact.email,
-          phone: editingContact.phone,
-          opt_in_email: editingContact.opt_in_email,
-          opt_in_sms: editingContact.opt_in_sms,
-        })
-        .eq('id', editingContact.id);
-
-      if (error) throw error;
-
-      notifySuccess('Contact updated successfully!');
-      setShowEditModal(false);
-      setEditingContact(null);
-      await loadContacts();
-    } catch (error) {
-      console.error('Error updating contact:', error);
-      notifyError('Failed to update contact. Please try again.');
-    } finally {
-      setSaving(false);
-    }
+    updateContact(editingContact);
   }
 
   if (loading) {

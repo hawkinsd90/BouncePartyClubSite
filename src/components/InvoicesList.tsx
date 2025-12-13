@@ -1,53 +1,36 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { FileText, Calendar, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatCurrency } from '../lib/pricing';
+import { useSupabaseQuery, useMutation } from '../hooks/useDataFetch';
+import { notifySuccess, notifyError } from '../lib/notifications';
 
 export function InvoicesList() {
-  const [invoices, setInvoices] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
 
-  useEffect(() => {
-    loadInvoices();
-  }, []);
+  const { data: invoices = [], loading, refetch } = useSupabaseQuery(
+    () => supabase
+      .from('invoices')
+      .select(`
+        *,
+        customers (first_name, last_name, email),
+        orders (event_date)
+      `)
+      .order('created_at', { ascending: false }),
+    { errorMessage: 'Failed to load invoices' }
+  );
 
-  async function loadInvoices() {
-    setLoading(true);
-    try {
-      const { data } = await supabase
-        .from('invoices')
-        .select(`
-          *,
-          customers (first_name, last_name, email),
-          orders (event_date)
-        `)
-        .order('created_at', { ascending: false });
-
-      if (data) setInvoices(data);
-    } catch (error) {
-      console.error('Error loading invoices:', error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleGenerateManualInvoice() {
-    const orderIdPrompt = prompt('Enter Order ID to generate invoice for:');
-    if (!orderIdPrompt) return;
-
-    try {
-      const { data: order } = await supabase
+  const { mutate: generateInvoice } = useMutation(
+    async (orderId: string) => {
+      const { data: order, error: orderError } = await supabase
         .from('orders')
         .select('*, customers(first_name, last_name, email)')
-        .eq('id', orderIdPrompt)
+        .eq('id', orderId)
         .maybeSingle();
 
-      if (!order) {
-        alert('Order not found');
-        return;
-      }
+      if (orderError) throw orderError;
+      if (!order) throw new Error('Order not found');
 
       const { data: invoiceNumberData } = await supabase.rpc('generate_invoice_number');
       const invoiceNumber = invoiceNumberData || `INV-${Date.now()}`;
@@ -55,7 +38,7 @@ export function InvoicesList() {
       const totalCents = order.subtotal_cents + (order.travel_fee_cents ?? 0) +
                         (order.surface_fee_cents ?? 0) + (order.same_day_pickup_fee_cents ?? 0) + (order.tax_cents ?? 0);
 
-      await supabase.from('invoices').insert({
+      const { data, error } = await supabase.from('invoices').insert({
         invoice_number: invoiceNumber,
         order_id: order.id,
         customer_id: order.customer_id,
@@ -70,14 +53,24 @@ export function InvoicesList() {
         total_cents: totalCents,
         paid_amount_cents: order.deposit_paid_cents || 0,
         payment_method: 'card',
-      });
+      }).select().single();
 
-      alert(`Invoice ${invoiceNumber} generated successfully!`);
-      loadInvoices();
-    } catch (error) {
-      console.error('Error generating invoice:', error);
-      alert('Failed to generate invoice');
+      if (error) throw error;
+      return data;
+    },
+    {
+      errorMessage: 'Failed to generate invoice',
+      onSuccess: (data: any) => {
+        notifySuccess(`Invoice ${data.invoice_number} generated successfully!`);
+        refetch();
+      },
     }
+  );
+
+  function handleGenerateManualInvoice() {
+    const orderIdPrompt = prompt('Enter Order ID to generate invoice for:');
+    if (!orderIdPrompt) return;
+    generateInvoice(orderIdPrompt);
   }
 
   async function handleViewInvoice(invoice: any) {

@@ -11,11 +11,44 @@ export class AppError extends Error {
   }
 }
 
-export function handleError(error: unknown, context?: string): void {
+export function isSupabaseError(error: any): boolean {
+  return error && (error.code || error.hint || error.details);
+}
+
+export function formatSupabaseError(error: any): string {
+  if (error.message?.includes('row-level security')) {
+    return 'Permission denied. Please ensure you are logged in with the correct account.';
+  }
+
+  if (error.code === 'PGRST116') {
+    return 'No data found matching your request.';
+  }
+
+  if (error.code === '23505') {
+    return 'This record already exists.';
+  }
+
+  if (error.code === '23503') {
+    return 'Cannot delete this record as it is referenced by other data.';
+  }
+
+  return error.message || 'Database operation failed';
+}
+
+export function handleError(error: unknown, context?: string, silent = false): void {
   console.error(`[Error${context ? ` in ${context}` : ''}]:`, error);
+
+  if (silent) {
+    return;
+  }
 
   if (error instanceof AppError) {
     notifyError(error.message);
+    return;
+  }
+
+  if (isSupabaseError(error)) {
+    notifyError(formatSupabaseError(error));
     return;
   }
 
@@ -34,27 +67,42 @@ export function handleError(error: unknown, context?: string): void {
 
 export async function withErrorHandling<T>(
   fn: () => Promise<T>,
-  context?: string
+  context?: string,
+  silent = false
 ): Promise<T | null> {
   try {
     return await fn();
   } catch (error) {
-    handleError(error, context);
+    handleError(error, context, silent);
     return null;
   }
 }
 
 export async function queryWithErrorHandling<T>(
   queryFn: () => Promise<{ data: T | null; error: any }>,
-  errorMessage?: string
+  options: {
+    errorMessage?: string;
+    context?: string;
+    silent?: boolean;
+  } = {}
 ): Promise<T | null> {
+  const { errorMessage, context, silent = false } = options;
   const { data, error } = await queryFn();
 
   if (error) {
-    notifyError(errorMessage || error.message || 'Database query failed');
-    console.error('Query error:', error);
+    if (!silent) {
+      notifyError(errorMessage || formatSupabaseError(error));
+    }
+    console.error(`Query error${context ? ` in ${context}` : ''}:`, error);
     return null;
   }
 
   return data;
+}
+
+export function createErrorBoundary(context: string) {
+  return {
+    handleError: (error: unknown) => handleError(error, context),
+    withHandling: <T>(fn: () => Promise<T>) => withErrorHandling(fn, context),
+  };
 }

@@ -4,35 +4,26 @@ import { format, isToday, isFuture, isPast } from 'date-fns';
 import { Search, Calendar, User, Phone } from 'lucide-react';
 import { OrderDetailModal } from './OrderDetailModal';
 import { PendingOrderCard } from './PendingOrderCard';
+import { useDataFetch } from '../hooks/useDataFetch';
+import { handleError } from '../lib/errorHandling';
 
 
 type OrderTab = 'draft' | 'pending_review' | 'awaiting_customer_approval' | 'current' | 'upcoming' | 'all' | 'past' | 'cancelled';
 
+interface OrdersData {
+  orders: any[];
+  contactsMap: Map<string, any>;
+}
+
 export function OrdersManager() {
   const [activeTab, setActiveTab] = useState<OrderTab>('draft');
-  const [orders, setOrders] = useState<any[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
-  const [contactsMap, setContactsMap] = useState<Map<string, any>>(new Map());
 
-  useEffect(() => {
-    loadOrders();
-  }, []);
-
-  useEffect(() => {
-    filterAndSortOrders();
-  }, [orders, activeTab, searchTerm]);
-
-  useEffect(() => {
-    determineDefaultTab();
-  }, [orders]);
-
-  async function loadOrders() {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
+  const { data, loading, refetch } = useDataFetch<OrdersData>(
+    async () => {
+      const { data: ordersData, error } = await supabase
         .from('orders')
         .select(`
           *,
@@ -42,24 +33,35 @@ export function OrdersManager() {
         .order('event_date', { ascending: true });
 
       if (error) throw error;
-      if (data) {
-        setOrders(data);
-        // Load contacts for business names
-        const { data: contacts } = await supabase
-          .from('contacts')
-          .select('email, business_name');
-        if (contacts) {
-          const map = new Map();
-          contacts.forEach(c => map.set(c.email, c));
-          setContactsMap(map);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading orders:', error);
-    } finally {
-      setLoading(false);
+
+      const { data: contacts } = await supabase
+        .from('contacts')
+        .select('email, business_name');
+
+      const contactsMap = new Map();
+      contacts?.forEach(c => contactsMap.set(c.email, c));
+
+      return {
+        orders: ordersData || [],
+        contactsMap,
+      };
+    },
+    {
+      errorMessage: 'Failed to load orders',
+      onError: (error) => handleError(error, 'OrdersManager.loadOrders'),
     }
-  }
+  );
+
+  const orders = data?.orders || [];
+  const contactsMap = data?.contactsMap || new Map();
+
+  useEffect(() => {
+    filterAndSortOrders();
+  }, [orders, activeTab, searchTerm]);
+
+  useEffect(() => {
+    determineDefaultTab();
+  }, [orders]);
 
   function determineDefaultTab() {
     const pendingReview = orders.filter(o => o.status === 'pending_review').length;
@@ -232,7 +234,7 @@ export function OrdersManager() {
       ) : activeTab === 'pending_review' || activeTab === 'awaiting_customer_approval' ? (
         <div className="space-y-4">
           {filteredOrders.map(order => (
-            <PendingOrderCard key={order.id} order={order} onUpdate={loadOrders} />
+            <PendingOrderCard key={order.id} order={order} onUpdate={refetch} />
           ))}
         </div>
       ) : (
@@ -341,7 +343,7 @@ export function OrdersManager() {
         <OrderDetailModal
           order={selectedOrder}
           onClose={() => setSelectedOrder(null)}
-          onUpdate={loadOrders}
+          onUpdate={refetch}
         />
       )}
     </div>

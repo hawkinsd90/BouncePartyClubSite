@@ -10,6 +10,8 @@ import { InvoiceBuilder } from '../components/InvoiceBuilder';
 import { PendingOrderCard } from '../components/PendingOrderCard';
 import { AdminCalendar } from '../components/AdminCalendar';
 import { notifyError, notifySuccess, notifyWarning, showConfirm, notify } from '../lib/notifications';
+import { useDataFetch } from '../hooks/useDataFetch';
+import { handleError } from '../lib/errorHandling';
 
 type AdminTab =
   | 'overview'
@@ -25,14 +27,21 @@ type AdminTab =
   | 'pricing'
   | 'sms_templates';
 
+interface AdminData {
+  units: any[];
+  orders: any[];
+  pricingRules: any | null;
+  twilioSettings: { account_sid: string; auth_token: string; from_number: string };
+  stripeSettings: { secret_key: string; publishable_key: string };
+  adminEmail: string;
+  smsTemplates: any[];
+}
+
 function AdminDashboard() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get('tab') as AdminTab | null;
-  const [activeTab, setActiveTab] = useState<AdminTab>(tabFromUrl || 'pending');const [units, setUnits] = useState<any[]>([]);
-  const [orders, setOrders] = useState<any[]>([]);
-  const [pricingRules, setPricingRules] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<AdminTab>(tabFromUrl || 'pending');
   const [twilioSettings, setTwilioSettings] = useState({
     account_sid: '',
     auth_token: '',
@@ -45,29 +54,11 @@ function AdminDashboard() {
   const [adminEmail, setAdminEmail] = useState('');
   const [savingTwilio, setSavingTwilio] = useState(false);
   const [savingStripe, setSavingStripe] = useState(false);
-  const [smsTemplates, setSmsTemplates] = useState<any[]>([]);
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
   const [savingTemplate, setSavingTemplate] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  useEffect(() => {
-    if (tabFromUrl && tabFromUrl !== activeTab) {
-      setActiveTab(tabFromUrl);
-    }
-  }, [tabFromUrl]);
-
-  
-  function changeTab(tab: AdminTab) {
-    setActiveTab(tab);
-    setSearchParams({ tab });
-  }
-
-  async function loadData() {
-    setLoading(true);
-    try {
+  const { data, loading, refetch } = useDataFetch<AdminData>(
+    async () => {
       const [unitsRes, ordersRes, pricingRes, settingsRes, templatesRes] = await Promise.all([
         supabase.from('units').select('*').order('name'),
         supabase.from('orders').select(`
@@ -80,30 +71,61 @@ function AdminDashboard() {
         supabase.from('sms_message_templates').select('*').order('template_name'),
       ]);
 
-      if (unitsRes.data) setUnits(unitsRes.data);
-      if (ordersRes.data) setOrders(ordersRes.data);
-      if (pricingRes.data) setPricingRules(pricingRes.data);
-      if (templatesRes.data) setSmsTemplates(templatesRes.data);
+      if (unitsRes.error) throw unitsRes.error;
+      if (ordersRes.error) throw ordersRes.error;
+      if (pricingRes.error) throw pricingRes.error;
+      if (settingsRes.error) throw settingsRes.error;
+      if (templatesRes.error) throw templatesRes.error;
 
-      if (settingsRes.data) {
-        const settings: any = {};
-        const stripeSet: any = {};
-        settingsRes.data.forEach((s: any) => {
-          if (s.key === 'twilio_account_sid') settings.account_sid = s.value;
-          if (s.key === 'twilio_auth_token') settings.auth_token = s.value;
-          if (s.key === 'twilio_from_number') settings.from_number = s.value;
-          if (s.key === 'admin_email') setAdminEmail(s.value);
-          if (s.key === 'stripe_secret_key') stripeSet.secret_key = s.value;
-          if (s.key === 'stripe_publishable_key') stripeSet.publishable_key = s.value;
-        });
-        setTwilioSettings(settings);
-        setStripeSettings(stripeSet);
-      }
-    } catch (error) {
-      console.error('Error loading admin data:', error);
-    } finally {
-      setLoading(false);
+      const settings: any = {};
+      const stripeSet: any = {};
+      let email = '';
+
+      settingsRes.data?.forEach((s: any) => {
+        if (s.key === 'twilio_account_sid') settings.account_sid = s.value;
+        if (s.key === 'twilio_auth_token') settings.auth_token = s.value;
+        if (s.key === 'twilio_from_number') settings.from_number = s.value;
+        if (s.key === 'admin_email') email = s.value;
+        if (s.key === 'stripe_secret_key') stripeSet.secret_key = s.value;
+        if (s.key === 'stripe_publishable_key') stripeSet.publishable_key = s.value;
+      });
+
+      return {
+        units: unitsRes.data || [],
+        orders: ordersRes.data || [],
+        pricingRules: pricingRes.data,
+        twilioSettings: settings,
+        stripeSettings: stripeSet,
+        adminEmail: email,
+        smsTemplates: templatesRes.data || [],
+      };
+    },
+    {
+      errorMessage: 'Failed to load admin data',
+      onSuccess: (data) => {
+        setTwilioSettings(data.twilioSettings);
+        setStripeSettings(data.stripeSettings);
+        setAdminEmail(data.adminEmail);
+      },
+      onError: (error) => handleError(error, 'Admin.loadData'),
     }
+  );
+
+  const units = data?.units || [];
+  const orders = data?.orders || [];
+  const pricingRules = data?.pricingRules;
+  const smsTemplates = data?.smsTemplates || [];
+
+  useEffect(() => {
+    if (tabFromUrl && tabFromUrl !== activeTab) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [tabFromUrl]);
+
+
+  function changeTab(tab: AdminTab) {
+    setActiveTab(tab);
+    setSearchParams({ tab });
   }
 
   async function handleSaveTwilioSettings() {
@@ -204,7 +226,7 @@ function AdminDashboard() {
 
       notifySuccess('Template saved successfully!');
       setEditingTemplate(null);
-      await loadData();
+      await refetch();
     } catch (error) {
       console.error('Error saving template:', error);
       notifyError('Failed to save template. Please try again.');
@@ -225,7 +247,7 @@ function AdminDashboard() {
       if (error) throw error;
 
       notifySuccess('Unit deleted successfully');
-      loadData();
+      refetch();
     } catch (error) {
       console.error('Error deleting unit:', error);
       notifyError('Failed to delete unit');
@@ -432,7 +454,7 @@ function AdminDashboard() {
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-slate-900">Pending Review</h2>
             <button
-              onClick={loadData}
+              onClick={refetch}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
             >
               Refresh
@@ -449,7 +471,7 @@ function AdminDashboard() {
               {orders
                 .filter(o => o.status === 'pending_review')
                 .map((order) => (
-                  <PendingOrderCard key={order.id} order={order} onUpdate={loadData} />
+                  <PendingOrderCard key={order.id} order={order} onUpdate={refetch} />
                 ))}
             </div>
           )}
