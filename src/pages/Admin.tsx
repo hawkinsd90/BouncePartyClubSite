@@ -56,6 +56,7 @@ function AdminDashboard() {
   const [savingStripe, setSavingStripe] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [backfillingPayments, setBackfillingPayments] = useState(false);
 
   const fetchAdminData = useCallback(async () => {
     const [unitsRes, ordersRes, pricingRes, settingsRes, templatesRes] = await Promise.all([
@@ -217,6 +218,58 @@ function AdminDashboard() {
       }
     } finally {
       setSavingStripe(false);
+    }
+  }
+
+  async function handleBackfillPaymentMethods() {
+    const confirmed = await showConfirm(
+      'This will fetch payment method details from Stripe for all existing payments that are missing this information. Continue?'
+    );
+
+    if (!confirmed) return;
+
+    setBackfillingPayments(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+
+      if (!sessionData?.session) {
+        throw new Error('No active session');
+      }
+
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/backfill-payment-methods`;
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${sessionData.session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        if (result.updated === 0) {
+          notifySuccess('No payments needed updating. All payment methods are already recorded.');
+        } else {
+          notifySuccess(`Successfully updated ${result.updated} payment(s) with payment method information.`);
+        }
+
+        if (result.failed > 0) {
+          notifyWarning(`${result.failed} payment(s) could not be updated. Check console for details.`);
+          console.error('Backfill errors:', result.errors);
+        }
+      } else {
+        throw new Error(result.error || 'Unknown error');
+      }
+    } catch (error: any) {
+      console.error('Error backfilling payment methods:', error);
+      notifyError(`Failed to backfill payment methods: ${error.message}`);
+    } finally {
+      setBackfillingPayments(false);
     }
   }
 
@@ -839,6 +892,32 @@ function AdminDashboard() {
                   {savingStripe ? 'Saving...' : 'Save Stripe Settings'}
                 </button>
               </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <h2 className="text-2xl font-bold text-slate-900 mb-6">Payment Method Backfill</h2>
+
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-slate-700 mb-2">
+                If you have existing payments that don't show payment method information on receipts, use this tool to retrieve that data from Stripe.
+              </p>
+              <p className="text-sm text-slate-600">
+                This will fetch payment method details (card type, last 4 digits, etc.) for all past payments that are missing this information.
+              </p>
+            </div>
+
+            <div className="space-y-4 max-w-2xl">
+              <button
+                onClick={handleBackfillPaymentMethods}
+                disabled={backfillingPayments}
+                className="bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
+              >
+                {backfillingPayments ? 'Processing...' : 'Backfill Payment Methods'}
+              </button>
+              <p className="text-xs text-slate-500">
+                This process is safe and only adds missing information. It won't modify existing data.
+              </p>
             </div>
           </div>
 
