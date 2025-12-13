@@ -10,6 +10,7 @@ import WaiverTab from '../components/WaiverTab';
 import { loadOrderSummary, formatOrderSummary, OrderSummaryDisplay } from '../lib/orderSummary';
 import { OrderSummary } from '../components/OrderSummary';
 import { PrintableInvoice } from '../components/PrintableInvoice';
+import { showToast } from '../lib/notifications';
 
 export function CustomerPortal() {
   const { orderId, token } = useParams();
@@ -247,7 +248,7 @@ export function CustomerPortal() {
 
 
   async function handlePayment() {
-    alert('Payment processing will be implemented with Stripe integration');
+    showToast('Payment processing will be implemented with Stripe integration', 'info');
   }
 
   const handlePrintInvoice = () => {
@@ -332,7 +333,7 @@ export function CustomerPortal() {
     // Validate all files are images
     for (const file of fileArray) {
       if (!file.type.startsWith('image/')) {
-        alert('Please upload only image files');
+        showToast('Please upload only image files', 'error');
         return;
       }
     }
@@ -361,30 +362,30 @@ export function CustomerPortal() {
 
   async function handleSubmitPictures() {
     if (uploadedImages.length === 0) {
-      alert('Please upload at least one picture');
+      showToast('Please upload at least one picture', 'error');
       return;
     }
 
     setSubmitting(true);
     try {
-      alert('Picture submission feature coming soon - images will be stored in Supabase Storage');
+      showToast('Picture submission feature coming soon - images will be stored in Supabase Storage', 'info');
       setSubmitting(false);
     } catch (error) {
       console.error('Error submitting pictures:', error);
-      alert('Failed to submit pictures');
+      showToast('Failed to submit pictures', 'error');
       setSubmitting(false);
     }
   }
 
   async function handleAcceptInvoice() {
     if (!cardOnFileConsent || !smsConsent) {
-      alert('Please accept both authorization and consent terms');
+      showToast('Please accept both authorization and consent terms', 'error');
       return;
     }
 
     // If customer info not filled, require it
     if (invoiceLink && !invoiceLink.customer_filled && (!customerInfo.first_name || !customerInfo.last_name || !customerInfo.email || !customerInfo.phone)) {
-      alert('Please fill in all required customer information');
+      showToast('Please fill in all required customer information', 'error');
       return;
     }
 
@@ -444,12 +445,12 @@ export function CustomerPortal() {
         actualPaymentCents = Math.round(parseFloat(customPaymentAmount) * 100);
         // Ensure it's at least the minimum deposit
         if (actualPaymentCents < order.deposit_due_cents) {
-          alert(`Payment amount must be at least ${formatCurrency(order.deposit_due_cents)}`);
+          showToast(`Payment amount must be at least ${formatCurrency(order.deposit_due_cents)}`, 'error');
           setProcessing(false);
           return;
         }
       } else {
-        alert('Please select a payment amount');
+        showToast('Please select a payment amount', 'error');
         setProcessing(false);
         return;
       }
@@ -483,7 +484,7 @@ export function CustomerPortal() {
           })
           .eq('id', order.id);
 
-        alert('Invoice accepted! You will receive a confirmation shortly.');
+        showToast('Invoice accepted! You will receive a confirmation shortly.', 'success');
         window.location.reload();
         return;
       }
@@ -518,7 +519,7 @@ export function CustomerPortal() {
       window.location.href = data.url;
     } catch (err: any) {
       console.error('Error accepting invoice:', err);
-      alert('Failed to process invoice: ' + err.message);
+      showToast('Failed to process invoice: ' + err.message, 'error');
       setProcessing(false);
     }
   }
@@ -558,16 +559,16 @@ export function CustomerPortal() {
 
   async function confirmApproveChanges() {
     if (!orderId) {
-      alert('Order ID is missing. Please try again.');
+      showToast('Order ID is missing. Please try again.', 'error');
       return;
     }
     if (!order.customers) {
-      alert('Customer information is missing. Please contact support.');
+      showToast('Customer information is missing. Please contact support.', 'error');
       return;
     }
     const expectedName = `${order.customers.first_name} ${order.customers.last_name}`.toLowerCase().trim();
     if (approveConfirmName.toLowerCase().trim() !== expectedName) {
-      alert('The name you entered does not match the customer name on this order. Please try again.');
+      showToast('The name you entered does not match the customer name on this order. Please try again.', 'error');
       return;
     }
 
@@ -594,9 +595,10 @@ export function CustomerPortal() {
           })
           .join(', ');
 
-        alert(
-          `We're sorry, but the following equipment is no longer available for your selected dates: ${conflictList}\n\n` +
-          'Please call us at (313) 889-3860 to discuss alternative dates or equipment options.'
+        showToast(
+          `We're sorry, but the following equipment is no longer available for your selected dates: ${conflictList}. ` +
+          'Please call us at (313) 889-3860 to discuss alternative dates or equipment options.',
+          'error'
         );
         setSubmitting(false);
         return;
@@ -649,7 +651,7 @@ export function CustomerPortal() {
       setApprovalSuccess(true);
     } catch (error) {
       console.error('Error approving changes:', error);
-      alert('Failed to approve changes');
+      showToast('Failed to approve changes', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -661,16 +663,16 @@ export function CustomerPortal() {
 
   async function confirmRejectChanges() {
     if (!orderId) {
-      alert('Order ID is missing. Please try again.');
+      showToast('Order ID is missing. Please try again.', 'error');
       return;
     }
     if (!order.customers) {
-      alert('Customer information is missing. Please contact support.');
+      showToast('Customer information is missing. Please contact support.', 'error');
       return;
     }
     const expectedName = `${order.customers.first_name} ${order.customers.last_name}`.toLowerCase().trim();
     if (rejectConfirmName.toLowerCase().trim() !== expectedName) {
-      alert('The name you entered does not match the customer name on this order. Please try again.');
+      showToast('The name you entered does not match the customer name on this order. Please try again.', 'error');
       return;
     }
 
@@ -804,11 +806,11 @@ export function CustomerPortal() {
       setShowRejectModal(false);
       setRejectConfirmName('');
       setRejectReason('');
-      alert('Your order has been cancelled. We\'re sorry we couldn\'t meet your needs. Our team will be in touch shortly.');
+      showToast('Your order has been cancelled. We\'re sorry we couldn\'t meet your needs. Our team will be in touch shortly.', 'info');
       await loadOrder();
     } catch (error) {
       console.error('Error rejecting changes:', error);
-      alert('Failed to process rejection. Please call us at (313) 889-3860.');
+      showToast('Failed to process rejection. Please call us at (313) 889-3860.', 'error');
     } finally {
       setSubmitting(false);
     }

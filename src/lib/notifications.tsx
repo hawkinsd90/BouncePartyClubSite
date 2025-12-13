@@ -125,6 +125,11 @@ export function notifyWarning(message: string, options?: NotificationOptions) {
   showNotification('warning', message, options);
 }
 
+// Toast notification with type
+export function showToast(message: string, type: NotificationType = 'info', options?: NotificationOptions) {
+  showNotification(type, message, options);
+}
+
 // Drop-in replacement for alert()
 export function showAlert(message: string) {
   showNotification('info', message, { duration: 0 });

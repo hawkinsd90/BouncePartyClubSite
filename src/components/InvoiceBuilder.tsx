@@ -277,7 +277,7 @@ export function InvoiceBuilder() {
 
   async function handleCreateNewCustomer() {
     if (!newCustomer.first_name || !newCustomer.last_name || !newCustomer.email || !newCustomer.phone) {
-      alert('Please fill in all required customer fields');
+      showToast('Please fill in all required customer fields', 'error');
       return;
     }
 
@@ -296,12 +296,12 @@ export function InvoiceBuilder() {
         // Check if the name is also the same
         if (existing.first_name.toLowerCase() === newCustomer.first_name.toLowerCase() &&
             existing.last_name.toLowerCase() === newCustomer.last_name.toLowerCase()) {
-          alert(`A customer with this email (${newCustomer.email}) and phone (${newCustomer.phone}) already exists with the same name.`);
+          showToast(`A customer with this email (${newCustomer.email}) and phone (${newCustomer.phone}) already exists with the same name.`, 'error');
           setSaving(false);
           return;
         }
         // Names are different, but email+phone match - this is not allowed
-        alert(`A customer with both this email (${newCustomer.email}) AND phone number (${newCustomer.phone}) already exists. They can share one or the other, but not both unless the name is identical.`);
+        showToast(`A customer with both this email (${newCustomer.email}) AND phone number (${newCustomer.phone}) already exists. They can share one or the other, but not both unless the name is identical.`, 'error');
         setSaving(false);
         return;
       }
@@ -326,7 +326,7 @@ export function InvoiceBuilder() {
       });
     } catch (error) {
       console.error('Error creating customer:', error);
-      alert('Failed to create customer');
+      showToast('Failed to create customer', 'error');
     } finally {
       setSaving(false);
     }
@@ -337,12 +337,12 @@ export function InvoiceBuilder() {
     const percentage = parseFloat(discountPercentInput || '0');
 
     if (!newDiscount.name.trim()) {
-      alert('Please enter a discount name');
+      showToast('Please enter a discount name', 'error');
       return;
     }
 
     if (amountCents === 0 && percentage === 0) {
-      alert('Please enter either a dollar amount or percentage');
+      showToast('Please enter either a dollar amount or percentage', 'error');
       return;
     }
 
@@ -378,12 +378,12 @@ export function InvoiceBuilder() {
     const amountCents = Math.round(parseFloat(customFeeInput || '0') * 100);
 
     if (!newCustomFee.name.trim()) {
-      alert('Please enter a fee name');
+      showToast('Please enter a fee name', 'error');
       return;
     }
 
     if (amountCents === 0) {
-      alert('Please enter a fee amount');
+      showToast('Please enter a fee amount', 'error');
       return;
     }
 
@@ -425,12 +425,12 @@ export function InvoiceBuilder() {
 
   async function handleGenerateInvoice() {
     if (cartItems.length === 0) {
-      alert('Please add at least one item to the cart');
+      showToast('Please add at least one item to the cart', 'error');
       return;
     }
 
     if (!eventDetails.event_date || !eventDetails.address_line1) {
-      alert('Please fill in event details (date and address)');
+      showToast('Please fill in event details (date and address)', 'error');
       return;
     }
 
@@ -573,9 +573,9 @@ export function InvoiceBuilder() {
 
       // If no customer selected, show the link to copy
       if (!customerId) {
-        alert('Invoice created! Copy the link below to send to your customer.');
+        showToast('Invoice created! Copy the link below to send to your customer.', 'success');
       } else {
-        alert(`Invoice sent to ${customer.email} and ${customer.phone}!`);
+        showToast(`Invoice sent to ${customer.email} and ${customer.phone}!`, 'success');
       }
 
       // Reset form
@@ -608,7 +608,7 @@ export function InvoiceBuilder() {
       });
     } catch (error) {
       console.error('Error generating invoice:', error);
-      alert('Failed to generate invoice: ' + (error instanceof Error ? error.message : String(error)));
+      showToast('Failed to generate invoice: ' + (error instanceof Error ? error.message : String(error)), 'error');
     } finally {
       setSaving(false);
     }

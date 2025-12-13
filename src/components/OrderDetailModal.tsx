@@ -8,6 +8,7 @@ import { AddressAutocomplete } from './AddressAutocomplete';
 import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { OrderSummary } from './OrderSummary';
 import { formatOrderSummary, type OrderSummaryData } from '../lib/orderSummary';
+import { showToast, showConfirm } from '../lib/notifications';
 
 interface OrderDetailModalProps {
   order: any;
@@ -527,7 +528,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       await loadOrderDetails();
     } catch (error) {
       console.error('Error adding note:', error);
-      alert('Failed to add note');
+      showToast('Failed to add note', 'error');
     } finally {
       setSavingNote(false);
     }
@@ -593,7 +594,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
     if (availabilityIssues.length > 0) {
       const unitNames = availabilityIssues.map(issue => issue.unitName).join(', ');
-      alert(`Cannot save: The following units are not available for the selected dates: ${unitNames}\n\nPlease adjust the dates or remove the conflicting items.`);
+      showToast(`Cannot save: The following units are not available for the selected dates: ${unitNames}. Please adjust the dates or remove the conflicting items.`, 'error');
       return;
     }
 
@@ -603,7 +604,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError || !user) {
         console.error('Authentication error:', authError);
-        alert('You must be logged in to save changes.');
+        showToast('You must be logged in to save changes.', 'error');
         setSaving(false);
         return;
       }
@@ -942,18 +943,18 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       onUpdate();
       if (hasTrackedChanges) {
         if (adminOverrideApproval) {
-          alert('Changes saved and order confirmed! Customer approval was skipped - order is ready to go.');
+          showToast('Changes saved and order confirmed! Customer approval was skipped - order is ready to go.', 'success');
         } else {
-          alert('Changes saved successfully! Customer will be notified to review and approve the changes.');
+          showToast('Changes saved successfully! Customer will be notified to review and approve the changes.', 'success');
         }
       } else {
-        alert('Changes saved successfully!');
+        showToast('Changes saved successfully!', 'success');
       }
       onClose();
     } catch (error) {
       console.error('Error saving changes:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      alert(`Failed to save changes: ${errorMessage}`);
+      showToast(`Failed to save changes: ${errorMessage}`, 'error');
     } finally {
       setSaving(false);
     }
@@ -1057,7 +1058,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
   async function handleAddDiscount() {
     if (!newDiscount.name.trim()) {
-      alert('Please enter a discount name');
+      showToast('Please enter a discount name', 'error');
       return;
     }
 
@@ -1065,12 +1066,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     const percentage = parseFloat(discountPercentInput);
 
     if (amount === 0 && percentage === 0) {
-      alert('Please enter either an amount or percentage');
+      showToast('Please enter either an amount or percentage', 'error');
       return;
     }
 
     if (amount > 0 && percentage > 0) {
-      alert('Please enter either amount OR percentage, not both');
+      showToast('Please enter either amount OR percentage, not both', 'error');
       return;
     }
 
@@ -1085,7 +1086,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           .maybeSingle();
 
         if (existing) {
-          alert(`A discount template with the name "${newDiscount.name}" already exists. Please choose a different name or update the existing template.`);
+          showToast(`A discount template with the name "${newDiscount.name}" already exists. Please choose a different name or update the existing template.`, 'error');
           return;
         }
 
@@ -1097,7 +1098,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         await loadSavedTemplates();
       } catch (error) {
         console.error('Error saving discount template:', error);
-        alert('Failed to save discount template');
+        showToast('Failed to save discount template', 'error');
         return;
       }
     }
@@ -1130,14 +1131,14 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
   async function handleAddCustomFee() {
     if (!newCustomFee.name.trim()) {
-      alert('Please enter a fee name');
+      showToast('Please enter a fee name', 'error');
       return;
     }
 
     const amount = parseFloat(customFeeInput) * 100;
 
     if (amount <= 0) {
-      alert('Please enter a valid fee amount');
+      showToast('Please enter a valid fee amount', 'error');
       return;
     }
 
@@ -1152,7 +1153,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           .maybeSingle();
 
         if (existing) {
-          alert(`A fee template with the name "${newCustomFee.name}" already exists. Please choose a different name or update the existing template.`);
+          showToast(`A fee template with the name "${newCustomFee.name}" already exists. Please choose a different name or update the existing template.`, 'error');
           return;
         }
 
@@ -1163,7 +1164,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         await loadSavedTemplates();
       } catch (error) {
         console.error('Error saving fee template:', error);
-        alert('Failed to save fee template');
+        showToast('Failed to save fee template', 'error');
         return;
       }
     }
@@ -1194,7 +1195,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
   async function handleDeleteDiscountTemplate() {
     if (!selectedDiscountTemplateId) {
-      alert('Please select a discount template first');
+      showToast('Please select a discount template first', 'error');
       return;
     }
 
@@ -1213,16 +1214,16 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
       setSelectedDiscountTemplateId('');
       await loadSavedTemplates();
-      alert('Discount template deleted successfully');
+      showToast('Discount template deleted successfully', 'success');
     } catch (error) {
       console.error('Error deleting discount template:', error);
-      alert('Failed to delete discount template');
+      showToast('Failed to delete discount template', 'error');
     }
   }
 
   async function handleDeleteFeeTemplate() {
     if (!selectedFeeTemplateId) {
-      alert('Please select a fee template first');
+      showToast('Please select a fee template first', 'error');
       return;
     }
 
@@ -1241,10 +1242,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
       setSelectedFeeTemplateId('');
       await loadSavedTemplates();
-      alert('Fee template deleted successfully');
+      showToast('Fee template deleted successfully', 'success');
     } catch (error) {
       console.error('Error deleting fee template:', error);
-      alert('Failed to delete fee template');
+      showToast('Failed to delete fee template', 'error');
     }
   }
 
@@ -1256,7 +1257,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
   async function confirmStatusChange() {
     if (!statusChangeReason.trim()) {
-      alert('Please provide a reason for the status change');
+      showToast('Please provide a reason for the status change', 'error');
       return;
     }
 
@@ -1284,9 +1285,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
             })
             .join(', ');
 
-          alert(
-            `Cannot confirm order: The following equipment is not available for the selected dates: ${conflictList}\n\n` +
-            'Please adjust the order dates or equipment before confirming.'
+          showToast(
+            `Cannot confirm order: The following equipment is not available for the selected dates: ${conflictList}. ` +
+            'Please adjust the order dates or equipment before confirming.',
+            'error'
           );
           return;
         }
@@ -1326,11 +1328,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       setStatusChangeReason('');
       await loadOrderDetails();
       onUpdate();
-      alert('Status updated successfully!');
+      showToast('Status updated successfully!', 'success');
     } catch (error) {
       console.error('Error updating status:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      alert(`Failed to update status: ${errorMessage}`);
+      showToast(`Failed to update status: ${errorMessage}`, 'error');
     }
   }
 
@@ -2106,12 +2108,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                         onClick={() => {
                           const inputValue = customDepositInput.trim();
                           if (inputValue === '') {
-                            alert('Please enter a deposit amount');
+                            showToast('Please enter a deposit amount', 'error');
                             return;
                           }
                           const amountCents = Math.round(parseFloat(inputValue) * 100);
                           if (isNaN(amountCents) || amountCents < 0) {
-                            alert('Please enter a valid deposit amount');
+                            showToast('Please enter a valid deposit amount', 'error');
                             return;
                           }
                           setCustomDepositCents(amountCents);
