@@ -636,8 +636,8 @@ export function PaymentComplete() {
           <p className="text-slate-600 mb-6">
             {isAdminInvoice ? (
               <>
-                Thank you for choosing Bounce Party Club. Your booking has been confirmed!
-                We'll contact you within 24 hours to finalize your delivery window and event details.
+                Thank you for choosing Bounce Party Club. Your order has been placed successfully!
+                We'll confirm your drop-off time shortly.
               </>
             ) : (
               <>
@@ -694,8 +694,8 @@ export function PaymentComplete() {
               <p className="text-sm text-slate-700 leading-relaxed mb-3">
                 {isAdminInvoice ? (
                   <>
-                    Your booking is confirmed and we're preparing for your event. We'll reach out within
-                    24 hours to coordinate the final delivery details.
+                    Your order is confirmed and we're preparing for your event. We'll contact you to confirm
+                    the drop-off time.
                   </>
                 ) : (
                   <>
