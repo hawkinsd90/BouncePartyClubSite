@@ -53,6 +53,10 @@ export function PaymentComplete() {
   const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
   const [isAdminInvoice, setIsAdminInvoice] = useState(false);
 
+  // Extract specific params to prevent re-running on every render
+  const orderId = searchParams.get('orderId');
+  const sessionId = searchParams.get('session_id');
+
   // Helper: send SMS + email only once per order
   async function sendNotificationsIfNeeded(order: OrderDetails) {
     const orderId = order.id;
@@ -464,9 +468,6 @@ export function PaymentComplete() {
     const updateOrder = async () => {
       console.log('� [PAYMENT-COMPLETE] Component mounted');
 
-      const orderId = searchParams.get('orderId');
-      const sessionId = searchParams.get('session_id');
-
       console.log('� [PAYMENT-COMPLETE] Order ID:', orderId);
       console.log('� [PAYMENT-COMPLETE] Session ID:', sessionId);
 
@@ -573,7 +574,7 @@ export function PaymentComplete() {
     };
 
     updateOrder();
-  }, [searchParams]);
+  }, [orderId, sessionId]);
 
   // LOADING UI
   if (status === 'loading') {
