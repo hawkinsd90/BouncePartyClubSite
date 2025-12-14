@@ -5,6 +5,7 @@ import { Home } from 'lucide-react';
 
 interface OrderDetails {
   id: string;
+  status: string;
   event_date: string;
   deposit_due_cents: number;
   balance_due_cents: number;
@@ -50,6 +51,7 @@ export function PaymentComplete() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
   const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
+  const [isAdminInvoice, setIsAdminInvoice] = useState(false);
 
   // Helper: send SMS + email only once per order
   async function sendNotificationsIfNeeded(order: OrderDetails) {
@@ -541,6 +543,15 @@ export function PaymentComplete() {
           const typedOrder = order as unknown as OrderDetails;
           setOrderDetails(typedOrder);
 
+          // Check if this is an admin invoice
+          const { data: invoiceLink } = await supabase
+            .from('invoice_links')
+            .select('id')
+            .eq('order_id', orderId)
+            .maybeSingle();
+
+          setIsAdminInvoice(!!invoiceLink);
+
           // Send SMS + email exactly once per order
           await sendNotificationsIfNeeded(typedOrder);
         }
@@ -618,12 +629,23 @@ export function PaymentComplete() {
             </svg>
           </div>
 
-          <h1 className="text-3xl font-bold text-slate-900 mb-4">Request Received!</h1>
+          <h1 className="text-3xl font-bold text-slate-900 mb-4">
+            {isAdminInvoice ? 'Booking Confirmed!' : 'Request Received!'}
+          </h1>
 
           <p className="text-slate-600 mb-6">
-            Thank you for choosing Bounce Party Club. Your booking request has been submitted and is now
-            pending admin review for final confirmation. Your deposit will be processed once your
-            booking is approved.
+            {isAdminInvoice ? (
+              <>
+                Thank you for choosing Bounce Party Club. Your booking has been confirmed!
+                We'll contact you within 24 hours to finalize your delivery window and event details.
+              </>
+            ) : (
+              <>
+                Thank you for choosing Bounce Party Club. Your booking request has been submitted and is now
+                pending admin review for final confirmation. Your deposit will be processed once your
+                booking is approved.
+              </>
+            )}
           </p>
         </div>
 
@@ -670,8 +692,17 @@ export function PaymentComplete() {
 
             <div className="p-6 bg-slate-50 rounded-lg">
               <p className="text-sm text-slate-700 leading-relaxed mb-3">
-                Our admin team will review your booking request and contact you within 24 hours to
-                confirm your delivery time window and finalize your reservation details.
+                {isAdminInvoice ? (
+                  <>
+                    Your booking is confirmed and we're preparing for your event. We'll reach out within
+                    24 hours to coordinate the final delivery details.
+                  </>
+                ) : (
+                  <>
+                    Our admin team will review your booking request and contact you within 24 hours to
+                    confirm your delivery time window and finalize your reservation details.
+                  </>
+                )}
               </p>
               <p className="text-sm text-slate-600">
                 If you have any questions, contact us at{' '}
