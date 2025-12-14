@@ -98,6 +98,15 @@ Deno.serve(async (req: Request) => {
         );
 
         if (orderId) {
+          const { data: existingOrder } = await supabaseClient
+            .from("orders")
+            .select("invoice_sent_at")
+            .eq("id", orderId)
+            .single();
+
+          const isAdminInvoice = !!existingOrder?.invoice_sent_at;
+          const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
+
           await supabaseClient
             .from("orders")
             .update({
@@ -105,7 +114,7 @@ Deno.serve(async (req: Request) => {
               stripe_payment_method_id: paymentMethodId,
               stripe_customer_id: stripeCustomerId,
               deposit_paid_cents: depositOnly,
-              status: "pending_review",
+              status: newStatus,
             })
             .eq("id", orderId);
 
@@ -174,6 +183,15 @@ Deno.serve(async (req: Request) => {
           const amountReceived =
             (paymentIntent as any).amount_received ?? paymentIntent.amount ?? 0;
 
+          const { data: existingOrder } = await supabaseClient
+            .from("orders")
+            .select("invoice_sent_at")
+            .eq("id", orderId)
+            .single();
+
+          const isAdminInvoice = !!existingOrder?.invoice_sent_at;
+          const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
+
           await supabaseClient
             .from("orders")
             .update({
@@ -181,7 +199,7 @@ Deno.serve(async (req: Request) => {
               stripe_payment_method_id: paymentMethodId,
               stripe_customer_id: stripeCustomerId,
               deposit_paid_cents: amountReceived,
-              status: "pending_review",
+              status: newStatus,
             })
             .eq("id", orderId);
         }
