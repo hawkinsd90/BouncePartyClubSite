@@ -98,13 +98,13 @@ Deno.serve(async (req: Request) => {
         );
 
         if (orderId) {
-          const { data: existingOrder } = await supabaseClient
-            .from("orders")
-            .select("invoice_sent_at")
-            .eq("id", orderId)
-            .single();
+          const { data: invoiceLink } = await supabaseClient
+            .from("invoice_links")
+            .select("id")
+            .eq("order_id", orderId)
+            .maybeSingle();
 
-          const isAdminInvoice = !!existingOrder?.invoice_sent_at;
+          const isAdminInvoice = !!invoiceLink;
           const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
 
           await supabaseClient
@@ -183,13 +183,13 @@ Deno.serve(async (req: Request) => {
           const amountReceived =
             (paymentIntent as any).amount_received ?? paymentIntent.amount ?? 0;
 
-          const { data: existingOrder } = await supabaseClient
-            .from("orders")
-            .select("invoice_sent_at")
-            .eq("id", orderId)
-            .single();
+          const { data: invoiceLink } = await supabaseClient
+            .from("invoice_links")
+            .select("id")
+            .eq("order_id", orderId)
+            .maybeSingle();
 
-          const isAdminInvoice = !!existingOrder?.invoice_sent_at;
+          const isAdminInvoice = !!invoiceLink;
           const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
 
           await supabaseClient
