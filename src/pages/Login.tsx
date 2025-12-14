@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Lock, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Lock, Loader2, Eye, EyeOff, X } from 'lucide-react';
 import { notifySuccess } from '../lib/notifications';
 
 export function Login() {
@@ -79,7 +79,15 @@ export function Login() {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full">
-        <div className="bg-white rounded-xl shadow-md p-6 sm:p-8">
+        <div className="bg-white rounded-xl shadow-md p-6 sm:p-8 relative">
+          <button
+            onClick={() => navigate(-1)}
+            className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
+            aria-label="Go back"
+          >
+            <X className="w-5 h-5" />
+          </button>
+
           <div className="text-center mb-6">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
               <Lock className="w-8 h-8 text-blue-600" />
