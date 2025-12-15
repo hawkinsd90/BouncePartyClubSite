@@ -2,11 +2,13 @@ import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { formatCurrency, calculatePrice, calculateDrivingDistance, type PricingRules, type PriceBreakdown } from '../lib/pricing';
 import { HOME_BASE } from '../lib/constants';
-import { Copy, Check, Send, UserPlus, X, Search, Trash2 } from 'lucide-react';
+import { Copy, Check, Send, UserPlus, X, Search } from 'lucide-react';
 import { OrderSummary } from './OrderSummary';
 import { type OrderSummaryDisplay } from '../lib/orderSummary';
 import { AddressAutocomplete } from './AddressAutocomplete';
 import { showToast } from '../lib/notifications';
+import { DiscountsManager } from './order-detail/DiscountsManager';
+import { CustomFeesManager } from './order-detail/CustomFeesManager';
 
 export function InvoiceBuilder() {
   const [customers, setCustomers] = useState<any[]>([]);
@@ -16,14 +18,7 @@ export function InvoiceBuilder() {
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [discounts, setDiscounts] = useState<any[]>([]);
-  const [newDiscount, setNewDiscount] = useState({ name: '', amount_cents: 0, percentage: 0 });
-  const [discountAmountInput, setDiscountAmountInput] = useState('0.00');
-  const [discountPercentInput, setDiscountPercentInput] = useState('0');
   const [customFees, setCustomFees] = useState<any[]>([]);
-  const [newCustomFee, setNewCustomFee] = useState({ name: '', amount_cents: 0 });
-  const [customFeeInput, setCustomFeeInput] = useState('0.00');
-  const [saveDiscountAsTemplate, setSaveDiscountAsTemplate] = useState(false);
-  const [saveFeeAsTemplate, setSaveFeeAsTemplate] = useState(false);
   const [adminMessage, setAdminMessage] = useState('');
   const [saving, setSaving] = useState(false);
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
@@ -63,7 +58,6 @@ export function InvoiceBuilder() {
 
   useEffect(() => {
     loadData();
-    loadSavedTemplates();
   }, []);
 
   useEffect(() => {
@@ -140,12 +134,6 @@ export function InvoiceBuilder() {
     }
   }
 
-  async function loadSavedTemplates() {
-    await Promise.all([
-      supabase.from('saved_discount_templates').select('*').order('name'),
-      supabase.from('saved_fee_templates').select('*').order('name'),
-    ]);
-  }
 
   async function calculatePricing() {
     if (!pricingRules) return;
@@ -355,86 +343,6 @@ export function InvoiceBuilder() {
     }
   }
 
-  function handleAddDiscount() {
-    const amountCents = Math.round(parseFloat(discountAmountInput || '0') * 100);
-    const percentage = parseFloat(discountPercentInput || '0');
-
-    if (!newDiscount.name.trim()) {
-      showToast('Please enter a discount name', 'error');
-      return;
-    }
-
-    if (amountCents === 0 && percentage === 0) {
-      showToast('Please enter either a dollar amount or percentage', 'error');
-      return;
-    }
-
-    const discount = {
-      id: crypto.randomUUID(),
-      name: newDiscount.name,
-      amount_cents: amountCents,
-      percentage: percentage,
-    };
-
-    setDiscounts([...discounts, discount]);
-
-    // Save as template if checkbox is checked
-    if (saveDiscountAsTemplate) {
-      supabase
-        .from('saved_discount_templates')
-        .insert({ name: discount.name, amount_cents: discount.amount_cents, percentage: discount.percentage })
-        .then(() => loadSavedTemplates());
-    }
-
-    // Reset form
-    setNewDiscount({ name: '', amount_cents: 0, percentage: 0 });
-    setDiscountAmountInput('0.00');
-    setDiscountPercentInput('0');
-    setSaveDiscountAsTemplate(false);
-  }
-
-  function handleRemoveDiscount(id: string) {
-    setDiscounts(discounts.filter(d => d.id !== id));
-  }
-
-  function handleAddCustomFee() {
-    const amountCents = Math.round(parseFloat(customFeeInput || '0') * 100);
-
-    if (!newCustomFee.name.trim()) {
-      showToast('Please enter a fee name', 'error');
-      return;
-    }
-
-    if (amountCents === 0) {
-      showToast('Please enter a fee amount', 'error');
-      return;
-    }
-
-    const fee = {
-      id: crypto.randomUUID(),
-      name: newCustomFee.name,
-      amount_cents: amountCents,
-    };
-
-    setCustomFees([...customFees, fee]);
-
-    // Save as template if checkbox is checked
-    if (saveFeeAsTemplate) {
-      supabase
-        .from('saved_fee_templates')
-        .insert({ name: fee.name, amount_cents: fee.amount_cents })
-        .then(() => loadSavedTemplates());
-    }
-
-    // Reset form
-    setNewCustomFee({ name: '', amount_cents: 0 });
-    setCustomFeeInput('0.00');
-    setSaveFeeAsTemplate(false);
-  }
-
-  function handleRemoveCustomFee(id: string) {
-    setCustomFees(customFees.filter(f => f.id !== id));
-  }
 
   function applyDepositOverride() {
     const cents = Math.round(parseFloat(customDepositInput || '0') * 100);
@@ -1263,149 +1171,17 @@ export function InvoiceBuilder() {
         </div>
 
         <div className="space-y-4 sm:space-y-6">
-          {/* Discounts Section */}
-          <div className="bg-green-50 rounded-lg shadow p-4 sm:p-6">
-            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-4">Discounts</h3>
+          <DiscountsManager
+            discounts={discounts}
+            onDiscountChange={setDiscounts}
+            onMarkChanges={() => {}}
+          />
 
-            {/* Existing Discounts */}
-            {discounts.length > 0 && (
-              <div className="mb-4 space-y-2">
-                {discounts.map((discount) => (
-                  <div key={discount.id} className="flex items-center justify-between bg-white p-3 rounded border border-green-200">
-                    <div>
-                      <p className="font-medium text-slate-900">{discount.name}</p>
-                      <p className="text-sm text-slate-600">
-                        {discount.amount_cents > 0 && `-${formatCurrency(discount.amount_cents)}`}
-                        {discount.percentage > 0 && `${discount.percentage}%`}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => handleRemoveDiscount(discount.id)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Add Discount Form */}
-            <div className="space-y-3">
-              <input
-                type="text"
-                placeholder="Discount name"
-                value={newDiscount.name}
-                onChange={(e) => setNewDiscount({ ...newDiscount, name: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-slate-600 mb-1">$ Amount</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={discountAmountInput}
-                    onChange={(e) => setDiscountAmountInput(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                    placeholder="0.00"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-slate-600 mb-1">% Percentage</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="100"
-                    value={discountPercentInput}
-                    onChange={(e) => setDiscountPercentInput(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                    placeholder="0"
-                  />
-                </div>
-              </div>
-              <label className="flex items-center text-sm">
-                <input
-                  type="checkbox"
-                  checked={saveDiscountAsTemplate}
-                  onChange={(e) => setSaveDiscountAsTemplate(e.target.checked)}
-                  className="mr-2"
-                />
-                Save this discount for future use
-              </label>
-              <button
-                onClick={handleAddDiscount}
-                className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg text-sm transition-colors"
-              >
-                Add Discount
-              </button>
-            </div>
-          </div>
-
-          {/* Custom Fees Section */}
-          <div className="bg-blue-50 rounded-lg shadow p-4 sm:p-6">
-            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-4">Custom Fees</h3>
-
-            {/* Existing Fees */}
-            {customFees.length > 0 && (
-              <div className="mb-4 space-y-2">
-                {customFees.map((fee) => (
-                  <div key={fee.id} className="flex items-center justify-between bg-white p-3 rounded border border-blue-200">
-                    <div>
-                      <p className="font-medium text-slate-900">{fee.name}</p>
-                      <p className="text-sm text-slate-600">{formatCurrency(fee.amount_cents)}</p>
-                    </div>
-                    <button
-                      onClick={() => handleRemoveCustomFee(fee.id)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Add Fee Form */}
-            <div className="space-y-3">
-              <input
-                type="text"
-                placeholder="Fee name (e.g., Tip, Setup Fee, etc.)"
-                value={newCustomFee.name}
-                onChange={(e) => setNewCustomFee({ ...newCustomFee, name: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-              <div>
-                <label className="block text-xs text-slate-600 mb-1">$ Amount</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={customFeeInput}
-                  onChange={(e) => setCustomFeeInput(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                  placeholder="0.00"
-                />
-              </div>
-              <label className="flex items-center text-sm">
-                <input
-                  type="checkbox"
-                  checked={saveFeeAsTemplate}
-                  onChange={(e) => setSaveFeeAsTemplate(e.target.checked)}
-                  className="mr-2"
-                />
-                Save this fee for future use
-              </label>
-              <button
-                onClick={handleAddCustomFee}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm transition-colors"
-              >
-                Add Custom Fee
-              </button>
-            </div>
-          </div>
+          <CustomFeesManager
+            customFees={customFees}
+            onFeeChange={setCustomFees}
+            onMarkChanges={() => {}}
+          />
 
           {/* Deposit Override Section */}
           <div className="bg-amber-50 rounded-lg shadow p-4 sm:p-6">
