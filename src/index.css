@@ -15,8 +15,7 @@
 
 @media print {
   @page {
-    margin: 0.75cm;
-    size: auto;
+    margin: 0.5in;
   }
 
   * {
@@ -24,54 +23,20 @@
     print-color-adjust: exact !important;
   }
 
-  html, body {
-    height: auto !important;
-    overflow: visible !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    background: white !important;
-  }
-
   body *:not(#printable-invoice):not(#printable-invoice *) {
-    visibility: hidden !important;
+    display: none !important;
   }
 
   #printable-invoice {
-    visibility: visible !important;
-    position: relative !important;
-    left: auto !important;
-    top: auto !important;
-    width: 100% !important;
-    max-width: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
     display: block !important;
+    position: static !important;
   }
 
   #printable-invoice * {
     visibility: visible !important;
   }
 
-  #printable-invoice > div {
-    max-width: none !important;
-    width: 100% !important;
-    margin: 0 !important;
-  }
-
-  #printable-invoice .mx-auto {
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-  }
-
-  #printable-invoice .p-8:first-child {
-    padding: 0 !important;
-  }
-
   .no-print {
     display: none !important;
-  }
-
-  .overflow-hidden {
-    overflow: visible !important;
   }
 }
