@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../lib/pricing';
-import { CreditCard, CheckCircle, Loader2, AlertCircle, Calendar, MapPin, Package } from 'lucide-react';
+import { CreditCard, CheckCircle, Loader2, AlertCircle, Printer } from 'lucide-react';
 import { StripeCheckoutForm } from '../components/StripeCheckoutForm';
 import { completeOrderAfterPayment } from '../lib/orderCreation';
 import { RentalTerms } from '../components/RentalTerms';
+import { PrintableInvoice } from '../components/PrintableInvoice';
 
 export function Invoice() {
   const { orderId } = useParams<{ orderId: string }>();
@@ -21,6 +22,7 @@ export function Invoice() {
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [responsibilityAccepted, setResponsibilityAccepted] = useState(false);
   const [isAdminSent, setIsAdminSent] = useState(false);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
 
   useEffect(() => {
     if (orderId) {
@@ -288,6 +290,46 @@ export function Invoice() {
 
   const totalCents = order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents;
 
+  const transformedQuoteData = {
+    event_date: order.event_date,
+    start_window: order.start_window,
+    address_line1: address.line1,
+    address_line2: address.line2,
+    city: address.city,
+    state: address.state,
+    zip: address.zip,
+    location_type: order.location_type,
+  };
+
+  const transformedPriceBreakdown = {
+    subtotal_cents: order.subtotal_cents,
+    travel_fee_cents: order.travel_fee_cents,
+    travel_fee_display_name: order.travel_total_miles > 0
+      ? `Travel Fee (${parseFloat(order.travel_total_miles).toFixed(1)} mi)`
+      : 'Travel Fee',
+    surface_fee_cents: order.surface_fee_cents,
+    same_day_pickup_fee_cents: order.same_day_pickup_fee_cents,
+    generator_fee_cents: order.generator_fee_cents || 0,
+    tax_cents: order.tax_cents,
+    total_cents: totalCents,
+    deposit_due_cents: order.deposit_due_cents,
+    balance_due_cents: order.balance_due_cents,
+  };
+
+  const transformedCart = orderItems.map((item: any) => ({
+    unit_name: item.units.name,
+    wet_or_dry: item.wet_or_dry,
+    unit_price_cents: item.unit_price_cents * item.qty,
+  }));
+
+  const transformedContactData = {
+    first_name: customer.first_name,
+    last_name: customer.last_name,
+    email: customer.email,
+    phone: customer.phone,
+    business_name: customer.business_name,
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-slate-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
@@ -298,91 +340,23 @@ export function Invoice() {
           </div>
 
           <div className="p-6 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h2 className="text-sm font-semibold text-slate-500 uppercase mb-2">Customer</h2>
-                <p className="font-semibold text-slate-900">{customer.first_name} {customer.last_name}</p>
-                <p className="text-slate-600">{customer.email}</p>
-                <p className="text-slate-600">{customer.phone}</p>
-              </div>
-              <div>
-                <h2 className="text-sm font-semibold text-slate-500 uppercase mb-2">Event Details</h2>
-                <div className="flex items-start mb-2">
-                  <Calendar className="w-4 h-4 text-blue-600 mr-2 mt-1" />
-                  <div>
-                    <p className="font-semibold text-slate-900">{order.event_date}</p>
-                    <p className="text-sm text-slate-600">
-                      {order.start_window} - {order.end_window}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start">
-                  <MapPin className="w-4 h-4 text-blue-600 mr-2 mt-1" />
-                  <div className="text-sm text-slate-600">
-                    <p>{address.line1}</p>
-                    {address.line2 && <p>{address.line2}</p>}
-                    <p>{address.city}, {address.state} {address.zip}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <h2 className="text-sm font-semibold text-slate-500 uppercase mb-4 flex items-center">
-                <Package className="w-4 h-4 mr-2" />
-                Items
-              </h2>
-              <div className="space-y-3">
-                {orderItems.map((item, index) => (
-                  <div key={index} className="flex justify-between items-center py-3 border-b border-slate-200">
-                    <div>
-                      <p className="font-semibold text-slate-900">{item.units.name}</p>
-                      <p className="text-sm text-slate-600">
-                        {item.wet_or_dry} {item.qty > 1 && `× ${item.qty}`}
-                      </p>
-                    </div>
-                    <p className="font-semibold text-slate-900">
-                      {formatCurrency(item.unit_price_cents * item.qty)}
-                    </p>
-                  </div>
-                ))}
-              </div>
+            <div className="bg-slate-50 rounded-lg p-6 text-center border-2 border-slate-200">
+              <Printer className="w-12 h-12 text-blue-600 mx-auto mb-3" />
+              <h3 className="text-lg font-bold text-slate-900 mb-2">View Full Invoice</h3>
+              <p className="text-slate-600 mb-4">
+                Click below to view and print the detailed invoice
+              </p>
+              <button
+                onClick={() => setShowInvoiceModal(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors inline-flex items-center gap-2"
+              >
+                <Printer className="w-5 h-5" />
+                View Invoice
+              </button>
             </div>
 
             <div className="border-t border-slate-200 pt-4 space-y-2">
-              <div className="flex justify-between text-slate-600">
-                <span>Subtotal</span>
-                <span>{formatCurrency(order.subtotal_cents)}</span>
-              </div>
-              {order.travel_fee_cents > 0 && (
-                <div className="flex justify-between text-slate-600">
-                  <span>
-                    {order.travel_total_miles > 0
-                      ? `Travel Fee (${parseFloat(order.travel_total_miles).toFixed(1)} mi)`
-                      : 'Travel Fee'}
-                  </span>
-                  <span>{formatCurrency(order.travel_fee_cents)}</span>
-                </div>
-              )}
-              {order.surface_fee_cents > 0 && (
-                <div className="flex justify-between text-slate-600">
-                  <span>Surface Fee</span>
-                  <span>{formatCurrency(order.surface_fee_cents)}</span>
-                </div>
-              )}
-              {order.same_day_pickup_fee_cents > 0 && (
-                <div className="flex justify-between text-slate-600">
-                  <span>Same Day Pickup Fee</span>
-                  <span>{formatCurrency(order.same_day_pickup_fee_cents)}</span>
-                </div>
-              )}
-              {order.tax_cents > 0 && (
-                <div className="flex justify-between text-slate-600">
-                  <span>Tax</span>
-                  <span>{formatCurrency(order.tax_cents)}</span>
-                </div>
-              )}
-              <div className="flex justify-between text-lg font-bold text-slate-900 pt-2 border-t border-slate-300">
+              <div className="flex justify-between text-lg font-bold text-slate-900 pt-2">
                 <span>Total</span>
                 <span>{formatCurrency(totalCents)}</span>
               </div>
@@ -464,6 +438,41 @@ export function Invoice() {
           </div>
         </div>
       </div>
+
+      {showInvoiceModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-5xl w-full max-h-[90vh] overflow-y-auto relative">
+            <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex justify-between items-center z-10 no-print">
+              <h2 className="text-2xl font-bold text-slate-900">Invoice</h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="flex items-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                >
+                  <Printer className="w-4 h-4 mr-2" />
+                  Print / Save PDF
+                </button>
+                <button
+                  onClick={() => setShowInvoiceModal(false)}
+                  className="flex items-center bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 px-4 rounded-lg transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="p-4">
+              <PrintableInvoice
+                quoteData={transformedQuoteData}
+                priceBreakdown={transformedPriceBreakdown}
+                cart={transformedCart}
+                contactData={transformedContactData}
+                invoiceNumber={orderId?.slice(0, 8).toUpperCase()}
+                isPaid={false}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {showPaymentForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
