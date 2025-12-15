@@ -12,6 +12,7 @@ interface SaveOrderChangesParams {
   adminMessage: string;
   adminOverrideApproval: boolean;
   availabilityIssues: any[];
+  taxWaived?: boolean;
   logChangeFn: (field: string, oldValue: any, newValue: any, action?: 'update' | 'add' | 'remove') => Promise<void>;
   sendNotificationsFn: () => Promise<void>;
   onComplete: () => void;
@@ -28,6 +29,7 @@ export async function saveOrderChanges({
   adminMessage,
   adminOverrideApproval,
   availabilityIssues,
+  taxWaived,
   logChangeFn,
   sendNotificationsFn,
   onComplete,
@@ -178,6 +180,12 @@ export async function saveOrderChanges({
     if (newTotal !== oldTotal) {
       logs.push(['total', oldTotal, newTotal]);
     }
+  }
+
+  // Handle tax waived changes
+  if (taxWaived !== undefined && taxWaived !== (order.tax_waived || false)) {
+    changes.tax_waived = taxWaived;
+    logs.push(['tax_waived', order.tax_waived || false, taxWaived]);
   }
 
   // Determine if we need to clear payment method

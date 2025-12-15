@@ -6,6 +6,7 @@ import { DiscountsManager } from '../order-detail/DiscountsManager';
 import { CustomFeesManager } from '../order-detail/CustomFeesManager';
 import { EventDetailsEditor } from '../order-detail/EventDetailsEditor';
 import { DepositOverride } from '../order-detail/DepositOverride';
+import { TaxWaiver } from '../order-detail/TaxWaiver';
 import { CustomerSelector } from '../invoice/CustomerSelector';
 import { NewCustomerForm } from '../invoice/NewCustomerForm';
 import { CartItemsList } from '../invoice/CartItemsList';
@@ -32,6 +33,7 @@ export function InvoiceBuilder() {
   const [adminMessage, setAdminMessage] = useState('');
   const [invoiceUrl, setInvoiceUrl] = useState('');
   const [saving, setSaving] = useState(false);
+  const [taxWaived, setTaxWaived] = useState(false);
 
   const pricing = useInvoicePricing(cartItems, eventDetails, pricingRules, discounts, customFees);
   const deposit = useDepositOverride(pricing.defaultDeposit);
@@ -84,6 +86,7 @@ export function InvoiceBuilder() {
           discounts,
           customFees,
           adminMessage,
+          taxWaived,
         },
         customer
       );
@@ -101,6 +104,7 @@ export function InvoiceBuilder() {
       setCustomFees([]);
       deposit.resetDeposit();
       setAdminMessage('');
+      setTaxWaived(false);
       customerManagement.setSelectedCustomer('');
       resetEventDetails();
     } catch (error) {
@@ -207,6 +211,13 @@ export function InvoiceBuilder() {
             onClear={deposit.clearDepositOverride}
             compact={true}
             showZeroHint={true}
+          />
+
+          <TaxWaiver
+            taxCents={pricing.taxCents}
+            taxWaived={taxWaived}
+            onToggle={() => setTaxWaived(!taxWaived)}
+            compact={true}
           />
 
           <AdminMessageSection message={adminMessage} onChange={setAdminMessage} />

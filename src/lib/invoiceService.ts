@@ -51,6 +51,7 @@ interface InvoiceData {
   discounts: Discount[];
   customFees: CustomFee[];
   adminMessage: string;
+  taxWaived?: boolean;
 }
 
 async function createAddress(eventDetails: EventDetails) {
@@ -80,7 +81,8 @@ async function createOrder(
   depositRequired: number,
   totalCents: number,
   customDepositCents: number | null,
-  adminMessage: string
+  adminMessage: string,
+  taxWaived: boolean = false
 ) {
   const { data, error } = await supabase
     .from('orders')
@@ -111,6 +113,7 @@ async function createOrder(
       same_day_pickup_fee_cents: priceBreakdown?.same_day_pickup_fee_cents || 0,
       generator_fee_cents: priceBreakdown?.generator_fee_cents || 0,
       tax_cents: taxCents,
+      tax_waived: taxWaived,
       deposit_due_cents: depositRequired,
       balance_due_cents: totalCents - depositRequired,
       custom_deposit_cents: customDepositCents,
@@ -214,7 +217,8 @@ export async function generateInvoice(invoiceData: InvoiceData, customer: any | 
     invoiceData.depositRequired,
     invoiceData.totalCents,
     invoiceData.customDepositCents,
-    invoiceData.adminMessage
+    invoiceData.adminMessage,
+    invoiceData.taxWaived || false
   );
 
   await createOrderItems(order.id, invoiceData.cartItems);

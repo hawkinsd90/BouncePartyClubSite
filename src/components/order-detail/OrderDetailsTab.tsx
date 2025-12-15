@@ -7,6 +7,7 @@ import { DiscountsManager } from './DiscountsManager';
 import { CustomFeesManager } from './CustomFeesManager';
 import { DepositOverride } from './DepositOverride';
 import { AdminMessage } from './AdminMessage';
+import { TaxWaiver } from './TaxWaiver';
 
 interface OrderDetailsTabProps {
   order: any;
@@ -25,6 +26,7 @@ interface OrderDetailsTabProps {
   customFees: any[];
   customDepositInput: string;
   adminMessage: string;
+  taxWaived: boolean;
   onOrderChange: (updates: any) => void;
   onAddressSelect: (result: any) => void;
   onRemoveItem: (item: any) => void;
@@ -35,6 +37,7 @@ interface OrderDetailsTabProps {
   onDepositApply: (amountCents: number) => void;
   onDepositClear: () => void;
   onAdminMessageChange: (value: string) => void;
+  onTaxWaivedToggle: () => void;
   onStatusChange: (status: string) => void;
   onMarkChanges: () => void;
 }
@@ -56,6 +59,7 @@ export function OrderDetailsTab({
   customFees,
   customDepositInput,
   adminMessage,
+  taxWaived,
   onOrderChange,
   onAddressSelect,
   onRemoveItem,
@@ -66,6 +70,7 @@ export function OrderDetailsTab({
   onDepositApply,
   onDepositClear,
   onAdminMessageChange,
+  onTaxWaivedToggle,
   onStatusChange,
   onMarkChanges,
 }: OrderDetailsTabProps) {
@@ -226,6 +231,12 @@ export function OrderDetailsTab({
         onInputChange={onDepositInputChange}
         onApply={onDepositApply}
         onClear={onDepositClear}
+      />
+
+      <TaxWaiver
+        taxCents={calculatedPricing?.tax_cents || order.tax_cents}
+        taxWaived={taxWaived}
+        onToggle={onTaxWaivedToggle}
       />
 
       <AdminMessage

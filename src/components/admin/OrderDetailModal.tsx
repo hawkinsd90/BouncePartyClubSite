@@ -72,6 +72,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [customDepositCents, setCustomDepositCents] = useState<number | null>(null);
   const [customDepositInput, setCustomDepositInput] = useState('');
   const [currentOrderSummary, setCurrentOrderSummary] = useState<any>(null);
+  const [taxWaived, setTaxWaived] = useState(order.tax_waived || false);
 
   const { updatedOrderSummary, calculatedPricing, recalculatePricing } = useOrderPricing();
   const { payments, pricingRules, reload: reloadOrderData } = useOrderDetails(order.id);
@@ -376,6 +377,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         adminMessage,
         adminOverrideApproval,
         availabilityIssues,
+        taxWaived,
         logChangeFn: logChange,
         sendNotificationsFn: async () => {
           await sendOrderEditNotifications({ order, adminMessage });
@@ -520,6 +522,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               customFees={customFees}
               customDepositInput={customDepositInput}
               adminMessage={adminMessage}
+              taxWaived={taxWaived}
               onOrderChange={handleOrderChange}
               onAddressSelect={handleAddressSelect}
               onRemoveItem={stageRemoveItem}
@@ -538,6 +541,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               }}
               onAdminMessageChange={(value) => {
                 setAdminMessage(value);
+                setHasChanges(true);
+              }}
+              onTaxWaivedToggle={() => {
+                setTaxWaived(!taxWaived);
                 setHasChanges(true);
               }}
               onStatusChange={initiateStatusChange}
