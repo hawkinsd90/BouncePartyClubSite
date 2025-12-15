@@ -160,7 +160,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     if (pricingRules && editedOrder && stagedItems.length > 0) {
       handleRecalculatePricing();
     }
-  }, [discounts, customFees, stagedItems, editedOrder.location_type, editedOrder.surface, editedOrder.generator_qty, taxWaived, handleRecalculatePricing]);
+  }, [discounts, customFees, stagedItems, editedOrder.location_type, editedOrder.surface, editedOrder.generator_qty]);
 
   // Check if any changes have been made
   useEffect(() => {
@@ -180,10 +180,9 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       editedOrder.pickup_preference !== (order.pickup_preference || 'next_day');
 
     const itemsChanged = stagedItems.some(item => item.is_new || item.is_deleted);
-    const taxWaivedChanged = taxWaived !== (order.tax_waived || false);
 
-    setHasChanges(orderChanged || itemsChanged || taxWaivedChanged);
-  }, [editedOrder, stagedItems, order, taxWaived]);
+    setHasChanges(orderChanged || itemsChanged);
+  }, [editedOrder, stagedItems, order]);
 
   // Handle multi-day logic: if dates are different, lock to next_day pickup
   useEffect(() => {
@@ -208,7 +207,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     if (pricingRules && adminSettings && stagedItems.length > 0) {
       handleRecalculatePricing();
     }
-  }, [stagedItems, discounts, editedOrder, pricingRules, adminSettings, taxWaived, handleRecalculatePricing]);
+  }, [stagedItems, discounts, editedOrder, pricingRules, adminSettings]);
 
   // Check availability when dates or items change
   useEffect(() => {
