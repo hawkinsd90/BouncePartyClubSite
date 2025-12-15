@@ -6,8 +6,10 @@ interface DepositOverrideProps {
   customDepositCents: number | null;
   customDepositInput: string;
   onInputChange: (value: string) => void;
-  onApply: (amountCents: number) => void;
+  onApply: ((amountCents: number) => void) | (() => void);
   onClear: () => void;
+  compact?: boolean;
+  showZeroHint?: boolean;
 }
 
 export function DepositOverride({
@@ -17,19 +19,95 @@ export function DepositOverride({
   onInputChange,
   onApply,
   onClear,
+  compact = false,
+  showZeroHint = false,
 }: DepositOverrideProps) {
   function handleApply() {
     const inputValue = customDepositInput.trim();
-    if (inputValue === '') {
+    if (inputValue === '' && !showZeroHint) {
       showToast('Please enter a deposit amount', 'error');
       return;
     }
-    const amountCents = Math.round(parseFloat(inputValue) * 100);
+    const amountCents = Math.round(parseFloat(inputValue || '0') * 100);
     if (isNaN(amountCents) || amountCents < 0) {
       showToast('Please enter a valid deposit amount', 'error');
       return;
     }
-    onApply(amountCents);
+
+    if (onApply.length === 1) {
+      (onApply as (amountCents: number) => void)(amountCents);
+    } else {
+      (onApply as () => void)();
+    }
+  }
+
+  if (compact) {
+    return (
+      <div className="bg-amber-50 rounded-lg shadow p-4 sm:p-6">
+        <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-2">
+          Deposit Override
+        </h3>
+        <p className="text-sm text-slate-600 mb-4">
+          Set a custom deposit amount. Use this when the calculated deposit doesn't match your requirements.
+        </p>
+        <div className="bg-white p-3 rounded border border-amber-200 mb-3">
+          <p className="text-sm text-slate-700">
+            <strong>Calculated Deposit:</strong> {formatCurrency(calculatedDepositCents)}
+          </p>
+        </div>
+        {customDepositCents === null ? (
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Custom Deposit Amount
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-slate-600">$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={customDepositInput}
+                  onChange={(e) => onInputChange(e.target.value)}
+                  className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg"
+                  placeholder="0.00"
+                />
+              </div>
+              {showZeroHint && (
+                <p className="text-xs text-slate-500 mt-1">
+                  Set to $0 for acceptance-only invoices (no payment required)
+                </p>
+              )}
+            </div>
+            <button
+              onClick={handleApply}
+              className="w-full bg-amber-600 hover:bg-amber-700 text-white py-2 rounded-lg text-sm transition-colors"
+            >
+              Apply
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="bg-white p-3 rounded border border-amber-200">
+              <p className="text-sm text-slate-700">
+                <strong>Custom Deposit:</strong> {formatCurrency(customDepositCents)}
+              </p>
+              {customDepositCents === 0 && showZeroHint && (
+                <p className="text-xs text-amber-700 mt-1">
+                  Customer will only need to accept (no payment required)
+                </p>
+              )}
+            </div>
+            <button
+              onClick={onClear}
+              className="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 py-2 rounded-lg text-sm transition-colors"
+            >
+              Clear Override
+            </button>
+          </div>
+        )}
+      </div>
+    );
   }
 
   return (

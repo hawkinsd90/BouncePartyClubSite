@@ -8,13 +8,13 @@ import { type OrderSummaryDisplay } from '../lib/orderSummary';
 import { showToast } from '../lib/notifications';
 import { DiscountsManager } from './order-detail/DiscountsManager';
 import { CustomFeesManager } from './order-detail/CustomFeesManager';
+import { EventDetailsEditor } from './order-detail/EventDetailsEditor';
+import { DepositOverride } from './order-detail/DepositOverride';
 import { CustomerSelector } from './invoice/CustomerSelector';
 import { NewCustomerForm } from './invoice/NewCustomerForm';
-import { InvoiceEventDetails } from './invoice/InvoiceEventDetails';
 import { CartItemsList } from './invoice/CartItemsList';
 import { InvoiceSuccessMessage } from './invoice/InvoiceSuccessMessage';
 import { AdminMessageSection } from './invoice/AdminMessageSection';
-import { DepositOverrideSection } from './invoice/DepositOverrideSection';
 
 export function InvoiceBuilder() {
   const [customers, setCustomers] = useState<any[]>([]);
@@ -644,10 +644,10 @@ export function InvoiceBuilder() {
             />
           )}
 
-          <InvoiceEventDetails
-            eventDetails={eventDetails}
+          <EventDetailsEditor
+            editedOrder={eventDetails}
             pricingRules={pricingRules}
-            onEventChange={(updates) => setEventDetails({ ...eventDetails, ...updates })}
+            onOrderChange={(updates) => setEventDetails({ ...eventDetails, ...updates })}
             onAddressSelect={(result) => {
               setEventDetails({
                 ...eventDetails,
@@ -659,6 +659,8 @@ export function InvoiceBuilder() {
                 lng: result.lng,
               });
             }}
+            compact={true}
+            showUntilEndOfDay={true}
           />
 
           <CartItemsList
@@ -684,13 +686,15 @@ export function InvoiceBuilder() {
             onMarkChanges={() => {}}
           />
 
-          <DepositOverrideSection
-            defaultDeposit={defaultDeposit}
-            customDeposit={customDepositCents}
+          <DepositOverride
+            calculatedDepositCents={defaultDeposit}
+            customDepositCents={customDepositCents}
             customDepositInput={customDepositInput}
             onInputChange={setCustomDepositInput}
             onApply={applyDepositOverride}
             onClear={clearDepositOverride}
+            compact={true}
+            showZeroHint={true}
           />
 
           <AdminMessageSection
