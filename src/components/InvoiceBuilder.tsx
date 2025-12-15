@@ -1,14 +1,20 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { formatCurrency, calculatePrice, calculateDrivingDistance, type PricingRules, type PriceBreakdown } from '../lib/pricing';
+import { calculatePrice, calculateDrivingDistance, type PricingRules, type PriceBreakdown } from '../lib/pricing';
 import { HOME_BASE } from '../lib/constants';
-import { Copy, Check, Send, UserPlus, X, Search } from 'lucide-react';
+import { Send } from 'lucide-react';
 import { OrderSummary } from './OrderSummary';
 import { type OrderSummaryDisplay } from '../lib/orderSummary';
-import { AddressAutocomplete } from './AddressAutocomplete';
 import { showToast } from '../lib/notifications';
 import { DiscountsManager } from './order-detail/DiscountsManager';
 import { CustomFeesManager } from './order-detail/CustomFeesManager';
+import { CustomerSelector } from './invoice/CustomerSelector';
+import { NewCustomerForm } from './invoice/NewCustomerForm';
+import { InvoiceEventDetails } from './invoice/InvoiceEventDetails';
+import { CartItemsList } from './invoice/CartItemsList';
+import { InvoiceSuccessMessage } from './invoice/InvoiceSuccessMessage';
+import { AdminMessageSection } from './invoice/AdminMessageSection';
+import { DepositOverrideSection } from './invoice/DepositOverrideSection';
 
 export function InvoiceBuilder() {
   const [customers, setCustomers] = useState<any[]>([]);
@@ -32,7 +38,6 @@ export function InvoiceBuilder() {
   const [customDepositCents, setCustomDepositCents] = useState<number | null>(null);
   const [customDepositInput, setCustomDepositInput] = useState('');
   const [invoiceUrl, setInvoiceUrl] = useState('');
-  const [copiedToClipboard, setCopiedToClipboard] = useState(false);
   const [pricingRules, setPricingRules] = useState<PricingRules | null>(null);
   const [priceBreakdown, setPriceBreakdown] = useState<PriceBreakdown | null>(null);
   const [eventDetails, setEventDetails] = useState({
@@ -134,7 +139,6 @@ export function InvoiceBuilder() {
     }
   }
 
-
   async function calculatePricing() {
     if (!pricingRules) return;
 
@@ -189,6 +193,7 @@ export function InvoiceBuilder() {
         unit_id: unit.id,
         unit_name: unit.name,
         mode,
+        wet_or_dry: mode,
         price_cents: price,
         adjusted_price_cents: price,
         qty: 1,
@@ -196,41 +201,28 @@ export function InvoiceBuilder() {
     ]);
   }
 
-  function removeItemFromCart(itemId: string) {
-    setCartItems(cartItems.filter(item => item.id !== itemId));
+  function removeItemFromCart(index: number) {
+    setCartItems(cartItems.filter((_, i) => i !== index));
   }
 
-  function updateItemQuantity(itemId: string, qty: number) {
+  function updateItemQuantity(index: number, qty: number) {
     setCartItems(
-      cartItems.map(item =>
-        item.id === itemId ? { ...item, qty: Math.max(1, qty) } : item
+      cartItems.map((item, i) =>
+        i === index ? { ...item, qty: Math.max(1, qty) } : item
       )
     );
   }
 
-  function updateItemPrice(itemId: string, priceCents: number) {
+  function updateItemPrice(index: number, priceCents: number) {
     setCartItems(
-      cartItems.map(item =>
-        item.id === itemId ? { ...item, adjusted_price_cents: priceCents } : item
+      cartItems.map((item, i) =>
+        i === index ? { ...item, adjusted_price_cents: priceCents } : item
       )
     );
   }
 
   const subtotal = cartItems.reduce((sum, item) => sum + item.adjusted_price_cents * item.qty, 0);
 
-  const selectedCustomerObj = customers.find(c => c.id === selectedCustomer);
-
-  const filteredCustomers = customers.filter(customer => {
-    if (!customerSearchQuery.trim()) return true;
-    const query = customerSearchQuery.toLowerCase();
-    const fullName = `${customer.first_name} ${customer.last_name}`.toLowerCase();
-    const email = customer.email.toLowerCase();
-    const phone = customer.phone?.toLowerCase() || '';
-    const businessName = customer.business_name?.toLowerCase() || '';
-    return fullName.includes(query) || email.includes(query) || phone.includes(query) || businessName.includes(query);
-  });
-
-  // Memoized calculations to prevent unnecessary recalculations
   const discountTotal = useMemo(() =>
     discounts.reduce((sum, d) => {
       if (d.amount_cents > 0) {
@@ -294,7 +286,6 @@ export function InvoiceBuilder() {
 
     setSaving(true);
     try {
-      // Check for duplicate phone + email combination
       const { data: existingCustomers, error: checkError } = await supabase
         .from('customers')
         .select('first_name, last_name, email, phone')
@@ -304,14 +295,12 @@ export function InvoiceBuilder() {
 
       if (existingCustomers && existingCustomers.length > 0) {
         const existing = existingCustomers[0];
-        // Check if the name is also the same
         if (existing.first_name.toLowerCase() === newCustomer.first_name.toLowerCase() &&
             existing.last_name.toLowerCase() === newCustomer.last_name.toLowerCase()) {
           showToast(`A customer with this email (${newCustomer.email}) and phone (${newCustomer.phone}) already exists with the same name.`, 'error');
           setSaving(false);
           return;
         }
-        // Names are different, but email+phone match - this is not allowed
         showToast(`A customer with both this email (${newCustomer.email}) AND phone number (${newCustomer.phone}) already exists. They can share one or the other, but not both unless the name is identical.`, 'error');
         setSaving(false);
         return;
@@ -343,7 +332,6 @@ export function InvoiceBuilder() {
     }
   }
 
-
   function applyDepositOverride() {
     const cents = Math.round(parseFloat(customDepositInput || '0') * 100);
     setCustomDepositCents(cents);
@@ -367,11 +355,9 @@ export function InvoiceBuilder() {
 
     setSaving(true);
     try {
-      // 1. Create or get customer
       let customerId = selectedCustomer;
       const customer = customers.find(c => c.id === selectedCustomer);
 
-      // 2. Create address
       const { data: address, error: addressError } = await supabase
         .from('addresses')
         .insert({
@@ -386,7 +372,6 @@ export function InvoiceBuilder() {
 
       if (addressError) throw addressError;
 
-      // 3. Create order
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
@@ -429,7 +414,6 @@ export function InvoiceBuilder() {
 
       if (orderError) throw orderError;
 
-      // 4. Create order items
       const orderItems = cartItems.map(item => ({
         order_id: order.id,
         unit_id: item.unit_id,
@@ -444,7 +428,6 @@ export function InvoiceBuilder() {
 
       if (itemsError) throw itemsError;
 
-      // 5. Create discounts
       if (discounts.length > 0) {
         const orderDiscounts = discounts.map(d => ({
           order_id: order.id,
@@ -460,7 +443,6 @@ export function InvoiceBuilder() {
         if (discountsError) throw discountsError;
       }
 
-      // 6. Create custom fees
       if (customFees.length > 0) {
         const orderFees = customFees.map(f => ({
           order_id: order.id,
@@ -475,7 +457,6 @@ export function InvoiceBuilder() {
         if (feesError) throw feesError;
       }
 
-      // 7. Send invoice
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-invoice`,
         {
@@ -502,14 +483,12 @@ export function InvoiceBuilder() {
 
       setInvoiceUrl(data.invoiceUrl);
 
-      // If no customer selected, show the link to copy
       if (!customerId) {
         showToast('Invoice created! Copy the link below to send to your customer.', 'success');
       } else {
         showToast(`Invoice sent to ${customer.email} and ${customer.phone}!`, 'success');
       }
 
-      // Reset form
       setCartItems([]);
       setDiscounts([]);
       setCustomFees([]);
@@ -543,24 +522,6 @@ export function InvoiceBuilder() {
     } finally {
       setSaving(false);
     }
-  }
-
-  function handleCopyLink() {
-    navigator.clipboard.writeText(invoiceUrl);
-    setCopiedToClipboard(true);
-    setTimeout(() => setCopiedToClipboard(false), 2000);
-  }
-
-  function handleSelectCustomer(customer: any) {
-    setSelectedCustomer(customer.id);
-    setCustomerSearchQuery('');
-    setShowCustomerDropdown(false);
-  }
-
-  function handleClearCustomer() {
-    setSelectedCustomer('');
-    setCustomerSearchQuery('');
-    setShowCustomerDropdown(false);
   }
 
   function buildOrderSummary(): OrderSummaryDisplay | null {
@@ -650,524 +611,64 @@ export function InvoiceBuilder() {
       </div>
 
       {invoiceUrl && (
-        <div className="bg-green-50 border-2 border-green-500 rounded-lg p-4 sm:p-6">
-          <div className="flex items-center mb-4">
-            <Check className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 mr-2" />
-            <h3 className="text-base sm:text-lg font-semibold text-green-900">Invoice Created!</h3>
-          </div>
-          <p className="text-sm sm:text-base text-green-800 mb-4">
-            {selectedCustomer
-              ? 'Invoice has been sent to the customer via email and SMS.'
-              : 'Copy the link below and send it to your customer to fill in their information and accept the invoice.'}
-          </p>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <input
-              type="text"
-              value={invoiceUrl}
-              readOnly
-              className="flex-1 px-3 sm:px-4 py-2 border border-green-300 rounded-lg bg-white text-slate-900 text-sm"
-            />
-            <button
-              onClick={handleCopyLink}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors whitespace-nowrap text-sm sm:text-base"
-            >
-              {copiedToClipboard ? (
-                <>
-                  <Check className="w-4 h-4" />
-                  Copied!
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4" />
-                  Copy Link
-                </>
-              )}
-            </button>
-          </div>
-        </div>
+        <InvoiceSuccessMessage
+          invoiceUrl={invoiceUrl}
+          hasSelectedCustomer={!!selectedCustomer}
+        />
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4 sm:space-y-6">
-          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
-              <h3 className="text-base sm:text-lg font-semibold text-slate-900">Select Customer</h3>
-              <button
-                onClick={() => setShowNewCustomerForm(!showNewCustomerForm)}
-                className="flex items-center justify-center gap-1 sm:gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm rounded-lg transition-colors"
-              >
-                <UserPlus className="w-4 h-4" />
-                New Customer
-              </button>
-            </div>
+          <CustomerSelector
+            customers={customers}
+            selectedCustomer={selectedCustomer}
+            customerSearchQuery={customerSearchQuery}
+            showDropdown={showCustomerDropdown}
+            showNewCustomerForm={showNewCustomerForm}
+            onSearchChange={setCustomerSearchQuery}
+            onCustomerSelect={setSelectedCustomer}
+            onClearCustomer={() => {
+              setSelectedCustomer('');
+              setCustomerSearchQuery('');
+            }}
+            onToggleNewForm={() => setShowNewCustomerForm(!showNewCustomerForm)}
+            onShowDropdown={setShowCustomerDropdown}
+          />
 
-            {selectedCustomerObj ? (
-              <div className="mb-3">
-                <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <div>
-                    <p className="font-medium text-slate-900">
-                      {selectedCustomerObj.first_name} {selectedCustomerObj.last_name}
-                    </p>
-                    <p className="text-sm text-slate-600">{selectedCustomerObj.email}</p>
-                    {selectedCustomerObj.business_name && (
-                      <p className="text-sm text-slate-600">{selectedCustomerObj.business_name}</p>
-                    )}
-                  </div>
-                  <button
-                    onClick={handleClearCustomer}
-                    className="text-red-600 hover:text-red-700"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="relative mb-3 customer-search-container">
-                <div className="relative">
-                  <Search className="absolute left-3 top-2.5 w-5 h-5 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search customers by name, email, phone, or business..."
-                    value={customerSearchQuery}
-                    onChange={(e) => {
-                      setCustomerSearchQuery(e.target.value);
-                      setShowCustomerDropdown(true);
-                    }}
-                    onFocus={() => setShowCustomerDropdown(true)}
-                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                {showCustomerDropdown && filteredCustomers.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-64 overflow-y-auto">
-                    {filteredCustomers.slice(0, 50).map(customer => (
-                      <button
-                        key={customer.id}
-                        onClick={() => handleSelectCustomer(customer)}
-                        className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-slate-100 last:border-b-0 transition-colors"
-                      >
-                        <p className="font-medium text-slate-900">
-                          {customer.first_name} {customer.last_name}
-                          {customer.business_name && <span className="text-slate-600 ml-2">({customer.business_name})</span>}
-                        </p>
-                        <p className="text-sm text-slate-600">{customer.email}</p>
-                        {customer.phone && <p className="text-sm text-slate-600">{customer.phone}</p>}
-                      </button>
-                    ))}
-                    {filteredCustomers.length > 50 && (
-                      <div className="px-4 py-2 text-sm text-slate-500 bg-slate-50">
-                        Showing first 50 results. Type to refine your search.
-                      </div>
-                    )}
-                  </div>
-                )}
-                {showCustomerDropdown && customerSearchQuery && filteredCustomers.length === 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-lg p-4 text-center text-slate-500">
-                    No customers found matching "{customerSearchQuery}"
-                  </div>
-                )}
-              </div>
-            )}
+          {showNewCustomerForm && (
+            <NewCustomerForm
+              newCustomer={newCustomer}
+              onChange={setNewCustomer}
+              onSubmit={handleCreateNewCustomer}
+              onCancel={() => setShowNewCustomerForm(false)}
+            />
+          )}
 
-            <p className="text-xs text-slate-500 mt-2">
-              Leave blank to generate a shareable link for customer to fill in their details
-            </p>
+          <InvoiceEventDetails
+            eventDetails={eventDetails}
+            pricingRules={pricingRules}
+            onEventChange={(updates) => setEventDetails({ ...eventDetails, ...updates })}
+            onAddressSelect={(result) => {
+              setEventDetails({
+                ...eventDetails,
+                address_line1: result.street,
+                city: result.city,
+                state: result.state,
+                zip: result.zip,
+                lat: result.lat,
+                lng: result.lng,
+              });
+            }}
+          />
 
-            {showNewCustomerForm && (
-              <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
-                <h4 className="font-medium text-slate-900 mb-3">Create New Customer</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <input
-                    type="text"
-                    placeholder="First Name *"
-                    value={newCustomer.first_name}
-                    onChange={(e) => setNewCustomer({ ...newCustomer, first_name: e.target.value })}
-                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Last Name *"
-                    value={newCustomer.last_name}
-                    onChange={(e) => setNewCustomer({ ...newCustomer, last_name: e.target.value })}
-                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                  />
-                  <input
-                    type="email"
-                    placeholder="Email *"
-                    value={newCustomer.email}
-                    onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
-                    className="col-span-2 px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                  />
-                  <input
-                    type="tel"
-                    placeholder="Phone *"
-                    value={newCustomer.phone}
-                    onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
-                    className="col-span-2 px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Business Name (optional)"
-                    value={newCustomer.business_name}
-                    onChange={(e) => setNewCustomer({ ...newCustomer, business_name: e.target.value })}
-                    className="col-span-2 px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                  />
-                </div>
-                <button
-                  onClick={handleCreateNewCustomer}
-                  disabled={saving}
-                  className="mt-3 w-full bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white py-2 rounded-lg text-sm transition-colors"
-                >
-                  {saving ? 'Creating...' : 'Create Customer'}
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
-            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-4">Event Details</h3>
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Event Start Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={eventDetails.event_date}
-                    onChange={(e) => setEventDetails({ ...eventDetails, event_date: e.target.value, event_end_date: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Event End Date</label>
-                  <input
-                    type="date"
-                    value={eventDetails.event_end_date || eventDetails.event_date}
-                    onChange={(e) => setEventDetails({ ...eventDetails, event_end_date: e.target.value })}
-                    min={eventDetails.event_date}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Start Time *</label>
-                  <input
-                    type="time"
-                    value={eventDetails.start_window}
-                    onChange={(e) => setEventDetails({ ...eventDetails, start_window: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">End Time *</label>
-                  <input
-                    type="time"
-                    value={eventDetails.end_window}
-                    onChange={(e) => setEventDetails({ ...eventDetails, end_window: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                  />
-                  {((eventDetails.location_type === 'residential' && eventDetails.pickup_preference === 'same_day') || eventDetails.location_type === 'commercial') && (
-                    <p className="text-xs text-slate-600 mt-1">Max 7:00 PM for same-day pickup</p>
-                  )}
-                  <div className="mt-2">
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={eventDetails.until_end_of_day}
-                        onChange={(e) =>
-                          setEventDetails({
-                            ...eventDetails,
-                            until_end_of_day: e.target.checked,
-                          })
-                        }
-                        disabled={(eventDetails.location_type === 'residential' && eventDetails.pickup_preference === 'same_day') || eventDetails.location_type === 'commercial'}
-                        className="mr-2 disabled:opacity-50"
-                      />
-                      <span className={((eventDetails.location_type === 'residential' && eventDetails.pickup_preference === 'same_day') || eventDetails.location_type === 'commercial') ? 'opacity-50' : ''}>
-                        Until end of day
-                      </span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Street Address *</label>
-                <AddressAutocomplete
-                  value={eventDetails.address_line1}
-                  onSelect={(address: { street: string; city: string; state: string; zip: string; lat: number; lng: number }) => {
-                    setEventDetails({
-                      ...eventDetails,
-                      address_line1: address.street,
-                      city: address.city,
-                      state: address.state,
-                      zip: address.zip,
-                      lat: address.lat,
-                      lng: address.lng,
-                    });
-                  }}
-                  placeholder="Enter street address"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <input
-                  type="text"
-                  placeholder="City"
-                  value={eventDetails.city}
-                  onChange={(e) => setEventDetails({ ...eventDetails, city: e.target.value })}
-                  className="px-3 py-2 border border-slate-300 rounded-lg"
-                />
-                <input
-                  type="text"
-                  placeholder="State"
-                  value={eventDetails.state}
-                  onChange={(e) => setEventDetails({ ...eventDetails, state: e.target.value })}
-                  className="px-3 py-2 border border-slate-300 rounded-lg"
-                />
-                <input
-                  type="text"
-                  placeholder="ZIP"
-                  value={eventDetails.zip}
-                  onChange={(e) => setEventDetails({ ...eventDetails, zip: e.target.value })}
-                  className="px-3 py-2 border border-slate-300 rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Event Type</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setEventDetails({ ...eventDetails, location_type: 'residential' })}
-                    className={`px-4 py-3 rounded-lg border-2 transition-all text-center ${
-                      eventDetails.location_type === 'residential'
-                        ? 'border-green-600 bg-green-50 text-green-900'
-                        : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'
-                    }`}
-                  >
-                    <div className="font-semibold text-sm">Residential</div>
-                    <div className="text-xs mt-1 opacity-80">Home, backyard</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEventDetails({ ...eventDetails, location_type: 'commercial' })}
-                    className={`px-4 py-3 rounded-lg border-2 transition-all text-center ${
-                      eventDetails.location_type === 'commercial'
-                        ? 'border-blue-600 bg-blue-50 text-blue-900'
-                        : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'
-                    }`}
-                  >
-                    <div className="font-semibold text-sm">Commercial</div>
-                    <div className="text-xs mt-1 opacity-80">School, park, church</div>
-                  </button>
-                </div>
-                {eventDetails.location_type === 'commercial' && (
-                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-xs text-blue-900">
-                      <strong>Commercial events require same-day pickup by 7:00 PM.</strong> This ensures safety at parks, churches, schools, and other public locations.
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {eventDetails.location_type === 'residential' && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">When do you need pickup?</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setEventDetails({ ...eventDetails, pickup_preference: 'next_day', same_day_responsibility_accepted: false, overnight_responsibility_accepted: false })}
-                      className={`px-4 py-3 rounded-lg border-2 transition-all text-left ${
-                        eventDetails.pickup_preference === 'next_day'
-                          ? 'border-green-600 bg-green-50 text-green-900'
-                          : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'
-                      }`}
-                    >
-                      <div className="font-semibold text-sm">Next Morning</div>
-                      <div className="text-xs mt-1 opacity-80">Pickup 6 AM - 1:30 PM</div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEventDetails({ ...eventDetails, pickup_preference: 'same_day' })}
-                      className={`px-4 py-3 rounded-lg border-2 transition-all text-left ${
-                        eventDetails.pickup_preference === 'same_day'
-                          ? 'border-orange-600 bg-orange-50 text-orange-900'
-                          : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'
-                      }`}
-                    >
-                      <div className="font-semibold text-sm">Same Day</div>
-                      <div className="text-xs mt-1 opacity-80">Additional fees apply</div>
-                    </button>
-                  </div>
-                  {eventDetails.pickup_preference === 'next_day' && (
-                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p className="text-xs text-blue-900">
-                        <strong>Note:</strong> Customer will accept overnight responsibility terms when viewing the invoice.
-                      </p>
-                    </div>
-                  )}
-                  {eventDetails.pickup_preference === 'same_day' && (
-                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p className="text-xs text-blue-900">
-                        <strong>Note:</strong> Customer will accept same-day pickup terms when viewing the invoice.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Setup Surface</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setEventDetails({ ...eventDetails, surface: 'grass' })}
-                    className={`px-4 py-3 rounded-lg border-2 transition-all text-center font-medium ${
-                      eventDetails.surface === 'grass'
-                        ? 'border-green-500 bg-green-50 text-green-900'
-                        : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'
-                    }`}
-                  >
-                    Grass (stakes)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEventDetails({ ...eventDetails, surface: 'cement' })}
-                    className={`px-4 py-3 rounded-lg border-2 transition-all text-center font-medium ${
-                      eventDetails.surface === 'cement'
-                        ? 'border-green-500 bg-green-50 text-green-900'
-                        : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'
-                    }`}
-                  >
-                    Sandbags
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Generator Quantity</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={eventDetails.generator_qty}
-                  onChange={(e) => setEventDetails({ ...eventDetails, generator_qty: parseInt(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                  placeholder="0"
-                />
-                {eventDetails.generator_qty > 0 && pricingRules && (
-                  <p className="text-xs text-slate-600 mt-2">
-                    Generator fee: {formatCurrency(pricingRules.generator_price_cents * eventDetails.generator_qty)}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
-            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-4">Available Units</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
-              {units.filter(unit => {
-                // Check if this unit is already in the cart
-                const existingItem = cartItems.find(item => item.unit_id === unit.id);
-
-                if (!existingItem) {
-                  // Unit not in cart, so it's available to add
-                  return true;
-                }
-
-                // Unit is in cart - only show if we have multiple units in inventory
-                return (unit.quantity_available || 1) > 1;
-              }).map(unit => (
-                <div key={unit.id} className="border border-slate-200 rounded-lg p-3">
-                  <p className="font-medium text-slate-900 text-sm">
-                    {unit.name}
-                    {(unit.quantity_available || 1) > 1 && (
-                      <span className="ml-2 text-xs text-slate-600">({unit.quantity_available} available)</span>
-                    )}
-                  </p>
-                  <p className="text-xs text-slate-600 mb-2">{unit.dimensions}</p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => addItemToCart(unit, 'dry')}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs py-1 px-2 rounded"
-                    >
-                      Dry {formatCurrency(unit.price_dry_cents)}
-                    </button>
-                    {unit.price_water_cents && (
-                      <button
-                        onClick={() => addItemToCart(unit, 'water')}
-                        className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white text-xs py-1 px-2 rounded"
-                      >
-                        Water {formatCurrency(unit.price_water_cents)}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {units.filter(unit => {
-                const existingItem = cartItems.find(item => item.unit_id === unit.id);
-                if (!existingItem) return true;
-                return (unit.quantity_available || 1) > 1;
-              }).length === 0 && (
-                <div className="col-span-2 text-center py-6 text-slate-500">
-                  All available units have been added to this invoice
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
-            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-4">Cart Items</h3>
-            {cartItems.length === 0 ? (
-              <p className="text-slate-500 text-center py-8">No items in cart</p>
-            ) : (
-              <div className="space-y-3">
-                {cartItems.map(item => (
-                  <div key={item.id} className="border border-slate-200 rounded-lg p-3">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <p className="font-medium text-slate-900">{item.unit_name}</p>
-                        <p className="text-xs text-slate-600 capitalize">{item.mode} Mode</p>
-                      </div>
-                      <button
-                        onClick={() => removeItemFromCart(item.id)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-xs text-slate-600 mb-1">Qty</label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={item.qty}
-                          onChange={(e) => updateItemQuantity(item.id, parseInt(e.target.value))}
-                          className="w-full px-2 py-1 text-sm border border-slate-300 rounded"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-slate-600 mb-1">Price Each</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={(item.adjusted_price_cents / 100).toFixed(2)}
-                          onChange={(e) => updateItemPrice(item.id, Math.round(parseFloat(e.target.value) * 100))}
-                          className="w-full px-2 py-1 text-sm border border-slate-300 rounded"
-                        />
-                      </div>
-                    </div>
-                    <div className="mt-2 text-right">
-                      <span className="text-sm text-slate-600">Line Total: </span>
-                      <span className="font-semibold text-slate-900">
-                        {formatCurrency(item.adjusted_price_cents * item.qty)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <CartItemsList
+            cartItems={cartItems}
+            units={units}
+            onRemoveItem={removeItemFromCart}
+            onUpdateQuantity={updateItemQuantity}
+            onUpdatePrice={updateItemPrice}
+            onAddUnit={addItemToCart}
+          />
         </div>
 
         <div className="space-y-4 sm:space-y-6">
@@ -1183,80 +684,19 @@ export function InvoiceBuilder() {
             onMarkChanges={() => {}}
           />
 
-          {/* Deposit Override Section */}
-          <div className="bg-amber-50 rounded-lg shadow p-4 sm:p-6">
-            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-2">Deposit Override</h3>
-            <p className="text-sm text-slate-600 mb-4">
-              Set a custom deposit amount. Use this when the calculated deposit doesn't match your requirements.
-            </p>
-            <div className="bg-white p-3 rounded border border-amber-200 mb-3">
-              <p className="text-sm text-slate-700">
-                <strong>Calculated Deposit:</strong> {formatCurrency(defaultDeposit)}
-              </p>
-            </div>
-            {customDepositCents === null ? (
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Custom Deposit Amount</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-slate-600">$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={customDepositInput}
-                      onChange={(e) => setCustomDepositInput(e.target.value)}
-                      className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg"
-                      placeholder="0.00"
-                    />
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Set to $0 for acceptance-only invoices (no payment required)
-                  </p>
-                </div>
-                <button
-                  onClick={applyDepositOverride}
-                  className="w-full bg-amber-600 hover:bg-amber-700 text-white py-2 rounded-lg text-sm transition-colors"
-                >
-                  Apply
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="bg-white p-3 rounded border border-amber-200">
-                  <p className="text-sm text-slate-700">
-                    <strong>Custom Deposit:</strong> {formatCurrency(customDepositCents)}
-                  </p>
-                  {customDepositCents === 0 && (
-                    <p className="text-xs text-amber-700 mt-1">
-                      Customer will only need to accept (no payment required)
-                    </p>
-                  )}
-                </div>
-                <button
-                  onClick={clearDepositOverride}
-                  className="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 py-2 rounded-lg text-sm transition-colors"
-                >
-                  Clear Override
-                </button>
-              </div>
-            )}
-          </div>
+          <DepositOverrideSection
+            defaultDeposit={defaultDeposit}
+            customDeposit={customDepositCents}
+            customDepositInput={customDepositInput}
+            onInputChange={setCustomDepositInput}
+            onApply={applyDepositOverride}
+            onClear={clearDepositOverride}
+          />
 
-          {/* Message to Customer */}
-          <div className="bg-slate-50 rounded-lg shadow p-4 sm:p-6">
-            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-2">Message to Customer</h3>
-            <p className="text-sm text-slate-600 mb-4">
-              Add an optional message to explain the changes to the customer. This will be included in the email and text notification.
-            </p>
-            <textarea
-              value={adminMessage}
-              onChange={(e) => setAdminMessage(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              rows={4}
-              placeholder="Example: We're upgrading your bounce house to a larger unit at no extra charge! Also added a generator since your event location doesn't have power outlets nearby."
-            />
-          </div>
+          <AdminMessageSection
+            message={adminMessage}
+            onChange={setAdminMessage}
+          />
 
           {orderSummary && (
             <OrderSummary
