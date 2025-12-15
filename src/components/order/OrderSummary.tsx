@@ -19,6 +19,7 @@ interface OrderSummaryProps {
   comparisonTotal?: number;
   customDepositCents?: number | null;
   changelog?: ChangelogEntry[];
+  taxWaived?: boolean;
 }
 
 export function OrderSummary({
@@ -32,6 +33,7 @@ export function OrderSummary({
   comparisonTotal,
   customDepositCents,
   changelog = [],
+  taxWaived = false,
 }: OrderSummaryProps) {
   const hasChanged = (fieldName: string) => {
     return changelog.some(c => c.field_changed === fieldName);
@@ -141,7 +143,7 @@ export function OrderSummary({
             </div>
           ))}
 
-          <div className={`flex justify-between ${hasChanged('tax') ? 'bg-blue-50 -mx-2 px-2 py-1 rounded' : ''}`}>
+          <div className={`flex justify-between ${hasChanged('tax') || taxWaived ? 'bg-blue-50 -mx-2 px-2 py-1 rounded' : ''}`}>
             <span className="text-slate-700">Tax (6%):</span>
             <div className="flex items-center gap-2">
               {hasChanged('tax') && getOldValue('tax') && (
@@ -150,9 +152,12 @@ export function OrderSummary({
               {comparisonTotal !== undefined && comparisonTotal !== summary.total && !hasChanged('tax') && (
                 <span className="line-through text-slate-400 mr-2">{formatCurrency(Math.round(comparisonTotal * 0.06))}</span>
               )}
-              <span className={`font-medium ${hasChanged('tax') ? 'text-blue-700' : 'text-slate-900'}`}>
+              <span className={`font-medium ${taxWaived ? 'line-through text-red-600' : hasChanged('tax') ? 'text-blue-700' : 'text-slate-900'}`}>
                 {formatCurrency(summary.tax)}
               </span>
+              {taxWaived && (
+                <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded font-semibold">WAIVED</span>
+              )}
             </div>
           </div>
         </div>
@@ -168,7 +173,7 @@ export function OrderSummary({
                 <span className="line-through text-slate-400 mr-2 text-base">{formatCurrency(comparisonTotal)}</span>
               )}
               <span className={`font-bold text-xl ${hasChanged('total') ? 'text-blue-700' : 'text-slate-900'}`}>
-                {formatCurrency(summary.total)}
+                {formatCurrency(taxWaived ? summary.total - summary.tax : summary.total)}
               </span>
             </div>
           </div>
@@ -217,8 +222,8 @@ export function OrderSummary({
                 )}
                 <span className="text-slate-700 font-semibold">
                   {formatCurrency(customDepositCents !== null && customDepositCents !== undefined
-                    ? summary.total - customDepositCents
-                    : summary.balanceDue)}
+                    ? (taxWaived ? summary.total - summary.tax : summary.total) - customDepositCents
+                    : taxWaived ? summary.balanceDue - summary.tax : summary.balanceDue)}
                 </span>
               </div>
             </div>

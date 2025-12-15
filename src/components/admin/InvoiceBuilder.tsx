@@ -223,7 +223,13 @@ export function InvoiceBuilder() {
           <AdminMessageSection message={adminMessage} onChange={setAdminMessage} />
 
           {orderSummary && (
-            <OrderSummary summary={orderSummary} showDeposit={true} showTip={false} title="Invoice Summary" />
+            <OrderSummary
+              summary={orderSummary}
+              showDeposit={true}
+              showTip={false}
+              title="Invoice Summary"
+              taxWaived={taxWaived}
+            />
           )}
 
           <div className="bg-white border border-slate-200 rounded-lg p-4 sm:p-6">

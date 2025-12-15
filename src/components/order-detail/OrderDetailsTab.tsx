@@ -188,6 +188,7 @@ export function OrderDetailsTab({
               title="Current Pricing"
               showDeposit={true}
               showTip={order.tip_cents > 0}
+              taxWaived={order.tax_waived || false}
             />
           </div>
         )}
@@ -207,6 +208,7 @@ export function OrderDetailsTab({
               highlightNewItems={true}
               comparisonTotal={currentOrderSummary?.total}
               customDepositCents={customDepositCents}
+              taxWaived={taxWaived}
             />
           </div>
         )}
