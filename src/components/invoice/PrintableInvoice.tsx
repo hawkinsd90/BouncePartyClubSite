@@ -54,28 +54,6 @@ export function PrintableInvoice({
 
   return (
     <div className="bg-white p-8 max-w-5xl mx-auto" id="printable-invoice">
-      <style>
-        {`
-          @media print {
-            body * {
-              visibility: hidden;
-            }
-            #printable-invoice, #printable-invoice * {
-              visibility: visible;
-            }
-            #printable-invoice {
-              position: absolute;
-              left: 0;
-              top: 0;
-              width: 100%;
-            }
-            .no-print {
-              display: none !important;
-            }
-          }
-        `}
-      </style>
-
       <div className="border border-slate-200 rounded-lg shadow-lg overflow-hidden">
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-8">
           <div className="flex justify-between items-start">

@@ -12,3 +12,33 @@
     opacity: 1;
   }
 }
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  #printable-invoice,
+  #printable-invoice * {
+    visibility: visible;
+  }
+
+  #printable-invoice {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .fixed {
+    position: static !important;
+  }
+
+  @page {
+    margin: 0.5cm;
+  }
+}
