@@ -15,8 +15,8 @@
 
 @media print {
   @page {
-    margin: 0.5in;
-    size: portrait;
+    margin: 1cm;
+    size: auto;
   }
 
   * {
@@ -24,37 +24,53 @@
     print-color-adjust: exact !important;
   }
 
-  body {
+  html, body {
+    height: auto !important;
+    overflow: visible !important;
     margin: 0 !important;
     padding: 0 !important;
+    background: white !important;
+  }
+
+  body *:not(#printable-invoice):not(#printable-invoice *) {
+    visibility: hidden !important;
+  }
+
+  #printable-invoice {
+    visibility: visible !important;
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+  }
+
+  #printable-invoice * {
+    visibility: visible !important;
+  }
+
+  #printable-invoice > div {
+    max-width: 100% !important;
+    margin: 0 !important;
+    page-break-inside: avoid !important;
   }
 
   .no-print {
     display: none !important;
   }
 
-  #printable-invoice {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    page-break-after: auto !important;
+  .overflow-hidden {
+    overflow: visible !important;
   }
 
-  #printable-invoice * {
-    page-break-inside: avoid !important;
+  .rounded-lg {
+    border-radius: 0 !important;
   }
 
-  body > div:not(:has(#printable-invoice)),
-  nav,
-  header,
-  footer,
-  .fixed,
-  [class*="bg-black"],
-  [class*="bg-opacity"] {
-    display: none !important;
+  .shadow-lg {
+    box-shadow: none !important;
   }
 }
