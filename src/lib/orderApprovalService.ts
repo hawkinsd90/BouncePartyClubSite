@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { sendEmail } from './notificationService';
 import {
   generateConfirmationReceiptEmail,
   generateConfirmationSmsMessage,
@@ -175,18 +176,10 @@ async function sendConfirmationEmail(orderWithItems: any, totalCents: number) {
         totalCents,
       });
 
-      const emailApiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`;
-      await fetch(emailApiUrl, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          to: customer.email,
-          subject: `Booking Confirmed - Receipt for Order #${orderWithItems.id.slice(0, 8).toUpperCase()}`,
-          html: emailHtml,
-        }),
+      await sendEmail({
+        to: customer.email,
+        subject: `Booking Confirmed - Receipt for Order #${orderWithItems.id.slice(0, 8).toUpperCase()}`,
+        html: emailHtml,
       });
     }
   } catch (emailError) {
