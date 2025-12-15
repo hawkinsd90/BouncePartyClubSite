@@ -5,14 +5,13 @@ import { RentalTerms } from '../components/RentalTerms';
 import { createOrderBeforePayment } from '../lib/orderCreation';
 import { useAuth } from '../contexts/AuthContext';
 import { useCheckoutData } from '../hooks/useCheckoutData';
-import { getPaymentAmountCents, getTipAmountCents, buildOrderSummary } from '../lib/checkoutUtils';
+import { getPaymentAmountCents, getTipAmountCents } from '../lib/checkoutUtils';
 import { ContactInformationForm } from '../components/checkout/ContactInformationForm';
 import { BillingAddressForm } from '../components/checkout/BillingAddressForm';
 import { PaymentAmountSelector } from '../components/checkout/PaymentAmountSelector';
 import { TipSection } from '../components/checkout/TipSection';
 import { ConsentSection } from '../components/checkout/ConsentSection';
 import { CheckoutSummary } from '../components/checkout/CheckoutSummary';
-import { InvoicePreviewModal } from '../components/checkout/InvoicePreviewModal';
 
 export function Checkout() {
   const navigate = useNavigate();
@@ -40,7 +39,6 @@ export function Checkout() {
   const [billingSameAsEvent, setBillingSameAsEvent] = useState(true);
   const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
   const [customAmount, setCustomAmount] = useState('');
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -135,9 +133,6 @@ export function Checkout() {
     return null;
   }
 
-  const tipCents = getTipAmountCents(tipAmount, customTip, priceBreakdown.total_cents);
-  const orderSummary = buildOrderSummary(priceBreakdown, cart, quoteData, tipCents);
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <h1 className="text-4xl font-bold text-slate-900 mb-8">Complete Your Booking</h1>
@@ -168,7 +163,7 @@ export function Checkout() {
             tipAmount={tipAmount}
             customTip={customTip}
             totalCents={priceBreakdown.total_cents}
-            tipCents={tipCents}
+            tipCents={getTipAmountCents(tipAmount, customTip, priceBreakdown.total_cents)}
             onTipAmountChange={setTipAmount}
             onCustomTipChange={setCustomTip}
           />
@@ -184,25 +179,15 @@ export function Checkout() {
         <div className="lg:col-span-1">
           <CheckoutSummary
             quoteData={quoteData}
-            orderSummary={orderSummary}
+            priceBreakdown={priceBreakdown}
+            cart={cart}
+            contactData={contactData}
             processing={processing}
             cardOnFileConsent={cardOnFileConsent}
             smsConsent={smsConsent}
-            tipCents={tipCents}
-            onViewInvoice={() => setShowInvoiceModal(true)}
           />
         </div>
       </form>
-
-      {showInvoiceModal && (
-        <InvoicePreviewModal
-          quoteData={quoteData}
-          priceBreakdown={priceBreakdown}
-          cart={cart}
-          contactData={contactData}
-          onClose={() => setShowInvoiceModal(false)}
-        />
-      )}
     </div>
   );
 }
