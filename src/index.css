@@ -23,6 +23,13 @@
     print-color-adjust: exact !important;
   }
 
+  html, body {
+    width: 100%;
+    height: auto;
+    margin: 0;
+    padding: 0;
+  }
+
   body *:not(#printable-invoice):not(#printable-invoice *) {
     display: none !important;
   }
@@ -32,12 +39,8 @@
     position: static !important;
     max-width: 100% !important;
     width: 100% !important;
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-
-  #printable-invoice .max-w-5xl {
-    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 1rem !important;
   }
 
   #printable-invoice * {
