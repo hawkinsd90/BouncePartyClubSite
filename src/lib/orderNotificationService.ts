@@ -1,4 +1,13 @@
 import { sendEmail, sendSms } from './notificationService';
+import {
+  createEmailWrapper,
+  createGreeting,
+  createParagraph,
+  createAlertBox,
+  createButton,
+  createContactInfo,
+  EMAIL_THEMES,
+} from './emailTemplateBase';
 
 interface SendOrderEditNotificationsParams {
   order: any;
@@ -13,46 +22,39 @@ export async function sendOrderEditNotifications({
     const customerPortalUrl = `${window.location.origin}/customer-portal/${order.id}`;
     const fullName = `${order.customers?.first_name} ${order.customers?.last_name}`.trim();
 
-    const logoUrl = 'https://qaagfafagdpgzcijnfbw.supabase.co/storage/v1/object/public/public-assets/bounce-party-club-logo.png';
+    let content = createGreeting(order.customers?.first_name);
+    content += createParagraph(
+      `We've made some updates to your booking (Order #${order.id.slice(0, 8).toUpperCase()}) and need your approval to proceed.`
+    );
 
-    const emailHtml = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <title>Order Updated - Approval Needed</title>
-      </head>
-      <body style="font-family: Arial, sans-serif; padding: 20px; background-color: #f8fafc;">
-        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: 2px solid #3b82f6;">
-          <div style="text-align: center; border-bottom: 2px solid #3b82f6; padding-bottom: 20px; margin-bottom: 25px;">
-            <img src="${logoUrl}" alt="Bounce Party Club" style="height: 70px; width: auto;" />
-            <h2 style="color: #3b82f6; margin: 15px 0 0;">Your Order Has Been Updated</h2>
-          </div>
-          <p style="margin: 0 0 20px; color: #475569; font-size: 16px;">Hi ${fullName},</p>
-          <p style="margin: 0 0 20px; color: #475569; font-size: 16px;">
-            We've made some updates to your booking (Order #${order.id.slice(0, 8).toUpperCase()}) and need your approval to proceed.
-          </p>
-          ${adminMessage.trim() ? `
-          <div style="background-color: #dbeafe; border: 2px solid #3b82f6; padding: 15px; margin: 20px 0; border-radius: 6px;">
-            <p style="margin: 0; color: #1e40af; font-weight: 600;">Message from Bounce Party Club:</p>
-            <p style="margin: 10px 0 0; color: #1e40af; white-space: pre-wrap;">${adminMessage}</p>
-          </div>` : ''}
-          <div style="background-color: #fef3c7; border: 2px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 6px;">
-            <p style="margin: 0; color: #92400e; font-weight: 600;">Action Required</p>
-            <p style="margin: 10px 0 0; color: #92400e;">Please review the updated details and approve or request changes.</p>
-          </div>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${customerPortalUrl}" style="display: inline-block; background-color: #3b82f6; color: #ffffff; text-decoration: none; padding: 12px 30px; border-radius: 6px; font-weight: 600;">
-              Review Order Changes
-            </a>
-          </div>
-          <p style="margin: 20px 0 0; color: #64748b; font-size: 14px;">
-            If you have any questions, please contact us at (313) 889-3860.
-          </p>
-        </div>
-      </body>
-      </html>
-    `;
+    if (adminMessage.trim()) {
+      content += createAlertBox({
+        title: 'Message from Bounce Party Club',
+        message: adminMessage,
+        type: 'info',
+      });
+    }
+
+    content += createAlertBox({
+      title: 'Action Required',
+      message: 'Please review the updated details and approve or request changes.',
+      type: 'warning',
+    });
+
+    content += createButton({
+      text: 'Review Order Changes',
+      url: customerPortalUrl,
+      theme: EMAIL_THEMES.primary,
+    });
+
+    content += createContactInfo();
+
+    const emailHtml = createEmailWrapper({
+      title: 'Order Updated - Approval Needed',
+      headerTitle: 'Your Order Has Been Updated',
+      content,
+      theme: EMAIL_THEMES.primary,
+    });
 
     if (order.customers?.email) {
       await sendEmail({
