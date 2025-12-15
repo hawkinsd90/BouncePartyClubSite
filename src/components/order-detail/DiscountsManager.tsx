@@ -1,41 +1,151 @@
+import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
+import { showToast } from '../../lib/notifications';
+import { supabase } from '../../lib/supabase';
+import { useDiscountTemplates } from '../../hooks/useDiscountTemplates';
 
 interface DiscountsManagerProps {
   discounts: any[];
-  newDiscount: { name: string; amount_cents: number; percentage: number };
-  discountAmountInput: string;
-  discountPercentInput: string;
-  savedTemplates: any[];
-  selectedTemplateId: string;
-  saveAsTemplate: boolean;
-  onDiscountChange: (discount: { name: string; amount_cents: number; percentage: number }) => void;
-  onAmountInputChange: (value: string) => void;
-  onPercentInputChange: (value: string) => void;
-  onTemplateSelect: (templateId: string) => void;
-  onSaveAsTemplateChange: (checked: boolean) => void;
-  onAddDiscount: () => void;
-  onRemoveDiscount: (discountId: string) => void;
-  onDeleteTemplate: () => void;
+  onDiscountChange: (discounts: any[]) => void;
+  onMarkChanges: () => void;
 }
 
 export function DiscountsManager({
   discounts,
-  newDiscount,
-  discountAmountInput,
-  discountPercentInput,
-  savedTemplates,
-  selectedTemplateId,
-  saveAsTemplate,
   onDiscountChange,
-  onAmountInputChange,
-  onPercentInputChange,
-  onTemplateSelect,
-  onSaveAsTemplateChange,
-  onAddDiscount,
-  onRemoveDiscount,
-  onDeleteTemplate,
+  onMarkChanges,
 }: DiscountsManagerProps) {
+  const { templates: savedTemplates, reload: reloadTemplates } = useDiscountTemplates();
+  const [newDiscount, setNewDiscount] = useState({ name: '', amount_cents: 0, percentage: 0 });
+  const [discountAmountInput, setDiscountAmountInput] = useState('0.00');
+  const [discountPercentInput, setDiscountPercentInput] = useState('0');
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [saveAsTemplate, setSaveAsTemplate] = useState(false);
+
+  async function handleAddDiscount() {
+    if (!newDiscount.name.trim()) {
+      showToast('Please enter a discount name', 'error');
+      return;
+    }
+
+    const amount = parseFloat(discountAmountInput) * 100;
+    const percentage = parseFloat(discountPercentInput);
+
+    if (amount === 0 && percentage === 0) {
+      showToast('Please enter either an amount or percentage', 'error');
+      return;
+    }
+
+    if (amount > 0 && percentage > 0) {
+      showToast('Please enter either amount OR percentage, not both', 'error');
+      return;
+    }
+
+    if (saveAsTemplate) {
+      try {
+        const { data: existing } = await supabase
+          .from('saved_discount_templates')
+          .select('id')
+          .eq('name', newDiscount.name)
+          .maybeSingle();
+
+        if (existing) {
+          showToast(`A discount template with the name "${newDiscount.name}" already exists. Please choose a different name.`, 'error');
+          return;
+        }
+
+        await supabase.from('saved_discount_templates').insert({
+          name: newDiscount.name,
+          amount_cents: Math.round(amount),
+          percentage: percentage || 0,
+        });
+        await reloadTemplates();
+      } catch (error) {
+        console.error('Error saving discount template:', error);
+        showToast('Failed to save discount template', 'error');
+        return;
+      }
+    }
+
+    const newDiscountItem = {
+      id: `temp_${Date.now()}`,
+      name: newDiscount.name,
+      amount_cents: Math.round(amount),
+      percentage: percentage || 0,
+      is_new: true,
+    };
+
+    onDiscountChange([...discounts, newDiscountItem]);
+    setNewDiscount({ name: '', amount_cents: 0, percentage: 0 });
+    setDiscountAmountInput('0.00');
+    setDiscountPercentInput('0');
+    setSaveAsTemplate(false);
+    onMarkChanges();
+  }
+
+  function handleRemoveDiscount(discountId: string) {
+    if (!confirm('Remove this discount?')) return;
+    onDiscountChange(discounts.filter(d => d.id !== discountId));
+    onMarkChanges();
+  }
+
+  async function handleDeleteTemplate() {
+    if (!selectedTemplateId) {
+      showToast('Please select a discount template first', 'error');
+      return;
+    }
+
+    const template = savedTemplates.find(t => t.id === selectedTemplateId);
+    if (!confirm(`Delete the discount template "${template?.name}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('saved_discount_templates')
+        .delete()
+        .eq('id', selectedTemplateId);
+
+      if (error) throw error;
+
+      setSelectedTemplateId('');
+      await reloadTemplates();
+      showToast('Discount template deleted successfully', 'success');
+    } catch (error) {
+      console.error('Error deleting discount template:', error);
+      showToast('Failed to delete discount template', 'error');
+    }
+  }
+
+  function handleTemplateSelect(templateId: string) {
+    setSelectedTemplateId(templateId);
+    const template = savedTemplates.find(t => t.id === templateId);
+    if (template) {
+      setNewDiscount({
+        name: template.name,
+        amount_cents: template.amount_cents,
+        percentage: template.percentage
+      });
+      setDiscountAmountInput((template.amount_cents / 100).toFixed(2));
+      setDiscountPercentInput(template.percentage.toString());
+    }
+  }
+
+  function handleAmountInputChange(value: string) {
+    setDiscountAmountInput(value);
+    if (parseFloat(value) > 0) {
+      setDiscountPercentInput('0');
+    }
+  }
+
+  function handlePercentInputChange(value: string) {
+    setDiscountPercentInput(value);
+    if (parseFloat(value) > 0) {
+      setDiscountAmountInput('0.00');
+    }
+  }
+
   return (
     <div className="bg-green-50 border border-green-200 rounded-lg p-4">
       <h3 className="font-semibold text-slate-900 mb-3">Discounts</h3>
@@ -51,7 +161,7 @@ export function DiscountsManager({
                 </p>
               </div>
               <button
-                onClick={() => onRemoveDiscount(discount.id)}
+                onClick={() => handleRemoveDiscount(discount.id)}
                 className="text-red-600 hover:text-red-800"
               >
                 <Trash2 className="w-4 h-4" />
@@ -68,7 +178,7 @@ export function DiscountsManager({
             <div className="flex gap-2">
               <select
                 value={selectedTemplateId}
-                onChange={(e) => onTemplateSelect(e.target.value)}
+                onChange={(e) => handleTemplateSelect(e.target.value)}
                 className="flex-1 px-3 py-2 border border-slate-300 rounded text-sm"
               >
                 <option value="">Select a saved discount...</option>
@@ -80,7 +190,7 @@ export function DiscountsManager({
               </select>
               {selectedTemplateId && (
                 <button
-                  onClick={onDeleteTemplate}
+                  onClick={handleDeleteTemplate}
                   className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-1 text-sm"
                   title="Delete selected template"
                 >
@@ -93,7 +203,7 @@ export function DiscountsManager({
         <input
           type="text"
           value={newDiscount.name}
-          onChange={(e) => onDiscountChange({ ...newDiscount, name: e.target.value })}
+          onChange={(e) => setNewDiscount({ ...newDiscount, name: e.target.value })}
           placeholder="Discount name"
           className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
         />
@@ -106,7 +216,7 @@ export function DiscountsManager({
                 type="number"
                 step="0.01"
                 value={discountAmountInput}
-                onChange={(e) => onAmountInputChange(e.target.value)}
+                onChange={(e) => handleAmountInputChange(e.target.value)}
                 placeholder="0.00"
                 className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded text-sm"
               />
@@ -119,7 +229,7 @@ export function DiscountsManager({
                 type="number"
                 step="1"
                 value={discountPercentInput}
-                onChange={(e) => onPercentInputChange(e.target.value)}
+                onChange={(e) => handlePercentInputChange(e.target.value)}
                 placeholder="0"
                 className="w-full pr-7 pl-3 py-2 border border-slate-300 rounded text-sm"
               />
@@ -131,13 +241,13 @@ export function DiscountsManager({
           <input
             type="checkbox"
             checked={saveAsTemplate}
-            onChange={(e) => onSaveAsTemplateChange(e.target.checked)}
+            onChange={(e) => setSaveAsTemplate(e.target.checked)}
             className="rounded"
           />
           Save this discount for future use
         </label>
         <button
-          onClick={onAddDiscount}
+          onClick={handleAddDiscount}
           className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded text-sm font-medium"
         >
           Add Discount

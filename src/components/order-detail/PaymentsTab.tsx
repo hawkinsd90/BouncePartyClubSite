@@ -1,27 +1,76 @@
 import { useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
+import { showToast } from '../../lib/notifications';
+import { supabase } from '../../lib/supabase';
 
 interface PaymentsTabProps {
+  orderId: string;
+  customerName: string;
   payments: any[];
-  onRefund: (amount: string, reason: string) => Promise<void>;
+  onPaymentsUpdate: () => void;
 }
 
-export function PaymentsTab({ payments, onRefund }: PaymentsTabProps) {
+export function PaymentsTab({ orderId, customerName, payments, onPaymentsUpdate }: PaymentsTabProps) {
   const [showRefundForm, setShowRefundForm] = useState(false);
   const [refundAmount, setRefundAmount] = useState('');
   const [refundReason, setRefundReason] = useState('');
   const [refunding, setRefunding] = useState(false);
 
   async function handleRefund() {
+    const amountCents = Math.round(parseFloat(refundAmount) * 100);
+
+    if (!amountCents || amountCents <= 0) {
+      showToast('Please enter a valid refund amount', 'error');
+      return;
+    }
+
+    if (!refundReason.trim()) {
+      showToast('Please provide a reason for the refund', 'error');
+      return;
+    }
+
+    const confirmed = confirm(
+      `Issue refund of ${formatCurrency(amountCents)} to ${customerName}?\n\nReason: ${refundReason}\n\nThis action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
     setRefunding(true);
     try {
-      await onRefund(refundAmount, refundReason);
+      const { data: { session } } = await supabase.auth.getSession();
+      const jwt = session?.access_token;
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-refund`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${jwt}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            orderId,
+            amountCents,
+            reason: refundReason,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to process refund');
+      }
+
+      showToast(`Refund of ${formatCurrency(amountCents)} processed successfully!`, 'success');
       setShowRefundForm(false);
       setRefundAmount('');
       setRefundReason('');
-    } catch (error) {
-      console.error('Error in refund handler:', error);
+      onPaymentsUpdate();
+    } catch (error: any) {
+      console.error('Error processing refund:', error);
+      showToast('Failed to process refund: ' + error.message, 'error');
     } finally {
       setRefunding(false);
     }

@@ -2,9 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { X, Truck, MessageSquare, FileText, History, Save, CreditCard } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
-import { formatCurrency } from '../lib/pricing';
 import { checkMultipleUnitsAvailability } from '../lib/availability';
-import { OrderSummary } from './OrderSummary';
 import { formatOrderSummary, type OrderSummaryData } from '../lib/orderSummary';
 import { showToast } from '../lib/notifications';
 import { StatusChangeDialog } from './order-detail/StatusChangeDialog';
@@ -14,6 +12,7 @@ import { OrderChangelogTab } from './order-detail/OrderChangelogTab';
 import { OrderDetailsTab } from './order-detail/OrderDetailsTab';
 import { PaymentsTab } from './order-detail/PaymentsTab';
 import { useOrderPricing } from '../hooks/useOrderPricing';
+import { useOrderDetails } from '../hooks/useOrderDetails';
 import { saveOrderChanges } from '../lib/orderSaveService';
 import { sendOrderEditNotifications } from '../lib/orderNotificationService';
 
@@ -40,7 +39,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [notes, setNotes] = useState<any[]>([]);
   const [workflowEvents, setWorkflowEvents] = useState<any[]>([]);
   const [changelog, setChangelog] = useState<any[]>([]);
-  const [payments, setPayments] = useState<any[]>([]);
   const [availableUnits, setAvailableUnits] = useState<any[]>([]);
   const [editedOrder, setEditedOrder] = useState<any>({
     location_type: order.location_type,
@@ -60,24 +58,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   });
   const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
   const [discounts, setDiscounts] = useState<any[]>([]);
-  const [newDiscount, setNewDiscount] = useState({ name: '', amount_cents: 0, percentage: 0 });
-  const [discountAmountInput, setDiscountAmountInput] = useState('0.00');
-  const [discountPercentInput, setDiscountPercentInput] = useState('0');
   const [customFees, setCustomFees] = useState<any[]>([]);
-  const [newCustomFee, setNewCustomFee] = useState({ name: '', amount_cents: 0 });
-  const [customFeeInput, setCustomFeeInput] = useState('0.00');
   const [adminMessage, setAdminMessage] = useState('');
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-  const [savedDiscountTemplates, setSavedDiscountTemplates] = useState<any[]>([]);
-  const [savedFeeTemplates, setSavedFeeTemplates] = useState<any[]>([]);
-  const [saveDiscountAsTemplate, setSaveDiscountAsTemplate] = useState(false);
-  const [saveFeeAsTemplate, setSaveFeeAsTemplate] = useState(false);
-  const [selectedDiscountTemplateId, setSelectedDiscountTemplateId] = useState<string>('');
-  const [selectedFeeTemplateId, setSelectedFeeTemplateId] = useState<string>('');
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [pendingStatus, setPendingStatus] = useState('');
-  const [pricingRules, setPricingRules] = useState<any>(null);
   const [adminSettings, setAdminSettings] = useState<any>(null);
   const [adminOverrideApproval, setAdminOverrideApproval] = useState(false);
   const [availabilityIssues, setAvailabilityIssues] = useState<any[]>([]);
@@ -87,82 +73,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [currentOrderSummary, setCurrentOrderSummary] = useState<any>(null);
 
   const { updatedOrderSummary, calculatedPricing, recalculatePricing } = useOrderPricing();
-
-  useEffect(() => {
-    loadPayments();
-  }, [order.id]);
-
-  async function loadPayments() {
-    try {
-      const { data, error } = await supabase
-        .from('payments')
-        .select('*')
-        .eq('order_id', order.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setPayments(data || []);
-    } catch (error) {
-      console.error('Error loading payments:', error);
-    }
-  }
-
-  async function handleRefund(refundAmount: string, refundReason: string) {
-    const amountCents = Math.round(parseFloat(refundAmount) * 100);
-
-    if (!amountCents || amountCents <= 0) {
-      showToast('Please enter a valid refund amount', 'error');
-      throw new Error('Invalid refund amount');
-    }
-
-    if (!refundReason.trim()) {
-      showToast('Please provide a reason for the refund', 'error');
-      throw new Error('Missing refund reason');
-    }
-
-    const confirmed = confirm(
-      `Issue refund of ${formatCurrency(amountCents)} to ${order.customers?.first_name} ${order.customers?.last_name}?\n\nReason: ${refundReason}\n\nThis action cannot be undone.`
-    );
-
-    if (!confirmed) {
-      throw new Error('Refund cancelled');
-    }
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const jwt = session?.access_token;
-
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-refund`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${jwt}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            orderId: order.id,
-            amountCents,
-            reason: refundReason,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to process refund');
-      }
-
-      showToast(`Refund of ${formatCurrency(amountCents)} processed successfully!`, 'success');
-      loadPayments();
-      onUpdate();
-    } catch (error: any) {
-      console.error('Error processing refund:', error);
-      showToast('Failed to process refund: ' + error.message, 'error');
-      throw error;
-    }
-  }
+  const { payments, pricingRules, reload: reloadOrderData, setPayments } = useOrderDetails(order.id);
 
   useEffect(() => {
     // Load current order summary for display
@@ -222,8 +133,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
   useEffect(() => {
     loadOrderDetails();
-    loadPricingData();
-    loadSavedTemplates();
+    loadAdminSettings();
   }, [order.id]);
 
   // Initialize staged items from order items
@@ -307,23 +217,20 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
   }, [editedOrder.event_date, editedOrder.event_end_date, stagedItems]);
 
-  async function loadPricingData() {
+  async function loadAdminSettings() {
     try {
-      const [rulesRes, settingsRes] = await Promise.all([
-        supabase.from('pricing_rules').select('*').single(),
-        supabase.from('admin_settings').select('*'),
-      ]);
+      const { data, error } = await supabase.from('admin_settings').select('*');
+      if (error) throw error;
 
-      if (rulesRes.data) setPricingRules(rulesRes.data);
-      if (settingsRes.data) {
+      if (data) {
         const settings: any = {};
-        settingsRes.data.forEach((s: any) => {
+        data.forEach((s: any) => {
           settings[s.key] = s.value;
         });
         setAdminSettings(settings);
       }
     } catch (error) {
-      console.error('Error loading pricing data:', error);
+      console.error('Error loading admin settings:', error);
     }
   }
 
@@ -397,20 +304,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       if (customFeesRes.data) setCustomFees(customFeesRes.data);
     } catch (error) {
       console.error('Error loading order details:', error);
-    }
-  }
-
-  async function loadSavedTemplates() {
-    try {
-      const [discountTemplatesRes, feeTemplatesRes] = await Promise.all([
-        supabase.from('saved_discount_templates').select('*').order('name'),
-        supabase.from('saved_fee_templates').select('*').order('name'),
-      ]);
-
-      if (discountTemplatesRes.data) setSavedDiscountTemplates(discountTemplatesRes.data);
-      if (feeTemplatesRes.data) setSavedFeeTemplates(feeTemplatesRes.data);
-    } catch (error) {
-      console.error('Error loading saved templates:', error);
     }
   }
 
@@ -498,200 +391,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       }
     } finally {
       setSaving(false);
-    }
-  }
-
-
-  async function handleAddDiscount() {
-    if (!newDiscount.name.trim()) {
-      showToast('Please enter a discount name', 'error');
-      return;
-    }
-
-    const amount = parseFloat(discountAmountInput) * 100;
-    const percentage = parseFloat(discountPercentInput);
-
-    if (amount === 0 && percentage === 0) {
-      showToast('Please enter either an amount or percentage', 'error');
-      return;
-    }
-
-    if (amount > 0 && percentage > 0) {
-      showToast('Please enter either amount OR percentage, not both', 'error');
-      return;
-    }
-
-    // Save as template if checkbox is checked
-    if (saveDiscountAsTemplate) {
-      try {
-        // Check if template with this name already exists
-        const { data: existing } = await supabase
-          .from('saved_discount_templates')
-          .select('id')
-          .eq('name', newDiscount.name)
-          .maybeSingle();
-
-        if (existing) {
-          showToast(`A discount template with the name "${newDiscount.name}" already exists. Please choose a different name or update the existing template.`, 'error');
-          return;
-        }
-
-        await supabase.from('saved_discount_templates').insert({
-          name: newDiscount.name,
-          amount_cents: Math.round(amount),
-          percentage: percentage || 0,
-        });
-        await loadSavedTemplates();
-      } catch (error) {
-        console.error('Error saving discount template:', error);
-        showToast('Failed to save discount template', 'error');
-        return;
-      }
-    }
-
-    // Add discount to staging array (not saved to DB yet)
-    const newDiscountItem = {
-      id: `temp_${Date.now()}`,
-      order_id: order.id,
-      name: newDiscount.name,
-      amount_cents: Math.round(amount),
-      percentage: percentage || 0,
-      is_new: true,
-    };
-
-    setDiscounts([...discounts, newDiscountItem]);
-    setNewDiscount({ name: '', amount_cents: 0, percentage: 0 });
-    setDiscountAmountInput('0.00');
-    setDiscountPercentInput('0');
-    setSaveDiscountAsTemplate(false);
-    setHasChanges(true);
-  }
-
-  function handleRemoveDiscount(discountId: string) {
-    if (!confirm('Remove this discount?')) return;
-
-    // Remove from staging array (not saved to DB yet)
-    setDiscounts(discounts.filter(d => d.id !== discountId));
-    setHasChanges(true);
-  }
-
-  async function handleAddCustomFee() {
-    if (!newCustomFee.name.trim()) {
-      showToast('Please enter a fee name', 'error');
-      return;
-    }
-
-    const amount = parseFloat(customFeeInput) * 100;
-
-    if (amount <= 0) {
-      showToast('Please enter a valid fee amount', 'error');
-      return;
-    }
-
-    // Save as template if checkbox is checked
-    if (saveFeeAsTemplate) {
-      try {
-        // Check if template with this name already exists
-        const { data: existing } = await supabase
-          .from('saved_fee_templates')
-          .select('id')
-          .eq('name', newCustomFee.name)
-          .maybeSingle();
-
-        if (existing) {
-          showToast(`A fee template with the name "${newCustomFee.name}" already exists. Please choose a different name or update the existing template.`, 'error');
-          return;
-        }
-
-        await supabase.from('saved_fee_templates').insert({
-          name: newCustomFee.name,
-          amount_cents: Math.round(amount),
-        });
-        await loadSavedTemplates();
-      } catch (error) {
-        console.error('Error saving fee template:', error);
-        showToast('Failed to save fee template', 'error');
-        return;
-      }
-    }
-
-    // Add custom fee to staging array (not saved to DB yet)
-    const newFeeItem = {
-      id: `temp_${Date.now()}`,
-      order_id: order.id,
-      name: newCustomFee.name,
-      amount_cents: Math.round(amount),
-      is_new: true,
-    };
-
-    setCustomFees([...customFees, newFeeItem]);
-    setNewCustomFee({ name: '', amount_cents: 0 });
-    setCustomFeeInput('0.00');
-    setSaveFeeAsTemplate(false);
-    setHasChanges(true);
-  }
-
-  function handleRemoveCustomFee(feeId: string) {
-    if (!confirm('Remove this fee?')) return;
-
-    // Remove from staging array (not saved to DB yet)
-    setCustomFees(customFees.filter(f => f.id !== feeId));
-    setHasChanges(true);
-  }
-
-  async function handleDeleteDiscountTemplate() {
-    if (!selectedDiscountTemplateId) {
-      showToast('Please select a discount template first', 'error');
-      return;
-    }
-
-    const template = savedDiscountTemplates.find(t => t.id === selectedDiscountTemplateId);
-    if (!confirm(`Delete the discount template "${template?.name}"? This action cannot be undone.`)) {
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('saved_discount_templates')
-        .delete()
-        .eq('id', selectedDiscountTemplateId);
-
-      if (error) throw error;
-
-      setSelectedDiscountTemplateId('');
-      await loadSavedTemplates();
-      showToast('Discount template deleted successfully', 'success');
-    } catch (error) {
-      console.error('Error deleting discount template:', error);
-      showToast('Failed to delete discount template', 'error');
-    }
-  }
-
-  async function handleDeleteFeeTemplate() {
-    if (!selectedFeeTemplateId) {
-      showToast('Please select a fee template first', 'error');
-      return;
-    }
-
-    const template = savedFeeTemplates.find(t => t.id === selectedFeeTemplateId);
-    if (!confirm(`Delete the fee template "${template?.name}"? This action cannot be undone.`)) {
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('saved_fee_templates')
-        .delete()
-        .eq('id', selectedFeeTemplateId);
-
-      if (error) throw error;
-
-      setSelectedFeeTemplateId('');
-      await loadSavedTemplates();
-      showToast('Fee template deleted successfully', 'success');
-    } catch (error) {
-      console.error('Error deleting fee template:', error);
-      showToast('Failed to delete fee template', 'error');
     }
   }
 
@@ -817,64 +516,15 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               calculatedPricing={calculatedPricing}
               customDepositCents={customDepositCents}
               discounts={discounts}
-              newDiscount={newDiscount}
-              discountAmountInput={discountAmountInput}
-              discountPercentInput={discountPercentInput}
-              savedDiscountTemplates={savedDiscountTemplates}
-              selectedDiscountTemplateId={selectedDiscountTemplateId}
-              saveDiscountAsTemplate={saveDiscountAsTemplate}
               customFees={customFees}
-              newCustomFee={newCustomFee}
-              customFeeInput={customFeeInput}
-              savedFeeTemplates={savedFeeTemplates}
-              selectedFeeTemplateId={selectedFeeTemplateId}
-              saveFeeAsTemplate={saveFeeAsTemplate}
               customDepositInput={customDepositInput}
               adminMessage={adminMessage}
               onOrderChange={handleOrderChange}
               onAddressSelect={handleAddressSelect}
               onRemoveItem={stageRemoveItem}
               onAddItem={stageAddItem}
-              onDiscountChange={setNewDiscount}
-              onDiscountAmountInputChange={(value) => {
-                setDiscountAmountInput(value);
-                if (parseFloat(value) > 0) {
-                  setDiscountPercentInput('0');
-                }
-              }}
-              onDiscountPercentInputChange={(value) => {
-                setDiscountPercentInput(value);
-                if (parseFloat(value) > 0) {
-                  setDiscountAmountInput('0.00');
-                }
-              }}
-              onDiscountTemplateSelect={(templateId) => {
-                setSelectedDiscountTemplateId(templateId);
-                const template = savedDiscountTemplates.find(t => t.id === templateId);
-                if (template) {
-                  setNewDiscount({ name: template.name, amount_cents: template.amount_cents, percentage: template.percentage });
-                  setDiscountAmountInput((template.amount_cents / 100).toFixed(2));
-                  setDiscountPercentInput(template.percentage.toString());
-                }
-              }}
-              onSaveDiscountAsTemplateChange={setSaveDiscountAsTemplate}
-              onAddDiscount={handleAddDiscount}
-              onRemoveDiscount={handleRemoveDiscount}
-              onDeleteDiscountTemplate={handleDeleteDiscountTemplate}
-              onFeeChange={setNewCustomFee}
-              onFeeInputChange={setCustomFeeInput}
-              onFeeTemplateSelect={(templateId) => {
-                setSelectedFeeTemplateId(templateId);
-                const template = savedFeeTemplates.find(t => t.id === templateId);
-                if (template) {
-                  setNewCustomFee({ name: template.name, amount_cents: template.amount_cents });
-                  setCustomFeeInput((template.amount_cents / 100).toFixed(2));
-                }
-              }}
-              onSaveFeeAsTemplateChange={setSaveFeeAsTemplate}
-              onAddFee={handleAddCustomFee}
-              onRemoveFee={handleRemoveCustomFee}
-              onDeleteFeeTemplate={handleDeleteFeeTemplate}
+              onDiscountsChange={setDiscounts}
+              onFeesChange={setCustomFees}
               onDepositInputChange={setCustomDepositInput}
               onDepositApply={(amountCents) => {
                 setCustomDepositCents(amountCents);
@@ -890,6 +540,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 setHasChanges(true);
               }}
               onStatusChange={initiateStatusChange}
+              onMarkChanges={() => setHasChanges(true)}
             />
           )}
 
@@ -898,7 +549,15 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           )}
 
           {activeSection === 'payments' && (
-            <PaymentsTab payments={payments} onRefund={handleRefund} />
+            <PaymentsTab
+              orderId={order.id}
+              customerName={`${order.customers?.first_name} ${order.customers?.last_name}`}
+              payments={payments}
+              onPaymentsUpdate={() => {
+                reloadOrderData();
+                onUpdate();
+              }}
+            />
           )}
 
           {activeSection === 'notes' && (

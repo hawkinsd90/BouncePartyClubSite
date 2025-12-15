@@ -22,44 +22,21 @@ interface OrderDetailsTabProps {
   calculatedPricing: any;
   customDepositCents: number | null;
   discounts: any[];
-  newDiscount: { name: string; amount_cents: number; percentage: number };
-  discountAmountInput: string;
-  discountPercentInput: string;
-  savedDiscountTemplates: any[];
-  selectedDiscountTemplateId: string;
-  saveDiscountAsTemplate: boolean;
   customFees: any[];
-  newCustomFee: { name: string; amount_cents: number };
-  customFeeInput: string;
-  savedFeeTemplates: any[];
-  selectedFeeTemplateId: string;
-  saveFeeAsTemplate: boolean;
   customDepositInput: string;
   adminMessage: string;
   onOrderChange: (updates: any) => void;
   onAddressSelect: (result: any) => void;
   onRemoveItem: (item: any) => void;
   onAddItem: (unit: any, mode: 'dry' | 'water') => void;
-  onDiscountChange: (discount: { name: string; amount_cents: number; percentage: number }) => void;
-  onDiscountAmountInputChange: (value: string) => void;
-  onDiscountPercentInputChange: (value: string) => void;
-  onDiscountTemplateSelect: (templateId: string) => void;
-  onSaveDiscountAsTemplateChange: (checked: boolean) => void;
-  onAddDiscount: () => void;
-  onRemoveDiscount: (discountId: string) => void;
-  onDeleteDiscountTemplate: () => void;
-  onFeeChange: (fee: { name: string; amount_cents: number }) => void;
-  onFeeInputChange: (value: string) => void;
-  onFeeTemplateSelect: (templateId: string) => void;
-  onSaveFeeAsTemplateChange: (checked: boolean) => void;
-  onAddFee: () => void;
-  onRemoveFee: (feeId: string) => void;
-  onDeleteFeeTemplate: () => void;
+  onDiscountsChange: (discounts: any[]) => void;
+  onFeesChange: (fees: any[]) => void;
   onDepositInputChange: (value: string) => void;
   onDepositApply: (amountCents: number) => void;
   onDepositClear: () => void;
   onAdminMessageChange: (value: string) => void;
   onStatusChange: (status: string) => void;
+  onMarkChanges: () => void;
 }
 
 export function OrderDetailsTab({
@@ -76,44 +53,21 @@ export function OrderDetailsTab({
   calculatedPricing,
   customDepositCents,
   discounts,
-  newDiscount,
-  discountAmountInput,
-  discountPercentInput,
-  savedDiscountTemplates,
-  selectedDiscountTemplateId,
-  saveDiscountAsTemplate,
   customFees,
-  newCustomFee,
-  customFeeInput,
-  savedFeeTemplates,
-  selectedFeeTemplateId,
-  saveFeeAsTemplate,
   customDepositInput,
   adminMessage,
   onOrderChange,
   onAddressSelect,
   onRemoveItem,
   onAddItem,
-  onDiscountChange,
-  onDiscountAmountInputChange,
-  onDiscountPercentInputChange,
-  onDiscountTemplateSelect,
-  onSaveDiscountAsTemplateChange,
-  onAddDiscount,
-  onRemoveDiscount,
-  onDeleteDiscountTemplate,
-  onFeeChange,
-  onFeeInputChange,
-  onFeeTemplateSelect,
-  onSaveFeeAsTemplateChange,
-  onAddFee,
-  onRemoveFee,
-  onDeleteFeeTemplate,
+  onDiscountsChange,
+  onFeesChange,
   onDepositInputChange,
   onDepositApply,
   onDepositClear,
   onAdminMessageChange,
   onStatusChange,
+  onMarkChanges,
 }: OrderDetailsTabProps) {
   return (
     <div className="space-y-6">
@@ -255,36 +209,14 @@ export function OrderDetailsTab({
 
       <DiscountsManager
         discounts={discounts}
-        newDiscount={newDiscount}
-        discountAmountInput={discountAmountInput}
-        discountPercentInput={discountPercentInput}
-        savedTemplates={savedDiscountTemplates}
-        selectedTemplateId={selectedDiscountTemplateId}
-        saveAsTemplate={saveDiscountAsTemplate}
-        onDiscountChange={onDiscountChange}
-        onAmountInputChange={onDiscountAmountInputChange}
-        onPercentInputChange={onDiscountPercentInputChange}
-        onTemplateSelect={onDiscountTemplateSelect}
-        onSaveAsTemplateChange={onSaveDiscountAsTemplateChange}
-        onAddDiscount={onAddDiscount}
-        onRemoveDiscount={onRemoveDiscount}
-        onDeleteTemplate={onDeleteDiscountTemplate}
+        onDiscountChange={onDiscountsChange}
+        onMarkChanges={onMarkChanges}
       />
 
       <CustomFeesManager
         customFees={customFees}
-        newCustomFee={newCustomFee}
-        customFeeInput={customFeeInput}
-        savedTemplates={savedFeeTemplates}
-        selectedTemplateId={selectedFeeTemplateId}
-        saveAsTemplate={saveFeeAsTemplate}
-        onFeeChange={onFeeChange}
-        onFeeInputChange={onFeeInputChange}
-        onTemplateSelect={onFeeTemplateSelect}
-        onSaveAsTemplateChange={onSaveFeeAsTemplateChange}
-        onAddFee={onAddFee}
-        onRemoveFee={onRemoveFee}
-        onDeleteTemplate={onDeleteFeeTemplate}
+        onFeeChange={onFeesChange}
+        onMarkChanges={onMarkChanges}
       />
 
       <DepositOverride
