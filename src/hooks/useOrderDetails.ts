@@ -117,11 +117,17 @@ export function useOrderDetails(orderId: string | null) {
   const loadPricingRules = async () => {
     const { data, error } = await supabase
       .from('admin_settings')
-      .select('*')
-      .single();
+      .select('*');
 
     if (error) throw error;
-    setPricingRules(data as any);
+
+    if (data) {
+      const settings: any = {};
+      data.forEach((s: any) => {
+        settings[s.key] = s.value;
+      });
+      setPricingRules(settings);
+    }
   };
 
   return {
