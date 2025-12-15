@@ -97,3 +97,203 @@ export async function sendOrderEditNotifications({
     console.error('Error sending notifications:', error);
   }
 }
+
+interface BookingOrderDetails {
+  id: string;
+  event_date: string;
+  deposit_due_cents: number;
+  balance_due_cents: number;
+  subtotal_cents: number;
+  travel_fee_cents: number;
+  surface_fee_cents: number;
+  same_day_pickup_fee_cents: number;
+  tax_cents: number;
+  start_window: string;
+  end_window: string;
+  location_type: string;
+  surface: string;
+  attendees?: number;
+  pets?: boolean;
+  special_details?: string;
+  travel_total_miles: number | null;
+  customer: {
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone?: string;
+  };
+  addresses: {
+    line1: string;
+    city: string;
+    state: string;
+    zip: string;
+  };
+  order_items: Array<{
+    qty: number;
+    wet_or_dry: string;
+    unit_price_cents: number;
+    units: {
+      name: string;
+    };
+  }>;
+}
+
+export async function sendBookingConfirmationNotifications(order: BookingOrderDetails): Promise<void> {
+  const { generateCustomerBookingEmail, generateAdminBookingEmail, generateCustomerSMS, generateAdminSMS } = await import('./bookingEmailTemplates');
+
+  try {
+    await sendCustomerBookingEmail(order, generateCustomerBookingEmail);
+    await sendCustomerBookingSMS(order, generateCustomerSMS);
+    await sendAdminBookingSMS(order, generateAdminSMS);
+    await sendAdminBookingEmail(order, generateAdminBookingEmail);
+  } catch (error) {
+    console.error('[NOTIFICATION] Error in sendBookingConfirmationNotifications:', error);
+  }
+}
+
+async function sendCustomerBookingEmail(order: BookingOrderDetails, generateEmail: (order: any) => string): Promise<void> {
+  try {
+    const emailHtml = generateEmail(order);
+    const emailApiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`;
+    const emailResponse = await fetch(emailApiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: order.customer.email,
+        subject: 'Booking Request Received - Bounce Party Club',
+        html: emailHtml,
+      }),
+    });
+
+    if (!emailResponse.ok) {
+      const emailText = await emailResponse.text();
+      console.error('[NOTIFICATION] Email notification failed:', emailText);
+    } else {
+      console.log('[NOTIFICATION] Email notification sent successfully.');
+    }
+  } catch (emailErr) {
+    console.error('[NOTIFICATION] Error sending email notification:', emailErr);
+  }
+}
+
+async function sendCustomerBookingSMS(order: BookingOrderDetails, generateSMS: (order: any) => string): Promise<void> {
+  if (!order.customer.phone) {
+    console.log('[NOTIFICATION] No phone number on file; SMS not sent.');
+    return;
+  }
+
+  try {
+    const smsMessage = generateSMS(order);
+    const smsApiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
+    const smsResponse = await fetch(smsApiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: order.customer.phone,
+        message: smsMessage,
+        orderId: order.id,
+      }),
+    });
+
+    if (!smsResponse.ok) {
+      const smsText = await smsResponse.text();
+      console.error('[NOTIFICATION] SMS notification failed:', smsText);
+    } else {
+      console.log('[NOTIFICATION] SMS notification sent successfully.');
+    }
+  } catch (smsErr) {
+    console.error('[NOTIFICATION] Error sending SMS notification:', smsErr);
+  }
+}
+
+async function sendAdminBookingSMS(order: BookingOrderDetails, generateSMS: (order: any) => string): Promise<void> {
+  try {
+    const { supabase } = await import('./supabase');
+    const { data: adminSettings, error: adminError } = await supabase
+      .from('admin_settings')
+      .select('value')
+      .eq('key', 'admin_notification_phone')
+      .maybeSingle();
+
+    if (adminError) {
+      console.error('[NOTIFICATION] Error fetching admin_notification_phone:', adminError);
+      return;
+    }
+
+    if (!adminSettings?.value) {
+      console.log('[NOTIFICATION] No admin_notification_phone configured; skipping admin SMS.');
+      return;
+    }
+
+    const adminPhone = adminSettings.value as string;
+    const adminSmsMessage = generateSMS(order);
+    const smsApiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
+    const adminSmsResponse = await fetch(smsApiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: adminPhone,
+        message: adminSmsMessage,
+      }),
+    });
+
+    if (!adminSmsResponse.ok) {
+      const text = await adminSmsResponse.text();
+      console.error('[NOTIFICATION] Admin SMS failed:', text);
+    } else {
+      console.log('[NOTIFICATION] Admin SMS notification sent.');
+    }
+  } catch (adminErr) {
+    console.error('[NOTIFICATION] Error sending admin SMS:', adminErr);
+  }
+}
+
+async function sendAdminBookingEmail(order: BookingOrderDetails, generateEmail: (order: any) => string): Promise<void> {
+  try {
+    const { supabase } = await import('./supabase');
+    const { data: adminEmailSettings } = await supabase
+      .from('admin_settings')
+      .select('value')
+      .eq('key', 'admin_email')
+      .maybeSingle();
+
+    if (!adminEmailSettings?.value) {
+      console.log('[NOTIFICATION] No admin_email configured; skipping admin email.');
+      return;
+    }
+
+    const adminEmail = adminEmailSettings.value as string;
+    const adminEmailHtml = generateEmail(order);
+    const emailApiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`;
+    const adminEmailResponse = await fetch(emailApiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: adminEmail,
+        subject: `New Booking Request - Order #${order.id.slice(0, 8).toUpperCase()}`,
+        html: adminEmailHtml,
+      }),
+    });
+
+    if (!adminEmailResponse.ok) {
+      const text = await adminEmailResponse.text();
+      console.error('[NOTIFICATION] Admin email failed:', text);
+    } else {
+      console.log('[NOTIFICATION] Admin email notification sent.');
+    }
+  } catch (emailErr) {
+    console.error('[NOTIFICATION] Error sending admin email:', emailErr);
+  }
+}
