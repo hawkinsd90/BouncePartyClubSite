@@ -23,37 +23,25 @@
     print-color-adjust: exact !important;
   }
 
-  html, body {
-    width: 100%;
-    height: auto;
-    margin: 0 !important;
-    padding: 0 !important;
+  body {
+    margin: 0;
+    padding: 0;
   }
 
-  body > *:not(:has(#printable-invoice)) {
-    display: none !important;
-  }
-
-  body * {
-    visibility: hidden !important;
-  }
-
-  #printable-invoice,
-  #printable-invoice * {
-    visibility: visible !important;
-  }
-
-  #printable-invoice {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 0 !important;
-    padding: 1rem !important;
+  .fixed {
+    position: static !important;
   }
 
   .no-print {
     display: none !important;
+  }
+
+  body > div:not(:has(#printable-invoice)) {
+    display: none !important;
+  }
+
+  #printable-invoice {
+    display: block !important;
+    max-width: 100% !important;
   }
 }
