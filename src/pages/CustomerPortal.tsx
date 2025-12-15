@@ -15,6 +15,7 @@ import { RejectionModal } from '../components/customer-portal/RejectionModal';
 import { PaymentTab } from '../components/customer-portal/PaymentTab';
 import { PicturesTab } from '../components/customer-portal/PicturesTab';
 import { RentalTerms } from '../components/RentalTerms';
+import { CancelOrderModal } from '../components/customer-portal/CancelOrderModal';
 
 export function CustomerPortal() {
   const { orderId, token } = useParams();
@@ -48,6 +49,7 @@ export function CustomerPortal() {
   const [tipAmount, setTipAmount] = useState<'none' | '10' | '15' | '20' | 'custom'>('none');
   const [customTipAmount, setCustomTipAmount] = useState('');
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   useEffect(() => {
     loadOrder();
@@ -507,6 +509,7 @@ export function CustomerPortal() {
   const needsPayment = balanceDue > 0;
   const needsApproval = order.status === 'awaiting_customer_approval';
   const isActive = ['confirmed', 'in_progress', 'completed'].includes(order.status);
+  const canCancel = ['draft', 'pending_review', 'awaiting_customer_approval', 'confirmed'].includes(order.status);
 
   async function handleApproveChanges() {
     setShowApproveModal(true);
@@ -1028,7 +1031,28 @@ export function CustomerPortal() {
                   ? 'By accepting, you acknowledge the order details above'
                   : 'Your payment information is secured with industry-standard encryption'}
               </p>
+
+              <button
+                type="button"
+                onClick={() => setShowCancelModal(true)}
+                className="w-full mt-4 bg-red-50 hover:bg-red-100 text-red-600 font-semibold py-3 px-6 rounded-lg transition-colors border-2 border-red-200"
+                disabled={processing}
+              >
+                Cancel This Order
+              </button>
             </div>
+
+            {showCancelModal && (
+              <CancelOrderModal
+                orderId={order.id}
+                eventDate={order.start_date}
+                onClose={() => setShowCancelModal(false)}
+                onSuccess={() => {
+                  showToast('Your order has been cancelled', 'success');
+                  loadOrder();
+                }}
+              />
+            )}
           </div>
         </div>
       );
@@ -1369,11 +1393,23 @@ export function CustomerPortal() {
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           <div className="bg-gradient-to-r from-blue-600 to-cyan-600 px-8 py-6 text-white">
-            <h1 className="text-3xl font-bold">Customer Portal</h1>
-            <p className="mt-2">Order #{order.id.slice(0, 8).toUpperCase()}</p>
-            <p className="text-sm opacity-90">
-              Event Date: {format(new Date(order.event_date), 'MMMM d, yyyy')} at {order.start_window}
-            </p>
+            <div className="flex justify-between items-start">
+              <div>
+                <h1 className="text-3xl font-bold">Customer Portal</h1>
+                <p className="mt-2">Order #{order.id.slice(0, 8).toUpperCase()}</p>
+                <p className="text-sm opacity-90">
+                  Event Date: {format(new Date(order.event_date), 'MMMM d, yyyy')} at {order.start_window}
+                </p>
+              </div>
+              {canCancel && (
+                <button
+                  onClick={() => setShowCancelModal(true)}
+                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors text-sm"
+                >
+                  Cancel Order
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="px-8 py-6">
@@ -1509,6 +1545,18 @@ export function CustomerPortal() {
             </div>
           </div>
         </div>
+      )}
+
+      {showCancelModal && (
+        <CancelOrderModal
+          orderId={order.id}
+          eventDate={order.start_date}
+          onClose={() => setShowCancelModal(false)}
+          onSuccess={() => {
+            loadOrder();
+            showToast('Your order has been cancelled', 'success');
+          }}
+        />
       )}
     </div>
   );
