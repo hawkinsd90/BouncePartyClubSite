@@ -446,13 +446,18 @@ export function Invoice() {
               <h2 className="text-2xl font-bold text-slate-900">Invoice</h2>
               <div className="flex gap-2">
                 <button
-                  onClick={() => window.print()}
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.print();
+                  }}
                   className="flex items-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
                 >
                   <Printer className="w-4 h-4 mr-2" />
                   Print / Save PDF
                 </button>
                 <button
+                  type="button"
                   onClick={() => setShowInvoiceModal(false)}
                   className="flex items-center bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 px-4 rounded-lg transition-colors"
                 >
