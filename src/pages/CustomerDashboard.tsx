@@ -13,13 +13,15 @@ import {
   Package,
   X,
   Eye,
-  Copy
+  Copy,
+  XCircle
 } from 'lucide-react';
 import { formatCurrency } from '../lib/pricing';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { OrderSummary } from '../components/OrderSummary';
 import { loadOrderSummary, formatOrderSummary, OrderSummaryDisplay } from '../lib/orderSummary';
-import { notifyError, notifyWarning, showConfirm } from '../lib/notifications';
+import { notifyError, notifyWarning, showConfirm, showToast } from '../lib/notifications';
+import { CancelOrderModal } from '../components/customer-portal/CancelOrderModal';
 
 interface Payment {
   id: string;
@@ -50,6 +52,7 @@ interface Order {
   id: string;
   status: string;
   event_date: string;
+  start_date: string;
   event_end_date: string;
   event_start_time: string | null;
   event_end_time: string | null;
@@ -130,6 +133,8 @@ export function CustomerDashboard() {
   const [selectedReceipt, setSelectedReceipt] = useState<{ order: Order; payment: Payment } | null>(null);
   const [receiptSummary, setReceiptSummary] = useState<OrderSummaryDisplay | null>(null);
   const [loadingReceipt, setLoadingReceipt] = useState(false);
+  const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
+  const [cancelOrderDate, setCancelOrderDate] = useState<string | null>(null);
 
   // Get active tab from URL params or default to 'active'
   const urlTab = searchParams.get('tab') as 'active' | 'upcoming' | 'past' | null;
@@ -497,6 +502,7 @@ export function CustomerDashboard() {
     const eventStartDate = new Date(order.event_date);
     const eventEndDate = order.event_end_date ? new Date(order.event_end_date) : eventStartDate;
     const isMultiDay = eventStartDate.toDateString() !== eventEndDate.toDateString();
+    const canCancel = ['draft', 'pending_review', 'awaiting_customer_approval', 'confirmed'].includes(order.status);
 
     return (
       <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 hover:shadow-lg transition-shadow">
@@ -622,13 +628,27 @@ export function CustomerDashboard() {
               </button>
             )}
           </div>
-          <button
-            onClick={() => handleDuplicateOrder(order.id)}
-            className="w-full px-3 sm:px-4 py-2 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 transition-colors flex items-center justify-center gap-1.5 sm:gap-2 text-sm font-medium"
-          >
-            <Copy className="w-4 h-4 flex-shrink-0" />
-            <span>Duplicate Order</span>
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleDuplicateOrder(order.id)}
+              className="flex-1 px-3 sm:px-4 py-2 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 transition-colors flex items-center justify-center gap-1.5 sm:gap-2 text-sm font-medium"
+            >
+              <Copy className="w-4 h-4 flex-shrink-0" />
+              <span>Duplicate Order</span>
+            </button>
+            {canCancel && (
+              <button
+                onClick={() => {
+                  setCancelOrderId(order.id);
+                  setCancelOrderDate(order.start_date);
+                }}
+                className="flex-1 px-3 sm:px-4 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5 sm:gap-2 text-sm font-medium"
+              >
+                <XCircle className="w-4 h-4 flex-shrink-0" />
+                <span>Cancel Order</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -978,6 +998,23 @@ export function CustomerDashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {cancelOrderId && cancelOrderDate && (
+        <CancelOrderModal
+          orderId={cancelOrderId}
+          eventDate={cancelOrderDate}
+          onClose={() => {
+            setCancelOrderId(null);
+            setCancelOrderDate(null);
+          }}
+          onSuccess={() => {
+            setCancelOrderId(null);
+            setCancelOrderDate(null);
+            showToast('Your order has been cancelled', 'success');
+            loadOrders();
+          }}
+        />
       )}
     </div>
   );
