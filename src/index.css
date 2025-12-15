@@ -15,7 +15,7 @@
 
 @media print {
   @page {
-    margin: 1cm;
+    margin: 0.75cm;
     size: auto;
   }
 
@@ -42,7 +42,7 @@
     left: auto !important;
     top: auto !important;
     width: 100% !important;
-    max-width: 100% !important;
+    max-width: none !important;
     padding: 0 !important;
     margin: 0 !important;
     display: block !important;
@@ -53,9 +53,18 @@
   }
 
   #printable-invoice > div {
-    max-width: 100% !important;
+    max-width: none !important;
+    width: 100% !important;
     margin: 0 !important;
-    page-break-inside: avoid !important;
+  }
+
+  #printable-invoice .mx-auto {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  #printable-invoice .p-8:first-child {
+    padding: 0 !important;
   }
 
   .no-print {
@@ -64,13 +73,5 @@
 
   .overflow-hidden {
     overflow: visible !important;
-  }
-
-  .rounded-lg {
-    border-radius: 0 !important;
-  }
-
-  .shadow-lg {
-    box-shadow: none !important;
   }
 }
