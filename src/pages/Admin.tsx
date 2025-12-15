@@ -17,6 +17,7 @@ import { TabNavigation, type AdminTab } from '../components/admin/TabNavigation'
 import { notify } from '../lib/notifications';
 import { useDataFetch } from '../hooks/useDataFetch';
 import { handleError } from '../lib/errorHandling';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 
 interface AdminData {
   units: any[];
@@ -111,10 +112,7 @@ function AdminDashboard() {
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <p className="mt-4 text-slate-600">Loading...</p>
-        </div>
+        <LoadingSpinner />
       </div>
     );
   }

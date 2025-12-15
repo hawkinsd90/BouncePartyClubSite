@@ -7,6 +7,7 @@ import { OrderApprovalView } from '../components/customer-portal/OrderApprovalVi
 import { ApprovalSuccessView } from '../components/customer-portal/ApprovalSuccessView';
 import { OrderStatusView } from '../components/customer-portal/OrderStatusView';
 import { RegularPortalView } from '../components/customer-portal/RegularPortalView';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 
 export function CustomerPortal() {
   const { orderId, token } = useParams();
@@ -27,10 +28,7 @@ export function CustomerPortal() {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <p className="mt-4 text-slate-600">Loading...</p>
-        </div>
+        <LoadingSpinner />
       </div>
     );
   }
