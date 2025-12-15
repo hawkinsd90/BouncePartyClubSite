@@ -30,6 +30,14 @@
   #printable-invoice {
     display: block !important;
     position: static !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  #printable-invoice .max-w-5xl {
+    max-width: 100% !important;
   }
 
   #printable-invoice * {
