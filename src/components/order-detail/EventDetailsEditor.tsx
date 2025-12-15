@@ -1,5 +1,5 @@
 import { formatCurrency } from '../../lib/pricing';
-import { AddressAutocomplete } from '../AddressAutocomplete';
+import { AddressAutocomplete } from '../order/AddressAutocomplete';
 
 interface EventDetailsEditorProps {
   editedOrder: any;

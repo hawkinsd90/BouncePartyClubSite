@@ -1,5 +1,5 @@
-import { formatCurrency } from '../lib/pricing';
-import { OrderSummaryDisplay } from '../lib/orderSummary';
+import { formatCurrency } from '../../lib/pricing';
+import { OrderSummaryDisplay } from '../../lib/orderSummary';
 import { TrendingUp } from 'lucide-react';
 
 interface ChangelogEntry {

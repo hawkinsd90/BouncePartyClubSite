@@ -1,7 +1,7 @@
 import { format } from 'date-fns';
 import { X } from 'lucide-react';
 import { Order, Payment } from '../../types/orders';
-import { OrderSummary } from '../OrderSummary';
+import { OrderSummary } from '../order/OrderSummary';
 import { OrderSummaryDisplay } from '../../lib/orderSummary';
 import { formatCurrency } from '../../lib/pricing';
 import { calculateOrderTotal, formatTime } from '../../lib/orderUtils';

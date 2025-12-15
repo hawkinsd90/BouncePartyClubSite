@@ -1,5 +1,5 @@
 import { X, Printer } from 'lucide-react';
-import { PrintableInvoice } from '../PrintableInvoice';
+import { PrintableInvoice } from '../invoice/PrintableInvoice';
 
 interface InvoicePreviewModalProps {
   quoteData: any;

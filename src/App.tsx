@@ -1,9 +1,9 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { AuthProvider } from './contexts/AuthContext';
-import { ProtectedRoute } from './components/ProtectedRoute';
-import { ErrorBoundary } from './components/ErrorBoundary';
-import { Layout } from './components/Layout';
+import { ProtectedRoute } from './components/common/ProtectedRoute';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { Layout } from './components/common/Layout';
 import { Home } from './pages/Home';
 
 const Catalog = lazy(() => import('./pages/Catalog').then(m => ({ default: m.Catalog })));

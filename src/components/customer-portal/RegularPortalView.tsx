@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { format } from 'date-fns';
 import { FileText, CreditCard, CheckCircle, Image as ImageIcon } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
-import WaiverTab from '../WaiverTab';
+import WaiverTab from '../waiver/WaiverTab';
 import { PaymentTab } from './PaymentTab';
 import { PicturesTab } from './PicturesTab';
 import { CancelOrderModal } from './CancelOrderModal';

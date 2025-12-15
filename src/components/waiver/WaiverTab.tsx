@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileCheck, FileText, Download, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { format } from 'date-fns';
 
 interface WaiverTabProps {

@@ -1,5 +1,5 @@
 import { MapPin } from 'lucide-react';
-import { AddressAutocomplete } from '../AddressAutocomplete';
+import { AddressAutocomplete } from '../order/AddressAutocomplete';
 import type { QuoteFormData } from '../../hooks/useQuoteForm';
 
 interface AddressSectionProps {

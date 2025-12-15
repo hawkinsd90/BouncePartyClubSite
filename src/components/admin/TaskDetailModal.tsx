@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { X, Navigation, CheckCircle, Camera, MessageCircle, ChevronUp, ChevronDown, Star, AlertTriangle, RefreshCw, RotateCcw } from 'lucide-react';
-import { formatCurrency } from '../lib/pricing';
-import { showAlert } from './CustomModal';
-import { getCurrentLocation, calculateETA } from '../lib/googleMaps';
+import { formatCurrency } from '../../lib/pricing';
+import { showAlert } from '../common/CustomModal';
+import { getCurrentLocation, calculateETA } from '../../lib/googleMaps';
 
 interface Task {
   id: string;

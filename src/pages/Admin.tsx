@@ -3,11 +3,11 @@ import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../lib/pricing';
 import { Package, DollarSign, FileText, Download } from 'lucide-react';
-import { ContactsList } from '../components/ContactsList';
-import { InvoicesList } from '../components/InvoicesList';
-import { OrdersManager } from '../components/OrdersManager';
-import { InvoiceBuilder } from '../components/InvoiceBuilder';
-import { PendingOrderCard } from '../components/PendingOrderCard';
+import { ContactsList } from '../components/admin/ContactsList';
+import { InvoicesList } from '../components/admin/InvoicesList';
+import { OrdersManager } from '../components/admin/OrdersManager';
+import { InvoiceBuilder } from '../components/admin/InvoiceBuilder';
+import { PendingOrderCard } from '../components/admin/PendingOrderCard';
 import { AdminCalendar } from '../components/AdminCalendar';
 import { AdminSettings } from '../components/admin/AdminSettings';
 import { AdminSMSTemplates } from '../components/admin/AdminSMSTemplates';
@@ -17,7 +17,7 @@ import { TabNavigation, type AdminTab } from '../components/admin/TabNavigation'
 import { notify } from '../lib/notifications';
 import { useDataFetch } from '../hooks/useDataFetch';
 import { handleError } from '../lib/errorHandling';
-import { LoadingSpinner } from '../components/LoadingSpinner';
+import { LoadingSpinner } from '../components/common/LoadingSpinner';
 
 interface AdminData {
   units: any[];

@@ -1,6 +1,6 @@
 import { Edit2, AlertTriangle, CheckCircle } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
-import { OrderSummary } from '../OrderSummary';
+import { OrderSummary } from '../order/OrderSummary';
 import { EventDetailsEditor } from './EventDetailsEditor';
 import { OrderItemsEditor } from './OrderItemsEditor';
 import { DiscountsManager } from './DiscountsManager';

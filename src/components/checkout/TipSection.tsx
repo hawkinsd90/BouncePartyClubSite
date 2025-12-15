@@ -1,6 +1,6 @@
 import { DollarSign } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
-import { TipSelector } from '../TipSelector';
+import { TipSelector } from '../payment/TipSelector';
 
 interface TipSectionProps {
   tipAmount: 'none' | '10' | '15' | '20' | 'custom';

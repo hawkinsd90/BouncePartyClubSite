@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../lib/pricing';
-import { RentalTerms } from '../components/RentalTerms';
+import { RentalTerms } from '../components/waiver/RentalTerms';
 import { createOrderBeforePayment } from '../lib/orderCreation';
 import { useAuth } from '../contexts/AuthContext';
 import { useCheckoutData } from '../hooks/useCheckoutData';

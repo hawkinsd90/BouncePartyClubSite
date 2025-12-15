@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { Mail, Phone, Calendar, Edit2, X } from 'lucide-react';
 import { format } from 'date-fns';
-import { useSupabaseQuery, useMutation } from '../hooks/useDataFetch';
+import { useSupabaseQuery, useMutation } from '../../hooks/useDataFetch';
 
 interface Contact {
   id: string;

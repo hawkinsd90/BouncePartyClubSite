@@ -3,10 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../lib/pricing';
 import { CreditCard, CheckCircle, Loader2, AlertCircle, Printer } from 'lucide-react';
-import { StripeCheckoutForm } from '../components/StripeCheckoutForm';
+import { StripeCheckoutForm } from '../components/payment/StripeCheckoutForm';
 import { completeOrderAfterPayment } from '../lib/orderCreation';
-import { RentalTerms } from '../components/RentalTerms';
-import { PrintableInvoice } from '../components/PrintableInvoice';
+import { RentalTerms } from '../components/waiver/RentalTerms';
+import { PrintableInvoice } from '../components/invoice/PrintableInvoice';
 
 export function Invoice() {
   const { orderId } = useParams<{ orderId: string }>();

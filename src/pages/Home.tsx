@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Calendar, Search, Star, Shield, Clock, DollarSign, Home as HomeIcon, Building2, Zap } from 'lucide-react';
-import { AddressAutocomplete } from '../components/AddressAutocomplete';
-import { HeroCarousel } from '../components/HeroCarousel';
+import { AddressAutocomplete } from '../components/order/AddressAutocomplete';
+import { HeroCarousel } from '../components/admin/HeroCarousel';
 import { useAuth } from '../contexts/AuthContext';
 import { createTestBooking } from '../lib/testBooking';
 import { notifyError } from '../lib/notifications';

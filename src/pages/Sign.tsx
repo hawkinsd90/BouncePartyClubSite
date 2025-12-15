@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FileCheck, AlertCircle, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import SignaturePad from '../components/SignaturePad';
-import WaiverViewer from '../components/WaiverViewer';
+import SignaturePad from '../components/waiver/SignaturePad';
+import WaiverViewer from '../components/waiver/WaiverViewer';
 import {
   WAIVER_TEXT,
   WAIVER_VERSION,

@@ -1,20 +1,20 @@
 import { useState, useEffect } from 'react';
-import { OrderDetailModal } from './OrderDetailModal';
-import { OrderSummary } from './OrderSummary';
-import { usePendingOrderData } from '../hooks/usePendingOrderData';
-import { useSmsHandling } from '../hooks/useSmsHandling';
-import { approveOrder, forceApproveOrder, rejectOrder } from '../lib/orderApprovalService';
+import { OrderDetailModal } from '../admin/OrderDetailModal';
+import { OrderSummary } from '../order/OrderSummary';
+import { usePendingOrderData } from '../../hooks/usePendingOrderData';
+import { useSmsHandling } from '../../hooks/useSmsHandling';
+import { approveOrder, forceApproveOrder, rejectOrder } from '../../lib/orderApprovalService';
 import {
   generatePaymentLinkSmsMessage,
   generateTestSmsMessage,
-} from '../lib/orderEmailTemplates';
-import { OrderInfoSection } from './pending-order/OrderInfoSection';
-import { SmsConversation } from './pending-order/SmsConversation';
-import { PaymentManagementSection } from './pending-order/PaymentManagementSection';
-import { StreetViewImages } from './pending-order/StreetViewImages';
-import { ApprovalModal } from './pending-order/ApprovalModal';
-import { RejectionModal } from './pending-order/RejectionModal';
-import { PaymentLinkSection } from './pending-order/PaymentLinkSection';
+} from '../../lib/orderEmailTemplates';
+import { OrderInfoSection } from '../pending-order/OrderInfoSection';
+import { SmsConversation } from '../pending-order/SmsConversation';
+import { PaymentManagementSection } from '../pending-order/PaymentManagementSection';
+import { StreetViewImages } from '../pending-order/StreetViewImages';
+import { ApprovalModal } from '../pending-order/ApprovalModal';
+import { RejectionModal } from '../pending-order/RejectionModal';
+import { PaymentLinkSection } from '../pending-order/PaymentLinkSection';
 
 export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => void }) {
   const [processing, setProcessing] = useState(false);

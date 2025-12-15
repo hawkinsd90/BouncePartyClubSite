@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { format } from 'date-fns';
 import { AlertCircle } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
-import { OrderSummary } from '../OrderSummary';
+import { OrderSummary } from '../order/OrderSummary';
 import { OrderSummaryDisplay } from '../../lib/orderSummary';
 import { ApprovalModal } from './ApprovalModal';
 import { RejectionModal } from './RejectionModal';

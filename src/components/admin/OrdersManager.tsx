@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { format, isToday, isFuture, isPast } from 'date-fns';
 import { Search, Calendar, User, Phone } from 'lucide-react';
-import { OrderDetailModal } from './OrderDetailModal';
-import { PendingOrderCard } from './PendingOrderCard';
-import { useDataFetch } from '../hooks/useDataFetch';
-import { handleError } from '../lib/errorHandling';
+import { OrderDetailModal } from '../admin/OrderDetailModal';
+import { PendingOrderCard } from '../admin/PendingOrderCard';
+import { useDataFetch } from '../../hooks/useDataFetch';
+import { handleError } from '../../lib/errorHandling';
 
 
 type OrderTab = 'draft' | 'pending_review' | 'awaiting_customer_approval' | 'current' | 'upcoming' | 'all' | 'past' | 'cancelled';

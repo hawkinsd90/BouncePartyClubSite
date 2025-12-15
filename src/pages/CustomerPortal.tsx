@@ -7,7 +7,7 @@ import { OrderApprovalView } from '../components/customer-portal/OrderApprovalVi
 import { ApprovalSuccessView } from '../components/customer-portal/ApprovalSuccessView';
 import { OrderStatusView } from '../components/customer-portal/OrderStatusView';
 import { RegularPortalView } from '../components/customer-portal/RegularPortalView';
-import { LoadingSpinner } from '../components/LoadingSpinner';
+import { LoadingSpinner } from '../components/common/LoadingSpinner';
 
 export function CustomerPortal() {
   const { orderId, token } = useParams();

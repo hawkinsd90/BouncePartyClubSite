@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { ChevronLeft, ChevronRight, Plus, Trash2, Edit2, Save, X, MoveUp, MoveDown, Upload, Link as LinkIcon } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { notifyError, showConfirm } from '../lib/notifications';
+import { useAuth } from '../../contexts/AuthContext';
+import { notifyError, showConfirm } from '../../lib/notifications';
 
 interface CarouselMedia {
   id: string;

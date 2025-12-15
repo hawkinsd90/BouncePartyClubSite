@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { CreditCard, DollarSign, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
-import { formatCurrency } from '../lib/pricing';
-import { supabase } from '../lib/supabase';
+import { formatCurrency } from '../../lib/pricing';
+import { supabase } from '../../lib/supabase';
 
 interface Payment {
   id: string;

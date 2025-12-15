@@ -1,10 +1,10 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { FileText, Calendar, Eye } from 'lucide-react';
 import { format } from 'date-fns';
-import { formatCurrency } from '../lib/pricing';
-import { useSupabaseQuery, useMutation } from '../hooks/useDataFetch';
-import { notifySuccess } from '../lib/notifications';
+import { formatCurrency } from '../../lib/pricing';
+import { useSupabaseQuery, useMutation } from '../../hooks/useDataFetch';
+import { notifySuccess } from '../../lib/notifications';
 
 interface Invoice {
   id: string;

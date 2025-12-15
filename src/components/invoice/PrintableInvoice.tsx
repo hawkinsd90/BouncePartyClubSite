@@ -1,4 +1,4 @@
-import { formatCurrency } from '../lib/pricing';
+import { formatCurrency } from '../../lib/pricing';
 import { format } from 'date-fns';
 
 interface PrintableInvoiceProps {

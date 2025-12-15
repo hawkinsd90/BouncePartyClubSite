@@ -1,21 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, Truck, MessageSquare, FileText, History, Save, CreditCard } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { format } from 'date-fns';
-import { checkMultipleUnitsAvailability } from '../lib/availability';
-import { formatOrderSummary, type OrderSummaryData } from '../lib/orderSummary';
-import { calculateDrivingDistance } from '../lib/pricing';
-import { HOME_BASE } from '../lib/constants';
-import { StatusChangeDialog } from './order-detail/StatusChangeDialog';
-import { OrderNotesTab } from './order-detail/OrderNotesTab';
-import { OrderWorkflowTab } from './order-detail/OrderWorkflowTab';
-import { OrderChangelogTab } from './order-detail/OrderChangelogTab';
-import { OrderDetailsTab } from './order-detail/OrderDetailsTab';
-import { PaymentsTab } from './order-detail/PaymentsTab';
-import { useOrderPricing } from '../hooks/useOrderPricing';
-import { useOrderDetails } from '../hooks/useOrderDetails';
-import { saveOrderChanges } from '../lib/orderSaveService';
-import { sendOrderEditNotifications } from '../lib/orderNotificationService';
+import { checkMultipleUnitsAvailability } from '../../lib/availability';
+import { formatOrderSummary, type OrderSummaryData } from '../../lib/orderSummary';
+import { calculateDrivingDistance } from '../../lib/pricing';
+import { HOME_BASE } from '../../lib/constants';
+import { StatusChangeDialog } from '../order-detail/StatusChangeDialog';
+import { OrderNotesTab } from '../order-detail/OrderNotesTab';
+import { OrderWorkflowTab } from '../order-detail/OrderWorkflowTab';
+import { OrderChangelogTab } from '../order-detail/OrderChangelogTab';
+import { OrderDetailsTab } from '../order-detail/OrderDetailsTab';
+import { PaymentsTab } from '../order-detail/PaymentsTab';
+import { useOrderPricing } from '../../hooks/useOrderPricing';
+import { useOrderDetails } from '../../hooks/useOrderDetails';
+import { saveOrderChanges } from '../../lib/orderSaveService';
+import { sendOrderEditNotifications } from '../../lib/orderNotificationService';
 
 interface OrderDetailModalProps {
   order: any;
