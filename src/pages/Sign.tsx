@@ -4,7 +4,6 @@ import { FileCheck, AlertCircle, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import SignaturePad from '../components/SignaturePad';
 import WaiverViewer from '../components/WaiverViewer';
-import { RentalTerms } from '../components/RentalTerms';
 import {
   WAIVER_TEXT,
   WAIVER_VERSION,
@@ -314,16 +313,9 @@ export default function Sign() {
           </div>
 
           <form onSubmit={handleSubmit} className="p-8 space-y-8">
-            <div>
+            <div id="waiver-section">
               <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                1. Review Rental Terms & Policies
-              </h3>
-              <RentalTerms />
-            </div>
-
-            <div id="waiver-section" className="border-t-2 border-gray-200 pt-8">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                2. Review Liability Waiver
+                1. Review Liability Waiver
               </h3>
               <WaiverViewer
                 waiverText={WAIVER_TEXT}
@@ -336,7 +328,7 @@ export default function Sign() {
 
             <div className="border-t-2 border-gray-200 pt-8">
               <h3 className="text-xl font-semibold text-gray-900 mb-6">
-                3. Renter Information
+                2. Renter Information
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="md:col-span-2">
@@ -578,7 +570,7 @@ export default function Sign() {
 
             <div className="border-t-2 border-gray-200 pt-8">
               <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                4. Enter Your Full Legal Name
+                3. Enter Your Full Legal Name
               </h3>
               <input
                 id="typed-name"
@@ -596,7 +588,7 @@ export default function Sign() {
 
             <div className="border-t-2 border-gray-200 pt-8">
               <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                5. Draw Your Signature
+                4. Draw Your Signature
               </h3>
               <div id="signature-pad">
                 <SignaturePad
