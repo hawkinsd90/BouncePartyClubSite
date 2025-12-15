@@ -74,7 +74,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [currentOrderSummary, setCurrentOrderSummary] = useState<any>(null);
 
   const { updatedOrderSummary, calculatedPricing, recalculatePricing } = useOrderPricing();
-  const { payments, pricingRules, reload: reloadOrderData, setPayments } = useOrderDetails(order.id);
+  const { payments, pricingRules, reload: reloadOrderData } = useOrderDetails(order.id);
 
   useEffect(() => {
     // Load current order summary for display

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { OrderDetailModal } from '../admin/OrderDetailModal';
+import { OrderDetailModal } from './OrderDetailModal';
 import { OrderSummary } from '../order/OrderSummary';
 import { usePendingOrderData } from '../../hooks/usePendingOrderData';
 import { useSmsHandling } from '../../hooks/useSmsHandling';

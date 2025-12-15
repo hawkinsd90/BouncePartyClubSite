@@ -9,24 +9,6 @@ interface ContactData {
   business_name: string;
 }
 
-interface CheckoutData {
-  quoteData: any;
-  priceBreakdown: any;
-  cart: any[];
-  contactData: ContactData;
-  billingAddress: {
-    line1: string;
-    line2: string;
-    city: string;
-    state: string;
-    zip: string;
-  };
-  smsConsent: boolean;
-  cardOnFileConsent: boolean;
-  tipAmount: string;
-  customTip: string;
-}
-
 export function useCheckoutData(userId?: string) {
   const [quoteData, setQuoteData] = useState<any>(null);
   const [priceBreakdown, setPriceBreakdown] = useState<any>(null);
