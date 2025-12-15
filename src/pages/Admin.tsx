@@ -1,31 +1,22 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../lib/pricing';
-import { Package, DollarSign, FileText, Download, CreditCard as Edit2, Trash2, Plus } from 'lucide-react';
+import { Package, DollarSign, FileText, Download } from 'lucide-react';
 import { ContactsList } from '../components/ContactsList';
 import { InvoicesList } from '../components/InvoicesList';
 import { OrdersManager } from '../components/OrdersManager';
 import { InvoiceBuilder } from '../components/InvoiceBuilder';
 import { PendingOrderCard } from '../components/PendingOrderCard';
 import { AdminCalendar } from '../components/AdminCalendar';
-import { notifyError, notifySuccess, notifyWarning, showConfirm, notify } from '../lib/notifications';
+import { AdminSettings } from '../components/admin/AdminSettings';
+import { AdminSMSTemplates } from '../components/admin/AdminSMSTemplates';
+import { InventorySection } from '../components/admin/InventorySection';
+import { PricingSection } from '../components/admin/PricingSection';
+import { TabNavigation, type AdminTab } from '../components/admin/TabNavigation';
+import { notify } from '../lib/notifications';
 import { useDataFetch } from '../hooks/useDataFetch';
 import { handleError } from '../lib/errorHandling';
-
-type AdminTab =
-  | 'overview'
-  | 'pending'
-  | 'calendar'
-  | 'inventory'
-  | 'orders'
-  | 'contacts'
-  | 'invoices'
-  | 'settings'
-  | 'changelog'
-  | 'calculator'
-  | 'pricing'
-  | 'sms_templates';
 
 interface AdminData {
   units: any[];
@@ -38,25 +29,9 @@ interface AdminData {
 }
 
 function AdminDashboard() {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get('tab') as AdminTab | null;
   const [activeTab, setActiveTab] = useState<AdminTab>(tabFromUrl || 'pending');
-  const [twilioSettings, setTwilioSettings] = useState({
-    account_sid: '',
-    auth_token: '',
-    from_number: ''
-  });
-  const [stripeSettings, setStripeSettings] = useState({
-    secret_key: '',
-    publishable_key: ''
-  });
-  const [adminEmail, setAdminEmail] = useState('');
-  const [savingTwilio, setSavingTwilio] = useState(false);
-  const [savingStripe, setSavingStripe] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<any>(null);
-  const [savingTemplate, setSavingTemplate] = useState(false);
-  const [backfillingPayments, setBackfillingPayments] = useState(false);
 
   const fetchAdminData = useCallback(async () => {
     const [unitsRes, ordersRes, pricingRes, settingsRes, templatesRes] = await Promise.all([
@@ -101,12 +76,6 @@ function AdminDashboard() {
     };
   }, []);
 
-  const handleDataSuccess = useCallback((data: AdminData) => {
-    setTwilioSettings(data.twilioSettings);
-    setStripeSettings(data.stripeSettings);
-    setAdminEmail(data.adminEmail);
-  }, []);
-
   const handleDataError = useCallback((error: any) => {
     handleError(error, 'Admin.loadData');
   }, []);
@@ -115,7 +84,6 @@ function AdminDashboard() {
     fetchAdminData,
     {
       errorMessage: 'Failed to load admin data',
-      onSuccess: handleDataSuccess,
       onError: handleDataError,
     }
   );
@@ -131,189 +99,14 @@ function AdminDashboard() {
     }
   }, [tabFromUrl]);
 
-
   function changeTab(tab: AdminTab) {
     setActiveTab(tab);
     setSearchParams({ tab });
   }
 
-  async function handleSaveTwilioSettings() {
-    setSavingTwilio(true);
-    try {
-      const updates = [
-        { key: 'twilio_account_sid', value: twilioSettings.account_sid, description: 'Twilio Account SID for SMS notifications' },
-        { key: 'twilio_auth_token', value: twilioSettings.auth_token, description: 'Twilio Auth Token for SMS notifications' },
-        { key: 'twilio_from_number', value: twilioSettings.from_number, description: 'Twilio phone number to send SMS from (E.164 format)' },
-        { key: 'admin_email', value: adminEmail, description: 'Admin email address for error notifications and alerts' },
-      ];
-
-      for (const update of updates) {
-        const { error } = await supabase
-          .from('admin_settings')
-          .update({ value: update.value })
-          .eq('key', update.key);
-
-        if (error) {
-          console.error('Error updating setting:', update.key, error);
-          throw new Error(`Failed to update ${update.key}: ${error.message}`);
-        }
-      }
-
-      notifySuccess('Settings saved successfully!');
-    } catch (error: any) {
-      console.error('Error saving settings:', error);
-      const errorMessage = error.message || 'Failed to save settings. Please try again.';
-
-      if (errorMessage.includes('row-level security')) {
-        notifyError('Permission denied: You must be logged in as an admin user to update settings. Please make sure you are logged in as admin@bouncepartyclub.com');
-      } else {
-        notifyError(`Failed to save settings: ${errorMessage}`);
-      }
-    } finally {
-      setSavingTwilio(false);
-    }
-  }
-
-  async function handleSaveStripeSettings() {
-    setSavingStripe(true);
-    try {
-      const updates = [
-        { key: 'stripe_secret_key', value: stripeSettings.secret_key },
-        { key: 'stripe_publishable_key', value: stripeSettings.publishable_key },
-      ];
-
-      for (const update of updates) {
-        const { error } = await supabase
-          .from('admin_settings')
-          .update({ value: update.value })
-          .eq('key', update.key);
-
-        if (error) {
-          console.error('Error updating Stripe setting:', update.key, error);
-          throw new Error(`Failed to update ${update.key}: ${error.message}`);
-        }
-      }
-
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`;
-      const testResponse = await fetch(apiUrl, {
-        method: 'OPTIONS',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-      });
-
-      if (testResponse.ok) {
-        notifySuccess('Stripe settings saved successfully! The payment system is now ready.');
-      } else {
-        notifyWarning('Stripe settings saved, but there may be an issue with the edge function. Please test a payment.');
-      }
-    } catch (error: any) {
-      console.error('Error saving Stripe settings:', error);
-      const errorMessage = error.message || 'Failed to save settings. Please try again.';
-
-      if (errorMessage.includes('row-level security')) {
-        notifyError('Permission denied: You must be logged in as an admin user to update settings.');
-      } else {
-        notifyError(`Failed to save Stripe settings: ${errorMessage}`);
-      }
-    } finally {
-      setSavingStripe(false);
-    }
-  }
-
-  async function handleBackfillPaymentMethods() {
-    const confirmed = await showConfirm(
-      'This will fetch payment method details from Stripe for all existing payments that are missing this information. Continue?'
-    );
-
-    if (!confirmed) return;
-
-    setBackfillingPayments(true);
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-
-      if (!sessionData?.session) {
-        throw new Error('No active session');
-      }
-
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/backfill-payment-methods`;
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${sessionData.session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      if (result.success) {
-        if (result.updated === 0) {
-          notifySuccess('No payments needed updating. All payment methods are already recorded.');
-        } else {
-          notifySuccess(`Successfully updated ${result.updated} payment(s) with payment method information.`);
-        }
-
-        if (result.failed > 0) {
-          notifyWarning(`${result.failed} payment(s) could not be updated. Check console for details.`);
-          console.error('Backfill errors:', result.errors);
-        }
-      } else {
-        throw new Error(result.error || 'Unknown error');
-      }
-    } catch (error: any) {
-      console.error('Error backfilling payment methods:', error);
-      notifyError(`Failed to backfill payment methods: ${error.message}`);
-    } finally {
-      setBackfillingPayments(false);
-    }
-  }
-
-  async function handleSaveTemplate() {
-    if (!editingTemplate) return;
-
-    setSavingTemplate(true);
-    try {
-      const { error } = await supabase
-        .from('sms_message_templates')
-        .update({ message_template: editingTemplate.message_template })
-        .eq('id', editingTemplate.id);
-
-      if (error) throw error;
-
-      notifySuccess('Template saved successfully!');
-      setEditingTemplate(null);
-      await refetch();
-    } catch (error) {
-      console.error('Error saving template:', error);
-      notifyError('Failed to save template. Please try again.');
-    } finally {
-      setSavingTemplate(false);
-    }
-  }
-
   const handleExportMenu = () => {
     notify('Menu export feature coming soon - will generate PNG/PDF with current pricing');
   };
-
-  async function handleDeleteUnit(unitId: string, unitName: string) {
-    if (!await showConfirm(`Are you sure you want to delete "${unitName}"?`)) return;
-
-    try {
-      const { error } = await supabase.from('units').delete().eq('id', unitId);
-      if (error) throw error;
-
-      notifySuccess('Unit deleted successfully');
-      refetch();
-    } catch (error) {
-      console.error('Error deleting unit:', error);
-      notifyError('Failed to delete unit');
-    }
-  }
 
   if (loading) {
     return (
@@ -339,139 +132,11 @@ function AdminDashboard() {
         </button>
       </div>
 
-      {/* Mobile Dropdown Navigation */}
-      <div className="md:hidden mb-6">
-        <label htmlFor="admin-tab-select" className="block text-sm font-medium text-slate-700 mb-2">
-          Navigate to:
-        </label>
-        <select
-          id="admin-tab-select"
-          value={activeTab}
-          onChange={(e) => changeTab(e.target.value as AdminTab)}
-          className="w-full px-4 py-3 bg-white border-2 border-slate-300 rounded-lg text-slate-900 font-medium focus:outline-none focus:border-blue-500 shadow-sm"
-        >
-          <option value="overview">Overview</option>
-          <option value="pending">
-            Pending Review {orders.filter(o => o.status === 'pending_review').length > 0 && `(${orders.filter(o => o.status === 'pending_review').length})`}
-          </option>
-          <option value="inventory">Inventory</option>
-          <option value="orders">All Orders</option>
-          <option value="contacts">Contacts</option>
-          <option value="invoices">Invoices</option>
-          <option value="settings">Settings</option>
-          <option value="changelog">Changelog</option>
-          <option value="calculator">Travel Calculator</option>
-        </select>
-      </div>
-
-      {/* Desktop Tab Navigation */}
-      <div className="hidden md:flex gap-2 mb-8 overflow-x-auto">
-        <button
-          onClick={() => changeTab('overview')}
-          className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
-            activeTab === 'overview'
-              ? 'bg-blue-600 text-white'
-              : 'bg-white text-slate-700 border border-slate-300 hover:border-blue-600'
-          }`}
-        >
-          Overview
-        </button>
-        <button
-          onClick={() => changeTab('pending')}
-          className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors relative ${
-            activeTab === 'pending'
-              ? 'bg-amber-600 text-white'
-              : 'bg-white text-slate-700 border border-slate-300 hover:border-amber-600'
-          }`}
-        >
-          Pending Review
-          {orders.filter(o => o.status === 'pending_review').length > 0 && (
-            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
-              {orders.filter(o => o.status === 'pending_review').length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => changeTab('calendar')}
-          className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
-            activeTab === 'calendar'
-              ? 'bg-blue-600 text-white'
-              : 'bg-white text-slate-700 border border-slate-300 hover:border-blue-600'
-          }`}
-        >
-          Calendar
-        </button>
-        <button
-          onClick={() => changeTab('inventory')}
-          className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
-            activeTab === 'inventory'
-              ? 'bg-blue-600 text-white'
-              : 'bg-white text-slate-700 border border-slate-300 hover:border-blue-600'
-          }`}
-        >
-          Inventory
-        </button>
-        <button
-          onClick={() => changeTab('orders')}
-          className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
-            activeTab === 'orders'
-              ? 'bg-blue-600 text-white'
-              : 'bg-white text-slate-700 border border-slate-300 hover:border-blue-600'
-          }`}
-        >
-          Orders
-        </button>
-        <button
-          onClick={() => changeTab('contacts')}
-          className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
-            activeTab === 'contacts'
-              ? 'bg-blue-600 text-white'
-              : 'bg-white text-slate-700 border border-slate-300 hover:border-blue-600'
-          }`}
-        >
-          Contacts
-        </button>
-        <button
-          onClick={() => changeTab('invoices')}
-          className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
-            activeTab === 'invoices'
-              ? 'bg-blue-600 text-white'
-              : 'bg-white text-slate-700 border border-slate-300 hover:border-blue-600'
-          }`}
-        >
-          Invoices
-        </button>
-        <button
-          onClick={() => changeTab('settings')}
-          className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
-            activeTab === 'settings'
-              ? 'bg-blue-600 text-white'
-              : 'bg-white text-slate-700 border border-slate-300 hover:border-blue-600'
-          }`}
-        >
-          Settings
-        </button>
-        <button
-          onClick={() => changeTab('changelog')}
-          className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
-            activeTab === 'changelog'
-              ? 'bg-blue-600 text-white'
-              : 'bg-white text-slate-700 border border-slate-300 hover:border-blue-600'
-          }`}
-        >
-          Changelog
-        </button>
-        <button
-          onClick={() => changeTab('calculator')}
-          className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
-            activeTab === 'calculator'
-              ? 'bg-blue-600 text-white'
-              : 'bg-white text-slate-700 border border-slate-300 hover:border-blue-600'
-          }`}
-        >
-          Travel Calculator
-        </button>
-      </div>
+      <TabNavigation
+        activeTab={activeTab}
+        onTabChange={changeTab}
+        pendingCount={orders.filter(o => o.status === 'pending_review').length}
+      />
 
       {activeTab === 'overview' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -545,107 +210,7 @@ function AdminDashboard() {
         </div>
       )}
 
-      {activeTab === 'inventory' && (
-        <div className="bg-white rounded-xl shadow-md overflow-hidden">
-          <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-slate-900">Inventory Management</h2>
-            <button
-              onClick={() => navigate('/admin/inventory/new')}
-              className="flex items-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-            >
-              <Plus className="w-5 h-5 mr-2" />
-              Add Unit
-            </button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Unit
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Price (Dry)
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Price (Water)
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Capacity
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-slate-200">
-                {units.map((unit) => (
-                  <tr key={unit.id} className="hover:bg-slate-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div>
-                          <div className="text-sm font-medium text-slate-900">{unit.name}</div>
-                          <div className="text-sm text-slate-500">{unit.dimensions}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-slate-900">{unit.type}</span>
-                      {unit.is_combo && (
-                        <span className="ml-2 inline-flex text-xs font-semibold px-2 py-1 rounded bg-cyan-100 text-cyan-800">
-                          COMBO
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-900">
-                      {formatCurrency(unit.price_dry_cents)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-900">
-                      {unit.price_water_cents ? formatCurrency(unit.price_water_cents) : '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
-                      {unit.capacity} kids
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`inline-flex text-xs font-semibold px-2 py-1 rounded ${
-                          unit.active
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-slate-100 text-slate-800'
-                        }`}
-                      >
-                        {unit.active ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <button
-                        onClick={() => navigate(`/admin/inventory/edit/${unit.id}`)}
-                        className="text-blue-600 hover:text-blue-700 mr-3"
-                        title="Edit"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteUnit(unit.id, unit.name)}
-                        className="text-red-600 hover:text-red-700"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {activeTab === 'inventory' && <InventorySection units={units} onRefetch={refetch} />}
 
       {activeTab === 'orders' && (
         <div className="bg-white rounded-xl shadow-md p-6">
@@ -679,150 +244,7 @@ function AdminDashboard() {
         </div>
       )}
 
-      {activeTab === 'pricing' && pricingRules && (
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <h2 className="text-2xl font-bold text-slate-900 mb-6">Pricing Configuration</h2>
-
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Base Radius (miles)
-                </label>
-                <input
-                  type="number"
-                  value={pricingRules.base_radius_miles}
-                  readOnly
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Per Mile After Base
-                </label>
-                <input
-                  type="text"
-                  value={formatCurrency(pricingRules.per_mile_after_base_cents)}
-                  readOnly
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Sandbag Fee
-                </label>
-                <input
-                  type="text"
-                  value={formatCurrency(pricingRules.surface_sandbag_fee_cents)}
-                  readOnly
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Residential Multiplier
-                </label>
-                <input
-                  type="text"
-                  value={pricingRules.residential_multiplier}
-                  readOnly
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Commercial Multiplier
-                </label>
-                <input
-                  type="text"
-                  value={pricingRules.commercial_multiplier}
-                  readOnly
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Overnight Holiday Only
-                </label>
-                <input
-                  type="text"
-                  value={pricingRules.overnight_holiday_only ? 'Yes' : 'No'}
-                  readOnly
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Included Cities
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {(pricingRules.included_city_list_json as string[]).map((city: string) => (
-                  <span
-                    key={city}
-                    className="inline-flex px-3 py-1 bg-blue-100 text-blue-800 text-sm font-semibold rounded"
-                  >
-                    {city}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Same-Day Pickup Fee Matrix
-              </label>
-              <div className="overflow-x-auto">
-                <table className="w-full border border-slate-200 rounded-lg">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">
-                        Units
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">
-                        Generator
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">
-                        Min Subtotal
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">
-                        Fee
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {(pricingRules.same_day_matrix_json as any[]).map((rule: any, idx: number) => (
-                      <tr key={idx}>
-                        <td className="px-4 py-2 text-sm text-slate-900">{rule.units}</td>
-                        <td className="px-4 py-2 text-sm text-slate-900">
-                          {rule.generator ? 'Yes' : 'No'}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-slate-900">
-                          {formatCurrency(rule.subtotal_ge_cents)}
-                        </td>
-                        <td className="px-4 py-2 text-sm font-semibold text-slate-900">
-                          {formatCurrency(rule.fee_cents)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="flex justify-end">
-              <button
-                onClick={() => navigate('/admin/pricing/edit')}
-                className="flex items-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-              >
-                <Edit2 className="w-4 h-4 mr-2" />
-                Edit Pricing
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {activeTab === 'pricing' && pricingRules && <PricingSection pricingRules={pricingRules} />}
 
       {activeTab === 'contacts' && <ContactsList />}
 
@@ -833,270 +255,15 @@ function AdminDashboard() {
         </div>
       )}
 
-      {activeTab === 'settings' && (
-        <div className="space-y-6">
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="text-2xl font-bold text-slate-900 mb-6">Stripe Payment Settings</h2>
-
-            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-sm text-slate-700 mb-2">
-                Configure your Stripe secret key to enable payment processing for bookings.
-              </p>
-              <p className="text-sm text-slate-600 mb-2">
-                Get your keys from <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 underline">Stripe Dashboard</a>
-              </p>
-              <p className="text-sm text-amber-700 font-medium">
-                Important: Use test keys (sk_test_...) for testing and live keys (sk_live_...) for production.
-              </p>
-            </div>
-
-            <div className="space-y-4 max-w-2xl">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Stripe Secret Key
-                </label>
-                <input
-                  type="password"
-                  value={stripeSettings.secret_key}
-                  onChange={(e) => setStripeSettings({ ...stripeSettings, secret_key: e.target.value })}
-                  placeholder="sk_test_... or sk_live_..."
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="mt-1 text-xs text-slate-500">
-                  This key is securely stored and used by the payment processing system
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Stripe Publishable Key
-                </label>
-                <input
-                  type="text"
-                  value={stripeSettings.publishable_key}
-                  onChange={(e) => setStripeSettings({ ...stripeSettings, publishable_key: e.target.value })}
-                  placeholder="pk_test_... or pk_live_..."
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="mt-1 text-xs text-slate-500">
-                  This key is used on the frontend to display the payment form
-                </p>
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={handleSaveStripeSettings}
-                  disabled={savingStripe || !stripeSettings.secret_key || !stripeSettings.publishable_key}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
-                >
-                  {savingStripe ? 'Saving...' : 'Save Stripe Settings'}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="text-2xl font-bold text-slate-900 mb-6">Payment Method Backfill</h2>
-
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-slate-700 mb-2">
-                If you have existing payments that don't show payment method information on receipts, use this tool to retrieve that data from Stripe.
-              </p>
-              <p className="text-sm text-slate-600">
-                This will fetch payment method details (card type, last 4 digits, etc.) for all past payments that are missing this information.
-              </p>
-            </div>
-
-            <div className="space-y-4 max-w-2xl">
-              <button
-                onClick={handleBackfillPaymentMethods}
-                disabled={backfillingPayments}
-                className="bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
-              >
-                {backfillingPayments ? 'Processing...' : 'Backfill Payment Methods'}
-              </button>
-              <p className="text-xs text-slate-500">
-                This process is safe and only adds missing information. It won't modify existing data.
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="text-2xl font-bold text-slate-900 mb-6">SMS Notification Settings</h2>
-
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-slate-700 mb-2">
-                Configure your Twilio credentials to enable SMS notifications when customers book rentals.
-              </p>
-              <p className="text-sm text-slate-600">
-                Get your credentials from <a href="https://console.twilio.com/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 underline">Twilio Console</a>
-              </p>
-            </div>
-
-          <div className="space-y-4 max-w-2xl">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Twilio Account SID
-              </label>
-              <input
-                type="text"
-                value={twilioSettings.account_sid}
-                onChange={(e) => setTwilioSettings({ ...twilioSettings, account_sid: e.target.value })}
-                placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Twilio Auth Token
-              </label>
-              <input
-                type="password"
-                value={twilioSettings.auth_token}
-                onChange={(e) => setTwilioSettings({ ...twilioSettings, auth_token: e.target.value })}
-                placeholder="********************************"
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Twilio Phone Number
-              </label>
-              <input
-                type="tel"
-                value={twilioSettings.from_number}
-                onChange={(e) => setTwilioSettings({ ...twilioSettings, from_number: e.target.value })}
-                placeholder="+15551234567"
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <p className="mt-1 text-xs text-slate-500">
-                Must be in E.164 format (e.g., +15551234567)
-              </p>
-            </div>
-
-            <div className="pt-4 border-t border-slate-200">
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Admin Email for Error Notifications
-              </label>
-              <input
-                type="email"
-                value={adminEmail}
-                onChange={(e) => setAdminEmail(e.target.value)}
-                placeholder="admin@example.com"
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <p className="mt-1 text-xs text-slate-500">
-                All application errors will be sent to this email with detailed stack traces
-              </p>
-            </div>
-
-            <div className="flex gap-3 pt-4">
-              <button
-                onClick={handleSaveTwilioSettings}
-                disabled={savingTwilio || !twilioSettings.account_sid || !twilioSettings.auth_token || !twilioSettings.from_number}
-                className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
-              >
-                {savingTwilio ? 'Saving...' : 'Save Settings'}
-              </button>
-            </div>
-          </div>
-        </div>
-        </div>
+      {activeTab === 'settings' && data && (
+        <AdminSettings
+          initialTwilioSettings={data.twilioSettings}
+          initialStripeSettings={data.stripeSettings}
+          initialAdminEmail={data.adminEmail}
+        />
       )}
 
-      {activeTab === 'sms_templates' && (
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <h2 className="text-2xl font-bold text-slate-900 mb-6">SMS Message Templates</h2>
-
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-sm text-slate-700 mb-2">
-              Customize the SMS messages sent to customers. Use these variables in your templates:
-            </p>
-            <div className="flex flex-wrap gap-2 mt-3">
-              <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{customer_first_name}'}</code>
-              <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{customer_last_name}'}</code>
-              <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{customer_full_name}'}</code>
-              <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{order_id}'}</code>
-              <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{event_date}'}</code>
-              <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{total_amount}'}</code>
-              <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{balance_amount}'}</code>
-              <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{rejection_reason}'}</code>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            {smsTemplates.map((template) => (
-              <div key={template.id} className="border border-slate-200 rounded-lg p-4">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <h3 className="font-semibold text-slate-900">{template.template_name}</h3>
-                    <p className="text-sm text-slate-600">{template.description}</p>
-                  </div>
-                  <button
-                    onClick={() => setEditingTemplate(template)}
-                    className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-                  >
-                    Edit
-                  </button>
-                </div>
-                <div className="mt-3 p-3 bg-slate-50 rounded border border-slate-200">
-                  <p className="text-sm text-slate-700 font-mono whitespace-pre-wrap">{template.message_template}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {editingTemplate && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
-                <h3 className="text-lg font-bold text-slate-900 mb-4">Edit Template: {editingTemplate.template_name}</h3>
-
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Message Template
-                  </label>
-                  <textarea
-                    value={editingTemplate.message_template}
-                    onChange={(e) => setEditingTemplate({ ...editingTemplate, message_template: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono resize-none"
-                    rows={6}
-                  />
-                </div>
-
-                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-xs font-medium text-slate-700 mb-2">Available Variables:</p>
-                  <div className="flex flex-wrap gap-2">
-                    <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{customer_first_name}'}</code>
-                    <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{customer_last_name}'}</code>
-                    <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{customer_full_name}'}</code>
-                    <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{order_id}'}</code>
-                    <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{event_date}'}</code>
-                    <code className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono">{'{total_amount}'}</code>
-                  </div>
-                </div>
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleSaveTemplate}
-                    disabled={savingTemplate}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-                  >
-                    {savingTemplate ? 'Saving...' : 'Save Template'}
-                  </button>
-                  <button
-                    onClick={() => setEditingTemplate(null)}
-                    className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 px-4 rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      {activeTab === 'sms_templates' && <AdminSMSTemplates templates={smsTemplates} onRefetch={refetch} />}
     </div>
   );
 }
