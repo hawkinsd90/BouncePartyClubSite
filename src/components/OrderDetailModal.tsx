@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, Truck, MessageSquare, FileText, Edit2, History, Save, Trash2, AlertTriangle, CheckCircle, CreditCard, RotateCcw } from 'lucide-react';
+import { X, Truck, MessageSquare, FileText, Edit2, History, Save, AlertTriangle, CheckCircle, CreditCard } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
 import { formatCurrency, calculatePrice, calculateDrivingDistance, type PricingRules } from '../lib/pricing';
@@ -14,6 +14,11 @@ import { OrderWorkflowTab } from './order-detail/OrderWorkflowTab';
 import { OrderChangelogTab } from './order-detail/OrderChangelogTab';
 import { OrderItemsEditor } from './order-detail/OrderItemsEditor';
 import { EventDetailsEditor } from './order-detail/EventDetailsEditor';
+import { DiscountsManager } from './order-detail/DiscountsManager';
+import { CustomFeesManager } from './order-detail/CustomFeesManager';
+import { DepositOverride } from './order-detail/DepositOverride';
+import { AdminMessage } from './order-detail/AdminMessage';
+import { PaymentsTab } from './order-detail/PaymentsTab';
 
 interface OrderDetailModalProps {
   order: any;
@@ -39,10 +44,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [workflowEvents, setWorkflowEvents] = useState<any[]>([]);
   const [changelog, setChangelog] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
-  const [refunding, setRefunding] = useState(false);
-  const [refundAmount, setRefundAmount] = useState('');
-  const [refundReason, setRefundReason] = useState('');
-  const [showRefundForm, setShowRefundForm] = useState(false);
   const [availableUnits, setAvailableUnits] = useState<any[]>([]);
   const [editedOrder, setEditedOrder] = useState<any>({
     location_type: order.location_type,
@@ -109,26 +110,27 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
   }
 
-  async function handleRefund() {
+  async function handleRefund(refundAmount: string, refundReason: string) {
     const amountCents = Math.round(parseFloat(refundAmount) * 100);
 
     if (!amountCents || amountCents <= 0) {
       showToast('Please enter a valid refund amount', 'error');
-      return;
+      throw new Error('Invalid refund amount');
     }
 
     if (!refundReason.trim()) {
       showToast('Please provide a reason for the refund', 'error');
-      return;
+      throw new Error('Missing refund reason');
     }
 
     const confirmed = confirm(
       `Issue refund of ${formatCurrency(amountCents)} to ${order.customers?.first_name} ${order.customers?.last_name}?\n\nReason: ${refundReason}\n\nThis action cannot be undone.`
     );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      throw new Error('Refund cancelled');
+    }
 
-    setRefunding(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const jwt = session?.access_token;
@@ -156,16 +158,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       }
 
       showToast(`Refund of ${formatCurrency(amountCents)} processed successfully!`, 'success');
-      setShowRefundForm(false);
-      setRefundAmount('');
-      setRefundReason('');
       loadPayments();
       onUpdate();
     } catch (error: any) {
       console.error('Error processing refund:', error);
       showToast('Failed to process refund: ' + error.message, 'error');
-    } finally {
-      setRefunding(false);
+      throw error;
     }
   }
 
@@ -1557,319 +1555,88 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 )}
               </div>
 
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <h3 className="font-semibold text-slate-900 mb-3">Discounts</h3>
+              <DiscountsManager
+                discounts={discounts}
+                newDiscount={newDiscount}
+                discountAmountInput={discountAmountInput}
+                discountPercentInput={discountPercentInput}
+                savedTemplates={savedDiscountTemplates}
+                selectedTemplateId={selectedDiscountTemplateId}
+                saveAsTemplate={saveDiscountAsTemplate}
+                onDiscountChange={setNewDiscount}
+                onAmountInputChange={(value) => {
+                  setDiscountAmountInput(value);
+                  if (parseFloat(value) > 0) {
+                    setDiscountPercentInput('0');
+                  }
+                }}
+                onPercentInputChange={(value) => {
+                  setDiscountPercentInput(value);
+                  if (parseFloat(value) > 0) {
+                    setDiscountAmountInput('0.00');
+                  }
+                }}
+                onTemplateSelect={(templateId) => {
+                  setSelectedDiscountTemplateId(templateId);
+                  const template = savedDiscountTemplates.find(t => t.id === templateId);
+                  if (template) {
+                    setNewDiscount({ name: template.name, amount_cents: template.amount_cents, percentage: template.percentage });
+                    setDiscountAmountInput((template.amount_cents / 100).toFixed(2));
+                    setDiscountPercentInput(template.percentage.toString());
+                  }
+                }}
+                onSaveAsTemplateChange={setSaveDiscountAsTemplate}
+                onAddDiscount={handleAddDiscount}
+                onRemoveDiscount={handleRemoveDiscount}
+                onDeleteTemplate={handleDeleteDiscountTemplate}
+              />
 
-                {discounts.length > 0 && (
-                  <div className="space-y-2 mb-4">
-                    {discounts.map(discount => (
-                      <div key={discount.id} className="flex justify-between items-center bg-white rounded p-2">
-                        <div>
-                          <p className="font-medium text-sm">{discount.name}</p>
-                          <p className="text-xs text-slate-600">
-                            {discount.amount_cents > 0 ? formatCurrency(discount.amount_cents) : `${discount.percentage}%`}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => handleRemoveDiscount(discount.id)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <CustomFeesManager
+                customFees={customFees}
+                newCustomFee={newCustomFee}
+                customFeeInput={customFeeInput}
+                savedTemplates={savedFeeTemplates}
+                selectedTemplateId={selectedFeeTemplateId}
+                saveAsTemplate={saveFeeAsTemplate}
+                onFeeChange={setNewCustomFee}
+                onFeeInputChange={setCustomFeeInput}
+                onTemplateSelect={(templateId) => {
+                  setSelectedFeeTemplateId(templateId);
+                  const template = savedFeeTemplates.find(t => t.id === templateId);
+                  if (template) {
+                    setNewCustomFee({ name: template.name, amount_cents: template.amount_cents });
+                    setCustomFeeInput((template.amount_cents / 100).toFixed(2));
+                  }
+                }}
+                onSaveAsTemplateChange={setSaveFeeAsTemplate}
+                onAddFee={handleAddCustomFee}
+                onRemoveFee={handleRemoveCustomFee}
+                onDeleteTemplate={handleDeleteFeeTemplate}
+              />
 
-                <div className="space-y-3">
-                  {savedDiscountTemplates.length > 0 && (
-                    <div>
-                      <label className="block text-xs text-slate-700 mb-1 font-medium">Load Saved Discount</label>
-                      <div className="flex gap-2">
-                        <select
-                          value={selectedDiscountTemplateId}
-                          onChange={(e) => {
-                            setSelectedDiscountTemplateId(e.target.value);
-                            const template = savedDiscountTemplates.find(t => t.id === e.target.value);
-                            if (template) {
-                              setNewDiscount({ name: template.name, amount_cents: template.amount_cents, percentage: template.percentage });
-                              setDiscountAmountInput((template.amount_cents / 100).toFixed(2));
-                              setDiscountPercentInput(template.percentage.toString());
-                            }
-                          }}
-                          className="flex-1 px-3 py-2 border border-slate-300 rounded text-sm"
-                        >
-                          <option value="">Select a saved discount...</option>
-                          {savedDiscountTemplates.map(template => (
-                            <option key={template.id} value={template.id}>
-                              {template.name} - {template.amount_cents > 0 ? `$${(template.amount_cents / 100).toFixed(2)}` : `${template.percentage}%`}
-                            </option>
-                          ))}
-                        </select>
-                        {selectedDiscountTemplateId && (
-                          <button
-                            onClick={handleDeleteDiscountTemplate}
-                            className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-1 text-sm"
-                            title="Delete selected template"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  <input
-                    type="text"
-                    value={newDiscount.name}
-                    onChange={(e) => setNewDiscount({ ...newDiscount, name: e.target.value })}
-                    placeholder="Discount name"
-                    className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-xs text-slate-700 mb-1 font-medium">$ Amount</label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={discountAmountInput}
-                          onChange={(e) => {
-                            setDiscountAmountInput(e.target.value);
-                            if (parseFloat(e.target.value) > 0) {
-                              setDiscountPercentInput('0');
-                            }
-                          }}
-                          placeholder="0.00"
-                          className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded text-sm"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-slate-700 mb-1 font-medium">% Percentage</label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          step="1"
-                          value={discountPercentInput}
-                          onChange={(e) => {
-                            setDiscountPercentInput(e.target.value);
-                            if (parseFloat(e.target.value) > 0) {
-                              setDiscountAmountInput('0.00');
-                            }
-                          }}
-                          placeholder="0"
-                          className="w-full pr-7 pl-3 py-2 border border-slate-300 rounded text-sm"
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">%</span>
-                      </div>
-                    </div>
-                  </div>
-                  <label className="flex items-center gap-2 text-sm text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={saveDiscountAsTemplate}
-                      onChange={(e) => setSaveDiscountAsTemplate(e.target.checked)}
-                      className="rounded"
-                    />
-                    Save this discount for future use
-                  </label>
-                  <button
-                    onClick={handleAddDiscount}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded text-sm font-medium"
-                  >
-                    Add Discount
-                  </button>
-                </div>
-              </div>
+              <DepositOverride
+                calculatedDepositCents={calculatedPricing?.deposit_due_cents || order.deposit_due_cents}
+                customDepositCents={customDepositCents}
+                customDepositInput={customDepositInput}
+                onInputChange={setCustomDepositInput}
+                onApply={(amountCents) => {
+                  setCustomDepositCents(amountCents);
+                  setHasChanges(true);
+                }}
+                onClear={() => {
+                  setCustomDepositCents(null);
+                  setCustomDepositInput('');
+                  setHasChanges(true);
+                }}
+              />
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="font-semibold text-slate-900 mb-3">Custom Fees</h3>
-
-                {customFees.length > 0 && (
-                  <div className="space-y-2 mb-4">
-                    {customFees.map(fee => (
-                      <div key={fee.id} className="flex justify-between items-center bg-white rounded p-2">
-                        <div>
-                          <p className="font-medium text-sm">{fee.name}</p>
-                          <p className="text-xs text-slate-600">
-                            {formatCurrency(fee.amount_cents)}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => handleRemoveCustomFee(fee.id)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="space-y-3">
-                  {savedFeeTemplates.length > 0 && (
-                    <div>
-                      <label className="block text-xs text-slate-700 mb-1 font-medium">Load Saved Fee</label>
-                      <div className="flex gap-2">
-                        <select
-                          value={selectedFeeTemplateId}
-                          onChange={(e) => {
-                            setSelectedFeeTemplateId(e.target.value);
-                            const template = savedFeeTemplates.find(t => t.id === e.target.value);
-                            if (template) {
-                              setNewCustomFee({ name: template.name, amount_cents: template.amount_cents });
-                              setCustomFeeInput((template.amount_cents / 100).toFixed(2));
-                            }
-                          }}
-                          className="flex-1 px-3 py-2 border border-slate-300 rounded text-sm"
-                        >
-                          <option value="">Select a saved fee...</option>
-                          {savedFeeTemplates.map(template => (
-                            <option key={template.id} value={template.id}>
-                              {template.name} - ${(template.amount_cents / 100).toFixed(2)}
-                            </option>
-                          ))}
-                        </select>
-                        {selectedFeeTemplateId && (
-                          <button
-                            onClick={handleDeleteFeeTemplate}
-                            className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-1 text-sm"
-                            title="Delete selected template"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  <input
-                    type="text"
-                    value={newCustomFee.name}
-                    onChange={(e) => setNewCustomFee({ ...newCustomFee, name: e.target.value })}
-                    placeholder="Fee name (e.g., Tip, Setup Fee, etc.)"
-                    className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                  />
-                  <div>
-                    <label className="block text-xs text-slate-700 mb-1 font-medium">$ Amount</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={customFeeInput}
-                        onChange={(e) => setCustomFeeInput(e.target.value)}
-                        placeholder="0.00"
-                        className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded text-sm"
-                      />
-                    </div>
-                  </div>
-                  <label className="flex items-center gap-2 text-sm text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={saveFeeAsTemplate}
-                      onChange={(e) => setSaveFeeAsTemplate(e.target.checked)}
-                      className="rounded"
-                    />
-                    Save this fee for future use
-                  </label>
-                  <button
-                    onClick={handleAddCustomFee}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-sm font-medium"
-                  >
-                    Add Custom Fee
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                <h3 className="font-semibold text-slate-900 mb-3">Deposit Override</h3>
-                <p className="text-sm text-slate-600 mb-3">
-                  Set a custom deposit amount. Use this when the calculated deposit doesn't match your requirements.
-                </p>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-slate-700">Calculated Deposit:</span>
-                    <span className="font-semibold">{formatCurrency(calculatedPricing?.deposit_due_cents || order.deposit_due_cents)}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <label className="block text-xs text-slate-600 mb-1">Custom Deposit Amount</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={customDepositInput}
-                        onChange={(e) => setCustomDepositInput(e.target.value)}
-                        placeholder="0.00"
-                        className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
-                      />
-                    </div>
-                    <div className="flex items-end gap-2">
-                      <button
-                        onClick={() => {
-                          const inputValue = customDepositInput.trim();
-                          if (inputValue === '') {
-                            showToast('Please enter a deposit amount', 'error');
-                            return;
-                          }
-                          const amountCents = Math.round(parseFloat(inputValue) * 100);
-                          if (isNaN(amountCents) || amountCents < 0) {
-                            showToast('Please enter a valid deposit amount', 'error');
-                            return;
-                          }
-                          setCustomDepositCents(amountCents);
-                          setHasChanges(true);
-                        }}
-                        className="bg-amber-600 hover:bg-amber-700 text-white py-2 px-4 rounded text-sm font-medium"
-                      >
-                        Apply
-                      </button>
-                      {customDepositCents !== null && (
-                        <button
-                          onClick={() => {
-                            setCustomDepositCents(null);
-                            setCustomDepositInput('');
-                            setHasChanges(true);
-                          }}
-                          className="bg-slate-500 hover:bg-slate-600 text-white py-2 px-4 rounded text-sm font-medium"
-                        >
-                          Clear
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  {customDepositCents !== null && (
-                    <div className="bg-white border border-amber-300 rounded p-3">
-                      <p className="text-sm font-medium text-amber-800 mb-1">Active Override</p>
-                      <p className="text-xs text-slate-600">
-                        Deposit will be set to <span className="font-semibold">{formatCurrency(customDepositCents)}</span> when you save changes.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                <h3 className="font-semibold text-slate-900 mb-3">Message to Customer</h3>
-                <p className="text-sm text-slate-600 mb-3">
-                  Add an optional message to explain the changes to the customer. This will be included in the email and text notification.
-                </p>
-                <textarea
-                  value={adminMessage}
-                  onChange={(e) => {
-                    setAdminMessage(e.target.value);
-                    setHasChanges(true);
-                  }}
-                  placeholder="Example: We're upgrading your bounce house to a larger unit at no extra charge! Also added a generator since your event location doesn't have power outlets nearby."
-                  rows={4}
-                  className="w-full px-3 py-2 border border-slate-300 rounded text-sm resize-none"
-                />
-                {adminMessage.trim() && (
-                  <p className="text-xs text-purple-600 mt-2">
-                    This message will be sent to the customer when you save changes.
-                  </p>
-                )}
-              </div>
+              <AdminMessage
+                value={adminMessage}
+                onChange={(value) => {
+                  setAdminMessage(value);
+                  setHasChanges(true);
+                }}
+              />
 
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
                 <h3 className="font-semibold text-slate-900 mb-3">Order Status</h3>
@@ -1897,150 +1664,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           )}
 
           {activeSection === 'payments' && (
-            <div className="space-y-4">
-              <div className="bg-white border border-slate-200 rounded-lg p-6">
-                <h3 className="text-lg font-bold text-slate-900 mb-4">Payment History</h3>
-
-                {payments.length === 0 ? (
-                  <p className="text-slate-600 text-center py-8">No payments recorded for this order</p>
-                ) : (
-                  <div className="space-y-4">
-                    {payments.map((payment) => (
-                      <div
-                        key={payment.id}
-                        className={`p-4 rounded-lg border-2 ${
-                          payment.status === 'succeeded'
-                            ? 'bg-green-50 border-green-200'
-                            : payment.status === 'failed'
-                            ? 'bg-red-50 border-red-200'
-                            : 'bg-slate-50 border-slate-200'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-bold text-lg">
-                                {formatCurrency(payment.amount_cents)}
-                              </span>
-                              <span
-                                className={`px-2 py-0.5 text-xs font-medium rounded ${
-                                  payment.status === 'succeeded'
-                                    ? 'bg-green-600 text-white'
-                                    : payment.status === 'failed'
-                                    ? 'bg-red-600 text-white'
-                                    : 'bg-slate-400 text-white'
-                                }`}
-                              >
-                                {payment.status.toUpperCase()}
-                              </span>
-                            </div>
-                            <div className="text-sm text-slate-600 space-y-1">
-                              <div>
-                                <span className="font-medium">Type:</span> {payment.type}
-                              </div>
-                              {payment.payment_method && (
-                                <div>
-                                  <span className="font-medium">Method:</span>{' '}
-                                  {payment.payment_brand && payment.payment_last4
-                                    ? `${payment.payment_brand} •••• ${payment.payment_last4}`
-                                    : payment.payment_method}
-                                </div>
-                              )}
-                              {payment.stripe_payment_intent_id && (
-                                <div className="text-xs text-slate-500">
-                                  Payment Intent: {payment.stripe_payment_intent_id}
-                                </div>
-                              )}
-                              <div className="text-xs text-slate-500">
-                                {payment.paid_at
-                                  ? `Paid: ${new Date(payment.paid_at).toLocaleString('en-US', {
-                                      month: 'short',
-                                      day: 'numeric',
-                                      year: 'numeric',
-                                      hour: 'numeric',
-                                      minute: '2-digit',
-                                    })}`
-                                  : `Created: ${new Date(payment.created_at).toLocaleString('en-US', {
-                                      month: 'short',
-                                      day: 'numeric',
-                                      year: 'numeric',
-                                      hour: 'numeric',
-                                      minute: '2-digit',
-                                    })}`}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {payments.filter((p) => p.status === 'succeeded' && p.stripe_payment_intent_id).length > 0 && (
-                  <div className="mt-6 pt-6 border-t border-slate-200">
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="font-semibold text-slate-900">Refund Payment</h4>
-                      <button
-                        onClick={() => setShowRefundForm(!showRefundForm)}
-                        className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
-                      >
-                        <RotateCcw className="w-4 h-4" />
-                        {showRefundForm ? 'Cancel' : 'Issue Refund'}
-                      </button>
-                    </div>
-
-                    {showRefundForm && (
-                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">
-                            Refund Amount ($)
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0.01"
-                            value={refundAmount}
-                            onChange={(e) => setRefundAmount(e.target.value)}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                            placeholder="0.00"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">
-                            Reason for Refund
-                          </label>
-                          <input
-                            type="text"
-                            value={refundReason}
-                            onChange={(e) => setRefundReason(e.target.value)}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                            placeholder="e.g., Customer request, Weather cancellation, Equipment issue"
-                          />
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={handleRefund}
-                            disabled={refunding}
-                            className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-slate-400 text-white font-semibold py-2 px-4 rounded-lg"
-                          >
-                            {refunding ? 'Processing...' : 'Issue Refund'}
-                          </button>
-                          <button
-                            onClick={() => setShowRefundForm(false)}
-                            className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 px-4 rounded-lg"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                        <p className="text-xs text-amber-700">
-                          This will process a refund through Stripe and update the order balance. This action cannot be undone.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
+            <PaymentsTab payments={payments} onRefund={handleRefund} />
           )}
 
           {activeSection === 'notes' && (
