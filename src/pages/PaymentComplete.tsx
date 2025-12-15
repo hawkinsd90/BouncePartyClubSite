@@ -62,24 +62,23 @@ export function PaymentComplete() {
     const orderId = order.id;
 
     try {
-      // 1) Check if we've already queued/sent a booking confirmation message
-      const { data: existingMessage, error: checkError } = await supabase
-        .from('messages')
-        .select('id')
-        .eq('order_id', orderId)
-        .eq('template_key', 'booking_request_confirmation')
+      // 1) Check if we've already sent booking confirmation
+      const { data: orderCheck, error: checkError } = await supabase
+        .from('orders')
+        .select('booking_confirmation_sent')
+        .eq('id', orderId)
         .maybeSingle();
 
       if (checkError) {
-        console.error('[PAYMENT-COMPLETE] Error checking existing messages:', checkError);
+        console.error('[PAYMENT-COMPLETE] Error checking order notification status:', checkError);
       }
 
-      if (existingMessage) {
-        console.log('[PAYMENT-COMPLETE] Notifications already queued for this order. Skipping.');
+      if (orderCheck?.booking_confirmation_sent) {
+        console.log('[PAYMENT-COMPLETE] Notifications already sent for this order. Skipping.');
         return;
       }
 
-      console.log('[PAYMENT-COMPLETE] No prior confirmation message found. Creating new email + SMS.');
+      console.log('[PAYMENT-COMPLETE] No prior confirmation sent. Sending email + SMS.');
 
       const fullName = `${order.customer.first_name} ${order.customer.last_name}`.trim();
       const eventDateStr = new Date(order.event_date + 'T12:00:00').toLocaleDateString(
@@ -457,6 +456,18 @@ export function PaymentComplete() {
         }
       } catch (adminErr) {
         console.error('[PAYMENT-COMPLETE] Error sending admin SMS:', adminErr);
+      }
+
+      // 5) Mark booking confirmation as sent
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({ booking_confirmation_sent: true })
+        .eq('id', orderId);
+
+      if (updateError) {
+        console.error('[PAYMENT-COMPLETE] Error updating booking_confirmation_sent flag:', updateError);
+      } else {
+        console.log('[PAYMENT-COMPLETE] Marked booking confirmation as sent.');
       }
     } catch (outerErr) {
       console.error('[PAYMENT-COMPLETE] Error in sendNotificationsIfNeeded:', outerErr);
