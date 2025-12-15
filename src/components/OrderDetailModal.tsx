@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { X, Truck, MessageSquare, FileText, History, Save, CreditCard } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
-import { formatCurrency, calculatePrice, calculateDrivingDistance, type PricingRules } from '../lib/pricing';
-import { HOME_BASE } from '../lib/constants';
+import { formatCurrency } from '../lib/pricing';
 import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { OrderSummary } from './OrderSummary';
 import { formatOrderSummary, type OrderSummaryData } from '../lib/orderSummary';
@@ -12,10 +11,11 @@ import { StatusChangeDialog } from './order-detail/StatusChangeDialog';
 import { OrderNotesTab } from './order-detail/OrderNotesTab';
 import { OrderWorkflowTab } from './order-detail/OrderWorkflowTab';
 import { OrderChangelogTab } from './order-detail/OrderChangelogTab';
-import { OrderItemsEditor } from './order-detail/OrderItemsEditor';
-import { EventDetailsEditor } from './order-detail/EventDetailsEditor';
 import { OrderDetailsTab } from './order-detail/OrderDetailsTab';
 import { PaymentsTab } from './order-detail/PaymentsTab';
+import { useOrderPricing } from '../hooks/useOrderPricing';
+import { saveOrderChanges } from '../lib/orderSaveService';
+import { sendOrderEditNotifications } from '../lib/orderNotificationService';
 
 interface OrderDetailModalProps {
   order: any;
@@ -80,13 +80,13 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [pricingRules, setPricingRules] = useState<any>(null);
   const [adminSettings, setAdminSettings] = useState<any>(null);
   const [adminOverrideApproval, setAdminOverrideApproval] = useState(false);
-  const [calculatedPricing, setCalculatedPricing] = useState<any>(null);
-  const [updatedOrderSummary, setUpdatedOrderSummary] = useState<any>(null);
   const [availabilityIssues, setAvailabilityIssues] = useState<any[]>([]);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [customDepositCents, setCustomDepositCents] = useState<number | null>(null);
   const [customDepositInput, setCustomDepositInput] = useState('');
   const [currentOrderSummary, setCurrentOrderSummary] = useState<any>(null);
+
+  const { updatedOrderSummary, calculatedPricing, recalculatePricing } = useOrderPricing();
 
   useEffect(() => {
     loadPayments();
@@ -246,7 +246,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   // Recalculate pricing whenever discounts, custom fees, or staged items change
   useEffect(() => {
     if (pricingRules && editedOrder && stagedItems.length > 0) {
-      recalculatePricing();
+      handleRecalculatePricing();
     }
   }, [discounts, customFees, stagedItems, editedOrder.location_type, editedOrder.surface, editedOrder.generator_qty]);
 
@@ -293,7 +293,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   // Recalculate pricing whenever staged items, discounts, or order details change
   useEffect(() => {
     if (pricingRules && adminSettings && stagedItems.length > 0) {
-      recalculatePricing();
+      handleRecalculatePricing();
     }
   }, [stagedItems, discounts, editedOrder, pricingRules, adminSettings]);
 
@@ -363,196 +363,18 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
   }
 
-  async function recalculatePricing() {
+  const handleRecalculatePricing = useCallback(async () => {
     if (!pricingRules || !adminSettings) return;
-
-    try {
-      // Check if address has changed
-      const addressChanged =
-        editedOrder.address_line1 !== (order.addresses?.line1 || '') ||
-        editedOrder.address_city !== (order.addresses?.city || '') ||
-        editedOrder.address_state !== (order.addresses?.state || '') ||
-        editedOrder.address_zip !== (order.addresses?.zip || '');
-
-      let distance_miles = 0;
-      let useSavedTravelFee = false;
-
-      // If address hasn't changed, use the stored travel fee and miles
-      if (!addressChanged && order.travel_fee_cents > 0) {
-        distance_miles = parseFloat(order.travel_total_miles) || 0;
-        useSavedTravelFee = true;
-      } else {
-        // Address changed, so recalculate distance
-        let lat = 0;
-        let lng = 0;
-
-        if (editedOrder.address_line1 && editedOrder.address_city && window.google?.maps) {
-          try {
-            const geocoder = new google.maps.Geocoder();
-            const destination = `${editedOrder.address_line1}, ${editedOrder.address_city}, ${editedOrder.address_state} ${editedOrder.address_zip}`;
-            const result = await geocoder.geocode({ address: destination });
-            if (result.results && result.results[0]) {
-              const location = result.results[0].geometry.location;
-              lat = location.lat();
-              lng = location.lng();
-            }
-          } catch (error) {
-            console.error('Geocoding error:', error);
-            // Fall back to order's stored coordinates if geocoding fails
-            lat = parseFloat(order.addresses?.lat) || 0;
-            lng = parseFloat(order.addresses?.lng) || 0;
-          }
-        } else {
-          // Use order's stored coordinates if address is incomplete
-          lat = parseFloat(order.addresses?.lat) || 0;
-          lng = parseFloat(order.addresses?.lng) || 0;
-        }
-
-        // Only calculate distance if we have valid coordinates
-        if (lat !== 0 && lng !== 0) {
-          distance_miles = await calculateDrivingDistance(
-            HOME_BASE.lat,
-            HOME_BASE.lng,
-            lat,
-            lng
-          );
-        }
-
-        // If distance calculation failed or returned 0, use stored travel distance
-        if (distance_miles === 0 && order.travel_total_miles) {
-          distance_miles = parseFloat(order.travel_total_miles) || 0;
-        }
-      }
-
-      // Convert staged items to calculatePrice format
-      const activeItems = stagedItems.filter(item => !item.is_deleted);
-      const items = activeItems.map(item => ({
-        unit_id: item.unit_id,
-        qty: item.qty,
-        wet_or_dry: item.wet_or_dry,
-        unit_price_cents: item.unit_price_cents,
-      }));
-
-      // Calculate number of days
-      const eventStartDate = new Date(editedOrder.event_date);
-      const eventEndDate = new Date(editedOrder.event_end_date || editedOrder.event_date);
-      const diffTime = Math.abs(eventEndDate.getTime() - eventStartDate.getTime());
-      const numDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-
-      // Build pricing rules from database format
-      const rules: PricingRules = {
-        base_radius_miles: parseFloat(pricingRules.base_radius_miles) || 20,
-        included_city_list_json: pricingRules.included_city_list_json || [],
-        per_mile_after_base_cents: pricingRules.per_mile_after_base_cents || 500,
-        zone_overrides_json: pricingRules.zone_overrides_json || [],
-        surface_sandbag_fee_cents: pricingRules.surface_sandbag_fee_cents || 0,
-        residential_multiplier: parseFloat(pricingRules.residential_multiplier) || 1,
-        commercial_multiplier: parseFloat(pricingRules.commercial_multiplier) || 1,
-        same_day_matrix_json: pricingRules.same_day_matrix_json || [],
-        overnight_holiday_only: pricingRules.overnight_holiday_only || false,
-        extra_day_pct: parseFloat(pricingRules.extra_day_pct) || 0,
-        generator_price_cents: pricingRules.generator_price_cents || 0,
-      };
-
-      // Use centralized calculatePrice function
-      const priceBreakdown = calculatePrice({
-        items,
-        location_type: editedOrder.location_type as 'residential' | 'commercial',
-        surface: editedOrder.surface as 'grass' | 'cement',
-        can_use_stakes: editedOrder.surface === 'grass',
-        overnight_allowed: editedOrder.pickup_preference === 'next_day',
-        num_days: numDays,
-        distance_miles,
-        city: editedOrder.address_city,
-        zip: editedOrder.address_zip,
-        has_generator: (editedOrder.generator_qty || 0) > 0,
-        generator_qty: editedOrder.generator_qty || 0,
-        rules,
-      });
-
-      // Convert staged items to order items format for summary display
-      const activeItemsForDisplay = activeItems.map(item => ({
-        unit_id: item.unit_id,
-        qty: item.qty,
-        wet_or_dry: item.wet_or_dry,
-        unit_price_cents: item.unit_price_cents,
-        is_new: item.is_new || false,
-        units: {
-          name: item.unit_name,
-          price_dry_cents: item.wet_or_dry === 'dry' ? item.unit_price_cents : 0,
-          price_water_cents: item.wet_or_dry === 'water' ? item.unit_price_cents : 0,
-        }
-      }));
-
-      // Build order data using the centralized price breakdown
-      // If address hasn't changed, preserve original travel fee and miles
-      const finalTravelFeeCents = useSavedTravelFee ? order.travel_fee_cents : priceBreakdown.travel_fee_cents;
-      const finalTravelMiles = useSavedTravelFee ? (parseFloat(order.travel_total_miles) || 0) : (priceBreakdown.travel_total_miles || 0);
-
-      // Recalculate tax and total if we're using saved travel fee
-      let finalTaxCents = priceBreakdown.tax_cents;
-      let finalTotalCents = priceBreakdown.total_cents;
-
-      if (useSavedTravelFee && finalTravelFeeCents !== priceBreakdown.travel_fee_cents) {
-        // Recalculate tax based on: subtotal + travel + surface + generator
-        finalTaxCents = Math.round((priceBreakdown.subtotal_cents + finalTravelFeeCents + priceBreakdown.surface_fee_cents + priceBreakdown.generator_fee_cents) * 0.06);
-
-        // Recalculate total: subtotal + all fees + tax
-        finalTotalCents = priceBreakdown.subtotal_cents + finalTravelFeeCents + priceBreakdown.surface_fee_cents + priceBreakdown.same_day_pickup_fee_cents + priceBreakdown.generator_fee_cents + finalTaxCents;
-      }
-
-      const updatedOrderData: OrderSummaryData = {
-        items: activeItemsForDisplay,
-        discounts,
-        customFees,
-        subtotal_cents: priceBreakdown.subtotal_cents,
-        travel_fee_cents: finalTravelFeeCents,
-        travel_total_miles: finalTravelMiles,
-        surface_fee_cents: priceBreakdown.surface_fee_cents,
-        same_day_pickup_fee_cents: priceBreakdown.same_day_pickup_fee_cents,
-        generator_fee_cents: priceBreakdown.generator_fee_cents,
-        generator_qty: editedOrder.generator_qty || 0,
-        tax_cents: finalTaxCents,
-        tip_cents: order.tip_cents || 0,
-        total_cents: finalTotalCents,
-        deposit_due_cents: customDepositCents !== null ? customDepositCents : priceBreakdown.deposit_due_cents,
-        deposit_paid_cents: order.deposit_paid_cents || 0,
-        balance_due_cents: customDepositCents !== null ? finalTotalCents - customDepositCents : (finalTotalCents - priceBreakdown.deposit_due_cents),
-        custom_deposit_cents: customDepositCents,
-        pickup_preference: editedOrder.pickup_preference,
-        event_date: editedOrder.event_date,
-        event_end_date: editedOrder.event_end_date,
-      };
-
-      // Use centralized calculation for summary display
-      const summary = formatOrderSummary(updatedOrderData);
-
-      console.log('🧮 Admin Panel Price Calculation (Fully Centralized):');
-      console.log('Price Breakdown:', priceBreakdown);
-      console.log('Summary:', summary);
-
-      // Store full summary for display
-      setUpdatedOrderSummary(summary);
-
-      // Store calculated values for backward compatibility
-      setCalculatedPricing({
-        subtotal_cents: priceBreakdown.subtotal_cents,
-        generator_fee_cents: priceBreakdown.generator_fee_cents,
-        travel_fee_cents: finalTravelFeeCents,
-        distance_miles: finalTravelMiles,
-        surface_fee_cents: priceBreakdown.surface_fee_cents,
-        same_day_pickup_fee_cents: priceBreakdown.same_day_pickup_fee_cents,
-        custom_fees_total_cents: summary.customFees.reduce((sum, f) => sum + f.amount, 0),
-        discount_total_cents: summary.discounts.reduce((sum, d) => sum + d.amount, 0),
-        tax_cents: finalTaxCents,
-        total_cents: summary.total,
-        deposit_due_cents: summary.depositDue,
-        balance_due_cents: summary.balanceDue,
-      });
-    } catch (error) {
-      console.error('Error recalculating pricing:', error);
-    }
-  }
+    await recalculatePricing({
+      order,
+      editedOrder,
+      stagedItems,
+      discounts,
+      customFees,
+      customDepositCents,
+      pricingRules,
+    });
+  }, [order, editedOrder, stagedItems, discounts, customFees, customDepositCents, pricingRules, adminSettings, recalculatePricing]);
 
   async function loadOrderDetails() {
     try {
@@ -645,472 +467,40 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   }, []);
 
   async function handleSaveChanges() {
-    // Check availability one final time before saving
     await checkAvailability();
-
-    if (availabilityIssues.length > 0) {
-      const unitNames = availabilityIssues.map(issue => issue.unitName).join(', ');
-      showToast(`Cannot save: The following units are not available for the selected dates: ${unitNames}. Please adjust the dates or remove the conflicting items.`, 'error');
-      return;
-    }
 
     setSaving(true);
     try {
-      // Verify user is authenticated
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError || !user) {
-        console.error('Authentication error:', authError);
-        showToast('You must be logged in to save changes.', 'error');
-        setSaving(false);
-        return;
-      }
-      console.log('User authenticated:', user.id);
-
-      const changes: any = {};
-      const logs = [];
-
-      // Track order field changes
-      if (editedOrder.location_type !== order.location_type) {
-        changes.location_type = editedOrder.location_type;
-        logs.push(['location_type', order.location_type, editedOrder.location_type]);
-      }
-      if (editedOrder.surface !== order.surface) {
-        changes.surface = editedOrder.surface;
-        logs.push(['surface', order.surface, editedOrder.surface]);
-      }
-      if (editedOrder.generator_qty !== (order.generator_qty || 0)) {
-        changes.generator_qty = editedOrder.generator_qty;
-        logs.push(['generator_qty', order.generator_qty || 0, editedOrder.generator_qty]);
-      }
-      if (editedOrder.start_window !== order.start_window) {
-        changes.start_window = editedOrder.start_window;
-        logs.push(['start_window', order.start_window, editedOrder.start_window]);
-      }
-      if (editedOrder.end_window !== order.end_window) {
-        changes.end_window = editedOrder.end_window;
-        logs.push(['end_window', order.end_window, editedOrder.end_window]);
-      }
-      // Normalize dates to YYYY-MM-DD format for comparison
-      const normalizeDate = (dateStr: string) => {
-        if (!dateStr) return '';
-        return dateStr.split('T')[0]; // Extract YYYY-MM-DD from timestamp
-      };
-
-      const originalEventDate = normalizeDate(order.event_date);
-      const editedEventDate = normalizeDate(editedOrder.event_date);
-
-      console.log('Date comparison - Original:', originalEventDate, 'Edited:', editedEventDate);
-
-      if (editedEventDate !== originalEventDate) {
-        changes.event_date = editedOrder.event_date;
-        changes.start_date = editedOrder.event_date; // Keep start_date in sync
-        logs.push(['event_date', order.event_date, editedOrder.event_date]);
-        console.log('✅ Event date changed from', originalEventDate, 'to', editedEventDate);
-      }
-
-      const originalEventEndDate = normalizeDate(order.event_end_date || order.event_date);
-      const editedEventEndDate = normalizeDate(editedOrder.event_end_date);
-
-      console.log('End date comparison - Original:', originalEventEndDate, 'Edited:', editedEventEndDate);
-
-      if (editedEventEndDate !== originalEventEndDate) {
-        changes.event_end_date = editedOrder.event_end_date;
-        changes.end_date = editedOrder.event_end_date; // Keep end_date in sync
-        logs.push(['event_end_date', order.event_end_date || order.event_date, editedOrder.event_end_date]);
-        console.log('✅ Event end date changed from', originalEventEndDate, 'to', editedEventEndDate);
-      }
-      if (editedOrder.pickup_preference !== (order.pickup_preference || 'next_day')) {
-        changes.pickup_preference = editedOrder.pickup_preference;
-        changes.overnight_allowed = editedOrder.pickup_preference === 'next_day';
-        logs.push(['pickup_preference', order.pickup_preference || 'next_day', editedOrder.pickup_preference]);
-      }
-
-      // Handle address changes
-      const addressChanged =
-        editedOrder.address_line1 !== (order.addresses?.line1 || '') ||
-        editedOrder.address_city !== (order.addresses?.city || '') ||
-        editedOrder.address_state !== (order.addresses?.state || '') ||
-        editedOrder.address_zip !== (order.addresses?.zip || '');
-
-      if (addressChanged) {
-        await supabase.from('addresses').update({
-          line1: editedOrder.address_line1,
-          line2: editedOrder.address_line2,
-          city: editedOrder.address_city,
-          state: editedOrder.address_state,
-          zip: editedOrder.address_zip,
-        }).eq('id', order.address_id);
-
-        logs.push(['address',
-          `${order.addresses?.line1}, ${order.addresses?.city}, ${order.addresses?.state} ${order.addresses?.zip}`,
-          `${editedOrder.address_line1}, ${editedOrder.address_city}, ${editedOrder.address_state} ${editedOrder.address_zip}`
-        ]);
-      }
-
-      // Apply calculated pricing
-      if (calculatedPricing) {
-        changes.subtotal_cents = calculatedPricing.subtotal_cents;
-        changes.generator_fee_cents = calculatedPricing.generator_fee_cents;
-        changes.travel_fee_cents = calculatedPricing.travel_fee_cents;
-        changes.travel_total_miles = calculatedPricing.travel_total_miles;
-        changes.travel_base_radius_miles = calculatedPricing.travel_base_radius_miles;
-        changes.travel_chargeable_miles = calculatedPricing.travel_chargeable_miles;
-        changes.travel_per_mile_cents = calculatedPricing.travel_per_mile_cents;
-        changes.travel_is_flat_fee = calculatedPricing.travel_is_flat_fee;
-        changes.surface_fee_cents = calculatedPricing.surface_fee_cents;
-        changes.same_day_pickup_fee_cents = calculatedPricing.same_day_pickup_fee_cents;
-        changes.tax_cents = calculatedPricing.tax_cents;
-
-        // Apply custom deposit override if set
-        const finalDepositCents = customDepositCents !== null ? customDepositCents : calculatedPricing.deposit_due_cents;
-        changes.deposit_due_cents = finalDepositCents;
-        changes.balance_due_cents = calculatedPricing.total_cents - finalDepositCents;
-
-        // Log all pricing changes that matter to the customer
-        if (calculatedPricing.subtotal_cents !== order.subtotal_cents) {
-          logs.push(['subtotal', order.subtotal_cents, calculatedPricing.subtotal_cents]);
-        }
-        if (calculatedPricing.generator_fee_cents !== (order.generator_fee_cents || 0)) {
-          logs.push(['generator_fee', order.generator_fee_cents || 0, calculatedPricing.generator_fee_cents]);
-        }
-        if (calculatedPricing.travel_fee_cents !== order.travel_fee_cents) {
-          logs.push(['travel_fee', order.travel_fee_cents, calculatedPricing.travel_fee_cents]);
-        }
-        if (calculatedPricing.surface_fee_cents !== order.surface_fee_cents) {
-          logs.push(['surface_fee', order.surface_fee_cents, calculatedPricing.surface_fee_cents]);
-        }
-        if (calculatedPricing.same_day_pickup_fee_cents !== (order.same_day_pickup_fee_cents || 0)) {
-          logs.push(['same_day_pickup_fee', order.same_day_pickup_fee_cents || 0, calculatedPricing.same_day_pickup_fee_cents]);
-        }
-        if (calculatedPricing.tax_cents !== order.tax_cents) {
-          logs.push(['tax', order.tax_cents, calculatedPricing.tax_cents]);
-        }
-        if (finalDepositCents !== order.deposit_due_cents) {
-          logs.push(['deposit_due', order.deposit_due_cents, finalDepositCents]);
-        }
-
-        const newBalanceDue = calculatedPricing.total_cents - finalDepositCents;
-        if (newBalanceDue !== order.balance_due_cents) {
-          logs.push(['balance_due', order.balance_due_cents, newBalanceDue]);
-        }
-
-        // Log total change for easy customer understanding
-        const newTotal = calculatedPricing.total_cents;
-        const oldTotal = order.subtotal_cents + (order.generator_fee_cents || 0) + order.travel_fee_cents + order.surface_fee_cents + (order.same_day_pickup_fee_cents || 0) + order.tax_cents;
-        if (newTotal !== oldTotal) {
-          logs.push(['total', oldTotal, newTotal]);
-        }
-      }
-
-      // Determine if we need to clear payment method
-      let shouldClearPayment = false;
-      const itemsChanged = stagedItems.some(item => item.is_new || item.is_deleted);
-
-      if (itemsChanged) {
-        // Items were added or removed - always clear payment
-        shouldClearPayment = true;
-        logs.push(['payment_method', 'cleared', 'items changed']);
-      } else if (calculatedPricing && order.stripe_payment_intent_id) {
-        // No item changes, but check if deposit increased
-        const finalDepositCents = customDepositCents !== null ? customDepositCents : calculatedPricing.deposit_due_cents;
-        const currentPaidAmount = order.stripe_amount_paid_cents || 0;
-
-        if (finalDepositCents > currentPaidAmount) {
-          // New deposit is higher than what was paid - clear payment
-          shouldClearPayment = true;
-          logs.push(['payment_method', 'cleared', `deposit increased from ${currentPaidAmount} to ${finalDepositCents}`]);
-        } else if (currentPaidAmount >= (order.subtotal_cents + (order.generator_fee_cents || 0) + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents)) {
-          // Customer paid in full originally
-          const newTotal = calculatedPricing.total_cents;
-          if (newTotal > currentPaidAmount) {
-            // New total exceeds what was paid - clear payment
-            shouldClearPayment = true;
-            logs.push(['payment_method', 'cleared', `paid in full but total increased from ${currentPaidAmount} to ${newTotal}`]);
-          }
-        }
-      }
-
-      // Clear payment method if needed
-      if (shouldClearPayment) {
-        changes.stripe_payment_method_id = null;
-        changes.stripe_payment_status = 'unpaid';
-      }
-
-      // Handle item changes
-      for (const item of stagedItems) {
-        if (item.is_new && !item.is_deleted) {
-          // Add new item
-          await supabase.from('order_items').insert({
-            order_id: order.id,
-            unit_id: item.unit_id,
-            qty: item.qty,
-            wet_or_dry: item.wet_or_dry,
-            unit_price_cents: item.unit_price_cents,
-          });
-          await logChange('order_items', '', `${item.unit_name} (${item.wet_or_dry})`, 'add');
-        } else if (item.is_deleted && item.id) {
-          // Remove item
-          await supabase.from('order_items').delete().eq('id', item.id);
-          await logChange('order_items', `${item.unit_name} (${item.wet_or_dry})`, '', 'remove');
-        }
-      }
-
-      // Handle staged discounts
-      console.log('Saving discounts:', discounts);
-      const insertedDiscountIds: string[] = [];
-
-      for (const discount of discounts) {
-        if (discount.is_new) {
-          console.log('Inserting new discount:', discount);
-          // Add new discount
-          const { data, error } = await supabase.from('order_discounts').insert({
-            order_id: order.id,
-            name: discount.name,
-            amount_cents: discount.amount_cents,
-            percentage: discount.percentage,
-          }).select();
-          if (error) {
-            console.error('Error inserting discount:', error);
-            throw new Error(`Failed to save discount: ${error.message}`);
-          }
-          console.log('Discount inserted successfully:', data);
-
-          // Track the newly inserted discount ID
-          if (data && data[0]) {
-            insertedDiscountIds.push(data[0].id);
-          }
-
-          await logChange('discounts', '', discount.name, 'add');
-        }
-      }
-
-      // Remove discounts that were deleted (check against original list)
-      const originalDiscounts = await supabase.from('order_discounts').select('*').eq('order_id', order.id);
-      if (originalDiscounts.data) {
-        // Include both existing discount IDs and newly inserted ones
-        const currentDiscountIds = [
-          ...discounts.filter(d => !d.is_new).map(d => d.id),
-          ...insertedDiscountIds
-        ];
-        const deletedDiscounts = originalDiscounts.data.filter(od => !currentDiscountIds.includes(od.id));
-        for (const deleted of deletedDiscounts) {
-          console.log('Deleting discount:', deleted);
-          await supabase.from('order_discounts').delete().eq('id', deleted.id);
-          await logChange('discounts', deleted.name, '', 'remove');
-        }
-      }
-
-      // Handle staged custom fees
-      console.log('Saving custom fees:', customFees);
-      const insertedFeeIds: string[] = [];
-
-      for (const fee of customFees) {
-        if (fee.is_new) {
-          console.log('Inserting new custom fee:', fee);
-          // Add new custom fee
-          const { data, error } = await supabase.from('order_custom_fees').insert({
-            order_id: order.id,
-            name: fee.name,
-            amount_cents: fee.amount_cents,
-          }).select();
-          if (error) {
-            console.error('Error inserting custom fee:', error);
-            throw new Error(`Failed to save custom fee: ${error.message}`);
-          }
-          console.log('Custom fee inserted successfully:', data);
-
-          // Track the newly inserted fee ID
-          if (data && data[0]) {
-            insertedFeeIds.push(data[0].id);
-          }
-
-          await logChange('custom_fees', '', fee.name, 'add');
-        }
-      }
-
-      // Remove custom fees that were deleted (check against original list)
-      const originalCustomFees = await supabase.from('order_custom_fees').select('*').eq('order_id', order.id);
-      if (originalCustomFees.data) {
-        // Include both existing fee IDs and newly inserted ones
-        const currentFeeIds = [
-          ...customFees.filter(f => !f.is_new).map(f => f.id),
-          ...insertedFeeIds
-        ];
-        const deletedFees = originalCustomFees.data.filter(of => !currentFeeIds.includes(of.id));
-        for (const deleted of deletedFees) {
-          console.log('Deleting custom fee:', deleted);
-          await supabase.from('order_custom_fees').delete().eq('id', deleted.id);
-          await logChange('custom_fees', deleted.name, '', 'remove');
-        }
-      }
-
-      // Save admin message if provided and log it
-      if (adminMessage.trim()) {
-        changes.admin_message = adminMessage.trim();
-        // Log admin message as a change so it appears in changelog
-        if (adminMessage.trim() !== (order.admin_message || '')) {
-          logs.push(['admin_message', order.admin_message || '', adminMessage.trim()]);
-        }
-      }
-
-      // Check if there are any actual changes to track
-      const hasTrackedChanges = logs.length > 0 || stagedItems.some(item => item.is_new || item.is_deleted) || discounts.some(d => d.is_new) || customFees.some(f => f.is_new);
-      const hasFieldChanges = Object.keys(changes).length > 0;
-
-      // Only set awaiting_customer_approval status if there are actual changes
-      if (hasTrackedChanges || hasFieldChanges) {
-        // Check if admin wants to skip customer approval
-        if (adminOverrideApproval) {
-          // Skip customer approval: go directly to confirmed status, keep payment method
-          changes.status = 'confirmed';
-          console.log('Skipping customer approval - order confirmed immediately');
-        } else {
-          changes.status = 'awaiting_customer_approval';
-        }
-
-        // Update order
-        const { error: updateError } = await supabase.from('orders').update(changes).eq('id', order.id);
-        if (updateError) {
-          console.error('Error updating order:', updateError);
-          throw new Error(`Failed to update order: ${updateError.message}`);
-        }
-
-        // Log all changes
-        for (const [field, oldVal, newVal] of logs) {
-          await logChange(field, oldVal, newVal);
-        }
-
-        // Only send notification if there are tracked changes for the customer to review AND admin didn't override
-        if (hasTrackedChanges && !adminOverrideApproval) {
-          await sendOrderEditNotifications();
-        }
-      } else {
-        // No changes to track, just do a regular update without changing status
-        if (hasFieldChanges) {
-          const { error: updateError } = await supabase.from('orders').update(changes).eq('id', order.id);
-          if (updateError) {
-            console.error('Error updating order:', updateError);
-            throw new Error(`Failed to update order: ${updateError.message}`);
-          }
-        }
-      }
-
-      await loadOrderDetails();
-      onUpdate();
-      if (hasTrackedChanges) {
-        if (adminOverrideApproval) {
-          showToast('Changes saved and order confirmed! Customer approval was skipped - order is ready to go.', 'success');
-        } else {
-          showToast('Changes saved successfully! Customer will be notified to review and approve the changes.', 'success');
-        }
-      } else {
-        showToast('Changes saved successfully!', 'success');
-      }
-      onClose();
+      await saveOrderChanges({
+        order,
+        editedOrder,
+        stagedItems,
+        discounts,
+        customFees,
+        calculatedPricing,
+        customDepositCents,
+        adminMessage,
+        adminOverrideApproval,
+        availabilityIssues,
+        logChangeFn: logChange,
+        sendNotificationsFn: async () => {
+          await sendOrderEditNotifications({ order, adminMessage });
+        },
+        onComplete: async () => {
+          await loadOrderDetails();
+          onUpdate();
+          onClose();
+        },
+      });
     } catch (error) {
-      console.error('Error saving changes:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      showToast(`Failed to save changes: ${errorMessage}`, 'error');
+      if (error instanceof Error && error.message !== 'Availability conflict') {
+        console.error('Error saving changes:', error);
+      }
     } finally {
       setSaving(false);
     }
   }
 
-  async function sendOrderEditNotifications() {
-    try {
-      const customerPortalUrl = `${window.location.origin}/customer-portal/${order.id}`;
-      const fullName = `${order.customers?.first_name} ${order.customers?.last_name}`.trim();
-
-      const logoUrl = 'https://qaagfafagdpgzcijnfbw.supabase.co/storage/v1/object/public/public-assets/bounce-party-club-logo.png';
-
-      const emailHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Order Updated - Approval Needed</title>
-        </head>
-        <body style="font-family: Arial, sans-serif; padding: 20px; background-color: #f8fafc;">
-          <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: 2px solid #3b82f6;">
-            <div style="text-align: center; border-bottom: 2px solid #3b82f6; padding-bottom: 20px; margin-bottom: 25px;">
-              <img src="${logoUrl}" alt="Bounce Party Club" style="height: 70px; width: auto;" />
-              <h2 style="color: #3b82f6; margin: 15px 0 0;">Your Order Has Been Updated</h2>
-            </div>
-            <p style="margin: 0 0 20px; color: #475569; font-size: 16px;">Hi ${fullName},</p>
-            <p style="margin: 0 0 20px; color: #475569; font-size: 16px;">
-              We've made some updates to your booking (Order #${order.id.slice(0, 8).toUpperCase()}) and need your approval to proceed.
-            </p>
-            ${adminMessage.trim() ? `
-            <div style="background-color: #dbeafe; border: 2px solid #3b82f6; padding: 15px; margin: 20px 0; border-radius: 6px;">
-              <p style="margin: 0; color: #1e40af; font-weight: 600;">Message from Bounce Party Club:</p>
-              <p style="margin: 10px 0 0; color: #1e40af; white-space: pre-wrap;">${adminMessage}</p>
-            </div>` : ''}
-            <div style="background-color: #fef3c7; border: 2px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 6px;">
-              <p style="margin: 0; color: #92400e; font-weight: 600;">Action Required</p>
-              <p style="margin: 10px 0 0; color: #92400e;">Please review the updated details and approve or request changes.</p>
-            </div>
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${customerPortalUrl}" style="display: inline-block; background-color: #3b82f6; color: #ffffff; text-decoration: none; padding: 12px 30px; border-radius: 6px; font-weight: 600;">
-                Review Order Changes
-              </a>
-            </div>
-            <p style="margin: 20px 0 0; color: #64748b; font-size: 14px;">
-              If you have any questions, please contact us at (313) 889-3860.
-            </p>
-          </div>
-        </body>
-        </html>
-      `;
-
-      if (order.customers?.email) {
-        const emailApiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`;
-        await fetch(emailApiUrl, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            to: order.customers.email,
-            subject: `Order Updated - Approval Needed - Order #${order.id.slice(0, 8).toUpperCase()}`,
-            html: emailHtml,
-          }),
-        });
-      }
-
-      if (order.customers?.phone) {
-        let smsMessage =
-          `Hi ${order.customers.first_name}, we've updated your Bounce Party Club booking ` +
-          `(Order #${order.id.slice(0, 8).toUpperCase()}).`;
-
-        if (adminMessage.trim()) {
-          smsMessage += ` Note: ${adminMessage.trim()}`;
-        }
-
-        smsMessage += ` Please review and approve: ${customerPortalUrl}`;
-
-        await sendSMS(smsMessage);
-      }
-    } catch (error) {
-      console.error('Error sending notifications:', error);
-    }
-  }
-
-  async function sendSMS(message: string) {
-    const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
-    await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        to: order.customers?.phone,
-        message,
-        orderId: order.id,
-      }),
-    });
-  }
 
   async function handleAddDiscount() {
     if (!newDiscount.name.trim()) {
