@@ -20,7 +20,6 @@ export async function sendOrderEditNotifications({
 }: SendOrderEditNotificationsParams): Promise<void> {
   try {
     const customerPortalUrl = `${window.location.origin}/customer-portal/${order.id}`;
-    const fullName = `${order.customers?.first_name} ${order.customers?.last_name}`.trim();
 
     let content = createGreeting(order.customers?.first_name);
     content += createParagraph(

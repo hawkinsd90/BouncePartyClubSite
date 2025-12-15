@@ -122,13 +122,16 @@ export function DiscountsManager({
     setSelectedTemplateId(templateId);
     const template = savedTemplates.find(t => t.id === templateId);
     if (template) {
+      const amountCents = template.discount_type === 'fixed' ? template.discount_value : 0;
+      const percentage = template.discount_type === 'percentage' ? template.discount_value : 0;
+
       setNewDiscount({
         name: template.name,
-        amount_cents: template.amount_cents,
-        percentage: template.percentage
+        amount_cents: amountCents,
+        percentage: percentage
       });
-      setDiscountAmountInput((template.amount_cents / 100).toFixed(2));
-      setDiscountPercentInput(template.percentage.toString());
+      setDiscountAmountInput((amountCents / 100).toFixed(2));
+      setDiscountPercentInput(percentage.toString());
     }
   }
 
@@ -184,7 +187,7 @@ export function DiscountsManager({
                 <option value="">Select a saved discount...</option>
                 {savedTemplates.map(template => (
                   <option key={template.id} value={template.id}>
-                    {template.name} - {template.amount_cents > 0 ? `$${(template.amount_cents / 100).toFixed(2)}` : `${template.percentage}%`}
+                    {template.name} - {template.discount_type === 'fixed' ? `$${(template.discount_value / 100).toFixed(2)}` : `${template.discount_value}%`}
                   </option>
                 ))}
               </select>

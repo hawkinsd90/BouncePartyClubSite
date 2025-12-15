@@ -112,8 +112,9 @@ export function CustomFeesManager({
     setSelectedTemplateId(templateId);
     const template = savedTemplates.find(t => t.id === templateId);
     if (template) {
-      setNewCustomFee({ name: template.name, amount_cents: template.amount_cents });
-      setCustomFeeInput((template.amount_cents / 100).toFixed(2));
+      const amountCents = template.fee_type === 'fixed' ? template.fee_value : 0;
+      setNewCustomFee({ name: template.name, amount_cents: amountCents });
+      setCustomFeeInput((amountCents / 100).toFixed(2));
     }
   }
 
@@ -155,7 +156,7 @@ export function CustomFeesManager({
                 <option value="">Select a saved fee...</option>
                 {savedTemplates.map(template => (
                   <option key={template.id} value={template.id}>
-                    {template.name} - ${(template.amount_cents / 100).toFixed(2)}
+                    {template.name} - {template.fee_type === 'fixed' ? `$${(template.fee_value / 100).toFixed(2)}` : `${template.fee_value}%`}
                   </option>
                 ))}
               </select>

@@ -98,7 +98,7 @@ export function useOrderDetails(orderId: string | null) {
       .single();
 
     if (error) throw error;
-    setOrder(data);
+    setOrder(data as any);
   };
 
   const loadPayments = async () => {
@@ -111,7 +111,7 @@ export function useOrderDetails(orderId: string | null) {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    setPayments(data || []);
+    setPayments((data || []) as any[]);
   };
 
   const loadPricingRules = async () => {
@@ -121,7 +121,7 @@ export function useOrderDetails(orderId: string | null) {
       .single();
 
     if (error) throw error;
-    setPricingRules(data);
+    setPricingRules(data as any);
   };
 
   return {

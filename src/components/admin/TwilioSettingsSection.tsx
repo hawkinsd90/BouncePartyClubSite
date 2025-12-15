@@ -43,7 +43,7 @@ export function TwilioSettingsSection({
           label="Twilio Account SID"
           type="text"
           value={accountSid}
-          onChange={(e) => onAccountSidChange(e.target.value)}
+          onChange={onAccountSidChange}
           placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
         />
 
@@ -51,7 +51,7 @@ export function TwilioSettingsSection({
           label="Twilio Auth Token"
           type="password"
           value={authToken}
-          onChange={(e) => onAuthTokenChange(e.target.value)}
+          onChange={onAuthTokenChange}
           placeholder="********************************"
         />
 
@@ -59,9 +59,9 @@ export function TwilioSettingsSection({
           label="Twilio Phone Number"
           type="tel"
           value={fromNumber}
-          onChange={(e) => onFromNumberChange(e.target.value)}
+          onChange={onFromNumberChange}
           placeholder="+15551234567"
-          helperText="Must be in E.164 format (e.g., +15551234567)"
+          helpText="Must be in E.164 format (e.g., +15551234567)"
         />
 
         <div className="pt-4 border-t border-slate-200">
@@ -69,9 +69,9 @@ export function TwilioSettingsSection({
             label="Admin Email for Error Notifications"
             type="email"
             value={adminEmail}
-            onChange={(e) => onAdminEmailChange(e.target.value)}
+            onChange={onAdminEmailChange}
             placeholder="admin@example.com"
-            helperText="All application errors will be sent to this email with detailed stack traces"
+            helpText="All application errors will be sent to this email with detailed stack traces"
           />
         </div>
 

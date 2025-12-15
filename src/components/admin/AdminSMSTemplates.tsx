@@ -104,7 +104,7 @@ export function AdminSMSTemplates({ templates, onRefetch }: AdminSMSTemplatesPro
               <TextareaInput
                 label="Message Template"
                 value={editingTemplate.message_template}
-                onChange={(e) => setEditingTemplate({ ...editingTemplate, message_template: e.target.value })}
+                onChange={(value) => setEditingTemplate({ ...editingTemplate, message_template: value })}
                 rows={6}
                 className="font-mono"
               />

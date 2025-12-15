@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/pricing';
-import { FileText, Loader2, CreditCard, CheckCircle, AlertCircle, Sparkles, Shield, Printer, X } from 'lucide-react';
+import { FileText, Loader2, CreditCard, CheckCircle, AlertCircle, Shield, Printer, X } from 'lucide-react';
 import { OrderSummary } from '../OrderSummary';
 import { OrderSummaryDisplay } from '../../lib/orderSummary';
 import { PrintableInvoice } from '../PrintableInvoice';
@@ -397,6 +397,7 @@ export function InvoiceAcceptanceView({
             customTipAmount={customTipAmount}
             onTipAmountChange={setTipAmount}
             onCustomTipAmountChange={setCustomTipAmount}
+            formatCurrency={formatCurrency}
           />
 
           {needsCustomerInfo && (

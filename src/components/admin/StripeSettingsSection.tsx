@@ -38,18 +38,18 @@ export function StripeSettingsSection({
           label="Stripe Secret Key"
           type="password"
           value={secretKey}
-          onChange={(e) => onSecretKeyChange(e.target.value)}
+          onChange={onSecretKeyChange}
           placeholder="sk_test_... or sk_live_..."
-          helperText="This key is securely stored and used by the payment processing system"
+          helpText="This key is securely stored and used by the payment processing system"
         />
 
         <TextInput
           label="Stripe Publishable Key"
           type="text"
           value={publishableKey}
-          onChange={(e) => onPublishableKeyChange(e.target.value)}
+          onChange={onPublishableKeyChange}
           placeholder="pk_test_... or pk_live_..."
-          helperText="This key is used on the frontend to display the payment form"
+          helpText="This key is used on the frontend to display the payment form"
         />
 
         <div className="flex gap-3 pt-4">
