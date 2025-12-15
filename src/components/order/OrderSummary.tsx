@@ -62,7 +62,7 @@ export function OrderSummary({
             </h4>
             <div className="space-y-2">
               {summary.items.map((item, index) => {
-                const isNew = addedItems.some(change =>
+                const isNew = item.isNew || addedItems.some(change =>
                   change.new_value?.includes(item.name)
                 );
                 return (
