@@ -1,35 +1,335 @@
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import {
+  calculatePrice,
+  calculateDrivingDistance,
+  type PricingRules,
+} from '../lib/pricing';
+import { HOME_BASE } from '../lib/constants';
 import { MapPin, Calendar, Home, Building2, Droplets, Trash2, Zap, AlertCircle, CheckCircle2, Clock, Sun, Anchor, XCircle } from 'lucide-react';
 import { AddressAutocomplete } from '../components/AddressAutocomplete';
-import { useQuoteCart } from '../hooks/useQuoteCart';
-import { useQuoteForm } from '../hooks/useQuoteForm';
-import { useQuotePricing } from '../hooks/useQuotePricing';
-import { useQuotePrefill } from '../hooks/useQuotePrefill';
-import { useDataFetch } from '../hooks/useDataFetch';
-import { supabase } from '../lib/supabase';
-import type { PricingRules } from '../lib/pricing';
+import { checkMultipleUnitsAvailability } from '../lib/availability';
+
+interface CartItem {
+  unit_id: string;
+  unit_name: string;
+  wet_or_dry: 'dry' | 'water';
+  unit_price_cents: number;
+  qty: number;
+  is_combo?: boolean;
+  isAvailable?: boolean;
+}
+
+interface QuoteFormData {
+  event_date: string;
+  event_end_date: string;
+  start_window: string;
+  end_window: string;
+  until_end_of_day: boolean;
+  address_line1: string;
+  address_line2: string;
+  city: string;
+  state: string;
+  zip: string;
+  lat: number;
+  lng: number;
+  location_type: 'residential' | 'commercial';
+  pickup_preference: 'same_day' | 'next_day';
+  same_day_responsibility_accepted: boolean;
+  overnight_responsibility_accepted: boolean;
+  can_stake: boolean;
+  has_generator: boolean;
+  has_pets: boolean;
+  special_details: string;
+}
 
 export function Quote() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [pricingRules, setPricingRules] = useState<PricingRules | null>(null);
+  const [addressInput, setAddressInput] = useState('');
+  const [formData, setFormData] = useState<QuoteFormData>({
+    event_date: '',
+    event_end_date: '',
+    start_window: '09:00',
+    end_window: '17:00',
+    until_end_of_day: false,
+    address_line1: '',
+    address_line2: '',
+    city: 'Detroit',
+    state: 'MI',
+    zip: '',
+    lat: 0,
+    lng: 0,
+    location_type: 'residential',
+    pickup_preference: 'next_day',
+    same_day_responsibility_accepted: false,
+    overnight_responsibility_accepted: false,
+    can_stake: true,
+    has_generator: false,
+    has_pets: false,
+    special_details: '',
+  });
+  const [priceBreakdown, setPriceBreakdown] = useState<any>(null);
 
-  const { cart, updateCartItem, removeFromCart, checkCartAvailability } = useQuoteCart();
-  const { formData, setFormData, updateFormData, addressInput, setAddressInput, saveFormData } = useQuoteForm();
+  // Function to check cart availability (not memoized to avoid circular deps)
+  async function checkCartAvailability() {
+    if (!formData.event_date || !formData.event_end_date) {
+      return;
+    }
 
-  const { data: pricingRules } = useDataFetch<PricingRules>(
-    async () => {
-      const { data, error } = await supabase
-        .from('pricing_rules')
-        .select('*')
-        .limit(1)
-        .maybeSingle();
+    if (cart.length === 0) {
+      return;
+    }
 
-      if (error) throw error;
-      if (!data) throw new Error('No pricing rules found');
+    const checks = cart.map(item => ({
+      unitId: item.unit_id,
+      eventStartDate: formData.event_date,
+      eventEndDate: formData.event_end_date,
+    }));
 
-      return {
+    const results = await checkMultipleUnitsAvailability(checks);
+
+    const updatedCart = cart.map((item, index) => ({
+      ...item,
+      isAvailable: results[index]?.isAvailable ?? true,
+    }));
+    setCart(updatedCart);
+    localStorage.setItem('bpc_cart', JSON.stringify(updatedCart));
+  }
+
+  useEffect(() => {
+    loadCart();
+    loadPricingRules();
+    loadPrefillData();
+  }, []);
+
+  // Reload prefill data when user logs in
+  useEffect(() => {
+    if (user) {
+      loadPrefillData();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (formData.event_date && !formData.event_end_date) {
+      setFormData(prev => ({ ...prev, event_end_date: prev.event_date }));
+    }
+  }, [formData.event_date]);
+
+  // Separate effect for geocoding when address is manually entered
+  useEffect(() => {
+    async function geocodeAddress() {
+      // Only geocode if we have city/state/zip but no lat/lng
+      if (formData.city && formData.state && formData.zip && !formData.lat && !formData.lng) {
+        try {
+          const geocoder = new google.maps.Geocoder();
+          const address = `${formData.city}, ${formData.state} ${formData.zip}`;
+          const result = await geocoder.geocode({ address });
+
+          if (result.results && result.results[0]) {
+            const location = result.results[0].geometry.location;
+            const lat = location.lat();
+            const lng = location.lng();
+
+            // Update formData with geocoded lat/lng
+            setFormData(prev => ({ ...prev, lat, lng }));
+          }
+        } catch (error) {
+          console.error('Error geocoding address:', error);
+        }
+      }
+    }
+
+    geocodeAddress();
+  }, [formData.city, formData.state, formData.zip, formData.lat, formData.lng]);
+
+  // Effect for calculating pricing when relevant fields change
+  useEffect(() => {
+    if (cart.length > 0 && pricingRules && formData.zip && formData.lat && formData.lng) {
+      calculatePricing();
+    }
+  }, [cart, pricingRules, formData]);
+
+  useEffect(() => {
+    if (cart.length > 0 && formData.event_date && formData.event_end_date) {
+      const timer = setTimeout(() => {
+        checkCartAvailability();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [formData.event_date, formData.event_end_date, cart.length]);
+
+  useEffect(() => {
+    if (formData.location_type === 'commercial') {
+      setFormData(prev => ({ ...prev, pickup_preference: 'same_day' }));
+    }
+  }, [formData.location_type]);
+
+  useEffect(() => {
+    const isSameDayRestricted = (formData.location_type === 'residential' && formData.pickup_preference === 'same_day') || formData.location_type === 'commercial';
+
+    if (isSameDayRestricted) {
+      setFormData(prev => ({
+        ...prev,
+        event_end_date: prev.event_date,
+        until_end_of_day: false,
+        end_window: prev.end_window > '19:00' ? '19:00' : prev.end_window,
+      }));
+    }
+  }, [formData.pickup_preference, formData.location_type, formData.event_date]);
+
+  async function loadPrefillData() {
+    // If user is logged in, fetch their data from database
+    if (user) {
+      try {
+        const { data, error } = await supabase.rpc('get_user_order_prefill');
+
+        if (error) {
+          console.error('Error fetching user prefill data:', error);
+        } else if (data && data.length > 0) {
+          const userData = data[0];
+          console.log('Auto-filling form with user data:', userData);
+
+          // Auto-fill address if available
+          if (userData.address_line1 || userData.city) {
+            const addressParts = [
+              userData.address_line1,
+              userData.city,
+              userData.state,
+              userData.zip,
+            ].filter(Boolean);
+
+            if (addressParts.length > 0) {
+              setAddressInput(addressParts.join(', '));
+              setFormData(prev => ({
+                ...prev,
+                address_line1: userData.address_line1 || '',
+                address_line2: userData.address_line2 || '',
+                city: userData.city || 'Detroit',
+                state: userData.state || 'MI',
+                zip: userData.zip || '',
+                lat: userData.lat ? Number(userData.lat) : 0,
+                lng: userData.lng ? Number(userData.lng) : 0,
+              }));
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading user prefill data:', error);
+      }
+    }
+
+    // Also check localStorage for prefill data (from home page, duplicate orders, etc.)
+    // Note: We only prefill address and location type, NOT dates
+    const prefillData = localStorage.getItem('bpc_quote_prefill');
+    if (prefillData) {
+      try {
+        const data = JSON.parse(prefillData);
+        const isDuplicateOrder = localStorage.getItem('bpc_duplicate_order') === 'true';
+
+        // Don't auto-fill dates - user should always select their desired date
+        if (data.address) {
+          setAddressInput(data.address.formatted_address || data.address.street || '');
+          setFormData(prev => ({
+            ...prev,
+            address_line1: data.address.street || '',
+            address_line2: data.address_line2 || '',
+            city: data.address.city || 'Detroit',
+            state: data.address.state || 'MI',
+            zip: data.address.zip || '',
+            lat: data.address.lat || 0,
+            lng: data.address.lng || 0,
+          }));
+        }
+
+        // If this is a duplicate order, load all the additional settings
+        if (isDuplicateOrder) {
+          setFormData(prev => ({
+            ...prev,
+            location_type: data.location_type || prev.location_type,
+            pickup_preference: data.pickup_preference || prev.pickup_preference,
+            can_stake: data.can_stake !== undefined ? data.can_stake : prev.can_stake,
+            has_generator: data.has_generator !== undefined ? data.has_generator : prev.has_generator,
+            has_pets: data.has_pets !== undefined ? data.has_pets : prev.has_pets,
+            special_details: data.special_details || prev.special_details,
+            start_window: data.start_window || prev.start_window,
+            end_window: data.end_window || prev.end_window,
+          }));
+          // Clear the duplicate flag
+          localStorage.removeItem('bpc_duplicate_order');
+        } else if (data.location_type) {
+          // For regular prefill, just set location type
+          setFormData(prev => ({
+            ...prev,
+            location_type: data.location_type,
+          }));
+        }
+
+        // Clear the prefill data after using it
+        localStorage.removeItem('bpc_quote_prefill');
+      } catch (error) {
+        console.error('Error loading prefill data:', error);
+      }
+    }
+  }
+
+  function loadCart() {
+    const savedCart = JSON.parse(localStorage.getItem('bpc_cart') || '[]');
+    const validCart = savedCart.filter((item: any) => {
+      const isValid = item.unit_id && typeof item.unit_id === 'string' && item.unit_id !== 'undefined';
+      if (!isValid) {
+        console.log('Filtering out invalid cart item:', item);
+      }
+      return isValid;
+    });
+
+    if (validCart.length !== savedCart.length) {
+      console.log(`Removed ${savedCart.length - validCart.length} invalid cart items`);
+      localStorage.setItem('bpc_cart', JSON.stringify(validCart));
+    }
+
+    setCart(validCart);
+
+    // Also restore form data from localStorage if it exists
+    const savedFormData = localStorage.getItem('bpc_quote_form');
+    if (savedFormData) {
+      try {
+        const parsedFormData = JSON.parse(savedFormData);
+        // Exclude responsibility checkboxes - user must re-check each time
+        const { same_day_responsibility_accepted, overnight_responsibility_accepted, ...safeFormData } = parsedFormData;
+        setFormData(prev => ({
+          ...prev,
+          ...safeFormData,
+        }));
+
+        // Also restore the address input if available
+        if (parsedFormData.address_line1) {
+          setAddressInput(`${parsedFormData.address_line1}, ${parsedFormData.city}, ${parsedFormData.state} ${parsedFormData.zip}`);
+        }
+      } catch (error) {
+        console.error('Error loading saved form data:', error);
+      }
+    }
+  }
+
+  async function loadPricingRules() {
+    const { data, error } = await supabase
+      .from('pricing_rules')
+      .select('*')
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error loading pricing rules:', error);
+      return;
+    }
+
+    if (data) {
+      setPricingRules({
         base_radius_miles: Number(data.base_radius_miles ?? 0),
         included_city_list_json: (data.included_city_list_json as string[]) ?? [],
         per_mile_after_base_cents: data.per_mile_after_base_cents ?? 0,
@@ -41,23 +341,55 @@ export function Quote() {
         overnight_holiday_only: data.overnight_holiday_only ?? false,
         extra_day_pct: Number(data.extra_day_pct ?? 0),
         generator_price_cents: Number(data.generator_price_cents ?? 0),
-      };
-    },
-    { showErrorNotification: false }
-  );
-
-  const { priceBreakdown, savePriceBreakdown } = useQuotePricing(cart, formData, pricingRules);
-
-  useQuotePrefill(user, { setAddressInput, updateFormData });
-
-  useEffect(() => {
-    if (cart.length > 0 && formData.event_date && formData.event_end_date) {
-      const timer = setTimeout(() => {
-        checkCartAvailability(formData.event_date, formData.event_end_date);
-      }, 300);
-      return () => clearTimeout(timer);
+      });
     }
-  }, [formData.event_date, formData.event_end_date, cart.length]);
+  }
+
+
+  async function calculatePricing() {
+    if (!pricingRules) return;
+
+    const distance_miles = await calculateDrivingDistance(
+      HOME_BASE.lat,
+      HOME_BASE.lng,
+      formData.lat,
+      formData.lng
+    );
+
+    const startDate = new Date(formData.event_date);
+    const endDate = new Date(formData.event_end_date);
+    const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const num_days = Math.max(1, daysDiff + 1);
+
+    const breakdown = calculatePrice({
+      items: cart,
+      location_type: formData.location_type,
+      surface: formData.can_stake ? 'grass' : 'cement',
+      can_use_stakes: formData.can_stake,
+      overnight_allowed: formData.pickup_preference === 'next_day',
+      num_days,
+      distance_miles,
+      city: formData.city,
+      zip: formData.zip,
+      has_generator: formData.has_generator,
+      rules: pricingRules,
+    });
+
+    setPriceBreakdown(breakdown);
+  }
+
+  function updateCartItem(index: number, updates: Partial<CartItem>) {
+    const newCart = [...cart];
+    newCart[index] = { ...newCart[index], ...updates };
+    setCart(newCart);
+    localStorage.setItem('bpc_cart', JSON.stringify(newCart));
+  }
+
+  function removeFromCart(index: number) {
+    const newCart = cart.filter((_, i) => i !== index);
+    setCart(newCart);
+    localStorage.setItem('bpc_cart', JSON.stringify(newCart));
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,7 +416,7 @@ export function Quote() {
       return;
     }
 
-    await checkCartAvailability(formData.event_date, formData.event_end_date);
+    await checkCartAvailability();
 
     const stillUnavailable = cart.filter(item => item.isAvailable === false);
     if (stillUnavailable.length > 0) {
@@ -93,8 +425,8 @@ export function Quote() {
       return;
     }
 
-    saveFormData();
-    savePriceBreakdown();
+    localStorage.setItem('bpc_quote_form', JSON.stringify(formData));
+    localStorage.setItem('bpc_price_breakdown', JSON.stringify(priceBreakdown));
     navigate('/checkout');
   };
 
