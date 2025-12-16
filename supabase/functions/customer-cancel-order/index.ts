@@ -36,7 +36,6 @@ Deno.serve(async (req: Request) => {
       }
     );
 
-    // Customer can cancel anonymously via invoice link or as authenticated user
     const authHeader = req.headers.get("Authorization");
     let userId = null;
 
@@ -59,7 +58,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Get order details
     const { data: order, error: orderError } = await supabaseClient
       .from("orders")
       .select("*, customers(*)")
@@ -76,7 +74,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Check if order can be cancelled
     const cancellableStatuses = ["draft", "pending_review", "awaiting_customer_approval", "confirmed"];
     if (!cancellableStatuses.includes(order.status)) {
       return new Response(
@@ -90,17 +87,14 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Calculate hours until event
     const now = new Date();
     const eventDate = new Date(order.start_date);
     const hoursUntilEvent = (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-    // Determine refund policy
     let refundPolicy: "full_refund" | "reschedule_credit" | "no_refund";
     let refundMessage: string;
     let shouldIssueRefund = false;
 
-    // Check if it's the day of the event
     const isSameDay = eventDate.toDateString() === now.toDateString();
 
     if (hoursUntilEvent >= 72) {
@@ -117,7 +111,6 @@ Deno.serve(async (req: Request) => {
       shouldIssueRefund = false;
     }
 
-    // Update order status to cancelled
     const { error: updateError } = await supabaseClient
       .from("orders")
       .update({
@@ -132,10 +125,8 @@ Deno.serve(async (req: Request) => {
       throw new Error(`Failed to update order: ${updateError.message}`);
     }
 
-    // Issue automatic refund if applicable
     let refundResult = null;
     if (shouldIssueRefund && refundPolicy === "full_refund") {
-      // Get the total amount paid
       const { data: payments } = await supabaseClient
         .from("payments")
         .select("amount_cents")
@@ -148,7 +139,6 @@ Deno.serve(async (req: Request) => {
         const refundAmount = totalPaid - alreadyRefunded;
 
         if (refundAmount > 0) {
-          // Find payment to refund
           const { data: lastPayment } = await supabaseClient
             .from("payments")
             .select("*")
@@ -174,7 +164,6 @@ Deno.serve(async (req: Request) => {
                   },
                 });
 
-                // Record refund
                 await supabaseClient
                   .from("order_refunds")
                   .insert({
@@ -186,7 +175,6 @@ Deno.serve(async (req: Request) => {
                     status: refund.status === "succeeded" ? "succeeded" : "pending",
                   });
 
-                // Update total refunded
                 await supabaseClient
                   .from("orders")
                   .update({
@@ -202,7 +190,6 @@ Deno.serve(async (req: Request) => {
               }
             } catch (refundError: any) {
               console.error("Refund error:", refundError);
-              // Don't fail the cancellation, just log the error
               refundResult = {
                 refunded: false,
                 error: "Refund processing failed, please contact support",
@@ -213,7 +200,6 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Send notification email to admin
     try {
       await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
         method: "POST",
@@ -241,6 +227,55 @@ ${refundResult?.refunded ? `Automatic refund of $${(refundResult.amount / 100).t
       });
     } catch (emailError) {
       console.error("Failed to send notification email:", emailError);
+    }
+
+    try {
+      const { data: adminPhone } = await supabaseClient
+        .from("admin_settings")
+        .select("value")
+        .eq("key", "admin_phone")
+        .maybeSingle();
+
+      if (adminPhone?.value) {
+        const refundPolicyText =
+          refundPolicy === "full_refund" ? "Full Refund" :
+          refundPolicy === "reschedule_credit" ? "Credit Only" :
+          "No Refund";
+
+        const { data: smsTemplate } = await supabaseClient
+          .from("sms_message_templates")
+          .select("message_template")
+          .eq("template_key", "order_cancelled_admin")
+          .maybeSingle();
+
+        if (smsTemplate) {
+          const customerName = `${order.customers?.first_name || ''} ${order.customers?.last_name || ''}`.trim();
+          const eventDate = new Date(order.start_date).toLocaleDateString();
+          const orderLink = `${Deno.env.get("SUPABASE_URL")?.replace('/functions/v1', '').replace('https://supabase.co', '').replace('.supabase.co', '')}/admin?order=${orderId}`;
+
+          const message = smsTemplate.message_template
+            .replace("{customer_name}", customerName)
+            .replace("{order_id}", orderId.slice(0, 8).toUpperCase())
+            .replace("{event_date}", eventDate)
+            .replace("{refund_policy}", refundPolicyText)
+            .replace("{order_link}", orderLink);
+
+          await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-sms-notification`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              to: adminPhone.value,
+              message: message,
+              orderId: orderId,
+            }),
+          });
+        }
+      }
+    } catch (smsError) {
+      console.error("Failed to send SMS notification:", smsError);
     }
 
     return new Response(
