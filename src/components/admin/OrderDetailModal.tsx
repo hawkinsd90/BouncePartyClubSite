@@ -202,13 +202,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
   }, [editedOrder.can_stake]);
 
-  // Recalculate pricing whenever staged items, discounts, or order details change
-  useEffect(() => {
-    if (pricingRules && adminSettings && stagedItems.length > 0) {
-      handleRecalculatePricing();
-    }
-  }, [stagedItems, discounts, editedOrder, pricingRules, adminSettings]);
-
   // Check availability when dates or items change
   useEffect(() => {
     if (stagedItems.length > 0 && editedOrder.event_date && editedOrder.event_end_date) {

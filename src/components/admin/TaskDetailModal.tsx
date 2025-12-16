@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { X, Navigation, CheckCircle, Camera, MessageCircle, ChevronUp, ChevronDown, Star, AlertTriangle, RefreshCw, RotateCcw } from 'lucide-react';
+import { X, Navigation, CheckCircle, Camera, MessageCircle, ChevronUp, ChevronDown, Star, AlertTriangle, RefreshCw, RotateCcw, DollarSign, FileCheck, Ban, ExternalLink } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { showAlert } from '../common/CustomModal';
 import { getCurrentLocation, calculateETA } from '../../lib/googleMaps';
@@ -57,6 +57,13 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
   const [refundAmount, setRefundAmount] = useState('');
   const [refundReason, setRefundReason] = useState('');
   const [showRefundForm, setShowRefundForm] = useState(false);
+  const [showCashPayment, setShowCashPayment] = useState(false);
+  const [cashAmount, setCashAmount] = useState('');
+  const [recordingCash, setRecordingCash] = useState(false);
+  const [signingWaiver, setSigningWaiver] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [showCancelForm, setShowCancelForm] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
   const currentStatus = task.taskStatus?.status || 'pending';
 
   useEffect(() => {
@@ -509,6 +516,162 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
     }
   }
 
+  async function handleCashPayment() {
+    const amountCents = Math.round(parseFloat(cashAmount) * 100);
+
+    if (!amountCents || amountCents <= 0) {
+      showAlert('Please enter a valid payment amount');
+      return;
+    }
+
+    const confirmed = confirm(
+      `Record cash payment of ${formatCurrency(amountCents)} from ${task.customerName}?\n\nThis will send a receipt email to the customer.`
+    );
+
+    if (!confirmed) return;
+
+    setRecordingCash(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+
+      const { error: paymentError } = await supabase
+        .from('payments')
+        .insert({
+          order_id: task.orderId,
+          amount_cents: amountCents,
+          type: 'balance',
+          method: 'cash',
+          status: 'succeeded',
+          paid_at: new Date().toISOString(),
+          created_by: user?.id,
+        });
+
+      if (paymentError) throw paymentError;
+
+      const { data: order } = await supabase
+        .from('orders')
+        .select('*, customers(*)')
+        .eq('id', task.orderId)
+        .single();
+
+      if (order && order.customers?.email) {
+        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: order.customers.email,
+            subject: `Payment Received - Order #${task.orderNumber}`,
+            text: `Thank you for your payment!\n\nWe have received your cash payment of ${formatCurrency(amountCents)} for order #${task.orderNumber}.\n\nThank you for choosing Bounce Party Club!`,
+          }),
+        });
+      }
+
+      showAlert(`Cash payment of ${formatCurrency(amountCents)} recorded successfully!`);
+      setShowCashPayment(false);
+      setCashAmount('');
+      onUpdate();
+    } catch (error: any) {
+      console.error('Error recording cash payment:', error);
+      showAlert('Failed to record payment: ' + error.message);
+    } finally {
+      setRecordingCash(false);
+    }
+  }
+
+  async function handlePaperWaiver() {
+    const confirmed = confirm(
+      `Mark waiver as signed in person for ${task.customerName}?\n\nThis will update the order to show the waiver has been completed.`
+    );
+
+    if (!confirmed) return;
+
+    setSigningWaiver(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+
+      const { error } = await supabase
+        .from('order_signatures')
+        .insert({
+          order_id: task.orderId,
+          signature_data: 'PAPER_WAIVER_SIGNED_IN_PERSON',
+          signed_at: new Date().toISOString(),
+          ip_address: '0.0.0.0',
+          user_agent: 'Admin Paper Waiver',
+          signed_by: user?.id,
+        });
+
+      if (error) throw error;
+
+      showAlert('Waiver marked as signed in person!');
+      onUpdate();
+    } catch (error: any) {
+      console.error('Error marking waiver:', error);
+      showAlert('Failed to mark waiver: ' + error.message);
+    } finally {
+      setSigningWaiver(false);
+    }
+  }
+
+  async function handleCancelOrder() {
+    if (!cancelReason.trim() || cancelReason.trim().length < 10) {
+      showAlert('Please provide a cancellation reason (minimum 10 characters)');
+      return;
+    }
+
+    const confirmed = confirm(
+      `Cancel order #${task.orderNumber} for ${task.customerName}?\n\nReason: ${cancelReason}\n\nThis will cancel the order and process any applicable refunds.`
+    );
+
+    if (!confirmed) return;
+
+    setCancelling(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const jwt = session?.access_token;
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/customer-cancel-order`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${jwt}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            orderId: task.orderId,
+            cancellationReason: cancelReason,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to cancel order');
+      }
+
+      showAlert(`Order cancelled successfully. ${data.refundMessage}`);
+      setShowCancelForm(false);
+      setCancelReason('');
+      onClose();
+      onUpdate();
+    } catch (error: any) {
+      console.error('Error cancelling order:', error);
+      showAlert('Failed to cancel order: ' + error.message);
+    } finally {
+      setCancelling(false);
+    }
+  }
+
+  function handleViewOrder() {
+    window.location.href = `/admin?tab=orders&order=${task.orderId}`;
+  }
+
   const isDropOff = task.type === 'drop-off';
   const statusColor = {
     pending: 'bg-slate-100 text-slate-800',
@@ -530,7 +693,13 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
                 {currentStatus.toUpperCase()}
               </span>
             </div>
-            <p className="text-sm text-slate-600">Order #{task.orderNumber}</p>
+            <button
+              onClick={handleViewOrder}
+              className="text-sm text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1"
+            >
+              Order #{task.orderNumber}
+              <ExternalLink className="w-3 h-3" />
+            </button>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <div className="flex gap-2">
                 <button
@@ -683,8 +852,109 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
             </div>
           )}
 
+          <div className="bg-slate-50 rounded-lg p-4 space-y-3">
+            <h3 className="font-bold text-slate-900 mb-3">Order Management</h3>
+
+            {task.balanceDue > 0 && (
+              <div>
+                <button
+                  onClick={() => setShowCashPayment(!showCashPayment)}
+                  className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                >
+                  <DollarSign className="w-4 h-4" />
+                  Record Cash Payment
+                </button>
+                {showCashPayment && (
+                  <div className="mt-3 p-3 bg-white border border-slate-200 rounded-lg space-y-2">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                        Amount Received ($) - Balance Due: {formatCurrency(task.balanceDue)}
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={cashAmount}
+                        onChange={(e) => setCashAmount(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded"
+                        placeholder={(task.balanceDue / 100).toFixed(2)}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleCashPayment}
+                        disabled={recordingCash}
+                        className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white text-sm font-semibold py-2 px-3 rounded"
+                      >
+                        {recordingCash ? 'Recording...' : 'Record Payment'}
+                      </button>
+                      <button
+                        onClick={() => setShowCashPayment(false)}
+                        className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-semibold py-2 px-3 rounded"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!task.waiverSigned && (
+              <button
+                onClick={handlePaperWaiver}
+                disabled={signingWaiver}
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+              >
+                <FileCheck className="w-4 h-4" />
+                {signingWaiver ? 'Processing...' : 'Mark Waiver Signed (Paper)'}
+              </button>
+            )}
+
+            <div>
+              <button
+                onClick={() => setShowCancelForm(!showCancelForm)}
+                className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+              >
+                <Ban className="w-4 h-4" />
+                Cancel Order
+              </button>
+              {showCancelForm && (
+                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg space-y-2">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                      Cancellation Reason (minimum 10 characters)
+                    </label>
+                    <textarea
+                      value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded"
+                      rows={3}
+                      placeholder="e.g., Weather cancellation, Customer request, Equipment failure"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleCancelOrder}
+                      disabled={cancelling}
+                      className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-slate-400 text-white text-sm font-semibold py-2 px-3 rounded"
+                    >
+                      {cancelling ? 'Cancelling...' : 'Confirm Cancellation'}
+                    </button>
+                    <button
+                      onClick={() => setShowCancelForm(false)}
+                      className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-semibold py-2 px-3 rounded"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="border-t border-slate-200 pt-6">
-            <h3 className="font-bold text-slate-900 mb-4">Actions</h3>
+            <h3 className="font-bold text-slate-900 mb-4">Delivery Actions</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 onClick={handleEnRoute}
