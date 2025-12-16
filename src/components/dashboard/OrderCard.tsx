@@ -155,7 +155,7 @@ export function OrderCard({ order, onViewReceipt, onDuplicateOrder, onCancelOrde
           </button>
           {canCancel && (
             <button
-              onClick={() => onCancelOrder(order.id, order.start_date)}
+              onClick={() => onCancelOrder(order.id, order.event_date)}
               className="flex-1 px-3 sm:px-4 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5 sm:gap-2 text-sm font-medium"
             >
               <XCircle className="w-4 h-4 flex-shrink-0" />

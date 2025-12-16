@@ -534,7 +534,7 @@ export function InvoiceAcceptanceView({
         {showCancelModal && (
           <CancelOrderModal
             orderId={order.id}
-            eventDate={order.start_date}
+            eventDate={order.event_date}
             onClose={() => setShowCancelModal(false)}
             onSuccess={() => {
               showToast('Your order has been cancelled', 'success');

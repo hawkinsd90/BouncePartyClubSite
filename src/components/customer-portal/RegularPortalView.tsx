@@ -183,7 +183,7 @@ export function RegularPortalView({ order, orderId, onReload }: RegularPortalVie
       {showCancelModal && (
         <CancelOrderModal
           orderId={order.id}
-          eventDate={order.start_date}
+          eventDate={order.event_date}
           onClose={() => setShowCancelModal(false)}
           onSuccess={() => {
             onReload();

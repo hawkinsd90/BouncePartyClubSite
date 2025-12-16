@@ -87,7 +87,6 @@ export async function saveOrderChanges({
 
   if (editedEventDate !== originalEventDate) {
     changes.event_date = editedOrder.event_date;
-    changes.start_date = editedOrder.event_date;
     logs.push(['event_date', order.event_date, editedOrder.event_date]);
   }
 
@@ -96,7 +95,6 @@ export async function saveOrderChanges({
 
   if (editedEventEndDate !== originalEventEndDate) {
     changes.event_end_date = editedOrder.event_end_date;
-    changes.end_date = editedOrder.event_end_date;
     logs.push(['event_end_date', order.event_end_date || order.event_date, editedOrder.event_end_date]);
   }
 

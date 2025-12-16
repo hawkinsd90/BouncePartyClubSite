@@ -91,8 +91,6 @@ async function createOrder(
       address_id: addressId,
       event_date: eventDetails.event_date,
       event_end_date: eventDetails.event_end_date || eventDetails.event_date,
-      start_date: eventDetails.event_date,
-      end_date: eventDetails.event_end_date || eventDetails.event_date,
       start_window: eventDetails.start_window,
       end_window: eventDetails.end_window,
       until_end_of_day: eventDetails.until_end_of_day,
