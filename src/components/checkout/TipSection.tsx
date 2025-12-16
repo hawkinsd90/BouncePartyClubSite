@@ -22,7 +22,7 @@ export function TipSection({
     <div className="bg-white rounded-xl shadow-md p-6">
       <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center">
         <DollarSign className="w-6 h-6 mr-2 text-green-600" />
-        Add Tip for Crew
+        Add Tip
       </h2>
       <p className="text-slate-600 mb-4 text-sm">
         Show your appreciation for our crew! Tips are optional but greatly appreciated.

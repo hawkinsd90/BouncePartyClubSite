@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { X, Navigation, CheckCircle, Camera, MessageCircle, ChevronUp, ChevronDown, Star, AlertTriangle, RefreshCw, RotateCcw, DollarSign, FileCheck, Ban, ExternalLink } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
@@ -65,6 +66,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
   const [showCancelForm, setShowCancelForm] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const currentStatus = task.taskStatus?.status || 'pending';
+  const navigate = useNavigate();
 
   useEffect(() => {
     const channel = supabase
@@ -669,7 +671,8 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
   }
 
   function handleViewOrder() {
-    window.location.href = `/admin?tab=orders&order=${task.orderId}`;
+    onClose();
+    navigate(`/admin?tab=orders&order=${task.orderId}`);
   }
 
   const isDropOff = task.type === 'drop-off';

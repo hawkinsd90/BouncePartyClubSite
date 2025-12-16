@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { format, isToday, isFuture, isPast } from 'date-fns';
 import { Search, Calendar, User, Phone } from 'lucide-react';
@@ -16,8 +17,9 @@ interface OrdersData {
 }
 
 export function OrdersManager() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const orderIdFromUrl = searchParams.get('order');
   const [activeTab, setActiveTab] = useState<OrderTab>('draft');
-  const [filteredOrders, setFilteredOrders] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
 
@@ -62,12 +64,20 @@ export function OrdersManager() {
   const contactsMap = data?.contactsMap || new Map();
 
   useEffect(() => {
-    filterAndSortOrders();
-  }, [orders, activeTab, searchTerm]);
-
-  useEffect(() => {
     determineDefaultTab();
   }, [orders]);
+
+  useEffect(() => {
+    if (orderIdFromUrl && orders.length > 0 && !selectedOrder) {
+      const order = orders.find(o => o.id === orderIdFromUrl);
+      if (order) {
+        setSelectedOrder(order);
+        const params = new URLSearchParams(searchParams);
+        params.delete('order');
+        setSearchParams(params);
+      }
+    }
+  }, [orderIdFromUrl, orders, selectedOrder]);
 
   function determineDefaultTab() {
     const pendingReview = orders.filter(o => o.status === 'pending_review').length;
@@ -88,7 +98,7 @@ export function OrdersManager() {
     }
   }
 
-  function filterAndSortOrders() {
+  const filteredOrders = useMemo(() => {
     let filtered = [...orders];
 
     const search = searchTerm.toLowerCase();
@@ -141,8 +151,8 @@ export function OrdersManager() {
         break;
     }
 
-    setFilteredOrders(filtered);
-  }
+    return filtered;
+  }, [orders, activeTab, searchTerm]);
 
   function getTabCount(tab: OrderTab): number {
     switch (tab) {
