@@ -8,8 +8,21 @@ interface CancelOrderModalProps {
   onSuccess: () => void;
 }
 
+const CANCELLATION_REASONS = [
+  { value: '', label: 'Select a reason...' },
+  { value: 'Weather concerns', label: 'Weather concerns' },
+  { value: 'Event cancelled/postponed', label: 'Event cancelled/postponed' },
+  { value: 'Change in guest count', label: 'Change in guest count' },
+  { value: 'Venue changed', label: 'Venue changed' },
+  { value: 'Budget constraints', label: 'Budget constraints' },
+  { value: 'Found alternative', label: 'Found alternative' },
+  { value: 'Personal/family emergency', label: 'Personal/family emergency' },
+  { value: 'other', label: 'Other (please specify)' },
+];
+
 export function CancelOrderModal({ orderId, eventDate, onClose, onSuccess }: CancelOrderModalProps) {
-  const [cancellationReason, setCancellationReason] = useState('');
+  const [selectedReason, setSelectedReason] = useState('');
+  const [customReason, setCustomReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -17,8 +30,15 @@ export function CancelOrderModal({ orderId, eventDate, onClose, onSuccess }: Can
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (cancellationReason.trim().length < 10) {
-      setError('Please provide a reason with at least 10 characters');
+    const finalReason = selectedReason === 'other' ? customReason.trim() : selectedReason;
+
+    if (!selectedReason) {
+      setError('Please select a cancellation reason');
+      return;
+    }
+
+    if (selectedReason === 'other' && customReason.trim().length < 10) {
+      setError('Please provide a detailed reason with at least 10 characters');
       return;
     }
 
@@ -36,7 +56,7 @@ export function CancelOrderModal({ orderId, eventDate, onClose, onSuccess }: Can
           },
           body: JSON.stringify({
             orderId,
-            cancellationReason: cancellationReason.trim(),
+            cancellationReason: finalReason,
           }),
         }
       );
@@ -186,29 +206,56 @@ export function CancelOrderModal({ orderId, eventDate, onClose, onSuccess }: Can
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Reason for Cancellation *
-              <span className="text-xs text-gray-500 font-normal ml-2">
-                (minimum 10 characters)
-              </span>
             </label>
-            <textarea
-              value={cancellationReason}
-              onChange={(e) => setCancellationReason(e.target.value)}
-              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-              rows={4}
-              placeholder="Please tell us why you need to cancel this order..."
+            <select
+              value={selectedReason}
+              onChange={(e) => {
+                setSelectedReason(e.target.value);
+                setError(null);
+              }}
+              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
-              minLength={10}
               disabled={submitting}
-            />
-            <div className="flex justify-between items-center mt-1">
-              <p className="text-xs text-gray-500">
-                This helps us improve our service
-              </p>
-              <p className={`text-xs ${cancellationReason.length < 10 ? 'text-red-500' : 'text-green-600'}`}>
-                {cancellationReason.length} / 10
-              </p>
-            </div>
+            >
+              {CANCELLATION_REASONS.map((reason) => (
+                <option key={reason.value} value={reason.value}>
+                  {reason.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              This helps us improve our service
+            </p>
           </div>
+
+          {selectedReason === 'other' && (
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Please specify your reason *
+                <span className="text-xs text-gray-500 font-normal ml-2">
+                  (minimum 10 characters)
+                </span>
+              </label>
+              <textarea
+                value={customReason}
+                onChange={(e) => {
+                  setCustomReason(e.target.value);
+                  setError(null);
+                }}
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                rows={4}
+                placeholder="Please tell us why you need to cancel this order..."
+                required
+                minLength={10}
+                disabled={submitting}
+              />
+              <div className="flex justify-end items-center mt-1">
+                <p className={`text-xs ${customReason.length < 10 ? 'text-red-500' : 'text-green-600'}`}>
+                  {customReason.length} / 10
+                </p>
+              </div>
+            </div>
+          )}
 
           {error && (
             <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
@@ -228,7 +275,11 @@ export function CancelOrderModal({ orderId, eventDate, onClose, onSuccess }: Can
             </button>
             <button
               type="submit"
-              disabled={submitting || cancellationReason.trim().length < 10}
+              disabled={
+                submitting ||
+                !selectedReason ||
+                (selectedReason === 'other' && customReason.trim().length < 10)
+              }
               className="flex-1 bg-red-600 text-white rounded-lg px-6 py-3 font-semibold hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
             >
               {submitting ? (
