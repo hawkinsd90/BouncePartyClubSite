@@ -27,7 +27,6 @@ export interface Order {
   id: string;
   status: string;
   event_date: string;
-  start_date: string;
   event_end_date: string;
   event_start_time: string | null;
   event_end_time: string | null;

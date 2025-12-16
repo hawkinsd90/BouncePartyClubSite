@@ -88,7 +88,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const now = new Date();
-    const eventDate = new Date(order.start_date);
+    const eventDate = new Date(order.event_date);
     const hoursUntilEvent = (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60);
 
     let refundPolicy: "full_refund" | "reschedule_credit" | "no_refund";
@@ -214,7 +214,7 @@ Deno.serve(async (req: Request) => {
 Order ${orderId} has been cancelled by the customer.
 
 Customer: ${order.customers?.first_name} ${order.customers?.last_name}
-Event Date: ${order.start_date}
+Event Date: ${order.event_date}
 Hours Until Event: ${hoursUntilEvent.toFixed(1)}
 Refund Policy: ${refundPolicy}
 
@@ -250,7 +250,7 @@ ${refundResult?.refunded ? `Automatic refund of $${(refundResult.amount / 100).t
 
         if (smsTemplate) {
           const customerName = `${order.customers?.first_name || ''} ${order.customers?.last_name || ''}`.trim();
-          const eventDate = new Date(order.start_date).toLocaleDateString();
+          const eventDate = new Date(order.event_date).toLocaleDateString();
           const orderLink = `${Deno.env.get("SUPABASE_URL")?.replace('/functions/v1', '').replace('https://supabase.co', '').replace('.supabase.co', '')}/admin?order=${orderId}`;
 
           const message = smsTemplate.message_template

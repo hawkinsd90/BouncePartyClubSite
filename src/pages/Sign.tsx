@@ -14,8 +14,8 @@ import {
 interface OrderData {
   id: string;
   customer_id: string;
-  start_date: string;
-  end_date: string | null;
+  event_date: string;
+  event_end_date: string | null;
   customer: {
     first_name: string;
     last_name: string;
@@ -80,8 +80,8 @@ export default function Sign() {
         .select(`
           id,
           customer_id,
-          start_date,
-          end_date,
+          event_date,
+          event_end_date,
           waiver_signed_at,
           signed_waiver_url,
           customer:customers(*),
@@ -106,8 +106,8 @@ export default function Sign() {
       setRenterName(fullName);
       setRenterPhone(customer.phone || '');
       setRenterEmail(customer.email || '');
-      setEventDate(data.start_date || '');
-      setEventEndDate(data.end_date || '');
+      setEventDate(data.event_date || '');
+      setEventEndDate(data.event_end_date || '');
 
       // Auto-fill address from related address record
       const address = data.address as any;

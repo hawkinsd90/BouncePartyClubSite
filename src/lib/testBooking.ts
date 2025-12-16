@@ -73,11 +73,11 @@ async function findAvailableUnits(date: string, count: number = 2) {
 
     const { data: conflicts, error: conflictError } = await supabase
       .from('order_items')
-      .select('order_id, orders!inner(id, start_date, end_date, status)')
+      .select('order_id, orders!inner(id, event_date, event_end_date, status)')
       .eq('unit_id', unit.id)
       .not('orders.status', 'in', '(cancelled,void,draft)')
-      .lte('orders.start_date', date)
-      .gte('orders.end_date', date);
+      .lte('orders.event_date', date)
+      .gte('orders.event_end_date', date);
 
     if (conflictError) {
       console.error(`❌ [TEST BOOKING] Error checking conflicts for ${unit.name}:`, conflictError);

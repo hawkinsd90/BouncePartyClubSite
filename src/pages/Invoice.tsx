@@ -101,8 +101,8 @@ export function Invoice() {
         'check_unit_availability',
         {
           p_unit_ids: unitIds,
-          p_start_date: order.start_date,
-          p_end_date: order.end_date,
+          p_start_date: order.event_date,
+          p_end_date: order.event_end_date,
         }
       );
 
