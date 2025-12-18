@@ -16,30 +16,22 @@ export function ConsentSection({
   return (
     <>
       <div className="bg-white rounded-xl shadow-md p-6">
-        <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center">
-          <CreditCard className="w-6 h-6 mr-2 text-blue-600" />
-          Secure Payment
+        <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center">
+          <Shield className="w-6 h-6 mr-2 text-green-600" />
+          Payment Authorization
         </h2>
-        <p className="text-slate-600 mb-6">
-          Your payment will be processed securely through Stripe. Payment information will be entered after your order is created.
-        </p>
 
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
           <h3 className="font-semibold text-green-900 mb-2 flex items-center">
             <Shield className="w-5 h-5 mr-2" />
-            Stripe Payment Integration Active
+            Secure Stripe Payment Processing
           </h3>
           <p className="text-sm text-green-800">
-            Your payment information is processed by Stripe and never stored on our servers. Your card will be securely saved for any post-event charges (damages, late fees, etc.).
+            Your payment information is processed securely by Stripe and never stored on our servers. Payment will be entered after your order is created.
           </p>
         </div>
-      </div>
 
-      <div className="bg-white rounded-xl shadow-md p-6">
-        <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center">
-          <Shield className="w-6 h-6 mr-2 text-green-600" />
-          Card-on-File Authorization
-        </h2>
+        <h3 className="font-bold text-slate-900 mb-3 text-lg">Card-on-File Authorization</h3>
         <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4">
           <p className="text-sm text-slate-700 leading-relaxed">
             I authorize Bounce Party Club LLC to securely store my payment method and
