@@ -139,70 +139,79 @@ export function Checkout() {
   const orderSummary = buildOrderSummary(priceBreakdown, cart, quoteData, tipCents);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <h1 className="text-4xl font-bold text-slate-900 mb-8">Complete Your Booking</h1>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 lg:py-16">
+        <div className="mb-10 sm:mb-12">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 mb-3 sm:mb-4 tracking-tight">
+            Complete Your Booking
+          </h1>
+          <p className="text-slate-600 text-base sm:text-lg lg:text-xl leading-relaxed max-w-2xl">
+            Review your order details and complete payment to secure your rental
+          </p>
+        </div>
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
-          <RentalTerms />
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-10">
+          <div className="lg:col-span-2 space-y-8">
+            <RentalTerms />
 
-          <ContactInformationForm contactData={contactData} onChange={setContactData} />
+            <ContactInformationForm contactData={contactData} onChange={setContactData} />
 
-          <BillingAddressForm
-            billingAddress={billingAddress}
-            billingSameAsEvent={billingSameAsEvent}
+            <BillingAddressForm
+              billingAddress={billingAddress}
+              billingSameAsEvent={billingSameAsEvent}
+              quoteData={quoteData}
+              onBillingAddressChange={setBillingAddress}
+              onBillingSameAsEventChange={setBillingSameAsEvent}
+            />
+
+            <PaymentAmountSelector
+              paymentAmount={paymentAmount}
+              customAmount={customAmount}
+              priceBreakdown={priceBreakdown}
+              onPaymentAmountChange={setPaymentAmount}
+              onCustomAmountChange={setCustomAmount}
+            />
+
+            <TipSection
+              tipAmount={tipAmount}
+              customTip={customTip}
+              totalCents={priceBreakdown.total_cents}
+              tipCents={tipCents}
+              onTipAmountChange={setTipAmount}
+              onCustomTipChange={setCustomTip}
+            />
+
+            <ConsentSection
+              cardOnFileConsent={cardOnFileConsent}
+              smsConsent={smsConsent}
+              onCardOnFileConsentChange={setCardOnFileConsent}
+              onSmsConsentChange={setSmsConsent}
+            />
+          </div>
+
+          <div className="lg:col-span-1">
+            <CheckoutSummary
+              quoteData={quoteData}
+              orderSummary={orderSummary}
+              processing={processing}
+              cardOnFileConsent={cardOnFileConsent}
+              smsConsent={smsConsent}
+              tipCents={tipCents}
+              onViewInvoice={() => setShowInvoiceModal(true)}
+            />
+          </div>
+        </form>
+
+        {showInvoiceModal && (
+          <InvoicePreviewModal
             quoteData={quoteData}
-            onBillingAddressChange={setBillingAddress}
-            onBillingSameAsEventChange={setBillingSameAsEvent}
-          />
-
-          <PaymentAmountSelector
-            paymentAmount={paymentAmount}
-            customAmount={customAmount}
             priceBreakdown={priceBreakdown}
-            onPaymentAmountChange={setPaymentAmount}
-            onCustomAmountChange={setCustomAmount}
+            cart={cart}
+            contactData={contactData}
+            onClose={() => setShowInvoiceModal(false)}
           />
-
-          <TipSection
-            tipAmount={tipAmount}
-            customTip={customTip}
-            totalCents={priceBreakdown.total_cents}
-            tipCents={tipCents}
-            onTipAmountChange={setTipAmount}
-            onCustomTipChange={setCustomTip}
-          />
-
-          <ConsentSection
-            cardOnFileConsent={cardOnFileConsent}
-            smsConsent={smsConsent}
-            onCardOnFileConsentChange={setCardOnFileConsent}
-            onSmsConsentChange={setSmsConsent}
-          />
-        </div>
-
-        <div className="lg:col-span-1">
-          <CheckoutSummary
-            quoteData={quoteData}
-            orderSummary={orderSummary}
-            processing={processing}
-            cardOnFileConsent={cardOnFileConsent}
-            smsConsent={smsConsent}
-            tipCents={tipCents}
-            onViewInvoice={() => setShowInvoiceModal(true)}
-          />
-        </div>
-      </form>
-
-      {showInvoiceModal && (
-        <InvoicePreviewModal
-          quoteData={quoteData}
-          priceBreakdown={priceBreakdown}
-          cart={cart}
-          contactData={contactData}
-          onClose={() => setShowInvoiceModal(false)}
-        />
-      )}
+        )}
+      </div>
     </div>
   );
 }

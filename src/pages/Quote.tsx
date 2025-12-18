@@ -90,42 +90,51 @@ export function Quote() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12">
-      <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-6 sm:mb-8">Your Cart & Quote</h1>
-
-      <form onSubmit={handleSubmit}>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
-          <div className="lg:col-span-2 space-y-6 sm:space-y-8">
-            <CartSection
-              cart={cart}
-              eventDate={formData.event_date}
-              onUpdateItem={updateCartItem}
-              onRemoveItem={removeFromCart}
-            />
-
-            <AddressSection
-              formData={formData}
-              addressInput={addressInput}
-              onAddressInputChange={setAddressInput}
-              onFormDataChange={(updates) => setFormData({ ...formData, ...updates })}
-            />
-
-            <EventDetailsSection
-              formData={formData}
-              onFormDataChange={(updates) => setFormData({ ...formData, ...updates })}
-            />
-
-            <SetupDetailsSection
-              formData={formData}
-              onFormDataChange={(updates) => setFormData({ ...formData, ...updates })}
-            />
-          </div>
-
-          <div className="lg:col-span-1">
-            <QuoteSummarySection cart={cart} priceBreakdown={priceBreakdown} />
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 lg:py-16">
+        <div className="mb-10 sm:mb-12">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 mb-3 sm:mb-4 tracking-tight">
+            Your Cart & Quote
+          </h1>
+          <p className="text-slate-600 text-base sm:text-lg lg:text-xl leading-relaxed max-w-2xl">
+            Review your selections and complete your event details
+          </p>
         </div>
-      </form>
+
+        <form onSubmit={handleSubmit}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-10">
+            <div className="lg:col-span-2 space-y-8">
+              <CartSection
+                cart={cart}
+                eventDate={formData.event_date}
+                onUpdateItem={updateCartItem}
+                onRemoveItem={removeFromCart}
+              />
+
+              <AddressSection
+                formData={formData}
+                addressInput={addressInput}
+                onAddressInputChange={setAddressInput}
+                onFormDataChange={(updates) => setFormData({ ...formData, ...updates })}
+              />
+
+              <EventDetailsSection
+                formData={formData}
+                onFormDataChange={(updates) => setFormData({ ...formData, ...updates })}
+              />
+
+              <SetupDetailsSection
+                formData={formData}
+                onFormDataChange={(updates) => setFormData({ ...formData, ...updates })}
+              />
+            </div>
+
+            <div className="lg:col-span-1">
+              <QuoteSummarySection cart={cart} priceBreakdown={priceBreakdown} />
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
