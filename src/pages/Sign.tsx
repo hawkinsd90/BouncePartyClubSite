@@ -247,10 +247,10 @@ export default function Sign() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-blue-600 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Loading waiver...</p>
+          <Loader2 className="w-16 h-16 text-blue-600 animate-spin mx-auto mb-6" />
+          <p className="text-lg text-gray-600 font-medium">Loading waiver...</p>
         </div>
       </div>
     );
@@ -258,14 +258,16 @@ export default function Sign() {
 
   if (error && !order) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
-          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Unable to Load Waiver</h2>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl p-10 max-w-md w-full text-center border-2 border-slate-100">
+          <div className="w-20 h-20 bg-gradient-to-br from-red-400 to-red-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <AlertCircle className="w-12 h-12 text-white" />
+          </div>
+          <h2 className="text-3xl font-bold text-gray-900 mb-3 tracking-tight">Unable to Load Waiver</h2>
           <p className="text-gray-600 mb-6">{error}</p>
           <button
             onClick={() => navigate('/customer-portal')}
-            className="w-full bg-blue-600 text-white rounded-lg px-6 py-3 font-semibold hover:bg-blue-700"
+            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl px-6 py-4 font-bold transition-all shadow-lg hover:shadow-xl"
           >
             Return to Portal
           </button>
@@ -285,7 +287,7 @@ export default function Sign() {
           </p>
           <button
             onClick={() => navigate('/customer-portal')}
-            className="w-full bg-blue-600 text-white rounded-lg px-6 py-3 font-semibold hover:bg-blue-700"
+            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl px-6 py-4 font-bold transition-all shadow-lg hover:shadow-xl"
           >
             Return to Portal
           </button>
@@ -295,9 +297,9 @@ export default function Sign() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 py-12 px-4">
       <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-lg shadow-xl overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border-2 border-slate-100">
           <Link to="/" className="block bg-white px-8 py-4 border-b border-gray-200 hover:bg-gray-50 transition-colors">
             <img
               src="/bounce party club logo.png"
@@ -632,7 +634,7 @@ export default function Sign() {
               <button
                 type="button"
                 onClick={() => navigate(-1)}
-                className="flex-1 bg-gray-200 text-gray-700 rounded-lg px-6 py-4 font-semibold hover:bg-gray-300 transition-colors"
+                className="flex-1 bg-slate-200 text-slate-700 rounded-xl px-6 py-4 font-bold hover:bg-slate-300 transition-all shadow-md"
                 disabled={submitting}
               >
                 Cancel
@@ -640,7 +642,7 @@ export default function Sign() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg px-6 py-4 font-semibold hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl px-6 py-4 font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
               >
                 {submitting ? (
                   <>

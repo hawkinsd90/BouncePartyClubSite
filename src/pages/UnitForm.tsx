@@ -252,14 +252,14 @@ export function UnitForm() {
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <button
         onClick={() => navigate('/admin')}
-        className="flex items-center text-blue-600 hover:text-blue-700 mb-6"
+        className="flex items-center text-blue-600 hover:text-blue-700 font-semibold mb-6 transition-colors"
       >
         <ArrowLeft className="w-5 h-5 mr-2" />
         Back to Admin
       </button>
 
-      <div className="bg-white rounded-xl shadow-md p-8">
-        <h1 className="text-3xl font-bold text-slate-900 mb-8">
+      <div className="bg-white rounded-2xl shadow-2xl p-10 border-2 border-slate-100">
+        <h1 className="text-4xl font-bold text-slate-900 mb-8 tracking-tight">
           {isEdit ? 'Edit Unit' : 'Add New Unit'}
         </h1>
 
@@ -274,7 +274,7 @@ export function UnitForm() {
                 required
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value, slug: generateSlug(e.target.value) })}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
               />
             </div>
 
@@ -294,7 +294,7 @@ export function UnitForm() {
                     setFormData(prev => ({ ...prev, price_water_cents: 0 }));
                   }
                 }}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
               >
                 <option>Bounce House</option>
                 <option>Water Slide</option>
@@ -318,7 +318,7 @@ export function UnitForm() {
                 min="1"
                 value={formData.quantity_available}
                 onChange={(e) => setFormData({ ...formData, quantity_available: parseInt(e.target.value) })}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
               />
             </div>
 
@@ -338,7 +338,7 @@ export function UnitForm() {
                   }
                 }}
                 placeholder="0.00"
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
               />
             </div>
 
@@ -358,7 +358,7 @@ export function UnitForm() {
                     }
                   }}
                   placeholder="Leave empty if same as regular price"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                 />
                 <p className="text-xs text-slate-600 mt-1">Only fill this if water mode has a different price</p>
               </div>
@@ -374,7 +374,7 @@ export function UnitForm() {
                 placeholder="e.g., 15' L x 15' W x 15' H"
                 value={formData.dimensions}
                 onChange={(e) => setFormData({ ...formData, dimensions: e.target.value })}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
               />
             </div>
 
@@ -388,7 +388,7 @@ export function UnitForm() {
                   placeholder="e.g., 20' L x 15' W x 15' H"
                   value={formData.dimensions_water || ''}
                   onChange={(e) => setFormData({ ...formData, dimensions_water: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                 />
               </div>
             )}
@@ -403,7 +403,7 @@ export function UnitForm() {
                 value={formData.footprint_sqft || ''}
                 onChange={(e) => setFormData({ ...formData, footprint_sqft: parseInt(e.target.value) || 0 })}
                 placeholder="Optional - leave empty if unknown"
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
               />
             </div>
 
@@ -419,7 +419,7 @@ export function UnitForm() {
                 value={formData.power_circuits}
                 onChange={(e) => setFormData({ ...formData, power_circuits: parseFloat(e.target.value) || 1 })}
                 placeholder="e.g., 1.5"
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
               />
               <p className="text-xs text-slate-600 mt-1">Blower motor horsepower needed to inflate</p>
             </div>
@@ -434,7 +434,7 @@ export function UnitForm() {
                 min="1"
                 value={formData.capacity}
                 onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) })}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
               />
             </div>
           </div>
@@ -586,7 +586,7 @@ export function UnitForm() {
             <button
               type="submit"
               disabled={saving || dryImages.length === 0}
-              className="flex-1 flex items-center justify-center bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+              className="flex-1 flex items-center justify-center bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-slate-400 disabled:to-slate-500 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg hover:shadow-xl"
             >
               {saving ? (
                 <>{uploadingImages ? 'Uploading images...' : 'Saving...'}</>
@@ -600,7 +600,7 @@ export function UnitForm() {
             <button
               type="button"
               onClick={() => navigate('/admin')}
-              className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-3 px-6 rounded-lg transition-colors"
+              className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-4 px-6 rounded-xl transition-all shadow-md"
             >
               Cancel
             </button>

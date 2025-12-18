@@ -27,7 +27,7 @@ export function CustomerPortal() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 flex items-center justify-center">
         <LoadingSpinner />
       </div>
     );
@@ -35,11 +35,13 @@ export function CustomerPortal() {
 
   if (!data?.order) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-slate-900">Order Not Found</h1>
-          <p className="text-slate-600 mt-2">The order you're looking for doesn't exist.</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 flex items-center justify-center p-4">
+        <div className="text-center bg-white rounded-2xl shadow-2xl p-10 max-w-md border-2 border-slate-100">
+          <div className="w-20 h-20 bg-gradient-to-br from-red-400 to-red-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <AlertCircle className="w-12 h-12 text-white" />
+          </div>
+          <h1 className="text-3xl font-bold text-slate-900 mb-3 tracking-tight">Order Not Found</h1>
+          <p className="text-lg text-slate-600">The order you're looking for doesn't exist.</p>
         </div>
       </div>
     );

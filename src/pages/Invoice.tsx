@@ -182,14 +182,16 @@ export function Invoice() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-slate-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center">
-          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">Invoice Not Available</h1>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-slate-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl p-10 max-w-md w-full text-center border-2 border-slate-100">
+          <div className="w-20 h-20 bg-gradient-to-br from-red-400 to-red-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <AlertCircle className="w-12 h-12 text-white" />
+          </div>
+          <h1 className="text-3xl font-bold text-slate-900 mb-3 tracking-tight">Invoice Not Available</h1>
           <p className="text-slate-600 mb-6">{error}</p>
           <button
             onClick={() => navigate('/')}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors"
+            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-4 px-8 rounded-xl transition-all shadow-lg hover:shadow-xl"
           >
             Back to Home
           </button>
@@ -200,13 +202,13 @@ export function Invoice() {
 
   if (paymentSuccess) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-slate-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl shadow-lg p-8 max-w-2xl w-full">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-slate-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl p-10 max-w-2xl w-full border-2 border-slate-100">
           <div className="text-center mb-8">
-            <div className="bg-green-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="w-12 h-12 text-green-600" />
+            <div className="w-24 h-24 bg-gradient-to-br from-green-400 to-green-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+              <CheckCircle className="w-16 h-16 text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-slate-900 mb-2">
+            <h1 className="text-4xl font-bold text-slate-900 mb-3 tracking-tight">
               {isAdminSent ? 'Booking Confirmed!' : 'Payment Received!'}
             </h1>
             <p className="text-slate-600">
@@ -279,7 +281,7 @@ export function Invoice() {
 
           <button
             onClick={() => navigate('/')}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors"
+            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-4 px-8 rounded-xl transition-all shadow-lg hover:shadow-xl"
           >
             Back to Home
           </button>
@@ -331,9 +333,9 @@ export function Invoice() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-slate-100 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-slate-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border-2 border-slate-100">
           <div className="bg-blue-600 text-white p-6">
             <h1 className="text-3xl font-bold mb-2">Invoice</h1>
             <p className="text-blue-100">Order #{orderId?.slice(0, 8).toUpperCase()}</p>

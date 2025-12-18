@@ -134,11 +134,13 @@ export function Setup() {
 
   if (step === 'complete') {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 flex items-center justify-center py-12 px-4">
         <div className="max-w-md w-full">
-          <div className="bg-white rounded-xl shadow-md p-8 text-center">
-            <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
-            <h2 className="text-3xl font-bold text-slate-900 mb-4">Setup Complete!</h2>
+          <div className="bg-white rounded-2xl shadow-2xl p-10 text-center border-2 border-slate-100">
+            <div className="w-20 h-20 bg-gradient-to-br from-green-400 to-green-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+              <CheckCircle className="w-12 h-12 text-white" />
+            </div>
+            <h2 className="text-4xl font-bold text-slate-900 mb-6 tracking-tight">Setup Complete!</h2>
             <p className="text-slate-600 mb-6">
               {setupComplete && !saving
                 ? 'Your admin account is already configured. You can now sign in.'
@@ -153,7 +155,7 @@ export function Setup() {
             </div>
             <button
               onClick={() => navigate('/login')}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-4 px-4 rounded-xl transition-all shadow-lg hover:shadow-xl"
             >
               Go to Login
             </button>
@@ -164,14 +166,14 @@ export function Setup() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 py-12 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 py-12 px-4">
       <div className="max-w-2xl mx-auto">
-        <div className="bg-white rounded-xl shadow-md p-8">
+        <div className="bg-white rounded-2xl shadow-2xl p-10 border-2 border-slate-100">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
-              <Settings className="w-8 h-8 text-blue-600" />
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl mb-6 shadow-lg">
+              <Settings className="w-10 h-10 text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-slate-900 mb-2">Initial Setup</h1>
+            <h1 className="text-4xl font-bold text-slate-900 mb-3 tracking-tight">Initial Setup</h1>
             <p className="text-slate-600">
               Create your admin account and configure SMS notifications
             </p>
@@ -199,7 +201,7 @@ export function Setup() {
                     type="email"
                     value={adminData.email}
                     onChange={(e) => setAdminData({ ...adminData, email: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                     required
                   />
                 </div>
@@ -212,7 +214,7 @@ export function Setup() {
                     type="password"
                     value={adminData.password}
                     onChange={(e) => setAdminData({ ...adminData, password: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                     required
                     minLength={6}
                   />
@@ -226,7 +228,7 @@ export function Setup() {
                     type="password"
                     value={adminData.confirmPassword}
                     onChange={(e) => setAdminData({ ...adminData, confirmPassword: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                     required
                     minLength={6}
                   />
@@ -254,7 +256,7 @@ export function Setup() {
                     value={twilioData.accountSid}
                     onChange={(e) => setTwilioData({ ...twilioData, accountSid: e.target.value })}
                     placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   />
                 </div>
 
@@ -267,7 +269,7 @@ export function Setup() {
                     value={twilioData.authToken}
                     onChange={(e) => setTwilioData({ ...twilioData, authToken: e.target.value })}
                     placeholder="********************************"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   />
                 </div>
 
@@ -280,7 +282,7 @@ export function Setup() {
                     value={twilioData.fromNumber}
                     onChange={(e) => setTwilioData({ ...twilioData, fromNumber: e.target.value })}
                     placeholder="+15551234567"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   />
                   <p className="mt-1 text-xs text-slate-500">
                     Get your credentials from{' '}
@@ -301,7 +303,7 @@ export function Setup() {
               <button
                 onClick={handleSetup}
                 disabled={saving}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
+                className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-slate-400 disabled:to-slate-500 text-white font-bold py-4 px-4 rounded-xl transition-all shadow-lg hover:shadow-xl flex items-center justify-center"
               >
                 {saving ? (
                   <>

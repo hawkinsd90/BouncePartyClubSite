@@ -202,13 +202,15 @@ export function Crew() {
   if (stops.length === 0) {
     return (
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <h1 className="text-4xl font-bold text-slate-900 mb-8">Crew Dashboard</h1>
-        <div className="bg-white rounded-xl shadow-md p-8 text-center">
-          <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">
+        <h1 className="text-5xl font-bold text-slate-900 mb-8 tracking-tight">Crew Dashboard</h1>
+        <div className="bg-white rounded-2xl shadow-xl p-10 text-center border-2 border-slate-100">
+          <div className="w-20 h-20 bg-gradient-to-br from-green-400 to-green-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <CheckCircle className="w-12 h-12 text-white" />
+          </div>
+          <h2 className="text-3xl font-bold text-slate-900 mb-3 tracking-tight">
             No Stops Scheduled Today
           </h2>
-          <p className="text-slate-600">
+          <p className="text-lg text-slate-600">
             There are no deliveries or pickups scheduled for today.
           </p>
         </div>
@@ -218,17 +220,17 @@ export function Crew() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <h1 className="text-4xl font-bold text-slate-900 mb-4">Today's Route</h1>
+      <h1 className="text-5xl font-bold text-slate-900 mb-6 tracking-tight">Today's Route</h1>
 
       {locationLoading && (
-        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center">
+        <div className="mb-6 bg-blue-50 border-2 border-blue-200 rounded-xl p-4 flex items-center shadow-md">
           <MapPinned className="w-5 h-5 text-blue-600 mr-3 animate-pulse" />
           <p className="text-blue-800">Requesting location access for ETA calculations...</p>
         </div>
       )}
 
       {locationError && (
-        <div className="mb-6 bg-amber-50 border border-amber-200 rounded-lg p-4">
+        <div className="mb-6 bg-amber-50 border-2 border-amber-200 rounded-xl p-4 shadow-md">
           <div className="flex items-start">
             <AlertCircle className="w-5 h-5 text-amber-600 mr-3 mt-0.5" />
             <div className="flex-1">
@@ -236,7 +238,7 @@ export function Crew() {
               <p className="text-amber-700 text-sm mb-3">{locationError}</p>
               <button
                 onClick={requestLocationPermission}
-                className="bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors"
+                className="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-bold py-2 px-6 rounded-xl text-sm transition-all shadow-lg"
               >
                 Enable Location Access
               </button>
@@ -246,7 +248,7 @@ export function Crew() {
       )}
 
       {crewLocation && (
-        <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center justify-between">
+        <div className="mb-6 bg-green-50 border-2 border-green-200 rounded-xl p-4 flex items-center justify-between shadow-md">
           <div className="flex items-center">
             <MapPinned className="w-5 h-5 text-green-600 mr-3" />
             <p className="text-green-800">
@@ -276,7 +278,7 @@ export function Crew() {
           return (
             <div
               key={stop.id}
-              className={`bg-white rounded-xl shadow-md overflow-hidden ${
+              className={`bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-slate-100 ${
                 isCompleted ? 'opacity-60' : ''
               }`}
             >
@@ -354,7 +356,7 @@ export function Crew() {
                   <div className="space-y-3">
                     <button
                       onClick={() => setSelectedStop(stop)}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
+                      className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-lg hover:shadow-xl"
                     >
                       Manage Checkpoints
                     </button>
@@ -389,8 +391,8 @@ export function Crew() {
 
       {selectedStop && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-            <h3 className="text-2xl font-bold text-slate-900 mb-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 border-2 border-slate-100">
+            <h3 className="text-3xl font-bold text-slate-900 mb-6 tracking-tight">
               Update Checkpoint
             </h3>
             <p className="text-slate-600 mb-6">
