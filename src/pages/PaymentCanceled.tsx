@@ -15,17 +15,19 @@ export function PaymentCanceled() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl p-8 text-center max-w-md">
+    <div className="min-h-screen bg-gradient-to-br from-red-50 via-orange-50 to-amber-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-10 text-center max-w-md border-2 border-slate-100">
         <div className="flex justify-center mb-6">
           <img
             src="/bounce party club logo.png"
             alt="Bounce Party Club"
-            className="h-20 w-auto"
+            className="h-24 w-auto"
           />
         </div>
-        <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Payment Canceled</h1>
+        <div className="w-20 h-20 bg-gradient-to-br from-red-400 to-red-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+          <XCircle className="w-12 h-12 text-white" />
+        </div>
+        <h1 className="text-3xl font-bold text-gray-900 mb-3 tracking-tight">Payment Canceled</h1>
         <p className="text-gray-600 mb-6">
           You canceled the payment process. Your order has not been completed.
         </p>
@@ -34,16 +36,16 @@ export function PaymentCanceled() {
             Order ID: {orderId.slice(0, 8).toUpperCase()}
           </p>
         )}
-        <div className="flex gap-3 justify-center">
+        <div className="flex gap-4 justify-center">
           <button
             onClick={handleCancel}
-            className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium transition-colors"
+            className="px-8 py-3 bg-slate-200 text-slate-700 rounded-xl hover:bg-slate-300 font-bold transition-all shadow-md"
           >
             Back to Cart
           </button>
           <button
             onClick={handleRetry}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+            className="px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-xl"
           >
             Try Again
           </button>

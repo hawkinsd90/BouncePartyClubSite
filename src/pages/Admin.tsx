@@ -120,10 +120,10 @@ function AdminDashboard() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-4xl font-bold text-slate-900">Admin Dashboard</h1>
+        <h1 className="text-5xl font-bold text-slate-900 tracking-tight">Admin Dashboard</h1>
         <button
           onClick={handleExportMenu}
-          className="flex items-center bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+          className="flex items-center bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg hover:shadow-xl"
         >
           <Download className="w-5 h-5 mr-2" />
           Export Menu
@@ -138,7 +138,7 @@ function AdminDashboard() {
 
       {activeTab === 'overview' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-xl shadow-md p-6">
+          <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100 hover:shadow-2xl transition-shadow">
             <div className="flex items-center justify-between mb-4">
               <Package className="w-8 h-8 text-blue-600" />
               <span className="text-3xl font-bold text-slate-900">{units.length}</span>
@@ -147,7 +147,7 @@ function AdminDashboard() {
             <p className="text-sm text-slate-600">Active inventory items</p>
           </div>
 
-          <div className="bg-white rounded-xl shadow-md p-6">
+          <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100 hover:shadow-2xl transition-shadow">
             <div className="flex items-center justify-between mb-4">
               <FileText className="w-8 h-8 text-green-600" />
               <span className="text-3xl font-bold text-slate-900">{orders.length}</span>
@@ -156,7 +156,7 @@ function AdminDashboard() {
             <p className="text-sm text-slate-600">Last 20 bookings</p>
           </div>
 
-          <div className="bg-white rounded-xl shadow-md p-6">
+          <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100 hover:shadow-2xl transition-shadow">
             <div className="flex items-center justify-between mb-4">
               <DollarSign className="w-8 h-8 text-cyan-600" />
               <span className="text-3xl font-bold text-slate-900">
@@ -174,12 +174,12 @@ function AdminDashboard() {
       )}
 
       {activeTab === 'pending' && (
-        <div className="bg-white rounded-xl shadow-md p-6">
+        <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-slate-900">Pending Review</h2>
             <button
               onClick={refetch}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg hover:shadow-xl"
             >
               Refresh
             </button>
@@ -203,7 +203,7 @@ function AdminDashboard() {
       )}
 
       {activeTab === 'calendar' && (
-        <div className="bg-white rounded-xl shadow-md p-6">
+        <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100">
           <AdminCalendar />
         </div>
       )}
@@ -211,13 +211,13 @@ function AdminDashboard() {
       {activeTab === 'inventory' && <InventorySection units={units} onRefetch={refetch} />}
 
       {activeTab === 'orders' && (
-        <div className="bg-white rounded-xl shadow-md p-6">
+        <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100">
           <OrdersManager />
         </div>
       )}
 
       {activeTab === 'changelog' && (
-        <div className="bg-white rounded-xl shadow-md p-6">
+        <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100">
           <h2 className="text-2xl font-bold text-slate-900 mb-6">Admin Settings Changelog</h2>
           <p className="text-slate-600 mb-4">
             View all changes made to admin settings, including who made the changes and when.
@@ -230,7 +230,7 @@ function AdminDashboard() {
       )}
 
       {activeTab === 'calculator' && (
-        <div className="bg-white rounded-xl shadow-md p-6">
+        <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100">
           <h2 className="text-2xl font-bold text-slate-900 mb-6">Travel Fee Calculator</h2>
           <p className="text-slate-600 mb-4">
             Calculate travel fees for phone estimates by entering a customer address.

@@ -102,11 +102,11 @@ export function CustomerDashboard() {
   const currentOrders = activeTab === 'active' ? activeOrders : activeTab === 'upcoming' ? upcomingOrders : pastOrders;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-4 sm:py-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 py-4 sm:py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">My Orders</h1>
-          <p className="text-sm sm:text-base text-gray-600">View and manage your bounce house rentals</p>
+          <h1 className="text-3xl sm:text-5xl font-bold text-gray-900 mb-3 tracking-tight">My Orders</h1>
+          <p className="text-base sm:text-lg text-gray-600">View and manage your bounce house rentals</p>
         </div>
 
         {totalOrders > 0 ? (
@@ -132,22 +132,22 @@ export function CustomerDashboard() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 sm:py-12 bg-white rounded-lg border border-gray-200">
+              <div className="text-center py-8 sm:py-12 bg-white rounded-2xl border-2 border-gray-200 shadow-lg">
                 <Package className="w-10 h-10 sm:w-12 sm:h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-sm sm:text-base text-gray-500">
+                <p className="text-sm sm:text-base text-gray-500 font-medium">
                   No {activeTab} orders
                 </p>
               </div>
             )}
           </>
         ) : (
-          <div className="text-center py-8 sm:py-12">
-            <Package className="w-12 h-12 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">No Orders Yet</h3>
-            <p className="text-sm sm:text-base text-gray-600 mb-6 px-4">Start by browsing our catalog and booking your first rental!</p>
+          <div className="text-center py-12 sm:py-16 bg-white rounded-2xl shadow-xl border-2 border-gray-100">
+            <Package className="w-16 h-16 sm:w-20 sm:h-20 text-gray-300 mx-auto mb-6" />
+            <h3 className="text-xl sm:text-3xl font-bold text-gray-900 mb-3 tracking-tight">No Orders Yet</h3>
+            <p className="text-base sm:text-lg text-gray-600 mb-8 px-4">Start by browsing our catalog and booking your first rental!</p>
             <button
               onClick={() => navigate('/catalog')}
-              className="px-5 sm:px-6 py-2.5 sm:py-3 bg-blue-600 text-white text-sm sm:text-base rounded-lg hover:bg-blue-700 transition-colors"
+              className="px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm sm:text-base font-bold rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:scale-105"
             >
               Browse Catalog
             </button>

@@ -77,9 +77,9 @@ export function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full">
-        <div className="bg-white rounded-xl shadow-md p-6 sm:p-8 relative">
+        <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 relative border border-slate-100">
           <button
             onClick={() => navigate(-1)}
             className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
@@ -89,13 +89,13 @@ export function Login() {
           </button>
 
           <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
-              <Lock className="w-8 h-8 text-blue-600" />
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl mb-4 shadow-lg">
+              <Lock className="w-10 h-10 text-white" />
             </div>
-            <h2 className="text-3xl font-bold text-slate-900">
+            <h2 className="text-4xl font-bold text-slate-900 tracking-tight">
               {mode === 'signup' ? 'Create Account' : 'Sign In'}
             </h2>
-            <p className="mt-2 text-slate-600">
+            <p className="mt-3 text-lg text-slate-600">
               {mode === 'signup' ? 'Join Bounce Party Club' : 'Welcome back!'}
             </p>
           </div>
@@ -117,7 +117,7 @@ export function Login() {
                   required
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                  className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base transition-all"
                   placeholder="John Doe"
                 />
               </div>
@@ -132,7 +132,7 @@ export function Login() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base transition-all"
                 placeholder="you@example.com"
               />
             </div>
@@ -147,7 +147,7 @@ export function Login() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-2 pr-12 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                  className="w-full px-4 py-3 pr-12 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base transition-all"
                   placeholder="••••••••"
                   minLength={mode === 'signup' ? 6 : undefined}
                 />
@@ -176,7 +176,7 @@ export function Login() {
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                  className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base transition-all"
                   placeholder="••••••••"
                   minLength={6}
                 />
@@ -186,7 +186,7 @@ export function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center text-base min-h-[48px]"
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-slate-400 disabled:to-slate-500 text-white font-bold py-4 px-4 rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:scale-[1.02] flex items-center justify-center text-base min-h-[48px]"
             >
               {loading ? (
                 <>
@@ -212,7 +212,7 @@ export function Login() {
             <button
               onClick={handleGoogleSignIn}
               disabled={loading}
-              className="mt-4 w-full flex items-center justify-center gap-3 bg-white border-2 border-slate-300 hover:border-slate-400 hover:bg-slate-50 text-slate-700 font-semibold py-3 px-4 rounded-lg transition-colors min-h-[48px]"
+              className="mt-4 w-full flex items-center justify-center gap-3 bg-white border-2 border-slate-300 hover:border-slate-400 hover:bg-slate-50 hover:shadow-lg text-slate-700 font-bold py-4 px-4 rounded-xl transition-all shadow-md min-h-[48px]"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -245,8 +245,8 @@ export function Login() {
             </div>
           </div>
 
-          <div className="mt-6 p-4 bg-slate-50 rounded-lg">
-            <p className="text-sm text-slate-600 font-medium mb-2">Staff Login:</p>
+          <div className="mt-6 p-4 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border border-slate-200 shadow-sm">
+            <p className="text-sm text-slate-700 font-bold mb-2">Staff Login:</p>
             <p className="text-sm text-slate-600">
               Master: admin@bouncepartyclub.com / admin123
             </p>
