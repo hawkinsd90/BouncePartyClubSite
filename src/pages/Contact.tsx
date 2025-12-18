@@ -195,7 +195,7 @@ export function Contact() {
                 </a>
 
                 <a
-                  href="mailto:info@bouncepartyclub.com"
+                  href="mailto:admin@bouncepartyclub.com"
                   className="flex items-start space-x-3 text-slate-700 hover:text-blue-600 transition-colors group"
                 >
                   <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
@@ -203,7 +203,7 @@ export function Contact() {
                   </div>
                   <div>
                     <div className="font-medium text-sm text-slate-500">Email Us</div>
-                    <div className="font-semibold text-sm">info@bouncepartyclub.com</div>
+                    <div className="font-semibold text-sm">admin@bouncepartyclub.com</div>
                   </div>
                 </a>
 
