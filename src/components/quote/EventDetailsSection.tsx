@@ -12,28 +12,33 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
     formData.location_type === 'commercial';
 
   return (
-    <div className="bg-white rounded-xl shadow-md p-6">
-      <h2 className="text-2xl font-bold text-slate-900 mb-6">Event Details</h2>
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6">
+      <div className="flex items-center gap-3 mb-4 sm:mb-6">
+        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+          <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+        </div>
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Event Details</h2>
+      </div>
 
       <div className="mb-6">
-        <label className="block text-sm font-medium text-slate-700 mb-3">Event Type</label>
+        <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-3">Event Type</label>
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
             onClick={() => onFormDataChange({ location_type: 'residential' })}
-            className={`flex flex-col items-center p-4 rounded-lg border-2 transition-all ${
+            className={`flex flex-col items-center p-3 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all ${
               formData.location_type === 'residential'
-                ? 'border-blue-600 bg-blue-50'
-                : 'border-slate-300 hover:border-blue-400'
+                ? 'border-blue-600 bg-blue-50 shadow-sm'
+                : 'border-slate-300 hover:border-blue-400 hover:bg-slate-50'
             }`}
           >
             <Home
-              className={`w-8 h-8 mb-2 ${
+              className={`w-7 h-7 sm:w-8 sm:h-8 mb-2 ${
                 formData.location_type === 'residential' ? 'text-blue-600' : 'text-slate-400'
               }`}
             />
             <span
-              className={`font-semibold ${
+              className={`font-semibold text-sm sm:text-base ${
                 formData.location_type === 'residential' ? 'text-blue-900' : 'text-slate-700'
               }`}
             >
@@ -44,19 +49,19 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
           <button
             type="button"
             onClick={() => onFormDataChange({ location_type: 'commercial' })}
-            className={`flex flex-col items-center p-4 rounded-lg border-2 transition-all ${
+            className={`flex flex-col items-center p-3 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all ${
               formData.location_type === 'commercial'
-                ? 'border-blue-600 bg-blue-50'
-                : 'border-slate-300 hover:border-blue-400'
+                ? 'border-blue-600 bg-blue-50 shadow-sm'
+                : 'border-slate-300 hover:border-blue-400 hover:bg-slate-50'
             }`}
           >
             <Building2
-              className={`w-8 h-8 mb-2 ${
+              className={`w-7 h-7 sm:w-8 sm:h-8 mb-2 ${
                 formData.location_type === 'commercial' ? 'text-blue-600' : 'text-slate-400'
               }`}
             />
             <span
-              className={`font-semibold ${
+              className={`font-semibold text-sm sm:text-base ${
                 formData.location_type === 'commercial' ? 'text-blue-900' : 'text-slate-700'
               }`}
             >
@@ -69,9 +74,7 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
 
       {formData.location_type === 'residential' && (
         <div className="mb-6">
-          <label className="block text-sm font-medium text-slate-700 mb-3">
-            When do you need pickup?
-          </label>
+          <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-3">When do you need pickup?</label>
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
@@ -82,48 +85,48 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
                   overnight_responsibility_accepted: false,
                 })
               }
-              className={`flex flex-col items-center p-4 rounded-lg border-2 transition-all ${
+              className={`flex flex-col items-center p-3 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all ${
                 formData.pickup_preference === 'next_day'
-                  ? 'border-green-600 bg-green-50'
-                  : 'border-slate-300 hover:border-green-400'
+                  ? 'border-green-600 bg-green-50 shadow-sm'
+                  : 'border-slate-300 hover:border-green-400 hover:bg-slate-50'
               }`}
             >
               <Clock
-                className={`w-8 h-8 mb-2 ${
+                className={`w-7 h-7 sm:w-8 sm:h-8 mb-2 ${
                   formData.pickup_preference === 'next_day' ? 'text-green-600' : 'text-slate-400'
                 }`}
               />
               <span
-                className={`font-semibold text-center ${
+                className={`font-semibold text-center text-sm sm:text-base ${
                   formData.pickup_preference === 'next_day' ? 'text-green-900' : 'text-slate-700'
                 }`}
               >
                 Next Morning
               </span>
-              <span className="text-xs text-slate-600 mt-1 text-center">Pickup 6 AM - 1:30 PM</span>
+              <span className="text-xs text-slate-600 mt-1 text-center leading-tight">Pickup 6 AM - 1:30 PM</span>
             </button>
             <button
               type="button"
               onClick={() => onFormDataChange({ pickup_preference: 'same_day' })}
-              className={`flex flex-col items-center p-4 rounded-lg border-2 transition-all ${
+              className={`flex flex-col items-center p-3 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all ${
                 formData.pickup_preference === 'same_day'
-                  ? 'border-orange-600 bg-orange-50'
-                  : 'border-slate-300 hover:border-orange-400'
+                  ? 'border-orange-600 bg-orange-50 shadow-sm'
+                  : 'border-slate-300 hover:border-orange-400 hover:bg-slate-50'
               }`}
             >
               <Clock
-                className={`w-8 h-8 mb-2 ${
+                className={`w-7 h-7 sm:w-8 sm:h-8 mb-2 ${
                   formData.pickup_preference === 'same_day' ? 'text-orange-600' : 'text-slate-400'
                 }`}
               />
               <span
-                className={`font-semibold text-center ${
+                className={`font-semibold text-center text-sm sm:text-base ${
                   formData.pickup_preference === 'same_day' ? 'text-orange-900' : 'text-slate-700'
                 }`}
               >
                 Same Day
               </span>
-              <span className="text-xs text-slate-600 mt-1 text-center">Additional fees apply</span>
+              <span className="text-xs text-slate-600 mt-1 text-center leading-tight">Additional fees apply</span>
             </button>
           </div>
           {formData.pickup_preference === 'next_day' && (
@@ -135,10 +138,10 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
                   onChange={(e) =>
                     onFormDataChange({ overnight_responsibility_accepted: e.target.checked })
                   }
-                  className="mt-0.5 mr-3"
+                  className="mt-0.5 mr-3 flex-shrink-0"
                   required
                 />
-                <p className="text-xs text-amber-900 font-medium">
+                <p className="text-xs text-amber-900 font-medium leading-relaxed">
                   ⚠️ I understand the inflatable will remain on my property overnight and I am
                   legally responsible for its safety and security until pickup the next morning. *
                 </p>
@@ -154,10 +157,10 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
                   onChange={(e) =>
                     onFormDataChange({ same_day_responsibility_accepted: e.target.checked })
                   }
-                  className="mt-0.5 mr-3"
+                  className="mt-0.5 mr-3 flex-shrink-0"
                   required
                 />
-                <p className="text-xs text-amber-900 font-medium">
+                <p className="text-xs text-amber-900 font-medium leading-relaxed">
                   ⚠️ I understand I am legally responsible for the inflatable until Bounce Party
                   Club picks it up this evening. *
                 </p>
@@ -169,19 +172,19 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
 
       {formData.location_type === 'residential' && (
         <div className="mb-6">
-          <div className="p-4 bg-slate-50 border border-slate-300 rounded-lg">
+          <div className="p-3 sm:p-4 bg-slate-50 border border-slate-300 rounded-lg">
             <label className="flex items-start cursor-pointer">
               <input
                 type="checkbox"
                 checked={formData.has_pets}
                 onChange={(e) => onFormDataChange({ has_pets: e.target.checked })}
-                className="mt-1 mr-3"
+                className="mt-1 mr-3 flex-shrink-0"
               />
               <div>
-                <p className="text-sm font-medium text-slate-900">
+                <p className="text-xs sm:text-sm font-medium text-slate-900">
                   We have pets at this location
                 </p>
-                <p className="text-xs text-slate-600 mt-1">
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                   This helps our crew prepare for arrival and look out for pet waste or loose
                   animals during setup.
                 </p>
@@ -193,8 +196,8 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
 
       {formData.location_type === 'commercial' && (
         <div className="mb-6">
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg mb-3">
-            <p className="text-sm text-blue-900">
+          <div className="p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg mb-3">
+            <p className="text-xs sm:text-sm text-blue-900 leading-relaxed">
               <strong>Commercial events require same-day pickup by 7:00 PM.</strong> This ensures
               safety at parks, churches, schools, and other public locations.
             </p>
@@ -207,10 +210,10 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
                 onChange={(e) =>
                   onFormDataChange({ same_day_responsibility_accepted: e.target.checked })
                 }
-                className="mt-0.5 mr-3"
+                className="mt-0.5 mr-3 flex-shrink-0"
                 required
               />
-              <p className="text-xs text-amber-900 font-medium">
+              <p className="text-xs text-amber-900 font-medium leading-relaxed">
                 ⚠️ I understand I am legally responsible for the inflatable until Bounce Party Club
                 picks it up by 7:00 PM. *
               </p>
@@ -219,13 +222,11 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">
-            Event Start Date *
-          </label>
+          <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">Event Start Date *</label>
           <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400 pointer-events-none" />
             <input
               type="date"
               required
@@ -255,16 +256,14 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
                 }
               }}
               min={new Date().toISOString().split('T')[0]}
-              className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
+              className="w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 text-sm sm:text-base transition-shadow"
             />
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">
-            Event End Date *
-          </label>
+          <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">Event End Date *</label>
           <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400 pointer-events-none" />
             <input
               type="date"
               required
@@ -272,28 +271,28 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
               onChange={(e) => onFormDataChange({ event_end_date: e.target.value })}
               min={formData.event_date || new Date().toISOString().split('T')[0]}
               disabled={isSameDayRestricted}
-              className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 disabled:bg-slate-100"
+              className="w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 text-sm sm:text-base disabled:bg-slate-100 transition-shadow"
             />
             {isSameDayRestricted && (
-              <p className="text-xs text-slate-500 mt-1">Same-day events cannot span multiple days</p>
+              <p className="text-xs text-slate-500 mt-1.5">Same-day events cannot span multiple days</p>
             )}
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">Start Time *</label>
+          <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">Start Time *</label>
           <input
             type="time"
             required
             value={formData.start_window}
             onChange={(e) => onFormDataChange({ start_window: e.target.value })}
-            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
+            className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 text-sm sm:text-base transition-shadow"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">End Time *</label>
+          <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">End Time *</label>
           <div className="space-y-2">
             <input
               type="time"
@@ -308,12 +307,10 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
                 onFormDataChange({ end_window: newTime });
               }}
               max={isSameDayRestricted ? '19:00' : undefined}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 disabled:bg-slate-100"
+              className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 text-sm sm:text-base disabled:bg-slate-100 transition-shadow"
             />
-            {isSameDayRestricted && (
-              <p className="text-xs text-slate-500">Max 7:00 PM for same-day pickup</p>
-            )}
-            <label className="flex items-center text-sm text-slate-600">
+            {isSameDayRestricted && <p className="text-xs text-slate-500">Max 7:00 PM for same-day pickup</p>}
+            <label className="flex items-center text-xs sm:text-sm text-slate-600">
               <input
                 type="checkbox"
                 checked={formData.until_end_of_day}
@@ -324,7 +321,7 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
                   })
                 }
                 disabled={isSameDayRestricted}
-                className="mr-2 disabled:opacity-50"
+                className="mr-2 disabled:opacity-50 flex-shrink-0"
               />
               <span className={isSameDayRestricted ? 'opacity-50' : ''}>Until end of day</span>
             </label>
