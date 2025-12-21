@@ -406,11 +406,23 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
     try {
       const taskStatusId = await ensureTaskStatus();
 
+      const { data: taskStatusData } = await supabase
+        .from('task_status')
+        .select('delivery_images')
+        .eq('id', taskStatusId)
+        .single();
+
+      const deliveryImages = taskStatusData?.delivery_images || [];
+
       const pickupTime = task.pickupPreference === 'same_day'
         ? `this evening (${task.eventEndTime || 'after your event'})`
         : 'tomorrow morning';
 
-      const message = `Equipment has been delivered! You are now responsible for the equipment until ${pickupTime}.\n\n⚠️ IMPORTANT RULES:\n• NO SHOES on the inflatable\n• NO FOOD or DRINKS\n• NO SHARP OBJECTS\n• Adult supervision required at all times\n\nEnjoy your event! 🎉`;
+      let message = `Equipment has been delivered! You are now responsible for the equipment until ${pickupTime}.\n\n⚠️ IMPORTANT RULES:\n• NO SHOES on the inflatable\n• NO FOOD or DRINKS\n• NO SHARP OBJECTS\n• Adult supervision required at all times\n\nEnjoy your event! 🎉`;
+
+      if (deliveryImages.length > 0) {
+        message += `\n\n📸 Delivery photos attached (${deliveryImages.length})`;
+      }
 
       const smsResponse = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`,
@@ -424,6 +436,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
             to: task.customerPhone,
             message,
             order_id: task.orderId,
+            mediaUrls: deliveryImages,
           }),
         }
       );
@@ -988,7 +1001,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 onClick={handleEnRoute}
-                disabled={processing || currentStatus !== 'pending'}
+                disabled={processing}
                 className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
               >
                 <Navigation className="w-5 h-5" />
@@ -997,9 +1010,9 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
 
               <button
                 onClick={handleArrived}
-                disabled={processing || currentStatus === 'pending' || currentStatus === 'completed'}
+                disabled={processing}
                 className="flex items-center justify-center gap-2 bg-yellow-600 hover:bg-yellow-700 disabled:bg-slate-300 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
-                title={currentStatus === 'pending' ? 'Click "En Route" first' : 'Notify customer of arrival'}
+                title="Notify customer of arrival"
               >
                 <CheckCircle className="w-5 h-5" />
                 <span className="text-sm sm:text-base">Arrived</span>
@@ -1020,18 +1033,18 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
 
                   <button
                     onClick={handleDropOffComplete}
-                    disabled={processing || currentStatus === 'completed'}
+                    disabled={processing}
                     className="flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 disabled:bg-slate-300 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
                   >
                     <MessageCircle className="w-5 h-5" />
-                    <span className="text-sm sm:text-base">Left - Send Rules</span>
+                    <span className="text-sm sm:text-base">Leaving - Send Rules</span>
                   </button>
                 </>
               ) : (
                 <>
                   <button
                     onClick={handlePickupComplete}
-                    disabled={processing || currentStatus === 'completed'}
+                    disabled={processing}
                     className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-300 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
                   >
                     <Star className="w-5 h-5" />

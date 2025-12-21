@@ -12,6 +12,7 @@ interface SmsRequest {
   message?: string;
   orderId?: string;
   templateKey?: string;
+  mediaUrls?: string[];
 }
 
 Deno.serve(async (req: Request) => {
@@ -158,6 +159,13 @@ Deno.serve(async (req: Request) => {
     formData.append("To", toPhone);
     formData.append("From", twilioConfig.fromNumber);
     formData.append("Body", messageBody);
+
+    if (requestBody.mediaUrls && requestBody.mediaUrls.length > 0) {
+      requestBody.mediaUrls.forEach((url) => {
+        formData.append("MediaUrl", url);
+      });
+      console.log("[send-sms-notification] Attaching", requestBody.mediaUrls.length, "media files");
+    }
 
     console.log("[send-sms-notification] Calling Twilio API");
     const twilioResponse = await fetch(twilioUrl, {
