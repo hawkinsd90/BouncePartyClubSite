@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ArrowLeft, Save, Upload, X } from 'lucide-react';
-import { notifyError, notifySuccess } from '../lib/notifications';
+import { notifyError, notifySuccess, showConfirm } from '../lib/notifications';
 
 export function UnitForm() {
   const navigate = useNavigate();
@@ -33,6 +33,7 @@ export function UnitForm() {
   const [useWetSameAsDry, setUseWetSameAsDry] = useState(true);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [originalActive, setOriginalActive] = useState(true);
 
   useEffect(() => {
     if (isEdit) {
@@ -66,6 +67,7 @@ export function UnitForm() {
         active: unitRes.data.active,
         quantity_available: unitRes.data.quantity_available,
       });
+      setOriginalActive(unitRes.data.active);
       setPriceInput((unitRes.data.price_dry_cents / 100).toFixed(2));
       if (unitRes.data.price_water_cents) {
         setPriceWaterInput((unitRes.data.price_water_cents / 100).toFixed(2));
@@ -101,6 +103,60 @@ export function UnitForm() {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
+  }
+
+  async function checkFutureBookings(unitId: string) {
+    const today = new Date().toISOString().split('T')[0];
+
+    const { data: bookings, error } = await supabase
+      .from('order_items')
+      .select(`
+        order_id,
+        orders!inner(
+          id,
+          order_number,
+          event_date,
+          event_end_date,
+          status,
+          customer_name
+        )
+      `)
+      .eq('unit_id', unitId)
+      .not('orders.status', 'in', '("voided","canceled")')
+      .or(`event_date.gte.${today},event_end_date.gte.${today}`, { referencedTable: 'orders' });
+
+    if (error) {
+      console.error('Error checking bookings:', error);
+      return [];
+    }
+
+    return bookings || [];
+  }
+
+  async function handleActiveChange(checked: boolean) {
+    if (originalActive && !checked && isEdit && id) {
+      const futureBookings = await checkFutureBookings(id);
+
+      if (futureBookings.length > 0) {
+        const bookingDetails = futureBookings
+          .slice(0, 5)
+          .map((b: any) => {
+            const order = b.orders;
+            return `• Order #${order.order_number} - ${order.customer_name} on ${order.event_date}`;
+          })
+          .join('\n');
+
+        const moreText = futureBookings.length > 5 ? `\n...and ${futureBookings.length - 5} more` : '';
+
+        const confirmMessage = `WARNING: "${formData.name}" has ${futureBookings.length} future booking(s)!\n\n${bookingDetails}${moreText}\n\nMarking this unit as inactive may cause issues with these orders. Are you sure you want to continue?`;
+
+        if (!await showConfirm(confirmMessage)) {
+          return;
+        }
+      }
+    }
+
+    setFormData({ ...formData, active: checked });
   }
 
   async function handleDryImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -464,7 +520,7 @@ export function UnitForm() {
               <input
                 type="checkbox"
                 checked={formData.active}
-                onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
+                onChange={(e) => handleActiveChange(e.target.checked)}
                 className="mr-2"
               />
               <span className="text-sm text-slate-700">Active</span>

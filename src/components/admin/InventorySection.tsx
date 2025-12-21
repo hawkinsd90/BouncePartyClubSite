@@ -24,8 +24,54 @@ interface InventorySectionProps {
 export function InventorySection({ units, onRefetch }: InventorySectionProps) {
   const navigate = useNavigate();
 
+  async function checkFutureBookings(unitId: string) {
+    const today = new Date().toISOString().split('T')[0];
+
+    const { data: bookings, error } = await supabase
+      .from('order_items')
+      .select(`
+        order_id,
+        orders!inner(
+          id,
+          order_number,
+          event_date,
+          event_end_date,
+          status,
+          customer_name
+        )
+      `)
+      .eq('unit_id', unitId)
+      .not('orders.status', 'in', '("voided","canceled")')
+      .or(`event_date.gte.${today},event_end_date.gte.${today}`, { referencedTable: 'orders' });
+
+    if (error) {
+      console.error('Error checking bookings:', error);
+      return [];
+    }
+
+    return bookings || [];
+  }
+
   async function handleDeleteUnit(unitId: string, unitName: string) {
-    if (!await showConfirm(`Are you sure you want to delete "${unitName}"?`)) return;
+    const futureBookings = await checkFutureBookings(unitId);
+
+    let confirmMessage = `Are you sure you want to delete "${unitName}"?`;
+
+    if (futureBookings.length > 0) {
+      const bookingDetails = futureBookings
+        .slice(0, 5)
+        .map((b: any) => {
+          const order = b.orders;
+          return `• Order #${order.order_number} - ${order.customer_name} on ${order.event_date}`;
+        })
+        .join('\n');
+
+      const moreText = futureBookings.length > 5 ? `\n...and ${futureBookings.length - 5} more` : '';
+
+      confirmMessage = `WARNING: "${unitName}" has ${futureBookings.length} future booking(s)!\n\n${bookingDetails}${moreText}\n\nDeleting this unit may cause issues with these orders. Are you sure you want to continue?`;
+    }
+
+    if (!await showConfirm(confirmMessage)) return;
 
     try {
       const { error } = await supabase.from('units').delete().eq('id', unitId);
