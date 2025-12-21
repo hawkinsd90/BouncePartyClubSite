@@ -12,6 +12,18 @@ export async function getAllUnits(options?: QueryOptions) {
   );
 }
 
+export async function getActiveUnits(options?: QueryOptions) {
+  return executeQuery(
+    () =>
+      supabase
+        .from('units')
+        .select('*')
+        .eq('active', true)
+        .order('name', { ascending: true }),
+    { context: 'getActiveUnits', ...options }
+  );
+}
+
 export async function getUnitById(unitId: string, options?: QueryOptions) {
   return executeQuery(
     () =>

@@ -3,3 +3,8 @@ export * from './orders';
 export * from './customers';
 export * from './contacts';
 export * from './units';
+export * from './pricing';
+export * from './invoices';
+export * from './tasks';
+export * from './admin-settings';
+export * from './payments';

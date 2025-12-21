@@ -95,7 +95,7 @@ export async function getAllCustomers(options?: QueryOptions) {
       supabase
         .from('customers')
         .select('*')
-        .order('created_at', { ascending: false }),
+        .order('last_name', { ascending: true }),
     { context: 'getAllCustomers', ...options }
   );
 }

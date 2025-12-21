@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { getAllCustomers, getActiveUnits, getPricingRules } from '../lib/queries';
 import type { PricingRules } from '../lib/pricing';
 
 export function useInvoiceData() {
@@ -15,9 +15,9 @@ export function useInvoiceData() {
   async function loadData() {
     try {
       const [customersRes, unitsRes, rulesRes] = await Promise.all([
-        supabase.from('customers').select('*').order('last_name'),
-        supabase.from('units').select('*').eq('active', true).order('name'),
-        supabase.from('pricing_rules').select('*').single(),
+        getAllCustomers(),
+        getActiveUnits(),
+        getPricingRules(),
       ]);
 
       if (customersRes.data) setCustomers(customersRes.data);
