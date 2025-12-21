@@ -12,6 +12,7 @@ import { AdminCalendar } from '../components/AdminCalendar';
 import { PermissionsTab } from '../components/admin/PermissionsTab';
 import { TravelCalculator } from '../components/admin/TravelCalculator';
 import { MessageTemplatesTab } from '../components/admin/MessageTemplatesTab';
+import { BlackoutTab } from '../components/admin/BlackoutTab';
 import { InventorySection } from '../components/admin/InventorySection';
 import { PricingSection } from '../components/admin/PricingSection';
 import { TabNavigation, type AdminTab } from '../components/admin/TabNavigation';
@@ -288,13 +289,15 @@ function AdminDashboard() {
       </html>
     `;
 
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(htmlContent);
-      printWindow.document.close();
-    } else {
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const printWindow = window.open(url, '_blank');
+
+    if (!printWindow) {
       notify('Unable to open print window. Please allow popups for this site.', 'error');
     }
+
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   if (loading) {
@@ -409,6 +412,8 @@ function AdminDashboard() {
       {activeTab === 'permissions' && <PermissionsTab />}
 
       {activeTab === 'message_templates' && <MessageTemplatesTab />}
+
+      {activeTab === 'blackout' && <BlackoutTab />}
 
       {activeTab === 'pricing' && pricingRules && <PricingSection pricingRules={pricingRules} />}
 
