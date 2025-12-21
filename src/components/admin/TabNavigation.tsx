@@ -6,11 +6,10 @@ export type AdminTab =
   | 'orders'
   | 'contacts'
   | 'invoices'
-  | 'settings'
-  | 'changelog'
   | 'calculator'
   | 'pricing'
-  | 'sms_templates';
+  | 'permissions'
+  | 'message_templates';
 
 interface TabConfig {
   id: AdminTab;
@@ -34,9 +33,10 @@ export function TabNavigation({ activeTab, onTabChange, pendingCount = 0 }: TabN
     { id: 'orders', label: 'Orders' },
     { id: 'contacts', label: 'Contacts' },
     { id: 'invoices', label: 'Invoices' },
-    { id: 'settings', label: 'Settings' },
-    { id: 'changelog', label: 'Changelog' },
     { id: 'calculator', label: 'Travel Calculator' },
+    { id: 'pricing', label: 'Pricing' },
+    { id: 'permissions', label: 'Permissions' },
+    { id: 'message_templates', label: 'Message Templates' },
   ];
 
   return (

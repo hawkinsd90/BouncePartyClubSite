@@ -9,8 +9,9 @@ import { OrdersManager } from '../components/admin/OrdersManager';
 import { InvoiceBuilder } from '../components/admin/InvoiceBuilder';
 import { PendingOrderCard } from '../components/admin/PendingOrderCard';
 import { AdminCalendar } from '../components/AdminCalendar';
-import { AdminSettings } from '../components/admin/AdminSettings';
-import { AdminSMSTemplates } from '../components/admin/AdminSMSTemplates';
+import { PermissionsTab } from '../components/admin/PermissionsTab';
+import { TravelCalculator } from '../components/admin/TravelCalculator';
+import { MessageTemplatesTab } from '../components/admin/MessageTemplatesTab';
 import { InventorySection } from '../components/admin/InventorySection';
 import { PricingSection } from '../components/admin/PricingSection';
 import { TabNavigation, type AdminTab } from '../components/admin/TabNavigation';
@@ -23,10 +24,6 @@ interface AdminData {
   units: any[];
   orders: any[];
   pricingRules: any | null;
-  twilioSettings: { account_sid: string; auth_token: string; from_number: string };
-  stripeSettings: { secret_key: string; publishable_key: string };
-  adminEmail: string;
-  smsTemplates: any[];
 }
 
 function AdminDashboard() {
@@ -35,7 +32,7 @@ function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<AdminTab>(tabFromUrl || 'pending');
 
   const fetchAdminData = useCallback(async () => {
-    const [unitsRes, ordersRes, pricingRes, settingsRes, templatesRes] = await Promise.all([
+    const [unitsRes, ordersRes, pricingRes] = await Promise.all([
       supabase.from('units').select('*').order('name'),
       supabase.from('orders').select(`
         *,
@@ -43,37 +40,16 @@ function AdminDashboard() {
         addresses (line1, city, state, zip)
       `).in('status', ['pending_review', 'draft', 'confirmed']).order('created_at', { ascending: false }).limit(50),
       supabase.from('pricing_rules').select('*').limit(1).maybeSingle(),
-      supabase.from('admin_settings').select('*').in('key', ['twilio_account_sid', 'twilio_auth_token', 'twilio_from_number', 'admin_email', 'stripe_secret_key', 'stripe_publishable_key']),
-      supabase.from('sms_message_templates').select('*').order('template_name'),
     ]);
 
     if (unitsRes.error) throw unitsRes.error;
     if (ordersRes.error) throw ordersRes.error;
     if (pricingRes.error) throw pricingRes.error;
-    if (settingsRes.error) throw settingsRes.error;
-    if (templatesRes.error) throw templatesRes.error;
-
-    const settings: any = {};
-    const stripeSet: any = {};
-    let email = '';
-
-    settingsRes.data?.forEach((s: any) => {
-      if (s.key === 'twilio_account_sid') settings.account_sid = s.value;
-      if (s.key === 'twilio_auth_token') settings.auth_token = s.value;
-      if (s.key === 'twilio_from_number') settings.from_number = s.value;
-      if (s.key === 'admin_email') email = s.value;
-      if (s.key === 'stripe_secret_key') stripeSet.secret_key = s.value;
-      if (s.key === 'stripe_publishable_key') stripeSet.publishable_key = s.value;
-    });
 
     return {
       units: unitsRes.data || [],
       orders: ordersRes.data || [],
       pricingRules: pricingRes.data,
-      twilioSettings: settings,
-      stripeSettings: stripeSet,
-      adminEmail: email,
-      smsTemplates: templatesRes.data || [],
     };
   }, []);
 
@@ -92,7 +68,6 @@ function AdminDashboard() {
   const units = data?.units || [];
   const orders = data?.orders || [];
   const pricingRules = data?.pricingRules;
-  const smsTemplates = data?.smsTemplates || [];
 
   useEffect(() => {
     if (tabFromUrl && tabFromUrl !== activeTab) {
@@ -106,7 +81,220 @@ function AdminDashboard() {
   }
 
   const handleExportMenu = () => {
-    notify('Menu export feature coming soon - will generate PNG/PDF with current pricing');
+    if (units.length === 0) {
+      notify('No units available to export', 'error');
+      return;
+    }
+
+    const formatCurrency = (cents: number) => {
+      return `$${(cents / 100).toFixed(2)}`;
+    };
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Bounce Party Club - Rental Catalog</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              font-family: Arial, sans-serif;
+              padding: 40px;
+              background: white;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 40px;
+              border-bottom: 4px solid #2563eb;
+              padding-bottom: 20px;
+            }
+            .header h1 {
+              font-size: 36px;
+              color: #1e293b;
+              margin-bottom: 10px;
+            }
+            .header p {
+              font-size: 18px;
+              color: #64748b;
+            }
+            .grid {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              gap: 30px;
+              page-break-inside: avoid;
+            }
+            .unit-card {
+              border: 2px solid #e2e8f0;
+              border-radius: 12px;
+              padding: 20px;
+              page-break-inside: avoid;
+            }
+            .unit-card h2 {
+              font-size: 24px;
+              color: #1e293b;
+              margin-bottom: 15px;
+              border-bottom: 2px solid #2563eb;
+              padding-bottom: 10px;
+            }
+            .unit-type {
+              background: #dbeafe;
+              color: #1e40af;
+              padding: 6px 12px;
+              border-radius: 6px;
+              font-size: 14px;
+              font-weight: bold;
+              display: inline-block;
+              margin-bottom: 15px;
+            }
+            .combo-badge {
+              background: #fef3c7;
+              color: #92400e;
+              padding: 6px 12px;
+              border-radius: 6px;
+              font-size: 14px;
+              font-weight: bold;
+              display: inline-block;
+              margin-left: 8px;
+            }
+            .details {
+              margin: 15px 0;
+            }
+            .detail-row {
+              display: flex;
+              justify-content: space-between;
+              padding: 8px 0;
+              border-bottom: 1px solid #f1f5f9;
+            }
+            .detail-label {
+              font-weight: bold;
+              color: #64748b;
+            }
+            .detail-value {
+              color: #1e293b;
+            }
+            .pricing {
+              background: #f0fdf4;
+              border: 2px solid #86efac;
+              border-radius: 8px;
+              padding: 15px;
+              margin-top: 15px;
+            }
+            .pricing-row {
+              display: flex;
+              justify-content: space-between;
+              margin: 8px 0;
+            }
+            .pricing-label {
+              font-weight: bold;
+              color: #166534;
+            }
+            .pricing-value {
+              font-size: 20px;
+              font-weight: bold;
+              color: #15803d;
+            }
+            .footer {
+              margin-top: 40px;
+              text-align: center;
+              padding-top: 20px;
+              border-top: 2px solid #e2e8f0;
+              color: #64748b;
+              font-size: 14px;
+            }
+            @media print {
+              body { padding: 20px; }
+              .grid { gap: 20px; }
+              .unit-card { page-break-inside: avoid; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>🎉 Bounce Party Club</h1>
+            <p>Inflatable Rental Catalog - ${new Date().toLocaleDateString()}</p>
+          </div>
+
+          <div class="grid">
+            ${units.map(unit => `
+              <div class="unit-card">
+                <h2>${unit.name}</h2>
+                <div>
+                  <span class="unit-type">${unit.type}</span>
+                  ${unit.is_combo ? '<span class="combo-badge">COMBO</span>' : ''}
+                </div>
+
+                <div class="details">
+                  <div class="detail-row">
+                    <span class="detail-label">Dimensions:</span>
+                    <span class="detail-value">${unit.dimensions || 'N/A'}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Footprint:</span>
+                    <span class="detail-value">${unit.footprint_sqft} sq ft</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Capacity:</span>
+                    <span class="detail-value">${unit.capacity} people</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Power Required:</span>
+                    <span class="detail-value">${unit.power_circuits} circuit${unit.power_circuits !== 1 ? 's' : ''}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Indoor Use:</span>
+                    <span class="detail-value">${unit.indoor_ok ? 'Yes' : 'No'}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Outdoor Use:</span>
+                    <span class="detail-value">${unit.outdoor_ok ? 'Yes' : 'No'}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Quantity Available:</span>
+                    <span class="detail-value">${unit.quantity_available}</span>
+                  </div>
+                </div>
+
+                <div class="pricing">
+                  <div class="pricing-row">
+                    <span class="pricing-label">Dry Mode:</span>
+                    <span class="pricing-value">${formatCurrency(unit.price_dry_cents)}</span>
+                  </div>
+                  ${unit.price_water_cents ? `
+                    <div class="pricing-row">
+                      <span class="pricing-label">Water Mode:</span>
+                      <span class="pricing-value">${formatCurrency(unit.price_water_cents)}</span>
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+
+          <div class="footer">
+            <p><strong>Bounce Party Club</strong> | Contact us for bookings and more information</p>
+            <p style="margin-top: 8px;">Prices shown are base rental rates. Additional fees may apply for delivery, setup, and special requirements.</p>
+          </div>
+
+          <script>
+            // Auto-open print dialog when page loads
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+              }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+    } else {
+      notify('Unable to open print window. Please allow popups for this site.', 'error');
+    }
   };
 
   if (loading) {
@@ -216,31 +404,11 @@ function AdminDashboard() {
         </div>
       )}
 
-      {activeTab === 'changelog' && (
-        <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100">
-          <h2 className="text-2xl font-bold text-slate-900 mb-6">Admin Settings Changelog</h2>
-          <p className="text-slate-600 mb-4">
-            View all changes made to admin settings, including who made the changes and when.
-          </p>
-          <div className="text-center py-12 text-slate-500">
-            <p>Changelog feature coming soon...</p>
-            <p className="text-sm mt-2">Will display all admin setting changes with timestamps and user tracking</p>
-          </div>
-        </div>
-      )}
+      {activeTab === 'calculator' && <TravelCalculator />}
 
-      {activeTab === 'calculator' && (
-        <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100">
-          <h2 className="text-2xl font-bold text-slate-900 mb-6">Travel Fee Calculator</h2>
-          <p className="text-slate-600 mb-4">
-            Calculate travel fees for phone estimates by entering a customer address.
-          </p>
-          <div className="text-center py-12 text-slate-500">
-            <p>Travel fee calculator coming soon...</p>
-            <p className="text-sm mt-2">Will show distance calculation and fee breakdown</p>
-          </div>
-        </div>
-      )}
+      {activeTab === 'permissions' && <PermissionsTab />}
+
+      {activeTab === 'message_templates' && <MessageTemplatesTab />}
 
       {activeTab === 'pricing' && pricingRules && <PricingSection pricingRules={pricingRules} />}
 
@@ -252,16 +420,6 @@ function AdminDashboard() {
           <InvoicesList />
         </div>
       )}
-
-      {activeTab === 'settings' && data && (
-        <AdminSettings
-          initialTwilioSettings={data.twilioSettings}
-          initialStripeSettings={data.stripeSettings}
-          initialAdminEmail={data.adminEmail}
-        />
-      )}
-
-      {activeTab === 'sms_templates' && <AdminSMSTemplates templates={smsTemplates} onRefetch={refetch} />}
     </div>
   );
 }
