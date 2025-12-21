@@ -1,5 +1,6 @@
 import { formatCurrency } from '../../lib/pricing';
 import { showToast } from '../../lib/notifications';
+import { dollarsToCents } from '../../lib/utils';
 
 interface DepositOverrideProps {
   calculatedDepositCents: number;
@@ -28,7 +29,7 @@ export function DepositOverride({
       showToast('Please enter a deposit amount', 'error');
       return;
     }
-    const amountCents = Math.round(parseFloat(inputValue || '0') * 100);
+    const amountCents = dollarsToCents(inputValue || '0');
     if (isNaN(amountCents) || amountCents < 0) {
       showToast('Please enter a valid deposit amount', 'error');
       return;

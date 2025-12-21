@@ -7,6 +7,7 @@ import { StripeCheckoutForm } from '../components/payment/StripeCheckoutForm';
 import { completeOrderAfterPayment } from '../lib/orderCreation';
 import { RentalTerms } from '../components/waiver/RentalTerms';
 import { PrintableInvoice } from '../components/invoice/PrintableInvoice';
+import { ORDER_STATUS } from '../lib/constants/statuses';
 
 export function Invoice() {
   const { orderId } = useParams<{ orderId: string }>();
@@ -60,7 +61,7 @@ export function Invoice() {
 
       setIsAdminSent(!!invoiceLink);
 
-      if (orderData.status === 'cancelled') {
+      if (orderData.status === ORDER_STATUS.CANCELLED) {
         setError('This invoice has been cancelled.');
         setLoading(false);
         return;
@@ -70,7 +71,7 @@ export function Invoice() {
         ? (orderData.deposit_paid_cents ?? 0) >= orderData.deposit_due_cents
         : true;
 
-      if (depositPaid && orderData.status !== 'draft') {
+      if (depositPaid && orderData.status !== ORDER_STATUS.DRAFT) {
         setPaymentSuccess(true);
       }
 

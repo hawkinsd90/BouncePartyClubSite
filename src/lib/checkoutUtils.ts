@@ -1,4 +1,5 @@
 import { OrderSummaryDisplay } from './orderSummary';
+import { dollarsToCents } from './utils';
 
 export function getPaymentAmountCents(
   paymentAmount: 'deposit' | 'full' | 'custom',
@@ -8,7 +9,7 @@ export function getPaymentAmountCents(
   if (paymentAmount === 'full') {
     return priceBreakdown.total_cents;
   } else if (paymentAmount === 'custom') {
-    const customCents = Math.round(parseFloat(customAmount || '0') * 100);
+    const customCents = dollarsToCents(customAmount || '0');
     return Math.max(priceBreakdown.deposit_due_cents, Math.min(customCents, priceBreakdown.total_cents));
   }
   return priceBreakdown.deposit_due_cents;
@@ -21,7 +22,7 @@ export function getTipAmountCents(
 ): number {
   if (tipAmount === 'none') return 0;
   if (tipAmount === 'custom') {
-    return Math.round(parseFloat(customTip || '0') * 100);
+    return dollarsToCents(customTip || '0');
   }
   const percentage = parseInt(tipAmount);
   return Math.round((totalCents * percentage) / 100);

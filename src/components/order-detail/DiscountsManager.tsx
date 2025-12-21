@@ -4,6 +4,7 @@ import { formatCurrency } from '../../lib/pricing';
 import { showToast } from '../../lib/notifications';
 import { supabase } from '../../lib/supabase';
 import { useDiscountTemplates } from '../../hooks/useDiscountTemplates';
+import { dollarsToCents } from '../../lib/utils';
 
 interface DiscountsManagerProps {
   discounts: any[];
@@ -29,7 +30,7 @@ export function DiscountsManager({
       return;
     }
 
-    const amount = parseFloat(discountAmountInput) * 100;
+    const amount = dollarsToCents(discountAmountInput);
     const percentage = parseFloat(discountPercentInput);
 
     if (amount === 0 && percentage === 0) {
@@ -57,7 +58,7 @@ export function DiscountsManager({
 
         await supabase.from('saved_discount_templates').insert({
           name: newDiscount.name,
-          amount_cents: Math.round(amount),
+          amount_cents: amount,
           percentage: percentage || 0,
         });
         await reloadTemplates();
@@ -71,7 +72,7 @@ export function DiscountsManager({
     const newDiscountItem = {
       id: `temp_${Date.now()}`,
       name: newDiscount.name,
-      amount_cents: Math.round(amount),
+      amount_cents: amount,
       percentage: percentage || 0,
       is_new: true,
     };

@@ -6,6 +6,7 @@ import { OrderStatusBadge } from './OrderStatusBadge';
 import { OrderPaymentStatus } from './OrderPaymentStatus';
 import { formatCurrency } from '../../lib/pricing';
 import { calculateOrderTotal, formatTime } from '../../lib/orderUtils';
+import { isOrderCancellable } from '../../lib/constants/statuses';
 
 interface OrderCardProps {
   order: Order;
@@ -19,7 +20,7 @@ export function OrderCard({ order, onViewReceipt, onDuplicateOrder, onCancelOrde
   const eventStartDate = new Date(order.event_date);
   const eventEndDate = order.event_end_date ? new Date(order.event_end_date) : eventStartDate;
   const isMultiDay = eventStartDate.toDateString() !== eventEndDate.toDateString();
-  const canCancel = ['draft', 'pending_review', 'awaiting_customer_approval', 'confirmed'].includes(order.status);
+  const canCancel = isOrderCancellable(order.status);
 
   return (
     <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 hover:shadow-lg transition-shadow">

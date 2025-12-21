@@ -1,3 +1,5 @@
+import { dollarsToCents } from '../../lib/utils';
+
 interface TipSelectorProps {
   totalCents: number;
   tipAmount: 'none' | '10' | '15' | '20' | 'custom';
@@ -14,7 +16,7 @@ export function calculateTipCents(
 ): number {
   if (tipAmount === 'none') return 0;
   if (tipAmount === 'custom') {
-    return Math.round(parseFloat(customTipAmount || '0') * 100);
+    return dollarsToCents(customTipAmount || '0');
   }
   const percentage = parseInt(tipAmount);
   return Math.round((totalCents * percentage) / 100);

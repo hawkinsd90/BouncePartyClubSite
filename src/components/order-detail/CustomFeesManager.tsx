@@ -4,6 +4,7 @@ import { formatCurrency } from '../../lib/pricing';
 import { showToast } from '../../lib/notifications';
 import { supabase } from '../../lib/supabase';
 import { useFeeTemplates } from '../../hooks/useFeeTemplates';
+import { dollarsToCents } from '../../lib/utils';
 
 interface CustomFeesManagerProps {
   customFees: any[];
@@ -28,7 +29,7 @@ export function CustomFeesManager({
       return;
     }
 
-    const amount = parseFloat(customFeeInput) * 100;
+    const amount = dollarsToCents(customFeeInput);
 
     if (amount <= 0) {
       showToast('Please enter a valid fee amount', 'error');
@@ -50,7 +51,7 @@ export function CustomFeesManager({
 
         await supabase.from('saved_fee_templates').insert({
           name: newCustomFee.name,
-          amount_cents: Math.round(amount),
+          amount_cents: amount,
         });
         await reloadTemplates();
       } catch (error) {
@@ -63,7 +64,7 @@ export function CustomFeesManager({
     const newFeeItem = {
       id: `temp_${Date.now()}`,
       name: newCustomFee.name,
-      amount_cents: Math.round(amount),
+      amount_cents: amount,
       is_new: true,
     };
 

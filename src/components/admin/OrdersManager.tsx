@@ -7,6 +7,7 @@ import { OrderDetailModal } from '../admin/OrderDetailModal';
 import { PendingOrderCard } from '../admin/PendingOrderCard';
 import { useDataFetch } from '../../hooks/useDataFetch';
 import { handleError } from '../../lib/errorHandling';
+import { ORDER_STATUS } from '../../lib/constants/statuses';
 
 
 type OrderTab = 'draft' | 'pending_review' | 'awaiting_customer_approval' | 'current' | 'upcoming' | 'all' | 'past' | 'cancelled';
@@ -80,10 +81,10 @@ export function OrdersManager() {
   }, [orderIdFromUrl, orders, selectedOrder]);
 
   function determineDefaultTab() {
-    const pendingReview = orders.filter(o => o.status === 'pending_review').length;
-    const awaitingApproval = orders.filter(o => o.status === 'awaiting_customer_approval').length;
-    const current = orders.filter(o => isToday(new Date(o.event_date)) && o.status !== 'cancelled' && o.status !== 'pending_review' && o.status !== 'awaiting_customer_approval' && o.status !== 'draft').length;
-    const upcoming = orders.filter(o => isFuture(new Date(o.event_date)) && o.status !== 'cancelled' && o.status !== 'pending_review' && o.status !== 'awaiting_customer_approval' && o.status !== 'draft').length;
+    const pendingReview = orders.filter(o => o.status === ORDER_STATUS.PENDING).length;
+    const awaitingApproval = orders.filter(o => o.status === ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL).length;
+    const current = orders.filter(o => isToday(new Date(o.event_date)) && o.status !== ORDER_STATUS.CANCELLED && o.status !== ORDER_STATUS.PENDING && o.status !== ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL && o.status !== ORDER_STATUS.DRAFT).length;
+    const upcoming = orders.filter(o => isFuture(new Date(o.event_date)) && o.status !== ORDER_STATUS.CANCELLED && o.status !== ORDER_STATUS.PENDING && o.status !== ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL && o.status !== ORDER_STATUS.DRAFT).length;
 
     if (pendingReview > 0) {
       setActiveTab('pending_review');
