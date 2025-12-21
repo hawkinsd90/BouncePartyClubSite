@@ -125,6 +125,11 @@ Deno.serve(async (req: Request) => {
       throw new Error(`Failed to update order: ${updateError.message}`);
     }
 
+    await supabaseClient
+      .from("task_status")
+      .delete()
+      .eq("order_id", orderId);
+
     let refundResult = null;
     if (shouldIssueRefund && refundPolicy === "full_refund") {
       const { data: payments } = await supabaseClient

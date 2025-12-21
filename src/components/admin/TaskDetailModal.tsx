@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { X, Navigation, CheckCircle, Camera, MessageCircle, ChevronUp, ChevronDown, Star, AlertTriangle, RefreshCw, RotateCcw, DollarSign, FileCheck, Ban, ExternalLink } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
-import { showAlert } from '../common/CustomModal';
+import { showAlert, showConfirm } from '../common/CustomModal';
 import { getCurrentLocation, calculateETA } from '../../lib/googleMaps';
 
 interface Task {
@@ -111,7 +111,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
       return;
     }
 
-    const confirmed = confirm(
+    const confirmed = await showConfirm(
       `Issue refund of ${formatCurrency(amountCents)} to ${task.customerName}?\n\nReason: ${refundReason}\n\nThis action cannot be undone.`
     );
 
@@ -526,7 +526,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
       return;
     }
 
-    const confirmed = confirm(
+    const confirmed = await showConfirm(
       `Record cash payment of ${formatCurrency(amountCents)} from ${task.customerName}?\n\nThis will send a receipt email to the customer.`
     );
 
@@ -585,7 +585,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
   }
 
   async function handlePaperWaiver() {
-    const confirmed = confirm(
+    const confirmed = await showConfirm(
       `Mark waiver as signed in person for ${task.customerName}?\n\nThis will update the order to show the waiver has been completed.`
     );
 
@@ -625,7 +625,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
       return;
     }
 
-    const confirmed = confirm(
+    const confirmed = await showConfirm(
       `Cancel order #${task.orderNumber} for ${task.customerName}?\n\nReason: ${cancelReason}\n\nThis will cancel the order and process any applicable refunds.`
     );
 
@@ -972,6 +972,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
                 onClick={handleArrived}
                 disabled={processing || currentStatus === 'pending' || currentStatus === 'completed'}
                 className="flex items-center justify-center gap-2 bg-yellow-600 hover:bg-yellow-700 disabled:bg-slate-300 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
+                title={currentStatus === 'pending' ? 'Click "En Route" first' : 'Notify customer of arrival'}
               >
                 <CheckCircle className="w-5 h-5" />
                 <span className="text-sm sm:text-base">Arrived</span>
