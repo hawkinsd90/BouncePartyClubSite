@@ -184,19 +184,8 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     }
   }
 
-  // 6. Create route stops
-  await supabase.from('route_stops').insert([
-    {
-      order_id: order.id,
-      type: 'dropoff',
-      checkpoint: 'none',
-    },
-    {
-      order_id: order.id,
-      type: 'pickup',
-      checkpoint: 'none',
-    },
-  ]);
+  // 6. Task status records will be auto-created by trigger when order is confirmed
+  // (Previously created route_stops here, but that table is now deprecated in favor of task_status)
 
   // 7. Create consent records
   const consentRecords = [];
