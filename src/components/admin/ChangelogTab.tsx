@@ -1,0 +1,327 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
+import { History, Package, Shield, Settings, Filter } from 'lucide-react';
+import { notify } from '../../lib/notifications';
+import { LoadingSpinner } from '../common/LoadingSpinner';
+
+interface ChangelogEntry {
+  id: string;
+  type: 'order' | 'permission' | 'setting' | 'contact';
+  timestamp: string;
+  user_email: string;
+  title: string;
+  description: string;
+  old_value?: string;
+  new_value?: string;
+  details: any;
+}
+
+export function ChangelogTab() {
+  const [entries, setEntries] = useState<ChangelogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'order' | 'permission' | 'setting' | 'contact'>('all');
+  const [limit, setLimit] = useState(50);
+
+  useEffect(() => {
+    fetchChangelog();
+  }, [limit]);
+
+  async function fetchChangelog() {
+    setLoading(true);
+    try {
+      const allEntries: ChangelogEntry[] = [];
+
+      // Fetch order changes
+      const { data: orderChanges, error: orderError } = await supabase
+        .from('order_changelog')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (orderError) throw orderError;
+
+      for (const change of orderChanges || []) {
+        let userEmail = 'System';
+        if (change.user_id) {
+          const { data: userData } = await supabase.auth.admin.getUserById(change.user_id);
+          userEmail = userData?.user?.email || 'Unknown User';
+        }
+
+        // Get order details
+        const { data: orderData } = await supabase
+          .from('orders')
+          .select('id, customer_first_name, customer_last_name')
+          .eq('id', change.order_id)
+          .maybeSingle();
+
+        const customerName = orderData
+          ? `${orderData.customer_first_name} ${orderData.customer_last_name}`
+          : 'Unknown Customer';
+
+        allEntries.push({
+          id: change.id,
+          type: 'order',
+          timestamp: change.created_at,
+          user_email: userEmail,
+          title: `Order ${change.change_type} - ${customerName}`,
+          description: change.field_changed || 'Order modified',
+          old_value: change.old_value,
+          new_value: change.new_value,
+          details: { order_id: change.order_id, change_type: change.change_type }
+        });
+      }
+
+      // Fetch permission changes
+      const { data: permChanges, error: permError } = await supabase
+        .from('user_permissions_changelog')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (permError) throw permError;
+
+      for (const change of permChanges || []) {
+        let changedByEmail = 'System';
+        if (change.changed_by_user_id) {
+          const { data: userData } = await supabase.auth.admin.getUserById(change.changed_by_user_id);
+          changedByEmail = userData?.user?.email || 'Unknown User';
+        }
+
+        let targetEmail = 'Unknown User';
+        if (change.target_user_id) {
+          const { data: userData } = await supabase.auth.admin.getUserById(change.target_user_id);
+          targetEmail = userData?.user?.email || 'Unknown User';
+        }
+
+        allEntries.push({
+          id: change.id,
+          type: 'permission',
+          timestamp: change.created_at,
+          user_email: changedByEmail,
+          title: `Permission ${change.action} - ${targetEmail}`,
+          description: change.old_role && change.new_role
+            ? `Changed from ${change.old_role} to ${change.new_role}`
+            : change.new_role
+            ? `Set to ${change.new_role}`
+            : `Removed ${change.old_role}`,
+          old_value: change.old_role,
+          new_value: change.new_role,
+          details: { action: change.action, notes: change.notes }
+        });
+      }
+
+      // Fetch admin settings changes
+      const { data: settingChanges, error: settingError } = await supabase
+        .from('admin_settings_changelog')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (settingError) throw settingError;
+
+      for (const change of settingChanges || []) {
+        let userEmail = 'System';
+        if (change.changed_by) {
+          const { data: userData } = await supabase.auth.admin.getUserById(change.changed_by);
+          userEmail = userData?.user?.email || 'Unknown User';
+        }
+
+        allEntries.push({
+          id: change.id,
+          type: 'setting',
+          timestamp: change.created_at,
+          user_email: userEmail,
+          title: `Setting Changed: ${change.setting_key}`,
+          description: change.change_description || 'Setting updated',
+          old_value: change.old_value,
+          new_value: change.new_value,
+          details: { setting_key: change.setting_key }
+        });
+      }
+
+      // Sort all entries by timestamp
+      allEntries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+      setEntries(allEntries);
+    } catch (error: any) {
+      notify(error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const filteredEntries = filter === 'all'
+    ? entries
+    : entries.filter(e => e.type === filter);
+
+  function getIcon(type: string) {
+    switch (type) {
+      case 'order': return <Package className="w-5 h-5" />;
+      case 'permission': return <Shield className="w-5 h-5" />;
+      case 'setting': return <Settings className="w-5 h-5" />;
+      default: return <History className="w-5 h-5" />;
+    }
+  }
+
+  function getTypeColor(type: string) {
+    switch (type) {
+      case 'order': return 'bg-blue-100 text-blue-800 border-blue-300';
+      case 'permission': return 'bg-purple-100 text-purple-800 border-purple-300';
+      case 'setting': return 'bg-green-100 text-green-800 border-green-300';
+      case 'contact': return 'bg-amber-100 text-amber-800 border-amber-300';
+      default: return 'bg-slate-100 text-slate-800 border-slate-300';
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900 flex items-center">
+            <History className="w-7 h-7 mr-3 text-blue-600" />
+            System Changelog
+          </h2>
+          <p className="text-slate-600 mt-2">
+            Complete audit trail of all changes across orders, permissions, and settings
+          </p>
+        </div>
+        <button
+          onClick={fetchChangelog}
+          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+        >
+          Refresh
+        </button>
+      </div>
+
+      <div className="mb-6 flex flex-wrap gap-4 items-center">
+        <div className="flex items-center gap-2">
+          <Filter className="w-5 h-5 text-slate-600" />
+          <span className="text-sm font-medium text-slate-700">Filter:</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setFilter('all')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              filter === 'all'
+                ? 'bg-blue-600 text-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            All ({entries.length})
+          </button>
+          <button
+            onClick={() => setFilter('order')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              filter === 'order'
+                ? 'bg-blue-600 text-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            Orders ({entries.filter(e => e.type === 'order').length})
+          </button>
+          <button
+            onClick={() => setFilter('permission')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              filter === 'permission'
+                ? 'bg-blue-600 text-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            Permissions ({entries.filter(e => e.type === 'permission').length})
+          </button>
+          <button
+            onClick={() => setFilter('setting')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              filter === 'setting'
+                ? 'bg-blue-600 text-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            Settings ({entries.filter(e => e.type === 'setting').length})
+          </button>
+        </div>
+        <div className="ml-auto">
+          <select
+            value={limit}
+            onChange={(e) => setLimit(Number(e.target.value))}
+            className="px-4 py-2 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none"
+          >
+            <option value={25}>Last 25</option>
+            <option value={50}>Last 50</option>
+            <option value={100}>Last 100</option>
+            <option value={250}>Last 250</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {filteredEntries.length === 0 ? (
+          <div className="text-center py-12">
+            <History className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+            <p className="text-slate-500 text-lg">No changelog entries found</p>
+          </div>
+        ) : (
+          filteredEntries.map((entry) => (
+            <div
+              key={entry.id}
+              className="border-2 border-slate-200 rounded-xl p-4 hover:border-blue-300 transition-colors"
+            >
+              <div className="flex items-start gap-4">
+                <div className={`p-2 rounded-lg ${getTypeColor(entry.type)}`}>
+                  {getIcon(entry.type)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-4 mb-2">
+                    <div>
+                      <h3 className="font-bold text-slate-900">{entry.title}</h3>
+                      <p className="text-sm text-slate-600">{entry.description}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${getTypeColor(entry.type)}`}>
+                        {entry.type.toUpperCase()}
+                      </span>
+                      <span className="text-xs text-slate-500 whitespace-nowrap">
+                        {new Date(entry.timestamp).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  {(entry.old_value || entry.new_value) && (
+                    <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        {entry.old_value && (
+                          <div>
+                            <span className="font-medium text-slate-700">Old Value:</span>
+                            <p className="text-slate-600 mt-1 break-words">{entry.old_value}</p>
+                          </div>
+                        )}
+                        {entry.new_value && (
+                          <div>
+                            <span className="font-medium text-slate-700">New Value:</span>
+                            <p className="text-slate-600 mt-1 break-words">{entry.new_value}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-2 text-xs text-slate-500">
+                    Changed by: <span className="font-medium text-slate-700">{entry.user_email}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}

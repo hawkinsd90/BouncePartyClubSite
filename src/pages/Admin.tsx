@@ -13,6 +13,7 @@ import { PermissionsTab } from '../components/admin/PermissionsTab';
 import { TravelCalculator } from '../components/admin/TravelCalculator';
 import { MessageTemplatesTab } from '../components/admin/MessageTemplatesTab';
 import { BlackoutTab } from '../components/admin/BlackoutTab';
+import { ChangelogTab } from '../components/admin/ChangelogTab';
 import { InventorySection } from '../components/admin/InventorySection';
 import { PricingSection } from '../components/admin/PricingSection';
 import { TabNavigation, type AdminTab } from '../components/admin/TabNavigation';
@@ -414,6 +415,8 @@ function AdminDashboard() {
       {activeTab === 'message_templates' && <MessageTemplatesTab />}
 
       {activeTab === 'blackout' && <BlackoutTab />}
+
+      {activeTab === 'changelog' && <ChangelogTab />}
 
       {activeTab === 'pricing' && pricingRules && <PricingSection pricingRules={pricingRules} />}
 

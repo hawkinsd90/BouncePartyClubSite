@@ -15,6 +15,7 @@ export interface PricingRules {
   overnight_holiday_only: boolean;
   extra_day_pct: number;
   generator_price_cents: number;
+  deposit_per_unit_cents?: number;
 }
 
 export interface CartItem {
@@ -160,7 +161,7 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
     generator_fee_cents +
     tax_cents;
 
-  const deposit_due_cents = total_units * 5000;
+  const deposit_due_cents = total_units * (rules.deposit_per_unit_cents || 10000);
 
   const balance_due_cents = total_cents - deposit_due_cents;
 

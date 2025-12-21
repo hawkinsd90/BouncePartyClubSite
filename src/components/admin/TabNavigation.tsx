@@ -10,7 +10,8 @@ export type AdminTab =
   | 'pricing'
   | 'permissions'
   | 'message_templates'
-  | 'blackout';
+  | 'blackout'
+  | 'changelog';
 
 interface TabConfig {
   id: AdminTab;
@@ -39,6 +40,7 @@ export function TabNavigation({ activeTab, onTabChange, pendingCount = 0 }: TabN
     { id: 'permissions', label: 'Permissions' },
     { id: 'message_templates', label: 'Message Templates' },
     { id: 'blackout', label: 'Blackout' },
+    { id: 'changelog', label: 'Changelog' },
   ];
 
   return (
