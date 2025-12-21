@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { getOrderById, getOrderPayments } from '../lib/queries/orders';
 
 interface OrderDetails {
   id: string;
@@ -91,27 +92,19 @@ export function useOrderDetails(orderId: string | null) {
   const loadOrderDetails = async () => {
     if (!orderId) return;
 
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('id', orderId)
-      .single();
-
-    if (error) throw error;
-    setOrder(data as any);
+    const { data } = await getOrderById(orderId);
+    if (data) {
+      setOrder(data as any);
+    }
   };
 
   const loadPayments = async () => {
     if (!orderId) return;
 
-    const { data, error } = await supabase
-      .from('payments')
-      .select('*')
-      .eq('order_id', orderId)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    setPayments((data || []) as any[]);
+    const { data } = await getOrderPayments(orderId);
+    if (data) {
+      setPayments(data as any[]);
+    }
   };
 
   const loadPricingRules = async () => {

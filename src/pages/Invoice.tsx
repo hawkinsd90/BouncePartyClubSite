@@ -8,6 +8,7 @@ import { completeOrderAfterPayment } from '../lib/orderCreation';
 import { RentalTerms } from '../components/waiver/RentalTerms';
 import { PrintableInvoice } from '../components/invoice/PrintableInvoice';
 import { ORDER_STATUS } from '../lib/constants/statuses';
+import { getOrderById } from '../lib/queries/orders';
 
 export function Invoice() {
   const { orderId } = useParams<{ orderId: string }>();
@@ -36,19 +37,7 @@ export function Invoice() {
       setLoading(true);
       setError(null);
 
-      const { data: orderData, error: orderError } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          customers (*),
-          addresses (*),
-          order_items (
-            *,
-            units (*)
-          )
-        `)
-        .eq('id', id)
-        .single();
+      const { data: orderData, error: orderError } = await getOrderById(id);
 
       if (orderError) throw orderError;
       if (!orderData) throw new Error('Invoice not found');

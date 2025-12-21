@@ -1,0 +1,120 @@
+import { supabase } from '../supabase';
+import { executeQuery, QueryOptions } from './base';
+
+export async function getAllUnits(options?: QueryOptions) {
+  return executeQuery(
+    () =>
+      supabase
+        .from('units')
+        .select('*')
+        .order('sort_order', { ascending: true }),
+    { context: 'getAllUnits', ...options }
+  );
+}
+
+export async function getUnitById(unitId: string, options?: QueryOptions) {
+  return executeQuery(
+    () =>
+      supabase
+        .from('units')
+        .select('*')
+        .eq('id', unitId)
+        .maybeSingle(),
+    { context: 'getUnitById', ...options }
+  );
+}
+
+export async function getUnitsByCategory(category: string, options?: QueryOptions) {
+  return executeQuery(
+    () =>
+      supabase
+        .from('units')
+        .select('*')
+        .eq('category', category)
+        .order('sort_order', { ascending: true }),
+    { context: 'getUnitsByCategory', ...options }
+  );
+}
+
+export async function createUnit(unitData: any, options?: QueryOptions) {
+  return executeQuery(
+    () =>
+      supabase
+        .from('units')
+        .insert(unitData)
+        .select()
+        .single(),
+    { context: 'createUnit', ...options }
+  );
+}
+
+export async function updateUnit(unitId: string, updates: any, options?: QueryOptions) {
+  return executeQuery(
+    () =>
+      supabase
+        .from('units')
+        .update(updates)
+        .eq('id', unitId)
+        .select()
+        .single(),
+    { context: 'updateUnit', ...options }
+  );
+}
+
+export async function deleteUnit(unitId: string, options?: QueryOptions) {
+  return executeQuery(
+    () =>
+      supabase
+        .from('units')
+        .delete()
+        .eq('id', unitId),
+    { context: 'deleteUnit', ...options }
+  );
+}
+
+export async function checkUnitAvailability(
+  unitId: string,
+  startDate: string,
+  endDate: string,
+  excludeOrderId?: string,
+  options?: QueryOptions
+) {
+  return executeQuery(
+    async () => {
+      const { data, error } = await supabase.rpc('check_unit_availability_array', {
+        p_unit_ids: [unitId],
+        p_start_date: startDate,
+        p_end_date: endDate,
+        p_exclude_order_id: excludeOrderId || null,
+      });
+
+      if (error) return { data: null, error };
+
+      const unitAvailability = data?.[0];
+      return {
+        data: unitAvailability?.is_available || false,
+        error: null,
+      };
+    },
+    { context: 'checkUnitAvailability', ...options }
+  );
+}
+
+export async function checkMultipleUnitsAvailability(
+  unitIds: string[],
+  startDate: string,
+  endDate: string,
+  excludeOrderId?: string,
+  options?: QueryOptions
+) {
+  return executeQuery(
+    () =>
+      supabase.rpc('check_unit_availability_array', {
+        p_unit_ids: unitIds,
+        p_start_date: startDate,
+        p_end_date: endDate,
+        p_exclude_order_id: excludeOrderId || null,
+      }),
+    { context: 'checkMultipleUnitsAvailability', ...options }
+  );
+}

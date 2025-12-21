@@ -8,6 +8,8 @@ import { PendingOrderCard } from '../admin/PendingOrderCard';
 import { useDataFetch } from '../../hooks/useDataFetch';
 import { handleError } from '../../lib/errorHandling';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
+import { getAllOrders } from '../../lib/queries/orders';
+import { getAllContacts } from '../../lib/queries/contacts';
 
 
 type OrderTab = 'draft' | 'pending_review' | 'awaiting_customer_approval' | 'current' | 'upcoming' | 'all' | 'past' | 'cancelled';
@@ -25,20 +27,11 @@ export function OrdersManager() {
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
 
   const fetchOrdersData = useCallback(async () => {
-    const { data: ordersData, error } = await supabase
-      .from('orders')
-      .select(`
-        *,
-        customers (first_name, last_name, email, phone),
-        addresses (line1, line2, city, state, zip)
-      `)
-      .order('event_date', { ascending: true });
+    const { data: ordersData, error } = await getAllOrders();
 
     if (error) throw error;
 
-    const { data: contacts } = await supabase
-      .from('contacts')
-      .select('email, business_name');
+    const { data: contacts } = await getAllContacts();
 
     const contactsMap = new Map();
     contacts?.forEach(c => contactsMap.set(c.email, c));

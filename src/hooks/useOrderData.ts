@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { calculateDrivingDistance } from '../lib/pricing';
 import { HOME_BASE } from '../lib/constants';
 import { loadOrderSummary, formatOrderSummary, OrderSummaryDisplay } from '../lib/orderSummary';
+import { getOrderById } from '../lib/queries/orders';
 
 export interface OrderData {
   order: any;
@@ -51,23 +52,10 @@ export function useOrderData() {
         return null;
       }
 
-      const { data: orderData, error } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          customers (*),
-          addresses (*)
-        `)
-        .eq('id', orderIdToLoad)
-        .single();
+      const { data: orderData, error } = await getOrderById(orderIdToLoad);
 
-      if (error) {
+      if (error || !orderData) {
         console.error('Error loading order:', error);
-        setLoading(false);
-        return null;
-      }
-
-      if (!orderData) {
         setLoading(false);
         return null;
       }
