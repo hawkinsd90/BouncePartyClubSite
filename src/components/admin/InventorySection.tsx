@@ -56,9 +56,6 @@ export function InventorySection({ units, onRefetch }: InventorySectionProps) {
           <thead className="bg-slate-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                Actions
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                 Unit
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
@@ -81,27 +78,27 @@ export function InventorySection({ units, onRefetch }: InventorySectionProps) {
           <tbody className="bg-white divide-y divide-slate-200">
             {units.map((unit) => (
               <tr key={unit.id} className="hover:bg-slate-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <button
-                    onClick={() => navigate(`/admin/inventory/edit/${unit.id}`)}
-                    className="text-blue-600 hover:text-blue-700 mr-3"
-                    title="Edit"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteUnit(unit.id, unit.name)}
-                    className="text-red-600 hover:text-red-700"
-                    title="Delete"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
+                  <div className="flex items-center justify-between">
                     <div>
                       <div className="text-sm font-medium text-slate-900">{unit.name}</div>
                       <div className="text-sm text-slate-500">{unit.dimensions}</div>
+                    </div>
+                    <div className="flex items-center gap-2 ml-4">
+                      <button
+                        onClick={() => navigate(`/admin/inventory/edit/${unit.id}`)}
+                        className="text-blue-600 hover:text-blue-700"
+                        title="Edit"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteUnit(unit.id, unit.name)}
+                        className="text-red-600 hover:text-red-700"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 </td>
