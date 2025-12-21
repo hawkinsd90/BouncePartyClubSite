@@ -683,6 +683,14 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
     completed: 'bg-green-100 text-green-800',
   }[currentStatus];
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const taskDate = new Date(task.date);
+  taskDate.setHours(0, 0, 0, 0);
+  const isToday = taskDate.getTime() === today.getTime();
+  const isPast = taskDate.getTime() < today.getTime();
+  const isFuture = taskDate.getTime() > today.getTime();
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[95vh] overflow-y-auto">
@@ -747,6 +755,25 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
         </div>
 
         <div className="p-4 sm:p-6 space-y-6">
+          {!isToday && (
+            <div className={`rounded-lg p-4 border-2 ${isFuture ? 'bg-amber-50 border-amber-400' : 'bg-slate-100 border-slate-400'}`}>
+              <div className="flex items-start gap-3">
+                <AlertTriangle className={`w-5 h-5 mt-0.5 flex-shrink-0 ${isFuture ? 'text-amber-600' : 'text-slate-600'}`} />
+                <div>
+                  <h3 className={`font-bold ${isFuture ? 'text-amber-900' : 'text-slate-900'} mb-1`}>
+                    {isFuture ? '⚠️ Future Task Warning' : '⚠️ Past Task Warning'}
+                  </h3>
+                  <p className={`text-sm ${isFuture ? 'text-amber-800' : 'text-slate-700'}`}>
+                    {isFuture
+                      ? `This task is scheduled for ${task.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}, not today. Taking delivery actions now may cause confusion.`
+                      : `This task was scheduled for ${task.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} (past date).`
+                    }
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="bg-slate-50 rounded-lg p-4">
             <h3 className="font-bold text-slate-900 mb-3">Customer Information</h3>
             <div className="space-y-2 text-sm">
