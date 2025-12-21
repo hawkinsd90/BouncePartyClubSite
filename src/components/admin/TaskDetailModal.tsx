@@ -638,11 +638,15 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
       return;
     }
 
-    const confirmed = await showConfirm(
-      `Cancel order #${task.orderNumber} for ${task.customerName}?\n\nReason: ${cancelReason}\n\nThis will cancel the order and process any applicable refunds.`
+    const shouldRefund = await showConfirm(
+      `Would you like to issue a full refund to ${task.customerName}?\n\nClick OK to issue refund, or Cancel to skip refund.`
     );
 
-    if (!confirmed) return;
+    const finalConfirm = await showConfirm(
+      `Cancel order #${task.orderNumber} for ${task.customerName}?\n\nReason: ${cancelReason}\n${shouldRefund ? '\n✓ Full refund will be issued' : '\n✗ No refund will be issued'}\n\nCustomer will be notified via SMS.`
+    );
+
+    if (!finalConfirm) return;
 
     setCancelling(true);
     try {
@@ -660,6 +664,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
           body: JSON.stringify({
             orderId: task.orderId,
             cancellationReason: cancelReason,
+            adminOverrideRefund: shouldRefund,
           }),
         }
       );

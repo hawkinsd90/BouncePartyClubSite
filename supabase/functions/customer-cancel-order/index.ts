@@ -15,6 +15,7 @@ const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
 interface CancelRequest {
   orderId: string;
   cancellationReason: string;
+  adminOverrideRefund?: boolean;
 }
 
 Deno.serve(async (req: Request) => {
@@ -44,7 +45,7 @@ Deno.serve(async (req: Request) => {
       userId = user?.id || null;
     }
 
-    const { orderId, cancellationReason }: CancelRequest = await req.json();
+    const { orderId, cancellationReason, adminOverrideRefund }: CancelRequest = await req.json();
 
     if (!orderId || !cancellationReason || cancellationReason.trim().length < 10) {
       return new Response(
@@ -97,7 +98,17 @@ Deno.serve(async (req: Request) => {
 
     const isSameDay = eventDate.toDateString() === now.toDateString();
 
-    if (hoursUntilEvent >= 72) {
+    if (adminOverrideRefund !== undefined) {
+      if (adminOverrideRefund) {
+        refundPolicy = "full_refund";
+        refundMessage = "A full refund has been issued by Bounce Party Club. The refund will be processed and should appear in your account within 5-10 business days.";
+        shouldIssueRefund = true;
+      } else {
+        refundPolicy = "no_refund";
+        refundMessage = "No refund has been issued for this cancellation. If you have any questions, please contact Bounce Party Club.";
+        shouldIssueRefund = false;
+      }
+    } else if (hoursUntilEvent >= 72) {
       refundPolicy = "full_refund";
       refundMessage = "Your cancellation qualifies for a full refund. The refund will be processed automatically and should appear in your account within 5-10 business days.";
       shouldIssueRefund = true;
@@ -280,7 +291,41 @@ ${refundResult?.refunded ? `Automatic refund of $${(refundResult.amount / 100).t
         }
       }
     } catch (smsError) {
-      console.error("Failed to send SMS notification:", smsError);
+      console.error("Failed to send SMS notification to admin:", smsError);
+    }
+
+    try {
+      if (order.customers?.phone) {
+        const customerName = `${order.customers?.first_name || ''} ${order.customers?.last_name || ''}`.trim();
+        const eventDate = new Date(order.event_date).toLocaleDateString();
+
+        let customerMessage = `Hi ${customerName}, your order #${orderId.slice(0, 8).toUpperCase()} for ${eventDate} has been cancelled.\n\n`;
+
+        if (shouldIssueRefund) {
+          customerMessage += `✓ Full refund issued: Your refund will be processed and should appear in your account within 5-10 business days.`;
+        } else if (refundPolicy === "reschedule_credit") {
+          customerMessage += `Your payment has been converted to a credit that can be applied toward a rescheduled date within 12 months.`;
+        } else {
+          customerMessage += `No refund has been issued for this cancellation.`;
+        }
+
+        customerMessage += `\n\nIf you have any questions, please contact us. Thank you for choosing Bounce Party Club!`;
+
+        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-sms-notification`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            to: order.customers.phone,
+            message: customerMessage,
+            orderId: orderId,
+          }),
+        });
+      }
+    } catch (smsError) {
+      console.error("Failed to send SMS notification to customer:", smsError);
     }
 
     return new Response(
