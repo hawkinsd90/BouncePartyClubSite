@@ -11,11 +11,11 @@ import { LoadingSpinner } from '../common/LoadingSpinner';
 interface PricingRules {
   base_radius_miles: number;
   per_mile_after_base_cents: number;
-  zone_overrides: Array<{
+  zone_overrides?: Array<{
     zone_name: string;
     flat_cents: number;
-  }>;
-  included_cities: string[];
+  }> | null;
+  included_cities?: string[] | null;
 }
 
 interface TravelFeeResult {
@@ -97,11 +97,11 @@ export function TravelCalculator() {
       const distance_miles = element.distance.value / 1609.34;
 
       const city = selectedAddress.city?.toLowerCase() || '';
-      const is_included_city = pricingRules.included_cities.some(
+      const is_included_city = pricingRules.included_cities?.some(
         (includedCity) => city.includes(includedCity.toLowerCase())
-      );
+      ) || false;
 
-      const zone = pricingRules.zone_overrides.find((z) =>
+      const zone = pricingRules.zone_overrides?.find((z) =>
         city.includes(z.zone_name.toLowerCase())
       );
 
@@ -183,10 +183,10 @@ export function TravelCalculator() {
             <ul className="space-y-1">
               <li>Base radius: <strong>{pricingRules.base_radius_miles} miles</strong> from {HOME_BASE.address}</li>
               <li>Per mile rate: <strong>{formatCurrency(pricingRules.per_mile_after_base_cents)}/mile</strong> beyond base radius</li>
-              {pricingRules.included_cities.length > 0 && (
+              {pricingRules.included_cities && pricingRules.included_cities.length > 0 && (
                 <li>Included cities (FREE): <strong>{pricingRules.included_cities.join(', ')}</strong></li>
               )}
-              {pricingRules.zone_overrides.length > 0 && (
+              {pricingRules.zone_overrides && pricingRules.zone_overrides.length > 0 && (
                 <li>
                   Special zones: {pricingRules.zone_overrides.map(z =>
                     `${z.zone_name} (${formatCurrency(z.flat_cents)})`
