@@ -71,8 +71,6 @@ export const STANDARD_ORDER_SELECT = `
       type,
       price_dry_cents,
       price_water_cents,
-      image_url,
-      wet_image_url,
       dimensions,
       capacity
     )

@@ -70,22 +70,18 @@ export function AddressAutocomplete({
         autocompleteElement.setAttribute('placeholder', placeholder);
         autocompleteElement.setAttribute('country', 'us');
 
-        // Listen for input changes
-        if (onChange) {
-          autocompleteElement.addEventListener('input', (event: any) => {
-            const inputElement = event.target?.querySelector?.('input') || event.target;
-            const value = inputElement?.value || '';
-            onChange(value);
-          });
-        }
+        // Track if we're currently selecting a place
+        let isSelectingPlace = false;
 
         // Listen for place selection
         autocompleteElement.addEventListener('gmp-placeselect', async (event: any) => {
           console.log('[AddressAutocomplete] gmp-placeselect event fired!', event);
+          isSelectingPlace = true;
           const place = event.place;
 
           if (!place) {
             console.log('[AddressAutocomplete] No place in event');
+            isSelectingPlace = false;
             return;
           }
 
@@ -104,6 +100,7 @@ export function AddressAutocomplete({
           if (!place.location) {
             console.error('[AddressAutocomplete] No location found for place');
             setError('Please select a valid address from the dropdown');
+            isSelectingPlace = false;
             return;
           }
 
@@ -136,7 +133,26 @@ export function AddressAutocomplete({
           setError('');
           onSelectRef.current(result);
           console.log('[AddressAutocomplete] onSelect callback completed');
+
+          // Short delay to ensure place selection completes before allowing input changes
+          setTimeout(() => {
+            isSelectingPlace = false;
+          }, 100);
         });
+
+        // Listen for input changes (but not during place selection)
+        if (onChange) {
+          autocompleteElement.addEventListener('input', (event: any) => {
+            if (isSelectingPlace) {
+              console.log('[AddressAutocomplete] Ignoring input event during place selection');
+              return;
+            }
+            const inputElement = event.target?.querySelector?.('input') || event.target;
+            const value = inputElement?.value || '';
+            console.log('[AddressAutocomplete] Input event fired, value:', value);
+            onChange(value);
+          });
+        }
 
         // Add global styles for the autocomplete element
         if (!document.getElementById('gmp-autocomplete-styles')) {
@@ -146,17 +162,28 @@ export function AddressAutocomplete({
             gmp-place-autocomplete {
               width: 100%;
               display: block;
-              --gmp-input-background-color: white;
-              --gmp-input-text-color: #1f2937;
-              --gmp-input-border-color: #d1d5db;
-              --gmp-input-border-radius: 0.375rem;
-              --gmp-input-padding: 0.5rem 0.75rem;
-              --gmp-input-font-size: 0.875rem;
-              --gmp-input-font-family: system-ui, -apple-system, sans-serif;
+            }
+            gmp-place-autocomplete input {
+              background-color: white !important;
+              color: #1f2937 !important;
+              border: 1px solid #d1d5db !important;
+              border-radius: 0.375rem !important;
+              padding: 0.5rem 0.75rem !important;
+              font-size: 0.875rem !important;
+              font-family: system-ui, -apple-system, sans-serif !important;
             }
           `;
           document.head.appendChild(styleSheet);
         }
+
+        // Set inline CSS custom properties on the element
+        autocompleteElement.style.setProperty('--gmp-input-background-color', 'white');
+        autocompleteElement.style.setProperty('--gmp-input-text-color', '#1f2937');
+        autocompleteElement.style.setProperty('--gmp-input-border-color', '#d1d5db');
+        autocompleteElement.style.setProperty('--gmp-input-border-radius', '0.375rem');
+        autocompleteElement.style.setProperty('--gmp-input-padding', '0.5rem 0.75rem');
+        autocompleteElement.style.setProperty('--gmp-input-font-size', '0.875rem');
+        autocompleteElement.style.setProperty('--gmp-input-font-family', 'system-ui, -apple-system, sans-serif');
 
         // Clear container and append the element
         containerRef.current.innerHTML = '';

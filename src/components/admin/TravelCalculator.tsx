@@ -138,12 +138,16 @@ export function TravelCalculator() {
   }
 
   const handleAddressChange = useCallback((addr: string) => {
+    console.log('[TravelCalculator] Address changed (user typing):', addr);
     setAddress(addr);
+    // Clear selected address when user manually types (not during selection)
+    setSelectedAddress(null);
     setResult(null);
   }, []);
 
   const handleAddressSelect = useCallback((addr: any) => {
     console.log('[TravelCalculator] Address selected:', addr);
+    setAddress(addr.formatted_address);
     setSelectedAddress(addr);
     setResult(null);
   }, []);
