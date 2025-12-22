@@ -35,7 +35,14 @@ function AdminDashboard() {
 
   const fetchAdminData = useCallback(async () => {
     const [unitsRes, ordersRes, pricingRes] = await Promise.all([
-      supabase.from('units').select('*').order('name'),
+      supabase.from('units').select(`
+        *,
+        unit_media (
+          url,
+          mode,
+          sort
+        )
+      `).order('name'),
       supabase.from('orders').select(`
         *,
         customers (first_name, last_name, email, phone),
@@ -48,8 +55,17 @@ function AdminDashboard() {
     if (ordersRes.error) throw ordersRes.error;
     if (pricingRes.error) throw pricingRes.error;
 
+    // Process units to add image_url from unit_media
+    const unitsWithImages = (unitsRes.data || []).map(unit => {
+      const dryImages = (unit.unit_media || []).filter((media: any) => media.mode === 'dry').sort((a: any, b: any) => a.sort - b.sort);
+      return {
+        ...unit,
+        image_url: dryImages.length > 0 ? dryImages[0].url : null
+      };
+    });
+
     return {
-      units: unitsRes.data || [],
+      units: unitsWithImages || [],
       orders: ordersRes.data || [],
       pricingRules: pricingRes.data,
     };

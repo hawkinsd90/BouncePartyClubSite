@@ -235,6 +235,7 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
             <div className="mb-3">
               <input
                 type="text"
+                list="city-suggestions"
                 placeholder="Type city name and press Enter..."
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && e.currentTarget.value.trim()) {
@@ -252,6 +253,21 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
                 }}
                 className="w-full px-4 py-2 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none"
               />
+              <datalist id="city-suggestions">
+                {(editedRules.included_cities || []).map((city, index) => (
+                  <option key={index} value={city} />
+                ))}
+                <option value="Detroit" />
+                <option value="Dearborn" />
+                <option value="Ann Arbor" />
+                <option value="Livonia" />
+                <option value="Canton" />
+                <option value="Troy" />
+                <option value="Warren" />
+                <option value="Sterling Heights" />
+                <option value="Westland" />
+                <option value="Farmington Hills" />
+              </datalist>
             </div>
           )}
 
