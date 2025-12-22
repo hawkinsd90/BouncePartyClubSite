@@ -3,8 +3,6 @@ import { Send } from 'lucide-react';
 import { OrderSummary } from '../order/OrderSummary';
 import { showToast } from '../../lib/notifications';
 import { EventDetailsEditor } from '../order-detail/EventDetailsEditor';
-import { DepositOverride } from '../order-detail/DepositOverride';
-import { TaxWaiver } from '../order-detail/TaxWaiver';
 import { CustomerSelector } from '../invoice/CustomerSelector';
 import { NewCustomerForm } from '../invoice/NewCustomerForm';
 import { CartItemsList } from '../invoice/CartItemsList';
@@ -15,7 +13,6 @@ import { useInvoicePricing } from '../../hooks/useInvoicePricing';
 import { useCartManagement } from '../../hooks/useCartManagement';
 import { useCustomerManagement } from '../../hooks/useCustomerManagement';
 import { useEventDetails } from '../../hooks/useEventDetails';
-import { useDepositOverride } from '../../hooks/useDepositOverride';
 import { generateInvoice } from '../../lib/invoiceService';
 import { buildInvoiceSummary } from '../../lib/invoiceSummaryBuilder';
 
@@ -29,10 +26,8 @@ export function CrewInvoiceBuilder() {
   const [adminMessage, setAdminMessage] = useState('');
   const [invoiceUrl, setInvoiceUrl] = useState('');
   const [saving, setSaving] = useState(false);
-  const [taxWaived, setTaxWaived] = useState(false);
 
   const pricing = useInvoicePricing(cartItems, eventDetails, pricingRules, [], []);
-  const deposit = useDepositOverride(pricing.defaultDeposit);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -76,13 +71,13 @@ export function CrewInvoiceBuilder() {
           priceBreakdown: pricing.priceBreakdown,
           subtotal: pricing.subtotal,
           taxCents: pricing.taxCents,
-          depositRequired: deposit.depositRequired,
+          depositRequired: pricing.defaultDeposit,
           totalCents: pricing.totalCents,
-          customDepositCents: deposit.customDepositCents,
+          customDepositCents: null,
           discounts: [],
           customFees: [],
           adminMessage,
-          taxWaived,
+          taxWaived: false,
         },
         customer
       );
@@ -96,9 +91,7 @@ export function CrewInvoiceBuilder() {
       }
 
       clearCart();
-      deposit.resetDeposit();
       setAdminMessage('');
-      setTaxWaived(false);
       customerManagement.setSelectedCustomer('');
       resetEventDetails();
     } catch (error) {
@@ -120,10 +113,10 @@ export function CrewInvoiceBuilder() {
         taxableAmount: pricing.taxableAmount,
         taxCents: pricing.taxCents,
         totalCents: pricing.totalCents,
-        depositRequired: deposit.depositRequired,
+        depositRequired: pricing.defaultDeposit,
         eventDetails,
       }),
-    [cartItems, pricing, deposit.depositRequired, eventDetails]
+    [cartItems, pricing, eventDetails]
   );
 
   return (
@@ -135,7 +128,7 @@ export function CrewInvoiceBuilder() {
         </p>
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
           <p className="text-sm text-amber-800">
-            <strong>Note:</strong> To add discounts or custom fees to an invoice, please ask an admin to create the invoice.
+            <strong>Note:</strong> To add discounts, custom fees, deposit overrides, or tax waivers, please ask an admin to create the invoice.
           </p>
         </div>
       </div>
@@ -197,24 +190,6 @@ export function CrewInvoiceBuilder() {
         </div>
 
         <div className="space-y-4 sm:space-y-6">
-          <DepositOverride
-            calculatedDepositCents={pricing.defaultDeposit}
-            customDepositCents={deposit.customDepositCents}
-            customDepositInput={deposit.customDepositInput}
-            onInputChange={deposit.setCustomDepositInput}
-            onApply={deposit.applyDepositOverride}
-            onClear={deposit.clearDepositOverride}
-            compact={true}
-            showZeroHint={true}
-          />
-
-          <TaxWaiver
-            taxCents={pricing.taxCents}
-            taxWaived={taxWaived}
-            onToggle={() => setTaxWaived(!taxWaived)}
-            compact={true}
-          />
-
           <AdminMessageSection message={adminMessage} onChange={setAdminMessage} />
 
           {orderSummary && (
@@ -223,7 +198,7 @@ export function CrewInvoiceBuilder() {
               showDeposit={true}
               showTip={false}
               title="Invoice Summary"
-              taxWaived={taxWaived}
+              taxWaived={false}
             />
           )}
 
