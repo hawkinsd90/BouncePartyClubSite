@@ -37,7 +37,7 @@ interface BlackoutAddress {
 }
 
 export function BlackoutTab() {
-  const [activeTab, setActiveTab] = useState<'dates' | 'contacts' | 'addresses' | 'all' | 'holidays'>('dates');
+  const [activeTab, setActiveTab] = useState<'dates' | 'contacts' | 'addresses' | 'all' | 'holidays'>('all');
   const [dates, setDates] = useState<BlackoutDate[]>([]);
   const [contacts, setContacts] = useState<BlackoutContact[]>([]);
   const [addresses, setAddresses] = useState<BlackoutAddress[]>([]);
@@ -215,6 +215,17 @@ export function BlackoutTab() {
 
         <div className="flex gap-2 border-b border-slate-200 mb-6 overflow-x-auto">
           <button
+            onClick={() => setActiveTab('all')}
+            className={`flex items-center gap-2 px-4 py-2 font-medium transition-colors whitespace-nowrap ${
+              activeTab === 'all'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <List className="w-5 h-5" />
+            All Blackouts ({dates.length + contacts.length + addresses.length + (overnightHolidayOnly ? 1 : 0)})
+          </button>
+          <button
             onClick={() => setActiveTab('dates')}
             className={`flex items-center gap-2 px-4 py-2 font-medium transition-colors whitespace-nowrap ${
               activeTab === 'dates'
@@ -246,17 +257,6 @@ export function BlackoutTab() {
           >
             <MapPin className="w-5 h-5" />
             Addresses ({addresses.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('all')}
-            className={`flex items-center gap-2 px-4 py-2 font-medium transition-colors whitespace-nowrap ${
-              activeTab === 'all'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <List className="w-5 h-5" />
-            All Blackouts ({dates.length + contacts.length + addresses.length})
           </button>
           <button
             onClick={() => setActiveTab('holidays')}
@@ -677,7 +677,37 @@ export function BlackoutTab() {
               </div>
             )}
 
-            {dates.length === 0 && contacts.length === 0 && addresses.length === 0 && (
+            {overnightHolidayOnly && (
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center">
+                  <PartyPopper className="w-5 h-5 mr-2 text-amber-600" />
+                  Holiday Restrictions (1)
+                </h3>
+                <div className="space-y-3">
+                  <div className="border-2 border-amber-300 rounded-xl p-4 bg-amber-50">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <PartyPopper className="w-5 h-5 text-amber-600" />
+                          <span className="font-bold text-slate-900">Overnight Holiday Only Restriction</span>
+                        </div>
+                        <p className="text-slate-700">Only overnight rentals are allowed on holidays. Same-day pickups are blocked.</p>
+                        <p className="text-sm text-slate-600 mt-2">This applies to all holiday dates in the system.</p>
+                      </div>
+                      <button
+                        onClick={() => setActiveTab('holidays')}
+                        className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-colors"
+                        title="Manage in Holiday Settings"
+                      >
+                        <Edit2 className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {dates.length === 0 && contacts.length === 0 && addresses.length === 0 && !overnightHolidayOnly && (
               <p className="text-center text-slate-500 py-8">No active blackouts</p>
             )}
           </div>

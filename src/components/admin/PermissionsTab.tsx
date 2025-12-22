@@ -56,7 +56,7 @@ export function PermissionsTab() {
         .eq('user_id', user.id)
         .maybeSingle();
 
-      setCurrentUserRole(roleData?.role || null);
+      setCurrentUserRole(roleData?.role?.toLowerCase() as any || null);
 
       const { data: usersData, error } = await supabase
         .from('user_roles')
@@ -96,6 +96,7 @@ export function PermissionsTab() {
 
       const usersWithEmails = (usersData || []).map(userRole => ({
         ...userRole,
+        role: userRole.role.toLowerCase() as 'master' | 'admin' | 'crew',
         email: userInfo[userRole.user_id]?.email || 'Unknown',
         full_name: userInfo[userRole.user_id]?.full_name || 'Unknown User',
       }));

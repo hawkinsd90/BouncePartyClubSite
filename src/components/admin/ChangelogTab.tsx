@@ -107,12 +107,12 @@ export function ChangelogTab() {
 
         const { data: orderData } = await supabase
           .from('orders')
-          .select('id, customer_first_name, customer_last_name')
+          .select('id, customers(first_name, last_name)')
           .eq('id', change.order_id)
           .maybeSingle();
 
-        const customerName = orderData
-          ? `${orderData.customer_first_name} ${orderData.customer_last_name}`
+        const customerName = orderData?.customers
+          ? `${(orderData.customers as any).first_name} ${(orderData.customers as any).last_name}`
           : 'Unknown Customer';
 
         allEntries.push({
