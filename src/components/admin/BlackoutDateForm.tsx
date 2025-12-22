@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { supabase } from '../../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { Plus } from 'lucide-react';
-import { notifyError, notifySuccess } from '../../../lib/notifications';
+import { notifyError, notifySuccess } from '../../lib/notifications';
 
 interface BlackoutDateFormProps {
   onSuccess: () => void;

@@ -4,12 +4,12 @@ import { Calendar, UserX, MapPin, List, PartyPopper } from 'lucide-react';
 import { notifyError, notifySuccess } from '../../lib/notifications';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { showConfirm } from '../../lib/notifications';
-import { BlackoutDateForm } from './blackout/BlackoutDateForm';
-import { BlackoutDatesList } from './blackout/BlackoutDatesList';
-import { BlackoutContactForm } from './blackout/BlackoutContactForm';
-import { BlackoutContactsList } from './blackout/BlackoutContactsList';
-import { BlackoutAddressForm } from './blackout/BlackoutAddressForm';
-import { BlackoutAddressesList } from './blackout/BlackoutAddressesList';
+import { BlackoutDateForm } from './BlackoutDateForm';
+import { BlackoutDatesList } from './BlackoutDatesList';
+import { BlackoutContactForm } from './BlackoutContactForm';
+import { BlackoutContactsList } from './BlackoutContactsList';
+import { BlackoutAddressForm } from './BlackoutAddressForm';
+import { BlackoutAddressesList } from './BlackoutAddressesList';
 
 interface BlackoutDate {
   id: string;
