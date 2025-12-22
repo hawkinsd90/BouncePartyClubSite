@@ -15,6 +15,7 @@ interface Unit {
   dimensions: string;
   footprint_sqft: number;
   capacity: number;
+  quantity_available: number;
   media: Array<{ url: string; alt: string }>;
 }
 
