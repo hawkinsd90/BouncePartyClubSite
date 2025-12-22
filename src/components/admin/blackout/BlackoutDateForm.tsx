@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { Plus } from 'lucide-react';
-import { notify } from '../../../lib/notifications';
+import { notifyError, notifySuccess } from '../../../lib/notifications';
 
 interface BlackoutDateFormProps {
   onSuccess: () => void;
@@ -13,20 +13,20 @@ export function BlackoutDateForm({ onSuccess }: BlackoutDateFormProps) {
 
   async function handleAddDate() {
     if (!newDate.start_date || !newDate.end_date || !newDate.reason) {
-      notify('Please fill in all required fields', 'error');
+      notifyError('Please fill in all required fields');
       return;
     }
 
     setAdding(true);
     try {
-      const { error } = await supabase.from('blackout_dates').insert([newDate]);
+      const { error } = await supabase.from('blackout_dates' as any).insert([newDate]);
       if (error) throw error;
 
-      notify('Blackout date added successfully', 'success');
+      notifySuccess('Blackout date added successfully');
       setNewDate({ start_date: '', end_date: '', reason: '', notes: '' });
       onSuccess();
     } catch (error: any) {
-      notify(error.message, 'error');
+      notifyError(error.message);
     } finally {
       setAdding(false);
     }

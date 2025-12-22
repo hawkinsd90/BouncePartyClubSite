@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { Plus } from 'lucide-react';
-import { notify } from '../../../lib/notifications';
+import { notifyError, notifySuccess } from '../../../lib/notifications';
 
 interface BlackoutContactFormProps {
   onSuccess: () => void;
@@ -13,13 +13,13 @@ export function BlackoutContactForm({ onSuccess }: BlackoutContactFormProps) {
 
   async function handleAddContact() {
     if ((!newContact.email && !newContact.phone) || !newContact.reason) {
-      notify('Please provide at least email or phone, and a reason', 'error');
+      notifyError('Please provide at least email or phone, and a reason');
       return;
     }
 
     setAdding(true);
     try {
-      const { error } = await supabase.from('blackout_contacts').insert([{
+      const { error } = await supabase.from('blackout_contacts' as any).insert([{
         email: newContact.email || null,
         phone: newContact.phone || null,
         customer_name: newContact.customer_name || null,
@@ -28,11 +28,11 @@ export function BlackoutContactForm({ onSuccess }: BlackoutContactFormProps) {
       }]);
       if (error) throw error;
 
-      notify('Contact blacklisted successfully', 'success');
+      notifySuccess('Contact blacklisted successfully');
       setNewContact({ email: '', phone: '', customer_name: '', reason: '', notes: '' });
       onSuccess();
     } catch (error: any) {
-      notify(error.message, 'error');
+      notifyError(error.message);
     } finally {
       setAdding(false);
     }

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { Plus } from 'lucide-react';
-import { notify } from '../../../lib/notifications';
+import { notifyError, notifySuccess } from '../../../lib/notifications';
 
 interface BlackoutAddressFormProps {
   onSuccess: () => void;
@@ -21,13 +21,13 @@ export function BlackoutAddressForm({ onSuccess }: BlackoutAddressFormProps) {
 
   async function handleAddAddress() {
     if (!newAddress.address_line1 || !newAddress.city || !newAddress.state || !newAddress.zip_code || !newAddress.reason) {
-      notify('Please fill in all required fields', 'error');
+      notifyError('Please fill in all required fields');
       return;
     }
 
     setAdding(true);
     try {
-      const { error } = await supabase.from('blackout_addresses').insert([{
+      const { error } = await supabase.from('blackout_addresses' as any).insert([{
         address_line1: newAddress.address_line1,
         address_line2: newAddress.address_line2 || null,
         city: newAddress.city,
@@ -38,11 +38,11 @@ export function BlackoutAddressForm({ onSuccess }: BlackoutAddressFormProps) {
       }]);
       if (error) throw error;
 
-      notify('Address blacklisted successfully', 'success');
+      notifySuccess('Address blacklisted successfully');
       setNewAddress({ address_line1: '', address_line2: '', city: '', state: '', zip_code: '', reason: '', notes: '' });
       onSuccess();
     } catch (error: any) {
-      notify(error.message, 'error');
+      notifyError(error.message);
     } finally {
       setAdding(false);
     }

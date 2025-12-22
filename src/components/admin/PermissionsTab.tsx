@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Shield, UserPlus, Trash2, History, Mail } from 'lucide-react';
-import { notify } from '../../lib/notifications';
+import { notifyError, notifySuccess, showConfirm } from '../../lib/notifications';
 import { LoadingSpinner } from '../common/LoadingSpinner';
-import { ConfirmationModal } from '../shared/ConfirmationModal';
 
 interface UserRole {
   id: string | null;
@@ -38,7 +37,6 @@ export function PermissionsTab() {
   const [selectedUserChangelog, setSelectedUserChangelog] = useState<string | null>(null);
   const [changelog, setChangelog] = useState<ChangelogEntry[]>([]);
   const [loadingChangelog, setLoadingChangelog] = useState(false);
-  const [userToDelete, setUserToDelete] = useState<UserRole | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -131,7 +129,7 @@ export function PermissionsTab() {
 
       setUsers(allUsers);
     } catch (error: any) {
-      notify(error.message, 'error');
+      notifyError(error.message);
     } finally {
       setLoading(false);
     }
@@ -139,12 +137,12 @@ export function PermissionsTab() {
 
   async function handleAddUser() {
     if (!newUserEmail.trim()) {
-      notify('Please enter an email address', 'error');
+      notifyError('Please enter an email address');
       return;
     }
 
     if (currentUserRole === 'admin' && newUserRole === 'admin') {
-      notify('Only Master users can create Admin accounts', 'error');
+      notifyError('Only Master users can create Admin accounts');
       return;
     }
 
@@ -172,12 +170,12 @@ export function PermissionsTab() {
 
       await sendPermissionChangeEmail('added', newUserEmail, newUserRole);
 
-      notify(`${newUserRole.charAt(0).toUpperCase() + newUserRole.slice(1)} user created successfully`, 'success');
+      notifySuccess(`${newUserRole.charAt(0).toUpperCase() + newUserRole.slice(1)} user created successfully`);
       setNewUserEmail('');
       setNewUserRole('crew');
       fetchData();
     } catch (error: any) {
-      notify(error.message, 'error');
+      notifyError(error.message);
     } finally {
       setAddingUser(false);
     }
@@ -187,12 +185,12 @@ export function PermissionsTab() {
     if (!newRole) return;
 
     if (currentUserRole === 'admin' && (newRole === 'master' || newRole === 'admin')) {
-      notify('Only Master users can assign Master or Admin roles', 'error');
+      notifyError('Only Master users can assign Master or Admin roles');
       return;
     }
 
     if (currentUserRole === 'admin' && user.role === 'admin') {
-      notify('Only Master users can modify Admin accounts', 'error');
+      notifyError('Only Master users can modify Admin accounts');
       return;
     }
 
@@ -209,7 +207,7 @@ export function PermissionsTab() {
         if (error) throw error;
 
         await sendPermissionChangeEmail('added', user.email || '', newRole);
-        notify('Role assigned successfully', 'success');
+        notifySuccess('Role assigned successfully');
       } else {
         // Update existing role
         const { error } = await supabase
@@ -220,20 +218,27 @@ export function PermissionsTab() {
         if (error) throw error;
 
         await sendPermissionChangeEmail('changed', user.email || '', newRole, user.role);
-        notify('Role updated successfully', 'success');
+        notifySuccess('Role updated successfully');
       }
 
       fetchData();
     } catch (error: any) {
-      notify(error.message, 'error');
+      notifyError(error.message);
     }
   }
 
   async function handleDeleteUser(user: UserRole) {
     if (currentUserRole === 'admin' && (user.role === 'admin' || user.role === 'master')) {
-      notify('Only Master users can delete Admin or Master accounts', 'error');
+      notifyError('Only Master users can delete Admin or Master accounts');
       return;
     }
+
+    const confirmed = await showConfirm(
+      `Are you sure you want to remove ${user.full_name} (${user.email})? This will revoke their access immediately.`,
+      { confirmText: 'Remove User', type: 'warning' }
+    );
+
+    if (!confirmed) return;
 
     try {
       const { error } = await supabase
@@ -245,11 +250,10 @@ export function PermissionsTab() {
 
       await sendPermissionChangeEmail('removed', user.email || '', user.role);
 
-      notify('User removed successfully', 'success');
-      setUserToDelete(null);
+      notifySuccess('User removed successfully');
       fetchData();
     } catch (error: any) {
-      notify(error.message, 'error');
+      notifyError(error.message);
     }
   }
 
@@ -297,7 +301,7 @@ export function PermissionsTab() {
     setLoadingChangelog(true);
     try {
       const { data, error } = await supabase
-        .from('user_permissions_changelog')
+        .from('user_permissions_changelog' as any)
         .select(`
           id,
           action,
@@ -354,7 +358,7 @@ export function PermissionsTab() {
 
       setChangelog(changelogWithEmails);
     } catch (error: any) {
-      notify(error.message, 'error');
+      notifyError(error.message);
     } finally {
       setLoadingChangelog(false);
     }
@@ -534,7 +538,7 @@ export function PermissionsTab() {
                           <History className="w-5 h-5" />
                         </button>
                         <button
-                          onClick={() => setUserToDelete(selectedUser)}
+                          onClick={() => handleDeleteUser(selectedUser)}
                           className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="Remove role"
                         >
@@ -596,7 +600,7 @@ export function PermissionsTab() {
                             <History className="w-5 h-5" />
                           </button>
                           <button
-                            onClick={() => setUserToDelete(user)}
+                            onClick={() => handleDeleteUser(user)}
                             className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                             title="Remove role"
                           >
@@ -667,18 +671,6 @@ export function PermissionsTab() {
             </div>
           )}
         </div>
-      )}
-
-      {userToDelete && (
-        <ConfirmationModal
-          isOpen={true}
-          title="Remove User"
-          message={`Are you sure you want to remove ${userToDelete.full_name} (${userToDelete.email})? This will revoke their access immediately.`}
-          confirmLabel="Remove User"
-          confirmStyle="danger"
-          onConfirm={() => handleDeleteUser(userToDelete)}
-          onCancel={() => setUserToDelete(null)}
-        />
       )}
     </div>
   );

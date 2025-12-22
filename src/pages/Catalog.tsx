@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Users, Maximize, Zap, Droplets, Download } from 'lucide-react';
-import { notify } from '../lib/notifications';
+import { notifyError } from '../lib/notifications';
 
 interface Unit {
   id: string;
@@ -79,7 +79,7 @@ export function Catalog() {
 
   const handleExportMenu = () => {
     if (units.length === 0) {
-      notify('No units available to export', 'error');
+      notifyError('No units available to export');
       return;
     }
 
@@ -307,7 +307,7 @@ export function Catalog() {
     const printWindow = window.open(url, '_blank');
 
     if (!printWindow) {
-      notify('Unable to open print window. Please allow popups for this site.', 'error');
+      notifyError('Unable to open print window. Please allow popups for this site.');
     }
 
     setTimeout(() => URL.revokeObjectURL(url), 1000);

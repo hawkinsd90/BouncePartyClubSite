@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { formatCurrency } from '../../lib/pricing';
 import { Edit2, Save, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { notify } from '../../lib/notifications';
+import { notifyError, notifySuccess } from '../../lib/notifications';
 
 interface PricingRules {
   id: string;
@@ -44,11 +44,11 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
 
       if (error) throw error;
 
-      notify('Pricing settings updated successfully', 'success');
+      notifySuccess('Pricing settings updated successfully');
       setIsEditing(false);
       window.location.reload();
     } catch (error: any) {
-      notify(error.message, 'error');
+      notifyError(error.message);
     } finally {
       setSaving(false);
     }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Mail, MessageSquare, Edit2, Save, X, Info, Copy } from 'lucide-react';
-import { notify } from '../../lib/notifications';
+import { notifyError, notifySuccess } from '../../lib/notifications';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { TextareaInput } from '../forms/TextareaInput';
 import { TextInput } from '../forms/TextInput';
@@ -72,16 +72,16 @@ export function MessageTemplatesTab() {
     try {
       const [smsRes, emailRes] = await Promise.all([
         supabase.from('sms_message_templates').select('*').order('template_name'),
-        supabase.from('email_templates').select('*').order('category, template_name'),
+        supabase.from('email_templates' as any).select('*').order('category, template_name'),
       ]);
 
       if (smsRes.error) throw smsRes.error;
       if (emailRes.error) throw emailRes.error;
 
       setSmsTemplates(smsRes.data || []);
-      setEmailTemplates(emailRes.data || []);
+      setEmailTemplates(emailRes.data as any || []);
     } catch (error: any) {
-      notify(error.message, 'error');
+      notifyError(error.message);
     } finally {
       setLoading(false);
     }
@@ -99,11 +99,11 @@ export function MessageTemplatesTab() {
 
       if (error) throw error;
 
-      notify('SMS template saved successfully', 'success');
+      notifySuccess('SMS template saved successfully');
       setEditingSMS(null);
       fetchTemplates();
     } catch (error: any) {
-      notify(error.message, 'error');
+      notifyError(error.message);
     } finally {
       setSaving(false);
     }
@@ -115,7 +115,7 @@ export function MessageTemplatesTab() {
     setSaving(true);
     try {
       const { error } = await supabase
-        .from('email_templates')
+        .from('email_templates' as any)
         .update({
           subject: editingEmail.subject,
           header_title: editingEmail.header_title,
@@ -125,11 +125,11 @@ export function MessageTemplatesTab() {
 
       if (error) throw error;
 
-      notify('Email template saved successfully', 'success');
+      notifySuccess('Email template saved successfully');
       setEditingEmail(null);
       fetchTemplates();
     } catch (error: any) {
-      notify(error.message, 'error');
+      notifyError(error.message);
     } finally {
       setSaving(false);
     }
@@ -137,7 +137,7 @@ export function MessageTemplatesTab() {
 
   function copyVariable(variable: string) {
     navigator.clipboard.writeText(variable);
-    notify(`Copied ${variable}`, 'success');
+    notifySuccess(`Copied ${variable}`);
   }
 
   function getCategoryColor(category: string) {

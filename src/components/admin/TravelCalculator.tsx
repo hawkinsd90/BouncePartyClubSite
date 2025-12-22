@@ -5,7 +5,7 @@ import { loadGoogleMapsAPI } from '../../lib/googleMaps';
 import { HOME_BASE } from '../../lib/constants';
 import { formatCurrency } from '../../lib/pricing';
 import { supabase } from '../../lib/supabase';
-import { notify } from '../../lib/notifications';
+import { notifyError } from '../../lib/notifications';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 
 interface PricingRules {
@@ -54,7 +54,7 @@ export function TravelCalculator() {
 
       setPricingRules(data);
     } catch (error: any) {
-      notify(error.message, 'error');
+      notifyError(error.message);
     } finally {
       setLoading(false);
     }
@@ -62,7 +62,7 @@ export function TravelCalculator() {
 
   async function calculateTravelFee() {
     if (!selectedAddress || !pricingRules) {
-      notify('Please select a valid address', 'error');
+      notifyError('Please select a valid address');
       return;
     }
 
@@ -131,7 +131,7 @@ export function TravelCalculator() {
         city_name: city,
       });
     } catch (error: any) {
-      notify(error.message, 'error');
+      notifyError(error.message);
     } finally {
       setCalculating(false);
     }
