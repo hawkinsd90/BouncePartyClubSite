@@ -139,6 +139,29 @@ export function AddressAutocomplete({
       }
     }
 
+    // Wait for importLibrary to be available
+    const waitForImportLibrary = (): Promise<void> => {
+      return new Promise((resolve, reject) => {
+        if (window.google?.maps?.importLibrary) {
+          resolve();
+          return;
+        }
+
+        let attempts = 0;
+        const maxAttempts = 50; // 5 seconds max
+        const checkInterval = setInterval(() => {
+          attempts++;
+          if (window.google?.maps?.importLibrary) {
+            clearInterval(checkInterval);
+            resolve();
+          } else if (attempts >= maxAttempts) {
+            clearInterval(checkInterval);
+            reject(new Error('Timeout waiting for Google Maps API'));
+          }
+        }, 100);
+      });
+    };
+
     // Check if API is loaded
     const checkAndInit = async () => {
       const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
@@ -146,14 +169,30 @@ export function AddressAutocomplete({
       if (window.google?.maps?.importLibrary) {
         await initAutocomplete();
       } else if (existingScript) {
-        existingScript.addEventListener('load', initAutocomplete);
+        existingScript.addEventListener('load', async () => {
+          try {
+            await waitForImportLibrary();
+            await initAutocomplete();
+          } catch (error) {
+            console.error('[AddressAutocomplete] Failed to initialize:', error);
+            setError('Failed to initialize address autocomplete');
+          }
+        });
       } else {
         // Load the script with the new API loader
         const script = document.createElement('script');
         script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&v=weekly&loading=async`;
         script.async = true;
         script.defer = true;
-        script.onload = () => initAutocomplete();
+        script.onload = async () => {
+          try {
+            await waitForImportLibrary();
+            await initAutocomplete();
+          } catch (error) {
+            console.error('[AddressAutocomplete] Failed to initialize:', error);
+            setError('Failed to initialize address autocomplete');
+          }
+        };
         script.onerror = (e) => {
           console.error('[AddressAutocomplete] Script failed to load:', e);
           setError('Failed to load address autocomplete');
