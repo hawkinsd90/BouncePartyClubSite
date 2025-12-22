@@ -30,6 +30,12 @@ export function AddressAutocomplete({
   const [inputValue, setInputValue] = useState(value);
   const [error, setError] = useState('');
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const onSelectRef = useRef(onSelect);
+
+  // Keep the ref updated
+  useEffect(() => {
+    onSelectRef.current = onSelect;
+  }, [onSelect]);
 
   useEffect(() => {
     setInputValue(value);
@@ -103,7 +109,7 @@ export function AddressAutocomplete({
           console.log('[AddressAutocomplete] Address selected:', result);
           setInputValue(place.formatted_address || '');
           setError('');
-          onSelect(result);
+          onSelectRef.current(result);
         });
 
         autocompleteRef.current = autocomplete;
@@ -145,7 +151,7 @@ export function AddressAutocomplete({
         google.maps.event.clearInstanceListeners(autocompleteRef.current);
       }
     };
-  }, [onSelect]);
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
@@ -153,7 +159,7 @@ export function AddressAutocomplete({
     onChange?.(newValue);
 
     if (!import.meta.env.VITE_GOOGLE_MAPS_API_KEY && newValue) {
-      onSelect({
+      onSelectRef.current({
         formatted_address: newValue,
         street: newValue,
         city: 'Detroit',

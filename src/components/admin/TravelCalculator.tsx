@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { MapPin, Calculator, DollarSign, Info } from 'lucide-react';
 import { AddressAutocomplete } from '../order/AddressAutocomplete';
 import { loadGoogleMapsAPI } from '../../lib/googleMaps';
@@ -137,16 +137,16 @@ export function TravelCalculator() {
     }
   }
 
-  function handleAddressChange(addr: string) {
+  const handleAddressChange = useCallback((addr: string) => {
     setAddress(addr);
     setResult(null);
-  }
+  }, []);
 
-  function handleAddressSelect(addr: any) {
+  const handleAddressSelect = useCallback((addr: any) => {
     console.log('[TravelCalculator] Address selected:', addr);
     setSelectedAddress(addr);
     setResult(null);
-  }
+  }, []);
 
   if (loading) {
     return (
