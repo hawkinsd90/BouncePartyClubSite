@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { calculatePrice, calculateDrivingDistance, type PricingRules, type PriceBreakdown } from '../lib/pricing';
 import { HOME_BASE } from '../lib/constants';
-import { loadGoogleMapsAPI } from '../lib/googleMaps';
 
 interface CartItem {
   unit_id: string;
@@ -61,9 +60,7 @@ export function useInvoicePricing(
     if (!pricingRules) return;
 
     try {
-      // Ensure Google Maps is loaded before calculating distance
-      await loadGoogleMapsAPI();
-
+      // calculateDrivingDistance will load Google Maps internally
       const distance = await calculateDrivingDistance(
         HOME_BASE.lat,
         HOME_BASE.lng,

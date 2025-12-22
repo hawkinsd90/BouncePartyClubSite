@@ -2,7 +2,6 @@ import { useState, useCallback } from 'react';
 import { calculatePrice, calculateDrivingDistance, type PricingRules } from '../lib/pricing';
 import { formatOrderSummary, type OrderSummaryData } from '../lib/orderSummary';
 import { HOME_BASE } from '../lib/constants';
-import { loadGoogleMapsAPI } from '../lib/googleMaps';
 
 interface RecalculatePricingParams {
   order: any;
@@ -30,9 +29,7 @@ export function useOrderPricing() {
     if (!pricingRules) return;
 
     try {
-      // Ensure Google Maps is loaded
-      await loadGoogleMapsAPI();
-
+      // calculateDrivingDistance will load Google Maps internally
       const addressChanged =
         editedOrder.address_line1 !== (order.addresses?.line1 || '') ||
         editedOrder.address_city !== (order.addresses?.city || '') ||

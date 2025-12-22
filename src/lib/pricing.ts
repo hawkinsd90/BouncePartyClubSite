@@ -221,9 +221,24 @@ export async function calculateDrivingDistance(
     fallback: fallbackDistance.toFixed(2),
   });
 
-  // Check if Google Maps is available (loaded by AddressAutocomplete component)
+  // Wait for Google Maps to load (with 5 second timeout)
+  try {
+    console.log('[calculateDrivingDistance] Waiting for Google Maps to load...');
+    await Promise.race([
+      (async () => {
+        const { loadGoogleMapsAPI } = await import('./googleMaps');
+        await loadGoogleMapsAPI();
+      })(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Google Maps load timeout')), 5000))
+    ]);
+  } catch (error) {
+    console.warn('[calculateDrivingDistance] Failed to load Google Maps, using fallback:', error);
+    return fallbackDistance;
+  }
+
+  // Check if Google Maps is available
   if (!window.google?.maps?.DistanceMatrixService) {
-    console.log('[calculateDrivingDistance] Google Maps not loaded, using straight-line distance approximation:', fallbackDistance.toFixed(2), 'miles');
+    console.log('[calculateDrivingDistance] Google Maps not available after loading, using fallback');
     return fallbackDistance;
   }
 
