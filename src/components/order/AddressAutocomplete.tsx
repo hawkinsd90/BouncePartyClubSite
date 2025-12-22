@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { MapPin } from 'lucide-react';
 
 interface AddressResult {
   formatted_address: string;
@@ -25,10 +26,10 @@ export function AddressAutocomplete({
   placeholder = 'Enter event address',
   required = false,
 }: AddressAutocompleteProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [inputValue, setInputValue] = useState(value);
   const [error, setError] = useState('');
-  const autocompleteRef = useRef<any>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const onSelectRef = useRef(onSelect);
 
   // Keep the ref updated
@@ -50,82 +51,66 @@ export function AddressAutocomplete({
     }
 
     async function initAutocomplete() {
-      if (!containerRef.current) {
-        console.error('[AddressAutocomplete] Container ref is null');
+      if (!inputRef.current) {
+        console.error('[AddressAutocomplete] Input ref is null');
         return;
       }
 
       try {
-        // Load the Places library using the modern importLibrary method
-        const { PlaceAutocompleteElement } = await google.maps.importLibrary("places") as google.maps.PlacesLibrary;
+        // Load the Places library
+        if (!window.google?.maps?.places) {
+          await google.maps.importLibrary("places");
+        }
 
-        // Create the new PlaceAutocompleteElement
-        const autocomplete = new PlaceAutocompleteElement({
+        if (!window.google?.maps?.places?.Autocomplete) {
+          console.error('[AddressAutocomplete] Google Maps Places API not available');
+          setError('Google Maps failed to load');
+          return;
+        }
+
+        const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
           componentRestrictions: { country: 'us' },
+          fields: ['address_components', 'formatted_address', 'geometry'],
         });
 
-        autocomplete.addEventListener('gmp-placeselect', async (event: any) => {
-          const place = event.place;
+        autocomplete.addListener('place_changed', () => {
+          const place = autocomplete.getPlace();
 
-          if (!place.location) {
-            console.log('[AddressAutocomplete] No location in place');
+          if (!place.geometry || !place.geometry.location) {
+            console.log('[AddressAutocomplete] No geometry in place');
             setError('Please select a valid address from the dropdown');
             return;
           }
 
-          await place.fetchFields({
-            fields: ['addressComponents', 'formattedAddress', 'location']
-          });
-
-          const addressComponents = place.addressComponents || [];
+          const addressComponents = place.address_components || [];
           const street_number =
-            addressComponents.find((c: any) => c.types.includes('street_number'))?.longText || '';
+            addressComponents.find((c) => c.types.includes('street_number'))?.long_name || '';
           const route =
-            addressComponents.find((c: any) => c.types.includes('route'))?.longText || '';
+            addressComponents.find((c) => c.types.includes('route'))?.long_name || '';
           const city =
-            addressComponents.find((c: any) => c.types.includes('locality'))?.longText || '';
+            addressComponents.find((c) => c.types.includes('locality'))?.long_name || '';
           const state =
-            addressComponents.find((c: any) =>
+            addressComponents.find((c) =>
               c.types.includes('administrative_area_level_1')
-            )?.shortText || '';
+            )?.short_name || '';
           const zip =
-            addressComponents.find((c: any) => c.types.includes('postal_code'))?.longText || '';
+            addressComponents.find((c) => c.types.includes('postal_code'))?.long_name || '';
 
           const result: AddressResult = {
-            formatted_address: place.formattedAddress || '',
+            formatted_address: place.formatted_address || '',
             street: `${street_number} ${route}`.trim(),
             city,
             state,
             zip,
-            lat: place.location.lat(),
-            lng: place.location.lng(),
+            lat: place.geometry.location.lat(),
+            lng: place.geometry.location.lng(),
           };
 
           console.log('[AddressAutocomplete] Address selected:', result);
-          setInputValue(place.formattedAddress || '');
+          setInputValue(place.formatted_address || '');
           setError('');
           onSelectRef.current(result);
         });
-
-        // Set placeholder attribute
-        autocomplete.setAttribute('placeholder', placeholder || 'Enter event address');
-
-        // Add CSS to style the component
-        if (!document.getElementById('gmp-autocomplete-styles')) {
-          const styleSheet = document.createElement('style');
-          styleSheet.id = 'gmp-autocomplete-styles';
-          styleSheet.textContent = `
-            gmp-place-autocomplete {
-              width: 100%;
-              display: block;
-            }
-          `;
-          document.head.appendChild(styleSheet);
-        }
-
-        // Clear container and append
-        containerRef.current.innerHTML = '';
-        containerRef.current.appendChild(autocomplete);
 
         autocompleteRef.current = autocomplete;
       } catch (error) {
@@ -136,12 +121,16 @@ export function AddressAutocomplete({
 
     // Check if API is loaded
     const checkAndInit = async () => {
+      const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
+
       if (window.google?.maps) {
         await initAutocomplete();
+      } else if (existingScript) {
+        existingScript.addEventListener('load', initAutocomplete);
       } else {
-        // Load the script with loading=async
+        // Load the script
         const script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async`;
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
         script.async = true;
         script.defer = true;
         script.onload = () => initAutocomplete();
@@ -156,18 +145,32 @@ export function AddressAutocomplete({
     checkAndInit();
 
     return () => {
-      if (autocompleteRef.current) {
-        autocompleteRef.current.remove();
+      if (autocompleteRef.current && window.google?.maps?.event) {
+        google.maps.event.clearInstanceListeners(autocompleteRef.current);
       }
     };
   }, []);
 
   return (
     <div>
-      <div
-        ref={containerRef}
-        className={`w-full ${error ? 'border-red-500' : ''}`}
-      />
+      <div className="relative">
+        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputValue}
+          onChange={(e) => {
+            const newValue = e.target.value;
+            setInputValue(newValue);
+            onChange?.(newValue);
+          }}
+          placeholder={placeholder}
+          required={required}
+          className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 ${
+            error ? 'border-red-500' : 'border-slate-300'
+          }`}
+        />
+      </div>
       {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
       {!import.meta.env.VITE_GOOGLE_MAPS_API_KEY && (
         <p className="mt-1 text-xs text-amber-600">
