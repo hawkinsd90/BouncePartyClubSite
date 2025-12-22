@@ -23,7 +23,7 @@ export function Quote() {
   const { formData, setFormData, updateFormData, addressInput, setAddressInput, saveFormData } =
     useQuoteForm();
 
-  const { data: pricingRules } = useDataFetch<PricingRules>(
+  const { data: pricingRules, refetch: refetchPricing } = useDataFetch<PricingRules>(
     async () => {
       const { data, error } = await supabase
         .from('pricing_rules')
@@ -59,6 +59,18 @@ export function Quote() {
   const { priceBreakdown, savePriceBreakdown } = useQuotePricing(cart, formData, pricingRules);
 
   useQuotePrefill(user, { setAddressInput, updateFormData });
+
+  // Listen for pricing updates from Admin panel
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'pricing_rules_updated') {
+        refetchPricing();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [refetchPricing]);
 
   useEffect(() => {
     if (cart.length > 0 && formData.event_date && formData.event_end_date) {

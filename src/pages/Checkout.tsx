@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../lib/pricing';
 import { RentalTerms } from '../components/waiver/RentalTerms';
@@ -13,10 +13,23 @@ import { TipSection } from '../components/checkout/TipSection';
 import { ConsentSection } from '../components/checkout/ConsentSection';
 import { CheckoutSummary } from '../components/checkout/CheckoutSummary';
 import { InvoicePreviewModal } from '../components/checkout/InvoicePreviewModal';
+import { showToast } from '../lib/notifications';
 
 export function Checkout() {
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  // Listen for pricing updates and notify user
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'pricing_rules_updated') {
+        showToast('Pricing has been updated. Please return to your quote to recalculate.', 'warning');
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
   const {
     quoteData,
     priceBreakdown,

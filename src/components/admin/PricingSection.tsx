@@ -54,6 +54,9 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
 
       if (error) throw error;
 
+      // Notify other tabs to refresh pricing data
+      localStorage.setItem('pricing_rules_updated', Date.now().toString());
+
       notifySuccess('Pricing settings updated successfully');
       setIsEditing(false);
       window.location.reload();
