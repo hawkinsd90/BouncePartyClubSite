@@ -52,10 +52,24 @@ export function AddressAutocomplete({
 
       try {
         // Load the Places library to ensure the web component is available
+        console.log('[AddressAutocomplete] Loading Places library...');
         await google.maps.importLibrary("places");
+        console.log('[AddressAutocomplete] Places library loaded');
+
+        // Wait for the custom element to be defined (with timeout)
+        console.log('[AddressAutocomplete] Waiting for gmp-place-autocomplete to be defined...');
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Timeout waiting for gmp-place-autocomplete')), 10000)
+        );
+        await Promise.race([
+          customElements.whenDefined('gmp-place-autocomplete'),
+          timeoutPromise
+        ]);
+        console.log('[AddressAutocomplete] gmp-place-autocomplete is defined');
 
         // Create the PlaceAutocompleteElement web component
         const autocompleteElement = document.createElement('gmp-place-autocomplete') as any;
+        console.log('[AddressAutocomplete] Created element:', autocompleteElement);
 
         // Set attributes
         autocompleteElement.setAttribute('placeholder', placeholder);
@@ -131,7 +145,11 @@ export function AddressAutocomplete({
         console.log('[AddressAutocomplete] PlaceAutocompleteElement initialized');
       } catch (error) {
         console.error('[AddressAutocomplete] Error creating autocomplete:', error);
-        setError('Error initializing address autocomplete');
+        console.error('[AddressAutocomplete] Error details:', {
+          message: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined
+        });
+        setError(`Error initializing address autocomplete: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
 
