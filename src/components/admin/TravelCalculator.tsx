@@ -143,6 +143,7 @@ export function TravelCalculator() {
   }
 
   function handleAddressSelect(addr: any) {
+    console.log('[TravelCalculator] Address selected:', addr);
     setSelectedAddress(addr);
     setResult(null);
   }
@@ -210,6 +211,16 @@ export function TravelCalculator() {
             onSelect={handleAddressSelect}
             placeholder="Enter full address to calculate travel fee..."
           />
+          {selectedAddress && (
+            <div className="mt-2 p-2 bg-green-100 border border-green-300 rounded text-xs text-green-800">
+              ✓ Address selected: {selectedAddress.formatted_address}
+            </div>
+          )}
+          {!selectedAddress && address && (
+            <div className="mt-2 p-2 bg-amber-100 border border-amber-300 rounded text-xs text-amber-800">
+              ⚠ Please select an address from the dropdown
+            </div>
+          )}
         </div>
 
         <button
