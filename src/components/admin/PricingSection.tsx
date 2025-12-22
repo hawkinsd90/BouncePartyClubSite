@@ -257,16 +257,6 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
                 {(editedRules.included_cities || []).map((city, index) => (
                   <option key={index} value={city} />
                 ))}
-                <option value="Detroit" />
-                <option value="Dearborn" />
-                <option value="Ann Arbor" />
-                <option value="Livonia" />
-                <option value="Canton" />
-                <option value="Troy" />
-                <option value="Warren" />
-                <option value="Sterling Heights" />
-                <option value="Westland" />
-                <option value="Farmington Hills" />
               </datalist>
             </div>
           )}
