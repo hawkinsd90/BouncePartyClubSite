@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useQuoteCart } from '../hooks/useQuoteCart';
@@ -23,54 +23,44 @@ export function Quote() {
   const { formData, setFormData, updateFormData, addressInput, setAddressInput, saveFormData } =
     useQuoteForm();
 
-  const { data: pricingRules, refetch: refetchPricing } = useDataFetch<PricingRules>(
-    async () => {
-      const { data, error } = await supabase
-        .from('pricing_rules')
-        .select('*')
-        .limit(1)
-        .maybeSingle();
+  const fetchPricingRules = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('pricing_rules')
+      .select('*')
+      .limit(1)
+      .maybeSingle();
 
-      if (error) throw error;
-      if (!data) throw new Error('No pricing rules found');
+    if (error) throw error;
+    if (!data) throw new Error('No pricing rules found');
 
-      return {
-        base_radius_miles: Number(data.base_radius_miles ?? 0),
-        included_city_list_json: (data.included_city_list_json as string[]) ?? [],
-        included_cities: (data.included_cities as string[]) ?? (data.included_city_list_json as string[]) ?? [],
-        per_mile_after_base_cents: data.per_mile_after_base_cents ?? 0,
-        zone_overrides_json: (data.zone_overrides_json as any[]) ?? [],
-        surface_sandbag_fee_cents: data.surface_sandbag_fee_cents ?? 0,
-        residential_multiplier: Number(data.residential_multiplier ?? 1),
-        commercial_multiplier: Number(data.commercial_multiplier ?? 1),
-        same_day_matrix_json: (data.same_day_matrix_json as any[]) ?? [],
-        overnight_holiday_only: data.overnight_holiday_only ?? false,
-        extra_day_pct: Number(data.extra_day_pct ?? 0),
-        generator_price_cents: Number(data.generator_price_cents ?? 0),
-        deposit_per_unit_cents: Number(data.deposit_per_unit_cents ?? 5000),
-        same_day_pickup_fee_cents: Number(data.same_day_pickup_fee_cents ?? 0),
-        generator_fee_single_cents: Number(data.generator_fee_single_cents ?? data.generator_price_cents ?? 10000),
-        generator_fee_multiple_cents: Number(data.generator_fee_multiple_cents ?? data.generator_price_cents ?? 7500),
-      };
-    },
+    return {
+      base_radius_miles: Number(data.base_radius_miles ?? 0),
+      included_city_list_json: (data.included_city_list_json as string[]) ?? [],
+      included_cities: (data.included_cities as string[]) ?? (data.included_city_list_json as string[]) ?? [],
+      per_mile_after_base_cents: data.per_mile_after_base_cents ?? 0,
+      zone_overrides_json: (data.zone_overrides_json as any[]) ?? [],
+      surface_sandbag_fee_cents: data.surface_sandbag_fee_cents ?? 0,
+      residential_multiplier: Number(data.residential_multiplier ?? 1),
+      commercial_multiplier: Number(data.commercial_multiplier ?? 1),
+      same_day_matrix_json: (data.same_day_matrix_json as any[]) ?? [],
+      overnight_holiday_only: data.overnight_holiday_only ?? false,
+      extra_day_pct: Number(data.extra_day_pct ?? 0),
+      generator_price_cents: Number(data.generator_price_cents ?? 0),
+      deposit_per_unit_cents: Number(data.deposit_per_unit_cents ?? 5000),
+      same_day_pickup_fee_cents: Number(data.same_day_pickup_fee_cents ?? 0),
+      generator_fee_single_cents: Number(data.generator_fee_single_cents ?? data.generator_price_cents ?? 10000),
+      generator_fee_multiple_cents: Number(data.generator_fee_multiple_cents ?? data.generator_price_cents ?? 7500),
+    };
+  }, []);
+
+  const { data: pricingRules } = useDataFetch<PricingRules>(
+    fetchPricingRules,
     { showErrorNotification: false }
   );
 
   const { priceBreakdown, savePriceBreakdown } = useQuotePricing(cart, formData, pricingRules);
 
   useQuotePrefill(user, { setAddressInput, updateFormData });
-
-  // Listen for pricing updates from Admin panel
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'pricing_rules_updated') {
-        refetchPricing();
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [refetchPricing]);
 
   useEffect(() => {
     if (cart.length > 0 && formData.event_date && formData.event_end_date) {
