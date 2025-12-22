@@ -137,6 +137,12 @@ export function useQuoteForm() {
     localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(formData));
   }
 
+  function clearForm() {
+    setFormData(initialFormData);
+    setAddressInput('');
+    localStorage.removeItem(FORM_STORAGE_KEY);
+  }
+
   return {
     formData,
     setFormData,
@@ -144,5 +150,6 @@ export function useQuoteForm() {
     addressInput,
     setAddressInput,
     saveFormData,
+    clearForm,
   };
 }

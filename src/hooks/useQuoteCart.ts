@@ -51,6 +51,11 @@ export function useQuoteCart() {
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(newCart));
   }
 
+  function clearCart() {
+    setCart([]);
+    localStorage.removeItem(CART_STORAGE_KEY);
+  }
+
   const checkCartAvailability = useCallback(
     async (eventStartDate: string, eventEndDate: string) => {
       if (!eventStartDate || !eventEndDate || cart.length === 0) {
@@ -80,6 +85,7 @@ export function useQuoteCart() {
     cart,
     updateCartItem,
     removeFromCart,
+    clearCart,
     checkCartAvailability,
   };
 }
