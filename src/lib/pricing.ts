@@ -1,21 +1,19 @@
 export interface PricingRules {
   base_radius_miles: number;
   included_city_list_json: string[];
+  included_cities?: string[];
   per_mile_after_base_cents: number;
   zone_overrides_json: Array<{ zip: string; flat_cents: number }>;
   surface_sandbag_fee_cents: number;
   residential_multiplier: number;
   commercial_multiplier: number;
-  same_day_matrix_json: Array<{
-    units: number;
-    generator: boolean;
-    subtotal_ge_cents: number;
-    fee_cents: number;
-  }>;
   overnight_holiday_only: boolean;
   extra_day_pct: number;
   generator_price_cents: number;
   deposit_per_unit_cents?: number;
+  same_day_pickup_fee_cents?: number;
+  generator_fee_single_cents?: number;
+  generator_fee_multiple_cents?: number;
 }
 
 export interface CartItem {
@@ -98,7 +96,7 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
   let travel_per_mile_cents = rules.per_mile_after_base_cents;
   let travel_is_flat_fee = false;
 
-  const included_cities = rules.included_city_list_json || [];
+  const included_cities = rules.included_cities || rules.included_city_list_json || [];
   const is_included_city = included_cities.some(
     (c) => c.toLowerCase() === city.toLowerCase()
   );
@@ -126,29 +124,22 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
   const needs_same_day_fee =
     location_type === 'commercial' || !overnight_allowed;
 
-  if (needs_same_day_fee) {
-    const applicable_rules = rules.same_day_matrix_json
-      ?.filter((rule) => {
-        if (rule.units > total_units) return false;
-        if (rule.generator && !has_generator) return false;
-        if (rule.subtotal_ge_cents > subtotal_cents) return false;
-        return true;
-      })
-      .sort((a, b) => {
-        if (a.units !== b.units) return b.units - a.units;
-        if (a.generator !== b.generator) return a.generator ? -1 : 1;
-        return b.subtotal_ge_cents - a.subtotal_ge_cents;
-      });
-
-    if (applicable_rules && applicable_rules.length > 0) {
-      same_day_pickup_fee_cents = applicable_rules[0].fee_cents;
-    }
+  if (needs_same_day_fee && rules.same_day_pickup_fee_cents) {
+    same_day_pickup_fee_cents = rules.same_day_pickup_fee_cents;
   }
 
   let generator_fee_cents = 0;
   const actual_generator_qty = generator_qty > 0 ? generator_qty : (has_generator ? 1 : 0);
   if (actual_generator_qty > 0) {
-    generator_fee_cents = rules.generator_price_cents * actual_generator_qty;
+    const single_fee = rules.generator_fee_single_cents || rules.generator_price_cents || 10000;
+    const multiple_fee = rules.generator_fee_multiple_cents || rules.generator_price_cents || 7500;
+
+    if (actual_generator_qty === 1) {
+      generator_fee_cents = single_fee;
+    } else {
+      // First generator at single price, rest at multiple price
+      generator_fee_cents = single_fee + (multiple_fee * (actual_generator_qty - 1));
+    }
   }
 
   const tax_cents = Math.round((subtotal_cents + travel_fee_cents + surface_fee_cents + generator_fee_cents) * 0.06);
@@ -161,7 +152,7 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
     generator_fee_cents +
     tax_cents;
 
-  const deposit_due_cents = total_units * (rules.deposit_per_unit_cents || 10000);
+  const deposit_due_cents = total_units * (rules.deposit_per_unit_cents || 5000);
 
   const balance_due_cents = total_cents - deposit_due_cents;
 

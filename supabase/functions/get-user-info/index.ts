@@ -39,7 +39,8 @@ Deno.serve(async (req: Request) => {
       .eq('user_id', user.id)
       .maybeSingle();
 
-    if (!userRole || (userRole.role !== 'master' && userRole.role !== 'admin')) {
+    const roleLower = userRole?.role?.toLowerCase();
+    if (!roleLower || (roleLower !== 'master' && roleLower !== 'admin')) {
       throw new Error('Not authorized');
     }
 

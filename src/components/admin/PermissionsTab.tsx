@@ -369,39 +369,6 @@ export function PermissionsTab() {
           </ul>
         </div>
 
-        <div className="bg-slate-50 rounded-xl p-6 mb-6">
-          <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center">
-            <UserPlus className="w-5 h-5 mr-2" />
-            Add New User
-          </h3>
-          <div className="flex gap-4">
-            <input
-              type="email"
-              value={newUserEmail}
-              onChange={(e) => setNewUserEmail(e.target.value)}
-              placeholder="Enter email address"
-              className="flex-1 px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none"
-            />
-            <select
-              value={newUserRole}
-              onChange={(e) => setNewUserRole(e.target.value as 'admin' | 'crew')}
-              className="px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none"
-              disabled={currentUserRole === 'admin'}
-            >
-              <option value="crew">Crew</option>
-              {currentUserRole === 'master' && <option value="admin">Admin</option>}
-              {currentUserRole === 'master' && <option value="master">Master</option>}
-            </select>
-            <button
-              onClick={handleAddUser}
-              disabled={addingUser}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-bold transition-colors disabled:opacity-50"
-            >
-              {addingUser ? 'Adding...' : 'Add User'}
-            </button>
-          </div>
-        </div>
-
         <div className="space-y-4">
           {users.map((user) => (
             <div key={user.id} className="border-2 border-slate-200 rounded-xl p-6 hover:border-blue-300 transition-colors">
