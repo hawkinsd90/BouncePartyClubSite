@@ -64,7 +64,8 @@ export const STANDARD_ORDER_SELECT = `
     unit_id,
     qty,
     wet_or_dry,
-    price_cents,
+    unit_price_cents,
+    notes,
     units (
       id,
       name,

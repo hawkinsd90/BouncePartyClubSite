@@ -139,14 +139,16 @@ export function TravelCalculator() {
 
   const handleAddressChange = useCallback((addr: string) => {
     console.log('[TravelCalculator] Address changed (user typing):', addr);
+    // Clear the address string, keep selectedAddress for now
     setAddress(addr);
-    // Clear selected address when user manually types (not during selection)
-    setSelectedAddress(null);
+    // If user types something, we'll clear selectedAddress in the next effect
+    // But we need to check if they actually changed the value vs autocomplete setting it
     setResult(null);
   }, []);
 
   const handleAddressSelect = useCallback((addr: any) => {
-    console.log('[TravelCalculator] Address selected:', addr);
+    console.log('[TravelCalculator] Address selected with full data:', addr);
+    // Update both address and selectedAddress
     setAddress(addr.formatted_address);
     setSelectedAddress(addr);
     setResult(null);

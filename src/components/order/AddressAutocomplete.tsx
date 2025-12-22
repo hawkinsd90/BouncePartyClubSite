@@ -72,6 +72,7 @@ export function AddressAutocomplete({
 
         // Track if we're currently selecting a place
         let isSelectingPlace = false;
+        let lastSelectedAddress = '';
 
         // Listen for place selection
         autocompleteElement.addEventListener('gmp-placeselect', async (event: any) => {
@@ -128,28 +129,34 @@ export function AddressAutocomplete({
             lng: place.location.lng(),
           };
 
+          lastSelectedAddress = result.formatted_address;
           console.log('[AddressAutocomplete] Parsed address result:', result);
           console.log('[AddressAutocomplete] Calling onSelect callback...');
           setError('');
           onSelectRef.current(result);
           console.log('[AddressAutocomplete] onSelect callback completed');
 
-          // Short delay to ensure place selection completes before allowing input changes
+          // Longer delay to ensure all events complete
           setTimeout(() => {
             isSelectingPlace = false;
-          }, 100);
+          }, 500);
         });
 
-        // Listen for input changes (but not during place selection)
+        // Listen for input changes
         if (onChange) {
           autocompleteElement.addEventListener('input', (event: any) => {
-            if (isSelectingPlace) {
-              console.log('[AddressAutocomplete] Ignoring input event during place selection');
-              return;
-            }
             const inputElement = event.target?.querySelector?.('input') || event.target;
             const value = inputElement?.value || '';
-            console.log('[AddressAutocomplete] Input event fired, value:', value);
+
+            console.log('[AddressAutocomplete] Input event fired, value:', value, 'isSelectingPlace:', isSelectingPlace, 'lastSelected:', lastSelectedAddress);
+
+            // Don't call onChange if we're in the middle of selecting a place
+            // or if the value matches what we just selected
+            if (isSelectingPlace || value === lastSelectedAddress) {
+              console.log('[AddressAutocomplete] Ignoring input event - place selection in progress or value matches selected');
+              return;
+            }
+
             onChange(value);
           });
         }
@@ -162,28 +169,27 @@ export function AddressAutocomplete({
             gmp-place-autocomplete {
               width: 100%;
               display: block;
+              background: white;
             }
-            gmp-place-autocomplete input {
+            gmp-place-autocomplete::part(input) {
               background-color: white !important;
               color: #1f2937 !important;
-              border: 1px solid #d1d5db !important;
-              border-radius: 0.375rem !important;
-              padding: 0.5rem 0.75rem !important;
-              font-size: 0.875rem !important;
-              font-family: system-ui, -apple-system, sans-serif !important;
             }
           `;
           document.head.appendChild(styleSheet);
         }
 
-        // Set inline CSS custom properties on the element
-        autocompleteElement.style.setProperty('--gmp-input-background-color', 'white');
-        autocompleteElement.style.setProperty('--gmp-input-text-color', '#1f2937');
-        autocompleteElement.style.setProperty('--gmp-input-border-color', '#d1d5db');
-        autocompleteElement.style.setProperty('--gmp-input-border-radius', '0.375rem');
-        autocompleteElement.style.setProperty('--gmp-input-padding', '0.5rem 0.75rem');
-        autocompleteElement.style.setProperty('--gmp-input-font-size', '0.875rem');
-        autocompleteElement.style.setProperty('--gmp-input-font-family', 'system-ui, -apple-system, sans-serif');
+        // Set CSS custom properties via inline style attribute
+        autocompleteElement.setAttribute('style', `
+          width: 100%;
+          --gmp-input-background-color: white;
+          --gmp-input-text-color: #1f2937;
+          --gmp-input-border-color: #d1d5db;
+          --gmp-input-border-radius: 0.375rem;
+          --gmp-input-padding: 0.5rem 0.75rem;
+          --gmp-input-font-size: 0.875rem;
+          --gmp-input-font-family: system-ui, -apple-system, sans-serif;
+        `);
 
         // Clear container and append the element
         containerRef.current.innerHTML = '';
