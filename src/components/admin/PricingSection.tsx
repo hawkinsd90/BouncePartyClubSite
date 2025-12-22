@@ -228,18 +228,64 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
             Free Travel Cities
           </label>
           <p className="text-xs text-slate-500 mb-3">
-            Enter city names separated by commas (e.g., Detroit, Dearborn). These cities will have FREE travel fees regardless of distance.
+            Cities that will have FREE travel fees regardless of distance.
           </p>
-          <input
-            type="text"
-            value={editedRules.included_cities?.join(', ') || ''}
-            onChange={(e) => handleCitiesChange(e.target.value)}
-            placeholder="Detroit, Dearborn, Ann Arbor"
-            readOnly={!isEditing}
-            className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${
-              isEditing ? 'bg-white' : 'bg-slate-50'
-            }`}
-          />
+
+          {isEditing && (
+            <div className="mb-3">
+              <input
+                type="text"
+                placeholder="Type city name and press Enter..."
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                    e.preventDefault();
+                    const newCity = e.currentTarget.value.trim();
+                    const currentCities = editedRules.included_cities || [];
+                    if (!currentCities.includes(newCity)) {
+                      setEditedRules({
+                        ...editedRules,
+                        included_cities: [...currentCities, newCity]
+                      });
+                    }
+                    e.currentTarget.value = '';
+                  }
+                }}
+                className="w-full px-4 py-2 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            {(editedRules.included_cities || []).length === 0 ? (
+              <p className="text-slate-500 italic">No free travel cities configured</p>
+            ) : (
+              (editedRules.included_cities || []).map((city, index) => (
+                <span
+                  key={index}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-800 rounded-lg border-2 border-blue-300 font-semibold"
+                >
+                  {city}
+                  {isEditing && (
+                    <button
+                      onClick={() => {
+                        const newCities = (editedRules.included_cities || []).filter((_, i) => i !== index);
+                        setEditedRules({
+                          ...editedRules,
+                          included_cities: newCities
+                        });
+                      }}
+                      className="text-blue-600 hover:text-blue-900 hover:bg-blue-200 rounded-full p-1"
+                      title="Remove city"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </span>
+              ))
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -39,6 +39,8 @@ export function PermissionsTab() {
   const [changelog, setChangelog] = useState<ChangelogEntry[]>([]);
   const [loadingChangelog, setLoadingChangelog] = useState(false);
   const [userToDelete, setUserToDelete] = useState<UserRole | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -389,6 +391,14 @@ export function PermissionsTab() {
     );
   }
 
+  const filteredUsers = users.filter(user =>
+    user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    user.full_name?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const usersWithRoles = users.filter(u => u.role);
+  const selectedUser = selectedUserId ? users.find(u => u.user_id === selectedUserId) : null;
+
   return (
     <div className="space-y-8">
       <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100">
@@ -413,9 +423,114 @@ export function PermissionsTab() {
           </ul>
         </div>
 
-        <div className="space-y-4">
-          {users.map((user) => (
-            <div key={user.id} className="border-2 border-slate-200 rounded-xl p-6 hover:border-blue-300 transition-colors">
+        <div className="mb-6">
+          <label className="block text-sm font-semibold text-slate-700 mb-2">
+            Search and Manage User
+          </label>
+          <div className="relative">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Type to search by name or email..."
+              className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none"
+            />
+            {searchQuery && (
+              <div className="absolute z-10 w-full mt-2 bg-white border-2 border-slate-300 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                {filteredUsers.length === 0 ? (
+                  <div className="p-4 text-slate-500 text-center">No users found</div>
+                ) : (
+                  filteredUsers.map((user) => (
+                    <button
+                      key={user.user_id}
+                      onClick={() => {
+                        setSelectedUserId(user.user_id);
+                        setSearchQuery('');
+                      }}
+                      className="w-full p-4 text-left hover:bg-blue-50 border-b border-slate-200 last:border-b-0"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-semibold text-slate-900">{user.full_name}</div>
+                          <div className="text-sm text-slate-600">{user.email}</div>
+                        </div>
+                        {user.role && (
+                          <span className={`px-2 py-1 rounded-full text-xs font-bold ${getRoleColor(user.role)}`}>
+                            {user.role.toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {selectedUser && (
+          <div className="border-2 border-blue-300 rounded-xl p-6 mb-6 bg-blue-50">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <h4 className="text-lg font-bold text-slate-900">{selectedUser.full_name}</h4>
+                  {selectedUser.role ? (
+                    <span className={`px-3 py-1 rounded-full text-sm font-bold border-2 ${getRoleColor(selectedUser.role)}`}>
+                      {selectedUser.role.toUpperCase()}
+                    </span>
+                  ) : (
+                    <span className="px-3 py-1 rounded-full text-sm font-bold border-2 bg-gray-100 text-gray-600 border-gray-300">
+                      NO ROLE
+                    </span>
+                  )}
+                </div>
+                <p className="text-slate-600">{selectedUser.email}</p>
+                <p className="text-sm text-slate-500">Added: {new Date(selectedUser.created_at).toLocaleDateString()}</p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {canModifyUser(selectedUser.role) && (
+                  <>
+                    <select
+                      value={selectedUser.role || ''}
+                      onChange={(e) => handleChangeRole(selectedUser, e.target.value as any)}
+                      className="px-4 py-2 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none bg-white"
+                    >
+                      {!selectedUser.role && <option value="">Select Role...</option>}
+                      <option value="crew">Crew</option>
+                      {currentUserRole === 'master' && <option value="admin">Admin</option>}
+                      {currentUserRole === 'master' && <option value="master">Master</option>}
+                    </select>
+                    {selectedUser.role && (
+                      <>
+                        <button
+                          onClick={() => loadChangelog(selectedUser.user_id)}
+                          className="p-2 text-slate-600 hover:bg-white rounded-lg transition-colors"
+                          title="View changelog"
+                        >
+                          <History className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => setUserToDelete(selectedUser)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Remove role"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="border-t-2 border-slate-200 pt-6">
+          <h3 className="text-lg font-bold text-slate-900 mb-4">Users with Assigned Roles ({usersWithRoles.length})</h3>
+          <div className="space-y-4">
+            {usersWithRoles.map((user) => (
+              <div key={user.user_id} className="border-2 border-slate-200 rounded-xl p-6 hover:border-blue-300 transition-colors">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
@@ -473,8 +588,9 @@ export function PermissionsTab() {
                   )}
                 </div>
               </div>
-            </div>
-          ))}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

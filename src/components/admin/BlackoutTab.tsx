@@ -578,6 +578,22 @@ export function BlackoutTab() {
               </p>
             </div>
 
+            {overnightHolidayOnly && (
+              <div className="border-2 border-amber-300 bg-amber-50 rounded-xl p-4 mb-6">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-amber-200 rounded-lg">
+                    <PartyPopper className="w-5 h-5 text-amber-700" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-bold text-amber-900 mb-1">Holiday Restriction Active</h4>
+                    <p className="text-sm text-amber-800">
+                      Overnight rentals only on holidays - same-day pickup and return blocked for holiday dates
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {dates.length > 0 && (
               <div>
                 <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center">
