@@ -44,15 +44,18 @@ export function loadGoogleMapsAPI(): Promise<void> {
     }
 
     isLoading = true;
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
+
+    // Use callback method to avoid deprecation warnings
+    (window as any).initGoogleMapsLib = () => {
       isLoading = false;
       console.log('✅ Google Maps API loaded successfully');
       resolve();
     };
+
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initGoogleMapsLib`;
+    script.async = true;
+    script.defer = true;
     script.onerror = (e) => {
       isLoading = false;
       console.error('❌ Failed to load Google Maps API:', e);
