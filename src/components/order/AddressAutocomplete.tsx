@@ -18,6 +18,14 @@ interface AddressAutocompleteProps {
   required?: boolean;
 }
 
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      'gmp-place-autocomplete': any;
+    }
+  }
+}
+
 export function AddressAutocomplete({
   value,
   onSelect,
@@ -25,15 +33,20 @@ export function AddressAutocomplete({
   placeholder = 'Enter event address',
   required = false,
 }: AddressAutocompleteProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState('');
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const autocompleteElementRef = useRef<any>(null);
   const onSelectRef = useRef(onSelect);
+  const onChangeRef = useRef(onChange);
 
-  // Keep the ref updated
+  // Keep the refs updated
   useEffect(() => {
     onSelectRef.current = onSelect;
   }, [onSelect]);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   useEffect(() => {
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
@@ -45,61 +58,93 @@ export function AddressAutocomplete({
     }
 
     async function initAutocomplete() {
-      if (!inputRef.current) {
-        console.error('[AddressAutocomplete] Input ref is null');
+      if (!containerRef.current) {
+        console.error('[AddressAutocomplete] Container ref is null');
         return;
       }
 
       try {
         // Load the Places library
-        const placesLib = await google.maps.importLibrary("places") as google.maps.PlacesLibrary;
+        await google.maps.importLibrary("places");
 
-        console.log('[AddressAutocomplete] Creating Autocomplete instance...');
+        console.log('[AddressAutocomplete] Creating PlaceAutocompleteElement...');
 
-        // Create traditional Autocomplete on the input element
-        const autocomplete = new placesLib.Autocomplete(inputRef.current, {
-          componentRestrictions: { country: 'us' },
-          fields: ['address_components', 'formatted_address', 'geometry']
-        });
+        // Create the web component
+        const autocompleteElement = document.createElement('gmp-place-autocomplete') as any;
+        autocompleteElement.setAttribute('component-restrictions-country', 'us');
+        autocompleteElement.setAttribute('placeholder', placeholder);
+        if (required) {
+          autocompleteElement.setAttribute('required', 'true');
+        }
 
-        autocompleteRef.current = autocomplete;
-        console.log('[AddressAutocomplete] Autocomplete instance created');
+        // Style the component to match our design
+        autocompleteElement.style.width = '100%';
+
+        // Add custom CSS to style the internal input
+        const style = document.createElement('style');
+        style.textContent = `
+          gmp-place-autocomplete {
+            width: 100%;
+          }
+          gmp-place-autocomplete input {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            font-size: 1rem;
+            line-height: 1.5rem;
+            color: #111827;
+            background-color: white;
+          }
+          gmp-place-autocomplete input:focus {
+            outline: 2px solid #3b82f6;
+            outline-offset: 2px;
+            border-color: #3b82f6;
+          }
+        `;
+        if (!document.getElementById('gmp-autocomplete-styles')) {
+          style.id = 'gmp-autocomplete-styles';
+          document.head.appendChild(style);
+        }
+
+        autocompleteElementRef.current = autocompleteElement;
 
         // Listen for place selection
-        autocomplete.addListener('place_changed', () => {
-          console.log('[AddressAutocomplete] place_changed event fired!');
-          const place = autocomplete.getPlace();
+        autocompleteElement.addEventListener('gmp-placeselect', async (event: any) => {
+          console.log('[AddressAutocomplete] gmp-placeselect event fired!');
+          const place = event.target.value;
 
           console.log('[AddressAutocomplete] Place object:', place);
 
-          if (!place.geometry || !place.geometry.location) {
-            console.error('[AddressAutocomplete] No geometry found for place');
+          if (!place.location) {
+            console.error('[AddressAutocomplete] No location found for place');
             setError('Please select a valid address from the dropdown');
             return;
           }
 
-          const addressComponents = place.address_components || [];
+          const addressComponents = place.addressComponents || [];
           const street_number =
-            addressComponents.find((c: any) => c.types.includes('street_number'))?.long_name || '';
+            addressComponents.find((c: any) => c.types.includes('street_number'))?.longText || '';
           const route =
-            addressComponents.find((c: any) => c.types.includes('route'))?.long_name || '';
+            addressComponents.find((c: any) => c.types.includes('route'))?.longText || '';
           const city =
-            addressComponents.find((c: any) => c.types.includes('locality'))?.long_name || '';
+            addressComponents.find((c: any) => c.types.includes('locality'))?.longText || '';
           const state =
             addressComponents.find((c: any) =>
               c.types.includes('administrative_area_level_1')
-            )?.short_name || '';
+            )?.shortText || '';
           const zip =
-            addressComponents.find((c: any) => c.types.includes('postal_code'))?.long_name || '';
+            addressComponents.find((c: any) => c.types.includes('postal_code'))?.longText || '';
 
           const result: AddressResult = {
-            formatted_address: place.formatted_address || '',
+            formatted_address: place.formattedAddress || '',
             street: `${street_number} ${route}`.trim(),
             city,
             state,
             zip,
-            lat: place.geometry.location.lat(),
-            lng: place.geometry.location.lng(),
+            lat: place.location.lat(),
+            lng: place.location.lng(),
           };
 
           console.log('[AddressAutocomplete] Parsed address result:', result);
@@ -115,7 +160,21 @@ export function AddressAutocomplete({
           }
         });
 
-        console.log('[AddressAutocomplete] Autocomplete initialized successfully');
+        // Track input changes for clearing state
+        const inputElement = autocompleteElement.querySelector('input');
+        if (inputElement) {
+          inputElement.addEventListener('input', (e: any) => {
+            if (onChangeRef.current) {
+              onChangeRef.current(e.target.value);
+            }
+          });
+        }
+
+        // Clear and add the element
+        containerRef.current.innerHTML = '';
+        containerRef.current.appendChild(autocompleteElement);
+
+        console.log('[AddressAutocomplete] PlaceAutocompleteElement initialized successfully');
       } catch (error) {
         console.error('[AddressAutocomplete] Error creating autocomplete:', error);
         setError(`Error initializing address autocomplete: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -201,24 +260,16 @@ export function AddressAutocomplete({
     checkAndInit();
 
     return () => {
-      // Clean up autocomplete listeners
-      if (autocompleteRef.current) {
-        google.maps.event.clearInstanceListeners(autocompleteRef.current);
+      // Clean up
+      if (autocompleteElementRef.current) {
+        autocompleteElementRef.current.remove();
       }
     };
-  }, [placeholder]);
+  }, [placeholder, required]);
 
   return (
     <div>
-      <input
-        ref={inputRef}
-        type="text"
-        value={value}
-        onChange={(e) => onChange?.(e.target.value)}
-        placeholder={placeholder}
-        required={required}
-        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white"
-      />
+      <div ref={containerRef} />
       {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
       {!import.meta.env.VITE_GOOGLE_MAPS_API_KEY && (
         <p className="mt-1 text-xs text-amber-600">
