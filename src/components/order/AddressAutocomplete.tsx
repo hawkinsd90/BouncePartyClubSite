@@ -142,20 +142,36 @@ export function AddressAutocomplete({
     // Wait for importLibrary to be available
     const waitForImportLibrary = (): Promise<void> => {
       return new Promise((resolve, reject) => {
+        console.log('[AddressAutocomplete] Checking if importLibrary is available...');
+        console.log('[AddressAutocomplete] window.google exists:', !!window.google);
+        console.log('[AddressAutocomplete] window.google.maps exists:', !!window.google?.maps);
+        console.log('[AddressAutocomplete] window.google.maps.importLibrary exists:', !!window.google?.maps?.importLibrary);
+
         if (window.google?.maps?.importLibrary) {
+          console.log('[AddressAutocomplete] importLibrary already available!');
           resolve();
           return;
         }
 
+        console.log('[AddressAutocomplete] Starting polling for importLibrary...');
         let attempts = 0;
         const maxAttempts = 50; // 5 seconds max
         const checkInterval = setInterval(() => {
           attempts++;
+          console.log(`[AddressAutocomplete] Poll attempt ${attempts}/${maxAttempts}...`);
+          console.log('[AddressAutocomplete] window.google:', !!window.google);
+          console.log('[AddressAutocomplete] window.google.maps:', !!window.google?.maps);
+          console.log('[AddressAutocomplete] window.google.maps.importLibrary:', !!window.google?.maps?.importLibrary);
+
           if (window.google?.maps?.importLibrary) {
             clearInterval(checkInterval);
+            console.log(`[AddressAutocomplete] ✅ importLibrary became available after ${attempts} attempts!`);
             resolve();
           } else if (attempts >= maxAttempts) {
             clearInterval(checkInterval);
+            console.error('[AddressAutocomplete] ❌ Timeout: importLibrary never became available');
+            console.error('[AddressAutocomplete] Final state - window.google:', window.google);
+            console.error('[AddressAutocomplete] Final state - window.google.maps:', window.google?.maps);
             reject(new Error('Timeout waiting for Google Maps API'));
           }
         }, 100);
@@ -164,12 +180,20 @@ export function AddressAutocomplete({
 
     // Check if API is loaded
     const checkAndInit = async () => {
+      console.log('[AddressAutocomplete] checkAndInit called');
       const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
+      console.log('[AddressAutocomplete] Existing script found:', !!existingScript);
+      if (existingScript) {
+        console.log('[AddressAutocomplete] Existing script src:', existingScript.getAttribute('src'));
+      }
 
       if (window.google?.maps?.importLibrary) {
+        console.log('[AddressAutocomplete] importLibrary already available, initializing...');
         await initAutocomplete();
       } else if (existingScript) {
+        console.log('[AddressAutocomplete] Script exists but not loaded yet, waiting for load event...');
         existingScript.addEventListener('load', async () => {
+          console.log('[AddressAutocomplete] Script load event fired!');
           try {
             await waitForImportLibrary();
             await initAutocomplete();
@@ -179,12 +203,15 @@ export function AddressAutocomplete({
           }
         });
       } else {
+        console.log('[AddressAutocomplete] No existing script, loading new script...');
         // Load the script with the new API loader
         const script = document.createElement('script');
         script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&v=weekly&loading=async`;
+        console.log('[AddressAutocomplete] Script src:', script.src);
         script.async = true;
         script.defer = true;
         script.onload = async () => {
+          console.log('[AddressAutocomplete] Script onload fired!');
           try {
             await waitForImportLibrary();
             await initAutocomplete();
@@ -198,6 +225,7 @@ export function AddressAutocomplete({
           setError('Failed to load address autocomplete');
         };
         document.head.appendChild(script);
+        console.log('[AddressAutocomplete] Script appended to head');
       }
     };
 
