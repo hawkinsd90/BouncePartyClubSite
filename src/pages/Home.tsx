@@ -164,6 +164,7 @@ export function Home() {
                   </label>
                   <AddressAutocomplete
                     value={addressInput}
+                    onChange={(value) => setAddressInput(value)}
                     onSelect={(address) => {
                       setAddressData(address);
                       setAddressInput(address.formatted_address);

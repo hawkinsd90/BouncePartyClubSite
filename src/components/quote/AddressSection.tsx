@@ -28,6 +28,7 @@ export function AddressSection({
           <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">Street Address *</label>
           <AddressAutocomplete
             value={addressInput}
+            onChange={onAddressInputChange}
             onSelect={(address) => {
               onAddressInputChange(address.formatted_address);
               onFormDataChange({

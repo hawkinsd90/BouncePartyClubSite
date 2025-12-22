@@ -169,6 +169,7 @@ export function EventDetailsEditor({
                     <label className="block text-xs font-medium text-slate-700 mb-1">Street Address</label>
                     <AddressAutocomplete
                       value={editedOrder.address_line1}
+                      onChange={(value) => onOrderChange({ address_line1: value })}
                       onSelect={onAddressSelect}
                       placeholder="Enter event address"
                     />
@@ -250,6 +251,7 @@ export function EventDetailsEditor({
                 <label className={labelClass}>Event Address</label>
                 <AddressAutocomplete
                   value={editedOrder.address_line1}
+                  onChange={(value) => onOrderChange({ address_line1: value })}
                   onSelect={onAddressSelect}
                   placeholder="Enter event address"
                 />
