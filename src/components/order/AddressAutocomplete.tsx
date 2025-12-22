@@ -70,20 +70,39 @@ export function AddressAutocomplete({
         autocompleteElement.setAttribute('placeholder', placeholder);
         autocompleteElement.setAttribute('country', 'us');
 
+        // Listen for input changes
+        if (onChange) {
+          autocompleteElement.addEventListener('input', (event: any) => {
+            const inputElement = event.target?.querySelector?.('input') || event.target;
+            const value = inputElement?.value || '';
+            onChange(value);
+          });
+        }
+
         // Listen for place selection
         autocompleteElement.addEventListener('gmp-placeselect', async (event: any) => {
+          console.log('[AddressAutocomplete] gmp-placeselect event fired!', event);
           const place = event.place;
 
           if (!place) {
+            console.log('[AddressAutocomplete] No place in event');
             return;
           }
 
+          console.log('[AddressAutocomplete] Fetching place fields...');
           // Fetch the required fields
           await place.fetchFields({
             fields: ['addressComponents', 'formattedAddress', 'location']
           });
 
+          console.log('[AddressAutocomplete] Place fields fetched:', {
+            formattedAddress: place.formattedAddress,
+            hasLocation: !!place.location,
+            addressComponents: place.addressComponents
+          });
+
           if (!place.location) {
+            console.error('[AddressAutocomplete] No location found for place');
             setError('Please select a valid address from the dropdown');
             return;
           }
@@ -112,8 +131,11 @@ export function AddressAutocomplete({
             lng: place.location.lng(),
           };
 
+          console.log('[AddressAutocomplete] Parsed address result:', result);
+          console.log('[AddressAutocomplete] Calling onSelect callback...');
           setError('');
           onSelectRef.current(result);
+          console.log('[AddressAutocomplete] onSelect callback completed');
         });
 
         // Add global styles for the autocomplete element
@@ -124,6 +146,13 @@ export function AddressAutocomplete({
             gmp-place-autocomplete {
               width: 100%;
               display: block;
+              --gmp-input-background-color: white;
+              --gmp-input-text-color: #1f2937;
+              --gmp-input-border-color: #d1d5db;
+              --gmp-input-border-radius: 0.375rem;
+              --gmp-input-padding: 0.5rem 0.75rem;
+              --gmp-input-font-size: 0.875rem;
+              --gmp-input-font-family: system-ui, -apple-system, sans-serif;
             }
           `;
           document.head.appendChild(styleSheet);

@@ -36,16 +36,21 @@ export async function getUnitById(unitId: string, options?: QueryOptions) {
   );
 }
 
-export async function getUnitsByCategory(category: string, options?: QueryOptions) {
+export async function getUnitsByType(type: string, options?: QueryOptions) {
   return executeQuery(
     () =>
       supabase
         .from('units')
         .select('*')
-        .eq('category', category)
+        .eq('type', type)
         .order('sort_order', { ascending: true }),
-    { context: 'getUnitsByCategory', ...options }
+    { context: 'getUnitsByType', ...options }
   );
+}
+
+// Legacy alias for backwards compatibility
+export async function getUnitsByCategory(category: string, options?: QueryOptions) {
+  return getUnitsByType(category, options);
 }
 
 export async function createUnit(unitData: any, options?: QueryOptions) {
