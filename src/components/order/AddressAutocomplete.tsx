@@ -52,12 +52,9 @@ export function AddressAutocomplete({
 
       try {
         // Load the Places library to ensure the web component is available
-        console.log('[AddressAutocomplete] Loading Places library...');
         await google.maps.importLibrary("places");
-        console.log('[AddressAutocomplete] Places library loaded');
 
         // Wait for the custom element to be defined (with timeout)
-        console.log('[AddressAutocomplete] Waiting for gmp-place-autocomplete to be defined...');
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Timeout waiting for gmp-place-autocomplete')), 10000)
         );
@@ -65,11 +62,9 @@ export function AddressAutocomplete({
           customElements.whenDefined('gmp-place-autocomplete'),
           timeoutPromise
         ]);
-        console.log('[AddressAutocomplete] gmp-place-autocomplete is defined');
 
         // Create the PlaceAutocompleteElement web component
         const autocompleteElement = document.createElement('gmp-place-autocomplete') as any;
-        console.log('[AddressAutocomplete] Created element:', autocompleteElement);
 
         // Set attributes
         autocompleteElement.setAttribute('placeholder', placeholder);
@@ -80,7 +75,6 @@ export function AddressAutocomplete({
           const place = event.place;
 
           if (!place) {
-            console.log('[AddressAutocomplete] No place in event');
             return;
           }
 
@@ -90,7 +84,6 @@ export function AddressAutocomplete({
           });
 
           if (!place.location) {
-            console.log('[AddressAutocomplete] No location in place');
             setError('Please select a valid address from the dropdown');
             return;
           }
@@ -119,7 +112,6 @@ export function AddressAutocomplete({
             lng: place.location.lng(),
           };
 
-          console.log('[AddressAutocomplete] Address selected:', result);
           setError('');
           onSelectRef.current(result);
         });
@@ -141,14 +133,8 @@ export function AddressAutocomplete({
         containerRef.current.innerHTML = '';
         containerRef.current.appendChild(autocompleteElement);
         autocompleteElementRef.current = autocompleteElement;
-
-        console.log('[AddressAutocomplete] PlaceAutocompleteElement initialized');
       } catch (error) {
         console.error('[AddressAutocomplete] Error creating autocomplete:', error);
-        console.error('[AddressAutocomplete] Error details:', {
-          message: error instanceof Error ? error.message : 'Unknown error',
-          stack: error instanceof Error ? error.stack : undefined
-        });
         setError(`Error initializing address autocomplete: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
@@ -157,14 +143,14 @@ export function AddressAutocomplete({
     const checkAndInit = async () => {
       const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
 
-      if (window.google?.maps) {
+      if (window.google?.maps?.importLibrary) {
         await initAutocomplete();
       } else if (existingScript) {
         existingScript.addEventListener('load', initAutocomplete);
       } else {
-        // Load the script
+        // Load the script with the new API loader
         const script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async`;
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&v=weekly&loading=async`;
         script.async = true;
         script.defer = true;
         script.onload = () => initAutocomplete();

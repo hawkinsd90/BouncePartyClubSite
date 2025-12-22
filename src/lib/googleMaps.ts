@@ -2,14 +2,15 @@ let isLoading = false;
 
 export function loadGoogleMapsAPI(): Promise<void> {
   return new Promise((resolve, reject) => {
-    if (window.google?.maps?.DistanceMatrixService) {
+    // Check if the new API with importLibrary is available
+    if (window.google?.maps?.importLibrary) {
       resolve();
       return;
     }
 
     if (isLoading) {
       const checkInterval = setInterval(() => {
-        if (window.google?.maps?.DistanceMatrixService) {
+        if (window.google?.maps?.importLibrary) {
           clearInterval(checkInterval);
           resolve();
         }
@@ -17,7 +18,7 @@ export function loadGoogleMapsAPI(): Promise<void> {
 
       setTimeout(() => {
         clearInterval(checkInterval);
-        if (!window.google?.maps?.DistanceMatrixService) {
+        if (!window.google?.maps?.importLibrary) {
           reject(new Error('Google Maps loading timeout'));
         }
       }, 10000);
@@ -45,17 +46,16 @@ export function loadGoogleMapsAPI(): Promise<void> {
 
     isLoading = true;
 
-    // Use callback method to avoid deprecation warnings
-    (window as any).initGoogleMapsLib = () => {
-      isLoading = false;
-      console.log('✅ Google Maps API loaded successfully');
-      resolve();
-    };
-
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initGoogleMapsLib`;
+    // Use the new API loader with v=weekly to get importLibrary support
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&v=weekly&loading=async`;
     script.async = true;
     script.defer = true;
+    script.onload = () => {
+      isLoading = false;
+      console.log('✅ Google Maps API loaded successfully with new loader');
+      resolve();
+    };
     script.onerror = (e) => {
       isLoading = false;
       console.error('❌ Failed to load Google Maps API:', e);
@@ -66,7 +66,7 @@ export function loadGoogleMapsAPI(): Promise<void> {
 }
 
 export function isGoogleMapsLoaded(): boolean {
-  return Boolean(window.google?.maps?.DistanceMatrixService);
+  return Boolean(window.google?.maps?.importLibrary);
 }
 
 export interface CrewLocation {
@@ -125,8 +125,11 @@ export async function calculateETA(
 ): Promise<ETAResult> {
   await loadGoogleMapsAPI();
 
+  // Load the routes library which includes DistanceMatrixService
+  const { DistanceMatrixService } = await google.maps.importLibrary("routes") as google.maps.RoutesLibrary;
+
   return new Promise((resolve, reject) => {
-    const service = new google.maps.DistanceMatrixService();
+    const service = new DistanceMatrixService();
 
     service.getDistanceMatrix(
       {
