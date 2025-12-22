@@ -10,13 +10,7 @@ interface PricingRules {
   per_mile_after_base_cents: number;
   surface_sandbag_fee_cents: number;
   deposit_per_unit_cents?: number;
-  overnight_holiday_only: boolean;
-  same_day_matrix_json: Array<{
-    units: string;
-    generator: boolean;
-    subtotal_ge_cents: number;
-    fee_cents: number;
-  }>;
+  included_cities?: string[] | null;
 }
 
 interface PricingSectionProps {
@@ -37,9 +31,8 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
           base_radius_miles: editedRules.base_radius_miles,
           per_mile_after_base_cents: editedRules.per_mile_after_base_cents,
           surface_sandbag_fee_cents: editedRules.surface_sandbag_fee_cents,
-          deposit_per_unit_cents: editedRules.deposit_per_unit_cents || 10000,
-          overnight_holiday_only: editedRules.overnight_holiday_only,
-          same_day_matrix_json: editedRules.same_day_matrix_json,
+          deposit_per_unit_cents: editedRules.deposit_per_unit_cents || 5000,
+          included_cities: editedRules.included_cities,
         })
         .eq('id', editedRules.id);
 
@@ -60,10 +53,9 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
     setIsEditing(false);
   };
 
-  const updateSameDayFee = (index: number, field: string, value: any) => {
-    const newMatrix = [...editedRules.same_day_matrix_json];
-    newMatrix[index] = { ...newMatrix[index], [field]: value };
-    setEditedRules({ ...editedRules, same_day_matrix_json: newMatrix });
+  const handleCitiesChange = (value: string) => {
+    const cities = value.split(',').map(c => c.trim()).filter(c => c.length > 0);
+    setEditedRules({ ...editedRules, included_cities: cities.length > 0 ? cities : null });
   };
 
   return (
@@ -154,7 +146,7 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
             <input
               type="number"
               step="0.01"
-              value={((editedRules.deposit_per_unit_cents || 10000) / 100).toFixed(2)}
+              value={((editedRules.deposit_per_unit_cents || 5000) / 100).toFixed(2)}
               onChange={(e) => setEditedRules({ ...editedRules, deposit_per_unit_cents: Math.round(Number(e.target.value) * 100) })}
               readOnly={!isEditing}
               className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${
@@ -165,109 +157,25 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
               This deposit amount will be reflected in waivers and throughout the system
             </p>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Overnight Holiday Only
-            </label>
-            <select
-              value={editedRules.overnight_holiday_only ? 'yes' : 'no'}
-              onChange={(e) => setEditedRules({ ...editedRules, overnight_holiday_only: e.target.value === 'yes' })}
-              disabled={!isEditing}
-              className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${
-                isEditing ? 'bg-white' : 'bg-slate-50'
-              }`}
-            >
-              <option value="no">No</option>
-              <option value="yes">Yes</option>
-            </select>
-          </div>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-2">
-            Same-Day Pickup Fee Matrix
+            Free Travel Cities
           </label>
           <p className="text-xs text-slate-500 mb-3">
-            Configure fees for same-day pickups based on number of units and generator requirement
+            Enter city names separated by commas (e.g., Detroit, Dearborn). These cities will have FREE travel fees regardless of distance.
           </p>
-          <div className="overflow-x-auto">
-            <table className="w-full border border-slate-200 rounded-lg">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">
-                    Units
-                  </th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">
-                    Generator
-                  </th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">
-                    Min Subtotal ($)
-                  </th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">
-                    Fee ($)
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {editedRules.same_day_matrix_json.map((rule, idx) => (
-                  <tr key={idx}>
-                    <td className="px-4 py-2 text-sm text-slate-900">
-                      {isEditing ? (
-                        <input
-                          type="text"
-                          value={rule.units}
-                          onChange={(e) => updateSameDayFee(idx, 'units', e.target.value)}
-                          className="w-full px-2 py-1 border border-slate-300 rounded"
-                        />
-                      ) : (
-                        rule.units
-                      )}
-                    </td>
-                    <td className="px-4 py-2 text-sm text-slate-900">
-                      {isEditing ? (
-                        <select
-                          value={rule.generator ? 'yes' : 'no'}
-                          onChange={(e) => updateSameDayFee(idx, 'generator', e.target.value === 'yes')}
-                          className="w-full px-2 py-1 border border-slate-300 rounded"
-                        >
-                          <option value="no">No</option>
-                          <option value="yes">Yes</option>
-                        </select>
-                      ) : (
-                        rule.generator ? 'Yes' : 'No'
-                      )}
-                    </td>
-                    <td className="px-4 py-2 text-sm text-slate-900">
-                      {isEditing ? (
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={(rule.subtotal_ge_cents / 100).toFixed(2)}
-                          onChange={(e) => updateSameDayFee(idx, 'subtotal_ge_cents', Math.round(Number(e.target.value) * 100))}
-                          className="w-full px-2 py-1 border border-slate-300 rounded"
-                        />
-                      ) : (
-                        formatCurrency(rule.subtotal_ge_cents)
-                      )}
-                    </td>
-                    <td className="px-4 py-2 text-sm font-semibold text-slate-900">
-                      {isEditing ? (
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={(rule.fee_cents / 100).toFixed(2)}
-                          onChange={(e) => updateSameDayFee(idx, 'fee_cents', Math.round(Number(e.target.value) * 100))}
-                          className="w-full px-2 py-1 border border-slate-300 rounded"
-                        />
-                      ) : (
-                        formatCurrency(rule.fee_cents)
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <input
+            type="text"
+            value={editedRules.included_cities?.join(', ') || ''}
+            onChange={(e) => handleCitiesChange(e.target.value)}
+            placeholder="Detroit, Dearborn, Ann Arbor"
+            readOnly={!isEditing}
+            className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${
+              isEditing ? 'bg-white' : 'bg-slate-50'
+            }`}
+          />
         </div>
       </div>
     </div>

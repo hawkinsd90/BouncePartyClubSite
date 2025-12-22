@@ -47,8 +47,8 @@ export function PermissionsTab() {
   async function fetchData() {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) throw new Error('Not authenticated');
 
       const { data: roleData } = await supabase
         .from('user_roles')
@@ -71,16 +71,34 @@ export function PermissionsTab() {
 
       if (error) throw error;
 
-      const usersWithEmails = await Promise.all(
-        (usersData || []).map(async (userRole) => {
-          const { data: userData } = await supabase.auth.admin.getUserById(userRole.user_id);
-          return {
-            ...userRole,
-            email: userData?.user?.email || 'Unknown',
-            full_name: userData?.user?.user_metadata?.full_name || userData?.user?.email || 'Unknown User',
-          };
-        })
+      const userIds = (usersData || []).map(u => u.user_id);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('No session');
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-user-info`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ user_ids: userIds }),
+        }
       );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch user info');
+      }
+
+      const { userInfo } = await response.json();
+
+      const usersWithEmails = (usersData || []).map(userRole => ({
+        ...userRole,
+        email: userInfo[userRole.user_id]?.email || 'Unknown',
+        full_name: userInfo[userRole.user_id]?.full_name || 'Unknown User',
+      }));
 
       setUsers(usersWithEmails);
     } catch (error: any) {
@@ -247,19 +265,45 @@ export function PermissionsTab() {
 
       if (error) throw error;
 
-      const changelogWithEmails = await Promise.all(
-        (data || []).map(async (entry) => {
-          let changedByEmail = 'System';
-          if (entry.changed_by_user_id) {
-            const { data: userData } = await supabase.auth.admin.getUserById(entry.changed_by_user_id);
-            changedByEmail = userData?.user?.email || 'Unknown';
-          }
-          return {
-            ...entry,
-            changed_by_email: changedByEmail,
-          };
-        })
+      const userIds = (data || [])
+        .map(entry => entry.changed_by_user_id)
+        .filter(id => id != null) as string[];
+
+      if (userIds.length === 0) {
+        setChangelog((data || []).map(entry => ({
+          ...entry,
+          changed_by_email: 'System',
+        })));
+        return;
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('No session');
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-user-info`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ user_ids: userIds }),
+        }
       );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch user info');
+      }
+
+      const { userInfo } = await response.json();
+
+      const changelogWithEmails = (data || []).map(entry => ({
+        ...entry,
+        changed_by_email: entry.changed_by_user_id
+          ? userInfo[entry.changed_by_user_id]?.email || 'Unknown'
+          : 'System',
+      }));
 
       setChangelog(changelogWithEmails);
     } catch (error: any) {

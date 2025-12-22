@@ -40,14 +40,71 @@ export function ChangelogTab() {
 
       if (orderError) throw orderError;
 
-      for (const change of orderChanges || []) {
-        let userEmail = 'System';
-        if (change.user_id) {
-          const { data: userData } = await supabase.auth.admin.getUserById(change.user_id);
-          userEmail = userData?.user?.email || 'Unknown User';
-        }
+      // Fetch permission changes
+      const { data: permChanges, error: permError } = await supabase
+        .from('user_permissions_changelog')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
 
-        // Get order details
+      if (permError) throw permError;
+
+      // Fetch admin settings changes
+      const { data: settingChanges, error: settingError } = await supabase
+        .from('admin_settings_changelog')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (settingError) throw settingError;
+
+      // Collect all unique user IDs
+      const userIds = new Set<string>();
+      (orderChanges || []).forEach(change => {
+        if (change.user_id) userIds.add(change.user_id);
+      });
+      (permChanges || []).forEach(change => {
+        if (change.changed_by_user_id) userIds.add(change.changed_by_user_id);
+        if (change.target_user_id) userIds.add(change.target_user_id);
+      });
+      (settingChanges || []).forEach(change => {
+        if (change.changed_by) userIds.add(change.changed_by);
+      });
+
+      // Fetch user info for all users
+      let userInfo: Record<string, { email: string; full_name: string }> = {};
+      if (userIds.size > 0) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          try {
+            const response = await fetch(
+              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-user-info`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify({ user_ids: Array.from(userIds) }),
+              }
+            );
+
+            if (response.ok) {
+              const data = await response.json();
+              userInfo = data.userInfo || {};
+            }
+          } catch (err) {
+            console.error('Failed to fetch user info:', err);
+          }
+        }
+      }
+
+      // Process order changes
+      for (const change of orderChanges || []) {
+        const userEmail = change.user_id
+          ? userInfo[change.user_id]?.email || 'Unknown User'
+          : 'System';
+
         const { data: orderData } = await supabase
           .from('orders')
           .select('id, customer_first_name, customer_last_name')
@@ -71,27 +128,15 @@ export function ChangelogTab() {
         });
       }
 
-      // Fetch permission changes
-      const { data: permChanges, error: permError } = await supabase
-        .from('user_permissions_changelog')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(limit);
-
-      if (permError) throw permError;
-
+      // Process permission changes
       for (const change of permChanges || []) {
-        let changedByEmail = 'System';
-        if (change.changed_by_user_id) {
-          const { data: userData } = await supabase.auth.admin.getUserById(change.changed_by_user_id);
-          changedByEmail = userData?.user?.email || 'Unknown User';
-        }
+        const changedByEmail = change.changed_by_user_id
+          ? userInfo[change.changed_by_user_id]?.email || 'Unknown User'
+          : 'System';
 
-        let targetEmail = 'Unknown User';
-        if (change.target_user_id) {
-          const { data: userData } = await supabase.auth.admin.getUserById(change.target_user_id);
-          targetEmail = userData?.user?.email || 'Unknown User';
-        }
+        const targetEmail = change.target_user_id
+          ? userInfo[change.target_user_id]?.email || 'Unknown User'
+          : 'Unknown User';
 
         allEntries.push({
           id: change.id,
@@ -110,21 +155,11 @@ export function ChangelogTab() {
         });
       }
 
-      // Fetch admin settings changes
-      const { data: settingChanges, error: settingError } = await supabase
-        .from('admin_settings_changelog')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(limit);
-
-      if (settingError) throw settingError;
-
+      // Process admin settings changes
       for (const change of settingChanges || []) {
-        let userEmail = 'System';
-        if (change.changed_by) {
-          const { data: userData } = await supabase.auth.admin.getUserById(change.changed_by);
-          userEmail = userData?.user?.email || 'Unknown User';
-        }
+        const userEmail = change.changed_by
+          ? userInfo[change.changed_by]?.email || 'Unknown User'
+          : 'System';
 
         allEntries.push({
           id: change.id,
