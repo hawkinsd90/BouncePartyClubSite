@@ -11,14 +11,12 @@ interface SmsMessage {
 interface SmsConversationProps {
   messages: SmsMessage[];
   onSendMessage: (message: string) => Promise<boolean>;
-  onSendTestMessage: () => Promise<void>;
   isSending: boolean;
 }
 
 export function SmsConversation({
   messages,
   onSendMessage,
-  onSendTestMessage,
   isSending,
 }: SmsConversationProps) {
   const [showReply, setShowReply] = useState(false);
@@ -93,13 +91,6 @@ export function SmsConversation({
           </div>
         </div>
       )}
-      <button
-        onClick={onSendTestMessage}
-        disabled={isSending}
-        className="mt-2 text-sm text-slate-600 hover:text-slate-800 underline"
-      >
-        Send test SMS
-      </button>
     </div>
   );
 }

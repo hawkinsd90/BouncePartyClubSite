@@ -4,10 +4,7 @@ import { OrderSummary } from '../order/OrderSummary';
 import { usePendingOrderData } from '../../hooks/usePendingOrderData';
 import { useSmsHandling } from '../../hooks/useSmsHandling';
 import { approveOrder, forceApproveOrder, rejectOrder } from '../../lib/orderApprovalService';
-import {
-  generatePaymentLinkSmsMessage,
-  generateTestSmsMessage,
-} from '../../lib/orderEmailTemplates';
+import { generatePaymentLinkSmsMessage } from '../../lib/orderEmailTemplates';
 import { OrderInfoSection } from '../pending-order/OrderInfoSection';
 import { SmsConversation } from '../pending-order/SmsConversation';
 import { PaymentManagementSection } from '../pending-order/PaymentManagementSection';
@@ -57,15 +54,6 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
 
     return () => clearInterval(intervalId);
   }, [order.id]);
-
-  async function handleSendTestSms() {
-    const testMessage = generateTestSmsMessage(order, order.customers?.first_name);
-    const success = await sendSms(testMessage);
-    if (success) {
-      await loadSmsConversations();
-      alert('SMS sent successfully!');
-    }
-  }
 
   async function confirmApproval() {
     setShowApprovalModal(false);
@@ -200,7 +188,6 @@ export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: ()
       <SmsConversation
         messages={smsConversations}
         onSendMessage={handleSmsMessage}
-        onSendTestMessage={handleSendTestSms}
         isSending={sendingSms}
       />
 
