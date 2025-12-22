@@ -420,9 +420,15 @@ export function PermissionsTab() {
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     <h4 className="text-lg font-bold text-slate-900">{user.full_name}</h4>
-                    <span className={`px-3 py-1 rounded-full text-sm font-bold border-2 ${getRoleColor(user.role)}`}>
-                      {user.role.toUpperCase()}
-                    </span>
+                    {user.role ? (
+                      <span className={`px-3 py-1 rounded-full text-sm font-bold border-2 ${getRoleColor(user.role)}`}>
+                        {user.role.toUpperCase()}
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1 rounded-full text-sm font-bold border-2 bg-gray-100 text-gray-600 border-gray-300">
+                        NO ROLE
+                      </span>
+                    )}
                   </div>
                   <p className="text-slate-600">{user.email}</p>
                   <p className="text-sm text-slate-500">Added: {new Date(user.created_at).toLocaleDateString()}</p>
