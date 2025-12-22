@@ -1,23 +1,16 @@
 import { FileText } from 'lucide-react';
-import { useDataFetch } from '../../hooks/useDataFetch';
-import { supabase } from '../../lib/supabase';
+import { useState, useEffect } from 'react';
 import { formatCurrency } from '../../lib/pricing';
+import { getDepositAmount } from '../../lib/pricingCache';
 
 export function RentalTerms() {
-  const { data: pricingRules } = useDataFetch(
-    async () => {
-      const { data, error } = await supabase
-        .from('pricing_rules')
-        .select('deposit_per_unit_cents')
-        .maybeSingle();
+  const [depositCents, setDepositCents] = useState(5000);
 
-      if (error) throw error;
-      return data;
-    },
-    { showErrorNotification: false }
-  );
+  useEffect(() => {
+    getDepositAmount().then(setDepositCents);
+  }, []);
 
-  const depositAmount = formatCurrency(pricingRules?.deposit_per_unit_cents || 5000);
+  const depositAmount = formatCurrency(depositCents);
 
   return (
     <div className="bg-white rounded-xl shadow-md p-6">

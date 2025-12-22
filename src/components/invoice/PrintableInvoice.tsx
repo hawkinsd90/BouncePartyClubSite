@@ -1,7 +1,5 @@
 import { formatCurrency } from '../../lib/pricing';
 import { format } from 'date-fns';
-import { useDataFetch } from '../../hooks/useDataFetch';
-import { supabase } from '../../lib/supabase';
 
 interface PrintableInvoiceProps {
   quoteData: any;
@@ -34,20 +32,8 @@ export function PrintableInvoice({
 }: PrintableInvoiceProps) {
   const today = format(new Date(), 'MMMM d, yyyy');
 
-  const { data: pricingRules } = useDataFetch(
-    async () => {
-      const { data, error } = await supabase
-        .from('pricing_rules')
-        .select('deposit_per_unit_cents')
-        .maybeSingle();
-
-      if (error) throw error;
-      return data;
-    },
-    { showErrorNotification: false }
-  );
-
-  const depositAmount = formatCurrency(pricingRules?.deposit_per_unit_cents || 5000);
+  // Use the deposit from priceBreakdown instead of fetching from database
+  const depositAmount = formatCurrency(priceBreakdown?.deposit_due_cents || 5000);
 
   const formatPaymentMethod = () => {
     if (!paymentMethod) return null;
