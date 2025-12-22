@@ -120,10 +120,12 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
             Per Mile After Base (in dollars)
           </label>
           <input
-            type="number"
-            step="0.01"
+            type="text"
             value={(editedRules.per_mile_after_base_cents / 100).toFixed(2)}
-            onChange={(e) => setEditedRules({ ...editedRules, per_mile_after_base_cents: Math.round(Number(e.target.value) * 100) })}
+            onChange={(e) => {
+              const value = e.target.value.replace(/[^0-9.]/g, '');
+              setEditedRules({ ...editedRules, per_mile_after_base_cents: Math.round(Number(value || 0) * 100) });
+            }}
             readOnly={!isEditing}
             className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${
               isEditing ? 'bg-white' : 'bg-slate-50'
@@ -136,10 +138,12 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
             Sandbag Fee (in dollars)
           </label>
           <input
-            type="number"
-            step="0.01"
+            type="text"
             value={(editedRules.surface_sandbag_fee_cents / 100).toFixed(2)}
-            onChange={(e) => setEditedRules({ ...editedRules, surface_sandbag_fee_cents: Math.round(Number(e.target.value) * 100) })}
+            onChange={(e) => {
+              const value = e.target.value.replace(/[^0-9.]/g, '');
+              setEditedRules({ ...editedRules, surface_sandbag_fee_cents: Math.round(Number(value || 0) * 100) });
+            }}
             readOnly={!isEditing}
             className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${
               isEditing ? 'bg-white' : 'bg-slate-50'
@@ -152,10 +156,12 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
             Deposit Per Unit (in dollars)
           </label>
           <input
-            type="number"
-            step="0.01"
+            type="text"
             value={((editedRules.deposit_per_unit_cents || 5000) / 100).toFixed(2)}
-            onChange={(e) => setEditedRules({ ...editedRules, deposit_per_unit_cents: Math.round(Number(e.target.value) * 100) })}
+            onChange={(e) => {
+              const value = e.target.value.replace(/[^0-9.]/g, '');
+              setEditedRules({ ...editedRules, deposit_per_unit_cents: Math.round(Number(value || 0) * 100) });
+            }}
             readOnly={!isEditing}
             className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${
               isEditing ? 'bg-white' : 'bg-slate-50'
@@ -171,10 +177,12 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
             First Generator Fee (in dollars)
           </label>
           <input
-            type="number"
-            step="0.01"
+            type="text"
             value={((editedRules.generator_fee_single_cents || 10000) / 100).toFixed(2)}
-            onChange={(e) => setEditedRules({ ...editedRules, generator_fee_single_cents: Math.round(Number(e.target.value) * 100) })}
+            onChange={(e) => {
+              const value = e.target.value.replace(/[^0-9.]/g, '');
+              setEditedRules({ ...editedRules, generator_fee_single_cents: Math.round(Number(value || 0) * 100) });
+            }}
             readOnly={!isEditing}
             className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${
               isEditing ? 'bg-white' : 'bg-slate-50'
@@ -190,10 +198,12 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
             Additional Generator Fee (in dollars each)
           </label>
           <input
-            type="number"
-            step="0.01"
+            type="text"
             value={((editedRules.generator_fee_multiple_cents || 7500) / 100).toFixed(2)}
-            onChange={(e) => setEditedRules({ ...editedRules, generator_fee_multiple_cents: Math.round(Number(e.target.value) * 100) })}
+            onChange={(e) => {
+              const value = e.target.value.replace(/[^0-9.]/g, '');
+              setEditedRules({ ...editedRules, generator_fee_multiple_cents: Math.round(Number(value || 0) * 100) });
+            }}
             readOnly={!isEditing}
             className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${
               isEditing ? 'bg-white' : 'bg-slate-50'
@@ -209,10 +219,12 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
             Same Day Pickup Fee (in dollars)
           </label>
           <input
-            type="number"
-            step="0.01"
+            type="text"
             value={((editedRules.same_day_pickup_fee_cents || 0) / 100).toFixed(2)}
-            onChange={(e) => setEditedRules({ ...editedRules, same_day_pickup_fee_cents: Math.round(Number(e.target.value) * 100) })}
+            onChange={(e) => {
+              const value = e.target.value.replace(/[^0-9.]/g, '');
+              setEditedRules({ ...editedRules, same_day_pickup_fee_cents: Math.round(Number(value || 0) * 100) });
+            }}
             readOnly={!isEditing}
             className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${
               isEditing ? 'bg-white' : 'bg-slate-50'
