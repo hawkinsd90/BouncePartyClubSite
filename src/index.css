@@ -13,11 +13,6 @@
   }
 }
 
-gmp-place-autocomplete {
-  display: block;
-  width: 100%;
-}
-
 @media print {
   @page {
     margin: 1cm;
