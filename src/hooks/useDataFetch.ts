@@ -56,10 +56,44 @@ export function useDataFetch<T>(
   }, [fetchFn, onSuccess, onError, errorMessage, showErrorNotification]);
 
   useEffect(() => {
+    let cancelled = false;
+
     if (autoFetch) {
-      fetchData();
+      (async () => {
+        try {
+          setLoading(true);
+          setError(null);
+
+          const result = await fetchFn();
+
+          if (!cancelled) {
+            setData(result);
+            onSuccess?.(result);
+          }
+        } catch (err: any) {
+          if (!cancelled) {
+            const errorObj = err instanceof Error ? err : new Error(String(err));
+            setError(errorObj);
+
+            if (showErrorNotification) {
+              notifyError(errorMessage);
+            }
+
+            onError?.(err);
+            console.error('Data fetch error:', err);
+          }
+        } finally {
+          if (!cancelled) {
+            setLoading(false);
+          }
+        }
+      })();
     }
-  }, [autoFetch, fetchData]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [autoFetch, fetchFn, onSuccess, onError, errorMessage, showErrorNotification]);
 
   return { data, loading, error, refetch: fetchData };
 }
