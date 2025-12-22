@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { calculateDrivingDistance } from './pricing';
 import { HOME_BASE } from './constants';
+import { buildOrderSummaryDisplay } from './orderSummaryHelpers';
 
 async function estimateDistanceFromFee(travelFeeCents: number): Promise<number> {
   try {
@@ -265,8 +266,6 @@ function calculateTotalFromOrder(order: any, discounts: OrderDiscount[], customF
 }
 
 export function formatOrderSummary(data: OrderSummaryData): OrderSummaryDisplay {
-  const { buildOrderSummaryDisplay } = require('./orderSummaryHelpers');
-
   const items = data.items.map(item => ({
     name: item.units?.name || 'Unknown Item',
     mode: item.wet_or_dry === 'water' ? 'Water' : 'Dry',
