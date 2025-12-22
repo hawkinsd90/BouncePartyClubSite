@@ -1,8 +1,36 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { History, Package, Shield, Settings, Filter } from 'lucide-react';
+import { History, Package, Shield, Settings, Filter, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { notify } from '../../lib/notifications';
 import { LoadingSpinner } from '../common/LoadingSpinner';
+
+interface OrderChange {
+  id: string;
+  order_id: string;
+  field_changed: string;
+  old_value: string | null;
+  new_value: string | null;
+  change_type: string;
+  created_at: string;
+  user_id: string | null;
+}
+
+interface GroupedOrderChange {
+  order_id: string;
+  customer_name: string;
+  change_count: number;
+  latest_timestamp: string;
+  latest_user_email: string;
+  changes: Array<{
+    id: string;
+    field_changed: string;
+    old_value: string | null;
+    new_value: string | null;
+    change_type: string;
+    timestamp: string;
+    user_email: string;
+  }>;
+}
 
 interface ChangelogEntry {
   id: string;
@@ -18,6 +46,8 @@ interface ChangelogEntry {
 
 export function ChangelogTab() {
   const [entries, setEntries] = useState<ChangelogEntry[]>([]);
+  const [groupedOrders, setGroupedOrders] = useState<GroupedOrderChange[]>([]);
+  const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'order' | 'permission' | 'setting' | 'contact'>('all');
   const [limit, setLimit] = useState(50);
@@ -99,34 +129,66 @@ export function ChangelogTab() {
         }
       }
 
-      // Process order changes
-      for (const change of orderChanges || []) {
-        const userEmail = change.user_id
-          ? userInfo[change.user_id]?.email || 'Unknown User'
-          : 'System';
+      // Group order changes by order_id
+      const orderGroups = new Map<string, {
+        order_id: string;
+        changes: OrderChange[];
+      }>();
 
+      for (const change of orderChanges || []) {
+        if (!orderGroups.has(change.order_id)) {
+          orderGroups.set(change.order_id, {
+            order_id: change.order_id,
+            changes: []
+          });
+        }
+        orderGroups.get(change.order_id)!.changes.push(change);
+      }
+
+      // Create grouped order entries
+      const grouped: GroupedOrderChange[] = [];
+      for (const [order_id, group] of orderGroups) {
         const { data: orderData } = await supabase
           .from('orders')
           .select('id, customers(first_name, last_name)')
-          .eq('id', change.order_id)
+          .eq('id', order_id)
           .maybeSingle();
 
         const customerName = orderData?.customers
           ? `${(orderData.customers as any).first_name} ${(orderData.customers as any).last_name}`
           : 'Unknown Customer';
 
-        allEntries.push({
-          id: change.id,
-          type: 'order',
-          timestamp: change.created_at,
-          user_email: userEmail,
-          title: `Order ${change.change_type} - ${customerName}`,
-          description: change.field_changed || 'Order modified',
-          old_value: change.old_value,
-          new_value: change.new_value,
-          details: { order_id: change.order_id, change_type: change.change_type }
+        // Sort changes by timestamp descending
+        group.changes.sort((a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+
+        const latestChange = group.changes[0];
+        const latestUserEmail = latestChange.user_id
+          ? userInfo[latestChange.user_id]?.email || 'Unknown User'
+          : 'System';
+
+        grouped.push({
+          order_id,
+          customer_name: customerName,
+          change_count: group.changes.length,
+          latest_timestamp: latestChange.created_at,
+          latest_user_email: latestUserEmail,
+          changes: group.changes.map(change => ({
+            id: change.id,
+            field_changed: change.field_changed || 'Order modified',
+            old_value: change.old_value,
+            new_value: change.new_value,
+            change_type: change.change_type,
+            timestamp: change.created_at,
+            user_email: change.user_id
+              ? userInfo[change.user_id]?.email || 'Unknown User'
+              : 'System'
+          }))
         });
       }
+
+      setGroupedOrders(grouped);
 
       // Process permission changes
       for (const change of permChanges || []) {
@@ -189,6 +251,20 @@ export function ChangelogTab() {
     ? entries
     : entries.filter(e => e.type === filter);
 
+  const filteredGroupedOrders = filter === 'all' || filter === 'order'
+    ? groupedOrders
+    : [];
+
+  const toggleOrderExpansion = (orderId: string) => {
+    const newExpanded = new Set(expandedOrders);
+    if (newExpanded.has(orderId)) {
+      newExpanded.delete(orderId);
+    } else {
+      newExpanded.add(orderId);
+    }
+    setExpandedOrders(newExpanded);
+  };
+
   function getIcon(type: string) {
     switch (type) {
       case 'order': return <Package className="w-5 h-5" />;
@@ -250,7 +326,7 @@ export function ChangelogTab() {
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
-            All ({entries.length})
+            All ({groupedOrders.length + entries.length})
           </button>
           <button
             onClick={() => setFilter('order')}
@@ -260,7 +336,7 @@ export function ChangelogTab() {
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
-            Orders ({entries.filter(e => e.type === 'order').length})
+            Orders ({groupedOrders.length})
           </button>
           <button
             onClick={() => setFilter('permission')}
@@ -298,63 +374,176 @@ export function ChangelogTab() {
       </div>
 
       <div className="space-y-3">
-        {filteredEntries.length === 0 ? (
+        {filteredGroupedOrders.length === 0 && filteredEntries.length === 0 ? (
           <div className="text-center py-12">
             <History className="w-16 h-16 text-slate-300 mx-auto mb-4" />
             <p className="text-slate-500 text-lg">No changelog entries found</p>
           </div>
         ) : (
-          filteredEntries.map((entry) => (
-            <div
-              key={entry.id}
-              className="border-2 border-slate-200 rounded-xl p-4 hover:border-blue-300 transition-colors"
-            >
-              <div className="flex items-start gap-4">
-                <div className={`p-2 rounded-lg ${getTypeColor(entry.type)}`}>
-                  {getIcon(entry.type)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-4 mb-2">
-                    <div>
-                      <h3 className="font-bold text-slate-900">{entry.title}</h3>
-                      <p className="text-sm text-slate-600">{entry.description}</p>
+          <>
+            {/* Grouped Order Changes */}
+            {filteredGroupedOrders.map((orderGroup) => (
+              <div
+                key={orderGroup.order_id}
+                className="border-2 border-slate-200 rounded-xl overflow-hidden hover:border-blue-300 transition-colors"
+              >
+                <div
+                  className="p-4 cursor-pointer bg-blue-50 hover:bg-blue-100 transition-colors"
+                  onClick={() => toggleOrderExpansion(orderGroup.order_id)}
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="p-2 rounded-lg bg-blue-100 text-blue-800 border-blue-300">
+                      <Package className="w-5 h-5" />
                     </div>
-                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${getTypeColor(entry.type)}`}>
-                        {entry.type.toUpperCase()}
-                      </span>
-                      <span className="text-xs text-slate-500 whitespace-nowrap">
-                        {new Date(entry.timestamp).toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-
-                  {(entry.old_value || entry.new_value) && (
-                    <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                        {entry.old_value && (
-                          <div>
-                            <span className="font-medium text-slate-700">Old Value:</span>
-                            <p className="text-slate-600 mt-1 break-words">{entry.old_value}</p>
-                          </div>
-                        )}
-                        {entry.new_value && (
-                          <div>
-                            <span className="font-medium text-slate-700">New Value:</span>
-                            <p className="text-slate-600 mt-1 break-words">{entry.new_value}</p>
-                          </div>
-                        )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                            <span>Order Updated - {orderGroup.customer_name}</span>
+                            <a
+                              href={`#order-${orderGroup.order_id}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                notify('Click on the order ID in the Orders tab to view full details', 'info');
+                              }}
+                              className="text-blue-600 hover:text-blue-800"
+                              title="View order details"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                          </h3>
+                          <p className="text-sm text-slate-600">
+                            {orderGroup.change_count} change{orderGroup.change_count > 1 ? 's' : ''} made to this order
+                          </p>
+                          <p className="text-xs text-slate-500 mt-1">
+                            Order ID: {orderGroup.order_id.substring(0, 8)}...
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                          <span className="px-3 py-1 rounded-full text-xs font-bold border-2 bg-blue-100 text-blue-800 border-blue-300">
+                            ORDER
+                          </span>
+                          <span className="text-xs text-slate-500 whitespace-nowrap">
+                            {new Date(orderGroup.latest_timestamp).toLocaleString()}
+                          </span>
+                          <button
+                            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 mt-1"
+                          >
+                            {expandedOrders.has(orderGroup.order_id) ? (
+                              <>
+                                <ChevronDown className="w-4 h-4" />
+                                Hide changes
+                              </>
+                            ) : (
+                              <>
+                                <ChevronRight className="w-4 h-4" />
+                                View changes
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  )}
+                  </div>
+                </div>
 
-                  <div className="mt-2 text-xs text-slate-500">
-                    Changed by: <span className="font-medium text-slate-700">{entry.user_email}</span>
+                {expandedOrders.has(orderGroup.order_id) && (
+                  <div className="border-t-2 border-slate-200 bg-white">
+                    <div className="p-4 space-y-3">
+                      {orderGroup.changes.map((change) => (
+                        <div
+                          key={change.id}
+                          className="border border-slate-200 rounded-lg p-3 bg-slate-50"
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <h4 className="font-medium text-slate-900">{change.field_changed}</h4>
+                              <p className="text-xs text-slate-500">
+                                {change.change_type} • {new Date(change.timestamp).toLocaleString()}
+                              </p>
+                            </div>
+                            <span className="text-xs text-slate-600">
+                              by {change.user_email}
+                            </span>
+                          </div>
+
+                          {(change.old_value || change.new_value) && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm mt-2">
+                              {change.old_value && (
+                                <div>
+                                  <span className="font-medium text-slate-700 text-xs">Old Value:</span>
+                                  <p className="text-slate-600 mt-1 break-words">{change.old_value}</p>
+                                </div>
+                              )}
+                              {change.new_value && (
+                                <div>
+                                  <span className="font-medium text-slate-700 text-xs">New Value:</span>
+                                  <p className="text-slate-600 mt-1 break-words">{change.new_value}</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Other changelog entries (permissions, settings) */}
+            {filteredEntries.map((entry) => (
+              <div
+                key={entry.id}
+                className="border-2 border-slate-200 rounded-xl p-4 hover:border-blue-300 transition-colors"
+              >
+                <div className="flex items-start gap-4">
+                  <div className={`p-2 rounded-lg ${getTypeColor(entry.type)}`}>
+                    {getIcon(entry.type)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-4 mb-2">
+                      <div>
+                        <h3 className="font-bold text-slate-900">{entry.title}</h3>
+                        <p className="text-sm text-slate-600">{entry.description}</p>
+                      </div>
+                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${getTypeColor(entry.type)}`}>
+                          {entry.type.toUpperCase()}
+                        </span>
+                        <span className="text-xs text-slate-500 whitespace-nowrap">
+                          {new Date(entry.timestamp).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+
+                    {(entry.old_value || entry.new_value) && (
+                      <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                          {entry.old_value && (
+                            <div>
+                              <span className="font-medium text-slate-700">Old Value:</span>
+                              <p className="text-slate-600 mt-1 break-words">{entry.old_value}</p>
+                            </div>
+                          )}
+                          {entry.new_value && (
+                            <div>
+                              <span className="font-medium text-slate-700">New Value:</span>
+                              <p className="text-slate-600 mt-1 break-words">{entry.new_value}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="mt-2 text-xs text-slate-500">
+                      Changed by: <span className="font-medium text-slate-700">{entry.user_email}</span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))
+            ))}
+          </>
         )}
       </div>
     </div>
