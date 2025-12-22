@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { History, Package, Shield, Settings, Filter, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
-import { notify } from '../../lib/notifications';
+import { notify, notifyError } from '../../lib/notifications';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 
 interface OrderChange {
@@ -72,7 +72,7 @@ export function ChangelogTab() {
 
       // Fetch permission changes
       const { data: permChanges, error: permError } = await supabase
-        .from('user_permissions_changelog')
+        .from('user_permissions_changelog' as any)
         .select('*')
         .order('created_at', { ascending: false })
         .limit(limit);
@@ -81,7 +81,7 @@ export function ChangelogTab() {
 
       // Fetch admin settings changes
       const { data: settingChanges, error: settingError } = await supabase
-        .from('admin_settings_changelog')
+        .from('admin_settings_changelog' as any)
         .select('*')
         .order('created_at', { ascending: false })
         .limit(limit);
@@ -241,7 +241,7 @@ export function ChangelogTab() {
 
       setEntries(allEntries);
     } catch (error: any) {
-      notify(error.message, 'error');
+      notifyError(error.message);
     } finally {
       setLoading(false);
     }
@@ -410,7 +410,7 @@ export function ChangelogTab() {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 navigator.clipboard.writeText(orderGroup.order_id);
-                                notify('Order ID copied! Switch to Orders tab to search for it', 'info');
+                                notify('Order ID copied! Switch to Orders tab to search for it');
                               }}
                               className="text-blue-600 hover:text-blue-800 hover:underline font-mono"
                               title="Click to copy Order ID"

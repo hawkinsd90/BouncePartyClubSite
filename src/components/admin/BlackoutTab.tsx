@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Calendar, UserX, MapPin, List, PartyPopper } from 'lucide-react';
-import { notify } from '../../lib/notifications';
+import { notifyError, notifySuccess } from '../../lib/notifications';
 import { LoadingSpinner } from '../common/LoadingSpinner';
-import { ConfirmationModal } from '../shared/ConfirmationModal';
+import { showConfirm } from '../../lib/notifications';
 import { BlackoutDateForm } from './blackout/BlackoutDateForm';
 import { BlackoutDatesList } from './blackout/BlackoutDatesList';
 import { BlackoutContactForm } from './blackout/BlackoutContactForm';
@@ -48,7 +48,6 @@ export function BlackoutTab() {
   const [contacts, setContacts] = useState<BlackoutContact[]>([]);
   const [addresses, setAddresses] = useState<BlackoutAddress[]>([]);
   const [loading, setLoading] = useState(true);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ type: string; id: string } | null>(null);
   const [overnightHolidayOnly, setOvernightHolidayOnly] = useState(false);
   const [savingHolidaySettings, setSavingHolidaySettings] = useState(false);
 
@@ -60,9 +59,9 @@ export function BlackoutTab() {
     setLoading(true);
     try {
       const [datesRes, contactsRes, addressesRes, pricingRes] = await Promise.all([
-        supabase.from('blackout_dates').select('*').order('start_date', { ascending: false }),
-        supabase.from('blackout_contacts').select('*').order('created_at', { ascending: false }),
-        supabase.from('blackout_addresses').select('*').order('created_at', { ascending: false }),
+        supabase.from('blackout_dates' as any).select('*').order('start_date', { ascending: false }),
+        supabase.from('blackout_contacts' as any).select('*').order('created_at', { ascending: false }),
+        supabase.from('blackout_addresses' as any).select('*').order('created_at', { ascending: false }),
         supabase.from('pricing_rules').select('overnight_holiday_only').limit(1).maybeSingle(),
       ]);
 
@@ -70,52 +69,62 @@ export function BlackoutTab() {
       if (contactsRes.error) throw contactsRes.error;
       if (addressesRes.error) throw addressesRes.error;
 
-      setDates(datesRes.data || []);
-      setContacts(contactsRes.data || []);
-      setAddresses(addressesRes.data || []);
+      setDates(datesRes.data as any || []);
+      setContacts(contactsRes.data as any || []);
+      setAddresses(addressesRes.data as any || []);
       setOvernightHolidayOnly(pricingRes.data?.overnight_holiday_only || false);
     } catch (error: any) {
-      notify(error.message, 'error');
+      notifyError(error.message);
     } finally {
       setLoading(false);
     }
   }
 
   async function handleDelete(type: string, id: string) {
+    const confirmed = await showConfirm(
+      'Are you sure you want to remove this blackout? This action cannot be undone.',
+      { confirmText: 'Remove', type: 'warning' }
+    );
+
+    if (!confirmed) return;
+
     try {
       let error;
       if (type === 'dates') {
-        ({ error } = await supabase.from('blackout_dates').delete().eq('id', id));
+        ({ error } = await supabase.from('blackout_dates' as any).delete().eq('id', id));
       } else if (type === 'contacts') {
-        ({ error } = await supabase.from('blackout_contacts').delete().eq('id', id));
+        ({ error } = await supabase.from('blackout_contacts' as any).delete().eq('id', id));
       } else {
-        ({ error } = await supabase.from('blackout_addresses').delete().eq('id', id));
+        ({ error } = await supabase.from('blackout_addresses' as any).delete().eq('id', id));
       }
 
       if (error) throw error;
 
-      notify('Blackout removed successfully', 'success');
-      setDeleteConfirm(null);
+      notifySuccess('Blackout removed successfully');
       fetchData();
     } catch (error: any) {
-      notify(error.message, 'error');
+      notifyError(error.message);
     }
   }
 
   async function handleSaveHolidaySettings() {
     setSavingHolidaySettings(true);
     try {
+      const { data: pricingRule } = await supabase.from('pricing_rules').select('id').limit(1).single();
+
+      if (!pricingRule) throw new Error('Pricing rules not found');
+
       const { error } = await supabase
         .from('pricing_rules')
         .update({ overnight_holiday_only: overnightHolidayOnly })
-        .eq('id', (await supabase.from('pricing_rules').select('id').limit(1).single()).data.id);
+        .eq('id', pricingRule.id);
 
       if (error) throw error;
 
-      notify('Holiday settings updated successfully', 'success');
+      notifySuccess('Holiday settings updated successfully');
       fetchData();
     } catch (error: any) {
-      notify(error.message, 'error');
+      notifyError(error.message);
     } finally {
       setSavingHolidaySettings(false);
     }
@@ -199,21 +208,21 @@ export function BlackoutTab() {
         {activeTab === 'dates' && (
           <div className="space-y-6">
             <BlackoutDateForm onSuccess={fetchData} />
-            <BlackoutDatesList dates={dates} onDelete={(id) => setDeleteConfirm({ type: 'dates', id })} />
+            <BlackoutDatesList dates={dates} onDelete={(id) => handleDelete('dates', id)} />
           </div>
         )}
 
         {activeTab === 'contacts' && (
           <div className="space-y-6">
             <BlackoutContactForm onSuccess={fetchData} />
-            <BlackoutContactsList contacts={contacts} onDelete={(id) => setDeleteConfirm({ type: 'contacts', id })} />
+            <BlackoutContactsList contacts={contacts} onDelete={(id) => handleDelete('contacts', id)} />
           </div>
         )}
 
         {activeTab === 'addresses' && (
           <div className="space-y-6">
             <BlackoutAddressForm onSuccess={fetchData} />
-            <BlackoutAddressesList addresses={addresses} onDelete={(id) => setDeleteConfirm({ type: 'addresses', id })} />
+            <BlackoutAddressesList addresses={addresses} onDelete={(id) => handleDelete('addresses', id)} />
           </div>
         )}
 
@@ -248,7 +257,7 @@ export function BlackoutTab() {
                   <Calendar className="w-5 h-5 mr-2 text-blue-600" />
                   Blackout Dates ({dates.length})
                 </h3>
-                <BlackoutDatesList dates={dates} onDelete={(id) => setDeleteConfirm({ type: 'dates', id })} />
+                <BlackoutDatesList dates={dates} onDelete={(id) => handleDelete('dates', id)} />
               </div>
             )}
 
@@ -258,7 +267,7 @@ export function BlackoutTab() {
                   <UserX className="w-5 h-5 mr-2 text-red-600" />
                   Blocked Contacts ({contacts.length})
                 </h3>
-                <BlackoutContactsList contacts={contacts} onDelete={(id) => setDeleteConfirm({ type: 'contacts', id })} />
+                <BlackoutContactsList contacts={contacts} onDelete={(id) => handleDelete('contacts', id)} />
               </div>
             )}
 
@@ -268,7 +277,7 @@ export function BlackoutTab() {
                   <MapPin className="w-5 h-5 mr-2 text-green-600" />
                   Blocked Addresses ({addresses.length})
                 </h3>
-                <BlackoutAddressesList addresses={addresses} onDelete={(id) => setDeleteConfirm({ type: 'addresses', id })} />
+                <BlackoutAddressesList addresses={addresses} onDelete={(id) => handleDelete('addresses', id)} />
               </div>
             )}
 
@@ -331,18 +340,6 @@ export function BlackoutTab() {
           </div>
         )}
       </div>
-
-      {deleteConfirm && (
-        <ConfirmationModal
-          isOpen={true}
-          title="Remove Blackout"
-          message="Are you sure you want to remove this blackout? This action cannot be undone."
-          confirmLabel="Remove"
-          confirmStyle="danger"
-          onConfirm={() => handleDelete(deleteConfirm.type, deleteConfirm.id)}
-          onCancel={() => setDeleteConfirm(null)}
-        />
-      )}
     </div>
   );
 }
