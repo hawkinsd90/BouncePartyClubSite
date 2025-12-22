@@ -400,23 +400,23 @@ export function ChangelogTab() {
                         <div>
                           <h3 className="font-bold text-slate-900 flex items-center gap-2">
                             <span>Order Updated - {orderGroup.customer_name}</span>
-                            <a
-                              href={`#order-${orderGroup.order_id}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                notify('Click on the order ID in the Orders tab to view full details', 'info');
-                              }}
-                              className="text-blue-600 hover:text-blue-800"
-                              title="View order details"
-                            >
-                              <ExternalLink className="w-4 h-4" />
-                            </a>
                           </h3>
                           <p className="text-sm text-slate-600">
                             {orderGroup.change_count} change{orderGroup.change_count > 1 ? 's' : ''} made to this order
                           </p>
                           <p className="text-xs text-slate-500 mt-1">
-                            Order ID: {orderGroup.order_id.substring(0, 8)}...
+                            Order ID:{' '}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigator.clipboard.writeText(orderGroup.order_id);
+                                notify('Order ID copied! Switch to Orders tab to search for it', 'info');
+                              }}
+                              className="text-blue-600 hover:text-blue-800 hover:underline font-mono"
+                              title="Click to copy Order ID"
+                            >
+                              {orderGroup.order_id.substring(0, 8)}...
+                            </button>
                           </p>
                         </div>
                         <div className="flex flex-col items-end gap-1 flex-shrink-0">

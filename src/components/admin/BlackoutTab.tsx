@@ -189,6 +189,7 @@ export function BlackoutTab() {
       if (error) throw error;
 
       notify('Holiday settings updated successfully', 'success');
+      fetchData(); // Refresh to update the count
     } catch (error: any) {
       notify(error.message, 'error');
     } finally {

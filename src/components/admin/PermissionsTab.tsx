@@ -6,9 +6,9 @@ import { LoadingSpinner } from '../common/LoadingSpinner';
 import { ConfirmationModal } from '../shared/ConfirmationModal';
 
 interface UserRole {
-  id: string;
+  id: string | null;
   user_id: string;
-  role: 'master' | 'admin' | 'crew';
+  role: 'master' | 'admin' | 'crew' | null;
   created_at: string;
   email?: string;
   full_name?: string;
@@ -58,7 +58,8 @@ export function PermissionsTab() {
 
       setCurrentUserRole(roleData?.role?.toLowerCase() as any || null);
 
-      const { data: usersData, error } = await supabase
+      // Fetch all user roles
+      const { data: userRolesData, error: rolesError } = await supabase
         .from('user_roles')
         .select(`
           id,
@@ -69,14 +70,14 @@ export function PermissionsTab() {
         .order('role', { ascending: true })
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (rolesError) throw rolesError;
 
-      const userIds = (usersData || []).map(u => u.user_id);
-
+      // Get session for API calls
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('No session');
 
-      const response = await fetch(
+      // Fetch ALL authenticated users
+      const allUsersResponse = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-user-info`,
         {
           method: 'POST',
@@ -84,24 +85,49 @@ export function PermissionsTab() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({ user_ids: userIds }),
+          body: JSON.stringify({ user_ids: 'all' }),
         }
       );
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch user info');
+      if (!allUsersResponse.ok) {
+        throw new Error('Failed to fetch all users');
       }
 
-      const { userInfo } = await response.json();
+      const { userInfo } = await allUsersResponse.json();
 
-      const usersWithEmails = (usersData || []).map(userRole => ({
-        ...userRole,
-        role: userRole.role.toLowerCase() as 'master' | 'admin' | 'crew',
-        email: userInfo[userRole.user_id]?.email || 'Unknown',
-        full_name: userInfo[userRole.user_id]?.full_name || 'Unknown User',
-      }));
+      // Create a map of user roles
+      const rolesMap = new Map<string, any>();
+      (userRolesData || []).forEach(roleEntry => {
+        rolesMap.set(roleEntry.user_id, roleEntry);
+      });
 
-      setUsers(usersWithEmails);
+      // Combine all users with their roles (or null if no role)
+      const allUsers: UserRole[] = Object.entries(userInfo).map(([userId, info]: [string, any]) => {
+        const roleEntry = rolesMap.get(userId);
+        return {
+          id: roleEntry?.id || null,
+          user_id: userId,
+          role: roleEntry?.role?.toLowerCase() || null,
+          created_at: roleEntry?.created_at || info.created_at || new Date().toISOString(),
+          email: info.email || 'Unknown',
+          full_name: info.full_name || info.email || 'Unknown User',
+        };
+      });
+
+      // Sort: users with roles first, then by role, then alphabetically
+      allUsers.sort((a, b) => {
+        if (a.role && !b.role) return -1;
+        if (!a.role && b.role) return 1;
+        if (a.role && b.role) {
+          const roleOrder = { master: 0, admin: 1, crew: 2 };
+          const aOrder = roleOrder[a.role];
+          const bOrder = roleOrder[b.role];
+          if (aOrder !== bOrder) return aOrder - bOrder;
+        }
+        return (a.email || '').localeCompare(b.email || '');
+      });
+
+      setUsers(allUsers);
     } catch (error: any) {
       notify(error.message, 'error');
     } finally {
@@ -155,7 +181,9 @@ export function PermissionsTab() {
     }
   }
 
-  async function handleChangeRole(user: UserRole, newRole: 'master' | 'admin' | 'crew') {
+  async function handleChangeRole(user: UserRole, newRole: 'master' | 'admin' | 'crew' | null) {
+    if (!newRole) return;
+
     if (currentUserRole === 'admin' && (newRole === 'master' || newRole === 'admin')) {
       notify('Only Master users can assign Master or Admin roles', 'error');
       return;
@@ -167,16 +195,32 @@ export function PermissionsTab() {
     }
 
     try {
-      const { error } = await supabase
-        .from('user_roles')
-        .update({ role: newRole })
-        .eq('user_id', user.user_id);
+      // If user has no role yet, insert a new role
+      if (!user.role) {
+        const { error } = await supabase
+          .from('user_roles')
+          .insert({
+            user_id: user.user_id,
+            role: newRole.toUpperCase(),
+          });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      await sendPermissionChangeEmail('changed', user.email || '', newRole, user.role);
+        await sendPermissionChangeEmail('added', user.email || '', newRole);
+        notify('Role assigned successfully', 'success');
+      } else {
+        // Update existing role
+        const { error } = await supabase
+          .from('user_roles')
+          .update({ role: newRole.toUpperCase() })
+          .eq('user_id', user.user_id);
 
-      notify('Role updated successfully', 'success');
+        if (error) throw error;
+
+        await sendPermissionChangeEmail('changed', user.email || '', newRole, user.role);
+        notify('Role updated successfully', 'success');
+      }
+
       fetchData();
     } catch (error: any) {
       notify(error.message, 'error');
@@ -323,9 +367,9 @@ export function PermissionsTab() {
     }
   }
 
-  function canModifyUser(targetRole: string): boolean {
+  function canModifyUser(targetRole: string | null): boolean {
     if (currentUserRole === 'master') return true;
-    if (currentUserRole === 'admin' && targetRole === 'crew') return true;
+    if (currentUserRole === 'admin' && (!targetRole || targetRole === 'crew')) return true;
     return false;
   }
 
@@ -388,29 +432,34 @@ export function PermissionsTab() {
                   {canModifyUser(user.role) && (
                     <>
                       <select
-                        value={user.role}
+                        value={user.role || ''}
                         onChange={(e) => handleChangeRole(user, e.target.value as any)}
                         className="px-4 py-2 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none"
                         disabled={!canModifyUser(user.role)}
                       >
+                        {!user.role && <option value="">Select Role...</option>}
                         <option value="crew">Crew</option>
                         {currentUserRole === 'master' && <option value="admin">Admin</option>}
                         {currentUserRole === 'master' && <option value="master">Master</option>}
                       </select>
-                      <button
-                        onClick={() => loadChangelog(user.user_id)}
-                        className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                        title="View changelog"
-                      >
-                        <History className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => setUserToDelete(user)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Remove user"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
+                      {user.role && (
+                        <>
+                          <button
+                            onClick={() => loadChangelog(user.user_id)}
+                            className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                            title="View changelog"
+                          >
+                            <History className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => setUserToDelete(user)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Remove role"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </>
+                      )}
                     </>
                   )}
                   {!canModifyUser(user.role) && (

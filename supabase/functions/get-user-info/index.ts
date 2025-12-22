@@ -46,33 +46,58 @@ Deno.serve(async (req: Request) => {
 
     const { user_ids } = await req.json();
 
-    if (!Array.isArray(user_ids)) {
-      throw new Error('user_ids must be an array');
-    }
+    const userInfo: Record<string, { email: string; full_name: string; created_at?: string }> = {};
 
-    const userInfo: Record<string, { email: string; full_name: string }> = {};
-
-    for (const userId of user_ids) {
+    // If user_ids is 'all', fetch all authenticated users
+    if (user_ids === 'all') {
       try {
-        const { data: userData } = await supabase.auth.admin.getUserById(userId);
-        if (userData?.user) {
-          userInfo[userId] = {
-            email: userData.user.email || 'Unknown',
-            full_name: userData.user.user_metadata?.full_name || 
-                      userData.user.email ||
+        // Fetch all users using admin API
+        const { data: allUsers, error: listError } = await supabase.auth.admin.listUsers();
+        
+        if (listError) throw listError;
+
+        for (const user of allUsers.users || []) {
+          userInfo[user.id] = {
+            email: user.email || 'Unknown',
+            full_name: user.user_metadata?.full_name || 
+                      user.email ||
                       'Unknown User',
+            created_at: user.created_at,
           };
-        } else {
+        }
+      } catch (error) {
+        console.error('Error fetching all users:', error);
+        throw new Error('Failed to fetch all users');
+      }
+    } else {
+      // Original behavior: fetch specific users
+      if (!Array.isArray(user_ids)) {
+        throw new Error('user_ids must be an array or "all"');
+      }
+
+      for (const userId of user_ids) {
+        try {
+          const { data: userData } = await supabase.auth.admin.getUserById(userId);
+          if (userData?.user) {
+            userInfo[userId] = {
+              email: userData.user.email || 'Unknown',
+              full_name: userData.user.user_metadata?.full_name || 
+                        userData.user.email ||
+                        'Unknown User',
+              created_at: userData.user.created_at,
+            };
+          } else {
+            userInfo[userId] = {
+              email: 'Unknown',
+              full_name: 'Unknown User',
+            };
+          }
+        } catch {
           userInfo[userId] = {
             email: 'Unknown',
             full_name: 'Unknown User',
           };
         }
-      } catch {
-        userInfo[userId] = {
-          email: 'Unknown',
-          full_name: 'Unknown User',
-        };
       }
     }
 
