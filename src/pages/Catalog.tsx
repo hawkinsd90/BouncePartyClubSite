@@ -257,6 +257,10 @@ export function Catalog() {
                   </div>
                   <div class="detail-row">
                     <span class="detail-label">Age Range:</span>
+                    <span class="detail-value">All Ages</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Capacity:</span>
                     <span class="detail-value">${unit.capacity} kids at a time</span>
                   </div>
                   <div class="detail-row">
