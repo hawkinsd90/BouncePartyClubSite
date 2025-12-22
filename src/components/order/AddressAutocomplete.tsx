@@ -85,22 +85,24 @@ export function AddressAutocomplete({
         style.textContent = `
           gmp-place-autocomplete {
             width: 100%;
+            display: block;
           }
           gmp-place-autocomplete input {
-            width: 100%;
-            padding: 0.5rem 0.75rem;
-            border: 1px solid #d1d5db;
-            border-radius: 0.375rem;
-            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            font-size: 1rem;
-            line-height: 1.5rem;
-            color: #111827;
-            background-color: white;
+            width: 100% !important;
+            padding: 0.5rem 0.75rem !important;
+            border: 1px solid #d1d5db !important;
+            border-radius: 0.375rem !important;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+            font-size: 1rem !important;
+            line-height: 1.5rem !important;
+            color: #111827 !important;
+            background-color: #ffffff !important;
+            background: #ffffff !important;
           }
           gmp-place-autocomplete input:focus {
-            outline: 2px solid #3b82f6;
-            outline-offset: 2px;
-            border-color: #3b82f6;
+            outline: 2px solid #3b82f6 !important;
+            outline-offset: 2px !important;
+            border-color: #3b82f6 !important;
           }
         `;
         if (!document.getElementById('gmp-autocomplete-styles')) {
@@ -151,7 +153,12 @@ export function AddressAutocomplete({
           console.log('[AddressAutocomplete] Calling onSelect callback...');
           setError('');
 
-          // Call the callback
+          // Call onChange first with the formatted address
+          if (onChangeRef.current) {
+            onChangeRef.current(result.formatted_address);
+          }
+
+          // Then call onSelect with the full result
           try {
             onSelectRef.current(result);
             console.log('[AddressAutocomplete] onSelect callback completed successfully');
@@ -266,6 +273,17 @@ export function AddressAutocomplete({
       }
     };
   }, [placeholder, required]);
+
+  // Sync the value prop with the web component's internal input
+  useEffect(() => {
+    if (autocompleteElementRef.current) {
+      const inputElement = autocompleteElementRef.current.querySelector('input');
+      if (inputElement && inputElement.value !== value) {
+        console.log('[AddressAutocomplete] Syncing value to web component:', value);
+        inputElement.value = value;
+      }
+    }
+  }, [value]);
 
   return (
     <div>
