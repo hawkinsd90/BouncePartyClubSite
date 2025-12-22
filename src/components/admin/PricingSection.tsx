@@ -25,6 +25,16 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
   const [saving, setSaving] = useState(false);
   const [editedRules, setEditedRules] = useState(initialRules);
 
+  // Track display values during editing
+  const [displayValues, setDisplayValues] = useState({
+    perMile: '',
+    sandbag: '',
+    deposit: '',
+    generatorSingle: '',
+    generatorMultiple: '',
+    sameDayPickup: ''
+  });
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -59,6 +69,19 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
     setIsEditing(false);
   };
 
+  const handleStartEdit = () => {
+    // Initialize display values from current rules
+    setDisplayValues({
+      perMile: (editedRules.per_mile_after_base_cents / 100).toFixed(2),
+      sandbag: (editedRules.surface_sandbag_fee_cents / 100).toFixed(2),
+      deposit: ((editedRules.deposit_per_unit_cents || 5000) / 100).toFixed(2),
+      generatorSingle: ((editedRules.generator_fee_single_cents || 10000) / 100).toFixed(2),
+      generatorMultiple: ((editedRules.generator_fee_multiple_cents || 7500) / 100).toFixed(2),
+      sameDayPickup: ((editedRules.same_day_pickup_fee_cents || 0) / 100).toFixed(2)
+    });
+    setIsEditing(true);
+  };
+
   const handleCitiesChange = (value: string) => {
     const cities = value.split(',').map(c => c.trim()).filter(c => c.length > 0);
     setEditedRules({ ...editedRules, included_cities: cities.length > 0 ? cities : null });
@@ -70,7 +93,7 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
         <h2 className="text-2xl font-bold text-slate-900">Pricing Configuration</h2>
         {!isEditing && (
           <button
-            onClick={() => setIsEditing(true)}
+            onClick={handleStartEdit}
             className="flex items-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
           >
             <Edit2 className="w-4 h-4 mr-2" />
@@ -121,9 +144,10 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
           </label>
           <input
             type="text"
-            value={(editedRules.per_mile_after_base_cents / 100).toFixed(2)}
+            value={isEditing ? displayValues.perMile : (editedRules.per_mile_after_base_cents / 100).toFixed(2)}
             onChange={(e) => {
               const value = e.target.value.replace(/[^0-9.]/g, '');
+              setDisplayValues({ ...displayValues, perMile: value });
               setEditedRules({ ...editedRules, per_mile_after_base_cents: Math.round(Number(value || 0) * 100) });
             }}
             readOnly={!isEditing}
@@ -139,9 +163,10 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
           </label>
           <input
             type="text"
-            value={(editedRules.surface_sandbag_fee_cents / 100).toFixed(2)}
+            value={isEditing ? displayValues.sandbag : (editedRules.surface_sandbag_fee_cents / 100).toFixed(2)}
             onChange={(e) => {
               const value = e.target.value.replace(/[^0-9.]/g, '');
+              setDisplayValues({ ...displayValues, sandbag: value });
               setEditedRules({ ...editedRules, surface_sandbag_fee_cents: Math.round(Number(value || 0) * 100) });
             }}
             readOnly={!isEditing}
@@ -157,9 +182,10 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
           </label>
           <input
             type="text"
-            value={((editedRules.deposit_per_unit_cents || 5000) / 100).toFixed(2)}
+            value={isEditing ? displayValues.deposit : ((editedRules.deposit_per_unit_cents || 5000) / 100).toFixed(2)}
             onChange={(e) => {
               const value = e.target.value.replace(/[^0-9.]/g, '');
+              setDisplayValues({ ...displayValues, deposit: value });
               setEditedRules({ ...editedRules, deposit_per_unit_cents: Math.round(Number(value || 0) * 100) });
             }}
             readOnly={!isEditing}
@@ -178,9 +204,10 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
           </label>
           <input
             type="text"
-            value={((editedRules.generator_fee_single_cents || 10000) / 100).toFixed(2)}
+            value={isEditing ? displayValues.generatorSingle : ((editedRules.generator_fee_single_cents || 10000) / 100).toFixed(2)}
             onChange={(e) => {
               const value = e.target.value.replace(/[^0-9.]/g, '');
+              setDisplayValues({ ...displayValues, generatorSingle: value });
               setEditedRules({ ...editedRules, generator_fee_single_cents: Math.round(Number(value || 0) * 100) });
             }}
             readOnly={!isEditing}
@@ -199,9 +226,10 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
           </label>
           <input
             type="text"
-            value={((editedRules.generator_fee_multiple_cents || 7500) / 100).toFixed(2)}
+            value={isEditing ? displayValues.generatorMultiple : ((editedRules.generator_fee_multiple_cents || 7500) / 100).toFixed(2)}
             onChange={(e) => {
               const value = e.target.value.replace(/[^0-9.]/g, '');
+              setDisplayValues({ ...displayValues, generatorMultiple: value });
               setEditedRules({ ...editedRules, generator_fee_multiple_cents: Math.round(Number(value || 0) * 100) });
             }}
             readOnly={!isEditing}
@@ -220,9 +248,10 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
           </label>
           <input
             type="text"
-            value={((editedRules.same_day_pickup_fee_cents || 0) / 100).toFixed(2)}
+            value={isEditing ? displayValues.sameDayPickup : ((editedRules.same_day_pickup_fee_cents || 0) / 100).toFixed(2)}
             onChange={(e) => {
               const value = e.target.value.replace(/[^0-9.]/g, '');
+              setDisplayValues({ ...displayValues, sameDayPickup: value });
               setEditedRules({ ...editedRules, same_day_pickup_fee_cents: Math.round(Number(value || 0) * 100) });
             }}
             readOnly={!isEditing}
