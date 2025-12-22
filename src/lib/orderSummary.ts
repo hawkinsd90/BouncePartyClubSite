@@ -265,89 +265,37 @@ function calculateTotalFromOrder(order: any, discounts: OrderDiscount[], customF
 }
 
 export function formatOrderSummary(data: OrderSummaryData): OrderSummaryDisplay {
+  const { buildOrderSummaryDisplay } = require('./orderSummaryHelpers');
+
   const items = data.items.map(item => ({
     name: item.units?.name || 'Unknown Item',
     mode: item.wet_or_dry === 'water' ? 'Water' : 'Dry',
     price: item.unit_price_cents,
     qty: item.qty,
-    lineTotal: item.unit_price_cents * item.qty,
     isNew: item.is_new || false,
   }));
 
-  const fees: Array<{ name: string; amount: number }> = [];
-
-  if (data.travel_fee_cents > 0) {
-    // Build travel fee display name with total miles
-    console.log('[formatOrderSummary] Formatting travel fee:', {
+  return buildOrderSummaryDisplay({
+    items,
+    fees: {
       travel_fee_cents: data.travel_fee_cents,
       travel_total_miles: data.travel_total_miles,
-      willShowMiles: data.travel_total_miles > 0,
-    });
-
-    const travelFeeName = data.travel_total_miles > 0
-      ? `Travel Fee (${data.travel_total_miles.toFixed(1)} mi)`
-      : 'Travel Fee';
-    fees.push({ name: travelFeeName, amount: data.travel_fee_cents });
-  }
-
-  if (data.surface_fee_cents > 0) {
-    fees.push({ name: 'Surface Fee (Sandbags)', amount: data.surface_fee_cents });
-  }
-
-  if (data.same_day_pickup_fee_cents > 0) {
-    fees.push({ name: 'Same-Day Pickup Fee', amount: data.same_day_pickup_fee_cents });
-  }
-
-  if (data.generator_fee_cents > 0) {
-    const generatorLabel = data.generator_qty > 1
-      ? `Generator (${data.generator_qty}x)`
-      : 'Generator';
-    fees.push({ name: generatorLabel, amount: data.generator_fee_cents });
-  }
-
-  const discounts = data.discounts.map(discount => {
-    let amount = discount.amount_cents || 0;
-    if (discount.percentage) {
-      amount = Math.round(data.subtotal_cents * (discount.percentage / 100));
-    }
-    return {
-      name: discount.name,
-      amount: amount,
-    };
+      surface_fee_cents: data.surface_fee_cents,
+      same_day_pickup_fee_cents: data.same_day_pickup_fee_cents,
+      generator_fee_cents: data.generator_fee_cents,
+      generator_qty: data.generator_qty,
+    },
+    discounts: data.discounts,
+    customFees: data.customFees,
+    subtotal_cents: data.subtotal_cents,
+    tax_cents: data.tax_cents,
+    tip_cents: data.tip_cents || 0,
+    total_cents: data.total_cents,
+    deposit_due_cents: data.deposit_due_cents,
+    deposit_paid_cents: data.deposit_paid_cents,
+    balance_due_cents: data.balance_due_cents,
+    event_date: data.event_date,
+    event_end_date: data.event_end_date,
+    pickup_preference: data.pickup_preference,
   });
-
-  const customFees = data.customFees.map(fee => ({
-    name: fee.name,
-    amount: fee.amount_cents,
-  }));
-
-  const totalFees = fees.reduce((sum, fee) => sum + fee.amount, 0);
-  const totalDiscounts = discounts.reduce((sum, d) => sum + d.amount, 0);
-  const totalCustomFees = customFees.reduce((sum, f) => sum + f.amount, 0);
-
-  const taxableAmount = data.subtotal_cents + totalFees + totalCustomFees - totalDiscounts;
-  const tip = data.tip_cents || 0;
-  const total = taxableAmount + data.tax_cents + tip;
-
-  const isMultiDay = data.event_end_date && data.event_end_date !== data.event_date;
-
-  return {
-    items,
-    fees,
-    discounts,
-    customFees,
-    subtotal: data.subtotal_cents,
-    totalFees,
-    totalDiscounts,
-    totalCustomFees,
-    taxableAmount,
-    tax: data.tax_cents,
-    tip,
-    total,
-    depositDue: data.deposit_due_cents,
-    depositPaid: data.deposit_paid_cents,
-    balanceDue: data.balance_due_cents,
-    isMultiDay: !!isMultiDay,
-    pickupPreference: data.pickup_preference,
-  };
 }

@@ -1,9 +1,15 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Calendar, UserX, MapPin, Plus, Trash2, Edit2, Save, X, List, PartyPopper } from 'lucide-react';
+import { Calendar, UserX, MapPin, List, PartyPopper } from 'lucide-react';
 import { notify } from '../../lib/notifications';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { ConfirmationModal } from '../shared/ConfirmationModal';
+import { BlackoutDateForm } from './blackout/BlackoutDateForm';
+import { BlackoutDatesList } from './blackout/BlackoutDatesList';
+import { BlackoutContactForm } from './blackout/BlackoutContactForm';
+import { BlackoutContactsList } from './blackout/BlackoutContactsList';
+import { BlackoutAddressForm } from './blackout/BlackoutAddressForm';
+import { BlackoutAddressesList } from './blackout/BlackoutAddressesList';
 
 interface BlackoutDate {
   id: string;
@@ -42,14 +48,9 @@ export function BlackoutTab() {
   const [contacts, setContacts] = useState<BlackoutContact[]>([]);
   const [addresses, setAddresses] = useState<BlackoutAddress[]>([]);
   const [loading, setLoading] = useState(true);
-  const [adding, setAdding] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: string; id: string } | null>(null);
   const [overnightHolidayOnly, setOvernightHolidayOnly] = useState(false);
   const [savingHolidaySettings, setSavingHolidaySettings] = useState(false);
-
-  const [newDate, setNewDate] = useState({ start_date: '', end_date: '', reason: '', notes: '' });
-  const [newContact, setNewContact] = useState({ email: '', phone: '', customer_name: '', reason: '', notes: '' });
-  const [newAddress, setNewAddress] = useState({ address_line1: '', address_line2: '', city: '', state: '', zip_code: '', reason: '', notes: '' });
 
   useEffect(() => {
     fetchData();
@@ -77,83 +78,6 @@ export function BlackoutTab() {
       notify(error.message, 'error');
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function handleAddDate() {
-    if (!newDate.start_date || !newDate.end_date || !newDate.reason) {
-      notify('Please fill in all required fields', 'error');
-      return;
-    }
-
-    setAdding(true);
-    try {
-      const { error } = await supabase.from('blackout_dates').insert([newDate]);
-      if (error) throw error;
-
-      notify('Blackout date added successfully', 'success');
-      setNewDate({ start_date: '', end_date: '', reason: '', notes: '' });
-      fetchData();
-    } catch (error: any) {
-      notify(error.message, 'error');
-    } finally {
-      setAdding(false);
-    }
-  }
-
-  async function handleAddContact() {
-    if ((!newContact.email && !newContact.phone) || !newContact.reason) {
-      notify('Please provide at least email or phone, and a reason', 'error');
-      return;
-    }
-
-    setAdding(true);
-    try {
-      const { error } = await supabase.from('blackout_contacts').insert([{
-        email: newContact.email || null,
-        phone: newContact.phone || null,
-        customer_name: newContact.customer_name || null,
-        reason: newContact.reason,
-        notes: newContact.notes || null,
-      }]);
-      if (error) throw error;
-
-      notify('Contact blacklisted successfully', 'success');
-      setNewContact({ email: '', phone: '', customer_name: '', reason: '', notes: '' });
-      fetchData();
-    } catch (error: any) {
-      notify(error.message, 'error');
-    } finally {
-      setAdding(false);
-    }
-  }
-
-  async function handleAddAddress() {
-    if (!newAddress.address_line1 || !newAddress.city || !newAddress.state || !newAddress.zip_code || !newAddress.reason) {
-      notify('Please fill in all required fields', 'error');
-      return;
-    }
-
-    setAdding(true);
-    try {
-      const { error } = await supabase.from('blackout_addresses').insert([{
-        address_line1: newAddress.address_line1,
-        address_line2: newAddress.address_line2 || null,
-        city: newAddress.city,
-        state: newAddress.state,
-        zip_code: newAddress.zip_code,
-        reason: newAddress.reason,
-        notes: newAddress.notes || null,
-      }]);
-      if (error) throw error;
-
-      notify('Address blacklisted successfully', 'success');
-      setNewAddress({ address_line1: '', address_line2: '', city: '', state: '', zip_code: '', reason: '', notes: '' });
-      fetchData();
-    } catch (error: any) {
-      notify(error.message, 'error');
-    } finally {
-      setAdding(false);
     }
   }
 
@@ -189,7 +113,7 @@ export function BlackoutTab() {
       if (error) throw error;
 
       notify('Holiday settings updated successfully', 'success');
-      fetchData(); // Refresh to update the count
+      fetchData();
     } catch (error: any) {
       notify(error.message, 'error');
     } finally {
@@ -274,298 +198,22 @@ export function BlackoutTab() {
 
         {activeTab === 'dates' && (
           <div className="space-y-6">
-            <div className="bg-slate-50 rounded-xl p-6 border-2 border-slate-200">
-              <h3 className="text-lg font-bold text-slate-900 mb-4">Add Blackout Date Range</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Start Date</label>
-                  <input
-                    type="date"
-                    value={newDate.start_date}
-                    onChange={(e) => setNewDate({ ...newDate, start_date: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">End Date</label>
-                  <input
-                    type="date"
-                    value={newDate.end_date}
-                    onChange={(e) => setNewDate({ ...newDate, end_date: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Reason</label>
-                  <input
-                    type="text"
-                    value={newDate.reason}
-                    onChange={(e) => setNewDate({ ...newDate, reason: e.target.value })}
-                    placeholder="e.g., Christmas Holiday, Maintenance Day"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Notes (Optional)</label>
-                  <textarea
-                    value={newDate.notes}
-                    onChange={(e) => setNewDate({ ...newDate, notes: e.target.value })}
-                    rows={2}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
-                  />
-                </div>
-              </div>
-              <button
-                onClick={handleAddDate}
-                disabled={adding}
-                className="mt-4 flex items-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg disabled:opacity-50"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                {adding ? 'Adding...' : 'Add Blackout Date'}
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {dates.map((date) => (
-                <div key={date.id} className="border-2 border-slate-200 rounded-xl p-4 hover:border-blue-300 transition-colors">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <Calendar className="w-5 h-5 text-blue-600" />
-                        <span className="font-bold text-slate-900">
-                          {new Date(date.start_date).toLocaleDateString()} - {new Date(date.end_date).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <p className="text-slate-700"><strong>Reason:</strong> {date.reason}</p>
-                      {date.notes && <p className="text-sm text-slate-600 mt-1">{date.notes}</p>}
-                      <p className="text-xs text-slate-500 mt-2">Added: {new Date(date.created_at).toLocaleString()}</p>
-                    </div>
-                    <button
-                      onClick={() => setDeleteConfirm({ type: 'dates', id: date.id })}
-                      className="text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {dates.length === 0 && (
-                <p className="text-center text-slate-500 py-8">No blackout dates configured</p>
-              )}
-            </div>
+            <BlackoutDateForm onSuccess={fetchData} />
+            <BlackoutDatesList dates={dates} onDelete={(id) => setDeleteConfirm({ type: 'dates', id })} />
           </div>
         )}
 
         {activeTab === 'contacts' && (
           <div className="space-y-6">
-            <div className="bg-slate-50 rounded-xl p-6 border-2 border-slate-200">
-              <h3 className="text-lg font-bold text-slate-900 mb-4">Add Blocked Contact</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Email</label>
-                  <input
-                    type="email"
-                    value={newContact.email}
-                    onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
-                    placeholder="customer@example.com"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Phone</label>
-                  <input
-                    type="tel"
-                    value={newContact.phone}
-                    onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })}
-                    placeholder="+1234567890"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Customer Name (Optional)</label>
-                  <input
-                    type="text"
-                    value={newContact.customer_name}
-                    onChange={(e) => setNewContact({ ...newContact, customer_name: e.target.value })}
-                    placeholder="John Doe"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Reason</label>
-                  <input
-                    type="text"
-                    value={newContact.reason}
-                    onChange={(e) => setNewContact({ ...newContact, reason: e.target.value })}
-                    placeholder="e.g., Payment disputes, Property damage"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Notes (Optional)</label>
-                  <textarea
-                    value={newContact.notes}
-                    onChange={(e) => setNewContact({ ...newContact, notes: e.target.value })}
-                    rows={2}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
-                  />
-                </div>
-              </div>
-              <button
-                onClick={handleAddContact}
-                disabled={adding}
-                className="mt-4 flex items-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg disabled:opacity-50"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                {adding ? 'Adding...' : 'Add Blocked Contact'}
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {contacts.map((contact) => (
-                <div key={contact.id} className="border-2 border-slate-200 rounded-xl p-4 hover:border-blue-300 transition-colors">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <UserX className="w-5 h-5 text-red-600" />
-                        {contact.customer_name && <span className="font-bold text-slate-900">{contact.customer_name}</span>}
-                      </div>
-                      {contact.email && <p className="text-slate-700"><strong>Email:</strong> {contact.email}</p>}
-                      {contact.phone && <p className="text-slate-700"><strong>Phone:</strong> {contact.phone}</p>}
-                      <p className="text-slate-700 mt-2"><strong>Reason:</strong> {contact.reason}</p>
-                      {contact.notes && <p className="text-sm text-slate-600 mt-1">{contact.notes}</p>}
-                      <p className="text-xs text-slate-500 mt-2">Added: {new Date(contact.created_at).toLocaleString()}</p>
-                    </div>
-                    <button
-                      onClick={() => setDeleteConfirm({ type: 'contacts', id: contact.id })}
-                      className="text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {contacts.length === 0 && (
-                <p className="text-center text-slate-500 py-8">No blocked contacts</p>
-              )}
-            </div>
+            <BlackoutContactForm onSuccess={fetchData} />
+            <BlackoutContactsList contacts={contacts} onDelete={(id) => setDeleteConfirm({ type: 'contacts', id })} />
           </div>
         )}
 
         {activeTab === 'addresses' && (
           <div className="space-y-6">
-            <div className="bg-slate-50 rounded-xl p-6 border-2 border-slate-200">
-              <h3 className="text-lg font-bold text-slate-900 mb-4">Add Blocked Address</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Address Line 1</label>
-                  <input
-                    type="text"
-                    value={newAddress.address_line1}
-                    onChange={(e) => setNewAddress({ ...newAddress, address_line1: e.target.value })}
-                    placeholder="123 Main St"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Address Line 2 (Optional)</label>
-                  <input
-                    type="text"
-                    value={newAddress.address_line2}
-                    onChange={(e) => setNewAddress({ ...newAddress, address_line2: e.target.value })}
-                    placeholder="Apt 4B"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">City</label>
-                  <input
-                    type="text"
-                    value={newAddress.city}
-                    onChange={(e) => setNewAddress({ ...newAddress, city: e.target.value })}
-                    placeholder="Detroit"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">State</label>
-                  <input
-                    type="text"
-                    value={newAddress.state}
-                    onChange={(e) => setNewAddress({ ...newAddress, state: e.target.value })}
-                    placeholder="MI"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">ZIP Code</label>
-                  <input
-                    type="text"
-                    value={newAddress.zip_code}
-                    onChange={(e) => setNewAddress({ ...newAddress, zip_code: e.target.value })}
-                    placeholder="48201"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Reason</label>
-                  <input
-                    type="text"
-                    value={newAddress.reason}
-                    onChange={(e) => setNewAddress({ ...newAddress, reason: e.target.value })}
-                    placeholder="e.g., Restricted area, Safety concerns"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Notes (Optional)</label>
-                  <textarea
-                    value={newAddress.notes}
-                    onChange={(e) => setNewAddress({ ...newAddress, notes: e.target.value })}
-                    rows={2}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
-                  />
-                </div>
-              </div>
-              <button
-                onClick={handleAddAddress}
-                disabled={adding}
-                className="mt-4 flex items-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg disabled:opacity-50"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                {adding ? 'Adding...' : 'Add Blocked Address'}
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {addresses.map((address) => (
-                <div key={address.id} className="border-2 border-slate-200 rounded-xl p-4 hover:border-blue-300 transition-colors">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <MapPin className="w-5 h-5 text-red-600" />
-                        <span className="font-bold text-slate-900">Blocked Address</span>
-                      </div>
-                      <p className="text-slate-700">{address.address_line1}</p>
-                      {address.address_line2 && <p className="text-slate-700">{address.address_line2}</p>}
-                      <p className="text-slate-700">{address.city}, {address.state} {address.zip_code}</p>
-                      <p className="text-slate-700 mt-2"><strong>Reason:</strong> {address.reason}</p>
-                      {address.notes && <p className="text-sm text-slate-600 mt-1">{address.notes}</p>}
-                      <p className="text-xs text-slate-500 mt-2">Added: {new Date(address.created_at).toLocaleString()}</p>
-                    </div>
-                    <button
-                      onClick={() => setDeleteConfirm({ type: 'addresses', id: address.id })}
-                      className="text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {addresses.length === 0 && (
-                <p className="text-center text-slate-500 py-8">No blocked addresses</p>
-              )}
-            </div>
+            <BlackoutAddressForm onSuccess={fetchData} />
+            <BlackoutAddressesList addresses={addresses} onDelete={(id) => setDeleteConfirm({ type: 'addresses', id })} />
           </div>
         )}
 
@@ -579,7 +227,7 @@ export function BlackoutTab() {
             </div>
 
             {overnightHolidayOnly && (
-              <div className="border-2 border-amber-300 bg-amber-50 rounded-xl p-4 mb-6">
+              <div className="border-2 border-amber-300 bg-amber-50 rounded-xl p-4">
                 <div className="flex items-start gap-3">
                   <div className="p-2 bg-amber-200 rounded-lg">
                     <PartyPopper className="w-5 h-5 text-amber-700" />
@@ -600,30 +248,7 @@ export function BlackoutTab() {
                   <Calendar className="w-5 h-5 mr-2 text-blue-600" />
                   Blackout Dates ({dates.length})
                 </h3>
-                <div className="space-y-3">
-                  {dates.map((date) => (
-                    <div key={date.id} className="border-2 border-slate-200 rounded-xl p-4 bg-white">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <Calendar className="w-5 h-5 text-blue-600" />
-                            <span className="font-bold text-slate-900">
-                              {new Date(date.start_date).toLocaleDateString()} - {new Date(date.end_date).toLocaleDateString()}
-                            </span>
-                          </div>
-                          <p className="text-slate-700"><strong>Reason:</strong> {date.reason}</p>
-                          {date.notes && <p className="text-sm text-slate-600 mt-1">{date.notes}</p>}
-                        </div>
-                        <button
-                          onClick={() => setDeleteConfirm({ type: 'dates', id: date.id })}
-                          className="text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <BlackoutDatesList dates={dates} onDelete={(id) => setDeleteConfirm({ type: 'dates', id })} />
               </div>
             )}
 
@@ -633,94 +258,17 @@ export function BlackoutTab() {
                   <UserX className="w-5 h-5 mr-2 text-red-600" />
                   Blocked Contacts ({contacts.length})
                 </h3>
-                <div className="space-y-3">
-                  {contacts.map((contact) => (
-                    <div key={contact.id} className="border-2 border-slate-200 rounded-xl p-4 bg-white">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <UserX className="w-5 h-5 text-red-600" />
-                            {contact.customer_name && <span className="font-bold text-slate-900">{contact.customer_name}</span>}
-                          </div>
-                          {contact.email && <p className="text-slate-700"><strong>Email:</strong> {contact.email}</p>}
-                          {contact.phone && <p className="text-slate-700"><strong>Phone:</strong> {contact.phone}</p>}
-                          <p className="text-slate-700 mt-2"><strong>Reason:</strong> {contact.reason}</p>
-                          {contact.notes && <p className="text-sm text-slate-600 mt-1">{contact.notes}</p>}
-                        </div>
-                        <button
-                          onClick={() => setDeleteConfirm({ type: 'contacts', id: contact.id })}
-                          className="text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <BlackoutContactsList contacts={contacts} onDelete={(id) => setDeleteConfirm({ type: 'contacts', id })} />
               </div>
             )}
 
             {addresses.length > 0 && (
               <div>
                 <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center">
-                  <MapPin className="w-5 h-5 mr-2 text-red-600" />
+                  <MapPin className="w-5 h-5 mr-2 text-green-600" />
                   Blocked Addresses ({addresses.length})
                 </h3>
-                <div className="space-y-3">
-                  {addresses.map((address) => (
-                    <div key={address.id} className="border-2 border-slate-200 rounded-xl p-4 bg-white">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <MapPin className="w-5 h-5 text-red-600" />
-                            <span className="font-bold text-slate-900">Blocked Address</span>
-                          </div>
-                          <p className="text-slate-700">{address.address_line1}</p>
-                          {address.address_line2 && <p className="text-slate-700">{address.address_line2}</p>}
-                          <p className="text-slate-700">{address.city}, {address.state} {address.zip_code}</p>
-                          <p className="text-slate-700 mt-2"><strong>Reason:</strong> {address.reason}</p>
-                          {address.notes && <p className="text-sm text-slate-600 mt-1">{address.notes}</p>}
-                        </div>
-                        <button
-                          onClick={() => setDeleteConfirm({ type: 'addresses', id: address.id })}
-                          className="text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {overnightHolidayOnly && (
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center">
-                  <PartyPopper className="w-5 h-5 mr-2 text-amber-600" />
-                  Holiday Restrictions (1)
-                </h3>
-                <div className="space-y-3">
-                  <div className="border-2 border-amber-300 rounded-xl p-4 bg-amber-50">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2 mb-2">
-                          <PartyPopper className="w-5 h-5 text-amber-600" />
-                          <span className="font-bold text-slate-900">Overnight Holiday Only Restriction</span>
-                        </div>
-                        <p className="text-slate-700">Only overnight rentals are allowed on holidays. Same-day pickups are blocked.</p>
-                        <p className="text-sm text-slate-600 mt-2">This applies to all holiday dates in the system.</p>
-                      </div>
-                      <button
-                        onClick={() => setActiveTab('holidays')}
-                        className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-colors"
-                        title="Manage in Holiday Settings"
-                      >
-                        <Edit2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                <BlackoutAddressesList addresses={addresses} onDelete={(id) => setDeleteConfirm({ type: 'addresses', id })} />
               </div>
             )}
 

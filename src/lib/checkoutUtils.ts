@@ -1,5 +1,6 @@
 import { OrderSummaryDisplay } from './orderSummary';
 import { dollarsToCents } from './utils';
+import { buildOrderSummaryDisplay } from './orderSummaryHelpers';
 
 export function getPaymentAmountCents(
   paymentAmount: 'deposit' | 'full' | 'custom',
@@ -41,43 +42,26 @@ export function buildOrderSummary(
     mode: item.wet_or_dry === 'water' ? 'Water' : 'Dry',
     price: item.unit_price_cents,
     qty: 1,
-    lineTotal: item.unit_price_cents,
   }));
 
-  const fees: Array<{ name: string; amount: number }> = [];
-  if (priceBreakdown.travel_fee_cents > 0) {
-    fees.push({ name: priceBreakdown.travel_fee_display_name || 'Travel Fee', amount: priceBreakdown.travel_fee_cents });
-  }
-  if (priceBreakdown.surface_fee_cents > 0) {
-    fees.push({ name: 'Surface Fee (Sandbags)', amount: priceBreakdown.surface_fee_cents });
-  }
-  if (priceBreakdown.same_day_pickup_fee_cents > 0) {
-    fees.push({ name: 'Same-Day Pickup Fee', amount: priceBreakdown.same_day_pickup_fee_cents });
-  }
-  if (priceBreakdown.generator_fee_cents > 0) {
-    fees.push({ name: 'Generator Rental', amount: priceBreakdown.generator_fee_cents });
-  }
-
-  const totalFees = fees.reduce((sum, fee) => sum + fee.amount, 0);
-  const taxableAmount = priceBreakdown.subtotal_cents + totalFees;
-
-  return {
+  return buildOrderSummaryDisplay({
     items,
-    fees,
+    fees: {
+      travel_fee_cents: priceBreakdown.travel_fee_cents,
+      travel_fee_display_name: priceBreakdown.travel_fee_display_name,
+      surface_fee_cents: priceBreakdown.surface_fee_cents,
+      same_day_pickup_fee_cents: priceBreakdown.same_day_pickup_fee_cents,
+      generator_fee_cents: priceBreakdown.generator_fee_cents,
+    },
     discounts: [],
     customFees: [],
-    subtotal: priceBreakdown.subtotal_cents,
-    totalFees,
-    totalDiscounts: 0,
-    totalCustomFees: 0,
-    taxableAmount,
-    tax: priceBreakdown.tax_cents,
-    tip: tipCents,
-    total: priceBreakdown.total_cents,
-    depositDue: priceBreakdown.deposit_due_cents,
-    depositPaid: 0,
-    balanceDue: priceBreakdown.balance_due_cents,
-    isMultiDay: false,
-    pickupPreference: quoteData?.pickup_preference || 'next_day',
-  };
+    subtotal_cents: priceBreakdown.subtotal_cents,
+    tax_cents: priceBreakdown.tax_cents,
+    tip_cents: tipCents,
+    total_cents: priceBreakdown.total_cents,
+    deposit_due_cents: priceBreakdown.deposit_due_cents,
+    deposit_paid_cents: 0,
+    balance_due_cents: priceBreakdown.balance_due_cents,
+    pickup_preference: quoteData?.pickup_preference || 'next_day',
+  });
 }
