@@ -71,6 +71,7 @@ export function AddressAutocomplete({
           const place = autocomplete.getPlace();
 
           if (!place.geometry || !place.geometry.location) {
+            console.log('[AddressAutocomplete] No geometry in place');
             setError('Please select a valid address from the dropdown');
             return;
           }
@@ -99,6 +100,7 @@ export function AddressAutocomplete({
             lng: place.geometry.location.lng(),
           };
 
+          console.log('[AddressAutocomplete] Address selected:', result);
           setInputValue(place.formatted_address || '');
           setError('');
           onSelect(result);
