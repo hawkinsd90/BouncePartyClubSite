@@ -46,7 +46,8 @@ export function useQuotePricing(cart: CartItem[], formData: QuoteFormData, prici
       distance_miles,
       city: formData.city,
       zip: formData.zip,
-      has_generator: formData.has_generator,
+      has_generator: formData.has_generator || formData.generator_qty > 0,
+      generator_qty: formData.generator_qty || 0,
       rules: pricingRules,
     });
 

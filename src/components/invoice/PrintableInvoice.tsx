@@ -1,5 +1,7 @@
 import { formatCurrency } from '../../lib/pricing';
 import { format } from 'date-fns';
+import { useDataFetch } from '../../hooks/useDataFetch';
+import { supabase } from '../../lib/supabase';
 
 interface PrintableInvoiceProps {
   quoteData: any;
@@ -31,6 +33,21 @@ export function PrintableInvoice({
   paymentLast4,
 }: PrintableInvoiceProps) {
   const today = format(new Date(), 'MMMM d, yyyy');
+
+  const { data: pricingRules } = useDataFetch(
+    async () => {
+      const { data, error } = await supabase
+        .from('pricing_rules')
+        .select('deposit_per_unit_cents')
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    { showErrorNotification: false }
+  );
+
+  const depositAmount = formatCurrency(pricingRules?.deposit_per_unit_cents || 5000);
 
   const formatPaymentMethod = () => {
     if (!paymentMethod) return null;
@@ -256,7 +273,7 @@ export function PrintableInvoice({
                   Deposit Information
                 </h4>
                 <p className="text-slate-700 leading-relaxed mb-2">
-                  This booking requires a minimum $50 deposit per inflatable to reserve your event date with Bounce Party Club. The remaining balance is due on or before the day of your event. You may choose to pay the full amount at booking.
+                  This booking requires a minimum {depositAmount} deposit per inflatable to reserve your event date with Bounce Party Club. The remaining balance is due on or before the day of your event. You may choose to pay the full amount at booking.
                 </p>
                 <p className="font-medium text-slate-900 mb-2">Cancellation & Weather Policy Summary</p>
                 <ul className="list-disc pl-5 space-y-1 text-slate-600 mb-2">

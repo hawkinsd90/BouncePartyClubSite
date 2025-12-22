@@ -1,6 +1,24 @@
 import { FileText } from 'lucide-react';
+import { useDataFetch } from '../../hooks/useDataFetch';
+import { supabase } from '../../lib/supabase';
+import { formatCurrency } from '../../lib/pricing';
 
 export function RentalTerms() {
+  const { data: pricingRules } = useDataFetch(
+    async () => {
+      const { data, error } = await supabase
+        .from('pricing_rules')
+        .select('deposit_per_unit_cents')
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    { showErrorNotification: false }
+  );
+
+  const depositAmount = formatCurrency(pricingRules?.deposit_per_unit_cents || 5000);
+
   return (
     <div className="bg-white rounded-xl shadow-md p-6">
       <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center">
@@ -12,7 +30,7 @@ export function RentalTerms() {
         <div>
           <h3 className="font-semibold text-slate-900 mb-2">Deposit Information</h3>
           <p className="text-slate-700 leading-relaxed mb-2">
-            This booking requires a minimum $50 deposit per inflatable to reserve your event date with Bounce Party Club. The remaining balance is due on or before the day of your event. You may choose to pay the full amount at booking.
+            This booking requires a minimum {depositAmount} deposit per inflatable to reserve your event date with Bounce Party Club. The remaining balance is due on or before the day of your event. You may choose to pay the full amount at booking.
           </p>
           <p className="font-medium text-slate-900 mb-2">Cancellation & Weather Policy Summary</p>
           <ul className="list-disc pl-5 space-y-1 text-slate-600 mb-3">

@@ -149,8 +149,11 @@ export function useInvoicePricing(
   );
 
   const defaultDeposit = useMemo(
-    () => cartItems.reduce((sum, item) => sum + item.qty * 5000, 0),
-    [cartItems]
+    () => {
+      const depositPerUnit = pricingRules?.deposit_per_unit_cents || 5000;
+      return cartItems.reduce((sum, item) => sum + item.qty * depositPerUnit, 0);
+    },
+    [cartItems, pricingRules]
   );
 
   return {
