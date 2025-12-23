@@ -1,4 +1,4 @@
-import { calculateDrivingDistance } from './pricing';
+import { calculateDrivingDistance } from './distanceCalculator';
 import { HOME_BASE } from './constants';
 
 export interface TravelFeeCalculationInput {
@@ -24,27 +24,35 @@ export interface TravelFeeCalculationResult {
   display_name: string;
 }
 
-export async function calculateTravelFee(
-  input: TravelFeeCalculationInput
-): Promise<TravelFeeCalculationResult> {
+export interface TravelFeeFromDistanceInput {
+  distance_miles: number;
+  city: string;
+  zip: string;
+  baseRadiusMiles: number;
+  perMileAfterBaseCents: number;
+  includedCities: string[];
+  zoneOverrides: Array<{ zip: string; flat_cents: number }>;
+}
+
+export function calculateTravelFeeFromDistance(
+  input: TravelFeeFromDistanceInput
+): {
+  travel_fee_cents: number;
+  chargeable_miles: number;
+  is_flat_fee: boolean;
+  zone_name?: string;
+  is_included_city: boolean;
+  display_name: string;
+} {
   const {
+    distance_miles,
     city,
     zip,
-    lat,
-    lng,
     baseRadiusMiles,
     perMileAfterBaseCents,
     includedCities,
     zoneOverrides,
   } = input;
-
-  // Calculate actual driving distance
-  const distance_miles = await calculateDrivingDistance(
-    HOME_BASE.lat,
-    HOME_BASE.lng,
-    lat,
-    lng
-  );
 
   // Check if city is in included (free) cities
   const is_included_city = includedCities.some(
@@ -82,14 +90,52 @@ export async function calculateTravelFee(
   }
 
   return {
-    distance_miles,
-    chargeable_miles,
     travel_fee_cents,
+    chargeable_miles,
     is_flat_fee,
     zone_name,
     is_included_city,
+    display_name,
+  };
+}
+
+export async function calculateTravelFee(
+  input: TravelFeeCalculationInput
+): Promise<TravelFeeCalculationResult> {
+  const {
+    city,
+    zip,
+    lat,
+    lng,
+    baseRadiusMiles,
+    perMileAfterBaseCents,
+    includedCities,
+    zoneOverrides,
+  } = input;
+
+  // Calculate actual driving distance
+  const distance_miles = await calculateDrivingDistance(
+    HOME_BASE.lat,
+    HOME_BASE.lng,
+    lat,
+    lng
+  );
+
+  // Use shared logic for fee calculation
+  const result = calculateTravelFeeFromDistance({
+    distance_miles,
+    city,
+    zip,
+    baseRadiusMiles,
+    perMileAfterBaseCents,
+    includedCities,
+    zoneOverrides,
+  });
+
+  return {
+    distance_miles,
+    ...result,
     base_radius_miles: baseRadiusMiles,
     per_mile_cents: perMileAfterBaseCents,
-    display_name,
   };
 }
