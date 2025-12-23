@@ -20,6 +20,7 @@ import { useEventDetails } from '../../hooks/useEventDetails';
 import { useDepositOverride } from '../../hooks/useDepositOverride';
 import { generateInvoice } from '../../lib/invoiceService';
 import { buildInvoiceSummary } from '../../lib/invoiceSummaryBuilder';
+import { checkMultipleUnitsAvailability } from '../../lib/availability';
 
 export function InvoiceBuilder() {
   const { customers, units, pricingRules, addCustomer } = useInvoiceData();
@@ -70,6 +71,30 @@ export function InvoiceBuilder() {
 
     setSaving(true);
     try {
+      // Check availability before creating invoice
+      const availabilityChecks = cartItems.map(item => ({
+        unitId: item.unit_id,
+        eventStartDate: eventDetails.event_date,
+        eventEndDate: eventDetails.event_end_date,
+      }));
+
+      const availabilityResults = await checkMultipleUnitsAvailability(availabilityChecks);
+      const unavailableUnits = availabilityResults.filter(result => !result.isAvailable);
+
+      if (unavailableUnits.length > 0) {
+        const unitNames = unavailableUnits.map(u => {
+          const unit = units.find(unit => unit.id === u.unitId);
+          return unit?.name || 'Unknown unit';
+        }).join(', ');
+
+        showToast(
+          `Cannot create invoice: The following units are not available for the selected dates: ${unitNames}. Please check the calendar for conflicts.`,
+          'error'
+        );
+        setSaving(false);
+        return;
+      }
+
       const customer = customers.find(c => c.id === customerManagement.selectedCustomer);
 
       const result = await generateInvoice(

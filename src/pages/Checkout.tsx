@@ -6,6 +6,7 @@ import { createOrderBeforePayment } from '../lib/orderCreation';
 import { useAuth } from '../contexts/AuthContext';
 import { useCheckoutData } from '../hooks/useCheckoutData';
 import { getPaymentAmountCents, getTipAmountCents, buildOrderSummary } from '../lib/checkoutUtils';
+import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { ContactInformationForm } from '../components/checkout/ContactInformationForm';
 import { BillingAddressForm } from '../components/checkout/BillingAddressForm';
 import { PaymentAmountSelector } from '../components/checkout/PaymentAmountSelector';
@@ -66,6 +67,29 @@ export function Checkout() {
     setProcessing(true);
 
     try {
+      // Re-check availability before creating order (prevent race conditions)
+      const availabilityChecks = cart.map(item => ({
+        unitId: item.unit_id,
+        eventStartDate: quoteData.event_date,
+        eventEndDate: quoteData.event_end_date,
+      }));
+
+      const availabilityResults = await checkMultipleUnitsAvailability(availabilityChecks);
+      const unavailableUnits = availabilityResults.filter(result => !result.isAvailable);
+
+      if (unavailableUnits.length > 0) {
+        const unitNames = unavailableUnits.map(u => {
+          const cartItem = cart.find(item => item.unit_id === u.unitId);
+          return cartItem?.unit_name || 'Unknown unit';
+        }).join(', ');
+
+        alert(
+          `Sorry, the following units are no longer available for your selected dates: ${unitNames}. Please return to the quote page and select different units or dates.`
+        );
+        setProcessing(false);
+        return;
+      }
+
       const orderId = await createOrderBeforePayment({
         contactData,
         quoteData,

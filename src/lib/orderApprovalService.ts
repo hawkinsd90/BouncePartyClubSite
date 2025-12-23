@@ -5,6 +5,7 @@ import {
   generateConfirmationSmsMessage,
   generateRejectionSmsMessage,
 } from './orderEmailTemplates';
+import { checkMultipleUnitsAvailability } from './availability';
 
 interface ApprovalResult {
   success: boolean;
@@ -16,6 +17,47 @@ export async function approveOrder(
   sendSms: (message: string) => Promise<boolean>
 ): Promise<ApprovalResult> {
   try {
+    // First, fetch the order and check availability
+    const { data: orderData } = await supabase
+      .from('orders')
+      .select('*, order_items (*)')
+      .eq('id', orderId)
+      .single();
+
+    if (!orderData) {
+      throw new Error('Order not found');
+    }
+
+    // Check availability before approving
+    const orderItems = orderData.order_items as any[];
+    const availabilityChecks = orderItems.map(item => ({
+      unitId: item.unit_id,
+      eventStartDate: orderData.event_date,
+      eventEndDate: orderData.event_end_date,
+      excludeOrderId: orderId, // Exclude this order from conflict check
+    }));
+
+    const availabilityResults = await checkMultipleUnitsAvailability(availabilityChecks);
+    const unavailableUnits = availabilityResults.filter(result => !result.isAvailable);
+
+    if (unavailableUnits.length > 0) {
+      // Fetch unit names for error message
+      const { data: units } = await supabase
+        .from('units')
+        .select('id, name')
+        .in('id', unavailableUnits.map(u => u.unitId));
+
+      const unitNames = unavailableUnits.map(u => {
+        const unit = units?.find(unit => unit.id === u.unitId);
+        return unit?.name || 'Unknown unit';
+      }).join(', ');
+
+      throw new Error(
+        `Cannot approve order: The following units are no longer available for the selected dates: ${unitNames}. Please check the calendar for conflicts.`
+      );
+    }
+
+    // Proceed with charging deposit
     const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/charge-deposit`;
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -34,16 +76,6 @@ export async function approveOrder(
     }
 
     console.log('Deposit charged successfully:', data);
-
-    const { data: orderData } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('id', orderId)
-      .single();
-
-    if (!orderData) {
-      throw new Error('Order not found');
-    }
 
     const { data: invoiceNumberData } = await supabase.rpc('generate_invoice_number');
     const invoiceNumber = invoiceNumberData || `INV-${Date.now()}`;
@@ -101,6 +133,47 @@ export async function approveOrder(
 
 export async function forceApproveOrder(orderId: string): Promise<ApprovalResult> {
   try {
+    // Fetch the order and check availability
+    const { data: orderData } = await supabase
+      .from('orders')
+      .select('*, order_items (*)')
+      .eq('id', orderId)
+      .single();
+
+    if (!orderData) {
+      throw new Error('Order not found');
+    }
+
+    // Check availability before force approving
+    const orderItems = orderData.order_items as any[];
+    const availabilityChecks = orderItems.map(item => ({
+      unitId: item.unit_id,
+      eventStartDate: orderData.event_date,
+      eventEndDate: orderData.event_end_date,
+      excludeOrderId: orderId, // Exclude this order from conflict check
+    }));
+
+    const availabilityResults = await checkMultipleUnitsAvailability(availabilityChecks);
+    const unavailableUnits = availabilityResults.filter(result => !result.isAvailable);
+
+    if (unavailableUnits.length > 0) {
+      // Fetch unit names for error message
+      const { data: units } = await supabase
+        .from('units')
+        .select('id, name')
+        .in('id', unavailableUnits.map(u => u.unitId));
+
+      const unitNames = unavailableUnits.map(u => {
+        const unit = units?.find(unit => unit.id === u.unitId);
+        return unit?.name || 'Unknown unit';
+      }).join(', ');
+
+      throw new Error(
+        `Cannot force approve order: The following units are not available: ${unitNames}. There are conflicting bookings for these dates.`
+      );
+    }
+
+    // Proceed with force approval
     const { error } = await supabase
       .from('orders')
       .update({ status: 'confirmed' })

@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { formatCurrency } from './pricing';
+import { checkMultipleUnitsAvailability } from './availability';
 
 interface OrderData {
   contactData: {
@@ -29,6 +30,27 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     smsConsent,
     cardOnFileConsent,
   } = data;
+
+  // 0. CRITICAL SAFETY CHECK: Verify availability before creating order
+  const availabilityChecks = cart.map(item => ({
+    unitId: item.unit_id,
+    eventStartDate: quoteData.event_date,
+    eventEndDate: quoteData.event_end_date,
+  }));
+
+  const availabilityResults = await checkMultipleUnitsAvailability(availabilityChecks);
+  const unavailableUnits = availabilityResults.filter(result => !result.isAvailable);
+
+  if (unavailableUnits.length > 0) {
+    const unitNames = unavailableUnits.map(u => {
+      const cartItem = cart.find(item => item.unit_id === u.unitId);
+      return cartItem?.unit_name || 'Unknown unit';
+    }).join(', ');
+
+    throw new Error(
+      `Cannot create order: The following units are not available for the selected dates: ${unitNames}. Please select different units or dates.`
+    );
+  }
 
   // 1. Create or update customer
   let customer;
