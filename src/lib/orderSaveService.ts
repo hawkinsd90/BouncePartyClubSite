@@ -13,6 +13,11 @@ interface SaveOrderChangesParams {
   adminOverrideApproval: boolean;
   availabilityIssues: any[];
   taxWaived?: boolean;
+  taxWaiveReason?: string;
+  travelFeeWaived?: boolean;
+  travelFeeWaiveReason?: string;
+  sameDayPickupFeeWaived?: boolean;
+  sameDayPickupFeeWaiveReason?: string;
   logChangeFn: (field: string, oldValue: any, newValue: any, action?: 'update' | 'add' | 'remove') => Promise<void>;
   sendNotificationsFn: () => Promise<void>;
   onComplete: () => void;
@@ -30,6 +35,11 @@ export async function saveOrderChanges({
   adminOverrideApproval,
   availabilityIssues,
   taxWaived,
+  taxWaiveReason,
+  travelFeeWaived,
+  travelFeeWaiveReason,
+  sameDayPickupFeeWaived,
+  sameDayPickupFeeWaiveReason,
   logChangeFn,
   sendNotificationsFn,
   onComplete,
@@ -183,7 +193,37 @@ export async function saveOrderChanges({
   // Handle tax waived changes
   if (taxWaived !== undefined && taxWaived !== (order.tax_waived || false)) {
     changes.tax_waived = taxWaived;
-    logs.push(['tax_waived', order.tax_waived || false, taxWaived]);
+    const reasonInfo = taxWaived && taxWaiveReason ? ` (Reason: ${taxWaiveReason})` : '';
+    logs.push(['tax_waived', order.tax_waived || false, `${taxWaived}${reasonInfo}`]);
+  }
+
+  // Handle tax waive reason changes
+  if (taxWaiveReason !== undefined && taxWaiveReason !== (order.tax_waive_reason || '')) {
+    changes.tax_waive_reason = taxWaiveReason || null;
+  }
+
+  // Handle travel fee waived changes
+  if (travelFeeWaived !== undefined && travelFeeWaived !== (order.travel_fee_waived || false)) {
+    changes.travel_fee_waived = travelFeeWaived;
+    const reasonInfo = travelFeeWaived && travelFeeWaiveReason ? ` (Reason: ${travelFeeWaiveReason})` : '';
+    logs.push(['travel_fee_waived', order.travel_fee_waived || false, `${travelFeeWaived}${reasonInfo}`]);
+  }
+
+  // Handle travel fee waive reason changes
+  if (travelFeeWaiveReason !== undefined && travelFeeWaiveReason !== (order.travel_fee_waive_reason || '')) {
+    changes.travel_fee_waive_reason = travelFeeWaiveReason || null;
+  }
+
+  // Handle same day pickup fee waived changes
+  if (sameDayPickupFeeWaived !== undefined && sameDayPickupFeeWaived !== (order.same_day_pickup_fee_waived || false)) {
+    changes.same_day_pickup_fee_waived = sameDayPickupFeeWaived;
+    const reasonInfo = sameDayPickupFeeWaived && sameDayPickupFeeWaiveReason ? ` (Reason: ${sameDayPickupFeeWaiveReason})` : '';
+    logs.push(['same_day_pickup_fee_waived', order.same_day_pickup_fee_waived || false, `${sameDayPickupFeeWaived}${reasonInfo}`]);
+  }
+
+  // Handle same day pickup fee waive reason changes
+  if (sameDayPickupFeeWaiveReason !== undefined && sameDayPickupFeeWaiveReason !== (order.same_day_pickup_fee_waive_reason || '')) {
+    changes.same_day_pickup_fee_waive_reason = sameDayPickupFeeWaiveReason || null;
   }
 
   // Determine if we need to clear payment method

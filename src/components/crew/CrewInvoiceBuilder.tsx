@@ -103,6 +103,11 @@ export function CrewInvoiceBuilder() {
           customFees: [],
           adminMessage,
           taxWaived: false,
+          taxWaiveReason: null,
+          travelFeeWaived: false,
+          travelFeeWaiveReason: null,
+          sameDayPickupFeeWaived: false,
+          sameDayPickupFeeWaiveReason: null,
         },
         customer
       );

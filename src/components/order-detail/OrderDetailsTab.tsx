@@ -8,6 +8,7 @@ import { CustomFeesManager } from './CustomFeesManager';
 import { DepositOverride } from './DepositOverride';
 import { AdminMessage } from './AdminMessage';
 import { TaxWaiver } from './TaxWaiver';
+import { FeeWaiver } from '../shared/FeeWaiver';
 
 interface OrderDetailsTabProps {
   order: any;
@@ -27,6 +28,11 @@ interface OrderDetailsTabProps {
   customDepositInput: string;
   adminMessage: string;
   taxWaived: boolean;
+  taxWaiveReason?: string;
+  travelFeeWaived: boolean;
+  travelFeeWaiveReason?: string;
+  sameDayPickupFeeWaived: boolean;
+  sameDayPickupFeeWaiveReason?: string;
   onOrderChange: (updates: any) => void;
   onAddressSelect: (result: any) => void;
   onRemoveItem: (item: any) => void;
@@ -37,7 +43,9 @@ interface OrderDetailsTabProps {
   onDepositApply: (amountCents: number) => void;
   onDepositClear: () => void;
   onAdminMessageChange: (value: string) => void;
-  onTaxWaivedToggle: () => void;
+  onTaxWaivedToggle: (reason: string) => void;
+  onTravelFeeWaivedToggle: (reason: string) => void;
+  onSameDayPickupFeeWaivedToggle: (reason: string) => void;
   onStatusChange: (status: string) => void;
   onMarkChanges: () => void;
 }
@@ -60,6 +68,11 @@ export function OrderDetailsTab({
   customDepositInput,
   adminMessage,
   taxWaived,
+  taxWaiveReason,
+  travelFeeWaived,
+  travelFeeWaiveReason,
+  sameDayPickupFeeWaived,
+  sameDayPickupFeeWaiveReason,
   onOrderChange,
   onAddressSelect,
   onRemoveItem,
@@ -71,6 +84,8 @@ export function OrderDetailsTab({
   onDepositClear,
   onAdminMessageChange,
   onTaxWaivedToggle,
+  onTravelFeeWaivedToggle,
+  onSameDayPickupFeeWaivedToggle,
   onStatusChange,
   onMarkChanges,
 }: OrderDetailsTabProps) {
@@ -238,8 +253,29 @@ export function OrderDetailsTab({
       <TaxWaiver
         taxCents={calculatedPricing?.tax_cents || order.tax_cents}
         taxWaived={taxWaived}
+        taxWaiveReason={taxWaiveReason}
         onToggle={onTaxWaivedToggle}
       />
+
+      <FeeWaiver
+        feeName="Travel Fee"
+        feeAmount={calculatedPricing?.travel_fee_cents || order.travel_fee_cents}
+        isWaived={travelFeeWaived}
+        waiveReason={travelFeeWaiveReason}
+        onToggle={onTravelFeeWaivedToggle}
+        color="orange"
+      />
+
+      {(calculatedPricing?.same_day_pickup_fee_cents > 0 || order.same_day_pickup_fee_cents > 0) && (
+        <FeeWaiver
+          feeName="Same Day Pickup Fee"
+          feeAmount={calculatedPricing?.same_day_pickup_fee_cents || order.same_day_pickup_fee_cents}
+          isWaived={sameDayPickupFeeWaived}
+          waiveReason={sameDayPickupFeeWaiveReason}
+          onToggle={onSameDayPickupFeeWaivedToggle}
+          color="blue"
+        />
+      )}
 
       <AdminMessage
         value={adminMessage}

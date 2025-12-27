@@ -52,6 +52,11 @@ interface InvoiceData {
   customFees: CustomFee[];
   adminMessage: string;
   taxWaived?: boolean;
+  taxWaiveReason?: string;
+  travelFeeWaived?: boolean;
+  travelFeeWaiveReason?: string;
+  sameDayPickupFeeWaived?: boolean;
+  sameDayPickupFeeWaiveReason?: string;
 }
 
 async function createAddress(eventDetails: EventDetails) {
@@ -82,7 +87,12 @@ async function createOrder(
   totalCents: number,
   customDepositCents: number | null,
   adminMessage: string,
-  taxWaived: boolean = false
+  taxWaived: boolean = false,
+  taxWaiveReason: string | null = null,
+  travelFeeWaived: boolean = false,
+  travelFeeWaiveReason: string | null = null,
+  sameDayPickupFeeWaived: boolean = false,
+  sameDayPickupFeeWaiveReason: string | null = null
 ) {
   const { data, error } = await supabase
     .from('orders')
@@ -112,6 +122,11 @@ async function createOrder(
       generator_fee_cents: priceBreakdown?.generator_fee_cents || 0,
       tax_cents: taxCents,
       tax_waived: taxWaived,
+      tax_waive_reason: taxWaiveReason,
+      travel_fee_waived: travelFeeWaived,
+      travel_fee_waive_reason: travelFeeWaiveReason,
+      same_day_pickup_fee_waived: sameDayPickupFeeWaived,
+      same_day_pickup_fee_waive_reason: sameDayPickupFeeWaiveReason,
       deposit_due_cents: depositRequired,
       balance_due_cents: totalCents - depositRequired,
       custom_deposit_cents: customDepositCents,
@@ -216,7 +231,12 @@ export async function generateInvoice(invoiceData: InvoiceData, customer: any | 
     invoiceData.totalCents,
     invoiceData.customDepositCents,
     invoiceData.adminMessage,
-    invoiceData.taxWaived || false
+    invoiceData.taxWaived || false,
+    invoiceData.taxWaiveReason || null,
+    invoiceData.travelFeeWaived || false,
+    invoiceData.travelFeeWaiveReason || null,
+    invoiceData.sameDayPickupFeeWaived || false,
+    invoiceData.sameDayPickupFeeWaiveReason || null
   );
 
   await createOrderItems(order.id, invoiceData.cartItems);

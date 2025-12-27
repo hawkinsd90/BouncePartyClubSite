@@ -7,6 +7,7 @@ import { CustomFeesManager } from '../order-detail/CustomFeesManager';
 import { EventDetailsEditor } from '../order-detail/EventDetailsEditor';
 import { DepositOverride } from '../order-detail/DepositOverride';
 import { TaxWaiver } from '../order-detail/TaxWaiver';
+import { FeeWaiver } from '../shared/FeeWaiver';
 import { CustomerSelector } from '../invoice/CustomerSelector';
 import { NewCustomerForm } from '../invoice/NewCustomerForm';
 import { CartItemsList } from '../invoice/CartItemsList';
@@ -35,6 +36,11 @@ export function InvoiceBuilder() {
   const [invoiceUrl, setInvoiceUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const [taxWaived, setTaxWaived] = useState(false);
+  const [taxWaiveReason, setTaxWaiveReason] = useState('');
+  const [travelFeeWaived, setTravelFeeWaived] = useState(false);
+  const [travelFeeWaiveReason, setTravelFeeWaiveReason] = useState('');
+  const [sameDayPickupFeeWaived, setSameDayPickupFeeWaived] = useState(false);
+  const [sameDayPickupFeeWaiveReason, setSameDayPickupFeeWaiveReason] = useState('');
 
   const pricing = useInvoicePricing(cartItems, eventDetails, pricingRules, discounts, customFees);
   const deposit = useDepositOverride(pricing.defaultDeposit);
@@ -112,6 +118,11 @@ export function InvoiceBuilder() {
           customFees,
           adminMessage,
           taxWaived,
+          taxWaiveReason,
+          travelFeeWaived,
+          travelFeeWaiveReason,
+          sameDayPickupFeeWaived,
+          sameDayPickupFeeWaiveReason,
         },
         customer
       );
@@ -130,6 +141,11 @@ export function InvoiceBuilder() {
       deposit.resetDeposit();
       setAdminMessage('');
       setTaxWaived(false);
+      setTaxWaiveReason('');
+      setTravelFeeWaived(false);
+      setTravelFeeWaiveReason('');
+      setSameDayPickupFeeWaived(false);
+      setSameDayPickupFeeWaiveReason('');
       customerManagement.setSelectedCustomer('');
       resetEventDetails();
     } catch (error) {
@@ -241,9 +257,41 @@ export function InvoiceBuilder() {
           <TaxWaiver
             taxCents={pricing.taxCents}
             taxWaived={taxWaived}
-            onToggle={() => setTaxWaived(!taxWaived)}
+            taxWaiveReason={taxWaiveReason}
+            onToggle={(reason) => {
+              setTaxWaived(!taxWaived);
+              setTaxWaiveReason(reason);
+            }}
             compact={true}
           />
+
+          <FeeWaiver
+            feeName="Travel Fee"
+            feeAmount={pricing.priceBreakdown.travel_fee_cents}
+            isWaived={travelFeeWaived}
+            waiveReason={travelFeeWaiveReason}
+            onToggle={(reason) => {
+              setTravelFeeWaived(!travelFeeWaived);
+              setTravelFeeWaiveReason(reason);
+            }}
+            color="orange"
+            compact={true}
+          />
+
+          {pricing.priceBreakdown.same_day_pickup_fee_cents > 0 && (
+            <FeeWaiver
+              feeName="Same Day Pickup Fee"
+              feeAmount={pricing.priceBreakdown.same_day_pickup_fee_cents}
+              isWaived={sameDayPickupFeeWaived}
+              waiveReason={sameDayPickupFeeWaiveReason}
+              onToggle={(reason) => {
+                setSameDayPickupFeeWaived(!sameDayPickupFeeWaived);
+                setSameDayPickupFeeWaiveReason(reason);
+              }}
+              color="blue"
+              compact={true}
+            />
+          )}
 
           <AdminMessageSection message={adminMessage} onChange={setAdminMessage} />
 

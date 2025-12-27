@@ -5,13 +5,15 @@ import { formatCurrency } from '../../lib/pricing';
 interface TaxWaiverProps {
   taxCents: number;
   taxWaived: boolean;
-  onToggle: () => void;
+  taxWaiveReason?: string;
+  onToggle: (reason: string) => void;
   compact?: boolean;
 }
 
 export function TaxWaiver({
   taxCents,
   taxWaived,
+  taxWaiveReason,
   onToggle,
   compact = false,
 }: TaxWaiverProps) {
@@ -21,8 +23,8 @@ export function TaxWaiver({
     setShowConfirmation(true);
   };
 
-  const handleConfirm = () => {
-    onToggle();
+  const handleConfirm = (reason: string) => {
+    onToggle(reason);
     setShowConfirmation(false);
   };
 
@@ -57,6 +59,11 @@ export function TaxWaiver({
                 Tax Waived - Not charged to customer
               </div>
             )}
+            {taxWaived && taxWaiveReason && (
+              <div className="mt-2 text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded">
+                <strong>Reason:</strong> {taxWaiveReason}
+              </div>
+            )}
           </div>
           <button
             onClick={handleToggleClick}
@@ -74,6 +81,7 @@ export function TaxWaiver({
           <ConfirmationDialog
             taxWaived={taxWaived}
             taxCents={taxCents}
+            currentReason={taxWaiveReason}
             onConfirm={handleConfirm}
             onCancel={handleCancel}
           />
@@ -107,6 +115,11 @@ export function TaxWaiver({
               <p className="text-xs text-red-700">
                 Taxes have been waived and will not be charged to the customer.
               </p>
+              {taxWaiveReason && (
+                <p className="text-xs text-slate-700 mt-2 bg-white px-2 py-1 rounded">
+                  <strong>Reason:</strong> {taxWaiveReason}
+                </p>
+              )}
             </div>
           )}
           <button
@@ -126,6 +139,7 @@ export function TaxWaiver({
         <ConfirmationDialog
           taxWaived={taxWaived}
           taxCents={taxCents}
+          currentReason={taxWaiveReason}
           onConfirm={handleConfirm}
           onCancel={handleCancel}
         />
@@ -137,14 +151,25 @@ export function TaxWaiver({
 function ConfirmationDialog({
   taxWaived,
   taxCents,
+  currentReason,
   onConfirm,
   onCancel,
 }: {
   taxWaived: boolean;
   taxCents: number;
-  onConfirm: () => void;
+  currentReason?: string;
+  onConfirm: (reason: string) => void;
   onCancel: () => void;
 }) {
+  const [reason, setReason] = useState(currentReason || '');
+
+  const handleConfirm = () => {
+    if (!taxWaived && !reason.trim()) {
+      alert('Please provide a reason for waiving tax.');
+      return;
+    }
+    onConfirm(reason.trim());
+  };
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl shadow-xl max-w-md w-full border-2 border-red-600">
@@ -170,6 +195,22 @@ function ConfirmationDialog({
               : `This will waive the tax charge of ${formatCurrency(taxCents)} for this order. The customer will not be charged any tax.`}
           </p>
 
+          {!taxWaived && (
+            <div>
+              <label htmlFor="tax-waive-reason" className="block text-sm font-medium text-slate-700 mb-2">
+                Reason for Waiving Tax <span className="text-red-600">*</span>
+              </label>
+              <textarea
+                id="tax-waive-reason"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="e.g., Non-profit organization, Tax-exempt customer, Special promotion..."
+                rows={3}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+              />
+            </div>
+          )}
+
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
             <p className="text-sm text-amber-800">
               This change will be logged in the order changelog for auditing purposes.
@@ -186,7 +227,7 @@ function ConfirmationDialog({
             </button>
             <button
               type="button"
-              onClick={onConfirm}
+              onClick={handleConfirm}
               className="flex-1 px-4 py-2 rounded-lg text-white font-medium transition-colors bg-red-600 hover:bg-red-700"
             >
               {taxWaived ? 'Restore Tax' : 'Waive Tax'}

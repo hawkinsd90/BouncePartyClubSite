@@ -73,6 +73,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [customDepositInput, setCustomDepositInput] = useState('');
   const [currentOrderSummary, setCurrentOrderSummary] = useState<any>(null);
   const [taxWaived, setTaxWaived] = useState(order.tax_waived || false);
+  const [taxWaiveReason, setTaxWaiveReason] = useState(order.tax_waive_reason || '');
+  const [travelFeeWaived, setTravelFeeWaived] = useState(order.travel_fee_waived || false);
+  const [travelFeeWaiveReason, setTravelFeeWaiveReason] = useState(order.travel_fee_waive_reason || '');
+  const [sameDayPickupFeeWaived, setSameDayPickupFeeWaived] = useState(order.same_day_pickup_fee_waived || false);
+  const [sameDayPickupFeeWaiveReason, setSameDayPickupFeeWaiveReason] = useState(order.same_day_pickup_fee_waive_reason || '');
 
   const { updatedOrderSummary, calculatedPricing, recalculatePricing } = useOrderPricing();
   const { payments, pricingRules, reload: reloadOrderData } = useOrderDetails(order.id);
@@ -371,6 +376,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         adminOverrideApproval,
         availabilityIssues,
         taxWaived,
+        taxWaiveReason,
+        travelFeeWaived,
+        travelFeeWaiveReason,
+        sameDayPickupFeeWaived,
+        sameDayPickupFeeWaiveReason,
         logChangeFn: logChange,
         sendNotificationsFn: async () => {
           await sendOrderEditNotifications({ order, adminMessage });
@@ -516,6 +526,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               customDepositInput={customDepositInput}
               adminMessage={adminMessage}
               taxWaived={taxWaived}
+              taxWaiveReason={taxWaiveReason}
+              travelFeeWaived={travelFeeWaived}
+              travelFeeWaiveReason={travelFeeWaiveReason}
+              sameDayPickupFeeWaived={sameDayPickupFeeWaived}
+              sameDayPickupFeeWaiveReason={sameDayPickupFeeWaiveReason}
               onOrderChange={handleOrderChange}
               onAddressSelect={handleAddressSelect}
               onRemoveItem={stageRemoveItem}
@@ -536,8 +551,23 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 setAdminMessage(value);
                 setHasChanges(true);
               }}
-              onTaxWaivedToggle={() => {
+              onTaxWaivedToggle={(reason) => {
                 setTaxWaived(!taxWaived);
+                setTaxWaiveReason(reason);
+                setHasChanges(true);
+              }}
+              travelFeeWaived={travelFeeWaived}
+              travelFeeWaiveReason={travelFeeWaiveReason}
+              onTravelFeeWaivedToggle={(reason) => {
+                setTravelFeeWaived(!travelFeeWaived);
+                setTravelFeeWaiveReason(reason);
+                setHasChanges(true);
+              }}
+              sameDayPickupFeeWaived={sameDayPickupFeeWaived}
+              sameDayPickupFeeWaiveReason={sameDayPickupFeeWaiveReason}
+              onSameDayPickupFeeWaivedToggle={(reason) => {
+                setSameDayPickupFeeWaived(!sameDayPickupFeeWaived);
+                setSameDayPickupFeeWaiveReason(reason);
                 setHasChanges(true);
               }}
               onStatusChange={initiateStatusChange}
