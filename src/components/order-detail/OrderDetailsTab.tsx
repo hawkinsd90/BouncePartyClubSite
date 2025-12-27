@@ -259,17 +259,17 @@ export function OrderDetailsTab({
 
       <FeeWaiver
         feeName="Travel Fee"
-        feeAmount={calculatedPricing?.travel_fee_cents || order.travel_fee_cents}
+        feeAmount={calculatedPricing?.travel_fee_cents || order.travel_fee_cents || 0}
         isWaived={travelFeeWaived}
         waiveReason={travelFeeWaiveReason}
         onToggle={onTravelFeeWaivedToggle}
         color="orange"
       />
 
-      {(calculatedPricing?.same_day_pickup_fee_cents > 0 || order.same_day_pickup_fee_cents > 0) && (
+      {((calculatedPricing?.same_day_pickup_fee_cents || 0) > 0 || (order.same_day_pickup_fee_cents || 0) > 0) && (
         <FeeWaiver
           feeName="Same Day Pickup Fee"
-          feeAmount={calculatedPricing?.same_day_pickup_fee_cents || order.same_day_pickup_fee_cents}
+          feeAmount={calculatedPricing?.same_day_pickup_fee_cents || order.same_day_pickup_fee_cents || 0}
           isWaived={sameDayPickupFeeWaived}
           waiveReason={sameDayPickupFeeWaiveReason}
           onToggle={onSameDayPickupFeeWaivedToggle}

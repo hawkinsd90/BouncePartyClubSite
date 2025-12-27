@@ -267,7 +267,7 @@ export function InvoiceBuilder() {
 
           <FeeWaiver
             feeName="Travel Fee"
-            feeAmount={pricing.priceBreakdown.travel_fee_cents}
+            feeAmount={pricing.priceBreakdown?.travel_fee_cents || 0}
             isWaived={travelFeeWaived}
             waiveReason={travelFeeWaiveReason}
             onToggle={(reason) => {
@@ -278,10 +278,10 @@ export function InvoiceBuilder() {
             compact={true}
           />
 
-          {pricing.priceBreakdown.same_day_pickup_fee_cents > 0 && (
+          {(pricing.priceBreakdown?.same_day_pickup_fee_cents || 0) > 0 && (
             <FeeWaiver
               feeName="Same Day Pickup Fee"
-              feeAmount={pricing.priceBreakdown.same_day_pickup_fee_cents}
+              feeAmount={pricing.priceBreakdown?.same_day_pickup_fee_cents || 0}
               isWaived={sameDayPickupFeeWaived}
               waiveReason={sameDayPickupFeeWaiveReason}
               onToggle={(reason) => {
