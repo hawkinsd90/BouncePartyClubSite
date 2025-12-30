@@ -556,15 +556,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 setTaxWaiveReason(reason);
                 setHasChanges(true);
               }}
-              travelFeeWaived={travelFeeWaived}
-              travelFeeWaiveReason={travelFeeWaiveReason}
               onTravelFeeWaivedToggle={(reason) => {
                 setTravelFeeWaived(!travelFeeWaived);
                 setTravelFeeWaiveReason(reason);
                 setHasChanges(true);
               }}
-              sameDayPickupFeeWaived={sameDayPickupFeeWaived}
-              sameDayPickupFeeWaiveReason={sameDayPickupFeeWaiveReason}
               onSameDayPickupFeeWaivedToggle={(reason) => {
                 setSameDayPickupFeeWaived(!sameDayPickupFeeWaived);
                 setSameDayPickupFeeWaiveReason(reason);
