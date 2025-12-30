@@ -151,8 +151,8 @@ export function DiscountsManager({
   }
 
   return (
-    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-      <h3 className="font-semibold text-slate-900 mb-3">Discounts</h3>
+    <div className="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4">
+      <h3 className="text-sm sm:text-base font-semibold text-slate-900 mb-3">Discounts</h3>
 
       {discounts.length > 0 && (
         <div className="space-y-2 mb-4">
@@ -179,7 +179,7 @@ export function DiscountsManager({
         {savedTemplates.length > 0 && (
           <div>
             <label className="block text-xs text-slate-700 mb-1 font-medium">Load Saved Discount</label>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <select
                 value={selectedTemplateId}
                 onChange={(e) => handleTemplateSelect(e.target.value)}
@@ -195,10 +195,11 @@ export function DiscountsManager({
               {selectedTemplateId && (
                 <button
                   onClick={handleDeleteTemplate}
-                  className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-1 text-sm"
+                  className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center justify-center gap-1 text-sm"
                   title="Delete selected template"
                 >
                   <Trash2 className="w-4 h-4" />
+                  <span className="sm:hidden">Delete Template</span>
                 </button>
               )}
             </div>
@@ -211,7 +212,7 @@ export function DiscountsManager({
           placeholder="Discount name"
           className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
         />
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
           <div>
             <label className="block text-xs text-slate-700 mb-1 font-medium">$ Amount</label>
             <div className="relative">

@@ -174,7 +174,7 @@ export function InvoiceBuilder() {
   );
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6 -mx-2 sm:mx-0 px-2 sm:px-0">
       <div>
         <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-4 sm:mb-6">Invoice Builder</h2>
         <p className="text-sm sm:text-base text-slate-600 mb-4 sm:mb-6">
@@ -186,7 +186,7 @@ export function InvoiceBuilder() {
         <InvoiceSuccessMessage invoiceUrl={invoiceUrl} hasSelectedCustomer={!!customerManagement.selectedCustomer} />
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         <div className="lg:col-span-2 space-y-4 sm:space-y-6">
           <CustomerSelector
             customers={customers}
@@ -305,18 +305,20 @@ export function InvoiceBuilder() {
             />
           )}
 
-          <div className="bg-white border border-slate-200 rounded-lg p-4 sm:p-6">
+          <div className="bg-white border border-slate-200 rounded-lg p-3 sm:p-4 lg:p-6">
             <button
               onClick={handleGenerateInvoice}
               disabled={saving || cartItems.length === 0}
-              className="w-full mt-6 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
+              className="w-full mt-3 sm:mt-4 lg:mt-6 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
             >
-              <Send className="w-5 h-5" />
-              {saving
-                ? 'Generating...'
-                : customerManagement.selectedCustomer
-                  ? 'Send Invoice to Customer'
-                  : 'Generate Shareable Link'}
+              <Send className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="truncate">
+                {saving
+                  ? 'Generating...'
+                  : customerManagement.selectedCustomer
+                    ? 'Send Invoice to Customer'
+                    : 'Generate Shareable Link'}
+              </span>
             </button>
             <p className="text-xs text-slate-500 text-center mt-2">
               {customerManagement.selectedCustomer

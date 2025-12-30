@@ -38,10 +38,10 @@ export function CartItemsList({
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                 <div>
                   <label className="block text-xs text-slate-600 mb-1">Quantity</label>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
                     <button
                       onClick={() => onUpdateQuantity(index, Math.max(1, item.qty - 1))}
                       className="p-1 bg-slate-200 hover:bg-slate-300 rounded"
@@ -53,7 +53,7 @@ export function CartItemsList({
                       value={item.qty}
                       onChange={(e) => onUpdateQuantity(index, parseInt(e.target.value) || 1)}
                       min="1"
-                      className="w-16 px-2 py-1 border border-slate-300 rounded text-center text-sm"
+                      className="w-14 sm:w-16 px-2 py-1 border border-slate-300 rounded text-center text-sm"
                     />
                     <button
                       onClick={() => onUpdateQuantity(index, item.qty + 1)}

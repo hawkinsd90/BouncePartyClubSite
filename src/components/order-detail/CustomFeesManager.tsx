@@ -120,8 +120,8 @@ export function CustomFeesManager({
   }
 
   return (
-    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-      <h3 className="font-semibold text-slate-900 mb-3">Custom Fees</h3>
+    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+      <h3 className="text-sm sm:text-base font-semibold text-slate-900 mb-3">Custom Fees</h3>
 
       {customFees.length > 0 && (
         <div className="space-y-2 mb-4">
@@ -148,7 +148,7 @@ export function CustomFeesManager({
         {savedTemplates.length > 0 && (
           <div>
             <label className="block text-xs text-slate-700 mb-1 font-medium">Load Saved Fee</label>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <select
                 value={selectedTemplateId}
                 onChange={(e) => handleTemplateSelect(e.target.value)}
@@ -164,10 +164,11 @@ export function CustomFeesManager({
               {selectedTemplateId && (
                 <button
                   onClick={handleDeleteTemplate}
-                  className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-1 text-sm"
+                  className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center justify-center gap-1 text-sm"
                   title="Delete selected template"
                 >
                   <Trash2 className="w-4 h-4" />
+                  <span className="sm:hidden">Delete Template</span>
                 </button>
               )}
             </div>
