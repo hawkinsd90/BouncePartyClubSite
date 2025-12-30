@@ -144,18 +144,18 @@ Payment Method: ${invoice.payment_method || 'N/A'}
   }
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Invoices</h2>
-          <p className="text-slate-600 mt-1">
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Invoices</h2>
+          <p className="text-sm sm:text-base text-slate-600 mt-1">
             {invoices.length} total invoices
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setFilter('all')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+            className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium ${
               filter === 'all'
                 ? 'bg-blue-600 text-white'
                 : 'bg-white text-slate-700 border border-slate-300'
@@ -165,7 +165,7 @@ Payment Method: ${invoice.payment_method || 'N/A'}
           </button>
           <button
             onClick={() => setFilter('draft')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+            className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium ${
               filter === 'draft'
                 ? 'bg-blue-600 text-white'
                 : 'bg-white text-slate-700 border border-slate-300'
@@ -175,7 +175,7 @@ Payment Method: ${invoice.payment_method || 'N/A'}
           </button>
           <button
             onClick={() => setFilter('unpaid')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+            className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium ${
               filter === 'unpaid'
                 ? 'bg-blue-600 text-white'
                 : 'bg-white text-slate-700 border border-slate-300'
@@ -185,7 +185,7 @@ Payment Method: ${invoice.payment_method || 'N/A'}
           </button>
           <button
             onClick={() => setFilter('paid')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+            className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium ${
               filter === 'paid'
                 ? 'bg-blue-600 text-white'
                 : 'bg-white text-slate-700 border border-slate-300'
@@ -195,39 +195,39 @@ Payment Method: ${invoice.payment_method || 'N/A'}
           </button>
           <button
             onClick={handleGenerateManualInvoice}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+            className="bg-green-600 hover:bg-green-700 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap"
           >
             + Generate Invoice
           </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-200">
           <thead className="bg-slate-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
+              <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
                 Invoice #
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
+              <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
                 Customer
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
+              <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
                 Date
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
+              <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
                 Total
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
+              <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
                 Paid
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
+              <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
                 Balance
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
+              <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
                 Status
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
+              <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
@@ -235,35 +235,35 @@ Payment Method: ${invoice.payment_method || 'N/A'}
           <tbody className="bg-white divide-y divide-slate-200">
             {filteredInvoices.map((invoice: Invoice) => (
               <tr key={invoice.id} className="hover:bg-slate-50">
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center text-sm">
-                    <FileText className="w-4 h-4 mr-2 text-slate-400" />
+                <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                  <div className="flex items-center text-xs sm:text-sm">
+                    <FileText className="w-3 sm:w-4 h-3 sm:h-4 mr-1 sm:mr-2 text-slate-400 flex-shrink-0" />
                     <span className="font-medium text-slate-900">{invoice.invoice_number}</span>
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-slate-900">
+                <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                  <div className="text-xs sm:text-sm text-slate-900">
                     {invoice.customers?.first_name} {invoice.customers?.last_name}
                   </div>
-                  <div className="text-sm text-slate-500">{invoice.customers?.email}</div>
+                  <div className="text-xs sm:text-sm text-slate-500 truncate max-w-[150px] sm:max-w-none">{invoice.customers?.email}</div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
+                <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-slate-900">
                   <div className="flex items-center">
-                    <Calendar className="w-4 h-4 mr-2 text-slate-400" />
+                    <Calendar className="w-3 sm:w-4 h-3 sm:h-4 mr-1 sm:mr-2 text-slate-400 flex-shrink-0" />
                     {format(new Date(invoice.invoice_date), 'MMM d, yyyy')}
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-slate-900">
                   {formatCurrency(invoice.total_cents)}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">
+                <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-green-600">
                   {formatCurrency(invoice.paid_amount_cents)}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-red-600">
+                <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-red-600">
                   {formatCurrency(invoice.total_cents - invoice.paid_amount_cents)}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                  <span className={`inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     invoice.status === 'paid'
                       ? 'bg-green-100 text-green-800'
                       : invoice.status === 'sent'
@@ -275,13 +275,13 @@ Payment Method: ${invoice.payment_method || 'N/A'}
                     {invoice.status}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
                   <button
                     onClick={() => handleViewInvoice(invoice)}
                     className="text-blue-600 hover:text-blue-800 flex items-center"
                   >
-                    <Eye className="w-4 h-4 mr-1" />
-                    View
+                    <Eye className="w-3 sm:w-4 h-3 sm:h-4 mr-1 flex-shrink-0" />
+                    <span className="hidden sm:inline">View</span>
                   </button>
                 </td>
               </tr>
