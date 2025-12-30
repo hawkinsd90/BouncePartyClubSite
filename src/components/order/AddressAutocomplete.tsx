@@ -229,7 +229,7 @@ export function AddressAutocomplete({
         onChange={handleChange}
         placeholder={placeholder}
         required={required}
-        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white"
+        className="w-full px-3 sm:px-4 py-3 sm:py-3.5 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 text-sm sm:text-base font-medium transition-all bg-white"
       />
       {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
       {!import.meta.env.VITE_GOOGLE_MAPS_API_KEY && (

@@ -37,7 +37,7 @@ export function StreetViewImages({
   return (
     <>
       <div className="mb-4 p-3 md:p-4 bg-white rounded-lg">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
           <h4 className="text-sm font-semibold text-slate-700">
             Street View Assessment - Multiple Angles
           </h4>
@@ -48,16 +48,19 @@ export function StreetViewImages({
         <div className="text-xs text-slate-500 mb-3">
           Non-client test message may still display during delivery. Walk down during delivery.
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="text-xs text-slate-600 mb-3 sm:hidden">
+          Tap any image to view full screen
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
           {streetViewAngles.map((angle) => (
             <div key={angle.heading} className="border border-slate-200 rounded overflow-hidden">
-              <div className="bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+              <div className="bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 text-center">
                 {angle.label}
               </div>
               <img
                 src={getStreetViewUrl(address, angle.heading)}
                 alt={angle.label}
-                className="w-full h-48 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                className="w-full h-32 sm:h-40 md:h-48 object-cover cursor-pointer hover:opacity-90 transition-opacity"
                 onClick={() =>
                   onSelectImage({ url: getStreetViewUrl(address, angle.heading), label: angle.label })
                 }

@@ -27,22 +27,23 @@ export function DayViewModal({
   const pickUpTasks = tasks.filter(t => t.type === 'pick-up');
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
       <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center z-10">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900">
-              {format(selectedDate, 'EEEE, MMMM d, yyyy')}
+        <div className="sticky top-0 bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-start sm:items-center gap-2 z-10">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg sm:text-2xl font-bold text-slate-900 break-words">
+              <span className="hidden sm:inline">{format(selectedDate, 'EEEE, MMMM d, yyyy')}</span>
+              <span className="sm:hidden">{format(selectedDate, 'EEE, MMM d, yyyy')}</span>
             </h2>
-            <p className="text-sm text-slate-600 mt-1">
+            <p className="text-xs sm:text-sm text-slate-600 mt-1">
               {tasks.length} task{tasks.length !== 1 ? 's' : ''} scheduled
             </p>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+            className="p-1.5 sm:p-2 hover:bg-slate-100 rounded-lg transition-colors flex-shrink-0"
           >
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
         </div>
 
@@ -56,7 +57,7 @@ export function DayViewModal({
 
           {dropOffTasks.length > 0 && (
             <div>
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                 <h3 className="text-base sm:text-lg font-bold text-green-900 flex items-center gap-2">
                   <TruckIcon className="w-5 h-5" />
                   Drop-offs / Deliveries ({dropOffTasks.length})
@@ -65,10 +66,10 @@ export function DayViewModal({
                   <button
                     onClick={onOptimizeMorning}
                     disabled={optimizing}
-                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
                   >
-                    <Route className="w-4 h-4" />
-                    {optimizing ? 'Optimizing...' : 'Optimize Morning Route'}
+                    <Route className="w-4 h-4 flex-shrink-0" />
+                    <span>{optimizing ? 'Optimizing...' : 'Optimize Morning Route'}</span>
                   </button>
                 )}
               </div>
@@ -89,7 +90,7 @@ export function DayViewModal({
 
           {pickUpTasks.length > 0 && (
             <div>
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                 <h3 className="text-base sm:text-lg font-bold text-orange-900 flex items-center gap-2">
                   <Package className="w-5 h-5" />
                   Pick-ups / Retrievals ({pickUpTasks.length})
@@ -98,10 +99,10 @@ export function DayViewModal({
                   <button
                     onClick={onOptimizeAfternoon}
                     disabled={optimizing}
-                    className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
                   >
-                    <Route className="w-4 h-4" />
-                    {optimizing ? 'Optimizing...' : 'Optimize Afternoon Route'}
+                    <Route className="w-4 h-4 flex-shrink-0" />
+                    <span>{optimizing ? 'Optimizing...' : 'Optimize Afternoon Route'}</span>
                   </button>
                 )}
               </div>
