@@ -18,18 +18,18 @@ export function EventDetailsEditor({
   compact = false,
   showUntilEndOfDay = false,
 }: EventDetailsEditorProps) {
-  const containerClass = compact ? 'bg-white rounded-lg shadow p-4 sm:p-6' : 'space-y-6';
-  const sectionClass = compact ? '' : 'bg-white border border-slate-200 rounded-lg p-4';
+  const containerClass = compact ? 'bg-white rounded-lg shadow p-4 sm:p-6 min-w-0' : 'space-y-6';
+  const sectionClass = compact ? 'min-w-0' : 'bg-white border border-slate-200 rounded-lg p-4';
   const labelClass = compact ? 'block text-sm font-medium text-slate-700 mb-1' : 'block text-sm font-medium text-slate-700 mb-2';
-  const inputClass = compact ? 'w-full px-3 py-2 border border-slate-300 rounded text-sm' : 'w-full px-3 py-2 border border-slate-300 rounded';
+  const inputClass = compact ? 'w-full px-3 py-2 border border-slate-300 rounded text-sm min-w-0' : 'w-full px-3 py-2 border border-slate-300 rounded';
 
   return (
     <div className={containerClass}>
       <div className={sectionClass}>
         <h3 className={compact ? 'text-base sm:text-lg font-semibold text-slate-900 mb-3 sm:mb-4' : 'font-semibold text-slate-900 mb-4'}>Event Details</h3>
-        <div className="space-y-3 sm:space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            <div>
+        <div className="space-y-3 sm:space-y-4 min-w-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 min-w-0">
+            <div className="min-w-0">
               <label className={labelClass}>Event Start Date</label>
               <input
                 type="date"
@@ -45,7 +45,7 @@ export function EventDetailsEditor({
               />
             </div>
 
-            <div>
+            <div className="min-w-0">
               <label className={labelClass}>Event End Date</label>
               <input
                 type="date"
@@ -61,8 +61,8 @@ export function EventDetailsEditor({
             <p className="text-xs text-slate-500">Same-day events cannot span multiple days</p>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            <div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 min-w-0">
+            <div className="min-w-0">
               <label className={labelClass}>Start Time</label>
               <input
                 type="time"
@@ -72,7 +72,7 @@ export function EventDetailsEditor({
               />
             </div>
 
-            <div>
+            <div className="min-w-0">
               <label className={labelClass}>End Time</label>
               <input
                 type="time"
@@ -98,13 +98,13 @@ export function EventDetailsEditor({
             </div>
           )}
 
-          <div>
+          <div className="min-w-0">
             <label className={labelClass}>Location Type</label>
-            <div className="flex gap-2">
+            <div className="flex gap-2 min-w-0">
               <button
                 type="button"
                 onClick={() => onOrderChange({ location_type: 'residential', pickup_preference: editedOrder.pickup_preference === 'same_day' ? 'next_day' : editedOrder.pickup_preference })}
-                className={`flex-1 px-3 py-2 border-2 rounded font-medium ${compact ? 'text-sm' : ''} transition-all ${
+                className={`flex-1 px-3 py-2 border-2 rounded font-medium ${compact ? 'text-sm' : ''} transition-all min-w-0 ${
                   editedOrder.location_type === 'residential'
                     ? 'border-blue-600 bg-blue-50 text-blue-900'
                     : 'border-slate-300 bg-white text-slate-700 hover:border-blue-400'
@@ -115,7 +115,7 @@ export function EventDetailsEditor({
               <button
                 type="button"
                 onClick={() => onOrderChange({ location_type: 'commercial', pickup_preference: 'same_day', event_end_date: editedOrder.event_date })}
-                className={`flex-1 px-3 py-2 border-2 rounded font-medium ${compact ? 'text-sm' : ''} transition-all ${
+                className={`flex-1 px-3 py-2 border-2 rounded font-medium ${compact ? 'text-sm' : ''} transition-all min-w-0 ${
                   editedOrder.location_type === 'commercial'
                     ? 'border-purple-600 bg-purple-50 text-purple-900'
                     : 'border-slate-300 bg-white text-slate-700 hover:border-purple-400'
@@ -127,26 +127,26 @@ export function EventDetailsEditor({
           </div>
 
           {editedOrder.location_type === 'residential' && (
-            <div>
+            <div className="min-w-0">
               <label className={labelClass}>Pickup Preference</label>
-              <div className="flex gap-2">
+              <div className="flex gap-2 min-w-0">
                 <button
                   type="button"
                   onClick={() => onOrderChange({ pickup_preference: 'next_day' })}
                   disabled={compact && editedOrder.event_date !== editedOrder.event_end_date}
-                  className={`flex-1 px-3 py-2 border-2 rounded font-medium text-sm transition-all ${
+                  className={`flex-1 px-2 sm:px-3 py-2 border-2 rounded font-medium text-xs sm:text-sm transition-all min-w-0 ${
                     editedOrder.pickup_preference === 'next_day'
                       ? 'border-green-600 bg-green-50 text-green-900'
                       : 'border-slate-300 bg-white text-slate-700 hover:border-green-400'
                   }`}
                 >
-                  Next Day (Free)
+                  <span className="truncate block">Next Day (Free)</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => onOrderChange({ pickup_preference: 'same_day', event_end_date: editedOrder.event_date })}
                   disabled={compact && editedOrder.event_date !== editedOrder.event_end_date}
-                  className={`flex-1 px-3 py-2 border-2 rounded font-medium text-sm transition-all ${
+                  className={`flex-1 px-2 sm:px-3 py-2 border-2 rounded font-medium text-xs sm:text-sm transition-all min-w-0 ${
                     editedOrder.pickup_preference === 'same_day'
                       ? 'border-orange-600 bg-orange-50 text-orange-900'
                       : compact && editedOrder.event_date !== editedOrder.event_end_date
@@ -154,7 +154,7 @@ export function EventDetailsEditor({
                       : 'border-slate-300 bg-white text-slate-700 hover:border-orange-400'
                   }`}
                 >
-                  Same Day (+{formatCurrency(pricingRules?.same_day_fee_cents || 5000)})
+                  <span className="truncate block">Same Day (+{formatCurrency(pricingRules?.same_day_fee_cents || 5000)})</span>
                 </button>
               </div>
             </div>
@@ -247,7 +247,7 @@ export function EventDetailsEditor({
 
           {compact && (
             <>
-              <div>
+              <div className="min-w-0">
                 <label className={labelClass}>Event Address</label>
                 <AddressAutocomplete
                   value={editedOrder.address_line1}
@@ -257,7 +257,7 @@ export function EventDetailsEditor({
                 />
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <label className={labelClass}>Address Line 2 (optional)</label>
                 <input
                   type="text"
@@ -268,13 +268,13 @@ export function EventDetailsEditor({
                 />
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <label className={labelClass}>Setup Surface</label>
-                <div className="flex gap-2">
+                <div className="flex gap-2 min-w-0">
                   <button
                     type="button"
                     onClick={() => onOrderChange({ can_stake: true, surface: 'grass' })}
-                    className={`flex-1 px-3 py-2 border-2 rounded font-medium text-sm ${
+                    className={`flex-1 px-3 py-2 border-2 rounded font-medium text-sm min-w-0 ${
                       editedOrder.can_stake
                         ? 'border-green-600 bg-green-50 text-green-900'
                         : 'border-slate-300 bg-white text-slate-700'
@@ -285,7 +285,7 @@ export function EventDetailsEditor({
                   <button
                     type="button"
                     onClick={() => onOrderChange({ can_stake: false, surface: 'cement' })}
-                    className={`flex-1 px-3 py-2 border-2 rounded font-medium text-sm ${
+                    className={`flex-1 px-3 py-2 border-2 rounded font-medium text-sm min-w-0 ${
                       !editedOrder.can_stake
                         ? 'border-orange-600 bg-orange-50 text-orange-900'
                         : 'border-slate-300 bg-white text-slate-700'
@@ -301,7 +301,7 @@ export function EventDetailsEditor({
                 )}
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <label className={labelClass}>Generators</label>
                 <input
                   type="number"
