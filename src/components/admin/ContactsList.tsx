@@ -96,17 +96,17 @@ export function ContactsList() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Contacts & Phonebook</h2>
-          <p className="text-slate-600 mt-1">
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Contacts & Phonebook</h2>
+          <p className="text-xs sm:text-sm text-slate-600 mt-1">
             {contacts.length} total contacts | {contacts.filter((c: Contact) => c.opt_in_email).length} email subscribers | {contacts.filter((c: Contact) => c.opt_in_sms).length} SMS subscribers
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setFilter('all')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium ${
               filter === 'all'
                 ? 'bg-blue-600 text-white'
                 : 'bg-white text-slate-700 border border-slate-300'
@@ -116,7 +116,7 @@ export function ContactsList() {
           </button>
           <button
             onClick={() => setFilter('email')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium ${
               filter === 'email'
                 ? 'bg-blue-600 text-white'
                 : 'bg-white text-slate-700 border border-slate-300'
@@ -126,7 +126,7 @@ export function ContactsList() {
           </button>
           <button
             onClick={() => setFilter('sms')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium ${
               filter === 'sms'
                 ? 'bg-blue-600 text-white'
                 : 'bg-white text-slate-700 border border-slate-300'
@@ -137,29 +137,29 @@ export function ContactsList() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-x-auto -mx-4 sm:mx-0">
         <table className="min-w-full divide-y divide-slate-200">
           <thead className="bg-slate-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
+              <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider whitespace-nowrap">
                 Contact
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
+              <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider whitespace-nowrap">
                 Email
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
+              <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider whitespace-nowrap">
                 Phone
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
+              <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider whitespace-nowrap">
                 Stats
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
+              <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider whitespace-nowrap">
                 Opt-Ins
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
+              <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider whitespace-nowrap">
                 Added
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
+              <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider whitespace-nowrap">
                 Actions
               </th>
             </tr>
@@ -167,62 +167,63 @@ export function ContactsList() {
           <tbody className="bg-white divide-y divide-slate-200">
             {filteredContacts.map((contact: Contact) => (
               <tr key={contact.id} className="hover:bg-slate-50">
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
                   {contact.business_name && (
-                    <div className="font-bold text-slate-900 text-base">
+                    <div className="font-bold text-slate-900 text-sm sm:text-base">
                       {contact.business_name}
                     </div>
                   )}
-                  <div className="font-medium text-slate-900">
+                  <div className="font-medium text-slate-900 text-sm">
                     {contact.first_name} {contact.last_name}
                   </div>
-                  <div className="text-sm text-slate-500">{contact.source}</div>
+                  <div className="text-xs text-slate-500">{contact.source}</div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center text-sm text-slate-900">
-                    <Mail className="w-4 h-4 mr-2 text-slate-400" />
-                    {contact.email}
+                <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                  <div className="flex items-center text-xs sm:text-sm text-slate-900">
+                    <Mail className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 text-slate-400 flex-shrink-0" />
+                    <span className="truncate max-w-[150px]">{contact.email}</span>
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center text-sm text-slate-900">
-                    <Phone className="w-4 h-4 mr-2 text-slate-400" />
+                <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                  <div className="flex items-center text-xs sm:text-sm text-slate-900">
+                    <Phone className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 text-slate-400 flex-shrink-0" />
                     {contact.phone || 'N/A'}
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
                   <div className="text-slate-900">{contact.total_bookings} bookings</div>
                   <div className="text-slate-500">
                     ${(contact.total_spent_cents / 100).toFixed(2)} spent
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <div className="flex gap-2">
+                <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
+                  <div className="flex gap-1 sm:gap-2">
                     {contact.opt_in_email && (
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                         Email
                       </span>
                     )}
                     {contact.opt_in_sms && (
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                         SMS
                       </span>
                     )}
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-slate-500">
                   <div className="flex items-center">
-                    <Calendar className="w-4 h-4 mr-2" />
-                    {format(new Date(contact.created_at), 'MMM d, yyyy')}
+                    <Calendar className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
+                    <span className="hidden sm:inline">{format(new Date(contact.created_at), 'MMM d, yyyy')}</span>
+                    <span className="sm:hidden">{format(new Date(contact.created_at), 'MM/dd/yy')}</span>
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
                   <button
                     onClick={() => handleEditClick(contact)}
-                    className="inline-flex items-center px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    className="inline-flex items-center px-2 sm:px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs sm:text-sm"
                   >
-                    <Edit2 className="w-4 h-4 mr-1" />
-                    Edit
+                    <Edit2 className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
+                    <span className="hidden sm:inline">Edit</span>
                   </button>
                 </td>
               </tr>
@@ -232,10 +233,10 @@ export function ContactsList() {
       </div>
 
       {showEditModal && editingContact && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center">
-              <h3 className="text-xl font-bold text-slate-900">Edit Contact</h3>
+            <div className="sticky top-0 bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center">
+              <h3 className="text-lg sm:text-xl font-bold text-slate-900">Edit Contact</h3>
               <button
                 onClick={() => {
                   setShowEditModal(false);
@@ -247,9 +248,9 @@ export function ContactsList() {
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-4 sm:p-6 space-y-3 sm:space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1 sm:mb-2">
                   Business Name (Optional)
                 </label>
                 <input
@@ -258,13 +259,13 @@ export function ContactsList() {
                   onChange={(e) =>
                     setEditingContact({ ...editingContact, business_name: e.target.value })
                   }
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 sm:px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1 sm:mb-2">
                     First Name *
                   </label>
                   <input
@@ -274,12 +275,12 @@ export function ContactsList() {
                     onChange={(e) =>
                       setEditingContact({ ...editingContact, first_name: e.target.value })
                     }
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 sm:px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1 sm:mb-2">
                     Last Name *
                   </label>
                   <input
@@ -289,13 +290,13 @@ export function ContactsList() {
                     onChange={(e) =>
                       setEditingContact({ ...editingContact, last_name: e.target.value })
                     }
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 sm:px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1 sm:mb-2">
                   Email *
                 </label>
                 <input
@@ -305,12 +306,12 @@ export function ContactsList() {
                   onChange={(e) =>
                     setEditingContact({ ...editingContact, email: e.target.value })
                   }
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 sm:px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1 sm:mb-2">
                   Phone
                 </label>
                 <input
@@ -319,12 +320,12 @@ export function ContactsList() {
                   onChange={(e) =>
                     setEditingContact({ ...editingContact, phone: e.target.value })
                   }
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 sm:px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                 />
               </div>
 
-              <div className="border-t border-slate-200 pt-4">
-                <label className="block text-sm font-medium text-slate-700 mb-3">
+              <div className="border-t border-slate-200 pt-3 sm:pt-4">
+                <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2 sm:mb-3">
                   Marketing Preferences
                 </label>
                 <div className="space-y-2">
@@ -337,7 +338,7 @@ export function ContactsList() {
                       }
                       className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
                     />
-                    <span className="ml-2 text-sm text-slate-700">Opt-in to Email Marketing</span>
+                    <span className="ml-2 text-xs sm:text-sm text-slate-700">Opt-in to Email Marketing</span>
                   </label>
 
                   <label className="flex items-center">
@@ -349,19 +350,19 @@ export function ContactsList() {
                       }
                       className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
                     />
-                    <span className="ml-2 text-sm text-slate-700">Opt-in to SMS Marketing</span>
+                    <span className="ml-2 text-xs sm:text-sm text-slate-700">Opt-in to SMS Marketing</span>
                   </label>
                 </div>
               </div>
             </div>
 
-            <div className="sticky bottom-0 bg-slate-50 border-t border-slate-200 px-6 py-4 flex justify-end gap-3">
+            <div className="sticky bottom-0 bg-slate-50 border-t border-slate-200 px-4 sm:px-6 py-3 sm:py-4 flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3">
               <button
                 onClick={() => {
                   setShowEditModal(false);
                   setEditingContact(null);
                 }}
-                className="px-4 py-2 bg-white text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50"
+                className="px-4 py-2 bg-white text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50 text-sm sm:text-base"
                 disabled={saving}
               >
                 Cancel
@@ -369,7 +370,7 @@ export function ContactsList() {
               <button
                 onClick={handleSaveContact}
                 disabled={saving || !editingContact.first_name || !editingContact.last_name || !editingContact.email}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
               >
                 {saving ? 'Saving...' : 'Save Changes'}
               </button>

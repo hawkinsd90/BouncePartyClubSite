@@ -293,34 +293,34 @@ export function ChangelogTab() {
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100">
-      <div className="flex items-center justify-between mb-6">
+    <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl p-4 sm:p-6 lg:p-8 border-2 border-slate-100">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 sm:mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 flex items-center">
-            <History className="w-7 h-7 mr-3 text-blue-600" />
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 flex items-center">
+            <History className="w-6 h-6 sm:w-7 sm:h-7 mr-2 sm:mr-3 text-blue-600" />
             System Changelog
           </h2>
-          <p className="text-slate-600 mt-2">
+          <p className="text-xs sm:text-sm text-slate-600 mt-1 sm:mt-2">
             Complete audit trail of all changes across orders, permissions, and settings
           </p>
         </div>
         <button
           onClick={fetchChangelog}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-3 sm:px-4 rounded-lg transition-colors text-sm sm:text-base whitespace-nowrap"
         >
           Refresh
         </button>
       </div>
 
-      <div className="mb-6 flex flex-wrap gap-4 items-center">
+      <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-4 sm:items-center">
         <div className="flex items-center gap-2">
-          <Filter className="w-5 h-5 text-slate-600" />
-          <span className="text-sm font-medium text-slate-700">Filter:</span>
+          <Filter className="w-4 h-4 sm:w-5 sm:h-5 text-slate-600" />
+          <span className="text-xs sm:text-sm font-medium text-slate-700">Filter:</span>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setFilter('all')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
               filter === 'all'
                 ? 'bg-blue-600 text-white'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -330,7 +330,7 @@ export function ChangelogTab() {
           </button>
           <button
             onClick={() => setFilter('order')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
               filter === 'order'
                 ? 'bg-blue-600 text-white'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -340,7 +340,7 @@ export function ChangelogTab() {
           </button>
           <button
             onClick={() => setFilter('permission')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
               filter === 'permission'
                 ? 'bg-blue-600 text-white'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -350,7 +350,7 @@ export function ChangelogTab() {
           </button>
           <button
             onClick={() => setFilter('setting')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
               filter === 'setting'
                 ? 'bg-blue-600 text-white'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -359,11 +359,11 @@ export function ChangelogTab() {
             Settings ({entries.filter(e => e.type === 'setting').length})
           </button>
         </div>
-        <div className="ml-auto">
+        <div className="sm:ml-auto">
           <select
             value={limit}
             onChange={(e) => setLimit(Number(e.target.value))}
-            className="px-4 py-2 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none"
+            className="w-full sm:w-auto px-3 sm:px-4 py-1.5 sm:py-2 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none text-xs sm:text-sm"
           >
             <option value={25}>Last 25</option>
             <option value={50}>Last 50</option>
@@ -385,23 +385,23 @@ export function ChangelogTab() {
             {filteredGroupedOrders.map((orderGroup) => (
               <div
                 key={orderGroup.order_id}
-                className="border-2 border-slate-200 rounded-xl overflow-hidden hover:border-blue-300 transition-colors"
+                className="border-2 border-slate-200 rounded-lg sm:rounded-xl overflow-hidden hover:border-blue-300 transition-colors"
               >
                 <div
-                  className="p-4 cursor-pointer bg-blue-50 hover:bg-blue-100 transition-colors"
+                  className="p-3 sm:p-4 cursor-pointer bg-blue-50 hover:bg-blue-100 transition-colors"
                   onClick={() => toggleOrderExpansion(orderGroup.order_id)}
                 >
-                  <div className="flex items-start gap-4">
-                    <div className="p-2 rounded-lg bg-blue-100 text-blue-800 border-blue-300">
-                      <Package className="w-5 h-5" />
+                  <div className="flex items-start gap-2 sm:gap-4">
+                    <div className="p-1.5 sm:p-2 rounded-lg bg-blue-100 text-blue-800 border-blue-300 flex-shrink-0">
+                      <Package className="w-4 h-4 sm:w-5 sm:h-5" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                            <span>Order Updated - {orderGroup.customer_name}</span>
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
+                        <div className="min-w-0">
+                          <h3 className="font-bold text-slate-900 text-sm sm:text-base break-words">
+                            Order Updated - {orderGroup.customer_name}
                           </h3>
-                          <p className="text-sm text-slate-600">
+                          <p className="text-xs sm:text-sm text-slate-600">
                             {orderGroup.change_count} change{orderGroup.change_count > 1 ? 's' : ''} made to this order
                           </p>
                           <p className="text-xs text-slate-500 mt-1">
@@ -419,25 +419,30 @@ export function ChangelogTab() {
                             </button>
                           </p>
                         </div>
-                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                          <span className="px-3 py-1 rounded-full text-xs font-bold border-2 bg-blue-100 text-blue-800 border-blue-300">
+                        <div className="flex flex-row sm:flex-col items-center sm:items-end gap-2 sm:gap-1 flex-shrink-0">
+                          <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs font-bold border-2 bg-blue-100 text-blue-800 border-blue-300 whitespace-nowrap">
                             ORDER
                           </span>
                           <span className="text-xs text-slate-500 whitespace-nowrap">
-                            {new Date(orderGroup.latest_timestamp).toLocaleString()}
+                            {new Date(orderGroup.latest_timestamp).toLocaleString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: 'numeric',
+                              minute: '2-digit'
+                            })}
                           </span>
                           <button
-                            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 mt-1"
+                            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 whitespace-nowrap"
                           >
                             {expandedOrders.has(orderGroup.order_id) ? (
                               <>
-                                <ChevronDown className="w-4 h-4" />
-                                Hide changes
+                                <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4" />
+                                <span className="hidden sm:inline">Hide changes</span>
                               </>
                             ) : (
                               <>
-                                <ChevronRight className="w-4 h-4" />
-                                View changes
+                                <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4" />
+                                <span className="hidden sm:inline">View changes</span>
                               </>
                             )}
                           </button>
@@ -449,36 +454,41 @@ export function ChangelogTab() {
 
                 {expandedOrders.has(orderGroup.order_id) && (
                   <div className="border-t-2 border-slate-200 bg-white">
-                    <div className="p-4 space-y-3">
+                    <div className="p-3 sm:p-4 space-y-2 sm:space-y-3">
                       {orderGroup.changes.map((change) => (
                         <div
                           key={change.id}
-                          className="border border-slate-200 rounded-lg p-3 bg-slate-50"
+                          className="border border-slate-200 rounded-lg p-2 sm:p-3 bg-slate-50"
                         >
-                          <div className="flex items-start justify-between mb-2">
-                            <div>
-                              <h4 className="font-medium text-slate-900">{change.field_changed}</h4>
+                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 sm:gap-2 mb-2">
+                            <div className="min-w-0">
+                              <h4 className="font-medium text-slate-900 text-sm">{change.field_changed}</h4>
                               <p className="text-xs text-slate-500">
-                                {change.change_type} • {new Date(change.timestamp).toLocaleString()}
+                                {change.change_type} • {new Date(change.timestamp).toLocaleString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: 'numeric',
+                                  minute: '2-digit'
+                                })}
                               </p>
                             </div>
-                            <span className="text-xs text-slate-600">
+                            <span className="text-xs text-slate-600 whitespace-nowrap">
                               by {change.user_email}
                             </span>
                           </div>
 
                           {(change.old_value || change.new_value) && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm mt-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-sm mt-2">
                               {change.old_value && (
                                 <div>
                                   <span className="font-medium text-slate-700 text-xs">Old Value:</span>
-                                  <p className="text-slate-600 mt-1 break-words">{change.old_value}</p>
+                                  <p className="text-slate-600 mt-1 break-words text-xs sm:text-sm">{change.old_value}</p>
                                 </div>
                               )}
                               {change.new_value && (
                                 <div>
                                   <span className="font-medium text-slate-700 text-xs">New Value:</span>
-                                  <p className="text-slate-600 mt-1 break-words">{change.new_value}</p>
+                                  <p className="text-slate-600 mt-1 break-words text-xs sm:text-sm">{change.new_value}</p>
                                 </div>
                               )}
                             </div>
@@ -495,41 +505,46 @@ export function ChangelogTab() {
             {filteredEntries.map((entry) => (
               <div
                 key={entry.id}
-                className="border-2 border-slate-200 rounded-xl p-4 hover:border-blue-300 transition-colors"
+                className="border-2 border-slate-200 rounded-lg sm:rounded-xl p-3 sm:p-4 hover:border-blue-300 transition-colors"
               >
-                <div className="flex items-start gap-4">
-                  <div className={`p-2 rounded-lg ${getTypeColor(entry.type)}`}>
+                <div className="flex items-start gap-2 sm:gap-4">
+                  <div className={`p-1.5 sm:p-2 rounded-lg ${getTypeColor(entry.type)} flex-shrink-0`}>
                     {getIcon(entry.type)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-4 mb-2">
-                      <div>
-                        <h3 className="font-bold text-slate-900">{entry.title}</h3>
-                        <p className="text-sm text-slate-600">{entry.description}</p>
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4 mb-2">
+                      <div className="min-w-0">
+                        <h3 className="font-bold text-slate-900 text-sm sm:text-base break-words">{entry.title}</h3>
+                        <p className="text-xs sm:text-sm text-slate-600 break-words">{entry.description}</p>
                       </div>
-                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${getTypeColor(entry.type)}`}>
+                      <div className="flex flex-row sm:flex-col items-center sm:items-end gap-2 sm:gap-1 flex-shrink-0">
+                        <span className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs font-bold border-2 ${getTypeColor(entry.type)} whitespace-nowrap`}>
                           {entry.type.toUpperCase()}
                         </span>
                         <span className="text-xs text-slate-500 whitespace-nowrap">
-                          {new Date(entry.timestamp).toLocaleString()}
+                          {new Date(entry.timestamp).toLocaleString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit'
+                          })}
                         </span>
                       </div>
                     </div>
 
                     {(entry.old_value || entry.new_value) && (
-                      <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                      <div className="mt-2 sm:mt-3 p-2 sm:p-3 bg-slate-50 rounded-lg border border-slate-200">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-sm">
                           {entry.old_value && (
                             <div>
-                              <span className="font-medium text-slate-700">Old Value:</span>
-                              <p className="text-slate-600 mt-1 break-words">{entry.old_value}</p>
+                              <span className="font-medium text-slate-700 text-xs">Old Value:</span>
+                              <p className="text-slate-600 mt-1 break-words text-xs sm:text-sm">{entry.old_value}</p>
                             </div>
                           )}
                           {entry.new_value && (
                             <div>
-                              <span className="font-medium text-slate-700">New Value:</span>
-                              <p className="text-slate-600 mt-1 break-words">{entry.new_value}</p>
+                              <span className="font-medium text-slate-700 text-xs">New Value:</span>
+                              <p className="text-slate-600 mt-1 break-words text-xs sm:text-sm">{entry.new_value}</p>
                             </div>
                           )}
                         </div>

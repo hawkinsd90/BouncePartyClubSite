@@ -26,9 +26,9 @@ export function EventDetailsEditor({
   return (
     <div className={containerClass}>
       <div className={sectionClass}>
-        <h3 className={compact ? 'text-base sm:text-lg font-semibold text-slate-900 mb-4' : 'font-semibold text-slate-900 mb-4'}>Event Details</h3>
-        <div className="space-y-4">
-          <div className={compact ? 'grid grid-cols-1 sm:grid-cols-2 gap-3' : 'grid grid-cols-2 gap-4'}>
+        <h3 className={compact ? 'text-base sm:text-lg font-semibold text-slate-900 mb-3 sm:mb-4' : 'font-semibold text-slate-900 mb-4'}>Event Details</h3>
+        <div className="space-y-3 sm:space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className={labelClass}>Event Start Date</label>
               <input
@@ -61,7 +61,7 @@ export function EventDetailsEditor({
             <p className="text-xs text-slate-500">Same-day events cannot span multiple days</p>
           )}
 
-          <div className={compact ? 'grid grid-cols-1 sm:grid-cols-2 gap-3' : 'grid grid-cols-2 gap-4'}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className={labelClass}>Start Time</label>
               <input
