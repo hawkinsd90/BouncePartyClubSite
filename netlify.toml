@@ -4,6 +4,9 @@
 
 [build.environment]
   NODE_VERSION = "20.17.0"
+  # Disable secrets scanning for public frontend keys
+  # VITE_ prefixed variables are meant to be bundled into the frontend
+  SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
 
 [[redirects]]
   from = "/*"

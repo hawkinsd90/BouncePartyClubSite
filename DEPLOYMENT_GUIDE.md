@@ -1,12 +1,25 @@
 # Netlify Deployment Guide
 
+## Critical: Remove Backend Secrets from Netlify
+
+**IMPORTANT:** If you previously added these environment variables to Netlify, you MUST remove them:
+- ❌ `TWILIO_ACCOUNT_SID`
+- ❌ `TWILIO_AUTH_TOKEN`
+- ❌ `TWILIO_API_KEY_SID`
+- ❌ `TWILIO_API_KEY_SECRET`
+- ❌ `TWILIO_MESSAGING_SERVICE_SID`
+- ❌ `TWILIO_FROM_NUMBER`
+- ❌ `STRIPE_SECRET_KEY`
+- ❌ `OLD_VITE_SUPABASE_ANON_KEY`
+- ❌ `OLD_VITE_SUPABASE_URL`
+
+Go to **Site Settings > Environment Variables** and delete any of the above variables if they exist.
+
 ## Environment Variables Configuration
 
-Your `.env` file should **ONLY** contain public frontend environment variables (those prefixed with `VITE_`). Backend secrets are automatically available in Supabase Edge Functions.
+### Required Netlify Environment Variables (Frontend Only)
 
-### Required Netlify Environment Variables
-
-In your Netlify dashboard, go to **Site Settings > Environment Variables** and add:
+In your Netlify dashboard, go to **Site Settings > Environment Variables** and add ONLY these:
 
 1. `VITE_SUPABASE_ANON_KEY` - Your Supabase anonymous key (public)
 2. `VITE_SUPABASE_URL` - Your Supabase project URL (public)
@@ -14,14 +27,14 @@ In your Netlify dashboard, go to **Site Settings > Environment Variables** and a
 4. `VITE_STRIPE_PUBLISHABLE_KEY` - Your Stripe publishable key (public)
 5. `VITE_LOGO_URL` - Your logo URL from Supabase storage (public)
 
-### Backend Secrets (DO NOT add to Netlify)
+### Why Backend Secrets Should NOT Be in Netlify
 
-The following secrets should **NEVER** be in your frontend `.env` file or Netlify environment variables:
-- Twilio credentials (Account SID, Auth Token, API keys)
-- Stripe Secret Key
-- Supabase Service Role Key
+Backend secrets (Twilio, Stripe Secret Key, etc.) are:
+- Automatically available in Supabase Edge Functions via environment variables
+- Stored in the `admin_settings` database table
+- Should NEVER be in your frontend code or Netlify environment
 
-These are automatically available in Supabase Edge Functions and are stored in the `admin_settings` database table.
+The frontend only needs public keys (VITE_ prefixed variables).
 
 ## Deployment Steps
 
