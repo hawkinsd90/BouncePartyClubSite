@@ -18,8 +18,8 @@ export function EventDetailsEditor({
   compact = false,
   showUntilEndOfDay = false,
 }: EventDetailsEditorProps) {
-  const containerClass = compact ? 'bg-white rounded-lg shadow p-4 sm:p-6 min-w-0' : 'space-y-6';
-  const sectionClass = compact ? 'min-w-0' : 'bg-white border border-slate-200 rounded-lg p-4';
+  const containerClass = compact ? 'bg-white rounded-lg shadow p-4 sm:p-6 min-w-0 overflow-hidden' : 'space-y-6';
+  const sectionClass = compact ? 'min-w-0 overflow-hidden' : 'bg-white border border-slate-200 rounded-lg p-4';
   const labelClass = compact ? 'block text-sm font-medium text-slate-700 mb-1' : 'block text-sm font-medium text-slate-700 mb-2';
   const inputClass = compact ? 'w-full px-3 py-2 border border-slate-300 rounded text-sm min-w-0' : 'w-full px-3 py-2 border border-slate-300 rounded';
 
@@ -27,9 +27,9 @@ export function EventDetailsEditor({
     <div className={containerClass}>
       <div className={sectionClass}>
         <h3 className={compact ? 'text-base sm:text-lg font-semibold text-slate-900 mb-3 sm:mb-4' : 'font-semibold text-slate-900 mb-4'}>Event Details</h3>
-        <div className="space-y-3 sm:space-y-4 min-w-0">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 min-w-0">
-            <div className="min-w-0">
+        <div className="space-y-3 sm:space-y-4 min-w-0 overflow-hidden">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 min-w-0 overflow-hidden">
+            <div className="min-w-0 overflow-hidden">
               <label className={labelClass}>Event Start Date</label>
               <input
                 type="date"
@@ -45,7 +45,7 @@ export function EventDetailsEditor({
               />
             </div>
 
-            <div className="min-w-0">
+            <div className="min-w-0 overflow-hidden">
               <label className={labelClass}>Event End Date</label>
               <input
                 type="date"
@@ -61,8 +61,8 @@ export function EventDetailsEditor({
             <p className="text-xs text-slate-500">Same-day events cannot span multiple days</p>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 min-w-0">
-            <div className="min-w-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 min-w-0 overflow-hidden">
+            <div className="min-w-0 overflow-hidden">
               <label className={labelClass}>Start Time</label>
               <input
                 type="time"
@@ -72,7 +72,7 @@ export function EventDetailsEditor({
               />
             </div>
 
-            <div className="min-w-0">
+            <div className="min-w-0 overflow-hidden">
               <label className={labelClass}>End Time</label>
               <input
                 type="time"
@@ -98,7 +98,7 @@ export function EventDetailsEditor({
             </div>
           )}
 
-          <div className="min-w-0">
+          <div className="min-w-0 overflow-hidden">
             <label className={labelClass}>Location Type</label>
             <div className="flex gap-2 min-w-0">
               <button
@@ -127,14 +127,14 @@ export function EventDetailsEditor({
           </div>
 
           {editedOrder.location_type === 'residential' && (
-            <div className="min-w-0">
+            <div className="min-w-0 overflow-hidden">
               <label className={labelClass}>Pickup Preference</label>
               <div className="flex gap-2 min-w-0">
                 <button
                   type="button"
                   onClick={() => onOrderChange({ pickup_preference: 'next_day' })}
                   disabled={compact && editedOrder.event_date !== editedOrder.event_end_date}
-                  className={`flex-1 px-2 sm:px-3 py-2 border-2 rounded font-medium text-xs sm:text-sm transition-all min-w-0 ${
+                  className={`flex-1 px-2 sm:px-3 py-2 border-2 rounded font-medium text-xs sm:text-sm transition-all min-w-0 overflow-hidden ${
                     editedOrder.pickup_preference === 'next_day'
                       ? 'border-green-600 bg-green-50 text-green-900'
                       : 'border-slate-300 bg-white text-slate-700 hover:border-green-400'
@@ -146,7 +146,7 @@ export function EventDetailsEditor({
                   type="button"
                   onClick={() => onOrderChange({ pickup_preference: 'same_day', event_end_date: editedOrder.event_date })}
                   disabled={compact && editedOrder.event_date !== editedOrder.event_end_date}
-                  className={`flex-1 px-2 sm:px-3 py-2 border-2 rounded font-medium text-xs sm:text-sm transition-all min-w-0 ${
+                  className={`flex-1 px-2 sm:px-3 py-2 border-2 rounded font-medium text-xs sm:text-sm transition-all min-w-0 overflow-hidden ${
                     editedOrder.pickup_preference === 'same_day'
                       ? 'border-orange-600 bg-orange-50 text-orange-900'
                       : compact && editedOrder.event_date !== editedOrder.event_end_date
@@ -247,7 +247,7 @@ export function EventDetailsEditor({
 
           {compact && (
             <>
-              <div className="min-w-0">
+              <div className="min-w-0 overflow-hidden">
                 <label className={labelClass}>Event Address</label>
                 <AddressAutocomplete
                   value={editedOrder.address_line1}
@@ -257,7 +257,7 @@ export function EventDetailsEditor({
                 />
               </div>
 
-              <div className="min-w-0">
+              <div className="min-w-0 overflow-hidden">
                 <label className={labelClass}>Address Line 2 (optional)</label>
                 <input
                   type="text"
@@ -268,13 +268,13 @@ export function EventDetailsEditor({
                 />
               </div>
 
-              <div className="min-w-0">
+              <div className="min-w-0 overflow-hidden">
                 <label className={labelClass}>Setup Surface</label>
                 <div className="flex gap-2 min-w-0">
                   <button
                     type="button"
                     onClick={() => onOrderChange({ can_stake: true, surface: 'grass' })}
-                    className={`flex-1 px-3 py-2 border-2 rounded font-medium text-sm min-w-0 ${
+                    className={`flex-1 px-3 py-2 border-2 rounded font-medium text-sm min-w-0 overflow-hidden ${
                       editedOrder.can_stake
                         ? 'border-green-600 bg-green-50 text-green-900'
                         : 'border-slate-300 bg-white text-slate-700'
@@ -285,7 +285,7 @@ export function EventDetailsEditor({
                   <button
                     type="button"
                     onClick={() => onOrderChange({ can_stake: false, surface: 'cement' })}
-                    className={`flex-1 px-3 py-2 border-2 rounded font-medium text-sm min-w-0 ${
+                    className={`flex-1 px-3 py-2 border-2 rounded font-medium text-sm min-w-0 overflow-hidden ${
                       !editedOrder.can_stake
                         ? 'border-orange-600 bg-orange-50 text-orange-900'
                         : 'border-slate-300 bg-white text-slate-700'
@@ -295,13 +295,13 @@ export function EventDetailsEditor({
                   </button>
                 </div>
                 {!editedOrder.can_stake && (
-                  <p className="text-xs text-amber-600 mt-1">
+                  <p className="text-xs text-amber-600 mt-1 break-words">
                     Sandbag fee ({formatCurrency(pricingRules?.surface_sandbag_fee_cents || 3000)}) will be applied
                   </p>
                 )}
               </div>
 
-              <div className="min-w-0">
+              <div className="min-w-0 overflow-hidden">
                 <label className={labelClass}>Generators</label>
                 <input
                   type="number"
@@ -311,7 +311,7 @@ export function EventDetailsEditor({
                   className={inputClass}
                 />
                 {editedOrder.generator_qty > 0 && pricingRules?.generator_price_cents && (
-                  <p className="text-xs text-blue-600 mt-1">
+                  <p className="text-xs text-blue-600 mt-1 break-words">
                     {editedOrder.generator_qty} × {formatCurrency(pricingRules.generator_price_cents)} = {formatCurrency(editedOrder.generator_qty * pricingRules.generator_price_cents)}
                   </p>
                 )}
