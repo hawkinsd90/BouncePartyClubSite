@@ -415,56 +415,98 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
         {isEditMode && (
           <div className="mt-4 space-y-2">
             {media.map((item, index) => (
-              <div key={item.id} className="bg-white border border-slate-200 rounded-lg p-4 flex items-center gap-4">
-                {item.media_type === 'video' ? (
-                  <video
-                    src={item.image_url}
-                    className="w-24 h-16 object-cover rounded"
-                    muted
-                  />
-                ) : (
-                  <img
-                    src={item.image_url}
-                    alt={item.title || 'Carousel media'}
-                    className="w-24 h-16 object-cover rounded"
-                  />
-                )}
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium">{item.title || 'Untitled'}</p>
-                    <span className="text-xs px-2 py-0.5 bg-slate-100 rounded">
-                      {item.media_type}
-                    </span>
+              <div key={item.id} className="bg-white border border-slate-200 rounded-lg p-3 sm:p-4">
+                <div className="flex items-start gap-3 sm:gap-4">
+                  {item.media_type === 'video' ? (
+                    <video
+                      src={item.image_url}
+                      className="w-16 h-12 sm:w-24 sm:h-16 object-cover rounded flex-shrink-0"
+                      muted
+                    />
+                  ) : (
+                    <img
+                      src={item.image_url}
+                      alt={item.title || 'Carousel media'}
+                      className="w-16 h-12 sm:w-24 sm:h-16 object-cover rounded flex-shrink-0"
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="font-medium text-sm sm:text-base truncate">{item.title || 'Untitled'}</p>
+                      <span className="text-xs px-2 py-0.5 bg-slate-100 rounded flex-shrink-0">
+                        {item.media_type}
+                      </span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-slate-500 line-clamp-2">{item.description || 'No description'}</p>
+
+                    {/* Mobile button layout */}
+                    <div className="flex sm:hidden items-center gap-1 mt-2">
+                      <button
+                        onClick={() => moveMedia(item.id, 'up')}
+                        disabled={index === 0}
+                        className="p-1.5 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                        aria-label="Move up"
+                      >
+                        <MoveUp className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => moveMedia(item.id, 'down')}
+                        disabled={index === media.length - 1}
+                        className="p-1.5 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                        aria-label="Move down"
+                      >
+                        <MoveDown className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setEditingMedia(item)}
+                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                        aria-label="Edit"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => deleteMedia(item.id, item.storage_path)}
+                        className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                        aria-label="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-sm text-slate-500">{item.description || 'No description'}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => moveMedia(item.id, 'up')}
-                    disabled={index === 0}
-                    className="p-2 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    <MoveUp className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => moveMedia(item.id, 'down')}
-                    disabled={index === media.length - 1}
-                    className="p-2 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    <MoveDown className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setEditingMedia(item)}
-                    className="p-2 text-blue-600 hover:bg-blue-50 rounded"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => deleteMedia(item.id, item.storage_path)}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+
+                  {/* Desktop button layout */}
+                  <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => moveMedia(item.id, 'up')}
+                      disabled={index === 0}
+                      className="p-2 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                      aria-label="Move up"
+                    >
+                      <MoveUp className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => moveMedia(item.id, 'down')}
+                      disabled={index === media.length - 1}
+                      className="p-2 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                      aria-label="Move down"
+                    >
+                      <MoveDown className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setEditingMedia(item)}
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                      aria-label="Edit"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => deleteMedia(item.id, item.storage_path)}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded"
+                      aria-label="Delete"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
