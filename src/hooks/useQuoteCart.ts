@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { checkMultipleUnitsAvailability } from '../lib/availability';
+import { SafeStorage } from '../lib/safeStorage';
 
 interface CartItem {
   unit_id: string;
@@ -13,6 +14,16 @@ interface CartItem {
 
 const CART_STORAGE_KEY = 'bpc_cart';
 
+const validateCart = (data: any): boolean => {
+  return Array.isArray(data) && data.every(item =>
+    item.unit_id &&
+    typeof item.unit_id === 'string' &&
+    item.unit_id !== 'undefined' &&
+    typeof item.qty === 'number' &&
+    ['dry', 'water'].includes(item.wet_or_dry)
+  );
+};
+
 export function useQuoteCart() {
   const [cart, setCart] = useState<CartItem[]>([]);
 
@@ -21,39 +32,29 @@ export function useQuoteCart() {
   }, []);
 
   function loadCart() {
-    const savedCart = JSON.parse(localStorage.getItem(CART_STORAGE_KEY) || '[]');
-    const validCart = savedCart.filter((item: any) => {
-      const isValid = item.unit_id && typeof item.unit_id === 'string' && item.unit_id !== 'undefined';
-      if (!isValid) {
-        console.log('Filtering out invalid cart item:', item);
-      }
-      return isValid;
+    const savedCart = SafeStorage.getItem<CartItem[]>(CART_STORAGE_KEY, {
+      validate: validateCart,
+      expirationDays: 7
     });
-
-    if (validCart.length !== savedCart.length) {
-      console.log(`Removed ${savedCart.length - validCart.length} invalid cart items`);
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(validCart));
-    }
-
-    setCart(validCart);
+    setCart(savedCart || []);
   }
 
   function updateCartItem(index: number, updates: Partial<CartItem>) {
     const newCart = [...cart];
     newCart[index] = { ...newCart[index], ...updates };
     setCart(newCart);
-    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(newCart));
+    SafeStorage.setItem(CART_STORAGE_KEY, newCart, { expirationDays: 7 });
   }
 
   function removeFromCart(index: number) {
     const newCart = cart.filter((_, i) => i !== index);
     setCart(newCart);
-    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(newCart));
+    SafeStorage.setItem(CART_STORAGE_KEY, newCart, { expirationDays: 7 });
   }
 
   function clearCart() {
     setCart([]);
-    localStorage.removeItem(CART_STORAGE_KEY);
+    SafeStorage.removeItem(CART_STORAGE_KEY);
   }
 
   const checkCartAvailability = useCallback(
@@ -76,7 +77,7 @@ export function useQuoteCart() {
       }));
 
       setCart(updatedCart);
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(updatedCart));
+      SafeStorage.setItem(CART_STORAGE_KEY, updatedCart, { expirationDays: 7 });
     },
     [cart]
   );

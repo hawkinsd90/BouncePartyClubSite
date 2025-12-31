@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { SafeStorage } from '../lib/safeStorage';
 
 export interface QuoteFormData {
   event_date: string;
@@ -108,23 +109,21 @@ export function useQuoteForm() {
   }, [formData.city, formData.state, formData.zip, formData.lat, formData.lng]);
 
   function loadSavedForm() {
-    const savedFormData = localStorage.getItem(FORM_STORAGE_KEY);
-    if (savedFormData) {
-      try {
-        const parsedFormData = JSON.parse(savedFormData);
-        const { same_day_responsibility_accepted, overnight_responsibility_accepted, ...safeFormData } = parsedFormData;
-        setFormData(prev => ({
-          ...prev,
-          ...safeFormData,
-        }));
+    const parsedFormData = SafeStorage.getItem<QuoteFormData>(FORM_STORAGE_KEY, {
+      expirationDays: 7
+    });
 
-        if (parsedFormData.address_line1) {
-          setAddressInput(
-            `${parsedFormData.address_line1}, ${parsedFormData.city}, ${parsedFormData.state} ${parsedFormData.zip}`
-          );
-        }
-      } catch (error) {
-        console.error('Error loading saved form data:', error);
+    if (parsedFormData) {
+      const { same_day_responsibility_accepted, overnight_responsibility_accepted, ...safeFormData } = parsedFormData;
+      setFormData(prev => ({
+        ...prev,
+        ...safeFormData,
+      }));
+
+      if (parsedFormData.address_line1) {
+        setAddressInput(
+          `${parsedFormData.address_line1}, ${parsedFormData.city}, ${parsedFormData.state} ${parsedFormData.zip}`
+        );
       }
     }
   }
@@ -134,13 +133,13 @@ export function useQuoteForm() {
   }
 
   function saveFormData() {
-    localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(formData));
+    SafeStorage.setItem(FORM_STORAGE_KEY, formData, { expirationDays: 7 });
   }
 
   function clearForm() {
     setFormData(initialFormData);
     setAddressInput('');
-    localStorage.removeItem(FORM_STORAGE_KEY);
+    SafeStorage.removeItem(FORM_STORAGE_KEY);
   }
 
   return {

@@ -8,8 +8,7 @@ import { PendingOrderCard } from '../admin/PendingOrderCard';
 import { useDataFetch } from '../../hooks/useDataFetch';
 import { handleError } from '../../lib/errorHandling';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
-import { getAllOrders } from '../../lib/queries/orders';
-import { getAllContacts } from '../../lib/queries/contacts';
+import { getAllOrdersWithContacts } from '../../lib/queries/orders';
 
 
 type OrderTab = 'draft' | 'pending_review' | 'awaiting_customer_approval' | 'current' | 'upcoming' | 'all' | 'past' | 'cancelled';
@@ -27,19 +26,11 @@ export function OrdersManager() {
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
 
   const fetchOrdersData = useCallback(async () => {
-    const { data: ordersData, error } = await getAllOrders();
+    const { data, error } = await getAllOrdersWithContacts();
 
     if (error) throw error;
 
-    const { data: contacts } = await getAllContacts();
-
-    const contactsMap = new Map();
-    contacts?.forEach(c => contactsMap.set(c.email, c));
-
-    return {
-      orders: ordersData || [],
-      contactsMap,
-    };
+    return data || { orders: [], contactsMap: new Map() };
   }, []);
 
   const handleOrdersError = useCallback((error: any) => {

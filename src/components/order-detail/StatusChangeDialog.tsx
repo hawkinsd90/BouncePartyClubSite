@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
 import { showToast } from '../../lib/notifications';
+import { validateStatusTransition } from '../../lib/orderStateMachine';
 
 interface StatusChangeDialogProps {
   isOpen: boolean;
@@ -46,7 +47,19 @@ export function StatusChangeDialog({
 
     setIsChanging(true);
     try {
-      // Check availability if confirming the order
+      const { data: currentOrder } = await supabase
+        .from('orders')
+        .select('stripe_payment_method_id, payment_amount_due')
+        .eq('id', orderId)
+        .single();
+
+      const validation = validateStatusTransition(currentStatus, pendingStatus, currentOrder);
+      if (!validation.valid) {
+        showToast(validation.reason || 'Invalid status transition', 'error');
+        setIsChanging(false);
+        return;
+      }
+
       if (pendingStatus === 'confirmed') {
         const activeItems = stagedItems.filter(item => !item.is_deleted);
         const checks = activeItems.map(item => ({

@@ -1,11 +1,16 @@
 export const ORDER_STATUS = {
   DRAFT: 'draft',
-  PENDING: 'pending',
+  PENDING: 'pending_review',
   CONFIRMED: 'confirmed',
   AWAITING_CUSTOMER_APPROVAL: 'awaiting_customer_approval',
+  SETUP_IN_PROGRESS: 'setup_in_progress',
+  ON_THE_WAY: 'on_the_way',
+  SETUP_COMPLETED: 'setup_completed',
+  PICKUP_IN_PROGRESS: 'pickup_in_progress',
+  ON_THE_WAY_BACK: 'on_the_way_back',
   COMPLETED: 'completed',
   CANCELLED: 'cancelled',
-  VOIDED: 'voided',
+  VOID: 'void',
 } as const;
 
 export type OrderStatus = typeof ORDER_STATUS[keyof typeof ORDER_STATUS];
@@ -15,9 +20,14 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   [ORDER_STATUS.PENDING]: 'Pending Review',
   [ORDER_STATUS.CONFIRMED]: 'Confirmed',
   [ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL]: 'Awaiting Approval',
+  [ORDER_STATUS.SETUP_IN_PROGRESS]: 'Setup In Progress',
+  [ORDER_STATUS.ON_THE_WAY]: 'On The Way',
+  [ORDER_STATUS.SETUP_COMPLETED]: 'Setup Completed',
+  [ORDER_STATUS.PICKUP_IN_PROGRESS]: 'Pickup In Progress',
+  [ORDER_STATUS.ON_THE_WAY_BACK]: 'On The Way Back',
   [ORDER_STATUS.COMPLETED]: 'Completed',
   [ORDER_STATUS.CANCELLED]: 'Cancelled',
-  [ORDER_STATUS.VOIDED]: 'Voided',
+  [ORDER_STATUS.VOID]: 'Void',
 };
 
 export const CANCELLABLE_STATUSES: readonly OrderStatus[] = [

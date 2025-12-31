@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { SafeStorage } from '../lib/safeStorage';
 import { notifyWarning } from '../lib/notifications';
 import {
   Users,
@@ -270,7 +271,7 @@ export function UnitDetail() {
 
             <button
               onClick={() => {
-                const cart = JSON.parse(localStorage.getItem('bpc_cart') || '[]');
+                const cart = SafeStorage.getItem<any[]>('bpc_cart') || [];
 
                 // Count how many of this unit are already in cart (same unit_id and wet_or_dry)
                 const existingCount = cart.filter((item: any) =>
@@ -292,7 +293,7 @@ export function UnitDetail() {
                   is_combo: unit.is_combo,
                 };
                 cart.push(cartItem);
-                localStorage.setItem('bpc_cart', JSON.stringify(cart));
+                SafeStorage.setItem('bpc_cart', cart, { expirationDays: 7 });
                 navigate('/quote');
               }}
               className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-5 px-6 rounded-2xl transition-all shadow-xl hover:shadow-2xl flex items-center justify-center text-lg sm:text-xl"

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { SafeStorage } from '../lib/safeStorage';
 import type { QuoteFormData } from './useQuoteForm';
 
 const PREFILL_STORAGE_KEY = 'bpc_quote_prefill';
@@ -71,12 +72,11 @@ export function useQuotePrefill(user: any, callbacks: PrefillCallbacks) {
   }
 
   function loadLocalStoragePrefill() {
-    const prefillData = localStorage.getItem(PREFILL_STORAGE_KEY);
-    if (!prefillData) return;
+    const data = SafeStorage.getItem<any>(PREFILL_STORAGE_KEY);
+    if (!data) return;
 
     try {
-      const data = JSON.parse(prefillData);
-      const isDuplicateOrder = localStorage.getItem(DUPLICATE_ORDER_FLAG) === 'true';
+      const isDuplicateOrder = SafeStorage.getItem<string>(DUPLICATE_ORDER_FLAG) === 'true';
 
       if (data.address) {
         setAddressInput(data.address.formatted_address || data.address.street || '');
@@ -102,14 +102,14 @@ export function useQuotePrefill(user: any, callbacks: PrefillCallbacks) {
           start_window: data.start_window || '09:00',
           end_window: data.end_window || '17:00',
         });
-        localStorage.removeItem(DUPLICATE_ORDER_FLAG);
+        SafeStorage.removeItem(DUPLICATE_ORDER_FLAG);
       } else if (data.location_type) {
         updateFormData({
           location_type: data.location_type,
         });
       }
 
-      localStorage.removeItem(PREFILL_STORAGE_KEY);
+      SafeStorage.removeItem(PREFILL_STORAGE_KEY);
     } catch (error) {
       console.error('Error loading prefill data:', error);
     }

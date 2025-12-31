@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { SafeStorage } from '../lib/safeStorage';
 import { notifyError, notifyWarning, showConfirm } from '../lib/notifications';
 
 export function useOrderDuplication() {
@@ -105,7 +106,7 @@ export function useOrderDuplication() {
         is_combo: false,
       }));
 
-      localStorage.setItem('bpc_cart', JSON.stringify(cartItems));
+      SafeStorage.setItem('bpc_cart', cartItems, { expirationDays: 7 });
 
       const prefillData = {
         address: orderData.addresses ? {
@@ -130,8 +131,8 @@ export function useOrderDuplication() {
         end_window: orderData.end_window || '17:00',
       };
 
-      localStorage.setItem('bpc_quote_prefill', JSON.stringify(prefillData));
-      localStorage.setItem('bpc_duplicate_order', 'true');
+      SafeStorage.setItem('bpc_quote_prefill', prefillData, { expirationDays: 7 });
+      SafeStorage.setItem('bpc_duplicate_order', 'true', { expirationDays: 7 });
 
       if (orderData.customers) {
         const contactData = {
@@ -141,7 +142,7 @@ export function useOrderDuplication() {
           phone: orderData.customers.phone || '',
           business_name: orderData.customers.business_name || '',
         };
-        localStorage.setItem('bpc_contact_data', JSON.stringify(contactData));
+        SafeStorage.setItem('bpc_contact_data', contactData, { expirationDays: 7 });
         console.log('[Duplicate Order] Contact data saved:', contactData);
       }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { calculatePrice, calculateDrivingDistance, type PricingRules } from '../lib/pricing';
 import { HOME_BASE } from '../lib/constants';
+import { SafeStorage } from '../lib/safeStorage';
 import type { QuoteFormData } from './useQuoteForm';
 
 interface CartItem {
@@ -57,7 +58,7 @@ export function useQuotePricing(cart: CartItem[], formData: QuoteFormData, prici
 
   function savePriceBreakdown() {
     if (priceBreakdown) {
-      localStorage.setItem(PRICE_BREAKDOWN_STORAGE_KEY, JSON.stringify(priceBreakdown));
+      SafeStorage.setItem(PRICE_BREAKDOWN_STORAGE_KEY, priceBreakdown, { expirationDays: 7 });
     }
   }
 

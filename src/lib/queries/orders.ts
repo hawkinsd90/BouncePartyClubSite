@@ -144,3 +144,43 @@ export async function getOrdersWithPendingPayments(options?: QueryOptions) {
     { context: 'getOrdersWithPendingPayments', ...options }
   );
 }
+
+export async function getAllOrdersWithContacts(options?: QueryOptions) {
+  return executeQuery(
+    async () => {
+      const { data: ordersData, error: ordersError } = await supabase
+        .from('orders')
+        .select(COMPACT_ORDER_SELECT)
+        .order('event_date', { ascending: true });
+
+      if (ordersError) {
+        throw ordersError;
+      }
+
+      if (!ordersData || ordersData.length === 0) {
+        return { data: { orders: [], contactsMap: new Map() }, error: null };
+      }
+
+      const uniqueEmails = [...new Set(
+        ordersData
+          .map((o: any) => o.customers?.email)
+          .filter(Boolean)
+      )] as string[];
+
+      if (uniqueEmails.length === 0) {
+        return { data: { orders: ordersData, contactsMap: new Map() }, error: null };
+      }
+
+      const { data: contacts } = await supabase
+        .from('contacts')
+        .select('email, business_name, total_bookings')
+        .in('email', uniqueEmails);
+
+      const contactsMap = new Map();
+      contacts?.forEach((c: any) => contactsMap.set(c.email, c));
+
+      return { data: { orders: ordersData, contactsMap }, error: null };
+    },
+    { context: 'getAllOrdersWithContacts', ...options }
+  );
+}

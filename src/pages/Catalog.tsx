@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { SafeStorage } from '../lib/safeStorage';
 import { Users, Maximize, Zap, Droplets, Download } from 'lucide-react';
 import { notifyError } from '../lib/notifications';
 
@@ -32,9 +33,8 @@ export function Catalog() {
   }, []);
 
   function loadPrefillData() {
-    const prefillData = localStorage.getItem('bpc_quote_prefill');
-    if (prefillData) {
-      const data = JSON.parse(prefillData);
+    const data = SafeStorage.getItem<any>('bpc_quote_prefill');
+    if (data) {
       console.log('Prefill data loaded:', data);
     }
   }

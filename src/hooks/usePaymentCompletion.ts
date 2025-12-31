@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { SafeStorage } from '../lib/safeStorage';
 import { sendBookingConfirmationNotifications } from '../lib/orderNotificationService';
 
 interface OrderDetails {
@@ -176,11 +177,11 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
 
   function clearLocalStorage() {
     console.log('[PAYMENT-COMPLETE] Clearing localStorage data...');
-    localStorage.removeItem('bpc_cart');
-    localStorage.removeItem('bpc_quote_form');
-    localStorage.removeItem('bpc_price_breakdown');
-    localStorage.removeItem('bpc_contact_data');
-    localStorage.removeItem('test_booking_tip');
+    SafeStorage.removeItem('bpc_cart');
+    SafeStorage.removeItem('bpc_quote_form');
+    SafeStorage.removeItem('bpc_price_breakdown');
+    SafeStorage.removeItem('bpc_contact_data');
+    SafeStorage.removeItem('test_booking_tip');
   }
 
   return {

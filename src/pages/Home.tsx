@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Calendar, Search, Star, Shield, Clock, DollarSign, Home as HomeIcon, Building2, Zap } from 'lucide-react';
 import { AddressAutocomplete } from '../components/order/AddressAutocomplete';
 import { HeroCarousel } from '../components/admin/HeroCarousel';
+import { SafeStorage } from '../lib/safeStorage';
 import { useAuth } from '../contexts/AuthContext';
 import { createTestBooking } from '../lib/testBooking';
 import { notifyError } from '../lib/notifications';
@@ -35,7 +36,7 @@ export function Home() {
       location_type: locationType,
     };
 
-    localStorage.setItem('bpc_quote_prefill', JSON.stringify(quoteData));
+    SafeStorage.setItem('bpc_quote_prefill', quoteData, { expirationDays: 7 });
     navigate('/catalog');
   };
 
@@ -49,11 +50,11 @@ export function Home() {
                 console.log('🎬 [HOME] Create Test Booking button clicked');
 
                 console.log('🧹 [HOME] Clearing existing localStorage data...');
-                localStorage.removeItem('bpc_cart');
-                localStorage.removeItem('bpc_quote_form');
-                localStorage.removeItem('bpc_price_breakdown');
-                localStorage.removeItem('bpc_contact_data');
-                localStorage.removeItem('test_booking_tip');
+                SafeStorage.removeItem('bpc_cart');
+                SafeStorage.removeItem('bpc_quote_form');
+                SafeStorage.removeItem('bpc_price_breakdown');
+                SafeStorage.removeItem('bpc_contact_data');
+                SafeStorage.removeItem('test_booking_tip');
 
                 setCreatingTestBooking(true);
                 console.log('⏳ [HOME] Calling createTestBooking()...');

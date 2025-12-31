@@ -1,6 +1,7 @@
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { Phone, Mail, LogOut, LogIn, ShoppingCart, Menu, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { SafeStorage } from '../../lib/safeStorage';
 import { useState, useEffect } from 'react';
 import { notifyError } from '../../lib/notifications';
 
@@ -12,9 +13,8 @@ export function Layout() {
 
   useEffect(() => {
     const updateCartCount = () => {
-      const cart = localStorage.getItem('bpc_cart');
-      if (cart) {
-        const items = JSON.parse(cart);
+      const items = SafeStorage.getItem<any[]>('bpc_cart');
+      if (items) {
         const total = items.reduce((sum: number, item: any) => sum + item.qty, 0);
         setCartCount(total);
       } else {

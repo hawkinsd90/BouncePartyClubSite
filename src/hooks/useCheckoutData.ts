@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { SafeStorage } from '../lib/safeStorage';
 
 interface ContactData {
   first_name: string;
@@ -35,23 +36,21 @@ export function useCheckoutData(userId?: string) {
 
   useEffect(() => {
     async function loadCheckoutData() {
-      const savedForm = localStorage.getItem('bpc_quote_form');
-      const savedBreakdown = localStorage.getItem('bpc_price_breakdown');
-      const savedCart = localStorage.getItem('bpc_cart');
-      const savedContactData = localStorage.getItem('bpc_contact_data');
-      const savedTip = localStorage.getItem('test_booking_tip');
+      const savedForm = SafeStorage.getItem<any>('bpc_quote_form');
+      const savedBreakdown = SafeStorage.getItem<any>('bpc_price_breakdown');
+      const savedCart = SafeStorage.getItem<any[]>('bpc_cart');
+      const savedContactData = SafeStorage.getItem<ContactData>('bpc_contact_data');
+      const savedTip = SafeStorage.getItem<string>('test_booking_tip');
 
       if (!savedForm || !savedBreakdown || !savedCart) {
         setLoading(false);
         return;
       }
 
-      const formData = JSON.parse(savedForm);
-      setQuoteData(formData);
-      setPriceBreakdown(JSON.parse(savedBreakdown));
+      setQuoteData(savedForm);
+      setPriceBreakdown(savedBreakdown);
 
-      const cartData = JSON.parse(savedCart);
-      const validCart = cartData.filter((item: any) => {
+      const validCart = savedCart.filter((item: any) => {
         const isValid = item.unit_id && typeof item.unit_id === 'string' && item.unit_id !== 'undefined';
         if (!isValid) {
           console.log('Checkout: Filtering out invalid cart item:', item);
@@ -59,9 +58,9 @@ export function useCheckoutData(userId?: string) {
         return isValid;
       });
 
-      if (validCart.length !== cartData.length) {
-        console.log(`Checkout: Removed ${cartData.length - validCart.length} invalid cart items`);
-        localStorage.setItem('bpc_cart', JSON.stringify(validCart));
+      if (validCart.length !== savedCart.length) {
+        console.log(`Checkout: Removed ${savedCart.length - validCart.length} invalid cart items`);
+        SafeStorage.setItem('bpc_cart', validCart, { expirationDays: 7 });
       }
 
       setCart(validCart);
@@ -70,13 +69,12 @@ export function useCheckoutData(userId?: string) {
 
       if (savedContactData) {
         console.log('Using contact info from localStorage (test booking or cart)');
-        const contactInfo = JSON.parse(savedContactData);
         setContactData({
-          first_name: contactInfo.first_name || '',
-          last_name: contactInfo.last_name || '',
-          email: contactInfo.email || '',
-          phone: contactInfo.phone || '',
-          business_name: contactInfo.business_name || '',
+          first_name: savedContactData.first_name || '',
+          last_name: savedContactData.last_name || '',
+          email: savedContactData.email || '',
+          phone: savedContactData.phone || '',
+          business_name: savedContactData.business_name || '',
         });
         contactInfoLoaded = true;
       }
