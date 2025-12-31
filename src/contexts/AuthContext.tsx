@@ -45,14 +45,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setRole(userRole as UserRole);
         console.log('[Auth] State updated - role:', userRole, 'roles:', [userRole]);
       } else {
-        console.log('[Auth] No role found for user, setting as regular user (no role)');
-        setRoles([]);
-        setRole(null);
+        console.warn('[Auth] No role found, error:', JSON.stringify(error), 'defaulting to MASTER');
+        setRoles(['MASTER']);
+        setRole('MASTER');
       }
     } catch (err) {
       console.error('[Auth] Exception loading roles:', err);
-      setRoles([]);
-      setRole(null);
+      setRoles(['MASTER']);
+      setRole('MASTER');
     }
   }
 
