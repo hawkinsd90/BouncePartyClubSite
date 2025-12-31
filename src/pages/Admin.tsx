@@ -18,6 +18,7 @@ import { BusinessBrandingTab } from '../components/admin/BusinessBrandingTab';
 import { InventorySection } from '../components/admin/InventorySection';
 import { PricingSection } from '../components/admin/PricingSection';
 import { PerformanceAnalytics } from '../components/admin/PerformanceAnalytics';
+import { NotificationFailuresAlert } from '../components/admin/NotificationFailuresAlert';
 import { TabNavigation, type AdminTab } from '../components/admin/TabNavigation';
 import { notify } from '../lib/notifications';
 import { useDataFetch } from '../hooks/useDataFetch';
@@ -119,6 +120,8 @@ function AdminDashboard() {
         onTabChange={changeTab}
         pendingCount={orders.filter(o => o.status === 'pending_review').length}
       />
+
+      <NotificationFailuresAlert />
 
       {activeTab === 'overview' && (
         <div className="space-y-6">

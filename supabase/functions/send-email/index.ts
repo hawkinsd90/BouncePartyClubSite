@@ -6,6 +6,44 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
 };
 
+async function sendAdminSMSFallback(
+  supabase: any,
+  recipient: string,
+  subject: string,
+  errorMessage: string
+) {
+  try {
+    const { data: adminSettings } = await supabase
+      .from('admin_settings')
+      .select('value')
+      .in('key', ['admin_notification_phone', 'twilio_account_sid', 'twilio_auth_token', 'twilio_phone_number'])
+      .order('key');
+
+    const settingsMap = new Map(adminSettings?.map((s: any) => [s.key, s.value]));
+    const adminPhone = settingsMap.get('admin_notification_phone');
+
+    if (!adminPhone) return;
+
+    const smsMessage = `[EMAIL SYSTEM FAILURE]\n\nFailed to send email to: ${recipient}\nSubject: ${subject}\nError: ${errorMessage.substring(0, 100)}\n\nPlease check admin dashboard.`;
+
+    await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-sms-notification`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: adminPhone,
+        message: smsMessage,
+      }),
+    });
+
+    console.log('Admin SMS fallback sent');
+  } catch (err) {
+    console.error('Failed to send admin SMS fallback:', err);
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -27,17 +65,30 @@ Deno.serve(async (req: Request) => {
 
     const resendApiKey = settings?.value;
 
+    const { to, from, subject, html, text, context } = await req.json();
+
     if (!resendApiKey) {
+      const errorMsg = 'Resend API key not configured';
+
+      await supabase.rpc('record_notification_failure', {
+        p_type: 'email',
+        p_recipient: to,
+        p_subject: subject,
+        p_message_preview: text?.substring(0, 200) || html?.substring(0, 200) || null,
+        p_error: errorMsg,
+        p_context: context || {}
+      });
+
+      await sendAdminSMSFallback(supabase, to, subject, errorMsg);
+
       return new Response(
-        JSON.stringify({ error: 'Resend API key not configured' }),
+        JSON.stringify({ error: errorMsg }),
         {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       );
     }
-
-    const { to, from, subject, html, text } = await req.json();
 
     if (!to || !subject || (!html && !text)) {
       return new Response(
@@ -71,6 +122,20 @@ Deno.serve(async (req: Request) => {
 
     if (!resendResponse.ok) {
       console.error('Resend API error:', resendData);
+
+      const errorMsg = `Resend API error: ${JSON.stringify(resendData)}`;
+
+      await supabase.rpc('record_notification_failure', {
+        p_type: 'email',
+        p_recipient: to,
+        p_subject: subject,
+        p_message_preview: text?.substring(0, 200) || html?.substring(0, 200) || null,
+        p_error: errorMsg,
+        p_context: context || {}
+      });
+
+      await sendAdminSMSFallback(supabase, to, subject, errorMsg);
+
       return new Response(
         JSON.stringify({ error: 'Failed to send email', details: resendData }),
         {
@@ -79,6 +144,8 @@ Deno.serve(async (req: Request) => {
         }
       );
     }
+
+    await supabase.rpc('record_notification_success', { p_type: 'email' });
 
     return new Response(
       JSON.stringify({ success: true, messageId: resendData.id }),
@@ -89,8 +156,30 @@ Deno.serve(async (req: Request) => {
     );
   } catch (error: any) {
     console.error('Error sending email:', error);
+
+    const errorMsg = error.message || 'Internal server error';
+    const { to, subject, html, text, context } = await req.json().catch(() => ({}));
+
+    if (to && subject) {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      );
+
+      await supabase.rpc('record_notification_failure', {
+        p_type: 'email',
+        p_recipient: to,
+        p_subject: subject,
+        p_message_preview: text?.substring(0, 200) || html?.substring(0, 200) || null,
+        p_error: errorMsg,
+        p_context: context || {}
+      });
+
+      await sendAdminSMSFallback(supabase, to, subject, errorMsg);
+    }
+
     return new Response(
-      JSON.stringify({ error: error.message || 'Internal server error' }),
+      JSON.stringify({ error: errorMsg }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -13,6 +13,52 @@ interface SmsRequest {
   orderId?: string;
   templateKey?: string;
   mediaUrls?: string[];
+  skipFallback?: boolean;
+}
+
+async function sendAdminEmailFallback(
+  supabase: any,
+  recipient: string,
+  messagePreview: string,
+  errorMessage: string
+) {
+  try {
+    const { data: adminEmailSetting } = await supabase
+      .from('admin_settings')
+      .select('value')
+      .eq('key', 'admin_email')
+      .maybeSingle();
+
+    const adminEmail = adminEmailSetting?.value;
+    if (!adminEmail) return;
+
+    const emailBody = `
+      <h2>SMS System Failure</h2>
+      <p><strong>Failed to send SMS to:</strong> ${recipient}</p>
+      <p><strong>Message preview:</strong> ${messagePreview}</p>
+      <p><strong>Error:</strong> ${errorMessage}</p>
+      <hr>
+      <p>Please check the admin dashboard for more details and resolve the SMS system configuration.</p>
+    `;
+
+    await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-email`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: adminEmail,
+        subject: '[SMS SYSTEM FAILURE] Action Required',
+        html: emailBody,
+        text: `SMS SYSTEM FAILURE\n\nFailed to send SMS to: ${recipient}\nMessage: ${messagePreview}\nError: ${errorMessage}\n\nPlease check admin dashboard.`,
+      }),
+    });
+
+    console.log('Admin email fallback sent');
+  } catch (err) {
+    console.error('Failed to send admin email fallback:', err);
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -113,10 +159,26 @@ Deno.serve(async (req: Request) => {
 
     if (!settings || settings.length !== 3) {
       console.warn("[send-sms-notification] Twilio credentials not configured");
+
+      const errorMsg = "Twilio not configured. Please add credentials in Admin > Settings.";
+
+      await supabase.rpc('record_notification_failure', {
+        p_type: 'sms',
+        p_recipient: toPhone || 'unknown',
+        p_subject: null,
+        p_message_preview: messageBody?.substring(0, 200) || null,
+        p_error: errorMsg,
+        p_context: { orderId }
+      });
+
+      if (!requestBody.skipFallback) {
+        await sendAdminEmailFallback(supabase, toPhone || 'unknown', messageBody || '', errorMsg);
+      }
+
       return new Response(
         JSON.stringify({
           success: false,
-          error: "Twilio not configured. Please add credentials in Admin > Settings.",
+          error: errorMsg,
         }),
         {
           status: 400,
@@ -137,10 +199,26 @@ Deno.serve(async (req: Request) => {
 
     if (!twilioConfig.accountSid || !twilioConfig.authToken || !twilioConfig.fromNumber) {
       console.error("[send-sms-notification] Incomplete Twilio config");
+
+      const errorMsg = "Incomplete Twilio configuration. Please check Admin > Settings.";
+
+      await supabase.rpc('record_notification_failure', {
+        p_type: 'sms',
+        p_recipient: toPhone || 'unknown',
+        p_subject: null,
+        p_message_preview: messageBody?.substring(0, 200) || null,
+        p_error: errorMsg,
+        p_context: { orderId }
+      });
+
+      if (!requestBody.skipFallback) {
+        await sendAdminEmailFallback(supabase, toPhone || 'unknown', messageBody || '', errorMsg);
+      }
+
       return new Response(
         JSON.stringify({
           success: false,
-          error: "Incomplete Twilio configuration. Please check Admin > Settings.",
+          error: errorMsg,
         }),
         {
           status: 400,
@@ -185,11 +263,29 @@ Deno.serve(async (req: Request) => {
         message: errorData.message,
         moreInfo: errorData.more_info
       });
-      throw new Error(`Twilio API error (${errorData.code}): ${errorData.message || 'Unknown error'}`);
+
+      const errorMsg = `Twilio API error (${errorData.code}): ${errorData.message || 'Unknown error'}`;
+
+      await supabase.rpc('record_notification_failure', {
+        p_type: 'sms',
+        p_recipient: toPhone || 'unknown',
+        p_subject: null,
+        p_message_preview: messageBody?.substring(0, 200) || null,
+        p_error: errorMsg,
+        p_context: { orderId, twilioCode: errorData.code }
+      });
+
+      if (!requestBody.skipFallback) {
+        await sendAdminEmailFallback(supabase, toPhone || 'unknown', messageBody || '', errorMsg);
+      }
+
+      throw new Error(errorMsg);
     }
 
     const data = await twilioResponse.json();
     console.log("[send-sms-notification] Twilio response:", { sid: data.sid, status: data.status });
+
+    await supabase.rpc('record_notification_success', { p_type: 'sms' });
 
     await supabase.from("sms_conversations").insert({
       order_id: orderId || null,
@@ -217,9 +313,33 @@ Deno.serve(async (req: Request) => {
     );
   } catch (error) {
     console.error("[send-sms-notification] Error:", error);
+
+    const errorMsg = error.message || "Failed to send SMS";
+    const { to, message: messageBody, orderId, skipFallback } = await req.json().catch(() => ({}));
+
+    if (to && messageBody) {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      );
+
+      await supabase.rpc('record_notification_failure', {
+        p_type: 'sms',
+        p_recipient: to,
+        p_subject: null,
+        p_message_preview: messageBody?.substring(0, 200) || null,
+        p_error: errorMsg,
+        p_context: { orderId }
+      });
+
+      if (!skipFallback) {
+        await sendAdminEmailFallback(supabase, to, messageBody, errorMsg);
+      }
+    }
+
     return new Response(
       JSON.stringify({
-        error: error.message || "Failed to send SMS",
+        error: errorMsg,
       }),
       {
         status: 500,
