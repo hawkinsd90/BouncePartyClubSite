@@ -54,7 +54,13 @@ export function useQuoteForm() {
   const [addressInput, setAddressInput] = useState('');
 
   useEffect(() => {
-    loadSavedForm();
+    const prefillData = SafeStorage.getItem<any>('bpc_quote_prefill');
+    if (prefillData) {
+      applyPrefillData(prefillData);
+      SafeStorage.removeItem('bpc_quote_prefill');
+    } else {
+      loadSavedForm();
+    }
   }, []);
 
   useEffect(() => {
@@ -107,6 +113,54 @@ export function useQuoteForm() {
 
     geocodeAddress();
   }, [formData.city, formData.state, formData.zip, formData.lat, formData.lng]);
+
+  function applyPrefillData(prefillData: any) {
+    const isDuplicateOrder = SafeStorage.getItem<string>('bpc_duplicate_order') === 'true';
+
+    if (prefillData.event_date) {
+      setFormData(prev => ({
+        ...prev,
+        event_date: prefillData.event_date,
+        event_end_date: prefillData.event_date,
+      }));
+    }
+
+    if (prefillData.address) {
+      const addr = prefillData.address;
+      setAddressInput(addr.formatted_address || addr.street || '');
+      setFormData(prev => ({
+        ...prev,
+        address_line1: addr.street || '',
+        address_line2: addr.line2 || '',
+        city: addr.city || 'Detroit',
+        state: addr.state || 'MI',
+        zip: addr.zip || '',
+        lat: addr.lat || 0,
+        lng: addr.lng || 0,
+      }));
+    }
+
+    if (prefillData.location_type) {
+      setFormData(prev => ({
+        ...prev,
+        location_type: prefillData.location_type,
+      }));
+    }
+
+    if (isDuplicateOrder) {
+      setFormData(prev => ({
+        ...prev,
+        pickup_preference: prefillData.pickup_preference || 'next_day',
+        can_stake: prefillData.can_stake !== undefined ? prefillData.can_stake : true,
+        has_generator: prefillData.has_generator !== undefined ? prefillData.has_generator : false,
+        has_pets: prefillData.has_pets !== undefined ? prefillData.has_pets : false,
+        special_details: prefillData.special_details || '',
+        start_window: prefillData.start_window || '09:00',
+        end_window: prefillData.end_window || '17:00',
+      }));
+      SafeStorage.removeItem('bpc_duplicate_order');
+    }
+  }
 
   function loadSavedForm() {
     const parsedFormData = SafeStorage.getItem<QuoteFormData>(FORM_STORAGE_KEY, {

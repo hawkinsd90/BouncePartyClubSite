@@ -63,7 +63,7 @@ export function Quote() {
 
   const { priceBreakdown, savePriceBreakdown } = useQuotePricing(cart, formData, pricingRules);
 
-  useQuotePrefill(user, { setAddressInput, updateFormData });
+  useQuotePrefill(user, formData, { setAddressInput, updateFormData });
 
   useEffect(() => {
     if (cart.length > 0 && formData.event_date && formData.event_end_date) {
