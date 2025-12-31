@@ -1,9 +1,10 @@
 import { PaymentAmountSelector as SharedPaymentAmountSelector } from '../shared/PaymentAmountSelector';
+import type { PriceBreakdown } from '../../lib/pricing';
 
 interface PaymentAmountSelectorProps {
   paymentAmount: 'deposit' | 'full' | 'custom';
   customAmount: string;
-  priceBreakdown: any;
+  priceBreakdown: PriceBreakdown;
   onPaymentAmountChange: (amount: 'deposit' | 'full' | 'custom') => void;
   onCustomAmountChange: (amount: string) => void;
 }

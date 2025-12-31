@@ -7,6 +7,9 @@ import { SafeStorage } from '../lib/safeStorage';
 import { useAuth } from '../contexts/AuthContext';
 import { createTestBooking } from '../lib/testBooking';
 import { notifyError } from '../lib/notifications';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('Home');
 
 export function Home() {
   const navigate = useNavigate();
@@ -47,9 +50,9 @@ export function Home() {
           isAdmin ? (
             <button
               onClick={async () => {
-                console.log('🎬 [HOME] Create Test Booking button clicked');
+                log.info('Create Test Booking button clicked');
 
-                console.log('🧹 [HOME] Clearing existing localStorage data...');
+                log.debug('Clearing existing localStorage data');
                 SafeStorage.removeItem('bpc_cart');
                 SafeStorage.removeItem('bpc_quote_form');
                 SafeStorage.removeItem('bpc_price_breakdown');
@@ -57,15 +60,15 @@ export function Home() {
                 SafeStorage.removeItem('test_booking_tip');
 
                 setCreatingTestBooking(true);
-                console.log('⏳ [HOME] Calling createTestBooking()...');
+                log.info('Calling createTestBooking');
                 const result = await createTestBooking();
-                console.log('📊 [HOME] createTestBooking() result:', result);
+                log.debug('createTestBooking result', result);
                 setCreatingTestBooking(false);
                 if (result.success) {
-                  console.log('✅ [HOME] Test booking created successfully, navigating to /checkout');
+                  log.info('Test booking created successfully, navigating to /checkout');
                   navigate('/checkout');
                 } else {
-                  console.error('❌ [HOME] Test booking failed:', result.error);
+                  log.error('Test booking failed', result.error);
                   notifyError('Failed to create test booking: ' + result.error);
                 }
               }}

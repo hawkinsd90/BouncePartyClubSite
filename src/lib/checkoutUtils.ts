@@ -1,11 +1,18 @@
 import { OrderSummaryDisplay } from './orderSummary';
 import { dollarsToCents } from './utils';
 import { buildOrderSummaryDisplay } from './orderSummaryHelpers';
+import type { PriceBreakdown } from './pricing';
+import type { CartItem } from '../types';
+
+interface QuoteData {
+  pickup_preference?: 'same_day' | 'next_day';
+  [key: string]: unknown;
+}
 
 export function getPaymentAmountCents(
   paymentAmount: 'deposit' | 'full' | 'custom',
   customAmount: string,
-  priceBreakdown: any
+  priceBreakdown: PriceBreakdown
 ): number {
   if (paymentAmount === 'full') {
     return priceBreakdown.total_cents;
@@ -30,9 +37,9 @@ export function getTipAmountCents(
 }
 
 export function buildOrderSummary(
-  priceBreakdown: any,
-  cart: any[],
-  quoteData: any,
+  priceBreakdown: PriceBreakdown,
+  cart: CartItem[],
+  quoteData: QuoteData,
   tipCents: number
 ): OrderSummaryDisplay | null {
   if (!priceBreakdown || !cart) return null;

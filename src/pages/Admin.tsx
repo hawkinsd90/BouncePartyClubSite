@@ -24,11 +24,52 @@ import { notify } from '../lib/notifications';
 import { useDataFetch } from '../hooks/useDataFetch';
 import { handleError } from '../lib/errorHandling';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
+import type { Unit, PricingRules } from '../types';
+
+interface UnitMedia {
+  url: string;
+  mode: 'dry' | 'water';
+  sort: number;
+}
+
+interface UnitWithMedia extends Unit {
+  unit_media?: UnitMedia[];
+  image_url?: string | null;
+}
+
+interface Customer {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+}
+
+interface OrderAddress {
+  line1: string;
+  city: string;
+  state: string;
+  zip: string;
+}
+
+interface OrderWithRelations {
+  id: string;
+  order_number?: string;
+  status: string;
+  event_date: string;
+  event_end_date?: string;
+  total_cents: number;
+  deposit_due_cents: number;
+  deposit_paid_cents: number;
+  balance_due_cents: number;
+  created_at: string;
+  customers: Customer | null;
+  addresses: OrderAddress | null;
+}
 
 interface AdminData {
-  units: any[];
-  orders: any[];
-  pricingRules: any | null;
+  units: UnitWithMedia[];
+  orders: OrderWithRelations[];
+  pricingRules: PricingRules | null;
 }
 
 function AdminDashboard() {
@@ -60,7 +101,9 @@ function AdminDashboard() {
 
     // Process units to add image_url from unit_media
     const unitsWithImages = (unitsRes.data || []).map(unit => {
-      const dryImages = (unit.unit_media || []).filter((media: any) => media.mode === 'dry').sort((a: any, b: any) => a.sort - b.sort);
+      const dryImages = (unit.unit_media || [])
+        .filter((media: UnitMedia) => media.mode === 'dry')
+        .sort((a: UnitMedia, b: UnitMedia) => a.sort - b.sort);
       return {
         ...unit,
         image_url: dryImages.length > 0 ? dryImages[0].url : null
@@ -74,7 +117,7 @@ function AdminDashboard() {
     };
   }, []);
 
-  const handleDataError = useCallback((error: any) => {
+  const handleDataError = useCallback((error: Error | unknown) => {
     handleError(error, 'Admin.loadData');
   }, []);
 

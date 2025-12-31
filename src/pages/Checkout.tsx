@@ -15,6 +15,9 @@ import { TipSection } from '../components/checkout/TipSection';
 import { ConsentSection } from '../components/checkout/ConsentSection';
 import { CheckoutSummary } from '../components/checkout/CheckoutSummary';
 import { InvoicePreviewModal } from '../components/checkout/InvoicePreviewModal';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('Checkout');
 
 export function Checkout() {
   const navigate = useNavigate();
@@ -127,18 +130,18 @@ export function Checkout() {
 
         const data = await response.json();
 
-        console.log('🔵 [CHECKOUT] Stripe session response:', data);
-        console.log('🔵 [CHECKOUT] Success URL from server:', data.successUrl);
+        log.debug('Stripe session response', data);
+        log.debug('Success URL from server', data.successUrl);
 
         if (!response.ok || !data.url) {
           throw new Error(data.error || 'Failed to create checkout session');
         }
 
-        console.log('🔵 [CHECKOUT] Opening Stripe with URL:', data.url);
+        log.info('Opening Stripe checkout', { url: data.url });
 
         window.location.href = data.url;
       } catch (err: any) {
-        console.error('Stripe checkout error:', err);
+        log.error('Stripe checkout error', err);
         showToast(err.message || 'Failed to initialize payment', 'error');
         setProcessing(false);
       }

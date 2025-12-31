@@ -3,6 +3,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Lock, Loader2, Eye, EyeOff, X } from 'lucide-react';
 import { notifySuccess } from '../lib/notifications';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('Login');
 
 export function Login() {
   const navigate = useNavigate();
@@ -52,24 +55,22 @@ export function Login() {
   };
 
   const handleGoogleSignIn = async () => {
-    console.log('[Login] Google sign-in button clicked');
-    console.log('[Login] Current location:', window.location.href);
+    log.info('Google sign-in button clicked');
+    log.debug('Current location', window.location.href);
 
     setError('');
     setLoading(true);
 
     try {
-      console.log('[Login] Calling signInWithGoogle...');
+      log.info('Calling signInWithGoogle');
       await signInWithGoogle();
-      console.log('[Login] signInWithGoogle completed (user should be redirecting to Google)');
+      log.info('signInWithGoogle completed, redirecting to Google');
       // Note: loading state will remain true as we're navigating away
     } catch (err: any) {
-      console.error('[Login] Google sign-in failed:', err);
-      console.error('[Login] Error details:', {
+      log.error('Google sign-in failed', err, {
         message: err.message,
         status: err.status,
-        code: err.code,
-        details: err
+        code: err.code
       });
       setError(err.message || 'Failed to sign in with Google');
       setLoading(false);
