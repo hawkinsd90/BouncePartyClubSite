@@ -15,7 +15,7 @@ import { AddressSection } from '../components/quote/AddressSection';
 import { EventDetailsSection } from '../components/quote/EventDetailsSection';
 import { SetupDetailsSection } from '../components/quote/SetupDetailsSection';
 import { QuoteSummarySection } from '../components/quote/QuoteSummarySection';
-import { ConfirmationModal } from '../components/shared/ConfirmationModal';
+import { SimpleConfirmModal } from '../components/common/SimpleConfirmModal';
 
 export function Quote() {
   const navigate = useNavigate();
@@ -169,18 +169,14 @@ export function Quote() {
           </div>
         </form>
 
-        <ConfirmationModal
+        <SimpleConfirmModal
           isOpen={showClearModal}
           onClose={() => setShowClearModal(false)}
           onConfirm={handleClearAll}
           title="Clear Cart & Form"
-          message={
-            user
-              ? "Are you sure you want to clear your entire cart and all form information? Your contact information will be preserved. This action cannot be undone."
-              : "Are you sure you want to clear your entire cart and all form information? This action cannot be undone."
-          }
+          message="Are you sure you want to clear your cart and all form information?"
           confirmText="Clear All"
-          confirmButtonClass="bg-red-600 hover:bg-red-700 text-white"
+          variant="danger"
         />
       </div>
     </div>
