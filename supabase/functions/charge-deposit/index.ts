@@ -1,6 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import Stripe from "npm:stripe@14.14.0";
 import { createClient } from "npm:@supabase/supabase-js@2.39.3";
+import { checkRateLimit, createRateLimitResponse, getIdentifier } from "../_shared/rate-limit.ts";
+import { validatePaymentMethod } from "../_shared/payment-validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,6 +24,12 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const identifier = getIdentifier(req);
+    const rateLimitResult = await checkRateLimit('charge-deposit', identifier);
+
+    if (!rateLimitResult.allowed) {
+      return createRateLimitResponse(rateLimitResult, corsHeaders);
+    }
     const { orderId } = await req.json();
 
     if (!orderId) {
@@ -115,6 +123,31 @@ Deno.serve(async (req: Request) => {
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    const validation = await validatePaymentMethod(order.stripe_payment_method_id, stripe);
+
+    if (!validation.valid) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: validation.reason,
+          needsNewCard: validation.needsNewCard
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (validation.expMonth && validation.expYear && validation.last4) {
+      await supabaseClient
+        .from("orders")
+        .update({
+          payment_method_validated_at: new Date().toISOString(),
+          payment_method_exp_month: validation.expMonth,
+          payment_method_exp_year: validation.expYear,
+          payment_method_last_four: validation.last4,
+        })
+        .eq("id", orderId);
     }
 
     const amountCents =

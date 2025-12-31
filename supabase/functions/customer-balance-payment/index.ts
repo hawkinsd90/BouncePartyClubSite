@@ -7,6 +7,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import Stripe from "npm:stripe@14.14.0";
 import { createClient } from "npm:@supabase/supabase-js@2.39.3";
+import { checkRateLimit, createRateLimitResponse, getIdentifier } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,6 +28,12 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const identifier = getIdentifier(req);
+    const rateLimitResult = await checkRateLimit('customer-balance-payment', identifier);
+
+    if (!rateLimitResult.allowed) {
+      return createRateLimitResponse(rateLimitResult, corsHeaders);
+    }
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""

@@ -1,16 +1,14 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import Stripe from "npm:stripe@14.14.0";
 import { createClient } from "npm:@supabase/supabase-js@2.39.3";
+import { checkRateLimit, createRateLimitResponse, getIdentifier } from "../_shared/rate-limit.ts";
+import { validatePaymentMethod } from "../_shared/payment-validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
-
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-  apiVersion: "2024-10-28.acacia",
-});
 
 interface ChargeRequest {
   orderId: string;
@@ -28,6 +26,12 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const identifier = getIdentifier(req);
+    const rateLimitResult = await checkRateLimit('stripe-charge', identifier);
+
+    if (!rateLimitResult.allowed) {
+      return createRateLimitResponse(rateLimitResult, corsHeaders);
+    }
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -102,6 +106,53 @@ Deno.serve(async (req: Request) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
+    }
+
+    const { data: stripeKeyData } = await supabaseClient
+      .from("admin_settings")
+      .select("value")
+      .eq("key", "stripe_secret_key")
+      .maybeSingle();
+
+    if (!stripeKeyData?.value) {
+      return new Response(
+        JSON.stringify({ error: "Stripe not configured" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const stripe = new Stripe(stripeKeyData.value, {
+      apiVersion: "2024-10-28.acacia",
+    });
+
+    const validation = await validatePaymentMethod(order.stripe_payment_method_id, stripe);
+
+    if (!validation.valid) {
+      return new Response(
+        JSON.stringify({
+          error: validation.reason,
+          needsNewCard: validation.needsNewCard
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (validation.expMonth && validation.expYear && validation.last4) {
+      await supabaseClient
+        .from("orders")
+        .update({
+          payment_method_validated_at: new Date().toISOString(),
+          payment_method_exp_month: validation.expMonth,
+          payment_method_exp_year: validation.expYear,
+          payment_method_last_four: validation.last4,
+        })
+        .eq("id", orderId);
     }
 
     const paymentIntent = await stripe.paymentIntents.create({

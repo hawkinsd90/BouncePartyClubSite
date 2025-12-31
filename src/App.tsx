@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { AuthProvider } from './contexts/AuthContext';
+import { BusinessProvider } from './contexts/BusinessContext';
 import { ProtectedRoute } from './components/common/ProtectedRoute';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Layout } from './components/common/Layout';
@@ -28,7 +29,8 @@ function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
-        <AuthProvider>
+        <BusinessProvider>
+          <AuthProvider>
         <Suspense fallback={
           <div className="min-h-screen flex items-center justify-center bg-slate-50">
             <div className="text-center">
@@ -99,7 +101,8 @@ function App() {
           </Route>
         </Routes>
         </Suspense>
-      </AuthProvider>
+          </AuthProvider>
+        </BusinessProvider>
     </BrowserRouter>
     </ErrorBoundary>
   );

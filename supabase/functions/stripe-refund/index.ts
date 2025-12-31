@@ -1,16 +1,13 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import Stripe from "npm:stripe@14.14.0";
 import { createClient } from "npm:@supabase/supabase-js@2.39.3";
+import { checkRateLimit, createRateLimitResponse, getIdentifier } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
-
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-  apiVersion: "2024-10-28.acacia",
-});
 
 interface RefundRequest {
   orderId: string;
@@ -27,6 +24,12 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const identifier = getIdentifier(req);
+    const rateLimitResult = await checkRateLimit('stripe-refund', identifier);
+
+    if (!rateLimitResult.allowed) {
+      return createRateLimitResponse(rateLimitResult, corsHeaders);
+    }
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -63,6 +66,26 @@ Deno.serve(async (req: Request) => {
         }
       );
     }
+
+    const { data: stripeKeyData } = await supabaseClient
+      .from("admin_settings")
+      .select("value")
+      .eq("key", "stripe_secret_key")
+      .maybeSingle();
+
+    if (!stripeKeyData?.value) {
+      return new Response(
+        JSON.stringify({ error: "Stripe not configured" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const stripe = new Stripe(stripeKeyData.value, {
+      apiVersion: "2024-10-28.acacia",
+    });
 
     const { orderId, amountCents, reason }: RefundRequest = await req.json();
 

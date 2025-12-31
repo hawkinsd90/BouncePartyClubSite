@@ -8,6 +8,7 @@ export type AdminTab =
   | 'invoices'
   | 'calculator'
   | 'pricing'
+  | 'branding'
   | 'permissions'
   | 'message_templates'
   | 'blackout'
@@ -37,6 +38,7 @@ export function TabNavigation({ activeTab, onTabChange, pendingCount = 0 }: TabN
     { id: 'invoices', label: 'Invoices' },
     { id: 'calculator', label: 'Travel Calculator' },
     { id: 'pricing', label: 'Pricing' },
+    { id: 'branding', label: 'Business Branding' },
     { id: 'permissions', label: 'Permissions' },
     { id: 'message_templates', label: 'Message Templates' },
     { id: 'blackout', label: 'Blackout' },

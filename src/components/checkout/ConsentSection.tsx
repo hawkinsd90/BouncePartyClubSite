@@ -1,4 +1,5 @@
 import { Shield, CreditCard } from 'lucide-react';
+import { useBusinessSettings } from '../../contexts/BusinessContext';
 
 interface ConsentSectionProps {
   cardOnFileConsent: boolean;
@@ -13,6 +14,8 @@ export function ConsentSection({
   onCardOnFileConsentChange,
   onSmsConsentChange,
 }: ConsentSectionProps) {
+  const business = useBusinessSettings();
+
   return (
     <>
       <div className="bg-white rounded-xl shadow-md p-6">
@@ -34,7 +37,7 @@ export function ConsentSection({
         <h3 className="font-bold text-slate-900 mb-3 text-lg">Card-on-File Authorization</h3>
         <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4">
           <p className="text-sm text-slate-700 leading-relaxed">
-            I authorize Bounce Party Club LLC to securely store my payment method and
+            I authorize {business.business_legal_entity} to securely store my payment method and
             charge it for incidentals including damage, excess cleaning, or late fees as
             itemized in a receipt. I understand that any charges will be accompanied by
             photographic evidence and a detailed explanation.
@@ -57,7 +60,7 @@ export function ConsentSection({
         <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4">
           <p className="text-sm text-slate-700 leading-relaxed">
             By providing my phone number and checking the box below, I consent to receive
-            transactional SMS text messages from Bounce Party Club LLC at the phone number
+            transactional SMS text messages from {business.business_legal_entity} at the phone number
             provided. These messages may include order confirmations, delivery updates,
             and service-related notifications about my booking. Message frequency varies.
             Message and data rates may apply. You can reply STOP to opt-out at any time.
