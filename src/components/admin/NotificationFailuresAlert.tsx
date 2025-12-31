@@ -53,7 +53,10 @@ export function NotificationFailuresAlert() {
     }
   }
 
-  const hasActiveIssues = !emailStatus?.is_operational || !smsStatus?.is_operational || counts.total > 0;
+  const hasActiveIssues =
+    (emailStatus && !emailStatus.is_operational) ||
+    (smsStatus && !smsStatus.is_operational) ||
+    counts.total > 0;
 
   if (loading) {
     return null;
@@ -79,7 +82,7 @@ export function NotificationFailuresAlert() {
               </h3>
 
               <div className="space-y-2 mb-4">
-                {!emailStatus?.is_operational && (
+                {emailStatus && !emailStatus.is_operational && (
                   <div className="flex items-center gap-2 text-red-800">
                     <Mail className="w-4 h-4" />
                     <span className="font-semibold">Email System: </span>
@@ -90,7 +93,7 @@ export function NotificationFailuresAlert() {
                   </div>
                 )}
 
-                {!smsStatus?.is_operational && (
+                {smsStatus && !smsStatus.is_operational && (
                   <div className="flex items-center gap-2 text-red-800">
                     <MessageSquare className="w-4 h-4" />
                     <span className="font-semibold">SMS System: </span>
