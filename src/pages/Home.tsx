@@ -51,19 +51,14 @@ export function Home() {
             <button
               onClick={async () => {
                 log.info('Create Test Booking button clicked');
-
-                log.debug('Clearing existing localStorage data');
-                SafeStorage.removeItem('bpc_cart');
-                SafeStorage.removeItem('bpc_quote_form');
-                SafeStorage.removeItem('bpc_price_breakdown');
-                SafeStorage.removeItem('bpc_contact_data');
-                SafeStorage.removeItem('test_booking_tip');
-
                 setCreatingTestBooking(true);
+
                 log.info('Calling createTestBooking');
                 const result = await createTestBooking();
                 log.debug('createTestBooking result', result);
+
                 setCreatingTestBooking(false);
+
                 if (result.success) {
                   log.info('Test booking created successfully, navigating to /checkout');
                   navigate('/checkout');

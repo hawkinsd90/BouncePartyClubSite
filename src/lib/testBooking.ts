@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { addDays, format } from 'date-fns';
 import { calculateDistance, calculateDrivingDistance, calculatePrice } from './pricing';
 import { loadGoogleMapsAPI } from './googleMaps';
+import { SafeStorage } from './safeStorage';
 
 const DEVON_CONTACT = {
   first_name: 'Devon',
@@ -138,8 +139,8 @@ export async function createTestBooking() {
       console.warn('⚠️ [TEST BOOKING] Could not load Google Maps API, will use approximation:', error);
     }
 
-    const existingCart = localStorage.getItem('bpc_cart');
-    const existingQuote = localStorage.getItem('bpc_quote_form');
+    const existingCart = SafeStorage.getItem('bpc_cart');
+    const existingQuote = SafeStorage.getItem('bpc_quote_form');
 
     if (existingCart && existingQuote) {
       console.log('ℹ️ [TEST BOOKING] Found existing cart and quote, reusing them');
@@ -154,8 +155,8 @@ export async function createTestBooking() {
         },
       };
 
-      localStorage.setItem('bpc_contact_data', JSON.stringify(contactData));
-      localStorage.setItem('test_booking_tip', '1000');
+      SafeStorage.setItem('bpc_contact_data', contactData, { expirationDays: 7 });
+      SafeStorage.setItem('test_booking_tip', '1000', { expirationDays: 7 });
 
       console.log('✅ [TEST BOOKING] Reused existing booking data');
       return { success: true, date: 'existing', units: [] };
@@ -277,11 +278,11 @@ export async function createTestBooking() {
     console.log('📝 [TEST BOOKING] Quote data:', quoteData);
     console.log('💰 [TEST BOOKING] Price breakdown:', priceBreakdown);
 
-    localStorage.setItem('bpc_quote_form', JSON.stringify(quoteData));
-    localStorage.setItem('bpc_cart', JSON.stringify(cart));
-    localStorage.setItem('bpc_price_breakdown', JSON.stringify(priceBreakdown));
-    localStorage.setItem('bpc_contact_data', JSON.stringify(contactData));
-    localStorage.setItem('test_booking_tip', '1000');
+    SafeStorage.setItem('bpc_quote_form', quoteData, { expirationDays: 7 });
+    SafeStorage.setItem('bpc_cart', cart, { expirationDays: 7 });
+    SafeStorage.setItem('bpc_price_breakdown', priceBreakdown, { expirationDays: 7 });
+    SafeStorage.setItem('bpc_contact_data', contactData, { expirationDays: 7 });
+    SafeStorage.setItem('test_booking_tip', '1000', { expirationDays: 7 });
 
     console.log('✅ [TEST BOOKING] Test booking data saved to localStorage successfully!');
     console.log('🎯 [TEST BOOKING] Returning success with date:', date, 'and units:', units.map(u => u.name));
