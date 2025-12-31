@@ -20,7 +20,6 @@ import { PricingSection } from '../components/admin/PricingSection';
 import { PerformanceAnalytics } from '../components/admin/PerformanceAnalytics';
 import { NotificationFailuresAlert } from '../components/admin/NotificationFailuresAlert';
 import { TabNavigation, type AdminTab } from '../components/admin/TabNavigation';
-import { notify } from '../lib/notifications';
 import { useDataFetch } from '../hooks/useDataFetch';
 import { handleError } from '../lib/errorHandling';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
@@ -35,6 +34,8 @@ interface UnitMedia {
 interface UnitWithMedia extends Unit {
   unit_media?: UnitMedia[];
   image_url?: string | null;
+  dimensions?: string | null;
+  capacity?: string | null;
 }
 
 interface Customer {
@@ -57,6 +58,7 @@ interface OrderWithRelations {
   status: string;
   event_date: string;
   event_end_date?: string;
+  subtotal_cents: number;
   total_cents: number;
   deposit_due_cents: number;
   deposit_paid_cents: number;
@@ -260,7 +262,7 @@ function AdminDashboard() {
 
       {activeTab === 'changelog' && <ChangelogTab />}
 
-      {activeTab === 'pricing' && pricingRules && <PricingSection pricingRules={pricingRules} />}
+      {activeTab === 'pricing' && pricingRules && <PricingSection pricingRules={pricingRules as any} />}
 
       {activeTab === 'branding' && <BusinessBrandingTab />}
 

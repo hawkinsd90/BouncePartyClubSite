@@ -185,10 +185,17 @@ async function createOrderCustomFees(orderId: string, customFees: CustomFee[]) {
   if (error) throw error;
 }
 
+interface Customer {
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  phone: string | null;
+}
+
 async function sendInvoiceToCustomer(
   orderId: string,
   depositRequired: number,
-  customer: any | null
+  customer: Customer | null
 ) {
   const response = await fetch(
     `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-invoice`,
@@ -217,7 +224,7 @@ async function sendInvoiceToCustomer(
   return data;
 }
 
-export async function generateInvoice(invoiceData: InvoiceData, customer: any | null) {
+export async function generateInvoice(invoiceData: InvoiceData, customer: Customer | null) {
   const address = await createAddress(invoiceData.eventDetails);
 
   const order = await createOrder(

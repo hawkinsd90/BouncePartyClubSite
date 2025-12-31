@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { User } from 'lucide-react';
 import { validateEmail, validatePhone, formatPhone, validateRequired } from '../../lib/validation';
 

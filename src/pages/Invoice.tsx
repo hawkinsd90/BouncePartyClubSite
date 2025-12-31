@@ -14,7 +14,7 @@ export function Invoice() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [order, setOrder] = useState<any>(null);
+  const [order, setOrder] = useState<Record<string, any> | null>(null);
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [customer, setCustomer] = useState<any>(null);
   const [address, setAddress] = useState<any>(null);
