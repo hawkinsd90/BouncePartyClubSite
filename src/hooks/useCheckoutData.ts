@@ -116,11 +116,11 @@ export function useCheckoutData(userId?: string) {
       }
 
       setBillingAddress({
-        line1: formData.address_line1 || '',
-        line2: formData.address_line2 || '',
-        city: formData.city || '',
-        state: formData.state || '',
-        zip: formData.zip || '',
+        line1: savedForm.address_line1 || '',
+        line2: savedForm.address_line2 || '',
+        city: savedForm.city || '',
+        state: savedForm.state || '',
+        zip: savedForm.zip || '',
       });
 
       setLoading(false);
