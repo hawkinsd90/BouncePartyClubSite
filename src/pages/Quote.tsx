@@ -77,6 +77,12 @@ export function Quote() {
   const handleClearAll = () => {
     clearCart();
     clearForm();
+
+    // Clear contact information only if user is not logged in
+    if (!user) {
+      localStorage.removeItem('bpc_contact_data');
+    }
+
     setShowClearModal(false);
   };
 
@@ -168,7 +174,11 @@ export function Quote() {
           onClose={() => setShowClearModal(false)}
           onConfirm={handleClearAll}
           title="Clear Cart & Form"
-          message="Are you sure you want to clear your entire cart and all form information? This action cannot be undone."
+          message={
+            user
+              ? "Are you sure you want to clear your entire cart and all form information? Your contact information will be preserved. This action cannot be undone."
+              : "Are you sure you want to clear your entire cart and all form information? This action cannot be undone."
+          }
           confirmText="Clear All"
           confirmButtonClass="bg-red-600 hover:bg-red-700 text-white"
         />
