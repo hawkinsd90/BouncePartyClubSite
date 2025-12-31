@@ -8,7 +8,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import Stripe from "npm:stripe@14.14.0";
 import { createClient } from "npm:@supabase/supabase-js@2.39.3";
-import { checkRateLimit, createRateLimitResponse, getIdentifier } from "../_shared/rate-limit.ts";
+import { checkRateLimit, createRateLimitResponse, getIdentifier, buildRateLimitKey } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -33,11 +33,36 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // Check rate limit
-    const identifier = getIdentifier(req);
-    const rateLimitResult = await checkRateLimit('stripe-checkout', identifier);
+    // Rate limiting - customer-facing endpoint requires order_id
+    let orderId: string | null = null;
+
+    if (req.method === "GET") {
+      orderId = new URL(req.url).searchParams.get("orderId");
+    } else if (req.method === "POST") {
+      const bodyClone = await req.clone().json();
+      orderId = bodyClone.orderId;
+    }
+
+    const ip = getIdentifier(req);
+    const identifier = buildRateLimitKey(ip, orderId || undefined, 'checkout');
+
+    // Require at least one identifier
+    if (!ip && !orderId) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid request: unable to identify client' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const rateLimitResult = await checkRateLimit('stripe-checkout', identifier, undefined, true);
 
     if (!rateLimitResult.allowed) {
+      if (rateLimitResult.reason === 'missing_identifier') {
+        return new Response(
+          JSON.stringify({ error: 'Invalid request: unable to identify client' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       return createRateLimitResponse(rateLimitResult, corsHeaders);
     }
 
@@ -47,7 +72,6 @@ Deno.serve(async (req: Request) => {
     if (req.method === "GET") {
       const url = new URL(req.url);
       const action = url.searchParams.get("action");
-      const orderId = url.searchParams.get("orderId");
       const sessionId = url.searchParams.get("session_id");
 
       if (action === "webhook" && orderId && sessionId) {
@@ -154,7 +178,7 @@ Deno.serve(async (req: Request) => {
 
     const body: CheckoutRequest = await req.json();
     const {
-      orderId,
+      orderId: bodyOrderId,
       depositCents,
       tipCents = 0,
       customerEmail,
@@ -162,7 +186,9 @@ Deno.serve(async (req: Request) => {
       origin,
     } = body;
 
-    if (!orderId || !depositCents || !customerEmail) {
+    const finalOrderId = bodyOrderId || orderId;
+
+    if (!finalOrderId || !depositCents || !customerEmail) {
       return new Response(
         JSON.stringify({ error: "Missing required fields." }),
         { status: 400, headers: corsHeaders }
@@ -184,7 +210,7 @@ Deno.serve(async (req: Request) => {
     const { data: orderRow } = await supabaseClient
       .from("orders")
       .select("stripe_customer_id")
-      .eq("id", orderId)
+      .eq("id", finalOrderId)
       .maybeSingle();
 
     let customerId = orderRow?.stripe_customer_id;
@@ -193,14 +219,14 @@ Deno.serve(async (req: Request) => {
       const newCustomer = await stripe.customers.create({
         email: customerEmail,
         name: customerName,
-        metadata: { order_id: orderId },
+        metadata: { order_id: finalOrderId },
       });
       customerId = newCustomer.id;
 
       await supabaseClient
         .from("orders")
         .update({ stripe_customer_id: customerId })
-        .eq("id", orderId);
+        .eq("id", finalOrderId);
     }
 
     // Save intended deposit & tip
@@ -210,11 +236,11 @@ Deno.serve(async (req: Request) => {
         deposit_due_cents: depositCents,
         tip_cents: tipCents,
       })
-      .eq("id", orderId);
+      .eq("id", finalOrderId);
 
     // Build success/cancel URLs
-    const success_url = `${siteOrigin}/checkout/payment-complete?orderId=${orderId}&session_id={CHECKOUT_SESSION_ID}`;
-    const cancel_url = `${siteOrigin}/checkout/payment-canceled?orderId=${orderId}`;
+    const success_url = `${siteOrigin}/checkout/payment-complete?orderId=${finalOrderId}&session_id={CHECKOUT_SESSION_ID}`;
+    const cancel_url = `${siteOrigin}/checkout/payment-canceled?orderId=${finalOrderId}`;
 
     // Create the Setup Session
     // Note: Apple Pay and Google Pay are automatically available when enabled in Stripe Dashboard
@@ -225,7 +251,7 @@ Deno.serve(async (req: Request) => {
       success_url,
       cancel_url,
       metadata: {
-        order_id: orderId,
+        order_id: finalOrderId,
         tip_cents: String(tipCents),
       },
     });

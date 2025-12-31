@@ -6,6 +6,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
 };
 
+interface EmailRequest {
+  to: string;
+  from?: string;
+  subject: string;
+  html?: string;
+  text?: string;
+  context?: any;
+  skipFallback?: boolean;
+}
+
 async function sendAdminSMSFallback(
   supabase: any,
   recipient: string,
@@ -35,6 +45,7 @@ async function sendAdminSMSFallback(
       body: JSON.stringify({
         to: adminPhone,
         message: smsMessage,
+        skipFallback: true,
       }),
     });
 
@@ -65,7 +76,7 @@ Deno.serve(async (req: Request) => {
 
     const resendApiKey = settings?.value;
 
-    const { to, from, subject, html, text, context } = await req.json();
+    const { to, from, subject, html, text, context, skipFallback }: EmailRequest = await req.json();
 
     if (!resendApiKey) {
       const errorMsg = 'Resend API key not configured';
@@ -79,7 +90,9 @@ Deno.serve(async (req: Request) => {
         p_context: context || {}
       });
 
-      await sendAdminSMSFallback(supabase, to, subject, errorMsg);
+      if (!skipFallback) {
+        await sendAdminSMSFallback(supabase, to, subject, errorMsg);
+      }
 
       return new Response(
         JSON.stringify({ error: errorMsg }),
@@ -134,7 +147,9 @@ Deno.serve(async (req: Request) => {
         p_context: context || {}
       });
 
-      await sendAdminSMSFallback(supabase, to, subject, errorMsg);
+      if (!skipFallback) {
+        await sendAdminSMSFallback(supabase, to, subject, errorMsg);
+      }
 
       return new Response(
         JSON.stringify({ error: 'Failed to send email', details: resendData }),
@@ -158,7 +173,7 @@ Deno.serve(async (req: Request) => {
     console.error('Error sending email:', error);
 
     const errorMsg = error.message || 'Internal server error';
-    const { to, subject, html, text, context } = await req.json().catch(() => ({}));
+    const { to, subject, html, text, context, skipFallback }: EmailRequest = await req.json().catch(() => ({} as EmailRequest));
 
     if (to && subject) {
       const supabase = createClient(
@@ -175,7 +190,9 @@ Deno.serve(async (req: Request) => {
         p_context: context || {}
       });
 
-      await sendAdminSMSFallback(supabase, to, subject, errorMsg);
+      if (!skipFallback) {
+        await sendAdminSMSFallback(supabase, to, subject, errorMsg);
+      }
     }
 
     return new Response(

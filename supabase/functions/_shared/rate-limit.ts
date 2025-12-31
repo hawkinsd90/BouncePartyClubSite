@@ -31,21 +31,44 @@ export function getIdentifier(req: Request): string {
 
   if (forwardedFor) {
     const ips = forwardedFor.split(',').map(ip => ip.trim());
-    return ips[0];
+    const firstIp = ips[0];
+    // Basic validation - ensure it looks like an IP
+    if (firstIp && /^[\d.:a-fA-F]+$/.test(firstIp)) {
+      return firstIp;
+    }
   }
 
-  if (realIp) {
+  if (realIp && /^[\d.:a-fA-F]+$/.test(realIp)) {
     return realIp;
   }
 
-  return 'unknown';
+  return ''; // Empty string instead of 'unknown' - caller must handle
+}
+
+export function buildRateLimitKey(ip: string, secondaryId?: string, prefix?: string): string {
+  const parts: string[] = [];
+
+  if (prefix) parts.push(prefix);
+  if (ip) parts.push(`ip:${ip}`);
+  if (secondaryId) parts.push(`id:${secondaryId}`);
+
+  return parts.join('|');
 }
 
 export async function checkRateLimit(
   endpoint: string,
   identifier: string,
-  customConfig?: Partial<RateLimitConfig>
+  customConfig?: Partial<RateLimitConfig>,
+  requireIdentifier: boolean = false
 ): Promise<RateLimitResult> {
+  // Enforce identifier requirement for payment endpoints
+  if (requireIdentifier && !identifier) {
+    return {
+      allowed: false,
+      reason: 'missing_identifier',
+    };
+  }
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;

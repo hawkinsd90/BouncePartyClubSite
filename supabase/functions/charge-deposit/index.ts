@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import Stripe from "npm:stripe@14.14.0";
 import { createClient } from "npm:@supabase/supabase-js@2.39.3";
-import { checkRateLimit, createRateLimitResponse, getIdentifier } from "../_shared/rate-limit.ts";
+import { checkRateLimit, createRateLimitResponse, getIdentifier, buildRateLimitKey } from "../_shared/rate-limit.ts";
 import { validatePaymentMethod } from "../_shared/payment-validation.ts";
 
 const corsHeaders = {
@@ -24,13 +24,30 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const identifier = getIdentifier(req);
-    const rateLimitResult = await checkRateLimit('charge-deposit', identifier);
+    // Parse body early for rate limiting
+    const { orderId } = await req.json();
+
+    const ip = getIdentifier(req);
+    const identifier = buildRateLimitKey(ip, orderId, 'deposit');
+
+    if (!ip && !orderId) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid request: unable to identify client' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const rateLimitResult = await checkRateLimit('charge-deposit', identifier, undefined, true);
 
     if (!rateLimitResult.allowed) {
+      if (rateLimitResult.reason === 'missing_identifier') {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Invalid request: unable to identify client' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       return createRateLimitResponse(rateLimitResult, corsHeaders);
     }
-    const { orderId } = await req.json();
 
     if (!orderId) {
       return new Response(

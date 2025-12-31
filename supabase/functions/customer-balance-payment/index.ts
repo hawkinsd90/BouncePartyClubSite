@@ -7,7 +7,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import Stripe from "npm:stripe@14.14.0";
 import { createClient } from "npm:@supabase/supabase-js@2.39.3";
-import { checkRateLimit, createRateLimitResponse, getIdentifier } from "../_shared/rate-limit.ts";
+import { checkRateLimit, createRateLimitResponse, getIdentifier, buildRateLimitKey } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,12 +28,32 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const identifier = getIdentifier(req);
-    const rateLimitResult = await checkRateLimit('customer-balance-payment', identifier);
+    // Parse body early for rate limiting
+    const body: BalancePaymentRequest = await req.json();
+    const { orderId } = body;
+
+    const ip = getIdentifier(req);
+    const identifier = buildRateLimitKey(ip, orderId, 'balance');
+
+    if (!ip && !orderId) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid request: unable to identify client' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const rateLimitResult = await checkRateLimit('customer-balance-payment', identifier, undefined, true);
 
     if (!rateLimitResult.allowed) {
+      if (rateLimitResult.reason === 'missing_identifier') {
+        return new Response(
+          JSON.stringify({ error: 'Invalid request: unable to identify client' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       return createRateLimitResponse(rateLimitResult, corsHeaders);
     }
+
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
@@ -57,8 +77,8 @@ Deno.serve(async (req: Request) => {
       apiVersion: "2024-10-28.acacia",
     });
 
-    const body: BalancePaymentRequest = await req.json();
-    const { orderId, amountCents } = body;
+    // Body already parsed for rate limiting
+    const { amountCents } = body;
 
     if (!orderId || !amountCents || amountCents <= 0) {
       return new Response(
