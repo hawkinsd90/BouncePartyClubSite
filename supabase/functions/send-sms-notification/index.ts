@@ -52,6 +52,7 @@ async function sendAdminEmailFallback(
         subject: '[SMS SYSTEM FAILURE] Action Required',
         html: emailBody,
         text: `SMS SYSTEM FAILURE\n\nFailed to send SMS to: ${recipient}\nMessage: ${messagePreview}\nError: ${errorMessage}\n\nPlease check admin dashboard.`,
+        skipFallback: true,
       }),
     });
 
