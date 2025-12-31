@@ -25,13 +25,8 @@ export function useQuotePrefill(user: any, callbacks: PrefillCallbacks) {
   }, [user]);
 
   async function loadPrefillData() {
-    // Check localStorage first - it represents the user's current intent
-    const hasLocalStorageData = loadLocalStoragePrefill();
-
-    // Only load from database if there's no localStorage data
-    if (!hasLocalStorageData) {
-      await loadUserPrefillData();
-    }
+    await loadUserPrefillData();
+    loadLocalStoragePrefill();
   }
 
   async function loadUserPrefillData() {
@@ -47,7 +42,7 @@ export function useQuotePrefill(user: any, callbacks: PrefillCallbacks) {
 
       if (data && data.length > 0) {
         const userData = data[0];
-        console.log('Auto-filling form with user data from database:', userData);
+        console.log('Auto-filling form with user data:', userData);
 
         if (userData.address_line1 || userData.city) {
           const addressParts = [
@@ -76,17 +71,14 @@ export function useQuotePrefill(user: any, callbacks: PrefillCallbacks) {
     }
   }
 
-  function loadLocalStoragePrefill(): boolean {
+  function loadLocalStoragePrefill() {
     const data = SafeStorage.getItem<any>(PREFILL_STORAGE_KEY);
-    if (!data) return false;
+    if (!data) return;
 
     try {
       const isDuplicateOrder = SafeStorage.getItem<string>(DUPLICATE_ORDER_FLAG) === 'true';
 
-      console.log('Loading prefill data from localStorage:', data);
-
       if (data.address) {
-        console.log('Setting address from localStorage:', data.address);
         setAddressInput(data.address.formatted_address || data.address.street || '');
         updateFormData({
           address_line1: data.address.street || '',
@@ -100,7 +92,6 @@ export function useQuotePrefill(user: any, callbacks: PrefillCallbacks) {
       }
 
       if (isDuplicateOrder) {
-        console.log('Loading duplicate order data');
         updateFormData({
           location_type: data.location_type || 'residential',
           pickup_preference: data.pickup_preference || 'next_day',
@@ -119,10 +110,8 @@ export function useQuotePrefill(user: any, callbacks: PrefillCallbacks) {
       }
 
       SafeStorage.removeItem(PREFILL_STORAGE_KEY);
-      return true;
     } catch (error) {
       console.error('Error loading prefill data:', error);
-      return false;
     }
   }
 
