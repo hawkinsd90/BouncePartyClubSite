@@ -25,7 +25,7 @@ async function sendAdminSMSFallback(
   try {
     const { data: adminSettings } = await supabase
       .from('admin_settings')
-      .select('value')
+      .select('key, value')
       .in('key', ['admin_notification_phone', 'twilio_account_sid', 'twilio_auth_token', 'twilio_phone_number'])
       .order('key');
 
@@ -63,7 +63,12 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  let body: EmailRequest | null = null;
+
   try {
+    body = await req.json();
+    const { to, from, subject, html, text, context, skipFallback } = body;
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -75,8 +80,6 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     const resendApiKey = settings?.value;
-
-    const { to, from, subject, html, text, context, skipFallback }: EmailRequest = await req.json();
 
     if (!resendApiKey) {
       const errorMsg = 'Resend API key not configured';
@@ -173,7 +176,7 @@ Deno.serve(async (req: Request) => {
     console.error('Error sending email:', error);
 
     const errorMsg = error.message || 'Internal server error';
-    const { to, subject, html, text, context, skipFallback }: EmailRequest = await req.json().catch(() => ({} as EmailRequest));
+    const { to, subject, html, text, context, skipFallback } = body || {} as EmailRequest;
 
     if (to && subject) {
       const supabase = createClient(

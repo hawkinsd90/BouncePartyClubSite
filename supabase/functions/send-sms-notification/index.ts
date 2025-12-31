@@ -70,8 +70,10 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  let requestBody: SmsRequest | null = null;
+
   try {
-    const requestBody: SmsRequest = await req.json();
+    requestBody = await req.json();
     console.log("[send-sms-notification] Request:", { ...requestBody, message: requestBody.message ? '[redacted]' : undefined });
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -316,7 +318,7 @@ Deno.serve(async (req: Request) => {
     console.error("[send-sms-notification] Error:", error);
 
     const errorMsg = error.message || "Failed to send SMS";
-    const { to, message: messageBody, orderId, skipFallback } = await req.json().catch(() => ({}));
+    const { to, message: messageBody, orderId, skipFallback } = requestBody || {} as SmsRequest;
 
     if (to && messageBody) {
       const supabase = createClient(
