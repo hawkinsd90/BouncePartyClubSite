@@ -2,34 +2,50 @@ import { useState } from 'react';
 import { Upload, X } from 'lucide-react';
 
 interface PicturesTabProps {
-  onSubmit: (images: string[], notes: string) => Promise<void>;
+  onSubmit: (files: File[], notes: string) => Promise<void>;
 }
 
 export function PicturesTab({ onSubmit }: PicturesTabProps) {
   const [pictureNotes, setPictureNotes] = useState('');
-  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
-    files.forEach(file => {
+
+    // Validate file sizes (max 10MB per file)
+    const validFiles = files.filter(file => {
+      if (file.size > 10 * 1024 * 1024) {
+        alert(`${file.name} is too large. Maximum file size is 10MB.`);
+        return false;
+      }
+      return true;
+    });
+
+    // Create preview URLs for display
+    validFiles.forEach(file => {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setUploadedImages(prev => [...prev, reader.result as string]);
+        setPreviewUrls(prev => [...prev, reader.result as string]);
       };
       reader.readAsDataURL(file);
     });
+
+    setSelectedFiles(prev => [...prev, ...validFiles]);
   }
 
   function handleRemoveImage(index: number) {
-    setUploadedImages(prev => prev.filter((_, i) => i !== index));
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+    setPreviewUrls(prev => prev.filter((_, i) => i !== index));
   }
 
   async function handleSubmit() {
     setSubmitting(true);
     try {
-      await onSubmit(uploadedImages, pictureNotes);
-      setUploadedImages([]);
+      await onSubmit(selectedFiles, pictureNotes);
+      setSelectedFiles([]);
+      setPreviewUrls([]);
       setPictureNotes('');
     } finally {
       setSubmitting(false);
@@ -46,7 +62,7 @@ export function PicturesTab({ onSubmit }: PicturesTabProps) {
 
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-2">
-          Upload Pictures {uploadedImages.length > 0 && <span className="text-slate-500">({uploadedImages.length} selected)</span>}
+          Upload Pictures {selectedFiles.length > 0 && <span className="text-slate-500">({selectedFiles.length} selected)</span>}
         </label>
         <input
           type="file"
@@ -56,15 +72,15 @@ export function PicturesTab({ onSubmit }: PicturesTabProps) {
           className="w-full px-4 py-2 border border-slate-300 rounded-lg file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
         />
         <p className="text-xs text-slate-500 mt-1">
-          You can select multiple images at once
+          You can select multiple images at once (max 10MB per image)
         </p>
       </div>
 
-      {uploadedImages.length > 0 && (
+      {previewUrls.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {uploadedImages.map((img, idx) => (
+          {previewUrls.map((url, idx) => (
             <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-slate-300 group">
-              <img src={img} alt={`Upload ${idx + 1}`} className="w-full h-full object-cover" />
+              <img src={url} alt={`Upload ${idx + 1}`} className="w-full h-full object-cover" />
               <button
                 type="button"
                 onClick={() => handleRemoveImage(idx)}
@@ -93,11 +109,11 @@ export function PicturesTab({ onSubmit }: PicturesTabProps) {
 
       <button
         onClick={handleSubmit}
-        disabled={submitting || uploadedImages.length === 0}
+        disabled={submitting || selectedFiles.length === 0}
         className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
       >
         <Upload className="w-5 h-5" />
-        {submitting ? 'Submitting...' : 'Submit Pictures'}
+        {submitting ? 'Uploading...' : 'Submit Pictures'}
       </button>
     </div>
   );

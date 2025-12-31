@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { FileText, CreditCard, CheckCircle, Image as ImageIcon } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
+import { supabase } from '../../lib/supabase';
 import WaiverTab from '../waiver/WaiverTab';
 import { PaymentTab } from './PaymentTab';
 import { PicturesTab } from './PicturesTab';
@@ -20,6 +21,23 @@ export function RegularPortalView({ order, orderId, onReload }: RegularPortalVie
   );
   const [showCancelModal, setShowCancelModal] = useState(false);
 
+  useEffect(() => {
+    // Check URL params for payment status
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get('payment');
+
+    if (paymentStatus === 'success') {
+      showToast('Payment successful! Thank you.', 'success');
+      onReload();
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (paymentStatus === 'canceled') {
+      showToast('Payment was canceled. You can try again anytime.', 'info');
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [onReload]);
+
   const balanceDue = order.balance_due_cents - (order.balance_paid_cents || 0);
   const needsWaiver = !order.waiver_signed_at;
   const needsPayment = balanceDue > 0;
@@ -28,18 +46,81 @@ export function RegularPortalView({ order, orderId, onReload }: RegularPortalVie
   );
 
   async function handlePayment() {
-    showToast('Payment processing will be implemented with Stripe integration', 'info');
+    try {
+      // Create a Stripe Checkout session for balance payment
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/customer-balance-payment`;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderId: orderId,
+          amountCents: balanceDue,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create payment session');
+      }
+
+      // Redirect to Stripe Checkout
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (error: any) {
+      console.error('Payment error:', error);
+      showToast(error.message || 'Failed to process payment', 'error');
+    }
   }
 
-  async function handleSubmitPictures(_images: string[], _notes: string) {
+  async function handleSubmitPictures(files: File[], notes: string) {
     try {
+      const uploadPromises = files.map(async (file) => {
+        // Create unique file path
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${orderId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+        // Upload to storage
+        const { error: uploadError } = await supabase.storage
+          .from('order-pictures')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false,
+          });
+
+        if (uploadError) throw uploadError;
+
+        // Save metadata to database
+        const { error: dbError } = await supabase
+          .from('order_pictures')
+          .insert({
+            order_id: orderId,
+            file_path: fileName,
+            file_name: file.name,
+            file_size: file.size,
+            mime_type: file.type,
+            notes: notes || null,
+            uploaded_by: null, // Anonymous upload from customer portal
+          });
+
+        if (dbError) throw dbError;
+
+        return fileName;
+      });
+
+      await Promise.all(uploadPromises);
+
       showToast(
-        'Picture submission feature coming soon - images will be stored in Supabase Storage',
-        'info'
+        `Successfully uploaded ${files.length} picture${files.length > 1 ? 's' : ''}`,
+        'success'
       );
     } catch (error) {
       console.error('Error submitting pictures:', error);
-      showToast('Failed to submit pictures', 'error');
+      showToast('Failed to upload pictures. Please try again.', 'error');
       throw error;
     }
   }

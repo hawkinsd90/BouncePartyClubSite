@@ -56,6 +56,7 @@ Deno.serve(async (req: Request) => {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         const orderId = session.metadata?.order_id || null;
+        const paymentType = session.metadata?.payment_type || "deposit";
 
         // Safely pull customer + PI
         const stripeCustomerId =
@@ -90,45 +91,75 @@ Deno.serve(async (req: Request) => {
           amountPaid = pi.amount_received || session.amount_total || 0;
         }
 
-        // Separate tip for deposit accounting (optional)
-        const tipCents = parseInt(session.metadata?.tip_cents || "0", 10);
-        const depositOnly = Math.max(
-          0,
-          amountPaid - (Number.isFinite(tipCents) ? tipCents : 0)
-        );
-
         if (orderId) {
-          const { data: invoiceLink } = await supabaseClient
-            .from("invoice_links")
-            .select("id")
-            .eq("order_id", orderId)
-            .maybeSingle();
-
-          const isAdminInvoice = !!invoiceLink;
-          const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
-
-          await supabaseClient
-            .from("orders")
-            .update({
-              stripe_payment_status: "paid",
-              stripe_payment_method_id: paymentMethodId,
-              stripe_customer_id: stripeCustomerId,
-              deposit_paid_cents: depositOnly,
-              status: newStatus,
-            })
-            .eq("id", orderId);
-
-          if (piId) {
+          if (paymentType === "balance") {
+            // Handle balance payment
             await supabaseClient
-              .from("payments")
+              .from("orders")
               .update({
-                status: "succeeded",
-                paid_at: new Date().toISOString(),
-                payment_method: paymentMethodType,
-                payment_brand: paymentBrand,
-                payment_last4: paymentLast4
+                stripe_payment_method_id: paymentMethodId,
+                stripe_customer_id: stripeCustomerId,
+                balance_paid_cents: amountPaid,
               })
-              .eq("stripe_payment_intent_id", piId);
+              .eq("id", orderId);
+
+            // Create payment record
+            if (piId) {
+              await supabaseClient
+                .from("payments")
+                .insert({
+                  order_id: orderId,
+                  amount_cents: amountPaid,
+                  payment_type: "balance",
+                  status: "succeeded",
+                  stripe_payment_intent_id: piId,
+                  description: "Customer portal balance payment",
+                  paid_at: new Date().toISOString(),
+                  payment_method: paymentMethodType,
+                  payment_brand: paymentBrand,
+                  payment_last4: paymentLast4,
+                });
+            }
+          } else {
+            // Handle deposit payment
+            const tipCents = parseInt(session.metadata?.tip_cents || "0", 10);
+            const depositOnly = Math.max(
+              0,
+              amountPaid - (Number.isFinite(tipCents) ? tipCents : 0)
+            );
+
+            const { data: invoiceLink } = await supabaseClient
+              .from("invoice_links")
+              .select("id")
+              .eq("order_id", orderId)
+              .maybeSingle();
+
+            const isAdminInvoice = !!invoiceLink;
+            const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
+
+            await supabaseClient
+              .from("orders")
+              .update({
+                stripe_payment_status: "paid",
+                stripe_payment_method_id: paymentMethodId,
+                stripe_customer_id: stripeCustomerId,
+                deposit_paid_cents: depositOnly,
+                status: newStatus,
+              })
+              .eq("id", orderId);
+
+            if (piId) {
+              await supabaseClient
+                .from("payments")
+                .update({
+                  status: "succeeded",
+                  paid_at: new Date().toISOString(),
+                  payment_method: paymentMethodType,
+                  payment_brand: paymentBrand,
+                  payment_last4: paymentLast4
+                })
+                .eq("stripe_payment_intent_id", piId);
+            }
           }
         }
         break;
@@ -169,7 +200,7 @@ Deno.serve(async (req: Request) => {
           })
           .eq("stripe_payment_intent_id", paymentIntent.id);
 
-        if (orderId && paymentType === "deposit") {
+        if (orderId) {
           const paymentMethodId =
             typeof paymentIntent.payment_method === "string"
               ? paymentIntent.payment_method
@@ -183,25 +214,38 @@ Deno.serve(async (req: Request) => {
           const amountReceived =
             (paymentIntent as any).amount_received ?? paymentIntent.amount ?? 0;
 
-          const { data: invoiceLink } = await supabaseClient
-            .from("invoice_links")
-            .select("id")
-            .eq("order_id", orderId)
-            .maybeSingle();
+          if (paymentType === "balance") {
+            // Handle balance payment
+            await supabaseClient
+              .from("orders")
+              .update({
+                stripe_payment_method_id: paymentMethodId,
+                stripe_customer_id: stripeCustomerId,
+                balance_paid_cents: amountReceived,
+              })
+              .eq("id", orderId);
+          } else if (paymentType === "deposit") {
+            // Handle deposit payment
+            const { data: invoiceLink } = await supabaseClient
+              .from("invoice_links")
+              .select("id")
+              .eq("order_id", orderId)
+              .maybeSingle();
 
-          const isAdminInvoice = !!invoiceLink;
-          const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
+            const isAdminInvoice = !!invoiceLink;
+            const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
 
-          await supabaseClient
-            .from("orders")
-            .update({
-              stripe_payment_status: "paid",
-              stripe_payment_method_id: paymentMethodId,
-              stripe_customer_id: stripeCustomerId,
-              deposit_paid_cents: amountReceived,
-              status: newStatus,
-            })
-            .eq("id", orderId);
+            await supabaseClient
+              .from("orders")
+              .update({
+                stripe_payment_status: "paid",
+                stripe_payment_method_id: paymentMethodId,
+                stripe_customer_id: stripeCustomerId,
+                deposit_paid_cents: amountReceived,
+                status: newStatus,
+              })
+              .eq("id", orderId);
+          }
         }
         break;
       }
