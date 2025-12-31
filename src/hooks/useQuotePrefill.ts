@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { SafeStorage } from '../lib/safeStorage';
 import type { QuoteFormData } from './useQuoteForm';
 
 interface PrefillCallbacks {
@@ -12,14 +13,18 @@ export function useQuotePrefill(user: any, formData: QuoteFormData, callbacks: P
   const hasLoadedRef = useRef(false);
 
   useEffect(() => {
-    if (!hasLoadedRef.current && !formData.address_line1) {
+    const hasPrefillData = localStorage.getItem('bpc_quote_prefill');
+    const wasPrefillApplied = SafeStorage.getItem('bpc_prefill_applied');
+    if (!hasLoadedRef.current && !hasPrefillData && !wasPrefillApplied && !formData.address_line1) {
       loadPrefillData();
       hasLoadedRef.current = true;
     }
   }, []);
 
   useEffect(() => {
-    if (user && !hasLoadedRef.current && !formData.address_line1) {
+    const hasPrefillData = localStorage.getItem('bpc_quote_prefill');
+    const wasPrefillApplied = SafeStorage.getItem('bpc_prefill_applied');
+    if (user && !hasLoadedRef.current && !hasPrefillData && !wasPrefillApplied && !formData.address_line1) {
       loadPrefillData();
       hasLoadedRef.current = true;
     }

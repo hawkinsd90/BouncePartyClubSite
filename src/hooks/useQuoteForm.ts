@@ -57,6 +57,7 @@ export function useQuoteForm() {
     const prefillData = SafeStorage.getItem<any>('bpc_quote_prefill');
     if (prefillData) {
       applyPrefillData(prefillData);
+      SafeStorage.setItem('bpc_prefill_applied', true, { expirationMinutes: 5 });
       SafeStorage.removeItem('bpc_quote_prefill');
     } else {
       loadSavedForm();
@@ -194,6 +195,7 @@ export function useQuoteForm() {
     setFormData(initialFormData);
     setAddressInput('');
     SafeStorage.removeItem(FORM_STORAGE_KEY);
+    SafeStorage.removeItem('bpc_prefill_applied');
   }
 
   return {
