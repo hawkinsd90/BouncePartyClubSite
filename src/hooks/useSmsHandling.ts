@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { sendSms as sendSmsNotification } from '../lib/notificationService';
+import { showToast } from '../lib/notifications';
 
 export function useSmsHandling(orderId: string, customerPhone: string) {
   const [sendingSms, setSendingSms] = useState(false);
@@ -19,21 +20,23 @@ export function useSmsHandling(orderId: string, customerPhone: string) {
         const errorMessage = result.error || 'Failed to send SMS. Please try again.';
 
         if (errorMessage.includes('Twilio not configured')) {
-          alert(
-            'SMS cannot be sent: Twilio credentials are not configured. Please add your Twilio credentials in the Settings tab first.'
+          showToast(
+            'SMS cannot be sent: Twilio credentials are not configured. Please add your Twilio credentials in the Settings tab first.',
+            'error'
           );
         } else if (errorMessage.includes('Incomplete Twilio configuration')) {
-          alert('SMS cannot be sent: Twilio configuration is incomplete. Please check your Settings.');
+          showToast('SMS cannot be sent: Twilio configuration is incomplete. Please check your Settings.', 'error');
         } else {
-          alert(`Failed to send SMS: ${errorMessage}`);
+          showToast(`Failed to send SMS: ${errorMessage}`, 'error');
         }
         return false;
       }
 
+      showToast('SMS sent successfully', 'success');
       return true;
     } catch (error: any) {
       console.error('Error sending SMS:', error);
-      alert(`Failed to send SMS: ${error.message || 'Unknown error'}`);
+      showToast(`Failed to send SMS: ${error.message || 'Unknown error'}`, 'error');
       return false;
     } finally {
       setSendingSms(false);

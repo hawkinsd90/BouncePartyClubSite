@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { TextInput } from '../forms/TextInput';
+import { validateEmail, validatePhone, formatPhone, validateRequired } from '../../lib/validation';
 
 interface CustomerData {
   first_name: string;
@@ -15,13 +17,66 @@ interface CustomerFormFieldsProps {
   layout?: 'grid' | 'stack';
 }
 
+interface ValidationErrors {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  phone?: string;
+}
+
 export function CustomerFormFields({
   data,
   onChange,
   showBusinessName = false,
   layout = 'grid',
 }: CustomerFormFieldsProps) {
+  const [errors, setErrors] = useState<ValidationErrors>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+
   const gridClass = layout === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'space-y-4';
+
+  const validateField = (field: keyof CustomerData, value: string) => {
+    let error: string | undefined;
+
+    switch (field) {
+      case 'first_name':
+        const firstNameResult = validateRequired(value, 'First name');
+        error = firstNameResult.isValid ? undefined : firstNameResult.error;
+        break;
+      case 'last_name':
+        const lastNameResult = validateRequired(value, 'Last name');
+        error = lastNameResult.isValid ? undefined : lastNameResult.error;
+        break;
+      case 'email':
+        const emailResult = validateEmail(value);
+        error = emailResult.isValid ? undefined : emailResult.error;
+        break;
+      case 'phone':
+        const phoneResult = validatePhone(value);
+        error = phoneResult.isValid ? undefined : phoneResult.error;
+        break;
+    }
+
+    setErrors(prev => ({ ...prev, [field]: error }));
+  };
+
+  const handleBlur = (field: keyof CustomerData) => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+    validateField(field, data[field] || '');
+  };
+
+  const handleChange = (field: keyof CustomerData, value: string) => {
+    if (field === 'phone') {
+      const formatted = formatPhone(value);
+      onChange(field, formatted);
+    } else {
+      onChange(field, value);
+    }
+
+    if (touched[field]) {
+      validateField(field, field === 'phone' ? formatPhone(value) : value);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -30,15 +85,19 @@ export function CustomerFormFields({
           label="First Name"
           type="text"
           value={data.first_name}
-          onChange={(value) => onChange('first_name', value)}
+          onChange={(value) => handleChange('first_name', value)}
           required
+          error={touched.first_name ? errors.first_name : undefined}
+          className="focus:outline-none"
         />
         <TextInput
           label="Last Name"
           type="text"
           value={data.last_name}
-          onChange={(value) => onChange('last_name', value)}
+          onChange={(value) => handleChange('last_name', value)}
           required
+          error={touched.last_name ? errors.last_name : undefined}
+          className="focus:outline-none"
         />
       </div>
       <div className={gridClass}>
@@ -46,16 +105,21 @@ export function CustomerFormFields({
           label="Email"
           type="email"
           value={data.email}
-          onChange={(value) => onChange('email', value)}
+          onChange={(value) => handleChange('email', value)}
+          placeholder="you@example.com"
           required
+          error={touched.email ? errors.email : undefined}
+          className="focus:outline-none"
         />
         <TextInput
           label="Phone"
           type="tel"
           value={data.phone}
-          onChange={(value) => onChange('phone', value)}
-          placeholder="(555) 555-5555"
+          onChange={(value) => handleChange('phone', value)}
+          placeholder="(313) 555-0123"
           required
+          error={touched.phone ? errors.phone : undefined}
+          className="focus:outline-none"
         />
       </div>
       {showBusinessName && (

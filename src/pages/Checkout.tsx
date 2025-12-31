@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCheckoutData } from '../hooks/useCheckoutData';
 import { getPaymentAmountCents, getTipAmountCents, buildOrderSummary } from '../lib/checkoutUtils';
 import { checkMultipleUnitsAvailability } from '../lib/availability';
+import { showToast } from '../lib/notifications';
 import { ContactInformationForm } from '../components/checkout/ContactInformationForm';
 import { BillingAddressForm } from '../components/checkout/BillingAddressForm';
 import { PaymentAmountSelector } from '../components/checkout/PaymentAmountSelector';
@@ -49,18 +50,18 @@ export function Checkout() {
     e.preventDefault();
 
     if (!cardOnFileConsent) {
-      alert('Please consent to card-on-file authorization.');
+      showToast('Please consent to card-on-file authorization', 'error');
       return;
     }
 
     if (!smsConsent) {
-      alert('Please consent to SMS notifications.');
+      showToast('Please consent to SMS notifications', 'error');
       return;
     }
 
     const paymentCents = getPaymentAmountCents(paymentAmount, customAmount, priceBreakdown);
     if (paymentAmount === 'custom' && paymentCents < priceBreakdown.deposit_due_cents) {
-      alert(`Minimum payment is ${formatCurrency(priceBreakdown.deposit_due_cents)}`);
+      showToast(`Minimum payment is ${formatCurrency(priceBreakdown.deposit_due_cents)}`, 'error');
       return;
     }
 
@@ -83,8 +84,9 @@ export function Checkout() {
           return cartItem?.unit_name || 'Unknown unit';
         }).join(', ');
 
-        alert(
-          `Sorry, the following units are no longer available for your selected dates: ${unitNames}. Please return to the quote page and select different units or dates.`
+        showToast(
+          `Sorry, the following units are no longer available for your selected dates: ${unitNames}. Please return to the quote page and select different units or dates.`,
+          'error'
         );
         setProcessing(false);
         return;
@@ -137,7 +139,7 @@ export function Checkout() {
         window.location.href = data.url;
       } catch (err: any) {
         console.error('Stripe checkout error:', err);
-        alert(err.message || 'Failed to initialize payment');
+        showToast(err.message || 'Failed to initialize payment', 'error');
         setProcessing(false);
       }
 
@@ -145,8 +147,9 @@ export function Checkout() {
     } catch (error: any) {
       console.error('Error creating order:', error);
       const errorMessage = error?.message || 'Unknown error';
-      alert(
-        `There was an error processing your order: ${errorMessage}\n\nPlease try again or contact us at (313) 889-3860 for assistance.`
+      showToast(
+        `There was an error processing your order: ${errorMessage}. Please try again or contact us for assistance.`,
+        'error'
       );
       setProcessing(false);
     }

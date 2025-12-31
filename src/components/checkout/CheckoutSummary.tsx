@@ -22,20 +22,20 @@ export function CheckoutSummary({
   onViewInvoice,
 }: CheckoutSummaryProps) {
   return (
-    <div className="bg-white rounded-xl shadow-md p-6 sticky top-24">
-      <h2 className="text-2xl font-bold text-slate-900 mb-6">Order Summary</h2>
+    <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 lg:sticky lg:top-24">
+      <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-4 sm:mb-6">Order Summary</h2>
 
-      <div className="space-y-4 mb-6">
+      <div className="space-y-3 sm:space-y-4 mb-4 sm:mb-6">
         <div>
-          <h4 className="font-semibold text-slate-900 mb-2">Event Details</h4>
-          <p className="text-sm text-slate-600">
+          <h4 className="text-sm sm:text-base font-semibold text-slate-900 mb-2">Event Details</h4>
+          <p className="text-xs sm:text-sm text-slate-600">
             {quoteData.event_date} at {quoteData.start_window}
           </p>
-          <p className="text-sm text-slate-600">
+          <p className="text-xs sm:text-sm text-slate-600">
             {quoteData.address_line1}, {quoteData.city}, {quoteData.state}{' '}
             {quoteData.zip}
           </p>
-          <p className="text-sm text-slate-600 capitalize">
+          <p className="text-xs sm:text-sm text-slate-600 capitalize">
             {quoteData.location_type}
           </p>
         </div>
@@ -54,31 +54,31 @@ export function CheckoutSummary({
       <button
         type="button"
         onClick={onViewInvoice}
-        className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center mb-3"
+        className="w-full bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 font-semibold py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg transition-all flex items-center justify-center mb-3 text-sm sm:text-base"
       >
-        <FileText className="w-5 h-5 mr-2" />
+        <FileText className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
         View as Invoice
       </button>
 
       <button
         type="submit"
         disabled={processing || !cardOnFileConsent || !smsConsent}
-        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center"
+        className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:bg-slate-400 text-white font-semibold py-3 sm:py-4 px-4 sm:px-6 rounded-lg transition-all flex items-center justify-center text-sm sm:text-base touch-manipulation"
       >
         {processing ? (
           <>
-            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+            <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
             Processing...
           </>
         ) : (
           <>
-            <Shield className="w-5 h-5 mr-2" />
+            <Shield className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
             Complete Booking
           </>
         )}
       </button>
 
-      <p className="text-xs text-slate-500 text-center mt-4">
+      <p className="text-xs text-slate-500 text-center mt-3 sm:mt-4">
         Your payment information is secured with industry-standard encryption
       </p>
     </div>
