@@ -23,14 +23,13 @@ async function sendAdminSMSFallback(
   errorMessage: string
 ) {
   try {
-    const { data: adminSettings } = await supabase
+    const { data: adminPhoneSetting } = await supabase
       .from('admin_settings')
-      .select('key, value')
-      .in('key', ['admin_notification_phone', 'twilio_account_sid', 'twilio_auth_token', 'twilio_phone_number'])
-      .order('key');
+      .select('value')
+      .eq('key', 'admin_notification_phone')
+      .maybeSingle();
 
-    const settingsMap = new Map(adminSettings?.map((s: any) => [s.key, s.value]));
-    const adminPhone = settingsMap.get('admin_notification_phone');
+    const adminPhone = adminPhoneSetting?.value;
 
     if (!adminPhone) return;
 
