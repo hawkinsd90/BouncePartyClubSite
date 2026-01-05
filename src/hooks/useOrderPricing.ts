@@ -111,10 +111,13 @@ export function useOrderPricing() {
         surface_sandbag_fee_cents: pricingRules.surface_sandbag_fee_cents || 0,
         residential_multiplier: parseFloat(pricingRules.residential_multiplier) || 1,
         commercial_multiplier: parseFloat(pricingRules.commercial_multiplier) || 1,
-        same_day_matrix_json: pricingRules.same_day_matrix_json || [],
+        same_day_pickup_fee_cents: pricingRules.same_day_pickup_fee_cents || 0,
         overnight_holiday_only: pricingRules.overnight_holiday_only || false,
         extra_day_pct: parseFloat(pricingRules.extra_day_pct) || 0,
         generator_price_cents: pricingRules.generator_price_cents || 0,
+        generator_fee_single_cents: pricingRules.generator_fee_single_cents,
+        generator_fee_multiple_cents: pricingRules.generator_fee_multiple_cents,
+        deposit_per_unit_cents: pricingRules.deposit_per_unit_cents,
       };
 
       const priceBreakdown = calculatePrice({
