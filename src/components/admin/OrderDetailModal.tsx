@@ -169,6 +169,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     if (pricingRules && editedOrder && stagedItems.length > 0) {
       handleRecalculatePricing();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     discounts,
     customFees,
@@ -188,7 +189,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     sameDayPickupFeeWaived,
     surfaceFeeWaived,
     generatorFeeWaived,
-    handleRecalculatePricing
   ]);
 
   // Check if any changes have been made
