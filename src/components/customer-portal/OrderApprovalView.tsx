@@ -285,6 +285,11 @@ export function OrderApprovalView({
                     title="Complete Price Breakdown"
                     changelog={changelog}
                     className="p-3 md:p-4"
+                    taxWaived={order.tax_waived || false}
+                    travelFeeWaived={order.travel_fee_waived || false}
+                    surfaceFeeWaived={order.surface_fee_waived || false}
+                    generatorFeeWaived={order.generator_fee_waived || false}
+                    sameDayPickupFeeWaived={order.same_day_pickup_fee_waived || false}
                   />
                 )}
               </div>
