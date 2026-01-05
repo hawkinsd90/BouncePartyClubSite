@@ -169,7 +169,27 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     if (pricingRules && editedOrder && stagedItems.length > 0) {
       handleRecalculatePricing();
     }
-  }, [discounts, customFees, stagedItems, editedOrder.location_type, editedOrder.surface, editedOrder.generator_qty, taxWaived, travelFeeWaived, sameDayPickupFeeWaived, surfaceFeeWaived, generatorFeeWaived]);
+  }, [
+    discounts,
+    customFees,
+    stagedItems,
+    editedOrder.location_type,
+    editedOrder.surface,
+    editedOrder.generator_qty,
+    editedOrder.address_line1,
+    editedOrder.address_city,
+    editedOrder.address_state,
+    editedOrder.address_zip,
+    editedOrder.pickup_preference,
+    editedOrder.event_date,
+    editedOrder.event_end_date,
+    taxWaived,
+    travelFeeWaived,
+    sameDayPickupFeeWaived,
+    surfaceFeeWaived,
+    generatorFeeWaived,
+    handleRecalculatePricing
+  ]);
 
   // Check if any changes have been made
   useEffect(() => {
@@ -435,6 +455,16 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     setHasChanges(true);
   }, []);
 
+  const handleClose = useCallback(() => {
+    if (hasChanges) {
+      if (window.confirm('You have unsaved changes. Are you sure you want to close without saving?')) {
+        onClose();
+      }
+    } else {
+      onClose();
+    }
+  }, [hasChanges, onClose]);
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-0 md:p-4 overflow-y-auto">
       <div className="bg-white md:rounded-lg max-w-6xl w-full min-h-screen md:min-h-0 md:my-8">
@@ -472,7 +502,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               </>
             )}
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="text-slate-400 hover:text-slate-600 p-1"
             >
               <X className="w-5 h-5 md:w-6 md:h-6" />
