@@ -192,7 +192,7 @@ export function OrderSummary({
                 <span className="line-through text-slate-400 mr-2 text-base">{formatCurrency(comparisonTotal)}</span>
               )}
               <span className={`font-bold text-xl ${hasChanged('total') ? 'text-blue-700' : 'text-slate-900'}`}>
-                {formatCurrency(taxWaived ? summary.total - summary.tax : summary.total)}
+                {formatCurrency(summary.total)}
               </span>
             </div>
           </div>
@@ -241,8 +241,8 @@ export function OrderSummary({
                 )}
                 <span className="text-slate-700 font-semibold">
                   {formatCurrency(customDepositCents !== null && customDepositCents !== undefined
-                    ? (taxWaived ? summary.total - summary.tax : summary.total) - customDepositCents
-                    : taxWaived ? summary.balanceDue - summary.tax : summary.balanceDue)}
+                    ? summary.total - customDepositCents
+                    : summary.balanceDue)}
                 </span>
               </div>
             </div>

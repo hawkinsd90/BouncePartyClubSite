@@ -308,7 +308,7 @@ export function OrderDetailsTab({
         />
       )}
 
-      {((calculatedPricing?.generator_fee_cents || 0) > 0 || (order.generator_fee_cents || 0) > 0) && (
+      {((editedOrder.generator_qty || 0) > 0 || (order.generator_qty || 0) > 0) && (
         <FeeWaiver
           feeName="Generator Fee"
           feeAmount={calculatedPricing?.generator_fee_cents || order.generator_fee_cents || 0}
