@@ -52,6 +52,7 @@ const FORM_STORAGE_KEY = 'bpc_quote_form';
 export function useQuoteForm() {
   const [formData, setFormData] = useState<QuoteFormData>(initialFormData);
   const [addressInput, setAddressInput] = useState('');
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
     const prefillData = SafeStorage.getItem<any>('bpc_quote_prefill');
@@ -62,7 +63,36 @@ export function useQuoteForm() {
     } else {
       loadSavedForm();
     }
+    setIsInitialized(true);
   }, []);
+
+  // Auto-save form data whenever it changes (after initial load)
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    // Debounce the save to avoid excessive writes
+    const timeoutId = setTimeout(() => {
+      // Only save if there's meaningful data
+      if (formData.event_date || formData.address_line1) {
+        SafeStorage.setItem(FORM_STORAGE_KEY, formData, { expirationDays: 7 });
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [formData, isInitialized]);
+
+  // Auto-save address input separately for display purposes
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    const timeoutId = setTimeout(() => {
+      if (addressInput) {
+        SafeStorage.setItem('bpc_address_input', addressInput, { expirationDays: 7 });
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [addressInput, isInitialized]);
 
   useEffect(() => {
     if (formData.event_date && !formData.event_end_date) {
@@ -175,7 +205,14 @@ export function useQuoteForm() {
         ...safeFormData,
       }));
 
-      if (parsedFormData.address_line1) {
+      // Try to load saved address input first, fallback to constructing it
+      const savedAddressInput = SafeStorage.getItem<string>('bpc_address_input', {
+        expirationDays: 7
+      });
+
+      if (savedAddressInput) {
+        setAddressInput(savedAddressInput);
+      } else if (parsedFormData.address_line1) {
         setAddressInput(
           `${parsedFormData.address_line1}, ${parsedFormData.city}, ${parsedFormData.state} ${parsedFormData.zip}`
         );
@@ -195,6 +232,7 @@ export function useQuoteForm() {
     setFormData(initialFormData);
     setAddressInput('');
     SafeStorage.removeItem(FORM_STORAGE_KEY);
+    SafeStorage.removeItem('bpc_address_input');
     SafeStorage.removeItem('bpc_prefill_applied');
   }
 
