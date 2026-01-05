@@ -123,6 +123,75 @@ export interface OrderSummaryDisplay {
   pickupPreference: string;
 }
 
+async function calculateOriginalFees(order: any, discounts: OrderDiscount[], customFees: OrderCustomFee[]): Promise<{
+  travel_fee_cents: number;
+  surface_fee_cents: number;
+  same_day_pickup_fee_cents: number;
+  generator_fee_cents: number;
+  tax_cents: number;
+}> {
+  const { data: pricingData } = await supabase
+    .from('pricing_rules')
+    .select('*')
+    .single();
+
+  if (!pricingData) {
+    return {
+      travel_fee_cents: 0,
+      surface_fee_cents: 0,
+      same_day_pickup_fee_cents: 0,
+      generator_fee_cents: 0,
+      tax_cents: 0,
+    };
+  }
+
+  let travelFeeCents = order.travel_fee_cents || 0;
+  if (order.travel_fee_waived && travelFeeCents === 0 && order.travel_total_miles > 0) {
+    const baseRadius = parseFloat(pricingData.base_radius_miles?.toString() || '10');
+    const perMileCents = pricingData.per_mile_after_base_cents || 250;
+    const chargeableMiles = Math.max(0, order.travel_total_miles - baseRadius);
+    travelFeeCents = Math.round(chargeableMiles * perMileCents);
+  }
+
+  let surfaceFeeCents = order.surface_fee_cents || 0;
+  if (order.surface_fee_waived && surfaceFeeCents === 0 && order.surface === 'concrete') {
+    surfaceFeeCents = pricingData.sandbag_fee_cents || 3500;
+  }
+
+  let sameDayPickupFeeCents = order.same_day_pickup_fee_cents || 0;
+  if (order.same_day_pickup_fee_waived && sameDayPickupFeeCents === 0 && order.pickup_preference === 'same_day') {
+    sameDayPickupFeeCents = pricingData.same_day_pickup_fee_cents || 10500;
+  }
+
+  let generatorFeeCents = order.generator_fee_cents || 0;
+  if (order.generator_fee_waived && generatorFeeCents === 0 && (order.generator_qty || 0) > 0) {
+    const perGeneratorCents = pricingData.generator_fee_cents || 9500;
+    generatorFeeCents = perGeneratorCents * (order.generator_qty || 0);
+  }
+
+  let taxCents = order.tax_cents || 0;
+  if (order.tax_waived && taxCents === 0) {
+    const subtotal = order.subtotal_cents || 0;
+    const discountTotal = discounts.reduce((sum, discount) => {
+      if (discount.percentage) {
+        return sum + Math.round(subtotal * (discount.percentage / 100));
+      }
+      return sum + (discount.amount_cents || 0);
+    }, 0);
+    const totalCustomFees = customFees.reduce((sum, fee) => sum + (fee.amount_cents || 0), 0);
+    const taxableAmount = subtotal + travelFeeCents + surfaceFeeCents + sameDayPickupFeeCents + generatorFeeCents + totalCustomFees - discountTotal;
+    taxCents = Math.round(taxableAmount * 0.06);
+  }
+
+  return {
+    travel_fee_cents: travelFeeCents,
+    surface_fee_cents: surfaceFeeCents,
+    same_day_pickup_fee_cents: sameDayPickupFeeCents,
+    generator_fee_cents: generatorFeeCents,
+    tax_cents: taxCents,
+  };
+}
+
 export async function loadOrderSummary(orderId: string): Promise<OrderSummaryData | null> {
   try {
     const [orderRes, itemsRes, discountsRes, feesRes] = await Promise.all([
@@ -212,23 +281,27 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
       });
     }
 
+    const discounts = (discountsRes.data || []) as unknown as OrderDiscount[];
+    const customFees = (feesRes.data || []) as unknown as OrderCustomFee[];
+    const originalFees = await calculateOriginalFees(order, discounts, customFees);
+
     return {
       items: (itemsRes.data || []).map(item => ({
         ...item,
         units: item.units || undefined,
       })) as unknown as OrderItem[],
-      discounts: (discountsRes.data || []) as unknown as OrderDiscount[],
-      customFees: (feesRes.data || []) as unknown as OrderCustomFee[],
+      discounts,
+      customFees,
       subtotal_cents: order.subtotal_cents,
-      travel_fee_cents: order.travel_fee_cents || 0,
+      travel_fee_cents: originalFees.travel_fee_cents,
       travel_total_miles: travelMiles,
-      surface_fee_cents: order.surface_fee_cents || 0,
-      same_day_pickup_fee_cents: order.same_day_pickup_fee_cents || 0,
-      generator_fee_cents: order.generator_fee_cents || 0,
+      surface_fee_cents: originalFees.surface_fee_cents,
+      same_day_pickup_fee_cents: originalFees.same_day_pickup_fee_cents,
+      generator_fee_cents: originalFees.generator_fee_cents,
       generator_qty: order.generator_qty || 0,
-      tax_cents: order.tax_cents || 0,
+      tax_cents: originalFees.tax_cents,
       tip_cents: order.tip_cents || 0,
-      total_cents: calculateTotalFromOrder(order, (discountsRes.data || []) as unknown as OrderDiscount[], (feesRes.data || []) as unknown as OrderCustomFee[]),
+      total_cents: calculateTotalFromOrder(order, discounts, customFees),
       deposit_due_cents: order.deposit_due_cents,
       deposit_paid_cents: order.deposit_paid_cents || 0,
       balance_due_cents: order.balance_due_cents,
