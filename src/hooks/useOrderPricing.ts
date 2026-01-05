@@ -46,8 +46,14 @@ export function useOrderPricing() {
         editedOrder.address_state !== (order.addresses?.state || '') ||
         editedOrder.address_zip !== (order.addresses?.zip || '');
 
+      // Check if factors affecting same-day pickup fee have changed
+      const locationTypeChanged = editedOrder.location_type !== order.location_type;
+      const pickupPreferenceChanged = editedOrder.pickup_preference !== order.pickup_preference;
+      const sameDayFeeFactorsChanged = locationTypeChanged || pickupPreferenceChanged;
+
       let distance_miles = 0;
       let useSavedTravelFee = false;
+      let useSavedSameDayFee = false;
 
       if (!addressChanged && order.travel_fee_cents > 0) {
         distance_miles = parseFloat(order.travel_total_miles) || 0;
@@ -88,6 +94,11 @@ export function useOrderPricing() {
         if (distance_miles === 0 && order.travel_total_miles) {
           distance_miles = parseFloat(order.travel_total_miles) || 0;
         }
+      }
+
+      // Determine if we should use saved same-day fee (when relevant factors haven't changed)
+      if (!sameDayFeeFactorsChanged && order.same_day_pickup_fee_cents !== null && order.same_day_pickup_fee_cents !== undefined) {
+        useSavedSameDayFee = true;
       }
 
       const activeItems = stagedItems.filter(item => !item.is_deleted);
@@ -152,7 +163,7 @@ export function useOrderPricing() {
       let originalTravelFeeCents = useSavedTravelFee ? order.travel_fee_cents : priceBreakdown.travel_fee_cents;
       const finalTravelMiles = useSavedTravelFee ? (parseFloat(order.travel_total_miles) || 0) : (priceBreakdown.travel_total_miles || 0);
       const originalSurfaceFeeCents = priceBreakdown.surface_fee_cents;
-      const originalSameDayPickupFeeCents = priceBreakdown.same_day_pickup_fee_cents;
+      const originalSameDayPickupFeeCents = useSavedSameDayFee ? (order.same_day_pickup_fee_cents || 0) : priceBreakdown.same_day_pickup_fee_cents;
       const originalGeneratorFeeCents = priceBreakdown.generator_fee_cents;
 
       // Calculate amounts for total (applying waivers)
