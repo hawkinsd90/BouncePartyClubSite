@@ -145,21 +145,23 @@ export function useOrderPricing() {
         }
       }));
 
-      let finalTravelFeeCents = useSavedTravelFee ? order.travel_fee_cents : priceBreakdown.travel_fee_cents;
+      // Store original amounts before waivers
+      let originalTravelFeeCents = useSavedTravelFee ? order.travel_fee_cents : priceBreakdown.travel_fee_cents;
       const finalTravelMiles = useSavedTravelFee ? (parseFloat(order.travel_total_miles) || 0) : (priceBreakdown.travel_total_miles || 0);
+      const originalSurfaceFeeCents = priceBreakdown.surface_fee_cents;
+      const originalSameDayPickupFeeCents = priceBreakdown.same_day_pickup_fee_cents;
+      const originalGeneratorFeeCents = priceBreakdown.generator_fee_cents;
 
-      // Apply fee waivers
-      if (travelFeeWaived) {
-        finalTravelFeeCents = 0;
-      }
-
-      const finalSurfaceFeeCents = surfaceFeeWaived ? 0 : priceBreakdown.surface_fee_cents;
-      const finalSameDayPickupFeeCents = sameDayPickupFeeWaived ? 0 : priceBreakdown.same_day_pickup_fee_cents;
-      const finalGeneratorFeeCents = generatorFeeWaived ? 0 : priceBreakdown.generator_fee_cents;
+      // Calculate amounts for total (applying waivers)
+      const finalTravelFeeCents = travelFeeWaived ? 0 : originalTravelFeeCents;
+      const finalSurfaceFeeCents = surfaceFeeWaived ? 0 : originalSurfaceFeeCents;
+      const finalSameDayPickupFeeCents = sameDayPickupFeeWaived ? 0 : originalSameDayPickupFeeCents;
+      const finalGeneratorFeeCents = generatorFeeWaived ? 0 : originalGeneratorFeeCents;
 
       // Calculate tax based on waived fees
       const taxableAmount = priceBreakdown.subtotal_cents + finalTravelFeeCents + finalSurfaceFeeCents + finalGeneratorFeeCents;
       let finalTaxCents = Math.round(taxableAmount * 0.06);
+      const originalTaxCents = finalTaxCents;
 
       if (taxWaived) {
         finalTaxCents = 0;
@@ -168,18 +170,19 @@ export function useOrderPricing() {
       // Calculate total with all waivers applied
       let finalTotalCents = priceBreakdown.subtotal_cents + finalTravelFeeCents + finalSurfaceFeeCents + finalSameDayPickupFeeCents + finalGeneratorFeeCents + finalTaxCents;
 
+      // Pass ORIGINAL amounts for display (so they show in fee list), total will be calculated correctly
       const updatedOrderData: OrderSummaryData = {
         items: activeItemsForDisplay,
         discounts,
         customFees,
         subtotal_cents: priceBreakdown.subtotal_cents,
-        travel_fee_cents: finalTravelFeeCents,
+        travel_fee_cents: originalTravelFeeCents,
         travel_total_miles: finalTravelMiles,
-        surface_fee_cents: finalSurfaceFeeCents,
-        same_day_pickup_fee_cents: finalSameDayPickupFeeCents,
-        generator_fee_cents: finalGeneratorFeeCents,
+        surface_fee_cents: originalSurfaceFeeCents,
+        same_day_pickup_fee_cents: originalSameDayPickupFeeCents,
+        generator_fee_cents: originalGeneratorFeeCents,
         generator_qty: editedOrder.generator_qty || 0,
-        tax_cents: finalTaxCents,
+        tax_cents: originalTaxCents,
         tip_cents: order.tip_cents || 0,
         total_cents: finalTotalCents,
         deposit_due_cents: customDepositCents !== null ? customDepositCents : priceBreakdown.deposit_due_cents,

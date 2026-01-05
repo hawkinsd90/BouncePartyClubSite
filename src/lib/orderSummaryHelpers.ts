@@ -49,8 +49,8 @@ interface BuildSummaryOptions {
 export function buildFeesList(fees: FeeInput): Array<{ name: string; amount: number }> {
   const feesList: Array<{ name: string; amount: number }> = [];
 
-  // Show travel fee if it exists (even if 0 due to waiver)
-  if (fees.travel_fee_cents !== undefined && fees.travel_fee_cents !== null) {
+  // Only show fees that have a value > 0 (waived fees will show original amount, not $0)
+  if (fees.travel_fee_cents && fees.travel_fee_cents > 0) {
     let travelFeeName = fees.travel_fee_display_name || 'Travel Fee';
     if (fees.travel_total_miles && fees.travel_total_miles > 0) {
       travelFeeName = `Travel Fee (${fees.travel_total_miles.toFixed(1)} mi)`;
@@ -58,18 +58,15 @@ export function buildFeesList(fees: FeeInput): Array<{ name: string; amount: num
     feesList.push({ name: travelFeeName, amount: fees.travel_fee_cents });
   }
 
-  // Show surface fee if it exists (even if 0 due to waiver)
-  if (fees.surface_fee_cents !== undefined && fees.surface_fee_cents !== null) {
+  if (fees.surface_fee_cents && fees.surface_fee_cents > 0) {
     feesList.push({ name: 'Surface Fee (Sandbags)', amount: fees.surface_fee_cents });
   }
 
-  // Show same day pickup fee if it exists (even if 0 due to waiver)
-  if (fees.same_day_pickup_fee_cents !== undefined && fees.same_day_pickup_fee_cents !== null) {
+  if (fees.same_day_pickup_fee_cents && fees.same_day_pickup_fee_cents > 0) {
     feesList.push({ name: 'Same-Day Pickup Fee', amount: fees.same_day_pickup_fee_cents });
   }
 
-  // Show generator fee if it exists (even if 0 due to waiver)
-  if (fees.generator_fee_cents !== undefined && fees.generator_fee_cents !== null) {
+  if (fees.generator_fee_cents && fees.generator_fee_cents > 0) {
     const generatorLabel =
       fees.generator_qty && fees.generator_qty > 1
         ? `Generators (${fees.generator_qty}x)`
