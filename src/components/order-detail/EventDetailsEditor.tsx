@@ -154,7 +154,7 @@ export function EventDetailsEditor({
                       : 'border-slate-300 bg-white text-slate-700 hover:border-orange-400'
                   }`}
                 >
-                  <span className="truncate block">Same Day (+{formatCurrency(pricingRules?.same_day_fee_cents || 5000)})</span>
+                  <span className="truncate block">Same Day (+{formatCurrency(pricingRules?.same_day_pickup_fee_cents || 10500)})</span>
                 </button>
               </div>
             </div>
@@ -234,9 +234,19 @@ export function EventDetailsEditor({
                       }}
                       className="w-full px-3 py-2 border border-slate-300 rounded"
                     />
-                    {editedOrder.generator_qty > 0 && pricingRules?.generator_price_cents && (
+                    {editedOrder.generator_qty > 0 && pricingRules && (
                       <p className="text-xs text-blue-600 mt-1">
-                        {editedOrder.generator_qty} × {formatCurrency(pricingRules.generator_price_cents)} = {formatCurrency(editedOrder.generator_qty * pricingRules.generator_price_cents)}
+                        {(() => {
+                          const singleFee = pricingRules.generator_fee_single_cents || pricingRules.generator_price_cents || 10000;
+                          const multipleFee = pricingRules.generator_fee_multiple_cents || pricingRules.generator_price_cents || 7500;
+
+                          if (editedOrder.generator_qty === 1) {
+                            return `${editedOrder.generator_qty} × ${formatCurrency(singleFee)} = ${formatCurrency(singleFee)}`;
+                          } else {
+                            const total = singleFee + (multipleFee * (editedOrder.generator_qty - 1));
+                            return `1 × ${formatCurrency(singleFee)} + ${editedOrder.generator_qty - 1} × ${formatCurrency(multipleFee)} = ${formatCurrency(total)}`;
+                          }
+                        })()}
                       </p>
                     )}
                   </div>
@@ -310,9 +320,19 @@ export function EventDetailsEditor({
                   onChange={(e) => onOrderChange({ generator_qty: parseInt(e.target.value) || 0 })}
                   className={inputClass}
                 />
-                {editedOrder.generator_qty > 0 && pricingRules?.generator_price_cents && (
+                {editedOrder.generator_qty > 0 && pricingRules && (
                   <p className="text-xs text-blue-600 mt-1 break-words">
-                    {editedOrder.generator_qty} × {formatCurrency(pricingRules.generator_price_cents)} = {formatCurrency(editedOrder.generator_qty * pricingRules.generator_price_cents)}
+                    {(() => {
+                      const singleFee = pricingRules.generator_fee_single_cents || pricingRules.generator_price_cents || 10000;
+                      const multipleFee = pricingRules.generator_fee_multiple_cents || pricingRules.generator_price_cents || 7500;
+
+                      if (editedOrder.generator_qty === 1) {
+                        return `${editedOrder.generator_qty} × ${formatCurrency(singleFee)} = ${formatCurrency(singleFee)}`;
+                      } else {
+                        const total = singleFee + (multipleFee * (editedOrder.generator_qty - 1));
+                        return `1 × ${formatCurrency(singleFee)} + ${editedOrder.generator_qty - 1} × ${formatCurrency(multipleFee)} = ${formatCurrency(total)}`;
+                      }
+                    })()}
                   </p>
                 )}
               </div>

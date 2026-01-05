@@ -167,9 +167,6 @@ export function OrderSummary({
               {hasChanged('tax') && getOldValue('tax') && (
                 <span className="text-xs text-slate-400 line-through">{formatCurrency(parseInt(getOldValue('tax')!))}</span>
               )}
-              {comparisonTotal !== undefined && comparisonTotal !== summary.total && !hasChanged('tax') && (
-                <span className="line-through text-slate-400 mr-2">{formatCurrency(Math.round(comparisonTotal * 0.06))}</span>
-              )}
               <span className={`font-medium ${taxWaived ? 'line-through text-red-600' : hasChanged('tax') ? 'text-blue-700' : 'text-slate-900'}`}>
                 {formatCurrency(summary.tax)}
               </span>
