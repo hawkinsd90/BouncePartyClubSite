@@ -120,14 +120,6 @@ export function useOrderPricing() {
         deposit_per_unit_cents: pricingRules.deposit_per_unit_cents,
       };
 
-      console.log('[useOrderPricing] Calling calculatePrice with:', {
-        location_type: editedOrder.location_type,
-        pickup_preference: editedOrder.pickup_preference,
-        overnight_allowed: editedOrder.pickup_preference === 'next_day',
-        same_day_pickup_fee_cents: rules.same_day_pickup_fee_cents,
-        pricingRules_same_day: pricingRules.same_day_pickup_fee_cents,
-      });
-
       const priceBreakdown = calculatePrice({
         items,
         location_type: editedOrder.location_type as 'residential' | 'commercial',
@@ -141,13 +133,6 @@ export function useOrderPricing() {
         has_generator: (editedOrder.generator_qty || 0) > 0,
         generator_qty: editedOrder.generator_qty || 0,
         rules,
-      });
-
-      console.log('[useOrderPricing] calculatePrice returned:', {
-        same_day_pickup_fee_cents: priceBreakdown.same_day_pickup_fee_cents,
-        surface_fee_cents: priceBreakdown.surface_fee_cents,
-        generator_fee_cents: priceBreakdown.generator_fee_cents,
-        travel_fee_cents: priceBreakdown.travel_fee_cents,
       });
 
       const activeItemsForDisplay = activeItems.map(item => ({
@@ -168,8 +153,6 @@ export function useOrderPricing() {
       const finalTravelMiles = useSavedTravelFee ? (parseFloat(order.travel_total_miles) || 0) : (priceBreakdown.travel_total_miles || 0);
       const originalSurfaceFeeCents = priceBreakdown.surface_fee_cents;
       const originalSameDayPickupFeeCents = priceBreakdown.same_day_pickup_fee_cents;
-
-      console.log('[useOrderPricing] Stored originalSameDayPickupFeeCents:', originalSameDayPickupFeeCents);
       const originalGeneratorFeeCents = priceBreakdown.generator_fee_cents;
 
       // Calculate amounts for total (applying waivers)

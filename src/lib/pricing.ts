@@ -125,18 +125,8 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
   const needs_same_day_fee =
     location_type === 'commercial' || !overnight_allowed;
 
-  console.log('[calculatePrice] Same-day pickup fee check:', {
-    location_type,
-    overnight_allowed,
-    needs_same_day_fee,
-    rules_same_day_pickup_fee_cents: rules.same_day_pickup_fee_cents,
-  });
-
   if (needs_same_day_fee && rules.same_day_pickup_fee_cents) {
     same_day_pickup_fee_cents = rules.same_day_pickup_fee_cents;
-    console.log('[calculatePrice] Applied same-day pickup fee:', same_day_pickup_fee_cents);
-  } else {
-    console.log('[calculatePrice] Same-day pickup fee NOT applied');
   }
 
   let generator_fee_cents = 0;
