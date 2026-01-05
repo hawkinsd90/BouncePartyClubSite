@@ -16,6 +16,7 @@ import { useOrderPricing } from '../../hooks/useOrderPricing';
 import { useOrderDetails } from '../../hooks/useOrderDetails';
 import { saveOrderChanges } from '../../lib/orderSaveService';
 import { sendOrderEditNotifications } from '../../lib/orderNotificationService';
+import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
 
 interface OrderDetailModalProps {
   order: any;
@@ -63,6 +64,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [adminMessage, setAdminMessage] = useState('');
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [pendingStatus, setPendingStatus] = useState('');
   const [adminSettings, setAdminSettings] = useState<any>(null);
@@ -457,9 +459,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
   const handleClose = useCallback(() => {
     if (hasChanges) {
-      if (window.confirm('You have unsaved changes. Are you sure you want to close without saving?')) {
-        onClose();
-      }
+      setShowCloseConfirm(true);
     } else {
       onClose();
     }
@@ -670,6 +670,17 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           await loadOrderDetails();
           onUpdate();
         }}
+      />
+
+      <SimpleConfirmModal
+        isOpen={showCloseConfirm}
+        onClose={() => setShowCloseConfirm(false)}
+        onConfirm={onClose}
+        title="Unsaved Changes"
+        message="You have unsaved changes. Are you sure you want to close without saving?"
+        confirmText="Close Without Saving"
+        cancelText="Cancel"
+        variant="warning"
       />
     </div>
   );
