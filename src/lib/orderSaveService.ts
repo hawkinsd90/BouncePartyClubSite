@@ -18,6 +18,10 @@ interface SaveOrderChangesParams {
   travelFeeWaiveReason?: string;
   sameDayPickupFeeWaived?: boolean;
   sameDayPickupFeeWaiveReason?: string;
+  surfaceFeeWaived?: boolean;
+  surfaceFeeWaiveReason?: string;
+  generatorFeeWaived?: boolean;
+  generatorFeeWaiveReason?: string;
   logChangeFn: (field: string, oldValue: any, newValue: any, action?: 'update' | 'add' | 'remove') => Promise<void>;
   sendNotificationsFn: () => Promise<void>;
   onComplete: () => void;
@@ -224,6 +228,30 @@ export async function saveOrderChanges({
   // Handle same day pickup fee waive reason changes
   if (sameDayPickupFeeWaiveReason !== undefined && sameDayPickupFeeWaiveReason !== (order.same_day_pickup_fee_waive_reason || '')) {
     changes.same_day_pickup_fee_waive_reason = sameDayPickupFeeWaiveReason || null;
+  }
+
+  // Handle surface fee waived changes
+  if (surfaceFeeWaived !== undefined && surfaceFeeWaived !== (order.surface_fee_waived || false)) {
+    changes.surface_fee_waived = surfaceFeeWaived;
+    const reasonInfo = surfaceFeeWaived && surfaceFeeWaiveReason ? ` (Reason: ${surfaceFeeWaiveReason})` : '';
+    logs.push(['surface_fee_waived', order.surface_fee_waived || false, `${surfaceFeeWaived}${reasonInfo}`]);
+  }
+
+  // Handle surface fee waive reason changes
+  if (surfaceFeeWaiveReason !== undefined && surfaceFeeWaiveReason !== (order.surface_fee_waive_reason || '')) {
+    changes.surface_fee_waive_reason = surfaceFeeWaiveReason || null;
+  }
+
+  // Handle generator fee waived changes
+  if (generatorFeeWaived !== undefined && generatorFeeWaived !== (order.generator_fee_waived || false)) {
+    changes.generator_fee_waived = generatorFeeWaived;
+    const reasonInfo = generatorFeeWaived && generatorFeeWaiveReason ? ` (Reason: ${generatorFeeWaiveReason})` : '';
+    logs.push(['generator_fee_waived', order.generator_fee_waived || false, `${generatorFeeWaived}${reasonInfo}`]);
+  }
+
+  // Handle generator fee waive reason changes
+  if (generatorFeeWaiveReason !== undefined && generatorFeeWaiveReason !== (order.generator_fee_waive_reason || '')) {
+    changes.generator_fee_waive_reason = generatorFeeWaiveReason || null;
   }
 
   // Determine if we need to clear payment method

@@ -33,6 +33,10 @@ interface OrderDetailsTabProps {
   travelFeeWaiveReason?: string;
   sameDayPickupFeeWaived: boolean;
   sameDayPickupFeeWaiveReason?: string;
+  surfaceFeeWaived: boolean;
+  surfaceFeeWaiveReason?: string;
+  generatorFeeWaived: boolean;
+  generatorFeeWaiveReason?: string;
   onOrderChange: (updates: any) => void;
   onAddressSelect: (result: any) => void;
   onRemoveItem: (item: any) => void;
@@ -46,6 +50,8 @@ interface OrderDetailsTabProps {
   onTaxWaivedToggle: (reason: string) => void;
   onTravelFeeWaivedToggle: (reason: string) => void;
   onSameDayPickupFeeWaivedToggle: (reason: string) => void;
+  onSurfaceFeeWaivedToggle: (reason: string) => void;
+  onGeneratorFeeWaivedToggle: (reason: string) => void;
   onStatusChange: (status: string) => void;
   onMarkChanges: () => void;
 }
@@ -73,6 +79,10 @@ export function OrderDetailsTab({
   travelFeeWaiveReason,
   sameDayPickupFeeWaived,
   sameDayPickupFeeWaiveReason,
+  surfaceFeeWaived,
+  surfaceFeeWaiveReason,
+  generatorFeeWaived,
+  generatorFeeWaiveReason,
   onOrderChange,
   onAddressSelect,
   onRemoveItem,
@@ -86,6 +96,8 @@ export function OrderDetailsTab({
   onTaxWaivedToggle,
   onTravelFeeWaivedToggle,
   onSameDayPickupFeeWaivedToggle,
+  onSurfaceFeeWaivedToggle,
+  onGeneratorFeeWaivedToggle,
   onStatusChange,
   onMarkChanges,
 }: OrderDetailsTabProps) {
@@ -204,6 +216,10 @@ export function OrderDetailsTab({
               showDeposit={true}
               showTip={order.tip_cents > 0}
               taxWaived={order.tax_waived || false}
+              travelFeeWaived={order.travel_fee_waived || false}
+              surfaceFeeWaived={order.surface_fee_waived || false}
+              generatorFeeWaived={order.generator_fee_waived || false}
+              sameDayPickupFeeWaived={order.same_day_pickup_fee_waived || false}
             />
           </div>
         )}
@@ -224,6 +240,10 @@ export function OrderDetailsTab({
               comparisonTotal={currentOrderSummary?.total}
               customDepositCents={customDepositCents}
               taxWaived={taxWaived}
+              travelFeeWaived={travelFeeWaived}
+              surfaceFeeWaived={surfaceFeeWaived}
+              generatorFeeWaived={generatorFeeWaived}
+              sameDayPickupFeeWaived={sameDayPickupFeeWaived}
             />
           </div>
         )}
@@ -273,6 +293,28 @@ export function OrderDetailsTab({
           isWaived={sameDayPickupFeeWaived}
           waiveReason={sameDayPickupFeeWaiveReason}
           onToggle={onSameDayPickupFeeWaivedToggle}
+          color="blue"
+        />
+      )}
+
+      {((calculatedPricing?.surface_fee_cents || 0) > 0 || (order.surface_fee_cents || 0) > 0) && (
+        <FeeWaiver
+          feeName="Surface Fee (Sandbags)"
+          feeAmount={calculatedPricing?.surface_fee_cents || order.surface_fee_cents || 0}
+          isWaived={surfaceFeeWaived}
+          waiveReason={surfaceFeeWaiveReason}
+          onToggle={onSurfaceFeeWaivedToggle}
+          color="orange"
+        />
+      )}
+
+      {((calculatedPricing?.generator_fee_cents || 0) > 0 || (order.generator_fee_cents || 0) > 0) && (
+        <FeeWaiver
+          feeName="Generator Fee"
+          feeAmount={calculatedPricing?.generator_fee_cents || order.generator_fee_cents || 0}
+          isWaived={generatorFeeWaived}
+          waiveReason={generatorFeeWaiveReason}
+          onToggle={onGeneratorFeeWaivedToggle}
           color="blue"
         />
       )}

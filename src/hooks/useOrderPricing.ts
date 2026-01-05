@@ -11,6 +11,11 @@ interface RecalculatePricingParams {
   customFees: any[];
   customDepositCents: number | null;
   pricingRules: any;
+  taxWaived?: boolean;
+  travelFeeWaived?: boolean;
+  sameDayPickupFeeWaived?: boolean;
+  surfaceFeeWaived?: boolean;
+  generatorFeeWaived?: boolean;
 }
 
 export function useOrderPricing() {
@@ -25,6 +30,11 @@ export function useOrderPricing() {
     customFees,
     customDepositCents,
     pricingRules,
+    taxWaived = false,
+    travelFeeWaived = false,
+    sameDayPickupFeeWaived = false,
+    surfaceFeeWaived = false,
+    generatorFeeWaived = false,
   }: RecalculatePricingParams) => {
     if (!pricingRules) return;
 
@@ -135,16 +145,28 @@ export function useOrderPricing() {
         }
       }));
 
-      const finalTravelFeeCents = useSavedTravelFee ? order.travel_fee_cents : priceBreakdown.travel_fee_cents;
+      let finalTravelFeeCents = useSavedTravelFee ? order.travel_fee_cents : priceBreakdown.travel_fee_cents;
       const finalTravelMiles = useSavedTravelFee ? (parseFloat(order.travel_total_miles) || 0) : (priceBreakdown.travel_total_miles || 0);
 
-      let finalTaxCents = priceBreakdown.tax_cents;
-      let finalTotalCents = priceBreakdown.total_cents;
-
-      if (useSavedTravelFee && finalTravelFeeCents !== priceBreakdown.travel_fee_cents) {
-        finalTaxCents = Math.round((priceBreakdown.subtotal_cents + finalTravelFeeCents + priceBreakdown.surface_fee_cents + priceBreakdown.generator_fee_cents) * 0.06);
-        finalTotalCents = priceBreakdown.subtotal_cents + finalTravelFeeCents + priceBreakdown.surface_fee_cents + priceBreakdown.same_day_pickup_fee_cents + priceBreakdown.generator_fee_cents + finalTaxCents;
+      // Apply fee waivers
+      if (travelFeeWaived) {
+        finalTravelFeeCents = 0;
       }
+
+      const finalSurfaceFeeCents = surfaceFeeWaived ? 0 : priceBreakdown.surface_fee_cents;
+      const finalSameDayPickupFeeCents = sameDayPickupFeeWaived ? 0 : priceBreakdown.same_day_pickup_fee_cents;
+      const finalGeneratorFeeCents = generatorFeeWaived ? 0 : priceBreakdown.generator_fee_cents;
+
+      // Calculate tax based on waived fees
+      const taxableAmount = priceBreakdown.subtotal_cents + finalTravelFeeCents + finalSurfaceFeeCents + finalGeneratorFeeCents;
+      let finalTaxCents = Math.round(taxableAmount * 0.06);
+
+      if (taxWaived) {
+        finalTaxCents = 0;
+      }
+
+      // Calculate total with all waivers applied
+      let finalTotalCents = priceBreakdown.subtotal_cents + finalTravelFeeCents + finalSurfaceFeeCents + finalSameDayPickupFeeCents + finalGeneratorFeeCents + finalTaxCents;
 
       const updatedOrderData: OrderSummaryData = {
         items: activeItemsForDisplay,
@@ -153,9 +175,9 @@ export function useOrderPricing() {
         subtotal_cents: priceBreakdown.subtotal_cents,
         travel_fee_cents: finalTravelFeeCents,
         travel_total_miles: finalTravelMiles,
-        surface_fee_cents: priceBreakdown.surface_fee_cents,
-        same_day_pickup_fee_cents: priceBreakdown.same_day_pickup_fee_cents,
-        generator_fee_cents: priceBreakdown.generator_fee_cents,
+        surface_fee_cents: finalSurfaceFeeCents,
+        same_day_pickup_fee_cents: finalSameDayPickupFeeCents,
+        generator_fee_cents: finalGeneratorFeeCents,
         generator_qty: editedOrder.generator_qty || 0,
         tax_cents: finalTaxCents,
         tip_cents: order.tip_cents || 0,
@@ -175,7 +197,7 @@ export function useOrderPricing() {
 
       setCalculatedPricing({
         subtotal_cents: priceBreakdown.subtotal_cents,
-        generator_fee_cents: priceBreakdown.generator_fee_cents,
+        generator_fee_cents: finalGeneratorFeeCents,
         travel_fee_cents: finalTravelFeeCents,
         travel_total_miles: finalTravelMiles,
         travel_base_radius_miles: priceBreakdown.travel_base_radius_miles,
@@ -183,8 +205,8 @@ export function useOrderPricing() {
         travel_per_mile_cents: priceBreakdown.travel_per_mile_cents,
         travel_is_flat_fee: priceBreakdown.travel_is_flat_fee,
         distance_miles: finalTravelMiles,
-        surface_fee_cents: priceBreakdown.surface_fee_cents,
-        same_day_pickup_fee_cents: priceBreakdown.same_day_pickup_fee_cents,
+        surface_fee_cents: finalSurfaceFeeCents,
+        same_day_pickup_fee_cents: finalSameDayPickupFeeCents,
         custom_fees_total_cents: summary.customFees.reduce((sum, f) => sum + f.amount, 0),
         discount_total_cents: summary.discounts.reduce((sum, d) => sum + d.amount, 0),
         tax_cents: finalTaxCents,

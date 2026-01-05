@@ -78,6 +78,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [travelFeeWaiveReason, setTravelFeeWaiveReason] = useState(order.travel_fee_waive_reason || '');
   const [sameDayPickupFeeWaived, setSameDayPickupFeeWaived] = useState(order.same_day_pickup_fee_waived || false);
   const [sameDayPickupFeeWaiveReason, setSameDayPickupFeeWaiveReason] = useState(order.same_day_pickup_fee_waive_reason || '');
+  const [surfaceFeeWaived, setSurfaceFeeWaived] = useState(order.surface_fee_waived || false);
+  const [surfaceFeeWaiveReason, setSurfaceFeeWaiveReason] = useState(order.surface_fee_waive_reason || '');
+  const [generatorFeeWaived, setGeneratorFeeWaived] = useState(order.generator_fee_waived || false);
+  const [generatorFeeWaiveReason, setGeneratorFeeWaiveReason] = useState(order.generator_fee_waive_reason || '');
 
   const { updatedOrderSummary, calculatedPricing, recalculatePricing } = useOrderPricing();
   const { payments, pricingRules, reload: reloadOrderData } = useOrderDetails(order.id);
@@ -160,12 +164,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
   }, [orderItems]);
 
-  // Recalculate pricing whenever discounts, custom fees, or staged items change
+  // Recalculate pricing whenever discounts, custom fees, staged items, or fee waivers change
   useEffect(() => {
     if (pricingRules && editedOrder && stagedItems.length > 0) {
       handleRecalculatePricing();
     }
-  }, [discounts, customFees, stagedItems, editedOrder.location_type, editedOrder.surface, editedOrder.generator_qty]);
+  }, [discounts, customFees, stagedItems, editedOrder.location_type, editedOrder.surface, editedOrder.generator_qty, taxWaived, travelFeeWaived, sameDayPickupFeeWaived, surfaceFeeWaived, generatorFeeWaived]);
 
   // Check if any changes have been made
   useEffect(() => {
@@ -280,8 +284,13 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       customFees,
       customDepositCents,
       pricingRules,
+      taxWaived,
+      travelFeeWaived,
+      sameDayPickupFeeWaived,
+      surfaceFeeWaived,
+      generatorFeeWaived,
     });
-  }, [order, editedOrder, stagedItems, discounts, customFees, customDepositCents, pricingRules, adminSettings, recalculatePricing]);
+  }, [order, editedOrder, stagedItems, discounts, customFees, customDepositCents, pricingRules, adminSettings, taxWaived, travelFeeWaived, sameDayPickupFeeWaived, surfaceFeeWaived, generatorFeeWaived, recalculatePricing]);
 
   async function loadOrderDetails() {
     try {
@@ -381,6 +390,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         travelFeeWaiveReason,
         sameDayPickupFeeWaived,
         sameDayPickupFeeWaiveReason,
+        surfaceFeeWaived,
+        surfaceFeeWaiveReason,
+        generatorFeeWaived,
+        generatorFeeWaiveReason,
         logChangeFn: logChange,
         sendNotificationsFn: async () => {
           await sendOrderEditNotifications({ order, adminMessage });
@@ -564,6 +577,20 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               onSameDayPickupFeeWaivedToggle={(reason) => {
                 setSameDayPickupFeeWaived(!sameDayPickupFeeWaived);
                 setSameDayPickupFeeWaiveReason(reason);
+                setHasChanges(true);
+              }}
+              surfaceFeeWaived={surfaceFeeWaived}
+              surfaceFeeWaiveReason={surfaceFeeWaiveReason}
+              onSurfaceFeeWaivedToggle={(reason) => {
+                setSurfaceFeeWaived(!surfaceFeeWaived);
+                setSurfaceFeeWaiveReason(reason);
+                setHasChanges(true);
+              }}
+              generatorFeeWaived={generatorFeeWaived}
+              generatorFeeWaiveReason={generatorFeeWaiveReason}
+              onGeneratorFeeWaivedToggle={(reason) => {
+                setGeneratorFeeWaived(!generatorFeeWaived);
+                setGeneratorFeeWaiveReason(reason);
                 setHasChanges(true);
               }}
               onStatusChange={initiateStatusChange}
