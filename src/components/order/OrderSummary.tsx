@@ -106,21 +106,25 @@ export function OrderSummary({
           </div>
 
           {summary.fees.map((fee, index) => {
-            const fieldMap: Record<string, string> = {
-              'Travel Fee': 'travel_fee',
-              'Surface Fee (Sandbags)': 'surface_fee',
-              'Generators': 'generator_fee',
-              'Same-Day Pickup Fee': 'same_day_pickup_fee',
-            };
-            const fieldName = fieldMap[fee.name] || '';
+            // Determine field name based on fee name pattern
+            let fieldName = '';
+            if (fee.name.startsWith('Travel Fee')) {
+              fieldName = 'travel_fee';
+            } else if (fee.name === 'Surface Fee (Sandbags)') {
+              fieldName = 'surface_fee';
+            } else if (fee.name.startsWith('Generator')) {
+              fieldName = 'generator_fee';
+            } else if (fee.name === 'Same-Day Pickup Fee') {
+              fieldName = 'same_day_pickup_fee';
+            }
             const changed = fieldName && hasChanged(fieldName);
             const oldVal = changed ? getOldValue(fieldName) : null;
 
             // Determine if this specific fee is waived
             const isWaived =
-              (fee.name === 'Travel Fee' && travelFeeWaived) ||
+              (fee.name.startsWith('Travel Fee') && travelFeeWaived) ||
               (fee.name === 'Surface Fee (Sandbags)' && surfaceFeeWaived) ||
-              (fee.name === 'Generators' && generatorFeeWaived) ||
+              (fee.name.startsWith('Generator') && generatorFeeWaived) ||
               (fee.name === 'Same-Day Pickup Fee' && sameDayPickupFeeWaived);
 
             return (
