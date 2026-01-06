@@ -82,7 +82,6 @@ export function ItemsEditor({
                   </p>
                   <p className="text-xs sm:text-sm text-slate-600">
                     {getModeLabel(item)}
-                    {!allowQuantityEdit && ` • Qty: ${item.qty}`}
                   </p>
                 </div>
                 <button
@@ -94,46 +93,47 @@ export function ItemsEditor({
                 </button>
               </div>
 
+              {!allowQuantityEdit && !allowPriceEdit && (
+                <div className="flex items-center text-xs text-slate-600 mb-2">
+                  <span>Qty: {item.qty}</span>
+                </div>
+              )}
+
               {(allowQuantityEdit || allowPriceEdit) && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 mt-2">
+                <div className="flex items-center justify-between gap-3 mt-2">
                   {allowQuantityEdit && (
-                    <div>
-                      <label className="block text-xs text-slate-600 mb-1">Quantity</label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-600 font-medium">Qty:</span>
                       {item.inventory_qty && item.inventory_qty > 1 ? (
-                        <div className="flex items-center gap-1.5 sm:gap-2">
+                        <div className="flex items-center gap-1.5">
                           <button
                             onClick={() => onUpdateQuantity?.(index, Math.max(1, item.qty - 1))}
-                            className="p-1 bg-slate-200 hover:bg-slate-300 rounded"
+                            className="w-6 h-6 flex items-center justify-center bg-slate-200 hover:bg-slate-300 rounded transition-colors"
+                            title="Decrease quantity"
                           >
                             <Minus className="w-3 h-3" />
                           </button>
-                          <input
-                            type="number"
-                            value={item.qty}
-                            onChange={(e) => onUpdateQuantity?.(index, parseInt(e.target.value) || 1)}
-                            min="1"
-                            max={item.inventory_qty}
-                            className="w-14 sm:w-16 px-2 py-1 border border-slate-300 rounded text-center text-sm"
-                          />
+                          <span className="w-8 text-center text-sm font-semibold text-slate-900">
+                            {item.qty}
+                          </span>
                           <button
                             onClick={() => onUpdateQuantity?.(index, item.qty + 1)}
                             disabled={item.qty >= item.inventory_qty}
-                            className="p-1 bg-slate-200 hover:bg-slate-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-6 h-6 flex items-center justify-center bg-slate-200 hover:bg-slate-300 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Increase quantity"
                           >
                             <Plus className="w-3 h-3" />
                           </button>
                         </div>
                       ) : (
-                        <div className="px-3 py-2 bg-slate-100 border border-slate-300 rounded text-center text-sm text-slate-700">
-                          {item.qty}
-                        </div>
+                        <span className="text-sm font-semibold text-slate-900">{item.qty}</span>
                       )}
                     </div>
                   )}
 
                   {allowPriceEdit && (
-                    <div>
-                      <label className="block text-xs text-slate-600 mb-1">Price Each</label>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-slate-600 font-medium">Price:</label>
                       <input
                         type="number"
                         value={(getItemPrice(item) / 100).toFixed(2)}
@@ -141,7 +141,7 @@ export function ItemsEditor({
                           onUpdatePrice?.(index, Math.round(parseFloat(e.target.value) * 100))
                         }
                         step="0.01"
-                        className="w-full px-2 py-1 border border-slate-300 rounded text-sm"
+                        className="w-20 px-2 py-1 border border-slate-300 rounded text-sm"
                       />
                     </div>
                   )}

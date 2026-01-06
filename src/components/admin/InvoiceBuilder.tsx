@@ -412,20 +412,22 @@ export function InvoiceBuilder() {
             compact={true}
           />
 
-          <FeeWaiver
-            feeName="Travel Fee"
-            feeAmount={calculatedPricing?.travel_fee_cents || 0}
-            isWaived={travelFeeWaived}
-            waiveReason={travelFeeWaiveReason}
-            onToggle={(reason) => {
-              setTravelFeeWaived(!travelFeeWaived);
-              setTravelFeeWaiveReason(reason);
-            }}
-            color="orange"
-            compact={true}
-          />
+          {((calculatedPricing?.travel_fee_cents || 0) > 0 || travelFeeWaived) && (
+            <FeeWaiver
+              feeName="Travel Fee"
+              feeAmount={calculatedPricing?.travel_fee_cents || 0}
+              isWaived={travelFeeWaived}
+              waiveReason={travelFeeWaiveReason}
+              onToggle={(reason) => {
+                setTravelFeeWaived(!travelFeeWaived);
+                setTravelFeeWaiveReason(reason);
+              }}
+              color="orange"
+              compact={true}
+            />
+          )}
 
-          {(calculatedPricing?.same_day_pickup_fee_cents || 0) > 0 && (
+          {((calculatedPricing?.same_day_pickup_fee_cents || 0) > 0 || sameDayPickupFeeWaived) && (
             <FeeWaiver
               feeName="Same Day Pickup Fee"
               feeAmount={calculatedPricing?.same_day_pickup_fee_cents || 0}
@@ -440,7 +442,7 @@ export function InvoiceBuilder() {
             />
           )}
 
-          {(calculatedPricing?.surface_fee_cents || 0) > 0 && (
+          {((calculatedPricing?.surface_fee_cents || 0) > 0 || surfaceFeeWaived) && (
             <FeeWaiver
               feeName="Sandbags Fee"
               feeAmount={calculatedPricing?.surface_fee_cents || 0}
@@ -455,7 +457,7 @@ export function InvoiceBuilder() {
             />
           )}
 
-          {(calculatedPricing?.generator_fee_cents || 0) > 0 && (
+          {((calculatedPricing?.generator_fee_cents || 0) > 0 || generatorFeeWaived) && (
             <FeeWaiver
               feeName="Generator Fee"
               feeAmount={calculatedPricing?.generator_fee_cents || 0}
