@@ -5,6 +5,8 @@ Welcome to the centralized print/PDF system documentation. This system eliminate
 ## Quick Links
 
 ### Getting Started
+- **What currently exists?** See [PDF Viewers Inventory](./PDF_VIEWERS_INVENTORY.md)
+- **Want visual diagrams?** Check [Visual Map](./PDF_SYSTEM_VISUAL_MAP.md)
 - **New to the system?** Start with [Quick Start Guide](./PRINT_SYSTEM_QUICK_START.md)
 - **Want to understand the system?** Read [System Overview](./CENTRALIZED_PRINT_SYSTEM.md)
 - **Need to migrate existing code?** See [Migration Example](./MIGRATION_EXAMPLE.md)
@@ -14,7 +16,50 @@ Welcome to the centralized print/PDF system documentation. This system eliminate
 
 ## Documentation Files
 
-### 1. PRINT_SYSTEM_QUICK_START.md
+### 1. PDF_VIEWERS_INVENTORY.md
+**Best for: Understanding current system**
+
+Complete inventory covering:
+- All 6 PDF features with detailed breakdown
+- Current implementation analysis
+- Line-by-line code locations
+- window.print() call locations
+- Data flow diagrams
+- Duplication analysis (923 lines)
+- Migration targets with priorities
+- File reference tables
+
+**Use this when:**
+- You need to understand what exists now
+- You want to see all print code locations
+- You need to audit the current system
+- You're planning the migration
+- You want detailed file/line references
+
+---
+
+### 2. PDF_SYSTEM_VISUAL_MAP.md
+**Best for: Visual learners and architecture overview**
+
+Visual diagrams covering:
+- Current vs centralized system comparison
+- Data flow diagrams
+- Component hierarchy trees
+- File dependency graphs
+- Migration strategy visualization
+- Feature comparison matrix
+- CSS class usage map
+
+**Use this when:**
+- You want to see the big picture
+- You prefer visual diagrams
+- You need to explain the system to others
+- You want to understand relationships
+- You're planning architecture changes
+
+---
+
+### 3. PRINT_SYSTEM_QUICK_START.md
 **Best for: Developers adding new print features**
 
 Quick reference guide covering:
@@ -118,10 +163,13 @@ src/
 ```
 project-root/
 ├── PRINT_SYSTEM_INDEX.md               # This file - navigation guide
+├── PDF_VIEWERS_INVENTORY.md            # Complete inventory of current PDF features
+├── PDF_SYSTEM_VISUAL_MAP.md            # Visual diagrams and architecture maps
 ├── PRINT_SYSTEM_QUICK_START.md         # Quick reference for developers
 ├── CENTRALIZED_PRINT_SYSTEM.md         # Comprehensive system documentation
 ├── MIGRATION_EXAMPLE.md                # Real-world migration walkthrough
-└── PRINT_SYSTEM_SUMMARY.md             # Implementation summary
+├── PRINT_SYSTEM_SUMMARY.md             # Implementation summary
+└── PRINT_SYSTEM_ARCHITECTURE.md        # Detailed architecture documentation
 ```
 
 ---
@@ -162,6 +210,12 @@ project-root/
 
 ## Common Tasks
 
+### I want to see what PDF features currently exist
+→ Read: [PDF Viewers Inventory](./PDF_VIEWERS_INVENTORY.md)
+
+### I want visual diagrams of the system
+→ Read: [Visual Map](./PDF_SYSTEM_VISUAL_MAP.md)
+
 ### I want to add a new print feature
 → Read: [Quick Start Guide](./PRINT_SYSTEM_QUICK_START.md)
 
@@ -170,6 +224,9 @@ project-root/
 
 ### I want to migrate an existing feature
 → Read: [Migration Example](./MIGRATION_EXAMPLE.md)
+
+### I need to find specific print code locations
+→ Read: [PDF Viewers Inventory](./PDF_VIEWERS_INVENTORY.md)
 
 ### I need to customize a document
 → See: [Quick Start Guide - Custom Document Pattern](./PRINT_SYSTEM_QUICK_START.md#pattern-4-custom-document)
@@ -184,7 +241,7 @@ project-root/
 → Read: [Implementation Summary](./PRINT_SYSTEM_SUMMARY.md)
 
 ### I need to explain this to someone
-→ Share: [Implementation Summary](./PRINT_SYSTEM_SUMMARY.md)
+→ Share: [Visual Map](./PDF_SYSTEM_VISUAL_MAP.md) or [Implementation Summary](./PRINT_SYSTEM_SUMMARY.md)
 
 ---
 
