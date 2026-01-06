@@ -14,6 +14,7 @@ interface EventDetails {
   event_end_date: string;
   location_type: string;
   surface: string;
+  can_stake: boolean;
   generator_qty: number;
   pickup_preference: string;
   city: string;
@@ -84,7 +85,7 @@ export function useInvoicePricing(
         items,
         location_type: eventDetails.location_type as 'residential' | 'commercial',
         surface: eventDetails.surface as 'grass' | 'cement',
-        can_use_stakes: eventDetails.surface === 'grass',
+        can_use_stakes: eventDetails.can_stake,
         overnight_allowed: eventDetails.pickup_preference === 'next_day',
         num_days: numDays,
         distance_miles: distance,
