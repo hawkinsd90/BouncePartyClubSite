@@ -198,6 +198,8 @@ export function OrderDetailsTab({
         pricingRules={pricingRules}
         onOrderChange={onOrderChange}
         onAddressSelect={onAddressSelect}
+        compact={false}
+        showUntilEndOfDay={true}
       />
 
       <ItemsEditor
@@ -205,8 +207,10 @@ export function OrderDetailsTab({
         units={availableUnits}
         onRemoveItem={onRemoveItem}
         onAddItem={onAddItem}
+        allowQuantityEdit={true}
+        allowPriceEdit={false}
         title="Order Items"
-        removeByIndex={false}
+        removeByIndex={true}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -270,6 +274,8 @@ export function OrderDetailsTab({
         onInputChange={onDepositInputChange}
         onApply={onDepositApply}
         onClear={onDepositClear}
+        compact={false}
+        showZeroHint={true}
       />
 
       <TaxWaiver
@@ -277,6 +283,7 @@ export function OrderDetailsTab({
         taxWaived={taxWaived}
         taxWaiveReason={taxWaiveReason}
         onToggle={onTaxWaivedToggle}
+        compact={false}
       />
 
       <FeeWaiver
@@ -286,7 +293,7 @@ export function OrderDetailsTab({
         waiveReason={travelFeeWaiveReason}
         onToggle={onTravelFeeWaivedToggle}
         color="orange"
-        compact={true}
+        compact={false}
       />
 
       {((calculatedPricing?.same_day_pickup_fee_cents || 0) > 0 || (order.same_day_pickup_fee_cents || 0) > 0) && (
@@ -297,7 +304,7 @@ export function OrderDetailsTab({
           waiveReason={sameDayPickupFeeWaiveReason}
           onToggle={onSameDayPickupFeeWaivedToggle}
           color="blue"
-          compact={true}
+          compact={false}
         />
       )}
 
@@ -309,7 +316,7 @@ export function OrderDetailsTab({
           waiveReason={surfaceFeeWaiveReason}
           onToggle={onSurfaceFeeWaivedToggle}
           color="orange"
-          compact={true}
+          compact={false}
         />
       )}
 
@@ -321,7 +328,7 @@ export function OrderDetailsTab({
           waiveReason={generatorFeeWaiveReason}
           onToggle={onGeneratorFeeWaivedToggle}
           color="blue"
-          compact={true}
+          compact={false}
         />
       )}
 

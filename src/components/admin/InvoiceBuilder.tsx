@@ -263,7 +263,7 @@ export function InvoiceBuilder() {
                 lng: result.lng,
               });
             }}
-            compact={true}
+            compact={false}
             showUntilEndOfDay={true}
           />
 
@@ -293,7 +293,7 @@ export function InvoiceBuilder() {
             onInputChange={deposit.setCustomDepositInput}
             onApply={deposit.applyDepositOverride}
             onClear={deposit.clearDepositOverride}
-            compact={true}
+            compact={false}
             showZeroHint={true}
           />
 
@@ -305,7 +305,7 @@ export function InvoiceBuilder() {
               setTaxWaived(!taxWaived);
               setTaxWaiveReason(reason);
             }}
-            compact={true}
+            compact={false}
           />
 
           <FeeWaiver
@@ -318,7 +318,7 @@ export function InvoiceBuilder() {
               setTravelFeeWaiveReason(reason);
             }}
             color="orange"
-            compact={true}
+            compact={false}
           />
 
           {(pricing.priceBreakdown?.same_day_pickup_fee_cents || 0) > 0 && (
@@ -332,7 +332,7 @@ export function InvoiceBuilder() {
                 setSameDayPickupFeeWaiveReason(reason);
               }}
               color="blue"
-              compact={true}
+              compact={false}
             />
           )}
 
@@ -347,7 +347,7 @@ export function InvoiceBuilder() {
                 setSurfaceFeeWaiveReason(reason);
               }}
               color="orange"
-              compact={true}
+              compact={false}
             />
           )}
 
@@ -362,7 +362,7 @@ export function InvoiceBuilder() {
                 setGeneratorFeeWaiveReason(reason);
               }}
               color="blue"
-              compact={true}
+              compact={false}
             />
           )}
 
