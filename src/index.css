@@ -15,8 +15,8 @@
 
 @media print {
   @page {
-    margin: 1cm;
-    size: auto;
+    margin: 0.5in;
+    size: letter;
   }
 
   * {
@@ -32,11 +32,12 @@
     background: white !important;
   }
 
-  body *:not(#printable-invoice):not(#printable-invoice *) {
+  body *:not(#printable-invoice):not(#printable-invoice *):not(.print-document):not(.print-document *) {
     visibility: hidden !important;
   }
 
-  #printable-invoice {
+  #printable-invoice,
+  .print-document {
     visibility: visible !important;
     position: relative !important;
     left: auto !important;
@@ -48,18 +49,38 @@
     display: block !important;
   }
 
-  #printable-invoice * {
+  #printable-invoice *,
+  .print-document * {
     visibility: visible !important;
   }
 
-  #printable-invoice > div {
+  #printable-invoice > div,
+  .print-document > div {
     max-width: 100% !important;
     margin: 0 !important;
     page-break-inside: avoid !important;
   }
 
-  .no-print {
+  .no-print,
+  .no-print * {
     display: none !important;
+    visibility: hidden !important;
+  }
+
+  .no-print-padding {
+    padding: 0 !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .page-break {
+    page-break-after: always !important;
+  }
+
+  .avoid-break {
+    page-break-inside: avoid !important;
   }
 
   .overflow-hidden {
@@ -70,7 +91,23 @@
     border-radius: 0 !important;
   }
 
-  .shadow-lg {
+  .shadow-lg,
+  .shadow-xl,
+  .shadow-2xl {
     box-shadow: none !important;
+  }
+
+  .print-portrait {
+    size: letter portrait;
+  }
+
+  .print-landscape {
+    size: letter landscape;
+  }
+}
+
+@media screen {
+  .print-only {
+    display: none !important;
   }
 }
