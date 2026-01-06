@@ -3,8 +3,6 @@ import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/pricing';
 import { Loader2, CreditCard, CheckCircle, AlertCircle, Shield } from 'lucide-react';
 import { OrderSummaryDisplay } from '../../lib/orderSummary';
-import { PrintableInvoice } from '../invoice/PrintableInvoice';
-import { PrintModal } from '../common/PrintModal';
 import { SimpleInvoiceDisplay } from '../shared/SimpleInvoiceDisplay';
 import { RentalTerms } from '../waiver/RentalTerms';
 import { TipSelector } from '../payment/TipSelector';
@@ -47,89 +45,9 @@ export function InvoiceAcceptanceView({
   const [customPaymentAmount, setCustomPaymentAmount] = useState('');
   const [tipAmount, setTipAmount] = useState<'none' | '10' | '15' | '20' | 'custom'>('none');
   const [customTipAmount, setCustomTipAmount] = useState('');
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
 
   const needsCustomerInfo = invoiceLink && !invoiceLink.customer_filled;
-
-  const prepareInvoiceData = () => {
-    if (!order) return null;
-
-    const quoteData = {
-      event_date: order.event_date,
-      start_window: order.start_window,
-      address_line1: order.addresses?.line1 || '',
-      address_line2: order.addresses?.line2 || '',
-      city: order.addresses?.city || '',
-      state: order.addresses?.state || '',
-      zip: order.addresses?.zip || '',
-      location_type: order.location_type,
-      pickup_preference: order.pickup_preference,
-      surface: order.surface,
-      generator_qty: order.generator_qty || 0,
-    };
-
-    const totalCents =
-      order.subtotal_cents +
-      (order.generator_fee_cents || 0) +
-      order.travel_fee_cents +
-      order.surface_fee_cents +
-      (order.same_day_pickup_fee_cents || 0) +
-      order.tax_cents +
-      (order.tip_cents || 0);
-
-    const discountTotal = discounts.reduce((sum: number, d: any) => {
-      if (d.amount_cents > 0) {
-        return sum + d.amount_cents;
-      } else if (d.percentage > 0) {
-        const taxableBase =
-          order.subtotal_cents +
-          (order.generator_fee_cents || 0) +
-          order.travel_fee_cents +
-          order.surface_fee_cents;
-        return sum + Math.round(taxableBase * (d.percentage / 100));
-      }
-      return sum;
-    }, 0);
-
-    const customFeesTotal = customFees.reduce((sum: number, f: any) => sum + f.amount_cents, 0);
-
-    const priceBreakdown = {
-      subtotal_cents: order.subtotal_cents,
-      travel_fee_cents: order.travel_fee_cents,
-      travel_fee_display_name: order.travel_total_miles
-        ? `Travel Fee (${order.travel_total_miles.toFixed(1)} mi)`
-        : 'Travel Fee',
-      surface_fee_cents: order.surface_fee_cents,
-      same_day_pickup_fee_cents: order.same_day_pickup_fee_cents || 0,
-      generator_fee_cents: order.generator_fee_cents || 0,
-      discount_cents: discountTotal,
-      custom_fees_cents: customFeesTotal,
-      tax_cents: order.tax_cents,
-      tip_cents: order.tip_cents || 0,
-      total_cents: totalCents - discountTotal + customFeesTotal,
-      deposit_due_cents: order.deposit_due_cents,
-      balance_due_cents: order.balance_due_cents,
-    };
-
-    const cart = orderItems.map((item: any) => ({
-      unit_id: item.unit_id,
-      unit_name: item.units?.name || 'Unknown Unit',
-      wet_or_dry: item.wet_or_dry,
-      unit_price_cents: item.unit_price_cents * item.qty,
-      qty: item.qty,
-    }));
-
-    const contactData = {
-      first_name: order.customers?.first_name || customerInfo.first_name,
-      last_name: order.customers?.last_name || customerInfo.last_name,
-      email: order.customers?.email || customerInfo.email,
-      phone: order.customers?.phone || customerInfo.phone,
-      business_name: order.customers?.business_name || customerInfo.business_name,
-    };
-
-    return { quoteData, priceBreakdown, cart, contactData };
-  };
 
   async function handleAcceptInvoice() {
     if (!cardOnFileConsent || !smsConsent) {
@@ -307,7 +225,7 @@ export function InvoiceAcceptanceView({
 
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-3xl mx-auto" id="print-content-wrapper">
         <SimpleInvoiceDisplay
           eventDate={order.event_date}
           startWindow={order.start_window}
@@ -329,10 +247,10 @@ export function InvoiceAcceptanceView({
           generatorFeeWaived={order.generator_fee_waived || false}
           sameDayPickupFeeWaived={order.same_day_pickup_fee_waived || false}
           showTip={orderSummary ? orderSummary.tip > 0 : false}
-          onViewPrintableInvoice={() => setShowInvoiceModal(true)}
+          onPrint={() => window.print()}
         />
 
-        <div className="bg-white rounded-lg shadow-md p-8 mt-6">
+        <div className="bg-white rounded-lg shadow-md p-8 mt-6 no-print">
           <PaymentAmountSelector
             depositCents={order.deposit_due_cents}
             balanceCents={order.balance_due_cents}
@@ -494,24 +412,6 @@ export function InvoiceAcceptanceView({
           />
         )}
       </div>
-
-      {showInvoiceModal && prepareInvoiceData() && (
-        <PrintModal
-          isOpen={showInvoiceModal}
-          onClose={() => setShowInvoiceModal(false)}
-          title="Invoice Preview"
-          maxWidth="5xl"
-        >
-          <PrintableInvoice
-            quoteData={prepareInvoiceData()!.quoteData}
-            priceBreakdown={prepareInvoiceData()!.priceBreakdown}
-            cart={prepareInvoiceData()!.cart}
-            contactData={prepareInvoiceData()!.contactData}
-            invoiceNumber={order?.id?.slice(0, 8).toUpperCase()}
-            isPaid={false}
-          />
-        </PrintModal>
-      )}
     </div>
   );
 }
