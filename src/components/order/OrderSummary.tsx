@@ -120,11 +120,15 @@ export function OrderSummary({
             const changed = fieldName && hasChanged(fieldName);
             const oldVal = changed ? getOldValue(fieldName) : null;
 
-            // ALL fees are always shown as waived (courtesy display)
-            const isAlwaysWaived = true;
+            // Determine if this specific fee is waived
+            const isWaived =
+              (fee.name.startsWith('Travel Fee') && travelFeeWaived) ||
+              (fee.name === 'Surface Fee (Sandbags)' && surfaceFeeWaived) ||
+              (fee.name.startsWith('Generator') && generatorFeeWaived) ||
+              (fee.name === 'Same-Day Pickup Fee' && sameDayPickupFeeWaived);
 
             return (
-              <div key={index} className="flex justify-between bg-green-50 -mx-2 px-2 py-1 rounded">
+              <div key={index} className={`flex justify-between ${changed || isWaived ? 'bg-blue-50 -mx-2 px-2 py-1 rounded' : ''}`}>
                 <span className="text-slate-700 flex items-center gap-2">
                   {fee.name}
                   {changed && <TrendingUp className="w-4 h-4 text-blue-600" />}
@@ -133,10 +137,12 @@ export function OrderSummary({
                   {changed && oldVal && (
                     <span className="text-xs text-slate-400 line-through">{formatCurrency(parseInt(oldVal))}</span>
                   )}
-                  <span className="font-medium line-through text-slate-500">
+                  <span className={`font-medium ${isWaived ? 'line-through text-red-600' : changed ? 'text-blue-700' : 'text-slate-900'}`}>
                     {formatCurrency(fee.amount)}
                   </span>
-                  <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded font-semibold">WAIVED - Not charged to customer</span>
+                  {isWaived && (
+                    <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded font-semibold">WAIVED</span>
+                  )}
                 </div>
               </div>
             );
