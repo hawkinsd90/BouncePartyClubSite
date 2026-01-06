@@ -321,7 +321,7 @@ export function InvoiceBuilder() {
             compact={false}
           />
 
-          {(pricing.priceBreakdown?.same_day_pickup_fee_cents || 0) > 0 && (
+          {((pricing.priceBreakdown?.same_day_pickup_fee_cents || 0) > 0 || sameDayPickupFeeWaived) && (
             <FeeWaiver
               feeName="Same Day Pickup Fee"
               feeAmount={pricing.priceBreakdown?.same_day_pickup_fee_cents || 0}
@@ -336,7 +336,7 @@ export function InvoiceBuilder() {
             />
           )}
 
-          {(pricing.priceBreakdown?.surface_fee_cents || 0) > 0 && (
+          {((pricing.priceBreakdown?.surface_fee_cents || 0) > 0 || surfaceFeeWaived) && (
             <FeeWaiver
               feeName="Sandbags Fee"
               feeAmount={pricing.priceBreakdown?.surface_fee_cents || 0}
@@ -351,7 +351,7 @@ export function InvoiceBuilder() {
             />
           )}
 
-          {(pricing.priceBreakdown?.generator_fee_cents || 0) > 0 && (
+          {((pricing.priceBreakdown?.generator_fee_cents || 0) > 0 || generatorFeeWaived) && (
             <FeeWaiver
               feeName="Generator Fee"
               feeAmount={pricing.priceBreakdown?.generator_fee_cents || 0}
