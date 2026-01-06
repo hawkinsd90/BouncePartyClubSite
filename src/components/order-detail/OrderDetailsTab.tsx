@@ -198,6 +198,8 @@ export function OrderDetailsTab({
         pricingRules={pricingRules}
         onOrderChange={onOrderChange}
         onAddressSelect={onAddressSelect}
+        compact={true}
+        showUntilEndOfDay={true}
       />
 
       <ItemsEditor
@@ -270,6 +272,8 @@ export function OrderDetailsTab({
         onInputChange={onDepositInputChange}
         onApply={onDepositApply}
         onClear={onDepositClear}
+        compact={true}
+        showZeroHint={true}
       />
 
       <TaxWaiver
@@ -277,6 +281,7 @@ export function OrderDetailsTab({
         taxWaived={taxWaived}
         taxWaiveReason={taxWaiveReason}
         onToggle={onTaxWaivedToggle}
+        compact={true}
       />
 
       <FeeWaiver

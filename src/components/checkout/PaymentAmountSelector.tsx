@@ -24,9 +24,9 @@ export function PaymentAmountSelector({
       customAmount={customAmount}
       onPaymentAmountChange={onPaymentAmountChange}
       onCustomAmountChange={onCustomAmountChange}
-      showCard={true}
-      showApprovalNote={true}
-      icon="dollar"
+      showCard={false}
+      showApprovalNote={false}
+      icon="credit-card"
     />
   );
 }
