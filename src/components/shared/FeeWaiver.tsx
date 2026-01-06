@@ -29,7 +29,7 @@ export function FeeWaiver({
 
   const handleConfirm = (reason: string) => {
     onToggle(reason);
-    setShowConfirmation(false);
+    // Keep modal open after waiving/restoring
   };
 
   const handleCancel = () => {

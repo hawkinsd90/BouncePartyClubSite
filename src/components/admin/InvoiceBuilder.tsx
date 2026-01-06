@@ -376,6 +376,10 @@ export function InvoiceBuilder() {
               showTip={false}
               title="Invoice Summary"
               taxWaived={taxWaived}
+              travelFeeWaived={travelFeeWaived}
+              surfaceFeeWaived={surfaceFeeWaived}
+              generatorFeeWaived={generatorFeeWaived}
+              sameDayPickupFeeWaived={sameDayPickupFeeWaived}
             />
           )}
 
