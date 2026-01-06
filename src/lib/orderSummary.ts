@@ -179,7 +179,8 @@ async function calculateOriginalFees(order: any, discounts: OrderDiscount[], cus
       return sum + (discount.amount_cents || 0);
     }, 0);
     const totalCustomFees = customFees.reduce((sum, fee) => sum + (fee.amount_cents || 0), 0);
-    const taxableAmount = subtotal + travelFeeCents + surfaceFeeCents + sameDayPickupFeeCents + generatorFeeCents + totalCustomFees - discountTotal;
+    // Same-day pickup fee is NOT taxable (applied after tax)
+    const taxableAmount = subtotal + travelFeeCents + surfaceFeeCents + generatorFeeCents + totalCustomFees - discountTotal;
     taxCents = Math.round(taxableAmount * 0.06);
   }
 
