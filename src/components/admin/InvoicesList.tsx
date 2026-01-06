@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { FileText, Calendar, Eye } from 'lucide-react';
+import { FileText, Calendar, Eye, Edit } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatCurrency } from '../../lib/pricing';
 import { useSupabaseQuery, useMutation } from '../../hooks/useDataFetch';
@@ -8,6 +9,7 @@ import { notifySuccess } from '../../lib/notifications';
 
 interface Invoice {
   id: string;
+  order_id: string;
   invoice_number: string;
   invoice_date: string;
   status: string;
@@ -31,6 +33,7 @@ interface Invoice {
 }
 
 export function InvoicesList() {
+  const navigate = useNavigate();
   const [filter, setFilter] = useState('all');
 
   const fetchInvoices = useCallback(async () => {
@@ -276,13 +279,25 @@ Payment Method: ${invoice.payment_method || 'N/A'}
                   </span>
                 </td>
                 <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
-                  <button
-                    onClick={() => handleViewInvoice(invoice)}
-                    className="text-blue-600 hover:text-blue-800 flex items-center"
-                  >
-                    <Eye className="w-3 sm:w-4 h-3 sm:h-4 mr-1 flex-shrink-0" />
-                    <span className="hidden sm:inline">View</span>
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => handleViewInvoice(invoice)}
+                      className="text-blue-600 hover:text-blue-800 flex items-center"
+                    >
+                      <Eye className="w-3 sm:w-4 h-3 sm:h-4 mr-1 flex-shrink-0" />
+                      <span className="hidden sm:inline">View</span>
+                    </button>
+                    {invoice.order_id && (
+                      <button
+                        onClick={() => navigate(`/admin?tab=orders&orderId=${invoice.order_id}`)}
+                        className="text-slate-600 hover:text-slate-800 flex items-center"
+                        title="Edit Order"
+                      >
+                        <Edit className="w-3 sm:w-4 h-3 sm:h-4 mr-1 flex-shrink-0" />
+                        <span className="hidden sm:inline">Edit</span>
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

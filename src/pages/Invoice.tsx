@@ -291,6 +291,9 @@ export function Invoice() {
     state: address.state,
     zip: address.zip,
     location_type: order.location_type,
+    pickup_preference: order.pickup_preference,
+    surface: order.surface,
+    generator_qty: order.generator_qty || 0,
   };
 
   const transformedPriceBreakdown = {

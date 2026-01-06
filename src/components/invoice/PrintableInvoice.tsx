@@ -138,8 +138,27 @@ export function PrintableInvoice({
                   {quoteData.city}, {quoteData.state} {quoteData.zip}
                 </p>
                 <p className="capitalize text-sm">
-                  <span className="font-semibold text-slate-900">Type:</span> {quoteData.location_type}
+                  <span className="font-semibold text-slate-900">Location Type:</span> {quoteData.location_type}
                 </p>
+                {quoteData.pickup_preference && (
+                  <p className="text-sm">
+                    <span className="font-semibold text-slate-900">Pickup:</span>{' '}
+                    {quoteData.pickup_preference === 'next_day' ? 'Next Morning' : 'Same Day'}
+                  </p>
+                )}
+                {quoteData.surface && (
+                  <p className="text-sm">
+                    <span className="font-semibold text-slate-900">Setup Surface:</span>{' '}
+                    <span className="capitalize">{quoteData.surface}</span>
+                    {quoteData.surface === 'grass' && ' (Sandbags Required)'}
+                  </p>
+                )}
+                {quoteData.generator_qty > 0 && (
+                  <p className="text-sm">
+                    <span className="font-semibold text-slate-900">Generators:</span>{' '}
+                    {quoteData.generator_qty}
+                  </p>
+                )}
               </div>
             </div>
           </div>
