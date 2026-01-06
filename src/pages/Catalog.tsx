@@ -315,6 +315,7 @@ export function Catalog() {
             <div class="footer">
               <p><strong>Bounce Party Club</strong> | Contact us for bookings and more information</p>
               <p style="margin-top: 8px;">Prices shown are base rental rates. Additional fees may apply for delivery, setup, and special requirements.</p>
+              <p style="margin-top: 8px; font-weight: bold;">Prices are accurate as of ${new Date().toLocaleDateString()} and are subject to change. Please check our website for current pricing.</p>
             </div>
           </div>
 
