@@ -103,12 +103,16 @@ export function Catalog() {
               padding: 40px;
               background: white;
             }
+            .page-container {
+              display: block;
+            }
             .header {
               text-align: center;
               margin-bottom: 40px;
               border-bottom: 4px solid;
               border-image: linear-gradient(90deg, #2563eb, #7c3aed, #db2777) 1;
               padding-bottom: 20px;
+              page-break-after: avoid;
             }
             .header-logo {
               max-width: 200px;
@@ -128,7 +132,6 @@ export function Catalog() {
               display: grid;
               grid-template-columns: repeat(2, 1fr);
               gap: 30px;
-              page-break-inside: avoid;
             }
             .unit-card {
               border: 3px solid transparent;
@@ -220,20 +223,42 @@ export function Catalog() {
               font-size: 14px;
             }
             @media print {
-              body { padding: 20px; }
-              .grid { gap: 20px; }
-              .unit-card { page-break-inside: avoid; }
+              body {
+                padding: 20px;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+              .page-container {
+                display: block;
+              }
+              .header {
+                margin-bottom: 20px;
+                page-break-after: avoid;
+                break-after: avoid;
+              }
+              .grid {
+                gap: 20px;
+                page-break-before: avoid;
+                break-before: avoid;
+                orphans: 3;
+                widows: 3;
+              }
+              .unit-card {
+                page-break-inside: avoid;
+                break-inside: avoid;
+              }
             }
           </style>
         </head>
         <body>
-          <div class="header">
-            <img src="${logoUrl}" alt="Bounce Party Club" class="header-logo" onerror="this.style.display='none'" />
-            <h1>Bounce Party Club</h1>
-            <p>Inflatable Rental Catalog - ${new Date().toLocaleDateString()}</p>
-          </div>
+          <div class="page-container">
+            <div class="header">
+              <img src="${logoUrl}" alt="Bounce Party Club" class="header-logo" onerror="this.style.display='none'" />
+              <h1>Bounce Party Club</h1>
+              <p>Inflatable Rental Catalog - ${new Date().toLocaleDateString()}</p>
+            </div>
 
-          <div class="grid">
+            <div class="grid">
             ${units.map(unit => {
               const dryImages = (unit.media || []).filter((m: any) => m.mode === 'dry' || !m.mode);
               const imageUrl = dryImages.length > 0 ? dryImages[0].url : null;
@@ -285,18 +310,19 @@ export function Catalog() {
               </div>
             `;
             }).join('')}
-          </div>
+            </div>
 
-          <div class="footer">
-            <p><strong>Bounce Party Club</strong> | Contact us for bookings and more information</p>
-            <p style="margin-top: 8px;">Prices shown are base rental rates. Additional fees may apply for delivery, setup, and special requirements.</p>
+            <div class="footer">
+              <p><strong>Bounce Party Club</strong> | Contact us for bookings and more information</p>
+              <p style="margin-top: 8px;">Prices shown are base rental rates. Additional fees may apply for delivery, setup, and special requirements.</p>
+            </div>
           </div>
 
           <script>
             window.onload = function() {
               setTimeout(function() {
                 window.print();
-              }, 500);
+              }, 1000);
             };
           </script>
         </body>
