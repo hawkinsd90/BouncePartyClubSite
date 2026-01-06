@@ -123,10 +123,6 @@ export function InvoiceBuilder() {
           travelFeeWaiveReason,
           sameDayPickupFeeWaived,
           sameDayPickupFeeWaiveReason,
-          surfaceFeeWaived,
-          surfaceFeeWaiveReason,
-          generatorFeeWaived,
-          generatorFeeWaiveReason,
         },
         customer
       );
@@ -322,35 +318,6 @@ export function InvoiceBuilder() {
             />
           )}
 
-          {(pricing.priceBreakdown?.surface_fee_cents || 0) > 0 && (
-            <FeeWaiver
-              feeName="Sandbag Fee"
-              feeAmount={pricing.priceBreakdown?.surface_fee_cents || 0}
-              isWaived={surfaceFeeWaived}
-              waiveReason={surfaceFeeWaiveReason}
-              onToggle={(reason) => {
-                setSurfaceFeeWaived(!surfaceFeeWaived);
-                setSurfaceFeeWaiveReason(reason);
-              }}
-              color="orange"
-              compact={true}
-            />
-          )}
-
-          {(pricing.priceBreakdown?.generator_fee_cents || 0) > 0 && (
-            <FeeWaiver
-              feeName="Generator Fee"
-              feeAmount={pricing.priceBreakdown?.generator_fee_cents || 0}
-              isWaived={generatorFeeWaived}
-              waiveReason={generatorFeeWaiveReason}
-              onToggle={(reason) => {
-                setGeneratorFeeWaived(!generatorFeeWaived);
-                setGeneratorFeeWaiveReason(reason);
-              }}
-              color="blue"
-              compact={true}
-            />
-          )}
 
           <AdminMessageSection message={adminMessage} onChange={setAdminMessage} />
 

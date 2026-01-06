@@ -57,10 +57,6 @@ interface InvoiceData {
   travelFeeWaiveReason?: string;
   sameDayPickupFeeWaived?: boolean;
   sameDayPickupFeeWaiveReason?: string;
-  surfaceFeeWaived?: boolean;
-  surfaceFeeWaiveReason?: string;
-  generatorFeeWaived?: boolean;
-  generatorFeeWaiveReason?: string;
 }
 
 async function createAddress(eventDetails: EventDetails) {
