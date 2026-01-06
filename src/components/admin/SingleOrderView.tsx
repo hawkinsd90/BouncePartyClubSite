@@ -24,7 +24,10 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
       setLoading(true);
       setError(null);
 
-      const { data, error: orderError } = await supabase
+      // Check if the orderId looks like a partial ID (8 chars or less) or full UUID
+      const isPartialId = orderId.length <= 8;
+
+      let query = supabase
         .from('orders')
         .select(`
           *,
@@ -36,9 +39,17 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
           ),
           order_custom_fees (*),
           order_discounts (*)
-        `)
-        .eq('id', orderId)
-        .maybeSingle();
+        `);
+
+      if (isPartialId) {
+        // For partial IDs, search case-insensitively at the start of the UUID
+        query = query.ilike('id', `${orderId.toUpperCase()}%`);
+      } else {
+        // For full UUIDs, do exact match
+        query = query.eq('id', orderId);
+      }
+
+      const { data, error: orderError } = await query.maybeSingle();
 
       if (orderError) throw orderError;
       if (!data) {
