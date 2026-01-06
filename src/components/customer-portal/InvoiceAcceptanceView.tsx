@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/pricing';
-import { FileText, Loader2, CreditCard, CheckCircle, AlertCircle, Shield } from 'lucide-react';
-import { OrderSummary } from '../order/OrderSummary';
+import { Loader2, CreditCard, CheckCircle, AlertCircle, Shield } from 'lucide-react';
 import { OrderSummaryDisplay } from '../../lib/orderSummary';
 import { PrintableInvoice } from '../invoice/PrintableInvoice';
 import { PrintModal } from '../common/PrintModal';
+import { SimpleInvoiceDisplay } from '../shared/SimpleInvoiceDisplay';
 import { RentalTerms } from '../waiver/RentalTerms';
 import { TipSelector } from '../payment/TipSelector';
 import { PaymentAmountSelector } from './PaymentAmountSelector';
@@ -308,101 +308,31 @@ export function InvoiceAcceptanceView({
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
-        <div className="bg-white rounded-lg shadow-md p-8 mb-6">
-          <div className="text-center mb-8">
-            <img
-              src="/bounce party club logo.png"
-              alt="Bounce Party Club"
-              className="h-20 w-auto mx-auto mb-4"
-            />
-            <h1 className="text-3xl font-bold text-slate-900 mb-2">
-              Invoice from Bounce Party Club
-            </h1>
-            <p className="text-slate-600">Review and accept your order details below</p>
-          </div>
+        <SimpleInvoiceDisplay
+          eventDate={order.event_date}
+          startWindow={order.start_window}
+          endWindow={order.end_window}
+          addressLine1={order.addresses?.line1 || ''}
+          addressLine2={order.addresses?.line2}
+          city={order.addresses?.city || ''}
+          state={order.addresses?.state || ''}
+          zip={order.addresses?.zip || ''}
+          locationType={order.location_type}
+          pickupPreference={order.pickup_preference}
+          surface={order.surface}
+          generatorQty={order.generator_qty || 0}
+          orderItems={orderItems}
+          orderSummary={orderSummary}
+          taxWaived={order.tax_waived || false}
+          travelFeeWaived={order.travel_fee_waived || false}
+          surfaceFeeWaived={order.surface_fee_waived || false}
+          generatorFeeWaived={order.generator_fee_waived || false}
+          sameDayPickupFeeWaived={order.same_day_pickup_fee_waived || false}
+          showTip={orderSummary ? orderSummary.tip > 0 : false}
+          onViewPrintableInvoice={() => setShowInvoiceModal(true)}
+        />
 
-          <div className="mb-8 p-6 bg-slate-50 rounded-lg">
-            <h2 className="text-xl font-bold text-slate-900 mb-4">Event Details</h2>
-            <div className="space-y-2 text-sm">
-              <p>
-                <strong>Date:</strong> {order.event_date}
-              </p>
-              <p>
-                <strong>Time:</strong> {order.start_window} - {order.end_window}
-              </p>
-              <p>
-                <strong>Location:</strong> {order.addresses?.line1}, {order.addresses?.city},{' '}
-                {order.addresses?.state} {order.addresses?.zip}
-              </p>
-              <p>
-                <strong>Location Type:</strong>{' '}
-                <span className="capitalize">{order.location_type}</span>
-              </p>
-              {order.pickup_preference && (
-                <p>
-                  <strong>Pickup:</strong>{' '}
-                  {order.pickup_preference === 'next_day' ? 'Next Morning' : 'Same Day'}
-                </p>
-              )}
-              {order.surface === 'grass' && (
-                <p>
-                  <strong>Sandbags:</strong> Required for grass setup
-                </p>
-              )}
-              {order.generator_qty > 0 && (
-                <p>
-                  <strong>Generators:</strong> {order.generator_qty}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="mb-8">
-            <h2 className="text-xl font-bold text-slate-900 mb-4">Order Items</h2>
-            <div className="space-y-3">
-              {orderItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex justify-between items-center p-4 bg-slate-50 rounded-lg"
-                >
-                  <div>
-                    <p className="font-medium text-slate-900">{item.units?.name}</p>
-                    <p className="text-sm text-slate-600 capitalize">
-                      {item.wet_or_dry === 'water' ? 'Water Mode' : 'Dry Mode'} × {item.qty}
-                    </p>
-                  </div>
-                  <p className="font-semibold text-slate-900">
-                    {formatCurrency(item.unit_price_cents * item.qty)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {orderSummary && (
-            <div className="mb-8">
-              <OrderSummary
-                summary={orderSummary}
-                showDeposit={true}
-                showTip={orderSummary.tip > 0}
-                title="Complete Price Breakdown"
-                taxWaived={order.tax_waived || false}
-                travelFeeWaived={order.travel_fee_waived || false}
-                surfaceFeeWaived={order.surface_fee_waived || false}
-                generatorFeeWaived={order.generator_fee_waived || false}
-                sameDayPickupFeeWaived={order.same_day_pickup_fee_waived || false}
-              />
-              <button
-                type="button"
-                onClick={() => setShowInvoiceModal(true)}
-                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center mt-4"
-              >
-                <FileText className="w-5 h-5 mr-2" />
-                View as Invoice / Print PDF
-              </button>
-            </div>
-          )}
-
+        <div className="bg-white rounded-lg shadow-md p-8 mt-6">
           <PaymentAmountSelector
             depositCents={order.deposit_due_cents}
             balanceCents={order.balance_due_cents}

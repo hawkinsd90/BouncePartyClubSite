@@ -1,5 +1,9 @@
+import { useState } from 'react';
+import { X } from 'lucide-react';
 import { PrintModal } from '../common/PrintModal';
 import { PrintableInvoice } from '../invoice/PrintableInvoice';
+import { SimpleInvoiceDisplay } from '../shared/SimpleInvoiceDisplay';
+import { buildOrderSummary } from '../../lib/checkoutUtils';
 import { showToast } from '../../lib/notifications';
 
 interface InvoicePreviewModalProps {
@@ -23,6 +27,8 @@ export function InvoicePreviewModal({
   contactData,
   onClose,
 }: InvoicePreviewModalProps) {
+  const [showPrintModal, setShowPrintModal] = useState(false);
+
   const handleBeforePrint = () => {
     console.log('Preparing invoice for printing...');
   };
@@ -37,33 +43,80 @@ export function InvoicePreviewModal({
   };
 
   // Enhance quoteData with additional fields needed for the invoice
+  const surface = quoteData.surface || (quoteData.can_stake ? 'grass' : 'cement');
+  const pickupPreference = quoteData.pickup_preference || (quoteData.location_type === 'commercial' ? 'same_day' : 'next_day');
+  const generatorQty = priceBreakdown.generator_fee_cents > 0 ? (quoteData.generator_qty || (quoteData.has_generator ? 1 : 0)) : 0;
+
   const enhancedQuoteData = {
     ...quoteData,
-    surface: quoteData.surface || (quoteData.can_stake ? 'grass' : 'cement'),
-    pickup_preference: quoteData.pickup_preference || (quoteData.location_type === 'commercial' ? 'same_day' : 'next_day'),
-    generator_qty: priceBreakdown.generator_fee_cents > 0 ? (quoteData.generator_qty || (quoteData.has_generator ? 1 : 0)) : 0,
+    surface,
+    pickup_preference: pickupPreference,
+    generator_qty: generatorQty,
   };
 
+  const orderSummary = buildOrderSummary(priceBreakdown, cart, quoteData, 0);
+
   return (
-    <PrintModal
-      isOpen={true}
-      onClose={onClose}
-      title="Invoice Preview"
-      maxWidth="5xl"
-      documentType="invoice"
-      showZoomControls={true}
-      onBeforePrint={handleBeforePrint}
-      onAfterPrint={handleAfterPrint}
-      onPrintError={handlePrintError}
-    >
-      <PrintableInvoice
-        quoteData={enhancedQuoteData}
-        priceBreakdown={priceBreakdown}
-        cart={cart}
-        contactData={contactData}
-        invoiceNumber={`QUOTE-${Date.now().toString().slice(-8)}`}
-        isPaid={false}
-      />
-    </PrintModal>
+    <>
+      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto">
+        <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto relative shadow-2xl">
+          <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex justify-between items-center z-10">
+            <h2 className="text-2xl font-bold text-slate-900">Invoice Preview</h2>
+            <button
+              onClick={onClose}
+              className="flex items-center bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 px-4 rounded-lg transition-colors"
+              aria-label="Close"
+            >
+              <X className="w-4 h-4 mr-2" />
+              Close
+            </button>
+          </div>
+
+          <div className="p-4">
+            <SimpleInvoiceDisplay
+              eventDate={quoteData.event_date}
+              startWindow={quoteData.start_window}
+              endWindow={quoteData.end_window}
+              addressLine1={quoteData.address_line1}
+              addressLine2={quoteData.address_line2}
+              city={quoteData.city}
+              state={quoteData.state}
+              zip={quoteData.zip}
+              locationType={quoteData.location_type}
+              pickupPreference={pickupPreference}
+              surface={surface}
+              generatorQty={generatorQty}
+              orderItems={cart}
+              orderSummary={orderSummary}
+              showTip={false}
+              onViewPrintableInvoice={() => setShowPrintModal(true)}
+            />
+          </div>
+        </div>
+      </div>
+
+      {showPrintModal && (
+        <PrintModal
+          isOpen={true}
+          onClose={() => setShowPrintModal(false)}
+          title="Invoice - Print / Save PDF"
+          maxWidth="5xl"
+          documentType="invoice"
+          showZoomControls={true}
+          onBeforePrint={handleBeforePrint}
+          onAfterPrint={handleAfterPrint}
+          onPrintError={handlePrintError}
+        >
+          <PrintableInvoice
+            quoteData={enhancedQuoteData}
+            priceBreakdown={priceBreakdown}
+            cart={cart}
+            contactData={contactData}
+            invoiceNumber={`QUOTE-${Date.now().toString().slice(-8)}`}
+            isPaid={false}
+          />
+        </PrintModal>
+      )}
+    </>
   );
 }
