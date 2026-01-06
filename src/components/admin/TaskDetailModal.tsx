@@ -690,7 +690,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
 
   function handleViewOrder() {
     onClose();
-    navigate(`/admin?tab=orders&orderId=${task.orderId}&view=single`);
+    navigate(`/admin?tab=orders&subtab=single_order&orderId=${task.orderId}`);
   }
 
   const isDropOff = task.type === 'drop-off';

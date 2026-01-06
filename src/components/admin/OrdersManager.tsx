@@ -12,7 +12,7 @@ import { ORDER_STATUS } from '../../lib/constants/statuses';
 import { getAllOrdersWithContacts } from '../../lib/queries/orders';
 
 
-type OrderTab = 'draft' | 'pending_review' | 'awaiting_customer_approval' | 'current' | 'upcoming' | 'all' | 'past' | 'cancelled';
+type OrderTab = 'draft' | 'pending_review' | 'awaiting_customer_approval' | 'current' | 'upcoming' | 'all' | 'past' | 'cancelled' | 'single_order';
 
 interface OrdersData {
   orders: any[];
@@ -22,11 +22,12 @@ interface OrdersData {
 export function OrdersManager() {
   const [searchParams, setSearchParams] = useSearchParams();
   const orderIdFromUrl = searchParams.get('order');
+  const tabFromUrl = searchParams.get('subtab') as OrderTab | null;
   const singleOrderId = searchParams.get('orderId');
-  const viewMode = searchParams.get('view');
   const editMode = searchParams.get('edit') === 'true';
-  const [activeTab, setActiveTab] = useState<OrderTab>('draft');
+  const [activeTab, setActiveTab] = useState<OrderTab>(tabFromUrl || 'draft');
   const [searchTerm, setSearchTerm] = useState('');
+  const [singleOrderSearchId, setSingleOrderSearchId] = useState(singleOrderId || '');
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
 
   const fetchOrdersData = useCallback(async () => {
@@ -53,8 +54,20 @@ export function OrdersManager() {
   const contactsMap = data?.contactsMap || new Map();
 
   useEffect(() => {
-    determineDefaultTab();
-  }, [orders]);
+    if (!tabFromUrl && !singleOrderId) {
+      determineDefaultTab();
+    }
+  }, [orders, tabFromUrl, singleOrderId]);
+
+  useEffect(() => {
+    if (tabFromUrl) {
+      setActiveTab(tabFromUrl);
+    }
+    if (singleOrderId) {
+      setSingleOrderSearchId(singleOrderId);
+      setActiveTab('single_order');
+    }
+  }, [tabFromUrl, singleOrderId]);
 
   useEffect(() => {
     if (orderIdFromUrl && orders.length > 0 && !selectedOrder) {
@@ -164,6 +177,8 @@ export function OrdersManager() {
         return orders.filter(o => o.status === 'cancelled').length;
       case 'all':
         return orders.length;
+      case 'single_order':
+        return 0;
       default:
         return 0;
     }
@@ -173,6 +188,7 @@ export function OrdersManager() {
     { key: 'draft', label: 'Draft (Needs Deposit)' },
     { key: 'pending_review', label: 'Pending Review' },
     { key: 'awaiting_customer_approval', label: 'Awaiting Customer Approval' },
+    { key: 'single_order', label: 'Single Order' },
     { key: 'current', label: 'Current (Today)' },
     { key: 'upcoming', label: 'Upcoming' },
     { key: 'all', label: 'All Orders' },
@@ -180,12 +196,25 @@ export function OrdersManager() {
     { key: 'cancelled', label: 'Cancelled' },
   ];
 
-  function handleBackToOrders() {
+  function handleTabChange(tab: OrderTab) {
+    setActiveTab(tab);
     const params = new URLSearchParams(searchParams);
-    params.delete('orderId');
-    params.delete('view');
-    params.delete('edit');
+    params.set('subtab', tab);
+    if (tab !== 'single_order') {
+      params.delete('orderId');
+      params.delete('edit');
+      setSingleOrderSearchId('');
+    }
     setSearchParams(params);
+  }
+
+  function handleSingleOrderSearch() {
+    if (singleOrderSearchId.trim()) {
+      const params = new URLSearchParams(searchParams);
+      params.set('subtab', 'single_order');
+      params.set('orderId', singleOrderSearchId.trim());
+      setSearchParams(params);
+    }
   }
 
   if (loading) {
@@ -194,17 +223,6 @@ export function OrdersManager() {
         <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         <p className="mt-4 text-slate-600">Loading orders...</p>
       </div>
-    );
-  }
-
-  if (viewMode === 'single' && singleOrderId) {
-    return (
-      <SingleOrderView
-        orderId={singleOrderId}
-        openEditMode={editMode}
-        onBack={handleBackToOrders}
-        onUpdate={refetch}
-      />
     );
   }
 
@@ -227,7 +245,7 @@ export function OrdersManager() {
         {tabs.map(tab => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => handleTabChange(tab.key)}
             className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors relative ${
               activeTab === tab.key
                 ? 'bg-blue-600 text-white'
@@ -248,7 +266,38 @@ export function OrdersManager() {
         ))}
       </div>
 
-      {filteredOrders.length === 0 ? (
+      {activeTab === 'single_order' ? (
+        singleOrderId ? (
+          <SingleOrderView
+            orderId={singleOrderId}
+            openEditMode={editMode}
+            onBack={() => handleTabChange('all')}
+            onUpdate={refetch}
+          />
+        ) : (
+          <div className="bg-white rounded-lg shadow p-8">
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">Search for an Order</h3>
+            <p className="text-slate-600 mb-6">Enter an order ID to view a specific order</p>
+            <div className="flex gap-3 max-w-xl">
+              <input
+                type="text"
+                value={singleOrderSearchId}
+                onChange={(e) => setSingleOrderSearchId(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSingleOrderSearch()}
+                placeholder="Enter Order ID (e.g., CDF04DF2)"
+                className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                onClick={handleSingleOrderSearch}
+                disabled={!singleOrderSearchId.trim()}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+              >
+                Search
+              </button>
+            </div>
+          </div>
+        )
+      ) : filteredOrders.length === 0 ? (
         <div className="bg-white rounded-lg shadow p-12 text-center">
           <p className="text-slate-600 text-lg">No orders found</p>
           <p className="text-slate-500 text-sm mt-2">
