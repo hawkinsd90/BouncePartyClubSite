@@ -279,16 +279,18 @@ export function OrderDetailsTab({
         onToggle={onTaxWaivedToggle}
       />
 
-      <FeeWaiver
-        feeName="Travel Fee"
-        feeAmount={calculatedPricing?.travel_fee_cents || order.travel_fee_cents || 0}
-        isWaived={travelFeeWaived}
-        waiveReason={travelFeeWaiveReason}
-        onToggle={onTravelFeeWaivedToggle}
-        color="orange"
-      />
+      {((calculatedPricing?.travel_fee_cents || 0) > 0 || (order.travel_fee_cents || 0) > 0 || travelFeeWaived) && (
+        <FeeWaiver
+          feeName="Travel Fee"
+          feeAmount={calculatedPricing?.travel_fee_cents || order.travel_fee_cents || 0}
+          isWaived={travelFeeWaived}
+          waiveReason={travelFeeWaiveReason}
+          onToggle={onTravelFeeWaivedToggle}
+          color="orange"
+        />
+      )}
 
-      {((calculatedPricing?.same_day_pickup_fee_cents || 0) > 0 || (order.same_day_pickup_fee_cents || 0) > 0) && (
+      {((calculatedPricing?.same_day_pickup_fee_cents || 0) > 0 || (order.same_day_pickup_fee_cents || 0) > 0 || sameDayPickupFeeWaived) && (
         <FeeWaiver
           feeName="Same Day Pickup Fee"
           feeAmount={calculatedPricing?.same_day_pickup_fee_cents || order.same_day_pickup_fee_cents || 0}
@@ -299,7 +301,7 @@ export function OrderDetailsTab({
         />
       )}
 
-      {((calculatedPricing?.surface_fee_cents || 0) > 0 || (order.surface_fee_cents || 0) > 0) && (
+      {((calculatedPricing?.surface_fee_cents || 0) > 0 || (order.surface_fee_cents || 0) > 0 || surfaceFeeWaived) && (
         <FeeWaiver
           feeName="Surface Fee (Sandbags)"
           feeAmount={calculatedPricing?.surface_fee_cents || order.surface_fee_cents || 0}
@@ -310,7 +312,7 @@ export function OrderDetailsTab({
         />
       )}
 
-      {((editedOrder.generator_qty || 0) > 0 || (order.generator_qty || 0) > 0) && (
+      {((editedOrder.generator_qty || 0) > 0 || (order.generator_qty || 0) > 0 || generatorFeeWaived) && (
         <FeeWaiver
           feeName="Generator Fee"
           feeAmount={calculatedPricing?.generator_fee_cents || order.generator_fee_cents || 0}
