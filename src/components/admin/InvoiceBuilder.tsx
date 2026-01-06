@@ -55,7 +55,7 @@ export function InvoiceBuilder() {
     if (
       cartItems.length > 0 &&
       pricingRules &&
-      eventDetails.address_zip &&
+      eventDetails.zip &&
       eventDetails.event_date &&
       eventDetails.event_end_date
     ) {
