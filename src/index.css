@@ -22,6 +22,7 @@
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    transform: none !important;
   }
 
   html, body {
@@ -32,19 +33,23 @@
     background: white !important;
   }
 
-  body *:not(#printable-invoice):not(#printable-invoice *):not(.print-document):not(.print-document *):not(#print-content-wrapper):not(#print-content-wrapper *) {
-    visibility: hidden !important;
+  body > *:not(#print-content-wrapper) {
+    display: none !important;
   }
 
   #print-content-wrapper {
+    display: block !important;
     visibility: visible !important;
     transform: none !important;
     padding: 0 !important;
+    margin: 0 !important;
     position: relative !important;
+    width: 100% !important;
   }
 
   #print-content-wrapper * {
     visibility: visible !important;
+    transform: none !important;
   }
 
   #printable-invoice,
@@ -77,6 +82,7 @@
 
   .no-print-padding {
     transform: none !important;
+    padding: 0 !important;
   }
 
   .no-print,

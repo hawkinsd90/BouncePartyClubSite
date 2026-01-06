@@ -344,11 +344,9 @@ export function InvoiceAcceptanceView({
                   {order.pickup_preference === 'next_day' ? 'Next Morning' : 'Same Day'}
                 </p>
               )}
-              {order.surface && (
+              {order.surface === 'grass' && (
                 <p>
-                  <strong>Setup Surface:</strong>{' '}
-                  <span className="capitalize">{order.surface}</span>
-                  {order.surface === 'grass' && ' (Sandbags Required)'}
+                  <strong>Sandbags:</strong> Required for grass setup
                 </p>
               )}
               {order.generator_qty > 0 && (

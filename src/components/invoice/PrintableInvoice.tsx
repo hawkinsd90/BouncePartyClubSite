@@ -146,11 +146,9 @@ export function PrintableInvoice({
                     {quoteData.pickup_preference === 'next_day' ? 'Next Morning' : 'Same Day'}
                   </p>
                 )}
-                {quoteData.surface && (
+                {quoteData.surface === 'grass' && (
                   <p className="text-sm">
-                    <span className="font-semibold text-slate-900">Setup Surface:</span>{' '}
-                    <span className="capitalize">{quoteData.surface}</span>
-                    {quoteData.surface === 'grass' && ' (Sandbags Required)'}
+                    <span className="font-semibold text-slate-900">Sandbags:</span> Required for grass setup
                   </p>
                 )}
                 {quoteData.generator_qty > 0 && (
