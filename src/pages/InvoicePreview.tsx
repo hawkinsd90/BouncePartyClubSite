@@ -1,20 +1,63 @@
 import { useEffect, useState } from 'react';
-import { Printer, X } from 'lucide-react';
+import { Printer, X, AlertTriangle } from 'lucide-react';
 import { SimpleInvoiceDisplay } from '../components/shared/SimpleInvoiceDisplay';
 import { buildOrderSummary } from '../lib/checkoutUtils';
 
 export function InvoicePreview() {
   const [data, setData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Get data from localStorage (set by the opening window)
-    const storedData = localStorage.getItem('invoice-preview-data');
-    if (storedData) {
-      setData(JSON.parse(storedData));
-      // Clean up after reading
-      localStorage.removeItem('invoice-preview-data');
+    try {
+      // Get data from sessionStorage (more reliable than localStorage for this use case)
+      const storedData = sessionStorage.getItem('invoice-preview-data');
+      if (!storedData) {
+        setError('No invoice data found. Please try again from the checkout page.');
+        return;
+      }
+
+      const parsedData = JSON.parse(storedData);
+
+      // Validate required data exists
+      if (!parsedData.quoteData || !parsedData.priceBreakdown || !parsedData.cart || !parsedData.contactData) {
+        setError('Incomplete invoice data. Please try again from the checkout page.');
+        return;
+      }
+
+      setData(parsedData);
+
+      // Don't remove immediately - keep it for page refreshes
+      // It will be cleared when the user closes the tab or navigates away
+    } catch (err) {
+      console.error('Error loading invoice data:', err);
+      setError('Failed to load invoice data. Please try again from the checkout page.');
     }
   }, []);
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      sessionStorage.removeItem('invoice-preview-data');
+    };
+  }, []);
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center max-w-md">
+          <AlertTriangle className="w-16 h-16 text-amber-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">Unable to Load Invoice</h2>
+          <p className="text-slate-600 mb-4">{error}</p>
+          <button
+            onClick={() => window.close()}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
+          >
+            Close Window
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!data) {
     return (

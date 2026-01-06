@@ -47,14 +47,14 @@ export function Checkout() {
   const [customAmount, setCustomAmount] = useState('');
 
   const handleViewInvoice = () => {
-    // Store the invoice data in localStorage for the new tab to read
+    // Store the invoice data in sessionStorage for the new tab to read
     const invoiceData = {
       quoteData,
       priceBreakdown,
       cart,
       contactData,
     };
-    localStorage.setItem('invoice-preview-data', JSON.stringify(invoiceData));
+    sessionStorage.setItem('invoice-preview-data', JSON.stringify(invoiceData));
 
     // Open in new tab
     window.open('/invoice-preview', '_blank');
