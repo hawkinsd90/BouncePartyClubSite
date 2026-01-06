@@ -42,8 +42,37 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
         `);
 
       if (isPartialId) {
-        // For partial IDs, search case-insensitively at the start of the UUID
-        query = query.ilike('id', `${orderId.toUpperCase()}%`);
+        // For partial IDs, fetch all orders and filter client-side
+        // UUID columns don't support pattern matching directly in PostgreSQL
+        const { data: orders, error: searchError } = await supabase
+          .from('orders')
+          .select(`
+            *,
+            customers (*),
+            addresses (*),
+            order_items (
+              *,
+              units (*)
+            ),
+            order_custom_fees (*),
+            order_discounts (*)
+          `);
+
+        if (searchError) throw searchError;
+
+        // Filter results to find the matching order
+        const matchingOrder = orders?.find(o =>
+          o.id.toLowerCase().startsWith(orderId.toLowerCase())
+        );
+
+        if (!matchingOrder) {
+          setError('Order not found');
+          return;
+        }
+
+        setOrder(matchingOrder);
+        setLoading(false);
+        return;
       } else {
         // For full UUIDs, do exact match
         query = query.eq('id', orderId);
