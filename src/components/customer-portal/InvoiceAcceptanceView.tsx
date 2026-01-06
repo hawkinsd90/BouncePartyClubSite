@@ -237,7 +237,7 @@ export function InvoiceAcceptanceView({
           zip={order.addresses?.zip || ''}
           locationType={order.location_type}
           pickupPreference={order.pickup_preference}
-          surface={order.surface}
+          canUseStakes={order.can_use_stakes}
           generatorQty={order.generator_qty || 0}
           orderItems={orderItems}
           orderSummary={orderSummary}

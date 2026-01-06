@@ -27,7 +27,7 @@ export function InvoicePreviewModal({
     window.print();
   };
 
-  const surface = quoteData.surface || (quoteData.can_stake ? 'grass' : 'cement');
+  const canUseStakes = quoteData.can_stake ?? true;
   const pickupPreference = quoteData.pickup_preference || (quoteData.location_type === 'commercial' ? 'same_day' : 'next_day');
   const generatorQty = priceBreakdown.generator_fee_cents > 0 ? (quoteData.generator_qty || (quoteData.has_generator ? 1 : 0)) : 0;
 
@@ -60,7 +60,7 @@ export function InvoicePreviewModal({
             zip={quoteData.zip}
             locationType={quoteData.location_type}
             pickupPreference={pickupPreference}
-            surface={surface}
+            canUseStakes={canUseStakes}
             generatorQty={generatorQty}
             orderItems={cart}
             orderSummary={orderSummary}

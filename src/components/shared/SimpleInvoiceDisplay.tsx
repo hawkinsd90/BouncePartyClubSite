@@ -15,7 +15,7 @@ interface SimpleInvoiceDisplayProps {
   zip: string;
   locationType: string;
   pickupPreference?: string;
-  surface?: string;
+  canUseStakes?: boolean;
   generatorQty?: number;
   orderItems: Array<{
     id?: string;
@@ -46,7 +46,7 @@ export function SimpleInvoiceDisplay({
   zip,
   locationType,
   pickupPreference,
-  surface,
+  canUseStakes,
   generatorQty = 0,
   orderItems,
   orderSummary,
@@ -93,7 +93,7 @@ export function SimpleInvoiceDisplay({
               {pickupPreference === 'next_day' ? 'Next Morning' : 'Same Day'}
             </p>
           )}
-          {surface === 'grass' && (
+          {canUseStakes === false && (
             <p>
               <strong>Sandbags:</strong> Yes
             </p>
