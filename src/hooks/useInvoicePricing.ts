@@ -151,10 +151,10 @@ export function useInvoicePricing(
 
   const defaultDeposit = useMemo(
     () => {
-      const depositPerUnit = pricingRules?.deposit_per_unit_cents || 5000;
-      return cartItems.reduce((sum, item) => sum + item.qty * depositPerUnit, 0);
+      // Use flat deposit amount from admin settings
+      return pricingRules?.deposit_per_unit_cents || 5000;
     },
-    [cartItems, pricingRules]
+    [pricingRules]
   );
 
   return {

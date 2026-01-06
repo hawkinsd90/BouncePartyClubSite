@@ -49,11 +49,11 @@ export function DepositOverride({
           Deposit Override
         </h3>
         <p className="text-sm text-slate-600 mb-4">
-          Set a custom deposit amount. Use this when the calculated deposit doesn't match your requirements.
+          Set a custom deposit amount. Use this when the standard deposit doesn't match your requirements.
         </p>
         <div className="bg-white p-3 rounded border border-amber-200 mb-3">
           <p className="text-sm text-slate-700">
-            <strong>Calculated Deposit:</strong> {formatCurrency(calculatedDepositCents)}
+            <strong>Standard Deposit:</strong> {formatCurrency(calculatedDepositCents)}
           </p>
         </div>
         {customDepositCents === null ? (
@@ -115,11 +115,11 @@ export function DepositOverride({
     <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
       <h3 className="font-semibold text-slate-900 mb-3">Deposit Override</h3>
       <p className="text-sm text-slate-600 mb-3">
-        Set a custom deposit amount. Use this when the calculated deposit doesn't match your requirements.
+        Set a custom deposit amount. Use this when the standard deposit doesn't match your requirements.
       </p>
       <div className="space-y-3">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-slate-700">Calculated Deposit:</span>
+          <span className="text-sm text-slate-700">Standard Deposit:</span>
           <span className="font-semibold">{formatCurrency(calculatedDepositCents)}</span>
         </div>
         <div className="flex gap-2">
