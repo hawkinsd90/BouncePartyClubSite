@@ -293,6 +293,7 @@ export function PrintModal({
         <div
           className="p-4 no-print-padding transition-transform duration-200"
           style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
+          id="print-content-wrapper"
         >
           {children}
         </div>

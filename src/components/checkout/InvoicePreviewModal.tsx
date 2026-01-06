@@ -36,6 +36,14 @@ export function InvoicePreviewModal({
     showToast(`Print failed: ${error.message}`, 'error');
   };
 
+  // Enhance quoteData with additional fields needed for the invoice
+  const enhancedQuoteData = {
+    ...quoteData,
+    surface: quoteData.surface || (quoteData.can_stake ? 'grass' : 'cement'),
+    pickup_preference: quoteData.pickup_preference || (quoteData.location_type === 'commercial' ? 'same_day' : 'next_day'),
+    generator_qty: priceBreakdown.generator_fee_cents > 0 ? (quoteData.generator_qty || (quoteData.has_generator ? 1 : 0)) : 0,
+  };
+
   return (
     <PrintModal
       isOpen={true}
@@ -49,7 +57,7 @@ export function InvoicePreviewModal({
       onPrintError={handlePrintError}
     >
       <PrintableInvoice
-        quoteData={quoteData}
+        quoteData={enhancedQuoteData}
         priceBreakdown={priceBreakdown}
         cart={cart}
         contactData={contactData}

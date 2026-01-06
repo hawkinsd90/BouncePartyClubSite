@@ -64,6 +64,9 @@ export function InvoiceAcceptanceView({
       state: order.addresses?.state || '',
       zip: order.addresses?.zip || '',
       location_type: order.location_type,
+      pickup_preference: order.pickup_preference,
+      surface: order.surface,
+      generator_qty: order.generator_qty || 0,
     };
 
     const totalCents =
@@ -335,6 +338,24 @@ export function InvoiceAcceptanceView({
                 <strong>Location Type:</strong>{' '}
                 <span className="capitalize">{order.location_type}</span>
               </p>
+              {order.pickup_preference && (
+                <p>
+                  <strong>Pickup:</strong>{' '}
+                  {order.pickup_preference === 'next_day' ? 'Next Morning' : 'Same Day'}
+                </p>
+              )}
+              {order.surface && (
+                <p>
+                  <strong>Setup Surface:</strong>{' '}
+                  <span className="capitalize">{order.surface}</span>
+                  {order.surface === 'grass' && ' (Sandbags Required)'}
+                </p>
+              )}
+              {order.generator_qty > 0 && (
+                <p>
+                  <strong>Generators:</strong> {order.generator_qty}
+                </p>
+              )}
             </div>
           </div>
 
