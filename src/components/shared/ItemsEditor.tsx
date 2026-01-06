@@ -180,14 +180,14 @@ export function ItemsEditor({
                     onClick={() => onAddItem(unit, 'dry')}
                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 px-3 rounded transition-colors"
                   >
-                    Dry {formatCurrency(unit.dry_price_cents)}
+                    Dry {formatCurrency(unit.dry_price_cents || 0)}
                   </button>
-                  {unit.water_price_cents > 0 && (
+                  {(unit.water_price_cents || 0) > 0 && (
                     <button
                       onClick={() => onAddItem(unit, 'water')}
                       className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white text-xs py-2 px-3 rounded transition-colors"
                     >
-                      Water {formatCurrency(unit.water_price_cents)}
+                      Water {formatCurrency(unit.water_price_cents || 0)}
                     </button>
                   )}
                 </div>
