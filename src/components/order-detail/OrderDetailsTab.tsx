@@ -2,7 +2,7 @@ import { Edit2, AlertTriangle, CheckCircle } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { OrderSummary } from '../order/OrderSummary';
 import { EventDetailsEditor } from './EventDetailsEditor';
-import { OrderItemsEditor } from './OrderItemsEditor';
+import { ItemsEditor } from '../shared/ItemsEditor';
 import { DiscountsManager } from './DiscountsManager';
 import { CustomFeesManager } from './CustomFeesManager';
 import { DepositOverride } from './DepositOverride';
@@ -200,11 +200,13 @@ export function OrderDetailsTab({
         onAddressSelect={onAddressSelect}
       />
 
-      <OrderItemsEditor
-        stagedItems={stagedItems}
-        availableUnits={availableUnits}
+      <ItemsEditor
+        items={stagedItems}
+        units={availableUnits}
         onRemoveItem={onRemoveItem}
         onAddItem={onAddItem}
+        title="Order Items"
+        removeByIndex={false}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

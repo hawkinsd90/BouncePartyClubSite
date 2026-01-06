@@ -3,9 +3,9 @@ import { Send } from 'lucide-react';
 import { OrderSummary } from '../order/OrderSummary';
 import { showToast } from '../../lib/notifications';
 import { EventDetailsEditor } from '../order-detail/EventDetailsEditor';
+import { ItemsEditor } from '../shared/ItemsEditor';
 import { CustomerSelector } from '../invoice/CustomerSelector';
 import { NewCustomerForm } from '../invoice/NewCustomerForm';
-import { CartItemsList } from '../invoice/CartItemsList';
 import { InvoiceSuccessMessage } from '../invoice/InvoiceSuccessMessage';
 import { AdminMessageSection } from '../invoice/AdminMessageSection';
 import { useInvoiceData } from '../../hooks/useInvoiceData';
@@ -209,13 +209,17 @@ export function CrewInvoiceBuilder() {
             showUntilEndOfDay={true}
           />
 
-          <CartItemsList
-            cartItems={cartItems}
+          <ItemsEditor
+            items={cartItems}
             units={units}
             onRemoveItem={removeItemFromCart}
+            onAddItem={addItemToCart}
             onUpdateQuantity={updateItemQuantity}
             onUpdatePrice={updateItemPrice}
-            onAddUnit={addItemToCart}
+            allowQuantityEdit={true}
+            allowPriceEdit={false}
+            title="Items"
+            removeByIndex={true}
           />
         </div>
 
