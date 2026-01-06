@@ -8,6 +8,7 @@ interface CartItemsListProps {
   onUpdateQuantity: (index: number, qty: number) => void;
   onUpdatePrice: (index: number, priceCents: number) => void;
   onAddUnit: (unit: any, mode: 'dry' | 'water') => void;
+  allowPriceEdit?: boolean;
 }
 
 export function CartItemsList({
@@ -17,6 +18,7 @@ export function CartItemsList({
   onUpdateQuantity,
   onUpdatePrice,
   onAddUnit,
+  allowPriceEdit = false,
 }: CartItemsListProps) {
   return (
     <div className="bg-white rounded-lg shadow p-4 sm:p-6">
@@ -71,16 +73,18 @@ export function CartItemsList({
                     </div>
                   )}
                 </div>
-                <div>
-                  <label className="block text-xs text-slate-600 mb-1">Price Each</label>
-                  <input
-                    type="number"
-                    value={(item.adjusted_price_cents / 100).toFixed(2)}
-                    onChange={(e) => onUpdatePrice(index, Math.round(parseFloat(e.target.value) * 100))}
-                    step="0.01"
-                    className="w-full px-2 py-1 border border-slate-300 rounded text-sm"
-                  />
-                </div>
+                {allowPriceEdit && (
+                  <div>
+                    <label className="block text-xs text-slate-600 mb-1">Price Each</label>
+                    <input
+                      type="number"
+                      value={(item.adjusted_price_cents / 100).toFixed(2)}
+                      onChange={(e) => onUpdatePrice(index, Math.round(parseFloat(e.target.value) * 100))}
+                      step="0.01"
+                      className="w-full px-2 py-1 border border-slate-300 rounded text-sm"
+                    />
+                  </div>
+                )}
               </div>
               <div className="mt-2 text-right">
                 <p className="text-sm font-semibold text-slate-900">

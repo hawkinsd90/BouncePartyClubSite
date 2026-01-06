@@ -15,6 +15,7 @@ interface EventDetails {
   lat: number;
   lng: number;
   surface: string;
+  can_stake: boolean;
   generator_qty: number;
   pickup_preference: string;
   same_day_responsibility_accepted: boolean;
@@ -36,6 +37,7 @@ const initialEventDetails: EventDetails = {
   lat: 0,
   lng: 0,
   surface: 'grass',
+  can_stake: true,
   generator_qty: 0,
   pickup_preference: 'next_day',
   same_day_responsibility_accepted: false,

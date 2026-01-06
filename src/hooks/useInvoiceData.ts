@@ -40,6 +40,10 @@ export function useInvoiceData() {
           overnight_holiday_only: rulesRes.data.overnight_holiday_only,
           extra_day_pct: rulesRes.data.extra_day_pct,
           generator_price_cents: rulesRes.data.generator_price_cents,
+          deposit_per_unit_cents: rulesRes.data.deposit_per_unit_cents,
+          same_day_pickup_fee_cents: rulesRes.data.same_day_pickup_fee_cents,
+          generator_fee_single_cents: rulesRes.data.generator_fee_single_cents,
+          generator_fee_multiple_cents: rulesRes.data.generator_fee_multiple_cents,
         });
       }
     } finally {
