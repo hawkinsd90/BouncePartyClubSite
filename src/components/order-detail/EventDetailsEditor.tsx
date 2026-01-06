@@ -237,8 +237,8 @@ export function EventDetailsEditor({
                     {editedOrder.generator_qty > 0 && pricingRules && (
                       <p className="text-xs text-blue-600 mt-1">
                         {(() => {
-                          const singleFee = pricingRules.generator_fee_single_cents || pricingRules.generator_price_cents || 10000;
-                          const multipleFee = pricingRules.generator_fee_multiple_cents || pricingRules.generator_price_cents || 7500;
+                          const singleFee = pricingRules.generator_fee_single_cents || 0;
+                          const multipleFee = pricingRules.generator_fee_multiple_cents || 0;
 
                           if (editedOrder.generator_qty === 1) {
                             return `${editedOrder.generator_qty} × ${formatCurrency(singleFee)} = ${formatCurrency(singleFee)}`;
@@ -323,8 +323,8 @@ export function EventDetailsEditor({
                 {editedOrder.generator_qty > 0 && pricingRules && (
                   <p className="text-xs text-blue-600 mt-1 break-words">
                     {(() => {
-                      const singleFee = pricingRules.generator_fee_single_cents || pricingRules.generator_price_cents || 10000;
-                      const multipleFee = pricingRules.generator_fee_multiple_cents || pricingRules.generator_price_cents || 7500;
+                      const singleFee = pricingRules.generator_fee_single_cents || 0;
+                      const multipleFee = pricingRules.generator_fee_multiple_cents || 0;
 
                       if (editedOrder.generator_qty === 1) {
                         return `${editedOrder.generator_qty} × ${formatCurrency(singleFee)} = ${formatCurrency(singleFee)}`;

@@ -57,6 +57,10 @@ interface InvoiceData {
   travelFeeWaiveReason?: string;
   sameDayPickupFeeWaived?: boolean;
   sameDayPickupFeeWaiveReason?: string;
+  surfaceFeeWaived?: boolean;
+  surfaceFeeWaiveReason?: string;
+  generatorFeeWaived?: boolean;
+  generatorFeeWaiveReason?: string;
 }
 
 async function createAddress(eventDetails: EventDetails) {
@@ -92,7 +96,11 @@ async function createOrder(
   travelFeeWaived: boolean = false,
   travelFeeWaiveReason: string | null = null,
   sameDayPickupFeeWaived: boolean = false,
-  sameDayPickupFeeWaiveReason: string | null = null
+  sameDayPickupFeeWaiveReason: string | null = null,
+  surfaceFeeWaived: boolean = false,
+  surfaceFeeWaiveReason: string | null = null,
+  generatorFeeWaived: boolean = false,
+  generatorFeeWaiveReason: string | null = null
 ) {
   const { data, error } = await supabase
     .from('orders')
@@ -127,6 +135,10 @@ async function createOrder(
       travel_fee_waive_reason: travelFeeWaiveReason,
       same_day_pickup_fee_waived: sameDayPickupFeeWaived,
       same_day_pickup_fee_waive_reason: sameDayPickupFeeWaiveReason,
+      surface_fee_waived: surfaceFeeWaived,
+      surface_fee_waive_reason: surfaceFeeWaiveReason,
+      generator_fee_waived: generatorFeeWaived,
+      generator_fee_waive_reason: generatorFeeWaiveReason,
       deposit_due_cents: depositRequired,
       balance_due_cents: totalCents - depositRequired,
       custom_deposit_cents: customDepositCents,
@@ -243,7 +255,11 @@ export async function generateInvoice(invoiceData: InvoiceData, customer: Custom
     invoiceData.travelFeeWaived || false,
     invoiceData.travelFeeWaiveReason || null,
     invoiceData.sameDayPickupFeeWaived || false,
-    invoiceData.sameDayPickupFeeWaiveReason || null
+    invoiceData.sameDayPickupFeeWaiveReason || null,
+    invoiceData.surfaceFeeWaived || false,
+    invoiceData.surfaceFeeWaiveReason || null,
+    invoiceData.generatorFeeWaived || false,
+    invoiceData.generatorFeeWaiveReason || null
   );
 
   await createOrderItems(order.id, invoiceData.cartItems);

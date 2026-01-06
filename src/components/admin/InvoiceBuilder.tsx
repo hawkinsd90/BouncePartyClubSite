@@ -41,6 +41,10 @@ export function InvoiceBuilder() {
   const [travelFeeWaiveReason, setTravelFeeWaiveReason] = useState('');
   const [sameDayPickupFeeWaived, setSameDayPickupFeeWaived] = useState(false);
   const [sameDayPickupFeeWaiveReason, setSameDayPickupFeeWaiveReason] = useState('');
+  const [surfaceFeeWaived, setSurfaceFeeWaived] = useState(false);
+  const [surfaceFeeWaiveReason, setSurfaceFeeWaiveReason] = useState('');
+  const [generatorFeeWaived, setGeneratorFeeWaived] = useState(false);
+  const [generatorFeeWaiveReason, setGeneratorFeeWaiveReason] = useState('');
 
   const pricing = useInvoicePricing(cartItems, eventDetails, pricingRules, discounts, customFees);
   const deposit = useDepositOverride(pricing.defaultDeposit);
@@ -110,9 +114,9 @@ export function InvoiceBuilder() {
           eventDetails,
           priceBreakdown: pricing.priceBreakdown,
           subtotal: pricing.subtotal,
-          taxCents: pricing.taxCents,
+          taxCents: adjustedTaxCents,
           depositRequired: deposit.depositRequired,
-          totalCents: pricing.totalCents,
+          totalCents: adjustedTotalCents,
           customDepositCents: deposit.customDepositCents,
           discounts,
           customFees,
@@ -123,6 +127,10 @@ export function InvoiceBuilder() {
           travelFeeWaiveReason,
           sameDayPickupFeeWaived,
           sameDayPickupFeeWaiveReason,
+          surfaceFeeWaived,
+          surfaceFeeWaiveReason,
+          generatorFeeWaived,
+          generatorFeeWaiveReason,
         },
         customer
       );
@@ -146,6 +154,10 @@ export function InvoiceBuilder() {
       setTravelFeeWaiveReason('');
       setSameDayPickupFeeWaived(false);
       setSameDayPickupFeeWaiveReason('');
+      setSurfaceFeeWaived(false);
+      setSurfaceFeeWaiveReason('');
+      setGeneratorFeeWaived(false);
+      setGeneratorFeeWaiveReason('');
       customerManagement.setSelectedCustomer('');
       resetEventDetails();
     } catch (error) {
@@ -156,6 +168,29 @@ export function InvoiceBuilder() {
     }
   }
 
+  const adjustedTaxCents = useMemo(() => {
+    if (taxWaived) return 0;
+
+    const travelFee = travelFeeWaived ? 0 : (pricing.priceBreakdown?.travel_fee_cents || 0);
+    const surfaceFee = surfaceFeeWaived ? 0 : (pricing.priceBreakdown?.surface_fee_cents || 0);
+    const sameDayFee = sameDayPickupFeeWaived ? 0 : (pricing.priceBreakdown?.same_day_pickup_fee_cents || 0);
+    const generatorFee = generatorFeeWaived ? 0 : (pricing.priceBreakdown?.generator_fee_cents || 0);
+
+    const adjustedFees = travelFee + surfaceFee + sameDayFee + generatorFee;
+    const taxableAmount = Math.max(0, pricing.actualSubtotal + adjustedFees - pricing.discountTotal + pricing.customFeesTotal);
+    return Math.round(taxableAmount * 0.06);
+  }, [pricing, taxWaived, travelFeeWaived, surfaceFeeWaived, sameDayPickupFeeWaived, generatorFeeWaived]);
+
+  const adjustedTotalCents = useMemo(() => {
+    const travelFee = travelFeeWaived ? 0 : (pricing.priceBreakdown?.travel_fee_cents || 0);
+    const surfaceFee = surfaceFeeWaived ? 0 : (pricing.priceBreakdown?.surface_fee_cents || 0);
+    const sameDayFee = sameDayPickupFeeWaived ? 0 : (pricing.priceBreakdown?.same_day_pickup_fee_cents || 0);
+    const generatorFee = generatorFeeWaived ? 0 : (pricing.priceBreakdown?.generator_fee_cents || 0);
+
+    const adjustedFees = travelFee + surfaceFee + sameDayFee + generatorFee;
+    return pricing.actualSubtotal + adjustedFees - pricing.discountTotal + pricing.customFeesTotal + adjustedTaxCents;
+  }, [pricing, adjustedTaxCents, travelFeeWaived, surfaceFeeWaived, sameDayPickupFeeWaived, generatorFeeWaived]);
+
   const orderSummary = useMemo(
     () =>
       buildInvoiceSummary({
@@ -165,12 +200,16 @@ export function InvoiceBuilder() {
         customFees,
         subtotal: pricing.subtotal,
         taxableAmount: pricing.taxableAmount,
-        taxCents: pricing.taxCents,
-        totalCents: pricing.totalCents,
+        taxCents: adjustedTaxCents,
+        totalCents: adjustedTotalCents,
         depositRequired: deposit.depositRequired,
         eventDetails,
+        travelFeeWaived,
+        sameDayPickupFeeWaived,
+        surfaceFeeWaived,
+        generatorFeeWaived,
       }),
-    [cartItems, pricing, discounts, customFees, deposit.depositRequired, eventDetails]
+    [cartItems, pricing, discounts, customFees, deposit.depositRequired, eventDetails, travelFeeWaived, sameDayPickupFeeWaived, surfaceFeeWaived, generatorFeeWaived, adjustedTaxCents, adjustedTotalCents]
   );
 
   return (
@@ -287,6 +326,36 @@ export function InvoiceBuilder() {
               onToggle={(reason) => {
                 setSameDayPickupFeeWaived(!sameDayPickupFeeWaived);
                 setSameDayPickupFeeWaiveReason(reason);
+              }}
+              color="blue"
+              compact={true}
+            />
+          )}
+
+          {(pricing.priceBreakdown?.surface_fee_cents || 0) > 0 && (
+            <FeeWaiver
+              feeName="Sandbag Fee"
+              feeAmount={pricing.priceBreakdown?.surface_fee_cents || 0}
+              isWaived={surfaceFeeWaived}
+              waiveReason={surfaceFeeWaiveReason}
+              onToggle={(reason) => {
+                setSurfaceFeeWaived(!surfaceFeeWaived);
+                setSurfaceFeeWaiveReason(reason);
+              }}
+              color="orange"
+              compact={true}
+            />
+          )}
+
+          {(pricing.priceBreakdown?.generator_fee_cents || 0) > 0 && (
+            <FeeWaiver
+              feeName="Generator Fee"
+              feeAmount={pricing.priceBreakdown?.generator_fee_cents || 0}
+              isWaived={generatorFeeWaived}
+              waiveReason={generatorFeeWaiveReason}
+              onToggle={(reason) => {
+                setGeneratorFeeWaived(!generatorFeeWaived);
+                setGeneratorFeeWaiveReason(reason);
               }}
               color="blue"
               compact={true}
