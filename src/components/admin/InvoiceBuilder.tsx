@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Send } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Send, AlertCircle } from 'lucide-react';
 import { OrderSummary } from '../order/OrderSummary';
 import { showToast } from '../../lib/notifications';
 import { DiscountsManager } from '../order-detail/DiscountsManager';
@@ -45,6 +45,8 @@ export function InvoiceBuilder() {
   const [generatorFeeWaiveReason, setGeneratorFeeWaiveReason] = useState('');
   const [customDepositCents, setCustomDepositCents] = useState<number | null>(null);
   const [customDepositInput, setCustomDepositInput] = useState('');
+  const [availabilityIssues, setAvailabilityIssues] = useState<any[]>([]);
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
 
   const { orderSummary, calculatedPricing, calculatePricing } = usePricing();
 
@@ -108,6 +110,45 @@ export function InvoiceBuilder() {
     generatorFeeWaived,
     calculatePricing,
   ]);
+
+  // Check availability whenever cart items or dates change
+  useEffect(() => {
+    checkAvailability();
+  }, [cartItems, eventDetails.event_date, eventDetails.event_end_date]);
+
+  async function checkAvailability() {
+    if (!eventDetails.event_date || !eventDetails.event_end_date || cartItems.length === 0) {
+      setAvailabilityIssues([]);
+      return;
+    }
+
+    setCheckingAvailability(true);
+    try {
+      const checks = cartItems.map(item => ({
+        unitId: item.unit_id,
+        eventStartDate: eventDetails.event_date,
+        eventEndDate: eventDetails.event_end_date,
+      }));
+
+      const results = await checkMultipleUnitsAvailability(checks);
+      const issues = results
+        .filter(result => !result.isAvailable)
+        .map(result => {
+          const item = cartItems.find(i => i.unit_id === result.unitId);
+          return {
+            unitName: item?.unit_name || 'Unknown',
+            unitId: result.unitId,
+            conflicts: result.conflictingOrders,
+          };
+        });
+
+      setAvailabilityIssues(issues);
+    } catch (error) {
+      console.error('Error checking availability:', error);
+    } finally {
+      setCheckingAvailability(false);
+    }
+  }
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -296,6 +337,37 @@ export function InvoiceBuilder() {
             showUntilEndOfDay={true}
           />
 
+          {checkingAvailability && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-sm text-blue-900">Checking availability...</p>
+            </div>
+          )}
+
+          {availabilityIssues.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="font-semibold text-red-900 mb-2">Availability Conflicts</h4>
+                  <p className="text-sm text-red-800 mb-3">
+                    The following units are not available for the selected dates:
+                  </p>
+                  <ul className="space-y-2">
+                    {availabilityIssues.map((issue, index) => (
+                      <li key={index} className="text-sm">
+                        <span className="font-medium text-red-900">{issue.unitName}</span>
+                        <span className="text-red-700"> - Conflicts with {issue.conflicts.length} order(s)</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-red-700 mt-3">
+                    Please remove these items or select different dates to proceed.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <ItemsEditor
             items={cartItems}
             units={units}
@@ -419,16 +491,18 @@ export function InvoiceBuilder() {
           <div className="bg-white border border-slate-200 rounded-lg p-3 sm:p-4 lg:p-6 min-w-0">
             <button
               onClick={handleGenerateInvoice}
-              disabled={saving || cartItems.length === 0}
+              disabled={saving || cartItems.length === 0 || availabilityIssues.length > 0}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
             >
               <Send className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
               <span className="truncate">
                 {saving
                   ? 'Generating...'
-                  : customerManagement.selectedCustomer
-                    ? 'Send Invoice to Customer'
-                    : 'Generate Shareable Link'}
+                  : availabilityIssues.length > 0
+                    ? 'Resolve Availability Issues'
+                    : customerManagement.selectedCustomer
+                      ? 'Send Invoice to Customer'
+                      : 'Generate Shareable Link'}
               </span>
             </button>
             <p className="text-xs text-slate-500 text-center mt-2">
