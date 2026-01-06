@@ -133,17 +133,19 @@ export function InventorySection({ units, onRefetch }: InventorySectionProps) {
                     <div className="flex items-center gap-2 ml-4">
                       <button
                         onClick={() => navigate(`/admin/inventory/edit/${unit.id}`)}
-                        className="text-blue-600 hover:text-blue-700"
+                        className="inline-flex items-center px-2 sm:px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs sm:text-sm"
                         title="Edit"
                       >
-                        <Edit2 className="w-4 h-4" />
+                        <Edit2 className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
+                        <span className="hidden sm:inline">Edit</span>
                       </button>
                       <button
                         onClick={() => handleDeleteUnit(unit.id, unit.name)}
-                        className="text-red-600 hover:text-red-700"
+                        className="inline-flex items-center px-2 sm:px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs sm:text-sm"
                         title="Delete"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
+                        <span className="hidden sm:inline">Delete</span>
                       </button>
                     </div>
                   </div>

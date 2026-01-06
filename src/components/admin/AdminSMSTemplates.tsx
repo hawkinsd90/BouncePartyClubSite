@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { Edit2 } from 'lucide-react';
 import { notifyError, notifySuccess } from '../../lib/notifications';
 import { TextareaInput } from '../forms/TextareaInput';
 
@@ -83,8 +84,9 @@ export function AdminSMSTemplates({ templates, onRefetch }: AdminSMSTemplatesPro
               </div>
               <button
                 onClick={() => setEditingTemplate(template)}
-                className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
               >
+                <Edit2 className="w-3 h-3 mr-1.5" />
                 Edit
               </button>
             </div>

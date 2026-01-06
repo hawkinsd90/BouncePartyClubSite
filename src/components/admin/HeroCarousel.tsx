@@ -369,7 +369,7 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
             {adminControls}
             <button
               onClick={() => setIsEditMode(!isEditMode)}
-              className="bg-slate-600 hover:bg-slate-700 text-white px-3 sm:px-4 py-2 rounded-lg inline-flex items-center gap-2 text-xs sm:text-sm"
+              className={`${isEditMode ? 'bg-slate-600 hover:bg-slate-700' : 'bg-blue-600 hover:bg-blue-700'} text-white px-3 sm:px-4 py-2 rounded-lg inline-flex items-center gap-2 text-xs sm:text-sm transition-colors`}
             >
               {isEditMode ? <X className="w-4 h-4" /> : <Edit2 className="w-4 h-4" />}
               {isEditMode ? 'Exit Edit Mode' : 'Edit Carousel'}
@@ -508,17 +508,19 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
                       </button>
                       <button
                         onClick={() => setEditingMedia(item)}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                        className="inline-flex items-center px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs"
                         aria-label="Edit"
                       >
-                        <Edit2 className="w-4 h-4" />
+                        <Edit2 className="w-3 h-3 mr-1" />
+                        Edit
                       </button>
                       <button
                         onClick={() => deleteMedia(item.id, item.storage_path)}
-                        className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                        className="inline-flex items-center px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors text-xs"
                         aria-label="Delete"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3 h-3 mr-1" />
+                        Delete
                       </button>
                     </div>
                   </div>
@@ -543,17 +545,19 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
                     </button>
                     <button
                       onClick={() => setEditingMedia(item)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                      className="inline-flex items-center px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs"
                       aria-label="Edit"
                     >
-                      <Edit2 className="w-4 h-4" />
+                      <Edit2 className="w-3 h-3 mr-1" />
+                      Edit
                     </button>
                     <button
                       onClick={() => deleteMedia(item.id, item.storage_path)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded"
+                      className="inline-flex items-center px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors text-xs"
                       aria-label="Delete"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-3 h-3 mr-1" />
+                      Delete
                     </button>
                   </div>
                 </div>

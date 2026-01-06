@@ -290,10 +290,10 @@ Payment Method: ${invoice.payment_method || 'N/A'}
                     {invoice.order_id && (
                       <button
                         onClick={() => navigate(`/admin?tab=orders&orderId=${invoice.order_id}`)}
-                        className="text-slate-600 hover:text-slate-800 flex items-center"
+                        className="inline-flex items-center px-2 sm:px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs sm:text-sm"
                         title="Edit Order"
                       >
-                        <Edit className="w-3 sm:w-4 h-3 sm:h-4 mr-1 flex-shrink-0" />
+                        <Edit className="w-3 sm:w-4 h-3 sm:h-4 sm:mr-1 flex-shrink-0" />
                         <span className="hidden sm:inline">Edit</span>
                       </button>
                     )}
