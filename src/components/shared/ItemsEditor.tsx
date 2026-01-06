@@ -113,7 +113,7 @@ export function ItemsEditor({
                             onChange={(e) => onUpdateQuantity?.(index, parseInt(e.target.value) || 1)}
                             min="1"
                             max={item.inventory_qty}
-                            className="w-12 px-2 py-1 border border-slate-300 rounded text-center text-sm"
+                            className="w-14 sm:w-16 px-2 py-1 border border-slate-300 rounded text-center text-sm"
                           />
                           <button
                             onClick={() => onUpdateQuantity?.(index, item.qty + 1)}

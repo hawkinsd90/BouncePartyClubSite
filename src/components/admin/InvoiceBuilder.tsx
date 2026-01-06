@@ -263,7 +263,7 @@ export function InvoiceBuilder() {
                 lng: result.lng,
               });
             }}
-            compact={false}
+            compact={true}
             showUntilEndOfDay={true}
           />
 
@@ -293,7 +293,7 @@ export function InvoiceBuilder() {
             onInputChange={deposit.setCustomDepositInput}
             onApply={deposit.applyDepositOverride}
             onClear={deposit.clearDepositOverride}
-            compact={false}
+            compact={true}
             showZeroHint={true}
           />
 
@@ -305,7 +305,7 @@ export function InvoiceBuilder() {
               setTaxWaived(!taxWaived);
               setTaxWaiveReason(reason);
             }}
-            compact={false}
+            compact={true}
           />
 
           <FeeWaiver
@@ -318,10 +318,10 @@ export function InvoiceBuilder() {
               setTravelFeeWaiveReason(reason);
             }}
             color="orange"
-            compact={false}
+            compact={true}
           />
 
-          {((pricing.priceBreakdown?.same_day_pickup_fee_cents || 0) > 0 || sameDayPickupFeeWaived) && (
+          {(pricing.priceBreakdown?.same_day_pickup_fee_cents || 0) > 0 && (
             <FeeWaiver
               feeName="Same Day Pickup Fee"
               feeAmount={pricing.priceBreakdown?.same_day_pickup_fee_cents || 0}
@@ -332,11 +332,11 @@ export function InvoiceBuilder() {
                 setSameDayPickupFeeWaiveReason(reason);
               }}
               color="blue"
-              compact={false}
+              compact={true}
             />
           )}
 
-          {((pricing.priceBreakdown?.surface_fee_cents || 0) > 0 || surfaceFeeWaived) && (
+          {(pricing.priceBreakdown?.surface_fee_cents || 0) > 0 && (
             <FeeWaiver
               feeName="Sandbags Fee"
               feeAmount={pricing.priceBreakdown?.surface_fee_cents || 0}
@@ -347,11 +347,11 @@ export function InvoiceBuilder() {
                 setSurfaceFeeWaiveReason(reason);
               }}
               color="orange"
-              compact={false}
+              compact={true}
             />
           )}
 
-          {((pricing.priceBreakdown?.generator_fee_cents || 0) > 0 || generatorFeeWaived) && (
+          {(pricing.priceBreakdown?.generator_fee_cents || 0) > 0 && (
             <FeeWaiver
               feeName="Generator Fee"
               feeAmount={pricing.priceBreakdown?.generator_fee_cents || 0}
@@ -362,7 +362,7 @@ export function InvoiceBuilder() {
                 setGeneratorFeeWaiveReason(reason);
               }}
               color="blue"
-              compact={false}
+              compact={true}
             />
           )}
 
@@ -376,10 +376,6 @@ export function InvoiceBuilder() {
               showTip={false}
               title="Invoice Summary"
               taxWaived={taxWaived}
-              travelFeeWaived={travelFeeWaived}
-              surfaceFeeWaived={surfaceFeeWaived}
-              generatorFeeWaived={generatorFeeWaived}
-              sameDayPickupFeeWaived={sameDayPickupFeeWaived}
             />
           )}
 
