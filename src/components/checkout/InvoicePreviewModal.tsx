@@ -24,7 +24,10 @@ export function InvoicePreviewModal({
   onClose,
 }: InvoicePreviewModalProps) {
   const handlePrint = () => {
-    window.print();
+    // Small delay to ensure modal is fully rendered before printing
+    setTimeout(() => {
+      window.print();
+    }, 100);
   };
 
   const canUseStakes = quoteData.can_stake ?? true;

@@ -22,7 +22,7 @@
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
-    transform: none !important;
+    color-adjust: exact !important;
   }
 
   html, body {
@@ -40,37 +40,78 @@
   #print-content-wrapper {
     display: block !important;
     visibility: visible !important;
+    position: static !important;
     transform: none !important;
     padding: 0 !important;
     margin: 0 !important;
-    position: relative !important;
     width: 100% !important;
+    height: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
     background: white !important;
     z-index: 0 !important;
-    overflow: visible !important;
-    max-height: none !important;
-    height: auto !important;
+    left: 0 !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    flex: none !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
   }
 
   #print-content-wrapper * {
     visibility: visible !important;
-    transform: none !important;
   }
 
-  #print-content-wrapper > div {
-    position: relative !important;
-    max-width: 100% !important;
+  #print-content-wrapper > * {
+    position: static !important;
+    display: block !important;
+    max-width: 8.5in !important;
     width: 100% !important;
     max-height: none !important;
     height: auto !important;
     overflow: visible !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
     transform: none !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    background: white !important;
   }
 
-  #print-content-wrapper .no-print-padding {
-    transform: none !important;
+  #print-content-wrapper > * > * {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+  }
+
+  #print-content-wrapper img {
+    max-width: 100% !important;
+    height: auto !important;
+    display: block !important;
+  }
+
+  #print-content-wrapper .p-4,
+  #print-content-wrapper .p-6,
+  #print-content-wrapper .p-8 {
+    padding: 1rem !important;
+  }
+
+  #print-content-wrapper .space-y-2 > *,
+  #print-content-wrapper .space-y-3 > *,
+  #print-content-wrapper .space-y-4 > * {
+    margin-top: 0.5rem !important;
+  }
+
+  #print-content-wrapper .mb-8 {
+    margin-bottom: 1rem !important;
+  }
+
+  #print-content-wrapper .mb-6 {
+    margin-bottom: 0.75rem !important;
+  }
+
+  #print-content-wrapper .mb-4 {
+    margin-bottom: 0.5rem !important;
   }
 
   #printable-invoice,
@@ -132,14 +173,64 @@
     overflow: visible !important;
   }
 
-  .rounded-lg {
+  .rounded-lg,
+  .rounded-xl {
     border-radius: 0 !important;
   }
 
   .shadow-lg,
   .shadow-xl,
-  .shadow-2xl {
+  .shadow-2xl,
+  .shadow-md {
     box-shadow: none !important;
+  }
+
+  .fixed,
+  .absolute,
+  .sticky {
+    position: static !important;
+  }
+
+  .z-50,
+  .z-10 {
+    z-index: 0 !important;
+  }
+
+  .flex,
+  .inline-flex {
+    display: block !important;
+  }
+
+  .grid {
+    display: block !important;
+  }
+
+  .items-center,
+  .justify-center,
+  .justify-between {
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+  }
+
+  /* Ensure all content blocks are visible */
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-white {
+    background-color: white !important;
+    border: 1px solid #e2e8f0 !important;
+  }
+
+  .bg-amber-50 {
+    background-color: #fffbeb !important;
+    border: 1px solid #fbbf24 !important;
+  }
+
+  /* Ensure text is visible */
+  .text-slate-900,
+  .text-slate-800,
+  .text-slate-700,
+  .text-slate-600 {
+    color: #000 !important;
   }
 
   .print-portrait {
