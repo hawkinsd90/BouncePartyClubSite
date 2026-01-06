@@ -12,15 +12,13 @@ import { ItemsEditor } from '../shared/ItemsEditor';
 import { CustomerSelector } from '../invoice/CustomerSelector';
 import { NewCustomerForm } from '../invoice/NewCustomerForm';
 import { InvoiceSuccessMessage } from '../invoice/InvoiceSuccessMessage';
-import { AdminMessageSection } from '../invoice/AdminMessageSection';
+import { AdminMessage } from '../order-detail/AdminMessage';
 import { useInvoiceData } from '../../hooks/useInvoiceData';
-import { useInvoicePricing } from '../../hooks/useInvoicePricing';
+import { usePricing } from '../../hooks/usePricing';
 import { useCartManagement } from '../../hooks/useCartManagement';
 import { useCustomerManagement } from '../../hooks/useCustomerManagement';
 import { useEventDetails } from '../../hooks/useEventDetails';
-import { useDepositOverride } from '../../hooks/useDepositOverride';
 import { generateInvoice } from '../../lib/invoiceService';
-import { buildInvoiceSummary } from '../../lib/invoiceSummaryBuilder';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
 
 export function InvoiceBuilder() {
@@ -45,9 +43,71 @@ export function InvoiceBuilder() {
   const [surfaceFeeWaiveReason, setSurfaceFeeWaiveReason] = useState('');
   const [generatorFeeWaived, setGeneratorFeeWaived] = useState(false);
   const [generatorFeeWaiveReason, setGeneratorFeeWaiveReason] = useState('');
+  const [customDepositCents, setCustomDepositCents] = useState<number | null>(null);
+  const [customDepositInput, setCustomDepositInput] = useState('');
 
-  const pricing = useInvoicePricing(cartItems, eventDetails, pricingRules, discounts, customFees);
-  const deposit = useDepositOverride(pricing.defaultDeposit);
+  const { orderSummary, calculatedPricing, calculatePricing } = usePricing();
+
+  // Calculate pricing whenever dependencies change
+  useEffect(() => {
+    if (
+      cartItems.length > 0 &&
+      pricingRules &&
+      eventDetails.address_zip &&
+      eventDetails.event_date &&
+      eventDetails.event_end_date
+    ) {
+      const items = cartItems.map(item => ({
+        unit_id: item.unit_id,
+        unit_name: item.unit_name,
+        qty: item.qty,
+        wet_or_dry: item.mode,
+        unit_price_cents: item.adjusted_price_cents,
+      }));
+
+      calculatePricing({
+        items,
+        eventDetails: {
+          event_date: eventDetails.event_date,
+          event_end_date: eventDetails.event_end_date,
+          location_type: eventDetails.location_type as 'residential' | 'commercial',
+          surface: eventDetails.surface as 'grass' | 'cement',
+          pickup_preference: eventDetails.pickup_preference,
+          generator_qty: eventDetails.generator_qty,
+          address_line1: eventDetails.address_line1,
+          address_city: eventDetails.city,
+          address_state: eventDetails.state,
+          address_zip: eventDetails.zip,
+          lat: eventDetails.lat,
+          lng: eventDetails.lng,
+        },
+        discounts,
+        customFees,
+        customDepositCents,
+        pricingRules,
+        feeWaivers: {
+          taxWaived,
+          travelFeeWaived,
+          sameDayPickupFeeWaived,
+          surfaceFeeWaived,
+          generatorFeeWaived,
+        },
+      });
+    }
+  }, [
+    cartItems,
+    eventDetails,
+    discounts,
+    customFees,
+    customDepositCents,
+    pricingRules,
+    taxWaived,
+    travelFeeWaived,
+    sameDayPickupFeeWaived,
+    surfaceFeeWaived,
+    generatorFeeWaived,
+    calculatePricing,
+  ]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -105,6 +165,11 @@ export function InvoiceBuilder() {
         return;
       }
 
+      if (!calculatedPricing) {
+        showToast('Pricing calculation in progress. Please wait...', 'error');
+        return;
+      }
+
       const customer = customers.find(c => c.id === customerManagement.selectedCustomer);
 
       const result = await generateInvoice(
@@ -112,12 +177,19 @@ export function InvoiceBuilder() {
           customerId: customerManagement.selectedCustomer || null,
           cartItems,
           eventDetails,
-          priceBreakdown: pricing.priceBreakdown,
-          subtotal: pricing.subtotal,
-          taxCents: adjustedTaxCents,
-          depositRequired: deposit.depositRequired,
-          totalCents: adjustedTotalCents,
-          customDepositCents: deposit.customDepositCents,
+          priceBreakdown: {
+            subtotal_cents: calculatedPricing.subtotal_cents,
+            travel_fee_cents: calculatedPricing.travel_fee_cents,
+            travel_total_miles: calculatedPricing.travel_total_miles,
+            surface_fee_cents: calculatedPricing.surface_fee_cents,
+            same_day_pickup_fee_cents: calculatedPricing.same_day_pickup_fee_cents,
+            generator_fee_cents: calculatedPricing.generator_fee_cents,
+          },
+          subtotal: calculatedPricing.subtotal_cents,
+          taxCents: calculatedPricing.tax_cents,
+          depositRequired: calculatedPricing.deposit_due_cents,
+          totalCents: calculatedPricing.total_cents,
+          customDepositCents,
           discounts,
           customFees,
           adminMessage,
@@ -146,7 +218,8 @@ export function InvoiceBuilder() {
       clearCart();
       setDiscounts([]);
       setCustomFees([]);
-      deposit.resetDeposit();
+      setCustomDepositCents(null);
+      setCustomDepositInput('');
       setAdminMessage('');
       setTaxWaived(false);
       setTaxWaiveReason('');
@@ -167,50 +240,6 @@ export function InvoiceBuilder() {
       setSaving(false);
     }
   }
-
-  const adjustedTaxCents = useMemo(() => {
-    if (taxWaived) return 0;
-
-    const travelFee = travelFeeWaived ? 0 : (pricing.priceBreakdown?.travel_fee_cents || 0);
-    const surfaceFee = surfaceFeeWaived ? 0 : (pricing.priceBreakdown?.surface_fee_cents || 0);
-    const sameDayFee = sameDayPickupFeeWaived ? 0 : (pricing.priceBreakdown?.same_day_pickup_fee_cents || 0);
-    const generatorFee = generatorFeeWaived ? 0 : (pricing.priceBreakdown?.generator_fee_cents || 0);
-
-    const adjustedFees = travelFee + surfaceFee + sameDayFee + generatorFee;
-    const taxableAmount = Math.max(0, pricing.actualSubtotal + adjustedFees - pricing.discountTotal + pricing.customFeesTotal);
-    return Math.round(taxableAmount * 0.06);
-  }, [pricing, taxWaived, travelFeeWaived, sameDayPickupFeeWaived, surfaceFeeWaived, generatorFeeWaived]);
-
-  const adjustedTotalCents = useMemo(() => {
-    const travelFee = travelFeeWaived ? 0 : (pricing.priceBreakdown?.travel_fee_cents || 0);
-    const surfaceFee = surfaceFeeWaived ? 0 : (pricing.priceBreakdown?.surface_fee_cents || 0);
-    const sameDayFee = sameDayPickupFeeWaived ? 0 : (pricing.priceBreakdown?.same_day_pickup_fee_cents || 0);
-    const generatorFee = generatorFeeWaived ? 0 : (pricing.priceBreakdown?.generator_fee_cents || 0);
-
-    const adjustedFees = travelFee + surfaceFee + sameDayFee + generatorFee;
-    return pricing.actualSubtotal + adjustedFees - pricing.discountTotal + pricing.customFeesTotal + adjustedTaxCents;
-  }, [pricing, adjustedTaxCents, travelFeeWaived, sameDayPickupFeeWaived, surfaceFeeWaived, generatorFeeWaived]);
-
-  const orderSummary = useMemo(
-    () =>
-      buildInvoiceSummary({
-        cartItems,
-        priceBreakdown: pricing.priceBreakdown,
-        discounts,
-        customFees,
-        subtotal: pricing.subtotal,
-        taxableAmount: pricing.taxableAmount,
-        taxCents: adjustedTaxCents,
-        totalCents: adjustedTotalCents,
-        depositRequired: deposit.depositRequired,
-        eventDetails,
-        travelFeeWaived,
-        sameDayPickupFeeWaived,
-        surfaceFeeWaived,
-        generatorFeeWaived,
-      }),
-    [cartItems, pricing, discounts, customFees, deposit.depositRequired, eventDetails, travelFeeWaived, sameDayPickupFeeWaived, surfaceFeeWaived, generatorFeeWaived, adjustedTaxCents, adjustedTotalCents]
-  );
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -287,18 +316,21 @@ export function InvoiceBuilder() {
           <CustomFeesManager customFees={customFees} onFeeChange={setCustomFees} onMarkChanges={() => {}} />
 
           <DepositOverride
-            calculatedDepositCents={pricing.defaultDeposit}
-            customDepositCents={deposit.customDepositCents}
-            customDepositInput={deposit.customDepositInput}
-            onInputChange={deposit.setCustomDepositInput}
-            onApply={deposit.applyDepositOverride}
-            onClear={deposit.clearDepositOverride}
+            calculatedDepositCents={calculatedPricing?.deposit_due_cents || 0}
+            customDepositCents={customDepositCents}
+            customDepositInput={customDepositInput}
+            onInputChange={setCustomDepositInput}
+            onApply={(amountCents) => setCustomDepositCents(amountCents)}
+            onClear={() => {
+              setCustomDepositCents(null);
+              setCustomDepositInput('');
+            }}
             compact={true}
             showZeroHint={true}
           />
 
           <TaxWaiver
-            taxCents={pricing.taxCents}
+            taxCents={calculatedPricing?.tax_cents || 0}
             taxWaived={taxWaived}
             taxWaiveReason={taxWaiveReason}
             onToggle={(reason) => {
@@ -310,7 +342,7 @@ export function InvoiceBuilder() {
 
           <FeeWaiver
             feeName="Travel Fee"
-            feeAmount={pricing.priceBreakdown?.travel_fee_cents || 0}
+            feeAmount={calculatedPricing?.travel_fee_cents || 0}
             isWaived={travelFeeWaived}
             waiveReason={travelFeeWaiveReason}
             onToggle={(reason) => {
@@ -321,10 +353,10 @@ export function InvoiceBuilder() {
             compact={true}
           />
 
-          {(pricing.priceBreakdown?.same_day_pickup_fee_cents || 0) > 0 && (
+          {(calculatedPricing?.same_day_pickup_fee_cents || 0) > 0 && (
             <FeeWaiver
               feeName="Same Day Pickup Fee"
-              feeAmount={pricing.priceBreakdown?.same_day_pickup_fee_cents || 0}
+              feeAmount={calculatedPricing?.same_day_pickup_fee_cents || 0}
               isWaived={sameDayPickupFeeWaived}
               waiveReason={sameDayPickupFeeWaiveReason}
               onToggle={(reason) => {
@@ -336,10 +368,10 @@ export function InvoiceBuilder() {
             />
           )}
 
-          {(pricing.priceBreakdown?.surface_fee_cents || 0) > 0 && (
+          {(calculatedPricing?.surface_fee_cents || 0) > 0 && (
             <FeeWaiver
               feeName="Sandbags Fee"
-              feeAmount={pricing.priceBreakdown?.surface_fee_cents || 0}
+              feeAmount={calculatedPricing?.surface_fee_cents || 0}
               isWaived={surfaceFeeWaived}
               waiveReason={surfaceFeeWaiveReason}
               onToggle={(reason) => {
@@ -351,10 +383,10 @@ export function InvoiceBuilder() {
             />
           )}
 
-          {(pricing.priceBreakdown?.generator_fee_cents || 0) > 0 && (
+          {(calculatedPricing?.generator_fee_cents || 0) > 0 && (
             <FeeWaiver
               feeName="Generator Fee"
-              feeAmount={pricing.priceBreakdown?.generator_fee_cents || 0}
+              feeAmount={calculatedPricing?.generator_fee_cents || 0}
               isWaived={generatorFeeWaived}
               waiveReason={generatorFeeWaiveReason}
               onToggle={(reason) => {
@@ -367,7 +399,7 @@ export function InvoiceBuilder() {
           )}
 
 
-          <AdminMessageSection message={adminMessage} onChange={setAdminMessage} />
+          <AdminMessage value={adminMessage} onChange={setAdminMessage} compact={true} variant="invoice" />
 
           {orderSummary && (
             <OrderSummary
@@ -375,7 +407,12 @@ export function InvoiceBuilder() {
               showDeposit={true}
               showTip={false}
               title="Invoice Summary"
+              customDepositCents={customDepositCents}
               taxWaived={taxWaived}
+              travelFeeWaived={travelFeeWaived}
+              surfaceFeeWaived={surfaceFeeWaived}
+              generatorFeeWaived={generatorFeeWaived}
+              sameDayPickupFeeWaived={sameDayPickupFeeWaived}
             />
           )}
 

@@ -12,7 +12,7 @@ import { OrderWorkflowTab } from '../order-detail/OrderWorkflowTab';
 import { OrderChangelogTab } from '../order-detail/OrderChangelogTab';
 import { OrderDetailsTab } from '../order-detail/OrderDetailsTab';
 import { PaymentsTab } from '../order-detail/PaymentsTab';
-import { useOrderPricing } from '../../hooks/useOrderPricing';
+import { usePricing } from '../../hooks/usePricing';
 import { useOrderDetails } from '../../hooks/useOrderDetails';
 import { saveOrderChanges } from '../../lib/orderSaveService';
 import { sendOrderEditNotifications } from '../../lib/orderNotificationService';
@@ -85,7 +85,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [generatorFeeWaived, setGeneratorFeeWaived] = useState(order.generator_fee_waived || false);
   const [generatorFeeWaiveReason, setGeneratorFeeWaiveReason] = useState(order.generator_fee_waive_reason || '');
 
-  const { updatedOrderSummary, calculatedPricing, recalculatePricing } = useOrderPricing();
+  const { orderSummary: updatedOrderSummary, calculatedPricing, calculatePricing } = usePricing();
   const { payments, pricingRules, reload: reloadOrderData } = useOrderDetails(order.id);
 
   useEffect(() => {
@@ -298,21 +298,34 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
   const handleRecalculatePricing = useCallback(async () => {
     if (!pricingRules || !adminSettings) return;
-    await recalculatePricing({
-      order,
-      editedOrder,
-      stagedItems,
+    await calculatePricing({
+      items: stagedItems,
+      eventDetails: {
+        event_date: editedOrder.event_date,
+        event_end_date: editedOrder.event_end_date,
+        location_type: editedOrder.location_type,
+        surface: editedOrder.surface,
+        pickup_preference: editedOrder.pickup_preference,
+        generator_qty: editedOrder.generator_qty,
+        address_line1: editedOrder.address_line1,
+        address_city: editedOrder.address_city,
+        address_state: editedOrder.address_state,
+        address_zip: editedOrder.address_zip,
+      },
       discounts,
       customFees,
       customDepositCents,
       pricingRules,
-      taxWaived,
-      travelFeeWaived,
-      sameDayPickupFeeWaived,
-      surfaceFeeWaived,
-      generatorFeeWaived,
+      feeWaivers: {
+        taxWaived,
+        travelFeeWaived,
+        sameDayPickupFeeWaived,
+        surfaceFeeWaived,
+        generatorFeeWaived,
+      },
+      existingOrder: order,
     });
-  }, [order, editedOrder, stagedItems, discounts, customFees, customDepositCents, pricingRules, adminSettings, taxWaived, travelFeeWaived, sameDayPickupFeeWaived, surfaceFeeWaived, generatorFeeWaived, recalculatePricing]);
+  }, [order, editedOrder, stagedItems, discounts, customFees, customDepositCents, pricingRules, adminSettings, taxWaived, travelFeeWaived, sameDayPickupFeeWaived, surfaceFeeWaived, generatorFeeWaived, calculatePricing]);
 
   async function loadOrderDetails() {
     try {
