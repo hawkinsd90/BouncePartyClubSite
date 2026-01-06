@@ -41,27 +41,35 @@ export function CartItemsList({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                 <div>
                   <label className="block text-xs text-slate-600 mb-1">Quantity</label>
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    <button
-                      onClick={() => onUpdateQuantity(index, Math.max(1, item.qty - 1))}
-                      className="p-1 bg-slate-200 hover:bg-slate-300 rounded"
-                    >
-                      <Minus className="w-3 h-3" />
-                    </button>
-                    <input
-                      type="number"
-                      value={item.qty}
-                      onChange={(e) => onUpdateQuantity(index, parseInt(e.target.value) || 1)}
-                      min="1"
-                      className="w-14 sm:w-16 px-2 py-1 border border-slate-300 rounded text-center text-sm"
-                    />
-                    <button
-                      onClick={() => onUpdateQuantity(index, item.qty + 1)}
-                      className="p-1 bg-slate-200 hover:bg-slate-300 rounded"
-                    >
-                      <Plus className="w-3 h-3" />
-                    </button>
-                  </div>
+                  {item.inventory_qty > 1 ? (
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <button
+                        onClick={() => onUpdateQuantity(index, Math.max(1, item.qty - 1))}
+                        className="p-1 bg-slate-200 hover:bg-slate-300 rounded"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <input
+                        type="number"
+                        value={item.qty}
+                        onChange={(e) => onUpdateQuantity(index, parseInt(e.target.value) || 1)}
+                        min="1"
+                        max={item.inventory_qty}
+                        className="w-14 sm:w-16 px-2 py-1 border border-slate-300 rounded text-center text-sm"
+                      />
+                      <button
+                        onClick={() => onUpdateQuantity(index, item.qty + 1)}
+                        disabled={item.qty >= item.inventory_qty}
+                        className="p-1 bg-slate-200 hover:bg-slate-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="px-3 py-2 bg-slate-100 border border-slate-300 rounded text-center text-sm text-slate-700">
+                      {item.qty}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs text-slate-600 mb-1">Price Each</label>
@@ -87,27 +95,33 @@ export function CartItemsList({
       <div>
         <h4 className="text-sm font-semibold text-slate-900 mb-3">Add Units</h4>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
-          {units.map(unit => (
-            <div key={unit.id} className="border border-slate-200 rounded-lg p-3 hover:border-blue-300 transition-colors">
-              <p className="font-medium text-slate-900 text-sm mb-2">{unit.name}</p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => onAddUnit(unit, 'dry')}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 px-2 rounded"
-                >
-                  Dry {formatCurrency(unit.price_dry_cents)}
-                </button>
-                {unit.price_water_cents && (
+          {units
+            .filter(unit => {
+              // Only show units that have inventory available
+              const alreadyInCart = cartItems.filter(item => item.unit_id === unit.id).reduce((sum, item) => sum + item.qty, 0);
+              return (unit.inventory_qty || 1) > alreadyInCart;
+            })
+            .map(unit => (
+              <div key={unit.id} className="border border-slate-200 rounded-lg p-3 hover:border-blue-300 transition-colors">
+                <p className="font-medium text-slate-900 text-sm mb-2">{unit.name}</p>
+                <div className="flex gap-2">
                   <button
-                    onClick={() => onAddUnit(unit, 'water')}
-                    className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white text-xs py-2 px-2 rounded"
+                    onClick={() => onAddUnit(unit, 'dry')}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 px-2 rounded"
                   >
-                    Water {formatCurrency(unit.price_water_cents)}
+                    Dry {formatCurrency(unit.price_dry_cents)}
                   </button>
-                )}
+                  {unit.price_water_cents && (
+                    <button
+                      onClick={() => onAddUnit(unit, 'water')}
+                      className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white text-xs py-2 px-2 rounded"
+                    >
+                      Water {formatCurrency(unit.price_water_cents)}
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
         </div>
       </div>
     </div>

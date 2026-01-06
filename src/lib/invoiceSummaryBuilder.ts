@@ -40,8 +40,6 @@ interface BuildSummaryParams {
   eventDetails: EventDetails;
   travelFeeWaived?: boolean;
   sameDayPickupFeeWaived?: boolean;
-  surfaceFeeWaived?: boolean;
-  generatorFeeWaived?: boolean;
 }
 
 export function buildInvoiceSummary(params: BuildSummaryParams): OrderSummaryDisplay | null {
@@ -59,9 +57,9 @@ export function buildInvoiceSummary(params: BuildSummaryParams): OrderSummaryDis
     fees: {
       travel_fee_cents: params.travelFeeWaived ? 0 : params.priceBreakdown?.travel_fee_cents,
       travel_fee_display_name: params.priceBreakdown?.travel_fee_display_name,
-      surface_fee_cents: params.surfaceFeeWaived ? 0 : params.priceBreakdown?.surface_fee_cents,
+      surface_fee_cents: params.priceBreakdown?.surface_fee_cents || 0,
       same_day_pickup_fee_cents: params.sameDayPickupFeeWaived ? 0 : params.priceBreakdown?.same_day_pickup_fee_cents,
-      generator_fee_cents: params.generatorFeeWaived ? 0 : params.priceBreakdown?.generator_fee_cents,
+      generator_fee_cents: params.priceBreakdown?.generator_fee_cents || 0,
       generator_qty: params.eventDetails.generator_qty,
     },
     discounts: params.discounts,

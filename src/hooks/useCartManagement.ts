@@ -9,6 +9,7 @@ interface CartItem {
   price_cents: number;
   adjusted_price_cents: number;
   qty: number;
+  inventory_qty: number;
 }
 
 export function useCartManagement() {
@@ -28,6 +29,7 @@ export function useCartManagement() {
         price_cents: price,
         adjusted_price_cents: price,
         qty: 1,
+        inventory_qty: unit.inventory_qty || 1,
       },
     ]);
   }
