@@ -25,7 +25,7 @@ export function TaxWaiver({
 
   const handleConfirm = (reason: string) => {
     onToggle(reason);
-    // Keep modal open after waiving/restoring
+    setShowConfirmation(false);
   };
 
   const handleCancel = () => {
