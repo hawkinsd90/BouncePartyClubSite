@@ -13,11 +13,19 @@ import { ApprovalModal } from '../pending-order/ApprovalModal';
 import { RejectionModal } from '../pending-order/RejectionModal';
 import { PaymentLinkSection } from '../pending-order/PaymentLinkSection';
 
-export function PendingOrderCard({ order, onUpdate }: { order: any; onUpdate: () => void }) {
+export function PendingOrderCard({
+  order,
+  onUpdate,
+  openEditMode = false
+}: {
+  order: any;
+  onUpdate: () => void;
+  openEditMode?: boolean;
+}) {
   const [processing, setProcessing] = useState(false);
   const [showRejectionModal, setShowRejectionModal] = useState(false);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(openEditMode);
   const [selectedImage, setSelectedImage] = useState<{ url: string; label: string } | null>(null);
 
   const {

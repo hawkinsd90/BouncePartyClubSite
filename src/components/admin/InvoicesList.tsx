@@ -289,7 +289,7 @@ Payment Method: ${invoice.payment_method || 'N/A'}
                     </button>
                     {invoice.order_id && (
                       <button
-                        onClick={() => navigate(`/admin?tab=orders&orderId=${invoice.order_id}`)}
+                        onClick={() => navigate(`/admin?tab=orders&orderId=${invoice.order_id}&view=single&edit=true`)}
                         className="inline-flex items-center px-2 sm:px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs sm:text-sm"
                         title="Edit Order"
                       >

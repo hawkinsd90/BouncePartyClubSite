@@ -5,6 +5,7 @@ import { format, isToday, isFuture, isPast } from 'date-fns';
 import { Search, Calendar, User, Phone } from 'lucide-react';
 import { OrderDetailModal } from '../admin/OrderDetailModal';
 import { PendingOrderCard } from '../admin/PendingOrderCard';
+import { SingleOrderView } from '../admin/SingleOrderView';
 import { useDataFetch } from '../../hooks/useDataFetch';
 import { handleError } from '../../lib/errorHandling';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
@@ -21,6 +22,9 @@ interface OrdersData {
 export function OrdersManager() {
   const [searchParams, setSearchParams] = useSearchParams();
   const orderIdFromUrl = searchParams.get('order');
+  const singleOrderId = searchParams.get('orderId');
+  const viewMode = searchParams.get('view');
+  const editMode = searchParams.get('edit') === 'true';
   const [activeTab, setActiveTab] = useState<OrderTab>('draft');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
@@ -176,12 +180,31 @@ export function OrdersManager() {
     { key: 'cancelled', label: 'Cancelled' },
   ];
 
+  function handleBackToOrders() {
+    const params = new URLSearchParams(searchParams);
+    params.delete('orderId');
+    params.delete('view');
+    params.delete('edit');
+    setSearchParams(params);
+  }
+
   if (loading) {
     return (
       <div className="text-center py-12">
         <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         <p className="mt-4 text-slate-600">Loading orders...</p>
       </div>
+    );
+  }
+
+  if (viewMode === 'single' && singleOrderId) {
+    return (
+      <SingleOrderView
+        orderId={singleOrderId}
+        openEditMode={editMode}
+        onBack={handleBackToOrders}
+        onUpdate={refetch}
+      />
     );
   }
 
