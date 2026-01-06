@@ -286,6 +286,7 @@ export function OrderDetailsTab({
         waiveReason={travelFeeWaiveReason}
         onToggle={onTravelFeeWaivedToggle}
         color="orange"
+        compact={true}
       />
 
       {((calculatedPricing?.same_day_pickup_fee_cents || 0) > 0 || (order.same_day_pickup_fee_cents || 0) > 0) && (
@@ -296,17 +297,19 @@ export function OrderDetailsTab({
           waiveReason={sameDayPickupFeeWaiveReason}
           onToggle={onSameDayPickupFeeWaivedToggle}
           color="blue"
+          compact={true}
         />
       )}
 
       {((calculatedPricing?.surface_fee_cents || 0) > 0 || (order.surface_fee_cents || 0) > 0) && (
         <FeeWaiver
-          feeName="Surface Fee (Sandbags)"
+          feeName="Sandbags Fee"
           feeAmount={calculatedPricing?.surface_fee_cents || order.surface_fee_cents || 0}
           isWaived={surfaceFeeWaived}
           waiveReason={surfaceFeeWaiveReason}
           onToggle={onSurfaceFeeWaivedToggle}
           color="orange"
+          compact={true}
         />
       )}
 
@@ -318,6 +321,7 @@ export function OrderDetailsTab({
           waiveReason={generatorFeeWaiveReason}
           onToggle={onGeneratorFeeWaivedToggle}
           color="blue"
+          compact={true}
         />
       )}
 
