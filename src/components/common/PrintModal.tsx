@@ -172,11 +172,12 @@ export function PrintModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto no-print"
+      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto"
       role="dialog"
       aria-modal="true"
       aria-labelledby="print-modal-title"
       ref={modalRef}
+      id="print-content-wrapper"
     >
       <div className={`bg-white rounded-lg ${maxWidthClasses[maxWidth]} w-full max-h-[90vh] overflow-y-auto relative shadow-2xl`}>
         <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex justify-between items-center z-10 no-print">
@@ -293,7 +294,6 @@ export function PrintModal({
         <div
           className="p-4 no-print-padding transition-transform duration-200"
           style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
-          id="print-content-wrapper"
         >
           {children}
         </div>

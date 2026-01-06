@@ -45,10 +45,31 @@
     margin: 0 !important;
     position: relative !important;
     width: 100% !important;
+    background: white !important;
+    z-index: 0 !important;
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
   }
 
   #print-content-wrapper * {
     visibility: visible !important;
+    transform: none !important;
+  }
+
+  #print-content-wrapper > div {
+    position: relative !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+
+  #print-content-wrapper .no-print-padding {
     transform: none !important;
   }
 

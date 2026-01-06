@@ -34,8 +34,8 @@ export function InvoicePreviewModal({
   const orderSummary = buildOrderSummary(priceBreakdown, cart, quoteData, 0);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto relative shadow-2xl" id="print-content-wrapper">
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto" id="print-content-wrapper">
+      <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto relative shadow-2xl">
         <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex justify-between items-center z-10 no-print">
           <h2 className="text-2xl font-bold text-slate-900">Invoice Preview</h2>
           <button
