@@ -1,12 +1,13 @@
 import { formatCurrency } from './utils';
 
+// Enhanced Type Safety
 export interface PrintableItem {
   name: string;
   description?: string;
   quantity?: number;
   unitPrice?: number;
   totalPrice?: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface PrintableCharge {
@@ -41,8 +42,10 @@ export interface PrintablePayment {
   status: string;
 }
 
-export interface PrintableDocument {
-  type: 'invoice' | 'receipt' | 'quote' | 'waiver' | 'catalog' | 'report';
+export type PrintDocumentType = 'invoice' | 'receipt' | 'quote' | 'waiver' | 'catalog' | 'report';
+
+export interface PrintableDocument<T = unknown> {
+  type: PrintDocumentType;
   documentNumber?: string;
   title: string;
   date: string;
@@ -55,7 +58,91 @@ export interface PrintableDocument {
   address?: PrintableAddress;
   payment?: PrintablePayment;
   notes?: string;
-  metadata?: Record<string, any>;
+  metadata?: T;
+}
+
+// Print Templates System
+export type PrintOrientation = 'portrait' | 'landscape';
+export type PrintSize = 'letter' | 'a4' | 'legal';
+export type PrintQuality = 'draft' | 'normal' | 'high';
+
+export interface PrintTemplate {
+  orientation: PrintOrientation;
+  size: PrintSize;
+  margins: string;
+  showHeader: boolean;
+  showFooter: boolean;
+  quality?: PrintQuality;
+}
+
+export const PRINT_TEMPLATES: Record<PrintDocumentType, PrintTemplate> = {
+  invoice: {
+    orientation: 'portrait',
+    size: 'letter',
+    margins: '0.5in',
+    showHeader: true,
+    showFooter: true,
+    quality: 'high',
+  },
+  receipt: {
+    orientation: 'portrait',
+    size: 'letter',
+    margins: '0.25in',
+    showHeader: true,
+    showFooter: true,
+    quality: 'normal',
+  },
+  quote: {
+    orientation: 'portrait',
+    size: 'letter',
+    margins: '0.5in',
+    showHeader: true,
+    showFooter: true,
+    quality: 'high',
+  },
+  waiver: {
+    orientation: 'portrait',
+    size: 'legal',
+    margins: '0.75in',
+    showHeader: true,
+    showFooter: true,
+    quality: 'high',
+  },
+  catalog: {
+    orientation: 'portrait',
+    size: 'letter',
+    margins: '0.5in',
+    showHeader: false,
+    showFooter: false,
+    quality: 'normal',
+  },
+  report: {
+    orientation: 'landscape',
+    size: 'letter',
+    margins: '1in',
+    showHeader: true,
+    showFooter: true,
+    quality: 'high',
+  },
+};
+
+// Print State Management
+export type PrintState = 'idle' | 'preparing' | 'printing' | 'success' | 'error' | 'cancelled';
+
+export interface PrintStateInfo {
+  state: PrintState;
+  message?: string;
+  timestamp: number;
+}
+
+// Print Event Callbacks
+export interface PrintEventCallbacks {
+  onBeforePrint?: () => void | Promise<void>;
+  onAfterPrint?: () => void | Promise<void>;
+  onPrintStart?: () => void;
+  onPrintSuccess?: () => void;
+  onPrintError?: (error: Error) => void;
+  onPrintCancel?: () => void;
 }
 
 export function formatPrintableAddress(address: PrintableAddress): string {

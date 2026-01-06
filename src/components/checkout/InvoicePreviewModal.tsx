@@ -1,5 +1,6 @@
 import { PrintModal } from '../common/PrintModal';
 import { PrintableInvoice } from '../invoice/PrintableInvoice';
+import { showToast } from '../../lib/notifications';
 
 interface InvoicePreviewModalProps {
   quoteData: any;
@@ -22,12 +23,30 @@ export function InvoicePreviewModal({
   contactData,
   onClose,
 }: InvoicePreviewModalProps) {
+  const handleBeforePrint = () => {
+    console.log('Preparing invoice for printing...');
+  };
+
+  const handleAfterPrint = () => {
+    console.log('Invoice print completed');
+  };
+
+  const handlePrintError = (error: Error) => {
+    console.error('Print error:', error);
+    showToast(`Print failed: ${error.message}`, 'error');
+  };
+
   return (
     <PrintModal
       isOpen={true}
       onClose={onClose}
       title="Invoice Preview"
       maxWidth="5xl"
+      documentType="invoice"
+      showZoomControls={true}
+      onBeforePrint={handleBeforePrint}
+      onAfterPrint={handleAfterPrint}
+      onPrintError={handlePrintError}
     >
       <PrintableInvoice
         quoteData={quoteData}

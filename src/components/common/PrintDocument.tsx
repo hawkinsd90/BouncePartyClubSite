@@ -1,7 +1,10 @@
 import { ReactNode } from 'react';
-
-export type PrintOrientation = 'portrait' | 'landscape';
-export type PrintSize = 'letter' | 'a4' | 'legal';
+import {
+  PrintOrientation,
+  PrintSize,
+  PrintDocumentType,
+  PRINT_TEMPLATES,
+} from '../../lib/printUtils';
 
 interface PrintDocumentProps {
   children: ReactNode;
@@ -12,6 +15,7 @@ interface PrintDocumentProps {
   headerContent?: ReactNode;
   footerContent?: ReactNode;
   className?: string;
+  documentType?: PrintDocumentType;
 }
 
 export function PrintDocument({
@@ -23,13 +27,23 @@ export function PrintDocument({
   headerContent,
   footerContent,
   className = '',
+  documentType,
 }: PrintDocumentProps) {
-  const orientationClass = orientation === 'landscape' ? 'print-landscape' : 'print-portrait';
-  const sizeClass = `print-${size}`;
+  // Use template if documentType is provided
+  const template = documentType ? PRINT_TEMPLATES[documentType] : null;
+
+  const finalOrientation = template?.orientation || orientation;
+  const finalSize = template?.size || size;
+  const finalShowHeader = template?.showHeader ?? showHeader;
+  const finalShowFooter = template?.showFooter ?? showFooter;
+  const margins = template?.margins || '0.5in';
+
+  const orientationClass = finalOrientation === 'landscape' ? 'print-landscape' : 'print-portrait';
+  const sizeClass = `print-${finalSize}`;
 
   return (
     <div className={`print-document ${orientationClass} ${sizeClass} ${className}`}>
-      {showHeader && headerContent && (
+      {finalShowHeader && headerContent && (
         <div className="print-header hidden print:block mb-4 pb-4 border-b border-slate-300">
           {headerContent}
         </div>
@@ -37,7 +51,7 @@ export function PrintDocument({
 
       <div className="print-content">{children}</div>
 
-      {showFooter && footerContent && (
+      {finalShowFooter && footerContent && (
         <div className="print-footer hidden print:block mt-4 pt-4 border-t border-slate-300">
           {footerContent}
         </div>
@@ -52,11 +66,11 @@ export function PrintDocument({
           }
 
           .print-portrait {
-            size: ${size} portrait;
+            size: ${finalSize} portrait;
           }
 
           .print-landscape {
-            size: ${size} landscape;
+            size: ${finalSize} landscape;
           }
 
           .print-letter {
@@ -86,7 +100,7 @@ export function PrintDocument({
           }
 
           @page {
-            margin: 0.5in;
+            margin: ${margins};
           }
         }
 
