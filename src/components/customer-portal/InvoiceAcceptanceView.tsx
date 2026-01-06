@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/pricing';
-import { FileText, Loader2, CreditCard, CheckCircle, AlertCircle, Shield, Printer, X } from 'lucide-react';
+import { FileText, Loader2, CreditCard, CheckCircle, AlertCircle, Shield } from 'lucide-react';
 import { OrderSummary } from '../order/OrderSummary';
 import { OrderSummaryDisplay } from '../../lib/orderSummary';
 import { PrintableInvoice } from '../invoice/PrintableInvoice';
+import { PrintModal } from '../common/PrintModal';
 import { RentalTerms } from '../waiver/RentalTerms';
 import { TipSelector } from '../payment/TipSelector';
 import { PaymentAmountSelector } from './PaymentAmountSelector';
@@ -50,10 +51,6 @@ export function InvoiceAcceptanceView({
   const [showCancelModal, setShowCancelModal] = useState(false);
 
   const needsCustomerInfo = invoiceLink && !invoiceLink.customer_filled;
-
-  const handlePrintInvoice = () => {
-    window.print();
-  };
 
   const prepareInvoiceData = () => {
     if (!order) return null;
@@ -550,39 +547,21 @@ export function InvoiceAcceptanceView({
       </div>
 
       {showInvoiceModal && prepareInvoiceData() && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-5xl w-full max-h-[90vh] overflow-y-auto relative">
-            <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex justify-between items-center z-10 no-print">
-              <h2 className="text-2xl font-bold text-slate-900">Invoice Preview</h2>
-              <div className="flex gap-2">
-                <button
-                  onClick={handlePrintInvoice}
-                  className="flex items-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-                >
-                  <Printer className="w-4 h-4 mr-2" />
-                  Print / Save PDF
-                </button>
-                <button
-                  onClick={() => setShowInvoiceModal(false)}
-                  className="flex items-center bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 px-4 rounded-lg transition-colors"
-                >
-                  <X className="w-4 h-4 mr-2" />
-                  Close
-                </button>
-              </div>
-            </div>
-            <div className="p-4">
-              <PrintableInvoice
-                quoteData={prepareInvoiceData()!.quoteData}
-                priceBreakdown={prepareInvoiceData()!.priceBreakdown}
-                cart={prepareInvoiceData()!.cart}
-                contactData={prepareInvoiceData()!.contactData}
-                invoiceNumber={order?.id?.slice(0, 8).toUpperCase()}
-                isPaid={false}
-              />
-            </div>
-          </div>
-        </div>
+        <PrintModal
+          isOpen={showInvoiceModal}
+          onClose={() => setShowInvoiceModal(false)}
+          title="Invoice Preview"
+          maxWidth="5xl"
+        >
+          <PrintableInvoice
+            quoteData={prepareInvoiceData()!.quoteData}
+            priceBreakdown={prepareInvoiceData()!.priceBreakdown}
+            cart={prepareInvoiceData()!.cart}
+            contactData={prepareInvoiceData()!.contactData}
+            invoiceNumber={order?.id?.slice(0, 8).toUpperCase()}
+            isPaid={false}
+          />
+        </PrintModal>
       )}
     </div>
   );

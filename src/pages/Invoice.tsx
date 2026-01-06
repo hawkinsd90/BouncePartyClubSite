@@ -7,6 +7,7 @@ import { StripeCheckoutForm } from '../components/payment/StripeCheckoutForm';
 import { completeOrderAfterPayment } from '../lib/orderCreation';
 import { RentalTerms } from '../components/waiver/RentalTerms';
 import { PrintableInvoice } from '../components/invoice/PrintableInvoice';
+import { PrintModal } from '../components/common/PrintModal';
 import { ORDER_STATUS } from '../lib/constants/statuses';
 import { getOrderById } from '../lib/queries/orders';
 
@@ -435,38 +436,21 @@ export function Invoice() {
       </div>
 
       {showInvoiceModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-5xl w-full max-h-[90vh] overflow-y-auto relative">
-            <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex justify-between items-center z-10 no-print">
-              <h2 className="text-2xl font-bold text-slate-900">Invoice</h2>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => window.print()}
-                  className="flex items-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-                >
-                  <Printer className="w-4 h-4 mr-2" />
-                  Print / Save PDF
-                </button>
-                <button
-                  onClick={() => setShowInvoiceModal(false)}
-                  className="flex items-center bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 px-4 rounded-lg transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-            <div className="p-4">
-              <PrintableInvoice
-                quoteData={transformedQuoteData}
-                priceBreakdown={transformedPriceBreakdown}
-                cart={transformedCart}
-                contactData={transformedContactData}
-                invoiceNumber={orderId?.slice(0, 8).toUpperCase()}
-                isPaid={false}
-              />
-            </div>
-          </div>
-        </div>
+        <PrintModal
+          isOpen={showInvoiceModal}
+          onClose={() => setShowInvoiceModal(false)}
+          title="Invoice"
+          maxWidth="5xl"
+        >
+          <PrintableInvoice
+            quoteData={transformedQuoteData}
+            priceBreakdown={transformedPriceBreakdown}
+            cart={transformedCart}
+            contactData={transformedContactData}
+            invoiceNumber={orderId?.slice(0, 8).toUpperCase()}
+            isPaid={false}
+          />
+        </PrintModal>
       )}
 
       {showPaymentForm && (
