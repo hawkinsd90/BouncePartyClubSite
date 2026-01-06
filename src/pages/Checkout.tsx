@@ -14,7 +14,6 @@ import { PaymentAmountSelector } from '../components/checkout/PaymentAmountSelec
 import { TipSection } from '../components/checkout/TipSection';
 import { ConsentSection } from '../components/checkout/ConsentSection';
 import { CheckoutSummary } from '../components/checkout/CheckoutSummary';
-import { InvoicePreviewModal } from '../components/checkout/InvoicePreviewModal';
 import { createLogger } from '../lib/logger';
 
 const log = createLogger('Checkout');
@@ -46,8 +45,20 @@ export function Checkout() {
   const [billingSameAsEvent, setBillingSameAsEvent] = useState(true);
   const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
   const [customAmount, setCustomAmount] = useState('');
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
 
+  const handleViewInvoice = () => {
+    // Store the invoice data in localStorage for the new tab to read
+    const invoiceData = {
+      quoteData,
+      priceBreakdown,
+      cart,
+      contactData,
+    };
+    localStorage.setItem('invoice-preview-data', JSON.stringify(invoiceData));
+
+    // Open in new tab
+    window.open('/invoice-preview', '_blank');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -228,20 +239,10 @@ export function Checkout() {
               cardOnFileConsent={cardOnFileConsent}
               smsConsent={smsConsent}
               tipCents={tipCents}
-              onViewInvoice={() => setShowInvoiceModal(true)}
+              onViewInvoice={handleViewInvoice}
             />
           </div>
         </form>
-
-        {showInvoiceModal && (
-          <InvoicePreviewModal
-            quoteData={quoteData}
-            priceBreakdown={priceBreakdown}
-            cart={cart}
-            contactData={contactData}
-            onClose={() => setShowInvoiceModal(false)}
-          />
-        )}
       </div>
     </div>
   );

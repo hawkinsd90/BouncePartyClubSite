@@ -24,6 +24,7 @@ const UnitForm = lazy(() => import('./pages/UnitForm').then(m => ({ default: m.U
 const CustomerPortal = lazy(() => import('./pages/CustomerPortal').then(m => ({ default: m.CustomerPortal })));
 const CustomerDashboard = lazy(() => import('./pages/CustomerDashboard').then(m => ({ default: m.CustomerDashboard })));
 const Sign = lazy(() => import('./pages/Sign'));
+const InvoicePreview = lazy(() => import('./pages/InvoicePreview').then(m => ({ default: m.InvoicePreview })));
 
 function App() {
   return (
@@ -44,6 +45,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/invoice/:token" element={<CustomerPortal />} />
           <Route path="/invoice/view/:orderId" element={<Invoice />} />
+          <Route path="/invoice-preview" element={<InvoicePreview />} />
           <Route path="/sign/:orderId" element={<Sign />} />
           <Route path="/customer-portal/:orderId" element={<CustomerPortal />} />
           <Route path="/customer-portal" element={<CustomerPortal />} />
