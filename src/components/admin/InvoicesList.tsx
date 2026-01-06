@@ -280,13 +280,23 @@ Payment Method: ${invoice.payment_method || 'N/A'}
                 </td>
                 <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
                   <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => handleViewInvoice(invoice)}
-                      className="text-blue-600 hover:text-blue-800 flex items-center"
-                    >
-                      <Eye className="w-3 sm:w-4 h-3 sm:h-4 mr-1 flex-shrink-0" />
-                      <span className="hidden sm:inline">View</span>
-                    </button>
+                    {invoice.order_id ? (
+                      <button
+                        onClick={() => navigate(`/admin?tab=orders&subtab=single_order&orderId=${invoice.order_id}`)}
+                        className="text-blue-600 hover:text-blue-800 flex items-center"
+                      >
+                        <Eye className="w-3 sm:w-4 h-3 sm:h-4 mr-1 flex-shrink-0" />
+                        <span className="hidden sm:inline">View</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleViewInvoice(invoice)}
+                        className="text-blue-600 hover:text-blue-800 flex items-center"
+                      >
+                        <Eye className="w-3 sm:w-4 h-3 sm:h-4 mr-1 flex-shrink-0" />
+                        <span className="hidden sm:inline">View</span>
+                      </button>
+                    )}
                     {invoice.order_id && (
                       <button
                         onClick={() => navigate(`/admin?tab=orders&subtab=single_order&orderId=${invoice.order_id}&edit=true`)}

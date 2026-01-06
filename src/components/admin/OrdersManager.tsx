@@ -185,10 +185,10 @@ export function OrdersManager() {
   }
 
   const tabs: { key: OrderTab; label: string }[] = [
+    { key: 'single_order', label: 'Single Order' },
     { key: 'draft', label: 'Draft (Needs Deposit)' },
     { key: 'pending_review', label: 'Pending Review' },
     { key: 'awaiting_customer_approval', label: 'Awaiting Customer Approval' },
-    { key: 'single_order', label: 'Single Order' },
     { key: 'current', label: 'Current (Today)' },
     { key: 'upcoming', label: 'Upcoming' },
     { key: 'all', label: 'All Orders' },

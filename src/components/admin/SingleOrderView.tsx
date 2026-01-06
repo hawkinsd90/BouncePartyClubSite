@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { PendingOrderCard } from './PendingOrderCard';
 import { supabase } from '../../lib/supabase';
-import { ORDER_STATUS } from '../../lib/constants/statuses';
 
 interface SingleOrderViewProps {
   orderId: string;
@@ -87,11 +86,6 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
     );
   }
 
-  const isPendingOrAwaiting =
-    order.status === ORDER_STATUS.PENDING ||
-    order.status === ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL ||
-    order.status === ORDER_STATUS.DRAFT;
-
   return (
     <div className="space-y-4">
       <button
@@ -102,60 +96,7 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
         Back to Orders
       </button>
 
-      {isPendingOrAwaiting ? (
-        <PendingOrderCard order={order} onUpdate={handleUpdate} openEditMode={openEditMode} />
-      ) : (
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold text-slate-900 mb-2">
-              Order #{order.id.slice(0, 8).toUpperCase()}
-            </h2>
-            <p className="text-slate-600">
-              {order.customers?.first_name} {order.customers?.last_name}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-6 text-sm">
-            <div>
-              <p className="text-slate-600 mb-1">Status</p>
-              <p className="font-semibold text-slate-900">{order.status}</p>
-            </div>
-            <div>
-              <p className="text-slate-600 mb-1">Event Date</p>
-              <p className="font-semibold text-slate-900">{order.event_date}</p>
-            </div>
-            <div>
-              <p className="text-slate-600 mb-1">Location</p>
-              <p className="font-semibold text-slate-900">
-                {order.addresses?.line1}<br />
-                {order.addresses?.city}, {order.addresses?.state} {order.addresses?.zip}
-              </p>
-            </div>
-            <div>
-              <p className="text-slate-600 mb-1">Total</p>
-              <p className="font-semibold text-slate-900">
-                ${((order.total_cents || 0) / 100).toFixed(2)}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-6 pt-6 border-t border-slate-200">
-            <h3 className="font-semibold text-slate-900 mb-3">Items</h3>
-            <ul className="space-y-2">
-              {order.order_items?.map((item: any) => (
-                <li key={item.id} className="flex justify-between text-sm">
-                  <span className="text-slate-700">
-                    {item.units?.name} ({item.wet_or_dry === 'water' ? 'Water' : 'Dry'})
-                  </span>
-                  <span className="font-medium text-slate-900">
-                    ${((item.unit_price_cents || 0) / 100).toFixed(2)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
+      <PendingOrderCard order={order} onUpdate={handleUpdate} openEditMode={openEditMode} />
     </div>
   );
 }
