@@ -32,6 +32,7 @@ interface SimpleInvoiceDisplayProps {
   generatorFeeWaived?: boolean;
   sameDayPickupFeeWaived?: boolean;
   showTip?: boolean;
+  showPricingNotice?: boolean;
   onPrint: () => void;
 }
 
@@ -56,10 +57,22 @@ export function SimpleInvoiceDisplay({
   generatorFeeWaived = false,
   sameDayPickupFeeWaived = false,
   showTip = false,
+  showPricingNotice = true,
   onPrint,
 }: SimpleInvoiceDisplayProps) {
   return (
-    <div className="bg-white rounded-lg shadow-md p-8">
+    <>
+      <style>{`
+        @media print {
+          .shadow-md {
+            box-shadow: none !important;
+          }
+          .rounded-lg {
+            border-radius: 0 !important;
+          }
+        }
+      `}</style>
+      <div className="bg-white rounded-lg shadow-md p-8">
       <div className="text-center mb-8">
         <img
           src="/bounce party club logo.png"
@@ -143,17 +156,19 @@ export function SimpleInvoiceDisplay({
             generatorFeeWaived={generatorFeeWaived}
             sameDayPickupFeeWaived={sameDayPickupFeeWaived}
           />
-          <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-            <p className="text-xs text-amber-800">
-              <strong>Pricing Notice:</strong> The prices shown are accurate as of{' '}
-              {new Date().toLocaleDateString('en-US', {
-                month: 'long',
-                day: 'numeric',
-                year: 'numeric',
-              })}
-              . Pricing is subject to change and will be confirmed at the time of booking.
-            </p>
-          </div>
+          {showPricingNotice && (
+            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-xs text-amber-800">
+                <strong>Pricing Notice:</strong> The prices shown are accurate as of{' '}
+                {new Date().toLocaleDateString('en-US', {
+                  month: 'long',
+                  day: 'numeric',
+                  year: 'numeric',
+                })}
+                . Pricing is subject to change and will be confirmed at the time of booking.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -164,11 +179,12 @@ export function SimpleInvoiceDisplay({
       <button
         type="button"
         onClick={onPrint}
-        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center"
+        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center no-print"
       >
         <Printer className="w-5 h-5 mr-2" />
         Print / Save PDF
       </button>
-    </div>
+      </div>
+    </>
   );
 }

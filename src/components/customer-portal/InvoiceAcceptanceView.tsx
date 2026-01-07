@@ -284,6 +284,7 @@ export function InvoiceAcceptanceView({
           generatorFeeWaived={order.generator_fee_waived || false}
           sameDayPickupFeeWaived={order.same_day_pickup_fee_waived || false}
           showTip={orderSummary ? orderSummary.tip > 0 : false}
+          showPricingNotice={false}
           onPrint={handlePrintInvoice}
         />
 

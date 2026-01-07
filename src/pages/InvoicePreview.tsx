@@ -129,9 +129,24 @@ export function InvoicePreview() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8 px-4">
-      {/* Action Bar - Hidden when printing */}
-      <div className="max-w-3xl mx-auto mb-4 flex justify-end gap-2 no-print">
+    <>
+      <style>{`
+        @media print {
+          body {
+            background: white !important;
+          }
+          .min-h-screen {
+            min-height: auto !important;
+            background: white !important;
+          }
+          .bg-slate-50 {
+            background: white !important;
+          }
+        }
+      `}</style>
+      <div className="min-h-screen bg-slate-50 py-8 px-4">
+        {/* Action Bar - Hidden when printing */}
+        <div className="max-w-3xl mx-auto mb-4 flex justify-end gap-2 no-print">
         <button
           onClick={handlePrint}
           className="flex items-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
@@ -176,6 +191,7 @@ export function InvoicePreview() {
           onPrint={handlePrint}
         />
       </div>
-    </div>
+      </div>
+    </>
   );
 }
