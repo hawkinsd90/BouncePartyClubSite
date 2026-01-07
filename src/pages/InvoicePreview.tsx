@@ -181,7 +181,7 @@ export function InvoicePreview() {
       </div>
 
       {/* Invoice Content */}
-      <div className="max-w-3xl mx-auto">
+      <div id="print-content-wrapper" className="max-w-3xl mx-auto">
         <SimpleInvoiceDisplay
           eventDate={eventData.event_date}
           startWindow={eventData.start_window}
