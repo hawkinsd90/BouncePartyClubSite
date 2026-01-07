@@ -18,9 +18,19 @@ export function InvoicePreview() {
 
       const parsedData = JSON.parse(storedData);
 
-      // Validate required data exists
-      if (!parsedData.quoteData || !parsedData.priceBreakdown || !parsedData.cart || !parsedData.contactData) {
-        setError('Incomplete invoice data. Please try again from the checkout page.');
+      // Support two data formats:
+      // 1. From checkout: quoteData, priceBreakdown, cart, contactData
+      // 2. From customer portal: orderData, orderItems, orderSummary, contactData
+      const hasCheckoutFormat = parsedData.quoteData && parsedData.priceBreakdown && parsedData.cart;
+      const hasPortalFormat = parsedData.orderData && parsedData.orderItems && parsedData.orderSummary;
+
+      if (!hasCheckoutFormat && !hasPortalFormat) {
+        setError('Incomplete invoice data. Please try again.');
+        return;
+      }
+
+      if (!parsedData.contactData) {
+        setError('Missing contact information. Please try again.');
         return;
       }
 
@@ -30,7 +40,7 @@ export function InvoicePreview() {
       // It will be cleared when the user closes the tab or navigates away
     } catch (err) {
       console.error('Error loading invoice data:', err);
-      setError('Failed to load invoice data. Please try again from the checkout page.');
+      setError('Failed to load invoice data. Please try again.');
     }
   }, []);
 
@@ -70,12 +80,45 @@ export function InvoicePreview() {
     );
   }
 
-  const { quoteData, priceBreakdown, cart, contactData } = data;
-  const canUseStakes = quoteData.can_stake ?? true;
-  const pickupPreference = quoteData.pickup_preference || (quoteData.location_type === 'commercial' ? 'same_day' : 'next_day');
-  const generatorQty = priceBreakdown.generator_fee_cents > 0 ? (quoteData.generator_qty || (quoteData.has_generator ? 1 : 0)) : 0;
+  // Handle both data formats
+  const isCheckoutFormat = !!data.quoteData;
 
-  const orderSummary = buildOrderSummary(priceBreakdown, cart, quoteData, 0);
+  let eventData, orderItems, orderSummary, contactData;
+
+  if (isCheckoutFormat) {
+    // From checkout page
+    const { quoteData, priceBreakdown, cart } = data;
+    contactData = data.contactData;
+
+    eventData = {
+      event_date: quoteData.event_date,
+      start_window: quoteData.start_window,
+      end_window: quoteData.end_window,
+      address_line1: quoteData.address_line1,
+      address_line2: quoteData.address_line2,
+      city: quoteData.city,
+      state: quoteData.state,
+      zip: quoteData.zip,
+      location_type: quoteData.location_type,
+      pickup_preference: quoteData.pickup_preference || (quoteData.location_type === 'commercial' ? 'same_day' : 'next_day'),
+      can_use_stakes: quoteData.can_stake ?? true,
+      generator_qty: priceBreakdown.generator_fee_cents > 0 ? (quoteData.generator_qty || (quoteData.has_generator ? 1 : 0)) : 0,
+      tax_waived: quoteData.tax_waived || false,
+      travel_fee_waived: quoteData.travel_fee_waived || false,
+      surface_fee_waived: quoteData.surface_fee_waived || false,
+      generator_fee_waived: quoteData.generator_fee_waived || false,
+      same_day_pickup_fee_waived: quoteData.same_day_pickup_fee_waived || false,
+    };
+
+    orderItems = cart;
+    orderSummary = buildOrderSummary(priceBreakdown, cart, quoteData, 0);
+  } else {
+    // From customer portal
+    eventData = data.orderData;
+    orderItems = data.orderItems;
+    orderSummary = data.orderSummary;
+    contactData = data.contactData;
+  }
 
   const handlePrint = () => {
     window.print();
@@ -110,26 +153,26 @@ export function InvoicePreview() {
       {/* Invoice Content */}
       <div className="max-w-3xl mx-auto">
         <SimpleInvoiceDisplay
-          eventDate={quoteData.event_date}
-          startWindow={quoteData.start_window}
-          endWindow={quoteData.end_window}
-          addressLine1={quoteData.address_line1}
-          addressLine2={quoteData.address_line2}
-          city={quoteData.city}
-          state={quoteData.state}
-          zip={quoteData.zip}
-          locationType={quoteData.location_type}
-          pickupPreference={pickupPreference}
-          canUseStakes={canUseStakes}
-          generatorQty={generatorQty}
-          orderItems={cart}
+          eventDate={eventData.event_date}
+          startWindow={eventData.start_window}
+          endWindow={eventData.end_window}
+          addressLine1={eventData.address_line1}
+          addressLine2={eventData.address_line2}
+          city={eventData.city}
+          state={eventData.state}
+          zip={eventData.zip}
+          locationType={eventData.location_type}
+          pickupPreference={eventData.pickup_preference}
+          canUseStakes={eventData.can_use_stakes}
+          generatorQty={eventData.generator_qty || 0}
+          orderItems={orderItems}
           orderSummary={orderSummary}
-          taxWaived={quoteData.tax_waived || false}
-          travelFeeWaived={quoteData.travel_fee_waived || false}
-          surfaceFeeWaived={quoteData.surface_fee_waived || false}
-          generatorFeeWaived={quoteData.generator_fee_waived || false}
-          sameDayPickupFeeWaived={quoteData.same_day_pickup_fee_waived || false}
-          showTip={false}
+          taxWaived={eventData.tax_waived || false}
+          travelFeeWaived={eventData.travel_fee_waived || false}
+          surfaceFeeWaived={eventData.surface_fee_waived || false}
+          generatorFeeWaived={eventData.generator_fee_waived || false}
+          sameDayPickupFeeWaived={eventData.same_day_pickup_fee_waived || false}
+          showTip={orderSummary ? orderSummary.tip > 0 : false}
           onPrint={handlePrint}
         />
       </div>

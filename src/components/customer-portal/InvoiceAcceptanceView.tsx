@@ -224,9 +224,9 @@ export function InvoiceAcceptanceView({
   };
 
   const handlePrintInvoice = () => {
-    // Prepare data for invoice preview
+    // Prepare data for invoice preview - use the existing orderSummary
     const invoiceData = {
-      quoteData: {
+      orderData: {
         event_date: order.event_date,
         start_window: order.start_window,
         end_window: order.end_window,
@@ -237,7 +237,7 @@ export function InvoiceAcceptanceView({
         zip: order.addresses?.zip || '',
         location_type: order.location_type,
         pickup_preference: order.pickup_preference,
-        can_stake: order.can_use_stakes,
+        can_use_stakes: order.can_use_stakes,
         generator_qty: order.generator_qty || 0,
         tax_waived: order.tax_waived || false,
         travel_fee_waived: order.travel_fee_waived || false,
@@ -245,10 +245,8 @@ export function InvoiceAcceptanceView({
         generator_fee_waived: order.generator_fee_waived || false,
         same_day_pickup_fee_waived: order.same_day_pickup_fee_waived || false,
       },
-      priceBreakdown: {
-        generator_fee_cents: 0, // This is used just for display logic
-      },
-      cart: orderItems,
+      orderItems,
+      orderSummary, // Pass the already-calculated summary
       contactData: {
         first_name: customerInfo.first_name || order.customers?.first_name || '',
         last_name: customerInfo.last_name || order.customers?.last_name || '',
