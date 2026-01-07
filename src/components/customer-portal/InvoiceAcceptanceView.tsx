@@ -223,6 +223,45 @@ export function InvoiceAcceptanceView({
     return paymentCents + tipCents;
   };
 
+  const handlePrintInvoice = () => {
+    // Prepare data for invoice preview
+    const invoiceData = {
+      quoteData: {
+        event_date: order.event_date,
+        start_window: order.start_window,
+        end_window: order.end_window,
+        address_line1: order.addresses?.line1 || '',
+        address_line2: order.addresses?.line2 || '',
+        city: order.addresses?.city || '',
+        state: order.addresses?.state || '',
+        zip: order.addresses?.zip || '',
+        location_type: order.location_type,
+        pickup_preference: order.pickup_preference,
+        can_stake: order.can_use_stakes,
+        generator_qty: order.generator_qty || 0,
+        tax_waived: order.tax_waived || false,
+        travel_fee_waived: order.travel_fee_waived || false,
+        surface_fee_waived: order.surface_fee_waived || false,
+        generator_fee_waived: order.generator_fee_waived || false,
+        same_day_pickup_fee_waived: order.same_day_pickup_fee_waived || false,
+      },
+      priceBreakdown: {
+        generator_fee_cents: 0, // This is used just for display logic
+      },
+      cart: orderItems,
+      contactData: {
+        first_name: customerInfo.first_name || order.customers?.first_name || '',
+        last_name: customerInfo.last_name || order.customers?.last_name || '',
+        email: customerInfo.email || order.customers?.email || '',
+        phone: customerInfo.phone || order.customers?.phone || '',
+        business_name: customerInfo.business_name || order.customers?.business_name || '',
+      },
+    };
+
+    sessionStorage.setItem('invoice-preview-data', JSON.stringify(invoiceData));
+    window.open('/invoice-preview', '_blank');
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto" id="print-content-wrapper">
@@ -247,7 +286,7 @@ export function InvoiceAcceptanceView({
           generatorFeeWaived={order.generator_fee_waived || false}
           sameDayPickupFeeWaived={order.same_day_pickup_fee_waived || false}
           showTip={orderSummary ? orderSummary.tip > 0 : false}
-          onPrint={() => window.print()}
+          onPrint={handlePrintInvoice}
         />
 
         <div className="bg-white rounded-lg shadow-md p-8 mt-6 no-print">
