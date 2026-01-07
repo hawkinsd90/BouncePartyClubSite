@@ -61,51 +61,7 @@ export function SimpleInvoiceDisplay({
   onPrint,
 }: SimpleInvoiceDisplayProps) {
   return (
-    <>
-      <style>{`
-        @media print {
-          .print-logo {
-            height: 3rem !important;
-            margin-bottom: 0.5rem !important;
-          }
-          .print-title {
-            font-size: 1.5rem !important;
-            margin-bottom: 0.5rem !important;
-          }
-          .print-subtitle {
-            font-size: 0.75rem !important;
-          }
-          .print-section {
-            padding: 0.75rem !important;
-            background: transparent !important;
-            border: 1px solid #e5e7eb !important;
-            border-radius: 0 !important;
-            margin-bottom: 1rem !important;
-            page-break-inside: avoid !important;
-          }
-          .print-section-title {
-            font-size: 1rem !important;
-            margin-bottom: 0.5rem !important;
-          }
-          .print-item {
-            padding: 0.5rem !important;
-            background: transparent !important;
-            border: 1px solid #e5e7eb !important;
-            border-radius: 0 !important;
-            margin-bottom: 0.5rem !important;
-          }
-          .print-container {
-            padding: 0 !important;
-            box-shadow: none !important;
-            border-radius: 0 !important;
-          }
-          .print-header {
-            margin-bottom: 1rem !important;
-            page-break-after: avoid !important;
-          }
-        }
-      `}</style>
-      <div className="bg-white rounded-lg shadow-md p-8 print-container">
+    <div className="bg-white rounded-lg shadow-md p-8 print-container">
       <div className="text-center mb-8 print-header">
         <img
           src="/bounce party club logo.png"
@@ -217,7 +173,6 @@ export function SimpleInvoiceDisplay({
         <Printer className="w-5 h-5 mr-2" />
         Print / Save PDF
       </button>
-      </div>
-    </>
+    </div>
   );
 }

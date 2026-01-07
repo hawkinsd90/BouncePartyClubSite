@@ -13,28 +13,7 @@ export function RentalTerms() {
   const depositAmount = formatCurrency(depositCents);
 
   return (
-    <>
-      <style>{`
-        @media print {
-          .print-terms-container {
-            background: transparent !important;
-            border-radius: 0 !important;
-            box-shadow: none !important;
-            padding: 0.75rem !important;
-          }
-          .print-terms-title {
-            font-size: 1rem !important;
-            margin-bottom: 0.5rem !important;
-          }
-          .print-terms-icon {
-            display: none !important;
-          }
-          .print-terms-content {
-            font-size: 0.75rem !important;
-          }
-        }
-      `}</style>
-      <div className="bg-white rounded-xl shadow-md p-6 print-terms-container">
+    <div className="bg-white rounded-xl shadow-md p-6 print-terms-container">
         <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center print-terms-title">
           <FileText className="w-6 h-6 mr-2 text-slate-600 print-terms-icon" />
           Rental Terms & Policies
@@ -90,6 +69,5 @@ export function RentalTerms() {
         </div>
       </div>
     </div>
-    </>
   );
 }

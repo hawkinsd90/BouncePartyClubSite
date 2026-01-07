@@ -55,32 +55,7 @@ export function OrderSummary({
   const addedItems = changelog.filter(c => c.field_changed === 'order_items' && c.new_value && !c.old_value);
 
   return (
-    <>
-      <style>{`
-        @media print {
-          .print-summary-container {
-            border: none !important;
-            background: transparent !important;
-            border-radius: 0 !important;
-          }
-          .print-summary-header {
-            border-bottom: 1px solid #e5e7eb !important;
-            padding: 0.5rem 0 !important;
-          }
-          .print-summary-content {
-            padding: 0.75rem 0 !important;
-          }
-          .print-badge {
-            display: none !important;
-          }
-          .print-highlight {
-            background: transparent !important;
-            padding: 0 !important;
-            margin: 0 !important;
-          }
-        }
-      `}</style>
-      <div className={`bg-white rounded-lg border border-slate-200 print-summary-container ${className}`}>
+    <div className={`bg-white rounded-lg border border-slate-200 print-summary-container ${className}`}>
         {title && (
           <div className="px-6 py-4 border-b border-slate-200 print-summary-header">
             <h3 className="text-lg font-bold text-slate-900">{title}</h3>
@@ -283,6 +258,5 @@ export function OrderSummary({
         )}
       </div>
     </div>
-    </>
   );
 }
