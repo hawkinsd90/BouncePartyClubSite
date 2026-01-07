@@ -64,35 +64,62 @@ export function SimpleInvoiceDisplay({
     <>
       <style>{`
         @media print {
-          .shadow-md {
-            box-shadow: none !important;
+          .print-logo {
+            height: 3rem !important;
+            margin-bottom: 0.5rem !important;
           }
-          .rounded-lg {
+          .print-title {
+            font-size: 1.5rem !important;
+            margin-bottom: 0.5rem !important;
+          }
+          .print-subtitle {
+            font-size: 0.75rem !important;
+          }
+          .print-section {
+            padding: 0.75rem !important;
+            background: transparent !important;
+            border: 1px solid #e5e7eb !important;
+            border-radius: 0 !important;
+            margin-bottom: 1rem !important;
+            page-break-inside: avoid !important;
+          }
+          .print-section-title {
+            font-size: 1rem !important;
+            margin-bottom: 0.5rem !important;
+          }
+          .print-item {
+            padding: 0.5rem !important;
+            background: transparent !important;
+            border: 1px solid #e5e7eb !important;
+            border-radius: 0 !important;
+            margin-bottom: 0.5rem !important;
+          }
+          .print-container {
+            padding: 0 !important;
+            box-shadow: none !important;
             border-radius: 0 !important;
           }
-          .bg-white {
-            background: white !important;
-          }
-          .p-8 {
-            padding: 1rem !important;
+          .print-header {
+            margin-bottom: 1rem !important;
+            page-break-after: avoid !important;
           }
         }
       `}</style>
-      <div className="bg-white rounded-lg shadow-md p-8">
-      <div className="text-center mb-8">
+      <div className="bg-white rounded-lg shadow-md p-8 print-container">
+      <div className="text-center mb-8 print-header">
         <img
           src="/bounce party club logo.png"
           alt="Bounce Party Club"
-          className="h-20 w-auto mx-auto mb-4"
+          className="h-20 w-auto mx-auto mb-4 print-logo"
         />
-        <h1 className="text-3xl font-bold text-slate-900 mb-2">
+        <h1 className="text-3xl font-bold text-slate-900 mb-2 print-title">
           Invoice from Bounce Party Club
         </h1>
-        <p className="text-slate-600">Review and accept your order details below</p>
+        <p className="text-slate-600 print-subtitle">Review and accept your order details below</p>
       </div>
 
-      <div className="mb-8 p-6 bg-slate-50 rounded-lg">
-        <h2 className="text-xl font-bold text-slate-900 mb-4">Event Details</h2>
+      <div className="mb-8 p-6 bg-slate-50 rounded-lg print-section">
+        <h2 className="text-xl font-bold text-slate-900 mb-4 print-section-title">Event Details</h2>
         <div className="space-y-2 text-sm">
           <p>
             <strong>Date:</strong> {eventDate}
@@ -125,13 +152,13 @@ export function SimpleInvoiceDisplay({
         </div>
       </div>
 
-      <div className="mb-8">
-        <h2 className="text-xl font-bold text-slate-900 mb-4">Order Items</h2>
+      <div className="mb-8 print-section">
+        <h2 className="text-xl font-bold text-slate-900 mb-4 print-section-title">Order Items</h2>
         <div className="space-y-3">
           {orderItems.map((item, index) => (
             <div
               key={item.id || index}
-              className="flex justify-between items-center p-4 bg-slate-50 rounded-lg"
+              className="flex justify-between items-center p-4 bg-slate-50 rounded-lg print-item"
             >
               <div>
                 <p className="font-medium text-slate-900">
@@ -150,7 +177,7 @@ export function SimpleInvoiceDisplay({
       </div>
 
       {orderSummary && (
-        <div className="mb-8">
+        <div className="mb-8 print-section">
           <OrderSummary
             summary={orderSummary}
             showDeposit={true}
@@ -163,7 +190,7 @@ export function SimpleInvoiceDisplay({
             sameDayPickupFeeWaived={sameDayPickupFeeWaived}
           />
           {showPricingNotice && (
-            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg print-item">
               <p className="text-xs text-amber-800">
                 <strong>Pricing Notice:</strong> The prices shown are accurate as of{' '}
                 {new Date().toLocaleDateString('en-US', {
@@ -178,7 +205,7 @@ export function SimpleInvoiceDisplay({
         </div>
       )}
 
-      <div className="mb-8">
+      <div className="mb-8 print-section">
         <RentalTerms />
       </div>
 
