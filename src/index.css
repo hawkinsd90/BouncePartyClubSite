@@ -246,52 +246,62 @@
 
   /* Invoice Print Styles */
   .print-logo {
-    height: 2.5rem !important;
-    margin-bottom: 0.25rem !important;
+    height: 1.5rem !important;
+    margin-bottom: 0.125rem !important;
   }
 
   .print-title {
-    font-size: 1.25rem !important;
-    margin-bottom: 0.25rem !important;
+    font-size: 1rem !important;
+    margin-bottom: 0.125rem !important;
   }
 
   .print-subtitle {
-    font-size: 0.7rem !important;
-    margin-bottom: 0.5rem !important;
+    display: none !important;
   }
 
   .print-section {
-    padding: 0.5rem !important;
+    padding: 0.25rem 0 !important;
     background: transparent !important;
     border: none !important;
     border-radius: 0 !important;
-    margin-bottom: 0.5rem !important;
+    margin-bottom: 0.375rem !important;
     page-break-inside: avoid !important;
   }
 
   .print-section-title {
-    font-size: 0.875rem !important;
-    margin-bottom: 0.25rem !important;
+    font-size: 0.75rem !important;
+    margin-bottom: 0.125rem !important;
     font-weight: 600 !important;
   }
 
   .print-item {
-    padding: 0.25rem !important;
+    padding: 0.125rem 0 !important;
     background: transparent !important;
     border: none !important;
     border-radius: 0 !important;
-    margin-bottom: 0.25rem !important;
+    margin-bottom: 0.125rem !important;
   }
 
   .print-container {
     padding: 0 !important;
     box-shadow: none !important;
     border-radius: 0 !important;
+    max-width: 100% !important;
   }
 
   .print-header {
-    margin-bottom: 0.5rem !important;
+    margin-bottom: 0.375rem !important;
     page-break-after: avoid !important;
+  }
+
+  /* Reduce spacing in sections */
+  .print-section .text-sm,
+  .print-section p,
+  .print-section .space-y-2 > *,
+  .print-section .space-y-3 > * {
+    font-size: 0.7rem !important;
+    line-height: 1.2 !important;
+    margin-bottom: 0.0625rem !important;
   }
 
   /* Order Summary Print Styles */
@@ -300,17 +310,41 @@
     background: transparent !important;
     border-radius: 0 !important;
     padding: 0 !important;
-    margin-bottom: 0.5rem !important;
+    margin-bottom: 0.25rem !important;
   }
 
   .print-summary-header {
     border-bottom: 1px solid #e5e7eb !important;
-    padding: 0.25rem 0 !important;
+    padding: 0.125rem 0 !important;
+  }
+
+  .print-summary-header h3 {
+    font-size: 0.75rem !important;
   }
 
   .print-summary-content {
-    padding: 0.5rem 0 !important;
-    font-size: 0.75rem !important;
+    padding: 0.25rem 0 !important;
+    font-size: 0.65rem !important;
+    line-height: 1.1 !important;
+  }
+
+  .print-summary-content h4 {
+    font-size: 0.7rem !important;
+    margin-bottom: 0.125rem !important;
+  }
+
+  .print-summary-content .space-y-2,
+  .print-summary-content .space-y-4 {
+    gap: 0.0625rem !important;
+  }
+
+  .print-summary-content .pt-3,
+  .print-summary-content .pt-4 {
+    padding-top: 0.125rem !important;
+  }
+
+  .print-summary-content .border-t {
+    margin-top: 0.125rem !important;
   }
 
   .print-badge {
@@ -328,13 +362,13 @@
     background: transparent !important;
     border-radius: 0 !important;
     box-shadow: none !important;
-    padding: 0.5rem 0 !important;
+    padding: 0.25rem 0 !important;
     page-break-before: auto !important;
   }
 
   .print-terms-title {
-    font-size: 0.875rem !important;
-    margin-bottom: 0.25rem !important;
+    font-size: 0.7rem !important;
+    margin-bottom: 0.125rem !important;
   }
 
   .print-terms-icon {
@@ -342,32 +376,66 @@
   }
 
   .print-terms-content {
-    font-size: 0.65rem !important;
-    line-height: 1.2 !important;
+    font-size: 0.55rem !important;
+    line-height: 1.15 !important;
   }
 
   .print-terms-content h3 {
-    font-size: 0.75rem !important;
-    margin-bottom: 0.125rem !important;
-    margin-top: 0.25rem !important;
+    font-size: 0.625rem !important;
+    margin-bottom: 0.0625rem !important;
+    margin-top: 0.125rem !important;
   }
 
   .print-terms-content p {
-    margin-bottom: 0.125rem !important;
+    margin-bottom: 0.0625rem !important;
   }
 
   .print-terms-content ul {
-    margin-top: 0.125rem !important;
-    margin-bottom: 0.125rem !important;
+    margin-top: 0.0625rem !important;
+    margin-bottom: 0.0625rem !important;
+    padding-left: 1rem !important;
   }
 
   .print-terms-content li {
-    margin-bottom: 0.0625rem !important;
+    margin-bottom: 0.03125rem !important;
   }
 
   .print-terms-content .border-t {
     border-top: 1px solid #e5e7eb !important;
-    padding-top: 0.25rem !important;
+    padding-top: 0.125rem !important;
+    margin-top: 0.125rem !important;
+  }
+
+  /* Pricing Notice - make it more compact */
+  .print-item.bg-amber-50 {
+    font-size: 0.55rem !important;
+    padding: 0.125rem 0.25rem !important;
+    background: transparent !important;
+    border: 1px solid #d1d5db !important;
+  }
+
+  /* Clean up waived items display */
+  .line-through {
+    text-decoration: line-through !important;
+    opacity: 0.6 !important;
+  }
+
+  /* Remove color from waived items in print */
+  .print-summary-content .text-red-600 {
+    color: #666 !important;
+  }
+
+  /* Compact all spacing classes in print */
+  .print-summary-content .mb-2,
+  .print-summary-content .mb-3,
+  .print-summary-content .mb-4 {
+    margin-bottom: 0.0625rem !important;
+  }
+
+  .print-summary-content .mt-2,
+  .print-summary-content .mt-3,
+  .print-summary-content .mt-4 {
+    margin-top: 0.0625rem !important;
   }
 
   .print-portrait {
