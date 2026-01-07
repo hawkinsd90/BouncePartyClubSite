@@ -246,17 +246,20 @@
 
   /* Invoice Print Styles */
   .print-logo {
-    height: 1.5rem !important;
-    margin-bottom: 0.125rem !important;
+    height: 4rem !important;
+    width: auto !important;
+    max-width: 100% !important;
+    margin-bottom: 0.5rem !important;
   }
 
   .print-title {
-    font-size: 1rem !important;
-    margin-bottom: 0.125rem !important;
+    font-size: 1.5rem !important;
+    margin-bottom: 0.25rem !important;
   }
 
   .print-subtitle {
-    display: none !important;
+    font-size: 0.875rem !important;
+    margin-bottom: 0.5rem !important;
   }
 
   .print-section {
