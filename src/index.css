@@ -246,7 +246,7 @@
 
   /* Invoice Print Styles */
   .print-logo {
-    height: 4rem !important;
+    height: 2.5rem !important;
     width: auto !important;
     max-width: 100% !important;
     margin-bottom: 0.5rem !important;
