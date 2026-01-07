@@ -118,16 +118,19 @@ export function InvoicePreview() {
           city={quoteData.city}
           state={quoteData.state}
           zip={quoteData.zip}
-          firstName={contactData.first_name}
-          lastName={contactData.last_name}
-          email={contactData.email}
-          phone={contactData.phone}
-          businessName={contactData.business_name}
-          orderSummary={orderSummary}
-          generatorQty={generatorQty}
-          sandbags={!canUseStakes}
+          locationType={quoteData.location_type}
           pickupPreference={pickupPreference}
-          specialInstructions={quoteData.special_instructions}
+          canUseStakes={canUseStakes}
+          generatorQty={generatorQty}
+          orderItems={cart}
+          orderSummary={orderSummary}
+          taxWaived={quoteData.tax_waived || false}
+          travelFeeWaived={quoteData.travel_fee_waived || false}
+          surfaceFeeWaived={quoteData.surface_fee_waived || false}
+          generatorFeeWaived={quoteData.generator_fee_waived || false}
+          sameDayPickupFeeWaived={quoteData.same_day_pickup_fee_waived || false}
+          showTip={false}
+          onPrint={handlePrint}
         />
       </div>
     </div>
