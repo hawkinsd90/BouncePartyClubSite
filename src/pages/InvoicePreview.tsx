@@ -130,36 +130,7 @@ export function InvoicePreview() {
 
   return (
     <>
-      <style>{`
-        @media print {
-          body {
-            background: white !important;
-          }
-          body > * {
-            display: block !important;
-          }
-          #root {
-            display: block !important;
-          }
-          .min-h-screen {
-            min-height: auto !important;
-            background: white !important;
-            padding: 0 !important;
-          }
-          .bg-slate-50 {
-            background: white !important;
-          }
-          .py-8 {
-            padding-top: 0 !important;
-            padding-bottom: 0 !important;
-          }
-          .px-4 {
-            padding-left: 0 !important;
-            padding-right: 0 !important;
-          }
-        }
-      `}</style>
-      <div className="min-h-screen bg-slate-50 py-8 px-4">
+      <div data-print-route="true" className="min-h-screen bg-slate-50 py-8 px-4">
         {/* Action Bar - Hidden when printing */}
         <div className="max-w-3xl mx-auto mb-4 flex justify-end gap-2 no-print">
         <button

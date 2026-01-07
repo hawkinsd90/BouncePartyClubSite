@@ -33,8 +33,17 @@
     background: white !important;
   }
 
-  body > *:not(#print-content-wrapper) {
+  body > *:not(#root):not(#print-content-wrapper) {
     display: none !important;
+  }
+
+  #root {
+    display: block !important;
+  }
+
+  #root * {
+    display: block !important;
+    visibility: visible !important;
   }
 
   #print-content-wrapper {
@@ -147,6 +156,8 @@
     padding: 0 !important;
   }
 
+  #root .no-print,
+  #root .no-print *,
   .no-print,
   .no-print * {
     display: none !important;
