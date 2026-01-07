@@ -70,6 +70,12 @@ export function SimpleInvoiceDisplay({
           .rounded-lg {
             border-radius: 0 !important;
           }
+          .bg-white {
+            background: white !important;
+          }
+          .p-8 {
+            padding: 1rem !important;
+          }
         }
       `}</style>
       <div className="bg-white rounded-lg shadow-md p-8">

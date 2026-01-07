@@ -135,12 +135,27 @@ export function InvoicePreview() {
           body {
             background: white !important;
           }
+          body > * {
+            display: block !important;
+          }
+          #root {
+            display: block !important;
+          }
           .min-h-screen {
             min-height: auto !important;
             background: white !important;
+            padding: 0 !important;
           }
           .bg-slate-50 {
             background: white !important;
+          }
+          .py-8 {
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+          }
+          .px-4 {
+            padding-left: 0 !important;
+            padding-right: 0 !important;
           }
         }
       `}</style>
