@@ -1,15 +1,24 @@
-import { useEffect, useState } from 'react';
-import { Printer, X, AlertTriangle } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Printer, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { SimpleInvoiceDisplay } from '../components/shared/SimpleInvoiceDisplay';
 import { buildOrderSummary } from '../lib/checkoutUtils';
 
 export function InvoicePreview() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const returnTo = useMemo(() => {
+    // Prefer the explicit return route if it exists
+    const stored = sessionStorage.getItem('invoice-preview-return-to');
+    return stored || '/checkout';
+  }, []);
+
   useEffect(() => {
     try {
-      // Get data from sessionStorage (more reliable than localStorage for this use case)
       const storedData = sessionStorage.getItem('invoice-preview-data');
       if (!storedData) {
         setError('No invoice data found. Please try again from the checkout page.');
@@ -18,9 +27,6 @@ export function InvoicePreview() {
 
       const parsedData = JSON.parse(storedData);
 
-      // Support two data formats:
-      // 1. From checkout: quoteData, priceBreakdown, cart, contactData
-      // 2. From customer portal: orderData, orderItems, orderSummary, contactData
       const hasCheckoutFormat = parsedData.quoteData && parsedData.priceBreakdown && parsedData.cart;
       const hasPortalFormat = parsedData.orderData && parsedData.orderItems && parsedData.orderSummary;
 
@@ -35,9 +41,6 @@ export function InvoicePreview() {
       }
 
       setData(parsedData);
-
-      // Don't remove immediately - keep it for page refreshes
-      // It will be cleared when the user closes the tab or navigates away
     } catch (err) {
       console.error('Error loading invoice data:', err);
       setError('Failed to load invoice data. Please try again.');
@@ -48,21 +51,31 @@ export function InvoicePreview() {
   useEffect(() => {
     return () => {
       sessionStorage.removeItem('invoice-preview-data');
+      sessionStorage.removeItem('invoice-preview-return-to');
     };
   }, []);
 
+  const handlePrint = () => {
+    document.body.classList.add('print-invoice-preview');
+    window.print();
+    setTimeout(() => document.body.classList.remove('print-invoice-preview'), 250);
+  };
+
+  const handleBack = () => navigate(returnTo);
+
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
         <div className="text-center max-w-md">
           <AlertTriangle className="w-16 h-16 text-amber-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-slate-900 mb-2">Unable to Load Invoice</h2>
           <p className="text-slate-600 mb-4">{error}</p>
           <button
-            onClick={() => window.close()}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
+            onClick={handleBack}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors inline-flex items-center"
           >
-            Close Window
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
           </button>
         </div>
       </div>
@@ -80,15 +93,12 @@ export function InvoicePreview() {
     );
   }
 
-  // Handle both data formats
   const isCheckoutFormat = !!data.quoteData;
 
-  let eventData, orderItems, orderSummary, contactData;
+  let eventData, orderItems, orderSummary;
 
   if (isCheckoutFormat) {
-    // From checkout page
     const { quoteData, priceBreakdown, cart } = data;
-    contactData = data.contactData;
 
     eventData = {
       event_date: quoteData.event_date,
@@ -100,9 +110,14 @@ export function InvoicePreview() {
       state: quoteData.state,
       zip: quoteData.zip,
       location_type: quoteData.location_type,
-      pickup_preference: quoteData.pickup_preference || (quoteData.location_type === 'commercial' ? 'same_day' : 'next_day'),
+      pickup_preference:
+        quoteData.pickup_preference ||
+        (quoteData.location_type === 'commercial' ? 'same_day' : 'next_day'),
       can_use_stakes: quoteData.can_stake ?? true,
-      generator_qty: priceBreakdown.generator_fee_cents > 0 ? (quoteData.generator_qty || (quoteData.has_generator ? 1 : 0)) : 0,
+      generator_qty:
+        priceBreakdown.generator_fee_cents > 0
+          ? quoteData.generator_qty || (quoteData.has_generator ? 1 : 0)
+          : 0,
       tax_waived: quoteData.tax_waived || false,
       travel_fee_waived: quoteData.travel_fee_waived || false,
       surface_fee_waived: quoteData.surface_fee_waived || false,
@@ -113,26 +128,32 @@ export function InvoicePreview() {
     orderItems = cart;
     orderSummary = buildOrderSummary(priceBreakdown, cart, quoteData, 0);
   } else {
-    // From customer portal
     eventData = data.orderData;
     orderItems = data.orderItems;
     orderSummary = data.orderSummary;
-    contactData = data.contactData;
   }
 
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleClose = () => {
-    window.close();
-  };
-
   return (
-    <>
-      <div data-print-route="true" className="min-h-screen bg-slate-50 py-8 px-4">
-        {/* Action Bar - Hidden when printing */}
-        <div className="max-w-3xl mx-auto mb-4 flex justify-end gap-2 no-print">
+    <div className="invoice-preview-route min-h-screen bg-slate-50 py-6 px-4">
+      {/* Top Bar (hidden when printing) */}
+      <div className="max-w-3xl mx-auto mb-4 flex items-center justify-between no-print">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleBack}
+            className="inline-flex items-center bg-white hover:bg-slate-50 text-slate-700 font-semibold py-2 px-3 rounded-lg border border-slate-200 transition-colors"
+            aria-label="Back"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </button>
+
+          <div className="text-sm text-slate-600">
+            <span className="font-semibold text-slate-900">Invoice Preview</span>
+            <span className="mx-2 text-slate-300">•</span>
+            <span>Print / save as PDF</span>
+          </div>
+        </div>
+
         <button
           onClick={handlePrint}
           className="flex items-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
@@ -140,14 +161,6 @@ export function InvoicePreview() {
         >
           <Printer className="w-4 h-4 mr-2" />
           Print / Save PDF
-        </button>
-        <button
-          onClick={handleClose}
-          className="flex items-center bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 px-4 rounded-lg transition-colors"
-          aria-label="Close window"
-        >
-          <X className="w-4 h-4 mr-2" />
-          Close
         </button>
       </div>
 
@@ -177,7 +190,6 @@ export function InvoicePreview() {
           onPrint={handlePrint}
         />
       </div>
-      </div>
-    </>
+    </div>
   );
 }

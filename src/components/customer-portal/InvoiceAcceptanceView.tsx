@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/pricing';
 import { Loader2, CreditCard, CheckCircle, AlertCircle, Shield } from 'lucide-react';
@@ -10,6 +11,7 @@ import { PaymentAmountSelector } from './PaymentAmountSelector';
 import { CustomerInfoForm } from './CustomerInfoForm';
 import { CancelOrderModal } from './CancelOrderModal';
 import { showToast } from '../../lib/notifications';
+
 
 interface InvoiceAcceptanceViewProps {
   order: any;
@@ -47,6 +49,7 @@ export function InvoiceAcceptanceView({
   const [customTipAmount, setCustomTipAmount] = useState('');
   const [showCancelModal, setShowCancelModal] = useState(false);
 
+  const navigate = useNavigate();
   const needsCustomerInfo = invoiceLink && !invoiceLink.customer_filled;
 
   async function handleAcceptInvoice() {
@@ -224,7 +227,6 @@ export function InvoiceAcceptanceView({
   };
 
   const handlePrintInvoice = () => {
-    // Prepare data for invoice preview - use the existing orderSummary
     const invoiceData = {
       orderData: {
         event_date: order.event_date,
@@ -246,7 +248,7 @@ export function InvoiceAcceptanceView({
         same_day_pickup_fee_waived: order.same_day_pickup_fee_waived || false,
       },
       orderItems,
-      orderSummary, // Pass the already-calculated summary
+      orderSummary,
       contactData: {
         first_name: customerInfo.first_name || order.customers?.first_name || '',
         last_name: customerInfo.last_name || order.customers?.last_name || '',
@@ -257,8 +259,11 @@ export function InvoiceAcceptanceView({
     };
 
     sessionStorage.setItem('invoice-preview-data', JSON.stringify(invoiceData));
-    window.open('/invoice-preview', '_blank');
+    sessionStorage.setItem('invoice-preview-return-to', `/customer-portal/${order.id}`);
+
+    navigate('/invoice-preview');
   };
+
 
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">

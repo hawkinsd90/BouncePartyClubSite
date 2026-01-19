@@ -25,6 +25,8 @@ const CustomerPortal = lazy(() => import('./pages/CustomerPortal').then(m => ({ 
 const CustomerDashboard = lazy(() => import('./pages/CustomerDashboard').then(m => ({ default: m.CustomerDashboard })));
 const Sign = lazy(() => import('./pages/Sign'));
 const InvoicePreview = lazy(() => import('./pages/InvoicePreview').then(m => ({ default: m.InvoicePreview })));
+const MenuPreview = lazy(() => import('./pages/MenuPreview').then(m => ({ default: m.MenuPreview })));
+
 
 function App() {
   return (
@@ -46,6 +48,7 @@ function App() {
           <Route path="/invoice/:token" element={<CustomerPortal />} />
           <Route path="/invoice/view/:orderId" element={<Invoice />} />
           <Route path="/invoice-preview" element={<InvoicePreview />} />
+          <Route path="/menu-preview" element={<MenuPreview />} />
           <Route path="/sign/:orderId" element={<Sign />} />
           <Route path="/customer-portal/:orderId" element={<CustomerPortal />} />
           <Route path="/customer-portal" element={<CustomerPortal />} />

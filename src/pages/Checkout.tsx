@@ -56,8 +56,12 @@ export function Checkout() {
     };
     sessionStorage.setItem('invoice-preview-data', JSON.stringify(invoiceData));
 
-    // Open in new tab
-    window.open('/invoice-preview', '_blank');
+    // Store where to return when user clicks Back
+    const returnTo = window.location.pathname + window.location.search + window.location.hash;
+    sessionStorage.setItem('invoice-preview-return-to', returnTo);
+
+    // Same tab navigation (no new tab)
+    navigate('/invoice-preview');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

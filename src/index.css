@@ -13,455 +13,9 @@
   }
 }
 
-@media print {
-  @page {
-    margin: 0.5in;
-    size: letter;
-  }
-
-  * {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-    color-adjust: exact !important;
-  }
-
-  html, body {
-    height: auto !important;
-    overflow: visible !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    background: white !important;
-  }
-
-  body > *:not(#root):not(#print-content-wrapper) {
-    display: none !important;
-  }
-
-  #root {
-    display: block !important;
-  }
-
-  #root * {
-    display: block !important;
-    visibility: visible !important;
-  }
-
-  #print-content-wrapper {
-    display: block !important;
-    visibility: visible !important;
-    position: static !important;
-    transform: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    width: 100% !important;
-    height: auto !important;
-    max-width: none !important;
-    max-height: none !important;
-    overflow: visible !important;
-    background: white !important;
-    z-index: 0 !important;
-    left: 0 !important;
-    top: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    flex: none !important;
-    align-items: flex-start !important;
-    justify-content: flex-start !important;
-  }
-
-  #print-content-wrapper * {
-    visibility: visible !important;
-  }
-
-  #print-content-wrapper > * {
-    position: static !important;
-    display: block !important;
-    max-width: 8.5in !important;
-    width: 100% !important;
-    max-height: none !important;
-    height: auto !important;
-    overflow: visible !important;
-    transform: none !important;
-    margin: 0 auto !important;
-    padding: 0 !important;
-    background: white !important;
-  }
-
-  #print-content-wrapper > * > * {
-    display: block !important;
-    visibility: visible !important;
-    position: static !important;
-  }
-
-  #print-content-wrapper img {
-    max-width: 100% !important;
-    height: auto !important;
-    display: block !important;
-  }
-
-  #print-content-wrapper .p-4,
-  #print-content-wrapper .p-6,
-  #print-content-wrapper .p-8 {
-    padding: 1rem !important;
-  }
-
-  #print-content-wrapper .space-y-2 > *,
-  #print-content-wrapper .space-y-3 > *,
-  #print-content-wrapper .space-y-4 > * {
-    margin-top: 0.5rem !important;
-  }
-
-  #print-content-wrapper .mb-8 {
-    margin-bottom: 1rem !important;
-  }
-
-  #print-content-wrapper .mb-6 {
-    margin-bottom: 0.75rem !important;
-  }
-
-  #print-content-wrapper .mb-4 {
-    margin-bottom: 0.5rem !important;
-  }
-
-  #printable-invoice,
-  .print-document {
-    visibility: visible !important;
-    position: relative !important;
-    left: auto !important;
-    top: auto !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    display: block !important;
-    transform: none !important;
-  }
-
-  #printable-invoice *,
-  .print-document * {
-    visibility: visible !important;
-    transform: none !important;
-  }
-
-  #printable-invoice > div,
-  .print-document > div {
-    max-width: 100% !important;
-    margin: 0 !important;
-    page-break-inside: avoid !important;
-    transform: none !important;
-  }
-
-  .no-print-padding {
-    transform: none !important;
-    padding: 0 !important;
-  }
-
-  #root .no-print,
-  #root .no-print *,
-  .no-print,
-  .no-print * {
-    display: none !important;
-    visibility: hidden !important;
-  }
-
-  .no-print-padding {
-    padding: 0 !important;
-  }
-
-  .print-only {
-    display: block !important;
-  }
-
-  .page-break {
-    page-break-after: always !important;
-  }
-
-  .avoid-break {
-    page-break-inside: avoid !important;
-  }
-
-  .overflow-hidden {
-    overflow: visible !important;
-  }
-
-  .rounded-lg,
-  .rounded-xl {
-    border-radius: 0 !important;
-  }
-
-  .shadow-lg,
-  .shadow-xl,
-  .shadow-2xl,
-  .shadow-md {
-    box-shadow: none !important;
-  }
-
-  .fixed,
-  .absolute,
-  .sticky {
-    position: static !important;
-  }
-
-  .z-50,
-  .z-10 {
-    z-index: 0 !important;
-  }
-
-  .flex,
-  .inline-flex {
-    display: block !important;
-  }
-
-  .grid {
-    display: block !important;
-  }
-
-  .items-center,
-  .justify-center,
-  .justify-between {
-    align-items: flex-start !important;
-    justify-content: flex-start !important;
-  }
-
-  /* Ensure all content blocks are visible */
-  .bg-slate-50,
-  .bg-slate-100,
-  .bg-white {
-    background-color: white !important;
-    border: 1px solid #e2e8f0 !important;
-  }
-
-  .bg-amber-50 {
-    background-color: #fffbeb !important;
-    border: 1px solid #fbbf24 !important;
-  }
-
-  /* Ensure text is visible */
-  .text-slate-900,
-  .text-slate-800,
-  .text-slate-700,
-  .text-slate-600 {
-    color: #000 !important;
-  }
-
-  /* Invoice Print Styles */
-  .print-logo,
-  .print-header img {
-    height: 2.5rem !important;
-    max-height: 2.5rem !important;
-    width: auto !important;
-    max-width: 100% !important;
-    margin-bottom: 0.5rem !important;
-    object-fit: contain !important;
-  }
-
-  .print-title {
-    font-size: 1.5rem !important;
-    margin-bottom: 0.25rem !important;
-  }
-
-  .print-subtitle {
-    font-size: 0.875rem !important;
-    margin-bottom: 0.5rem !important;
-  }
-
-  .print-header {
-    margin-bottom: 0.5rem !important;
-    padding: 0 !important;
-  }
-
-  .print-section {
-    padding: 0.25rem 0 !important;
-    background: transparent !important;
-    border: none !important;
-    border-radius: 0 !important;
-    margin-bottom: 0.375rem !important;
-    page-break-inside: avoid !important;
-  }
-
-  .print-section-title {
-    font-size: 0.75rem !important;
-    margin-bottom: 0.125rem !important;
-    font-weight: 600 !important;
-  }
-
-  .print-item {
-    padding: 0.125rem 0 !important;
-    background: transparent !important;
-    border: none !important;
-    border-radius: 0 !important;
-    margin-bottom: 0.125rem !important;
-  }
-
-  .print-container {
-    padding: 0 !important;
-    box-shadow: none !important;
-    border-radius: 0 !important;
-    max-width: 100% !important;
-  }
-
-  .print-header {
-    margin-bottom: 0.375rem !important;
-    page-break-after: avoid !important;
-  }
-
-  /* Reduce spacing in sections */
-  .print-section .text-sm,
-  .print-section p,
-  .print-section .space-y-2 > *,
-  .print-section .space-y-3 > * {
-    font-size: 0.7rem !important;
-    line-height: 1.2 !important;
-    margin-bottom: 0.0625rem !important;
-  }
-
-  /* Order Summary Print Styles */
-  .print-summary-container {
-    border: none !important;
-    background: transparent !important;
-    border-radius: 0 !important;
-    padding: 0 !important;
-    margin-bottom: 0.25rem !important;
-  }
-
-  .print-summary-header {
-    border-bottom: 1px solid #e5e7eb !important;
-    padding: 0.125rem 0 !important;
-  }
-
-  .print-summary-header h3 {
-    font-size: 0.75rem !important;
-  }
-
-  .print-summary-content {
-    padding: 0.25rem 0 !important;
-    font-size: 0.65rem !important;
-    line-height: 1.1 !important;
-  }
-
-  .print-summary-content h4 {
-    font-size: 0.7rem !important;
-    margin-bottom: 0.125rem !important;
-  }
-
-  .print-summary-content .space-y-2,
-  .print-summary-content .space-y-4 {
-    gap: 0.0625rem !important;
-  }
-
-  .print-summary-content .pt-3,
-  .print-summary-content .pt-4 {
-    padding-top: 0.125rem !important;
-  }
-
-  .print-summary-content .border-t {
-    margin-top: 0.125rem !important;
-  }
-
-  .print-badge {
-    display: none !important;
-  }
-
-  .print-highlight {
-    background: transparent !important;
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-
-  /* Rental Terms Print Styles */
-  .print-terms-container {
-    background: transparent !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    padding: 0.25rem 0 !important;
-    page-break-before: auto !important;
-  }
-
-  .print-terms-title {
-    font-size: 0.7rem !important;
-    margin-bottom: 0.125rem !important;
-  }
-
-  .print-terms-icon {
-    display: none !important;
-  }
-
-  .print-terms-content {
-    font-size: 0.55rem !important;
-    line-height: 1.15 !important;
-  }
-
-  .print-terms-content h3 {
-    font-size: 0.625rem !important;
-    margin-bottom: 0.0625rem !important;
-    margin-top: 0.125rem !important;
-  }
-
-  .print-terms-content p {
-    margin-bottom: 0.0625rem !important;
-  }
-
-  .print-terms-content ul {
-    margin-top: 0.0625rem !important;
-    margin-bottom: 0.0625rem !important;
-    padding-left: 1rem !important;
-  }
-
-  .print-terms-content li {
-    margin-bottom: 0.03125rem !important;
-  }
-
-  .print-terms-content .border-t {
-    border-top: 1px solid #e5e7eb !important;
-    padding-top: 0.125rem !important;
-    margin-top: 0.125rem !important;
-  }
-
-  /* Pricing Notice - make it more compact */
-  .print-item.bg-amber-50 {
-    font-size: 0.55rem !important;
-    padding: 0.125rem 0.25rem !important;
-    background: transparent !important;
-    border: 1px solid #d1d5db !important;
-  }
-
-  /* Clean up waived items display */
-  .line-through {
-    text-decoration: line-through !important;
-    opacity: 0.6 !important;
-  }
-
-  /* Remove color from waived items in print */
-  .print-summary-content .text-red-600 {
-    color: #666 !important;
-  }
-
-  /* Compact all spacing classes in print */
-  .print-summary-content .mb-2,
-  .print-summary-content .mb-3,
-  .print-summary-content .mb-4 {
-    margin-bottom: 0.0625rem !important;
-  }
-
-  .print-summary-content .mt-2,
-  .print-summary-content .mt-3,
-  .print-summary-content .mt-4 {
-    margin-top: 0.0625rem !important;
-  }
-
-  .print-portrait {
-    size: letter portrait;
-  }
-
-  .print-landscape {
-    size: letter landscape;
-  }
-}
-
-@media screen {
-  .print-only {
-    display: none !important;
-  }
+/* Default behavior (SCREEN) */
+.print-only {
+  display: none;
 }
 
 /* Screen reader only (accessibility) */
@@ -475,4 +29,610 @@
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border-width: 0;
+}
+
+/* Invoice Preview route: subtitle isn't needed on-screen */
+.invoice-preview-route .print-subtitle {
+  display: none;
+}
+
+/* ============================================================
+   MENU PREVIEW (SCREEN STYLES)
+   ============================================================ */
+
+.menu-preview-route .menu-print-header {
+  max-width: 64rem; /* ~max-w-5xl */
+  margin: 0 auto 1rem auto;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 18px;
+  text-align: center;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.menu-preview-route .menu-print-logo {
+  height: 90px;
+  width: auto;
+  object-fit: contain;
+  display: inline-block;
+}
+
+.menu-preview-route .menu-print-header-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.menu-preview-route .menu-print-header-right {
+  display: none; /* only used in print */
+}
+
+.menu-preview-route .menu-print-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.1;
+}
+
+.menu-preview-route .menu-print-subtitle {
+  font-size: 14px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.menu-preview-route .menu-print-content {
+  max-width: 64rem; /* ~max-w-5xl */
+  margin: 0 auto;
+}
+
+.menu-preview-route .menu-print-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+@media (max-width: 900px) {
+  .menu-preview-route .menu-print-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.menu-preview-route .menu-unit-card {
+  border: 3px solid transparent;
+  background: linear-gradient(white, white) padding-box,
+    linear-gradient(135deg, #2563eb, #7c3aed, #db2777) border-box;
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.08);
+}
+
+.menu-preview-route .menu-unit-image {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  margin-bottom: 10px;
+}
+
+.menu-preview-route .menu-unit-name-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.menu-preview-route .menu-unit-name {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.menu-preview-route .menu-unit-badge {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #f59e0b;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.menu-preview-route .menu-unit-type {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.menu-preview-route .menu-unit-details {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 10px;
+  margin-top: 6px;
+}
+
+.menu-preview-route .menu-detail-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 13px;
+}
+
+.menu-preview-route .menu-detail-label {
+  font-weight: 800;
+  color: #64748b;
+}
+
+.menu-preview-route .menu-detail-value {
+  font-weight: 700;
+  color: #0f172a;
+  text-align: right;
+}
+
+.menu-preview-route .menu-unit-pricing {
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 10px;
+  padding: 10px;
+  margin-top: 10px;
+}
+
+.menu-preview-route .menu-price-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.menu-preview-route .menu-price-label {
+  font-weight: 800;
+  color: #166534;
+}
+
+.menu-preview-route .menu-price-value {
+  font-weight: 900;
+  color: #15803d;
+}
+
+.menu-preview-route .menu-print-footer {
+  margin-top: 14px;
+  text-align: center;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 10px 0;
+}
+
+.menu-preview-route .menu-print-footer-muted {
+  margin-top: 6px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+/* ============================================================
+   PRINT STYLES
+   ============================================================ */
+
+@media print {
+  /*
+    IMPORTANT:
+    We reserve top space PER PAGE here, so the fixed header does not overlap page 2/3.
+  */
+  @page {
+    size: letter;
+    margin: 0.45in 0.35in 0.55in 0.35in;
+  }
+
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+
+  /* ============================================================
+     INVOICE PRINT (scoped) — body.print-invoice-preview
+     ============================================================ */
+
+  body.print-invoice-preview #root,
+  body.print-invoice-preview #root * {
+    visibility: hidden !important;
+  }
+
+  body.print-invoice-preview #print-content-wrapper,
+  body.print-invoice-preview #print-content-wrapper * {
+    visibility: visible !important;
+  }
+
+  body.print-invoice-preview #print-content-wrapper {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+
+    /* @page margin-top handles header space on every page */
+    padding-top: 0 !important;
+
+    zoom: 0.65 !important;
+  }
+
+  body.print-invoice-preview #print-content-wrapper > * {
+    max-width: 100% !important;   
+    width: 100% !important;
+    margin: 0 auto !important;
+  }
+
+  body.print-invoice-preview #print-content-wrapper,
+  body.print-invoice-preview #print-content-wrapper * {
+    overflow: visible !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+  }
+
+  body.print-invoice-preview .screen-only {
+    display: none !important;
+  }
+
+  body.print-invoice-preview .print-only {
+    display: block !important;
+  }
+
+  body.print-invoice-preview .print-page-header {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 0.52in !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.14in !important;
+
+    background: white !important;
+    border-bottom: 1px solid #e5e7eb !important;
+    z-index: 9999 !important;
+  }
+
+  body.print-invoice-preview .print-page-logo {
+    height: 0.33in !important;
+    width: auto !important;
+    object-fit: contain !important;
+  }
+
+  body.print-invoice-preview .print-page-title {
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    color: #000 !important;
+    line-height: 1 !important;
+  }
+
+  body.print-invoice-preview .no-print,
+  body.print-invoice-preview .no-print * {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  body.print-invoice-preview .rounded-lg,
+  body.print-invoice-preview .rounded-xl {
+    border-radius: 0 !important;
+  }
+
+  body.print-invoice-preview .shadow-lg,
+  body.print-invoice-preview .shadow-xl,
+  body.print-invoice-preview .shadow-2xl,
+  body.print-invoice-preview .shadow-md {
+    box-shadow: none !important;
+  }
+
+  body.print-invoice-preview .print-container {
+    padding: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    max-width: 100% !important;
+  }
+
+  body.print-invoice-preview #print-content-wrapper .mb-8 {
+    margin-bottom: 0.35rem !important;
+  }
+
+  body.print-invoice-preview #print-content-wrapper .p-8 {
+    padding: 0 !important;
+  }
+
+  body.print-invoice-preview #print-content-wrapper .p-6 {
+    padding: 0.45rem !important;
+  }
+
+  body.print-invoice-preview #print-content-wrapper .p-4 {
+    padding: 0.3rem !important;
+  }
+
+  body.print-invoice-preview #print-content-wrapper .space-y-3 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.2rem !important;
+  }
+
+  body.print-invoice-preview #print-content-wrapper .space-y-2 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.12rem !important;
+  }
+
+  body.print-invoice-preview .print-section {
+    padding: 0.12rem 0 !important;
+    margin-bottom: 0.2rem !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  body.print-invoice-preview .print-section-title {
+    font-size: 0.72rem !important;
+    margin-bottom: 0.1rem !important;
+    font-weight: 800 !important;
+  }
+
+  body.print-invoice-preview .text-slate-900,
+  body.print-invoice-preview .text-slate-800,
+  body.print-invoice-preview .text-slate-700,
+  body.print-invoice-preview .text-slate-600 {
+    color: #000 !important;
+  }
+
+  body.print-invoice-preview .print-event-details {
+    column-count: 2 !important;
+    column-gap: 0.22in !important;
+  }
+
+  body.print-invoice-preview .print-event-details p {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    margin: 0 !important;
+    font-size: 0.66rem !important;
+    line-height: 1.15 !important;
+  }
+
+  body.print-invoice-preview .print-summary-content {
+    padding: 0.28rem 0 !important;
+    font-size: 0.64rem !important;
+    line-height: 1.08 !important;
+  }
+
+  body.print-invoice-preview .print-summary-content.space-y-4 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.16rem !important;
+  }
+
+  body.print-invoice-preview .print-badge {
+    display: none !important;
+  }
+
+  body.print-invoice-preview .print-terms {
+    break-before: auto !important;
+    page-break-before: auto !important;
+  }
+
+  body.print-invoice-preview .print-terms-container {
+    padding: 0.35rem !important;
+    box-shadow: none !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 0 !important;
+  }
+
+  body.print-invoice-preview .print-terms-title {
+    font-size: 0.78rem !important;
+    margin-bottom: 0.2rem !important;
+  }
+
+  body.print-invoice-preview .print-terms-icon {
+    width: 0.85rem !important;
+    height: 0.85rem !important;
+  }
+
+  body.print-invoice-preview .print-terms-content {
+    column-count: 3 !important;
+    column-gap: 0.16in !important;
+    font-size: 0.5rem !important;
+    line-height: 1.06 !important;
+  }
+
+  body.print-invoice-preview .print-terms-content.space-y-6 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.14rem !important;
+  }
+
+  body.print-invoice-preview .print-terms-content h3 {
+    font-size: 0.54rem !important;
+    margin: 0.06rem 0 0.04rem !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  body.print-invoice-preview .print-terms-content p,
+  body.print-invoice-preview .print-terms-content li {
+    margin-bottom: 0.03rem !important;
+  }
+
+  body.print-invoice-preview .print-terms-content .italic {
+    font-size: 0.46rem !important;
+    line-height: 1.04 !important;
+  }
+
+  body.print-invoice-preview img {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  /* ============================================================
+     MENU PRINT (scoped) — body.print-menu-preview
+     ============================================================ */
+
+  /* Hide app by default */
+  body.print-menu-preview #root > * {
+    display: none !important;
+  }
+
+  /* Re-show ONLY the menu route */
+  body.print-menu-preview #root .menu-preview-route {
+    display: block !important;
+  }
+  /* Clean print surface */
+  body.print-menu-preview #root .menu-preview-route {
+    background: white !important;
+    padding: 0 !important;
+    zoom: 1 !important; /* IMPORTANT: remove print zoom weirdness */
+  }
+
+  /* Hide screen-only controls */
+  body.print-menu-preview #root .no-print,
+  body.print-menu-preview #root .no-print * {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /*
+    Header prints ONLY once (page 1) — NOT fixed.
+    Also: tell the print engine "don't orphan the header on a page alone".
+  */
+  body.print-menu-preview #root .menu-print-header {
+    position: static !important;
+    height: auto !important;
+
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 2px !important;
+
+    padding: 0.12in 0 !important;
+    margin: 0 0 0.18in 0 !important;
+
+    background: white !important;
+    border-bottom: 1px solid #e5e7eb !important;
+
+    box-shadow: none !important;
+    border-radius: 0 !important;
+
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    break-after: avoid-page !important;   /* key: keep header with first cards */
+    page-break-after: avoid !important;
+  }
+
+  body.print-menu-preview #root .menu-print-logo {
+    height: 0.55in !important;
+    width: auto !important;
+    object-fit: contain !important;
+    margin: 0 !important;
+  }
+
+  body.print-menu-preview #root .menu-print-title {
+    font-size: 13px !important;
+    font-weight: 900 !important;
+    color: #0f172a !important;
+    line-height: 1.1 !important;
+    margin: 0 !important;
+  }
+
+  body.print-menu-preview #root .menu-print-subtitle {
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    color: #64748b !important;
+    line-height: 1.1 !important;
+    margin: 0 !important;
+  }
+
+  /*
+    Page number on every page (bottom-right).
+    NOTE: Chrome does NOT reliably support counter(pages), so keep it simple.
+  */
+  body.print-menu-preview #root .menu-print-page-number {
+    position: fixed !important;
+    bottom: 0.25in !important;
+    right: 0.35in !important;
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    color: #64748b !important;
+    z-index: 9999 !important;
+  }
+
+  body.print-menu-preview #root .menu-print-page-number::after {
+    content: "Page " counter(page) !important;
+  }
+
+  /*
+    IMPORTANT FIX:
+    DO NOT use column-count for print. Columns cause the “cropped image at page start” bug.
+    Use a normal 2-column grid instead.
+  */
+  body.print-menu-preview #root .menu-print-content {
+    padding-bottom: 0.4in !important; /* keep footer/page# clear */
+  }
+
+  body.print-menu-preview #root .menu-print-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 0.22in !important;
+    align-items: start !important;
+  }
+
+  body.print-menu-preview #root .menu-unit-card {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+  }
+
+  body.print-menu-preview #root .menu-unit-image {
+    display: block !important;
+    width: 100% !important;
+    height: 1.35in !important;
+    object-fit: cover !important;
+    border-radius: 0 !important;
+
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  body.print-menu-preview #root .menu-detail-row {
+    font-size: 11px !important;
+    padding: 4px 0 !important;
+  }
+
+  body.print-menu-preview #root .menu-unit-name {
+    font-size: 13px !important;
+  }
+
+  body.print-menu-preview #root .menu-unit-type {
+    font-size: 11px !important;
+  }
+
+  body.print-menu-preview #root .menu-unit-pricing {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  body.print-menu-preview #root .menu-price-row {
+    font-size: 12px !important;
+  }
 }

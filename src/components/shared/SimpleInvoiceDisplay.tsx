@@ -62,7 +62,18 @@ export function SimpleInvoiceDisplay({
 }: SimpleInvoiceDisplayProps) {
   return (
     <div className="bg-white rounded-lg shadow-md p-8 print-container">
-      <div className="text-center mb-8 print-header">
+      {/* PRINT: fixed header repeated on every printed page */}
+      <div className="print-only print-page-header">
+        <img
+          src="/bounce party club logo.png"
+          alt="Bounce Party Club"
+          className="print-page-logo"
+        />
+        <div className="print-page-title">Invoice from Bounce Party Club</div>
+      </div>
+
+      {/* SCREEN: normal header */}
+      <div className="screen-only text-center mb-8 print-header">
         <img
           src="/bounce party club logo.png"
           alt="Bounce Party Club"
@@ -71,12 +82,15 @@ export function SimpleInvoiceDisplay({
         <h1 className="text-3xl font-bold text-slate-900 mb-2 print-title">
           Invoice from Bounce Party Club
         </h1>
+        {/* Screen-only subtitle (NOT printed) */}
         <p className="text-slate-600 print-subtitle">Review and accept your order details below</p>
       </div>
 
       <div className="mb-8 p-6 bg-slate-50 rounded-lg print-section">
         <h2 className="text-xl font-bold text-slate-900 mb-4 print-section-title">Event Details</h2>
-        <div className="space-y-2 text-sm">
+
+        {/* print-event-details lets us make this 2-column ONLY in print */}
+        <div className="space-y-2 text-sm print-event-details">
           <p>
             <strong>Date:</strong> {eventDate}
           </p>
@@ -84,7 +98,8 @@ export function SimpleInvoiceDisplay({
             <strong>Time:</strong> {startWindow} - {endWindow}
           </p>
           <p>
-            <strong>Location:</strong> {addressLine1}, {city}, {state} {zip}
+            <strong>Location:</strong> {addressLine1}
+            {addressLine2 ? `, ${addressLine2}` : ''}, {city}, {state} {zip}
           </p>
           <p>
             <strong>Location Type:</strong> <span className="capitalize">{locationType}</span>
@@ -108,7 +123,8 @@ export function SimpleInvoiceDisplay({
         </div>
       </div>
 
-      <div className="mb-8 print-section">
+      {/* Order Items: keep on screen, hide in PRINT (redundant with Complete Price Breakdown) */}
+      <div className="mb-8 print-section screen-only">
         <h2 className="text-xl font-bold text-slate-900 mb-4 print-section-title">Order Items</h2>
         <div className="space-y-3">
           {orderItems.map((item, index) => (
@@ -145,6 +161,7 @@ export function SimpleInvoiceDisplay({
             generatorFeeWaived={generatorFeeWaived}
             sameDayPickupFeeWaived={sameDayPickupFeeWaived}
           />
+
           {showPricingNotice && (
             <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg print-item">
               <p className="text-xs text-amber-800">
@@ -161,7 +178,8 @@ export function SimpleInvoiceDisplay({
         </div>
       )}
 
-      <div className="mb-8 print-section">
+      {/* Terms (we will NOT force page 2 anymore; CSS will compress to fit page 1) */}
+      <div className="mb-8 print-section print-terms">
         <RentalTerms />
       </div>
 
