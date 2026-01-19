@@ -14,6 +14,7 @@ interface PricingRules {
   generator_fee_single_cents?: number;
   generator_fee_multiple_cents?: number;
   same_day_pickup_fee_cents?: number;
+  apply_taxes_by_default?: boolean;
 }
 
 interface PricingSectionProps {
@@ -49,6 +50,7 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
           generator_fee_single_cents: editedRules.generator_fee_single_cents || 10000,
           generator_fee_multiple_cents: editedRules.generator_fee_multiple_cents || 7500,
           same_day_pickup_fee_cents: editedRules.same_day_pickup_fee_cents || 0,
+          apply_taxes_by_default: editedRules.apply_taxes_by_default ?? true,
         })
         .eq('id', editedRules.id);
 
@@ -262,6 +264,29 @@ export function PricingSection({ pricingRules: initialRules }: PricingSectionPro
           <p className="text-xs text-slate-500 mt-1">
             Additional fee for same-day pickup requests
           </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-2">
+            Tax Settings
+          </label>
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={editedRules.apply_taxes_by_default ?? true}
+                onChange={(e) => setEditedRules({ ...editedRules, apply_taxes_by_default: e.target.checked })}
+                disabled={!isEditing}
+                className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer disabled:opacity-50"
+              />
+              <div className="flex-1">
+                <span className="text-sm font-medium text-slate-900">Apply Taxes by Default</span>
+                <p className="text-xs text-slate-600 mt-1">
+                  When checked, taxes will automatically be applied to all new orders. You can still waive taxes on individual orders if needed.
+                </p>
+              </div>
+            </label>
+          </div>
         </div>
 
         <div>

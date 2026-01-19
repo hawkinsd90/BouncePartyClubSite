@@ -410,6 +410,7 @@ export function InvoiceBuilder() {
               setTaxWaiveReason(reason);
             }}
             compact={true}
+            applyTaxesByDefault={pricingRules?.apply_taxes_by_default ?? true}
           />
 
           {((calculatedPricing?.travel_fee_cents || 0) > 0 || travelFeeWaived) && (

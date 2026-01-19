@@ -21,6 +21,7 @@ export interface PricingRules {
   same_day_pickup_fee_cents?: number;
   generator_fee_single_cents?: number;
   generator_fee_multiple_cents?: number;
+  apply_taxes_by_default?: boolean;
 }
 
 export interface CartItem {
@@ -143,7 +144,11 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
     }
   }
 
-  const tax_cents = Math.round((subtotal_cents + travel_fee_cents + surface_fee_cents + generator_fee_cents) * 0.06);
+  // Only calculate taxes if apply_taxes_by_default is true (defaults to true for backward compatibility)
+  const shouldApplyTaxes = rules.apply_taxes_by_default ?? true;
+  const tax_cents = shouldApplyTaxes
+    ? Math.round((subtotal_cents + travel_fee_cents + surface_fee_cents + generator_fee_cents) * 0.06)
+    : 0;
 
   const total_cents =
     subtotal_cents +

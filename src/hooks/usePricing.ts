@@ -238,14 +238,28 @@ export function usePricing() {
       const finalSameDayPickupFeeCents = sameDayPickupFeeWaived ? 0 : originalSameDayPickupFeeCents;
       const finalGeneratorFeeCents = generatorFeeWaived ? 0 : originalGeneratorFeeCents;
 
-      // Calculate tax based on waived fees
+      // Calculate tax based on waived fees and apply_taxes_by_default setting
+      const shouldApplyTaxesByDefault = pricingRules.apply_taxes_by_default ?? true;
       const taxableAmount = priceBreakdown.subtotal_cents + finalTravelFeeCents + finalSurfaceFeeCents + finalGeneratorFeeCents;
-      let finalTaxCents = Math.round(taxableAmount * 0.06);
-      const originalTaxCents = finalTaxCents;
 
-      if (taxWaived) {
-        finalTaxCents = 0;
+      // Calculate the potential tax amount (always calculated for display purposes)
+      const calculatedTaxCents = Math.round(taxableAmount * 0.06);
+
+      // Determine final tax based on default setting and per-order override
+      // The tax_waived flag acts as an override toggle:
+      // - When apply_taxes_by_default is TRUE: taxWaived=false means apply (default), taxWaived=true means waive (override)
+      // - When apply_taxes_by_default is FALSE: taxWaived=false means don't apply (default), taxWaived=true means apply (override)
+      let finalTaxCents: number;
+      if (shouldApplyTaxesByDefault) {
+        // Taxes applied by default - taxWaived=true removes them
+        finalTaxCents = taxWaived ? 0 : calculatedTaxCents;
+      } else {
+        // Taxes NOT applied by default - taxWaived=true adds them (acts as override to apply)
+        finalTaxCents = taxWaived ? calculatedTaxCents : 0;
       }
+
+      // Store calculated tax for display
+      const originalTaxCents = calculatedTaxCents;
 
       // Calculate total with all waivers applied
       const finalTotalCents = priceBreakdown.subtotal_cents + finalTravelFeeCents + finalSurfaceFeeCents + finalSameDayPickupFeeCents + finalGeneratorFeeCents + finalTaxCents;
