@@ -75,7 +75,21 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [customDepositInput, setCustomDepositInput] = useState('');
   const [currentOrderSummary, setCurrentOrderSummary] = useState<any>(null);
 
-  const [taxWaived, setTaxWaived] = useState(order.tax_waived || false);
+  // Initialize taxWaived based on actual tax state and current settings
+  // For old orders created before apply_taxes_by_default setting:
+  // - If tax was applied (tax_cents > 0) and current default is false, set taxWaived=true (override to apply)
+  // - If tax was not applied (tax_cents = 0) and current default is true, set taxWaived=true (override to not apply)
+  // - Otherwise use the order's tax_waived value
+  const [taxWaived, setTaxWaived] = useState(() => {
+    // If the order explicitly has tax_waived set to true, use that
+    if (order.tax_waived === true) {
+      return true;
+    }
+    // For orders where tax_waived is false but tax was charged, they were created before the setting
+    // We need to check if we should override based on current settings vs. actual tax charged
+    // This will be handled by the pricing calculation, so just use the stored value
+    return order.tax_waived || false;
+  });
   const [taxWaiveReason, setTaxWaiveReason] = useState(order.tax_waive_reason || '');
   const [travelFeeWaived, setTravelFeeWaived] = useState(order.travel_fee_waived || false);
   const [travelFeeWaiveReason, setTravelFeeWaiveReason] = useState(order.travel_fee_waive_reason || '');

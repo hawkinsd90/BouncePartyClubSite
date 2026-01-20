@@ -106,27 +106,9 @@ export function TaxWaiver({
   }
 
   // Determine if taxes should be shown as "applied" or "not applied"
-  // Logic: The checkbox reflects whether tax is ACTUALLY being applied to this order
-  // - If applyTaxesByDefault is true: taxWaived=false means apply (checked), taxWaived=true means don't apply (unchecked)
-  // - If applyTaxesByDefault is false: taxWaived=false means don't apply (unchecked), taxWaived=true means apply (checked)
-  // For old orders: We look at originalOrderTaxCents to see if tax was actually applied
-  const taxesAreApplied = (() => {
-    // Use the taxWaived flag to determine current state
-    // When apply_taxes_by_default is true: !taxWaived means tax is applied
-    // When apply_taxes_by_default is false: taxWaived means tax is applied
-    const currentlyApplied = applyTaxesByDefault ? !taxWaived : taxWaived;
-
-    // For old orders where the checkbox state doesn't match the actual tax applied,
-    // we should show the actual state based on whether tax was charged
-    if (originalOrderTaxCents !== undefined && !taxWaived && originalOrderTaxCents > 0 && !applyTaxesByDefault) {
-      // Special case: old order with tax applied, but current default is false and not overridden
-      // This means the order was created when taxes were always applied
-      // Show checkbox as checked because tax IS applied to this order
-      return true;
-    }
-
-    return currentlyApplied;
-  })();
+  // The checkbox reflects the ACTUAL current state: Is tax being applied to this order?
+  // We determine this by checking the actual tax amount being calculated/charged
+  const taxesAreApplied = taxCents > 0;
 
   return (
     <>
@@ -159,8 +141,8 @@ export function TaxWaiver({
             </div>
           </div>
 
-          {/* Show tax amount and reason when overridden */}
-          {taxWaived && taxWaiveReason && (
+          {/* Show tax amount and reason when overridden - only show if there's actually a reason to display */}
+          {taxWaiveReason && taxWaived && (
             <div className="bg-amber-50 border border-amber-200 rounded p-3">
               <p className="text-xs font-medium text-amber-900 mb-1">
                 {applyTaxesByDefault ? 'Tax Override - Waived' : 'Tax Override - Applied'}
