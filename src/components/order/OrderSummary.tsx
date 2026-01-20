@@ -165,20 +165,23 @@ export function OrderSummary({
             </div>
           ))}
 
-          <div className={`flex justify-between ${hasChanged('tax') || taxWaived ? 'bg-blue-50 -mx-2 px-2 py-1 rounded print-highlight' : ''}`}>
-            <span className="text-slate-700">Tax (6%):</span>
-            <div className="flex items-center gap-2">
-              {hasChanged('tax') && getOldValue('tax') && (
-                <span className="text-xs text-slate-400 line-through">{formatCurrency(parseInt(getOldValue('tax')!))}</span>
-              )}
-              <span className={`font-medium ${taxWaived ? 'line-through text-red-600' : hasChanged('tax') ? 'text-blue-700' : 'text-slate-900'}`}>
-                {formatCurrency(summary.tax)}
-              </span>
-              {taxWaived && (
-                <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded font-semibold print-badge">WAIVED</span>
-              )}
+          {/* Only show tax row if tax > 0 OR if it's explicitly waived */}
+          {(summary.tax > 0 || taxWaived) && (
+            <div className={`flex justify-between ${hasChanged('tax') || taxWaived ? 'bg-blue-50 -mx-2 px-2 py-1 rounded print-highlight' : ''}`}>
+              <span className="text-slate-700">Tax (6%):</span>
+              <div className="flex items-center gap-2">
+                {hasChanged('tax') && getOldValue('tax') && (
+                  <span className="text-xs text-slate-400 line-through">{formatCurrency(parseInt(getOldValue('tax')!))}</span>
+                )}
+                <span className={`font-medium ${taxWaived ? 'line-through text-red-600' : hasChanged('tax') ? 'text-blue-700' : 'text-slate-900'}`}>
+                  {formatCurrency(summary.tax)}
+                </span>
+                {taxWaived && (
+                  <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded font-semibold print-badge">WAIVED</span>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         <div className="pt-3 border-t-2 border-slate-300 space-y-2">

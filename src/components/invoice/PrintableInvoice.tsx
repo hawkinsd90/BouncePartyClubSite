@@ -228,12 +228,14 @@ export function PrintableInvoice({
                 </div>
               )}
 
-              <div className="grid grid-cols-2 py-3 px-6 border-b border-slate-100">
-                <div className="text-slate-700">Tax (6%)</div>
-                <div className="text-right text-slate-900 font-medium">
-                  {formatCurrency(priceBreakdown.tax_cents)}
+              {priceBreakdown.tax_cents > 0 && (
+                <div className="grid grid-cols-2 py-3 px-6 border-b border-slate-100">
+                  <div className="text-slate-700">Tax (6%)</div>
+                  <div className="text-right text-slate-900 font-medium">
+                    {formatCurrency(priceBreakdown.tax_cents)}
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="grid grid-cols-2 py-5 px-6 bg-gradient-to-r from-blue-50 to-blue-100">
                 <div className="text-slate-900 font-bold text-lg">TOTAL</div>
