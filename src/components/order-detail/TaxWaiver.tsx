@@ -103,46 +103,53 @@ export function TaxWaiver({
     );
   }
 
+  // Determine if taxes should be shown as "applied" or "not applied"
+  // When taxes are applied by default: taxWaived=false means applied, taxWaived=true means not applied
+  // When taxes are NOT applied by default: taxWaived=false means not applied, taxWaived=true means applied
+  const taxesAreApplied = applyTaxesByDefault ? !taxWaived : taxWaived;
+
   return (
     <>
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <div className="flex items-center gap-2 mb-3">
-          <DollarSign className="w-5 h-5 text-red-700" />
-          <h3 className="font-semibold text-slate-900">Tax Override</h3>
+          <DollarSign className="w-5 h-5 text-blue-700" />
+          <h3 className="font-semibold text-slate-900">Tax Settings</h3>
         </div>
-        <p className="text-sm text-slate-600 mb-3">
-          {currentStatus}
-        </p>
+
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-slate-700">Tax Amount:</span>
-            <span className={`font-semibold ${taxWaived ? 'text-red-600 line-through' : 'text-slate-900'}`}>
-              {formatCurrency(taxCents)}
-            </span>
-          </div>
-          {taxWaived && (
-            <div className="bg-red-100 border border-red-300 rounded p-3">
-              <p className="text-sm font-medium text-red-800 mb-1">Tax Waived</p>
-              <p className="text-xs text-red-700">
-                Taxes have been waived and will not be charged to the customer.
+          {/* Checkbox to apply/remove taxes */}
+          <div className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              id="apply-taxes"
+              checked={taxesAreApplied}
+              onChange={handleToggleClick}
+              className="mt-1 w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-2 focus:ring-blue-500"
+            />
+            <div className="flex-1">
+              <label htmlFor="apply-taxes" className="text-sm font-medium text-slate-900 cursor-pointer">
+                Apply Sales Tax (6%)
+              </label>
+              <p className="text-xs text-slate-600 mt-1">
+                {taxesAreApplied
+                  ? `Tax of ${formatCurrency(taxCents)} will be charged to the customer.`
+                  : `No tax will be charged to the customer.`
+                }
               </p>
-              {taxWaiveReason && (
-                <p className="text-xs text-slate-700 mt-2 bg-white px-2 py-1 rounded">
-                  <strong>Reason:</strong> {taxWaiveReason}
-                </p>
-              )}
+            </div>
+          </div>
+
+          {/* Show tax amount and reason when overridden */}
+          {taxWaived && taxWaiveReason && (
+            <div className="bg-amber-50 border border-amber-200 rounded p-3">
+              <p className="text-xs font-medium text-amber-900 mb-1">
+                {applyTaxesByDefault ? 'Tax Override - Waived' : 'Tax Override - Applied'}
+              </p>
+              <p className="text-xs text-slate-700">
+                <strong>Reason:</strong> {taxWaiveReason}
+              </p>
             </div>
           )}
-          <button
-            onClick={handleToggleClick}
-            className={`w-full py-2 rounded text-sm font-medium transition-colors ${
-              taxWaived
-                ? 'bg-slate-600 hover:bg-slate-700 text-white'
-                : 'bg-red-600 hover:bg-red-700 text-white'
-            }`}
-          >
-            {actionVerb}
-          </button>
         </div>
       </div>
 
