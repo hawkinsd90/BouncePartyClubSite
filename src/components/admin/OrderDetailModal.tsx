@@ -74,6 +74,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [customDepositCents, setCustomDepositCents] = useState<number | null>(null);
   const [customDepositInput, setCustomDepositInput] = useState('');
   const [currentOrderSummary, setCurrentOrderSummary] = useState<any>(null);
+
   const [taxWaived, setTaxWaived] = useState(order.tax_waived || false);
   const [taxWaiveReason, setTaxWaiveReason] = useState(order.tax_waive_reason || '');
   const [travelFeeWaived, setTravelFeeWaived] = useState(order.travel_fee_waived || false);

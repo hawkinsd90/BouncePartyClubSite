@@ -278,6 +278,7 @@ export function OrderDetailsTab({
         taxWaiveReason={taxWaiveReason}
         onToggle={onTaxWaivedToggle}
         applyTaxesByDefault={pricingRules?.apply_taxes_by_default ?? true}
+        originalOrderTaxCents={order.tax_cents}
       />
 
       {((calculatedPricing?.travel_fee_cents || 0) > 0 || (order.travel_fee_cents || 0) > 0 || travelFeeWaived) && (

@@ -9,6 +9,7 @@ interface TaxWaiverProps {
   onToggle: (reason: string) => void;
   compact?: boolean;
   applyTaxesByDefault?: boolean;
+  originalOrderTaxCents?: number;
 }
 
 export function TaxWaiver({
@@ -18,6 +19,7 @@ export function TaxWaiver({
   onToggle,
   compact = false,
   applyTaxesByDefault = true,
+  originalOrderTaxCents,
 }: TaxWaiverProps) {
   const [showConfirmation, setShowConfirmation] = useState(false);
 
@@ -104,9 +106,27 @@ export function TaxWaiver({
   }
 
   // Determine if taxes should be shown as "applied" or "not applied"
-  // When taxes are applied by default: taxWaived=false means applied, taxWaived=true means not applied
-  // When taxes are NOT applied by default: taxWaived=false means not applied, taxWaived=true means applied
-  const taxesAreApplied = applyTaxesByDefault ? !taxWaived : taxWaived;
+  // Logic: The checkbox reflects whether tax is ACTUALLY being applied to this order
+  // - If applyTaxesByDefault is true: taxWaived=false means apply (checked), taxWaived=true means don't apply (unchecked)
+  // - If applyTaxesByDefault is false: taxWaived=false means don't apply (unchecked), taxWaived=true means apply (checked)
+  // For old orders: We look at originalOrderTaxCents to see if tax was actually applied
+  const taxesAreApplied = (() => {
+    // Use the taxWaived flag to determine current state
+    // When apply_taxes_by_default is true: !taxWaived means tax is applied
+    // When apply_taxes_by_default is false: taxWaived means tax is applied
+    const currentlyApplied = applyTaxesByDefault ? !taxWaived : taxWaived;
+
+    // For old orders where the checkbox state doesn't match the actual tax applied,
+    // we should show the actual state based on whether tax was charged
+    if (originalOrderTaxCents !== undefined && !taxWaived && originalOrderTaxCents > 0 && !applyTaxesByDefault) {
+      // Special case: old order with tax applied, but current default is false and not overridden
+      // This means the order was created when taxes were always applied
+      // Show checkbox as checked because tax IS applied to this order
+      return true;
+    }
+
+    return currentlyApplied;
+  })();
 
   return (
     <>
