@@ -110,6 +110,9 @@ export function TaxWaiver({
   // We determine this by checking the actual tax amount being calculated/charged
   const taxesAreApplied = taxCents > 0;
 
+  // If the original order has tax already applied, only show the waive button (not the checkbox)
+  const orderHasTaxApplied = (originalOrderTaxCents || 0) > 0;
+
   return (
     <>
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -119,33 +122,67 @@ export function TaxWaiver({
         </div>
 
         <div className="space-y-3">
-          {/* Checkbox to apply/remove taxes */}
-          <div className="flex items-start gap-3">
-            <input
-              type="checkbox"
-              id="apply-taxes"
-              checked={taxesAreApplied}
-              onChange={handleToggleClick}
-              className="mt-1 w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-2 focus:ring-blue-500"
-            />
-            <div className="flex-1">
-              <label htmlFor="apply-taxes" className="text-sm font-medium text-slate-900 cursor-pointer">
-                Apply Sales Tax (6%)
-              </label>
-              <p className="text-xs text-slate-600 mt-1">
-                {taxesAreApplied
-                  ? `Tax of ${formatCurrency(taxCents)} will be charged to the customer.`
-                  : `No tax will be charged to the customer.`
-                }
-              </p>
+          {/* Show checkbox only if order doesn't already have tax applied */}
+          {!orderHasTaxApplied && (
+            <div className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                id="apply-taxes"
+                checked={taxesAreApplied}
+                onChange={handleToggleClick}
+                className="mt-1 w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-2 focus:ring-blue-500"
+              />
+              <div className="flex-1">
+                <label htmlFor="apply-taxes" className="text-sm font-medium text-slate-900 cursor-pointer">
+                  Apply Sales Tax (6%)
+                </label>
+                <p className="text-xs text-slate-600 mt-1">
+                  {taxesAreApplied
+                    ? `Tax of ${formatCurrency(taxCents)} will be charged to the customer.`
+                    : `No tax will be charged to the customer.`
+                  }
+                </p>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Show waive button when order has tax applied */}
+          {orderHasTaxApplied && (
+            <div className="bg-white border border-slate-300 rounded-lg p-4">
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-sm text-slate-700">Tax Amount (6%):</span>
+                <span className={`font-semibold ${taxWaived ? 'text-red-600 line-through' : 'text-slate-900'}`}>
+                  {formatCurrency(taxCents)}
+                </span>
+              </div>
+              {taxWaived && (
+                <div className="mb-3 text-xs text-red-700 bg-red-100 px-3 py-2 rounded">
+                  Tax Waived - Not charged to customer
+                </div>
+              )}
+              {!taxWaived && (
+                <div className="mb-3 text-xs text-slate-600 bg-slate-50 px-3 py-2 rounded">
+                  Tax will be charged to the customer
+                </div>
+              )}
+              <button
+                onClick={handleToggleClick}
+                className={`w-full py-2 rounded-lg text-sm font-medium transition-colors ${
+                  taxWaived
+                    ? 'bg-slate-600 hover:bg-slate-700 text-white'
+                    : 'bg-red-600 hover:bg-red-700 text-white'
+                }`}
+              >
+                {taxWaived ? 'Restore Tax' : 'Waive Tax'}
+              </button>
+            </div>
+          )}
 
           {/* Show tax amount and reason when overridden - only show if there's actually a reason to display */}
           {taxWaiveReason && taxWaived && (
             <div className="bg-amber-50 border border-amber-200 rounded p-3">
               <p className="text-xs font-medium text-amber-900 mb-1">
-                {applyTaxesByDefault ? 'Tax Override - Waived' : 'Tax Override - Applied'}
+                Tax Override - Waived
               </p>
               <p className="text-xs text-slate-700">
                 <strong>Reason:</strong> {taxWaiveReason}

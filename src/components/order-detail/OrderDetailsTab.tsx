@@ -226,14 +226,14 @@ export function OrderDetailsTab({
           </div>
         )}
 
-        {updatedOrderSummary && (
+        {updatedOrderSummary && hasChanges && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg">
             <OrderSummary
               summary={updatedOrderSummary}
               title={
                 <>
                   Updated Pricing
-                  {hasChanges && <span className="ml-2 text-xs bg-blue-600 text-white px-2 py-0.5 rounded whitespace-nowrap">Changes Pending</span>}
+                  <span className="ml-2 text-xs bg-blue-600 text-white px-2 py-0.5 rounded whitespace-nowrap">Changes Pending</span>
                 </>
               }
               showDeposit={true}
