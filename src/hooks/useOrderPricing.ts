@@ -166,23 +166,36 @@ export function useOrderPricing() {
       const originalSameDayPickupFeeCents = useSavedSameDayFee ? (order.same_day_pickup_fee_cents || 0) : priceBreakdown.same_day_pickup_fee_cents;
       const originalGeneratorFeeCents = priceBreakdown.generator_fee_cents;
 
+      // Calculate ORIGINAL tax (before any waivers) - this is what we display
+      const originalTaxableAmount = priceBreakdown.subtotal_cents + originalTravelFeeCents + originalSurfaceFeeCents + originalGeneratorFeeCents;
+      const originalTaxCents = Math.round(originalTaxableAmount * 0.06);
+
       // Calculate amounts for total (applying waivers)
       const finalTravelFeeCents = travelFeeWaived ? 0 : originalTravelFeeCents;
       const finalSurfaceFeeCents = surfaceFeeWaived ? 0 : originalSurfaceFeeCents;
       const finalSameDayPickupFeeCents = sameDayPickupFeeWaived ? 0 : originalSameDayPickupFeeCents;
       const finalGeneratorFeeCents = generatorFeeWaived ? 0 : originalGeneratorFeeCents;
 
-      // Calculate tax based on waived fees
-      const taxableAmount = priceBreakdown.subtotal_cents + finalTravelFeeCents + finalSurfaceFeeCents + finalGeneratorFeeCents;
-      let finalTaxCents = Math.round(taxableAmount * 0.06);
-      const originalTaxCents = finalTaxCents;
+      // Calculate FINAL tax (after fee waivers but before tax waiver) for the total
+      const finalTaxableAmount = priceBreakdown.subtotal_cents + finalTravelFeeCents + finalSurfaceFeeCents + finalGeneratorFeeCents;
+      let finalTaxCents = Math.round(finalTaxableAmount * 0.06);
 
       if (taxWaived) {
         finalTaxCents = 0;
       }
 
+      // Calculate discounts and custom fees totals
+      const discountTotal = discounts.reduce((sum, discount) => {
+        if (discount.percentage) {
+          return sum + Math.round(priceBreakdown.subtotal_cents * (discount.percentage / 100));
+        }
+        return sum + (discount.amount_cents || 0);
+      }, 0);
+
+      const customFeesTotal = customFees.reduce((sum, fee) => sum + (fee.amount_cents || 0), 0);
+
       // Calculate total with all waivers applied
-      let finalTotalCents = priceBreakdown.subtotal_cents + finalTravelFeeCents + finalSurfaceFeeCents + finalSameDayPickupFeeCents + finalGeneratorFeeCents + finalTaxCents;
+      let finalTotalCents = priceBreakdown.subtotal_cents + finalTravelFeeCents + finalSurfaceFeeCents + finalSameDayPickupFeeCents + finalGeneratorFeeCents + customFeesTotal - discountTotal + finalTaxCents;
 
       // Pass ORIGINAL amounts for display (so they show in fee list), total will be calculated correctly
       const updatedOrderData: OrderSummaryData = {
