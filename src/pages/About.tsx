@@ -106,7 +106,7 @@ export function About() {
               </div>
               <h3 className="font-semibold text-slate-900 mb-1">Address</h3>
               <p className="text-sm text-slate-600">
-                {businessAddress || '4426 Woodward St, Wayne, MI 48184'}
+                {businessAddress}
               </p>
             </div>
 

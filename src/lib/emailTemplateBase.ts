@@ -84,9 +84,9 @@ export function createEmailWrapper(options: EmailWrapperOptions): string {
                   <p style="margin: 0 0 5px; color: #64748b; font-size: 13px;">
                     Bounce Party Club | ${COMPANY_PHONE}
                   </p>
-                  <p style="margin: 0; color: #94a3b8; font-size: 12px;">
-                    ${options.companyAddress || '4426 Woodward St, Wayne, MI 48184'}
-                  </p>
+                  ${options.companyAddress ? `<p style="margin: 0; color: #94a3b8; font-size: 12px;">
+                    ${options.companyAddress}
+                  </p>` : ''}
                 </td>
               </tr>
             </table>

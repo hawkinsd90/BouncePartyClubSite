@@ -280,7 +280,7 @@ export function Layout() {
                 />
               </div>
               <p className="text-slate-400 text-sm">
-                {businessAddress || '4426 Woodward St, Wayne, MI 48184'}
+                {businessAddress}
               </p>
             </div>
 

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
+import { getBusinessAddressText } from '../lib/adminSettingsCache';
 
 export interface BusinessSettings {
   business_name: string;
@@ -16,7 +17,7 @@ const defaultSettings: BusinessSettings = {
   business_name: 'Bounce Party Club',
   business_name_short: 'Bounce Party Club',
   business_legal_entity: 'Bounce Party Club LLC',
-  business_address: '4426 Woodward St, Wayne, MI 48184',
+  business_address: '',
   business_phone: '(313) 889-3860',
   business_email: 'info@bouncepartyclub.com',
   business_website: 'https://bouncepartyclub.com',
@@ -55,15 +56,21 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      const newSettings = { ...defaultSettings };
+
       if (data && data.length > 0) {
-        const newSettings = { ...defaultSettings };
         data.forEach(({ key, value }) => {
           if (key in newSettings) {
             newSettings[key as keyof BusinessSettings] = value || '';
           }
         });
-        setSettings(newSettings);
       }
+
+      // Load business address using the centralized helper
+      const businessAddress = await getBusinessAddressText();
+      newSettings.business_address = businessAddress;
+
+      setSettings(newSettings);
     } catch (error) {
       console.error('Error loading business settings:', error);
     } finally {

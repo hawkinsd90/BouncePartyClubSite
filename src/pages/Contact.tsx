@@ -220,7 +220,7 @@ export function Contact() {
                   <div>
                     <div className="font-medium text-sm text-slate-500">Location</div>
                     <div className="font-semibold text-sm">
-                      {businessAddress || '4426 Woodward St, Wayne, MI 48184'}
+                      {businessAddress}
                     </div>
                   </div>
                 </div>

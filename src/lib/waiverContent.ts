@@ -114,13 +114,13 @@ If I am not the parent or legal guardian of participating minors, I affirm I hav
 ${businessName} does not provide medical or liability insurance for injuries sustained while using the equipment.`;
 }
 
-// Default waiver text with fallback address
-// For custom address, regenerate using generateWaiverText()
+// Default waiver text - will be regenerated with actual business settings
+// This is just a placeholder that will be replaced at runtime
 export const WAIVER_TEXT = generateWaiverText({
   business_name: 'Bounce Party Club',
   business_name_short: 'Bounce Party Club',
   business_legal_entity: 'Bounce Party Club LLC',
-  business_address: '4426 Woodward St, Wayne, MI 48184',
+  business_address: '',
   business_phone: '(313) 889-3860',
   business_email: 'BouncePartyClub@gmail.com',
   business_website: 'https://bouncepartyclub.com',

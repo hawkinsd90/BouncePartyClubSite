@@ -122,7 +122,7 @@ export function PaymentSuccessState({ orderDetails, isAdminInvoice }: PaymentSuc
               <p className="text-sm text-slate-600">
                 If you have any questions, contact us at{' '}
                 <span className="font-semibold">(313) 889-3860</span> or visit us at{' '}
-                <span className="font-semibold">{businessAddress || '4426 Woodward St, Wayne, MI 48184'}</span>.
+                <span className="font-semibold">{businessAddress}</span>.
               </p>
             </div>
           </div>

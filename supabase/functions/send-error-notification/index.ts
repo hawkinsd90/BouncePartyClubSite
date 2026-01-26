@@ -104,11 +104,8 @@ function createErrorNotificationEmail(errorData: ErrorPayload): string {
               </tr>
               <tr>
                 <td style="background-color: #f8fafc; padding: 25px; text-align: center; border-top: 2px solid #ef4444;">
-                  <p style="margin: 0 0 5px; color: #64748b; font-size: 13px;">
+                  <p style="margin: 0; color: #64748b; font-size: 13px;">
                     Bounce Party Club | ${COMPANY_PHONE}
-                  </p>
-                  <p style="margin: 0; color: #94a3b8; font-size: 12px;">
-                    4426 Woodward St, Wayne, MI 48184
                   </p>
                 </td>
               </tr>
