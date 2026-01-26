@@ -34,7 +34,7 @@ export function OrderCard({ order, onViewReceipt, onDuplicateOrder, onCancelOrde
           <OrderStatusBadge order={order} />
         </div>
         <p className="text-xs sm:text-sm text-gray-500">
-          Order #{order.id.slice(0, 8).toUpperCase()}
+          Order #{formatOrderId(order.id)}
         </p>
       </div>
 

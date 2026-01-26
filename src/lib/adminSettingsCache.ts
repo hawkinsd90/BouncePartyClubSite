@@ -164,3 +164,25 @@ export async function getHomeBaseAddress(): Promise<{
     zip,
   };
 }
+
+/**
+ * Get formatted business address for display purposes
+ * Returns: "{line1}{line2 if present}, {city}, {state} {zip}"
+ * Example: "4426 Woodward St, Wayne, MI 48184"
+ */
+export async function getBusinessAddressText(): Promise<string> {
+  const homeBase = await getHomeBaseAddress();
+  const settings = await getMultipleAdminSettings([
+    'home_address_line1',
+    'home_address_line2',
+  ]);
+
+  const line1 = settings['home_address_line1'] || '4426 Woodward St';
+  const line2 = settings['home_address_line2'];
+
+  let addressText = line1;
+  if (line2) addressText += `, ${line2}`;
+  addressText += `, ${homeBase.city}, ${homeBase.state} ${homeBase.zip}`;
+
+  return addressText;
+}
