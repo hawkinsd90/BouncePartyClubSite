@@ -1,6 +1,5 @@
 import { loadGoogleMapsAPI } from './googleMaps';
 
-const HOME_BASE_ADDRESS = '4426 Woodward St, Wayne, MI 48184';
 const DEFAULT_DEPARTURE_TIME = '06:30';
 const SETUP_MINUTES_PER_UNIT = 20;
 
@@ -341,7 +340,12 @@ export async function optimizeMorningRoute(stops: MorningRouteStop[]): Promise<O
     }];
   }
 
-  const addresses = [HOME_BASE_ADDRESS, ...stops.map(s => s.address)];
+  // Get home base address for routing
+  const { getHomeBaseAddress } = await import('./adminSettingsCache');
+  const homeBase = await getHomeBaseAddress();
+  const homeBaseAddress = homeBase.address;
+
+  const addresses = [homeBaseAddress, ...stops.map(s => s.address)];
   const distanceMatrix = await getDistanceMatrix(addresses, addresses);
 
   const dependencies = buildDependencyGraph(stops);

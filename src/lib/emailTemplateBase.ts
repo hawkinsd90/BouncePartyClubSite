@@ -1,7 +1,6 @@
 export const LOGO_URL =
   'https://qaagfafagdpgzcijnfbw.supabase.co/storage/v1/object/public/public-assets/bounce-party-club-logo.png';
 export const COMPANY_PHONE = '(313) 889-3860';
-export const COMPANY_ADDRESS = '4426 Woodward Ave, Wayne, MI 48184';
 
 export const THEME_COLORS = {
   primary: '#3b82f6',
@@ -50,6 +49,7 @@ interface EmailWrapperOptions {
   headerTitle: string;
   content: string;
   theme?: EmailTheme;
+  companyAddress?: string;
 }
 
 export function createEmailWrapper(options: EmailWrapperOptions): string {
@@ -85,7 +85,7 @@ export function createEmailWrapper(options: EmailWrapperOptions): string {
                     Bounce Party Club | ${COMPANY_PHONE}
                   </p>
                   <p style="margin: 0; color: #94a3b8; font-size: 12px;">
-                    ${COMPANY_ADDRESS}
+                    ${options.companyAddress || '4426 Woodward St, Wayne, MI 48184'}
                   </p>
                 </td>
               </tr>

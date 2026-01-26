@@ -1,6 +1,14 @@
 import { MapPin, Phone, Mail, Clock, Users, Award, Heart } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { getBusinessAddressText } from '../lib/adminSettingsCache';
 
 export function About() {
+  const [businessAddress, setBusinessAddress] = useState('');
+
+  useEffect(() => {
+    getBusinessAddressText().then(setBusinessAddress);
+  }, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-slate-50 to-blue-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
@@ -98,9 +106,7 @@ export function About() {
               </div>
               <h3 className="font-semibold text-slate-900 mb-1">Address</h3>
               <p className="text-sm text-slate-600">
-                4426 Woodward St
-                <br />
-                Wayne, MI 48184
+                {businessAddress || '4426 Woodward St, Wayne, MI 48184'}
               </p>
             </div>
 

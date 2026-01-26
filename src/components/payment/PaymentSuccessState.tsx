@@ -1,5 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Home } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { getBusinessAddressText } from '../../lib/adminSettingsCache';
 
 interface OrderDetails {
   id: string;
@@ -18,6 +20,11 @@ interface PaymentSuccessStateProps {
 
 export function PaymentSuccessState({ orderDetails, isAdminInvoice }: PaymentSuccessStateProps) {
   const navigate = useNavigate();
+  const [businessAddress, setBusinessAddress] = useState('');
+
+  useEffect(() => {
+    getBusinessAddressText().then(setBusinessAddress);
+  }, []);
 
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-4 py-8">
@@ -115,7 +122,7 @@ export function PaymentSuccessState({ orderDetails, isAdminInvoice }: PaymentSuc
               <p className="text-sm text-slate-600">
                 If you have any questions, contact us at{' '}
                 <span className="font-semibold">(313) 889-3860</span> or visit us at{' '}
-                <span className="font-semibold">4426 Woodward Ave, Wayne, MI 48184</span>.
+                <span className="font-semibold">{businessAddress || '4426 Woodward St, Wayne, MI 48184'}</span>.
               </p>
             </div>
           </div>

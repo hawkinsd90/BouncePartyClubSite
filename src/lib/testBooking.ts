@@ -14,7 +14,7 @@ const DEVON_CONTACT = {
 const HOME_BASE = {
   latitude: 42.2812,
   longitude: -83.3755,
-  address: '4426 Woodward Ave, Wayne, MI 48184'
+  address: '4426 Woodward St, Wayne, MI 48184'
 };
 
 const REMOTE_ADDRESSES = [
@@ -210,7 +210,7 @@ export async function createTestBooking() {
       throw new Error('No pricing rules configured');
     }
 
-    console.log(`📏 [TEST BOOKING] Calculating driving distance from ${HOME_BASE.address} to ${randomAddress.formatted_address}...`);
+    console.log(`📏 [TEST BOOKING] Calculating driving distance from home base to ${randomAddress.formatted_address}...`);
 
     let distance;
     let distanceType = 'driving';

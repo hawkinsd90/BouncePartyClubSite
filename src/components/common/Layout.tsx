@@ -4,12 +4,18 @@ import { useAuth } from '../../contexts/AuthContext';
 import { SafeStorage } from '../../lib/safeStorage';
 import { useState, useEffect } from 'react';
 import { notifyError } from '../../lib/notifications';
+import { getBusinessAddressText } from '../../lib/adminSettingsCache';
 
 export function Layout() {
   const { user, isAdmin, hasRole, signOut } = useAuth();
   const navigate = useNavigate();
   const [cartCount, setCartCount] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [businessAddress, setBusinessAddress] = useState('');
+
+  useEffect(() => {
+    getBusinessAddressText().then(setBusinessAddress);
+  }, []);
 
   useEffect(() => {
     const updateCartCount = () => {
@@ -274,9 +280,7 @@ export function Layout() {
                 />
               </div>
               <p className="text-slate-400 text-sm">
-                4426 Woodward St
-                <br />
-                Wayne, MI 48184
+                {businessAddress || '4426 Woodward St, Wayne, MI 48184'}
               </p>
             </div>
 

@@ -246,7 +246,7 @@ export function Home() {
             Serving Wayne and the Greater Detroit Area
           </h2>
           <p className="text-lg sm:text-xl md:text-2xl text-slate-600 text-center mb-10 sm:mb-12 px-4 leading-relaxed max-w-4xl mx-auto text-pretty">
-            Free delivery within 20 miles of Wayne, MI or anywhere in Detroit. Additional travel fees apply beyond our service area.
+            Free delivery within 20 miles of our home base or anywhere in Detroit. Additional travel fees apply beyond our service area.
           </p>
           <div className="text-center">
             <button

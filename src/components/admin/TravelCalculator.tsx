@@ -139,7 +139,7 @@ export function TravelCalculator() {
           <div className="text-sm text-blue-900">
             <p className="font-bold mb-2">Current Pricing Rules:</p>
             <ul className="space-y-1">
-              <li>Base radius: <strong>{pricingRules.base_radius_miles} miles</strong> from {HOME_BASE.address}</li>
+              <li>Base radius: <strong>{pricingRules.base_radius_miles} miles</strong> from home base</li>
               <li>Per mile rate: <strong>{formatCurrency(pricingRules.per_mile_after_base_cents)}/mile</strong> beyond base radius</li>
               {(pricingRules.included_cities || pricingRules.included_city_list_json) &&
                (pricingRules.included_cities || pricingRules.included_city_list_json || []).length > 0 && (

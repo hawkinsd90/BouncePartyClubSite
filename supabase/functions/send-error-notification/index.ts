@@ -21,7 +21,6 @@ interface ErrorPayload {
 const LOGO_URL =
   'https://qaagfafagdpgzcijnfbw.supabase.co/storage/v1/object/public/public-assets/bounce-party-club-logo.png';
 const COMPANY_PHONE = '(313) 889-3860';
-const COMPANY_ADDRESS = '4426 Woodward Ave, Wayne, MI 48184';
 
 function createErrorNotificationEmail(errorData: ErrorPayload): string {
   const content = `
@@ -109,7 +108,7 @@ function createErrorNotificationEmail(errorData: ErrorPayload): string {
                     Bounce Party Club | ${COMPANY_PHONE}
                   </p>
                   <p style="margin: 0; color: #94a3b8; font-size: 12px;">
-                    ${COMPANY_ADDRESS}
+                    4426 Woodward St, Wayne, MI 48184
                   </p>
                 </td>
               </tr>

@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MessageSquare, Send, Phone, Mail, MapPin, Clock } from 'lucide-react';
+import { getBusinessAddressText } from '../lib/adminSettingsCache';
 
 export function Contact() {
+  const [businessAddress, setBusinessAddress] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -11,6 +13,10 @@ export function Contact() {
     message: '',
   });
   const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    getBusinessAddressText().then(setBusinessAddress);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -214,8 +220,7 @@ export function Contact() {
                   <div>
                     <div className="font-medium text-sm text-slate-500">Location</div>
                     <div className="font-semibold text-sm">
-                      4426 Woodward St<br />
-                      Wayne, MI 48184
+                      {businessAddress || '4426 Woodward St, Wayne, MI 48184'}
                     </div>
                   </div>
                 </div>

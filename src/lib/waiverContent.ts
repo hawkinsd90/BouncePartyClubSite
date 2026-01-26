@@ -114,6 +114,8 @@ If I am not the parent or legal guardian of participating minors, I affirm I hav
 ${businessName} does not provide medical or liability insurance for injuries sustained while using the equipment.`;
 }
 
+// Default waiver text with fallback address
+// For custom address, regenerate using generateWaiverText()
 export const WAIVER_TEXT = generateWaiverText({
   business_name: 'Bounce Party Club',
   business_name_short: 'Bounce Party Club',

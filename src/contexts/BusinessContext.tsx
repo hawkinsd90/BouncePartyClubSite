@@ -16,7 +16,7 @@ const defaultSettings: BusinessSettings = {
   business_name: 'Bounce Party Club',
   business_name_short: 'Bounce Party Club',
   business_legal_entity: 'Bounce Party Club LLC',
-  business_address: '123 Main St, Wayne, MI 48184',
+  business_address: '4426 Woodward St, Wayne, MI 48184',
   business_phone: '(313) 889-3860',
   business_email: 'info@bouncepartyclub.com',
   business_website: 'https://bouncepartyclub.com',

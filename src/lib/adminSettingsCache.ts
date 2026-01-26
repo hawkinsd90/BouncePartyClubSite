@@ -177,8 +177,13 @@ export async function getBusinessAddressText(): Promise<string> {
     'home_address_line2',
   ]);
 
-  const line1 = settings['home_address_line1'] || '4426 Woodward St';
+  const line1 = settings['home_address_line1'];
   const line2 = settings['home_address_line2'];
+
+  // If no line1, use the full fallback address
+  if (!line1) {
+    return '4426 Woodward St, Wayne, MI 48184';
+  }
 
   let addressText = line1;
   if (line2) addressText += `, ${line2}`;
