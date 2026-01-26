@@ -96,3 +96,12 @@ export function debounce<T extends (...args: any[]) => any>(
     timeout = setTimeout(() => func(...args), wait);
   };
 }
+
+/**
+ * Format order ID for display purposes
+ * Takes the first 8 characters of the UUID and converts to uppercase
+ * Example: "a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6" => "A1B2C3D4"
+ */
+export function formatOrderId(orderId: string): string {
+  return orderId.slice(0, 8).toUpperCase();
+}
