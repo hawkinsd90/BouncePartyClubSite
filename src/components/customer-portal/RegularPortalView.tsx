@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { FileText, CreditCard, CheckCircle, Image as ImageIcon } from 'lucide-react';
+import { FileText, CreditCard, CheckCircle, Image as ImageIcon, MapPin } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { supabase } from '../../lib/supabase';
 import WaiverTab from '../waiver/WaiverTab';
 import { PaymentTab } from './PaymentTab';
 import { PicturesTab } from './PicturesTab';
+import { LotPicturesTab } from './LotPicturesTab';
 import { CancelOrderModal } from './CancelOrderModal';
 import { showToast } from '../../lib/notifications';
 
@@ -16,8 +17,9 @@ interface RegularPortalViewProps {
 }
 
 export function RegularPortalView({ order, orderId, onReload }: RegularPortalViewProps) {
-  const [activeTab, setActiveTab] = useState<'waiver' | 'payment' | 'pictures'>(
-    order.waiver_signed_at ? 'payment' : 'waiver'
+  const isPendingReview = order.status === 'pending_review';
+  const [activeTab, setActiveTab] = useState<'lot-pictures' | 'waiver' | 'payment' | 'pictures'>(
+    isPendingReview ? 'lot-pictures' : (order.waiver_signed_at ? 'payment' : 'waiver')
   );
   const [showCancelModal, setShowCancelModal] = useState(false);
 
@@ -212,10 +214,23 @@ export function RegularPortalView({ order, orderId, onReload }: RegularPortalVie
               </div>
             </div>
 
-            <div className="flex gap-2 mb-6 border-b border-slate-200">
+            <div className="flex gap-2 mb-6 border-b border-slate-200 overflow-x-auto">
+              {isPendingReview && (
+                <button
+                  onClick={() => setActiveTab('lot-pictures')}
+                  className={`px-4 py-2 font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
+                    activeTab === 'lot-pictures'
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <MapPin className="w-4 h-4" />
+                  Lot Pictures
+                </button>
+              )}
               <button
                 onClick={() => setActiveTab('waiver')}
-                className={`px-4 py-2 font-medium border-b-2 transition-colors ${
+                className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
                   activeTab === 'waiver'
                     ? 'border-blue-600 text-blue-600'
                     : 'border-transparent text-slate-600 hover:text-slate-900'
@@ -226,7 +241,7 @@ export function RegularPortalView({ order, orderId, onReload }: RegularPortalVie
               <button
                 onClick={() => setActiveTab('payment')}
                 disabled={needsWaiver}
-                className={`px-4 py-2 font-medium border-b-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                className={`px-4 py-2 font-medium border-b-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap ${
                   activeTab === 'payment'
                     ? 'border-blue-600 text-blue-600'
                     : 'border-transparent text-slate-600 hover:text-slate-900'
@@ -236,7 +251,7 @@ export function RegularPortalView({ order, orderId, onReload }: RegularPortalVie
               </button>
               <button
                 onClick={() => setActiveTab('pictures')}
-                className={`px-4 py-2 font-medium border-b-2 transition-colors ${
+                className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
                   activeTab === 'pictures'
                     ? 'border-blue-600 text-blue-600'
                     : 'border-transparent text-slate-600 hover:text-slate-900'
@@ -245,6 +260,10 @@ export function RegularPortalView({ order, orderId, onReload }: RegularPortalVie
                 Pictures
               </button>
             </div>
+
+            {activeTab === 'lot-pictures' && (
+              <LotPicturesTab orderId={orderId} orderNumber={order.order_number} />
+            )}
 
             {activeTab === 'waiver' && <WaiverTab orderId={orderId} order={order} />}
 

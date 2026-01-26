@@ -9,6 +9,7 @@ import { OrderInfoSection } from '../pending-order/OrderInfoSection';
 import { SmsConversation } from '../pending-order/SmsConversation';
 import { PaymentManagementSection } from '../pending-order/PaymentManagementSection';
 import { StreetViewImages } from '../pending-order/StreetViewImages';
+import { LotPicturesDisplay } from '../pending-order/LotPicturesDisplay';
 import { ApprovalModal } from '../pending-order/ApprovalModal';
 import { RejectionModal } from '../pending-order/RejectionModal';
 import { PaymentLinkSection } from '../pending-order/PaymentLinkSection';
@@ -180,6 +181,17 @@ export function PendingOrderCard({
         selectedImage={selectedImage}
         onSelectImage={setSelectedImage}
       />
+
+      <div className="mb-4">
+        <LotPicturesDisplay
+          orderId={order.id}
+          orderNumber={order.order_number}
+          onPromptCustomer={() => {
+            const message = `Hi! We're reviewing your order #${order.order_number}. Could you please upload pictures of the event location through your customer portal? This helps us prepare better for your event. Link: ${window.location.origin}/portal/${order.id}`;
+            sendSms(message);
+          }}
+        />
+      </div>
 
       {orderSummary && (
         <div className="mb-4">

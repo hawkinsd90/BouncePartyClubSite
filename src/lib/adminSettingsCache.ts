@@ -132,8 +132,8 @@ export async function getHomeBaseAddress(): Promise<{
 
   // Default to Wayne, MI if settings not found
   const defaultAddress = {
-    address: '3200 S Wayne Rd, Wayne, MI 48184',
-    lat: 42.2753,
+    address: '4426 Woodward St, Wayne, MI 48184',
+    lat: 42.2808,
     lng: -83.3863,
     city: 'Wayne',
     state: 'MI',
