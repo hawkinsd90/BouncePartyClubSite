@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { formatOrderId } from "../_shared/format-order-id.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -129,7 +130,7 @@ Deno.serve(async (req: Request) => {
 
       messageBody = template.message_template
         .replace("{customer_name}", `${order.customers?.first_name || ''} ${order.customers?.last_name || ''}`)
-        .replace("{order_id}", order.id.slice(0, 8).toUpperCase())
+        .replace("{order_id}", formatOrderId(order.id))
         .replace("{event_date}", order.event_date || '')
         .replace("{event_address}", order.event_address_line1 || '');
     }

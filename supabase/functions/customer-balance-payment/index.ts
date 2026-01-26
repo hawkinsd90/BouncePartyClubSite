@@ -8,6 +8,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import Stripe from "npm:stripe@14.14.0";
 import { createClient } from "npm:@supabase/supabase-js@2.39.3";
 import { checkRateLimit, createRateLimitResponse, getIdentifier, buildRateLimitKey } from "../_shared/rate-limit.ts";
+import { formatOrderId } from "../_shared/format-order-id.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -144,7 +145,7 @@ Deno.serve(async (req: Request) => {
             currency: "usd",
             product_data: {
               name: `Order Balance Payment`,
-              description: `Order #${orderId.slice(0, 8).toUpperCase()}`,
+              description: `Order #${formatOrderId(orderId)}`,
             },
             unit_amount: amountCents,
           },

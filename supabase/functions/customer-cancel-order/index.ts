@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import Stripe from "npm:stripe@14.14.0";
 import { createClient } from "npm:@supabase/supabase-js@2.39.3";
+import { formatOrderId } from "../_shared/format-order-id.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -271,7 +272,7 @@ ${refundResult?.refunded ? `Automatic refund of $${(refundResult.amount / 100).t
 
           const message = smsTemplate.message_template
             .replace("{customer_name}", customerName)
-            .replace("{order_id}", orderId.slice(0, 8).toUpperCase())
+            .replace("{order_id}", formatOrderId(orderId))
             .replace("{event_date}", eventDate)
             .replace("{refund_policy}", refundPolicyText)
             .replace("{order_link}", orderLink);
@@ -299,7 +300,7 @@ ${refundResult?.refunded ? `Automatic refund of $${(refundResult.amount / 100).t
         const customerName = `${order.customers?.first_name || ''} ${order.customers?.last_name || ''}`.trim();
         const eventDate = new Date(order.event_date).toLocaleDateString();
 
-        let customerMessage = `Hi ${customerName}, your order #${orderId.slice(0, 8).toUpperCase()} for ${eventDate} has been cancelled.\n\n`;
+        let customerMessage = `Hi ${customerName}, your order #${formatOrderId(orderId)} for ${eventDate} has been cancelled.\n\n`;
 
         if (shouldIssueRefund) {
           customerMessage += `✓ Full refund issued: Your refund will be processed and should appear in your account within 5-10 business days.`;
