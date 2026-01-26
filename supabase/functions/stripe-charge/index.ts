@@ -3,6 +3,7 @@ import Stripe from "npm:stripe@14.14.0";
 import { createClient } from "npm:@supabase/supabase-js@2.39.3";
 import { checkRateLimit, createRateLimitResponse, getIdentifier, buildRateLimitKey } from "../_shared/rate-limit.ts";
 import { validatePaymentMethod } from "../_shared/payment-validation.ts";
+import { formatOrderId } from "../_shared/format-order-id.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -166,7 +167,7 @@ Deno.serve(async (req: Request) => {
       payment_method: order.stripe_payment_method_id,
       off_session: true,
       confirm: true,
-      description: description || `${paymentType} charge for order ${orderId}`,
+      description: description || `${paymentType} charge for order ${formatOrderId(orderId)}`,
       metadata: {
         order_id: orderId,
         payment_type: paymentType,
