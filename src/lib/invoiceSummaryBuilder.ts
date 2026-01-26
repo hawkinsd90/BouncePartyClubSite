@@ -55,12 +55,14 @@ export function buildInvoiceSummary(params: BuildSummaryParams): OrderSummaryDis
   return buildOrderSummaryDisplay({
     items,
     fees: {
-      travel_fee_cents: params.travelFeeWaived ? 0 : params.priceBreakdown?.travel_fee_cents,
+      travel_fee_cents: params.priceBreakdown?.travel_fee_cents || 0,
       travel_fee_display_name: params.priceBreakdown?.travel_fee_display_name,
       surface_fee_cents: params.priceBreakdown?.surface_fee_cents || 0,
-      same_day_pickup_fee_cents: params.sameDayPickupFeeWaived ? 0 : params.priceBreakdown?.same_day_pickup_fee_cents,
+      same_day_pickup_fee_cents: params.priceBreakdown?.same_day_pickup_fee_cents || 0,
       generator_fee_cents: params.priceBreakdown?.generator_fee_cents || 0,
       generator_qty: params.eventDetails.generator_qty,
+      travel_fee_waived: params.travelFeeWaived,
+      same_day_pickup_fee_waived: params.sameDayPickupFeeWaived,
     },
     discounts: params.discounts,
     customFees: params.customFees,

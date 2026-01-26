@@ -17,6 +17,8 @@ interface PrintableInvoiceProps {
   paymentMethod?: string;
   paymentBrand?: string;
   paymentLast4?: string;
+  taxWaived?: boolean;
+  travelFeeWaived?: boolean;
 }
 
 export function PrintableInvoice({
@@ -29,6 +31,8 @@ export function PrintableInvoice({
   paymentMethod,
   paymentBrand,
   paymentLast4,
+  taxWaived = false,
+  travelFeeWaived = false,
 }: PrintableInvoiceProps) {
   const today = format(new Date(), 'MMMM d, yyyy');
 
@@ -190,13 +194,18 @@ export function PrintableInvoice({
                 </div>
               </div>
 
-              {priceBreakdown.travel_fee_cents > 0 && (
+              {(priceBreakdown.travel_fee_cents > 0 || travelFeeWaived) && (
                 <div className="grid grid-cols-2 py-3 px-6 border-b border-slate-100">
-                  <div className="text-slate-700">
+                  <div className="text-slate-700 flex items-center gap-2">
                     {priceBreakdown.travel_fee_display_name || 'Travel Fee'}
                   </div>
-                  <div className="text-right text-slate-900 font-medium">
-                    {formatCurrency(priceBreakdown.travel_fee_cents)}
+                  <div className="text-right font-medium flex items-center justify-end gap-2">
+                    <span className={travelFeeWaived ? 'line-through text-red-600' : 'text-slate-900'}>
+                      {formatCurrency(priceBreakdown.travel_fee_cents)}
+                    </span>
+                    {travelFeeWaived && (
+                      <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded font-semibold">WAIVED</span>
+                    )}
                   </div>
                 </div>
               )}
@@ -228,11 +237,16 @@ export function PrintableInvoice({
                 </div>
               )}
 
-              {priceBreakdown.tax_cents > 0 && (
+              {(priceBreakdown.tax_cents > 0 || taxWaived) && (
                 <div className="grid grid-cols-2 py-3 px-6 border-b border-slate-100">
                   <div className="text-slate-700">Tax (6%)</div>
-                  <div className="text-right text-slate-900 font-medium">
-                    {formatCurrency(priceBreakdown.tax_cents)}
+                  <div className="text-right font-medium flex items-center justify-end gap-2">
+                    <span className={taxWaived ? 'line-through text-red-600' : 'text-slate-900'}>
+                      {formatCurrency(priceBreakdown.tax_cents)}
+                    </span>
+                    {taxWaived && (
+                      <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded font-semibold">WAIVED</span>
+                    )}
                   </div>
                 </div>
               )}

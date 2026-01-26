@@ -8,6 +8,10 @@ interface FeeInput {
   same_day_pickup_fee_cents?: number;
   generator_fee_cents?: number;
   generator_qty?: number;
+  travel_fee_waived?: boolean;
+  surface_fee_waived?: boolean;
+  same_day_pickup_fee_waived?: boolean;
+  generator_fee_waived?: boolean;
 }
 
 interface DiscountInput {
@@ -49,29 +53,30 @@ interface BuildSummaryOptions {
 export function buildFeesList(fees: FeeInput): Array<{ name: string; amount: number }> {
   const feesList: Array<{ name: string; amount: number }> = [];
 
-  // Only show fees that have a value > 0 (waived fees will show original amount, not $0)
-  if (fees.travel_fee_cents && fees.travel_fee_cents > 0) {
+  // Show fees if they have a value > 0 OR if they're explicitly waived
+  // This ensures waived fees appear in the list so they can display with WAIVED badge
+  if ((fees.travel_fee_cents && fees.travel_fee_cents > 0) || fees.travel_fee_waived) {
     let travelFeeName = fees.travel_fee_display_name || 'Travel Fee';
     if (fees.travel_total_miles && fees.travel_total_miles > 0) {
       travelFeeName = `Travel Fee (${fees.travel_total_miles.toFixed(1)} mi)`;
     }
-    feesList.push({ name: travelFeeName, amount: fees.travel_fee_cents });
+    feesList.push({ name: travelFeeName, amount: fees.travel_fee_cents || 0 });
   }
 
-  if (fees.surface_fee_cents && fees.surface_fee_cents > 0) {
-    feesList.push({ name: 'Surface Fee (Sandbags)', amount: fees.surface_fee_cents });
+  if ((fees.surface_fee_cents && fees.surface_fee_cents > 0) || fees.surface_fee_waived) {
+    feesList.push({ name: 'Surface Fee (Sandbags)', amount: fees.surface_fee_cents || 0 });
   }
 
-  if (fees.same_day_pickup_fee_cents && fees.same_day_pickup_fee_cents > 0) {
-    feesList.push({ name: 'Same-Day Pickup Fee', amount: fees.same_day_pickup_fee_cents });
+  if ((fees.same_day_pickup_fee_cents && fees.same_day_pickup_fee_cents > 0) || fees.same_day_pickup_fee_waived) {
+    feesList.push({ name: 'Same-Day Pickup Fee', amount: fees.same_day_pickup_fee_cents || 0 });
   }
 
-  if (fees.generator_fee_cents && fees.generator_fee_cents > 0) {
+  if ((fees.generator_fee_cents && fees.generator_fee_cents > 0) || fees.generator_fee_waived) {
     const generatorLabel =
       fees.generator_qty && fees.generator_qty > 1
         ? `Generators (${fees.generator_qty}x)`
         : 'Generator';
-    feesList.push({ name: generatorLabel, amount: fees.generator_fee_cents });
+    feesList.push({ name: generatorLabel, amount: fees.generator_fee_cents || 0 });
   }
 
   return feesList;

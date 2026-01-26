@@ -85,6 +85,10 @@ export interface OrderSummaryData {
   pickup_preference: string;
   event_date: string;
   event_end_date?: string;
+  travel_fee_waived?: boolean;
+  surface_fee_waived?: boolean;
+  same_day_pickup_fee_waived?: boolean;
+  generator_fee_waived?: boolean;
 }
 
 export interface OrderSummaryDisplay {
@@ -357,6 +361,10 @@ export function formatOrderSummary(data: OrderSummaryData): OrderSummaryDisplay 
       same_day_pickup_fee_cents: data.same_day_pickup_fee_cents,
       generator_fee_cents: data.generator_fee_cents,
       generator_qty: data.generator_qty,
+      travel_fee_waived: data.travel_fee_waived,
+      surface_fee_waived: data.surface_fee_waived,
+      same_day_pickup_fee_waived: data.same_day_pickup_fee_waived,
+      generator_fee_waived: data.generator_fee_waived,
     },
     discounts: data.discounts,
     customFees: data.customFees,
