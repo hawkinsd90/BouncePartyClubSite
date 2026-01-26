@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { History, Package, Shield, Settings, Filter, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { notify, notifyError } from '../../lib/notifications';
 import { LoadingSpinner } from '../common/LoadingSpinner';
+import { formatOrderId } from '../../lib/utils';
 
 interface OrderChange {
   id: string;
@@ -415,7 +416,7 @@ export function ChangelogTab() {
                               className="text-blue-600 hover:text-blue-800 hover:underline font-mono"
                               title="Click to copy Order ID"
                             >
-                              {orderGroup.order_id.substring(0, 8)}...
+                              {formatOrderId(orderGroup.order_id)}...
                             </button>
                           </p>
                         </div>

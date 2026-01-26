@@ -8,6 +8,7 @@ import {
   createContactInfo,
   EMAIL_THEMES,
 } from './emailTemplateBase';
+import { formatOrderId } from './utils';
 
 interface SendOrderEditNotificationsParams {
   order: any;
@@ -23,7 +24,7 @@ export async function sendOrderEditNotifications({
 
     let content = createGreeting(order.customers?.first_name);
     content += createParagraph(
-      `We've made some updates to your booking (Order #${order.id.slice(0, 8).toUpperCase()}) and need your approval to proceed.`
+      `We've made some updates to your booking (Order #${formatOrderId(order.id)}) and need your approval to proceed.`
     );
 
     if (adminMessage.trim()) {
@@ -58,7 +59,7 @@ export async function sendOrderEditNotifications({
     if (order.customers?.email) {
       await sendEmail({
         to: order.customers.email,
-        subject: `Order Updated - Approval Needed - Order #${order.id.slice(0, 8).toUpperCase()}`,
+        subject: `Order Updated - Approval Needed - Order #${formatOrderId(order.id)}`,
         html: emailHtml,
       });
     }
@@ -66,7 +67,7 @@ export async function sendOrderEditNotifications({
     if (order.customers?.phone) {
       let smsMessage =
         `Hi ${order.customers.first_name}, we've updated your Bounce Party Club booking ` +
-        `(Order #${order.id.slice(0, 8).toUpperCase()}).`;
+        `(Order #${formatOrderId(order.id)}).`;
 
       if (adminMessage.trim()) {
         smsMessage += ` Note: ${adminMessage.trim()}`;
@@ -184,7 +185,7 @@ async function sendAdminBookingEmail(order: BookingOrderDetails, generateEmail: 
     const { sendAdminEmail } = await import('./notificationService');
     const adminEmailHtml = generateEmail(order);
     await sendAdminEmail(
-      `New Booking Request - Order #${order.id.slice(0, 8).toUpperCase()}`,
+      `New Booking Request - Order #${formatOrderId(order.id)}`,
       adminEmailHtml
     );
   } catch (emailErr) {

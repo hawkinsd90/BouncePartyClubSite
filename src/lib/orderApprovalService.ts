@@ -251,7 +251,7 @@ async function sendConfirmationEmail(orderWithItems: any, totalCents: number) {
 
       await sendEmail({
         to: customer.email,
-        subject: `Booking Confirmed - Receipt for Order #${orderWithItems.id.slice(0, 8).toUpperCase()}`,
+        subject: `Booking Confirmed - Receipt for Order #${formatOrderId(orderWithItems.id)}`,
         html: emailHtml,
       });
     }

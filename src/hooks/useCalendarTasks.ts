@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { formatOrderId } from '../lib/utils';
 import { format, startOfMonth, endOfMonth, parseISO, addDays } from 'date-fns';
 
 export interface Task {
@@ -160,7 +161,7 @@ export function useCalendarTasks(currentMonth: Date) {
           orderId: order.id,
           type: 'drop-off',
           date: eventDate,
-          orderNumber: order.id.slice(0, 8).toUpperCase(),
+          orderNumber: formatOrderId(order.id),
           customerName,
           customerPhone: customer?.phone || 'No phone',
           customerEmail: customer?.email || '',
@@ -200,7 +201,7 @@ export function useCalendarTasks(currentMonth: Date) {
           orderId: order.id,
           type: 'pick-up',
           date: pickupDate,
-          orderNumber: order.id.slice(0, 8).toUpperCase(),
+          orderNumber: formatOrderId(order.id),
           customerName,
           customerPhone: customer?.phone || 'No phone',
           customerEmail: customer?.email || '',

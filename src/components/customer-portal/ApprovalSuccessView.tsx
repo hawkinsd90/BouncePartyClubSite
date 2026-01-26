@@ -33,7 +33,7 @@ export function ApprovalSuccessView({ orderId }: ApprovalSuccessViewProps) {
         <div className="px-8 py-8 text-center">
           <p className="text-lg text-slate-700 mb-6">
             Thank you for approving the changes to your order{' '}
-            <strong>#{orderId.slice(0, 8).toUpperCase()}</strong>.
+            <strong>#{formatOrderId(orderId)}</strong>.
           </p>
 
           <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-6 mb-6">

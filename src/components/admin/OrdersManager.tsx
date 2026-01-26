@@ -110,7 +110,7 @@ export function OrdersManager() {
         const email = order.customers?.email?.toLowerCase() || '';
         const phone = order.customers?.phone?.toLowerCase() || '';
         const eventDate = format(new Date(order.event_date), 'yyyy-MM-dd');
-        const orderId = order.id.slice(0, 8).toLowerCase();
+        const orderId = formatOrderId(order.id).toLowerCase();
 
         return customerName.includes(search) ||
                email.includes(search) ||
@@ -333,7 +333,7 @@ export function OrdersManager() {
                 >
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-mono font-semibold text-blue-600">
-                      {order.id.slice(0, 8).toUpperCase()}
+                      {formatOrderId(order.id).toUpperCase()}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">

@@ -44,7 +44,7 @@ export function OrderStatusView({ order }: OrderStatusViewProps) {
           />
           <h1 className="text-2xl font-bold text-white">Order Status</h1>
           <p className="text-blue-100 mt-2">
-            Order #{order.id.slice(0, 8).toUpperCase()}
+            Order #{formatOrderId(order.id)}
           </p>
         </div>
 

@@ -499,7 +499,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         <div className="sticky top-0 bg-white border-b border-slate-200 px-3 md:px-6 py-3 md:py-4 flex items-center justify-between md:rounded-t-lg z-10">
           <div className="flex-1 min-w-0">
             <h2 className="text-lg md:text-2xl font-bold text-slate-900 truncate">
-              Order #{order.id.slice(0, 8).toUpperCase()}
+              Order #{formatOrderId(order.id)}
             </h2>
             <p className="text-xs md:text-sm text-slate-600 truncate">
               {order.customers?.first_name} {order.customers?.last_name} • {format(new Date(order.event_date), 'MMM d, yyyy')}

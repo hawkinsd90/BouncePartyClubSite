@@ -10,6 +10,7 @@ import {
   EMAIL_THEMES,
   COMPANY_PHONE,
 } from './emailTemplateBase';
+import { formatOrderId } from './utils';
 
 interface OrderEmailData {
   order: any;
@@ -30,7 +31,7 @@ export function generateConfirmationReceiptEmail(data: OrderEmailData): string {
   );
 
   const eventDetailsRows = [
-    { label: 'Order #', value: order.id.slice(0, 8).toUpperCase() },
+    { label: 'Order #', value: formatOrderId(order.id) },
     { label: 'Date', value: eventDateStr },
     { label: 'Time', value: `${order.start_window} - ${order.end_window}` },
     { label: 'Location', value: `${address?.line1}, ${address?.city}` },
@@ -183,7 +184,7 @@ export function generateConfirmationReceiptEmail(data: OrderEmailData): string {
 }
 
 export function generateConfirmationSmsMessage(order: any, customerFirstName: string): string {
-  return `Hi ${customerFirstName}, your booking for ${format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')} is confirmed! Order #${order.id.slice(0, 8).toUpperCase()}. We'll contact you closer to your event date. Reply to this message anytime with questions.`;
+  return `Hi ${customerFirstName}, your booking for ${format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')} is confirmed! Order #${formatOrderId(order.id)}. We'll contact you closer to your event date. Reply to this message anytime with questions.`;
 }
 
 export function generateRejectionSmsMessage(
@@ -202,5 +203,5 @@ export function generatePaymentLinkSmsMessage(
 }
 
 export function generateTestSmsMessage(order: any, customerFirstName: string): string {
-  return `Hi ${customerFirstName}, this is a test message from Bounce Party Club. Your order #${order.id.slice(0, 8).toUpperCase()} is confirmed!`;
+  return `Hi ${customerFirstName}, this is a test message from Bounce Party Club. Your order #${formatOrderId(order.id)} is confirmed!`;
 }

@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { formatCurrency } from './pricing';
 import { checkMultipleUnitsAvailability } from './availability';
+import { formatOrderId } from './utils';
 
 interface OrderData {
   contactData: {
@@ -324,8 +325,8 @@ export async function completeOrderAfterPayment(orderId: string, _paymentIntentI
     const { sendAdminSms } = await import('./notificationService');
 
     const smsMessage = isAdminSent
-      ? `✅ INVOICE PAID! ${contactData.first_name} ${contactData.last_name} for ${order.event_date}. Order CONFIRMED. #${order.id.slice(0, 8).toUpperCase()}`
-      : `🎈 NEW BOOKING! ${contactData.first_name} ${contactData.last_name} for ${order.event_date}. Review in admin panel. Order #${order.id.slice(0, 8).toUpperCase()}`;
+      ? `✅ INVOICE PAID! ${contactData.first_name} ${contactData.last_name} for ${order.event_date}. Order CONFIRMED. #${formatOrderId(order.id)}`
+      : `🎈 NEW BOOKING! ${contactData.first_name} ${contactData.last_name} for ${order.event_date}. Review in admin panel. Order #${formatOrderId(order.id)}`;
 
     await sendAdminSms(smsMessage, order.id);
   } catch (smsError) {

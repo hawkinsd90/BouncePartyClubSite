@@ -63,7 +63,7 @@ export function PaymentSuccessState({ orderDetails, isAdminInvoice }: PaymentSuc
               <div>
                 <p className="text-sm text-slate-600 mb-1">Order ID:</p>
                 <p className="font-semibold text-slate-900">
-                  {orderDetails.id.slice(0, 8).toUpperCase()}
+                  {formatOrderId(orderDetails.id)}
                 </p>
               </div>
               <div>

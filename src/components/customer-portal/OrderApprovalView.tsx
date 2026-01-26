@@ -93,7 +93,7 @@ export function OrderApprovalView({
               Order Changes - Approval Required
             </h1>
             <p className="text-sm md:text-base text-amber-700 mt-1 md:mt-2">
-              Order #{order.id.slice(0, 8).toUpperCase()}
+              Order #{formatOrderId(order.id)}
             </p>
           </div>
 

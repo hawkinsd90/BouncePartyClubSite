@@ -40,7 +40,7 @@ export function ApprovalModal({
             <strong>Customer:</strong> {customerDisplayName}
           </p>
           <p className="text-sm text-slate-600 mb-2">
-            <strong>Order:</strong> #{order.id.slice(0, 8).toUpperCase()}
+            <strong>Order:</strong> #{formatOrderId(order.id)}
           </p>
           <p className="text-sm text-slate-600">
             <strong>Deposit:</strong> {formatCurrency(order.deposit_due_cents)}

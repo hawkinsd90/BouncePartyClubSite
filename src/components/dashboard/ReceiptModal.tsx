@@ -50,7 +50,7 @@ export function ReceiptModal({ order, payment, summary, loading, onClose }: Rece
               <div>
                 <p className="text-gray-600">Order ID</p>
                 <p className="font-semibold text-gray-900 text-xs">
-                  #{order.id.slice(0, 8)}
+                  #{formatOrderId(order.id)}
                 </p>
               </div>
             </div>

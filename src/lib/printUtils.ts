@@ -1,4 +1,4 @@
-import { formatCurrency } from './utils';
+import { formatCurrency, formatOrderId } from './utils';
 
 // Enhanced Type Safety
 export interface PrintableItem {
@@ -298,7 +298,7 @@ export function transformOrderToPrintableDocument(
 
   return {
     type: 'invoice',
-    documentNumber: order.id?.slice(0, 8).toUpperCase(),
+    documentNumber: formatOrderId(order.id),
     title: 'Invoice',
     date: order.event_date,
     items,

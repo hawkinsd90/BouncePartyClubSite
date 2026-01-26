@@ -10,6 +10,7 @@ import {
   createBulletList,
   EMAIL_THEMES,
 } from './emailTemplateBase';
+import { formatOrderId } from './utils';
 
 interface OrderEmailData {
   id: string;
@@ -65,7 +66,7 @@ export function generateCustomerBookingEmail(order: OrderEmailData): string {
   );
 
   const eventInfoRows = [
-    { label: 'Order ID', value: `#${order.id.slice(0, 8).toUpperCase()}` },
+    { label: 'Order ID', value: `#${formatOrderId(order.id)}` },
     { label: 'Event Date', value: eventDateStr },
     { label: 'Time', value: `${order.start_window} - ${order.end_window}` },
     { label: 'Location', value: order.location_type },
@@ -210,7 +211,7 @@ export function generateAdminBookingEmail(order: OrderEmailData): string {
   content += createInfoBox({
     title: 'Event Details',
     rows: [
-      { label: 'Order ID', value: `#${order.id.slice(0, 8).toUpperCase()}` },
+      { label: 'Order ID', value: `#${formatOrderId(order.id)}` },
       { label: 'Event Date', value: eventDateStr },
       { label: 'Time', value: `${order.start_window} - ${order.end_window}` },
       {
@@ -309,6 +310,6 @@ export function generateAdminSMS(order: OrderEmailData): string {
   return (
     `NEW BOOKING! ${order.customer.first_name} ${order.customer.last_name} ` +
     `for ${eventDateStr}. Review in admin panel. ` +
-    `Order #${order.id.slice(0, 8).toUpperCase()}`
+    `Order #${formatOrderId(order.id)}`
   );
 }

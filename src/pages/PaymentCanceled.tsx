@@ -1,5 +1,6 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { XCircle } from 'lucide-react';
+import { formatOrderId } from '../lib/utils';
 
 export function PaymentCanceled() {
   const navigate = useNavigate();
@@ -33,7 +34,7 @@ export function PaymentCanceled() {
         </p>
         {orderId && (
           <p className="text-sm text-gray-500 mb-6">
-            Order ID: {orderId.slice(0, 8).toUpperCase()}
+            Order ID: {formatOrderId(orderId)}
           </p>
         )}
         <div className="flex gap-4 justify-center">

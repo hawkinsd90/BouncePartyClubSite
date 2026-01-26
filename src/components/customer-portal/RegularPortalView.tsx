@@ -135,7 +135,7 @@ export function RegularPortalView({ order, orderId, onReload }: RegularPortalVie
             <div className="flex justify-between items-start">
               <div>
                 <h1 className="text-3xl font-bold">Customer Portal</h1>
-                <p className="mt-2">Order #{order.id.slice(0, 8).toUpperCase()}</p>
+                <p className="mt-2">Order #{formatOrderId(order.id)}</p>
                 <p className="text-sm opacity-90">
                   Event Date: {format(new Date(order.event_date), 'MMMM d, yyyy')} at{' '}
                   {order.start_window}

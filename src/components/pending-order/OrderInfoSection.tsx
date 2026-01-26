@@ -39,7 +39,7 @@ export function OrderInfoSection({ order, customerDisplayName, onEditClick }: Or
           </div>
           <p className="text-xs md:text-sm text-slate-600">Order ID</p>
           <p className="font-mono text-xs md:text-sm font-semibold">
-            {order.id.slice(0, 8).toUpperCase()}
+            {formatOrderId(order.id)}
           </p>
           <p className="text-xs text-slate-500 mt-1">
             {format(new Date(order.created_at), 'MMM d, yyyy h:mm a')}

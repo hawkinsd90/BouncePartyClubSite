@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../lib/pricing';
 import { CreditCard, CheckCircle, Loader2, AlertCircle, Printer } from 'lucide-react';
+import { formatOrderId } from '../lib/utils';
 import { StripeCheckoutForm } from '../components/payment/StripeCheckoutForm';
 import { completeOrderAfterPayment } from '../lib/orderCreation';
 import { RentalTerms } from '../components/waiver/RentalTerms';
@@ -214,7 +215,7 @@ export function Invoice() {
               <div>
                 <span className="text-slate-600">Order ID:</span>
                 <p className="font-mono font-semibold text-slate-900">
-                  {orderId?.slice(0, 8).toUpperCase()}
+                  {formatOrderId(orderId)}
                 </p>
               </div>
               <div>
@@ -332,7 +333,7 @@ export function Invoice() {
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border-2 border-slate-100">
           <div className="bg-blue-600 text-white p-6">
             <h1 className="text-3xl font-bold mb-2">Invoice</h1>
-            <p className="text-blue-100">Order #{orderId?.slice(0, 8).toUpperCase()}</p>
+            <p className="text-blue-100">Order #{formatOrderId(orderId)}</p>
           </div>
 
           <div className="p-6 space-y-6">
@@ -447,7 +448,7 @@ export function Invoice() {
             priceBreakdown={transformedPriceBreakdown}
             cart={transformedCart}
             contactData={transformedContactData}
-            invoiceNumber={orderId?.slice(0, 8).toUpperCase()}
+            invoiceNumber={formatOrderId(orderId)}
             isPaid={false}
           />
         </PrintModal>
