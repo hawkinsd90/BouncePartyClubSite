@@ -107,3 +107,60 @@ export const ADMIN_SETTING_KEYS = {
 } as const;
 
 export type AdminSettingKey = typeof ADMIN_SETTING_KEYS[keyof typeof ADMIN_SETTING_KEYS];
+
+/**
+ * Get the home base address from admin settings
+ * Falls back to default Wayne, MI address if not found
+ */
+export async function getHomeBaseAddress(): Promise<{
+  address: string;
+  lat: number;
+  lng: number;
+  city: string;
+  state: string;
+  zip: string;
+}> {
+  const settings = await getMultipleAdminSettings([
+    'home_address_line1',
+    'home_address_line2',
+    'home_address_city',
+    'home_address_state',
+    'home_address_zip',
+    'home_address_lat',
+    'home_address_lng',
+  ]);
+
+  // Default to Wayne, MI if settings not found
+  const defaultAddress = {
+    address: '3200 S Wayne Rd, Wayne, MI 48184',
+    lat: 42.2753,
+    lng: -83.3863,
+    city: 'Wayne',
+    state: 'MI',
+    zip: '48184',
+  };
+
+  const line1 = settings['home_address_line1'];
+  const line2 = settings['home_address_line2'];
+  const city = settings['home_address_city'] || defaultAddress.city;
+  const state = settings['home_address_state'] || defaultAddress.state;
+  const zip = settings['home_address_zip'] || defaultAddress.zip;
+  const lat = parseFloat(settings['home_address_lat'] || String(defaultAddress.lat));
+  const lng = parseFloat(settings['home_address_lng'] || String(defaultAddress.lng));
+
+  // Build address string
+  let address = line1 || defaultAddress.address;
+  if (line1) {
+    if (line2) address += `, ${line2}`;
+    address += `, ${city}, ${state} ${zip}`;
+  }
+
+  return {
+    address,
+    lat: isNaN(lat) ? defaultAddress.lat : lat,
+    lng: isNaN(lng) ? defaultAddress.lng : lng,
+    city,
+    state,
+    zip,
+  };
+}

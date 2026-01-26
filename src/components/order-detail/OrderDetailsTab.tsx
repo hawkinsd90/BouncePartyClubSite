@@ -8,6 +8,7 @@ import { CustomFeesManager } from './CustomFeesManager';
 import { DepositOverride } from './DepositOverride';
 import { AdminMessage } from './AdminMessage';
 import { TaxWaiver } from './TaxWaiver';
+import { TravelFeeManager } from './TravelFeeManager';
 import { FeeWaiver } from '../shared/FeeWaiver';
 
 interface OrderDetailsTabProps {
@@ -281,16 +282,14 @@ export function OrderDetailsTab({
         originalOrderTaxCents={order.tax_cents}
       />
 
-      {((calculatedPricing?.travel_fee_cents || 0) > 0 || (order.travel_fee_cents || 0) > 0 || travelFeeWaived) && (
-        <FeeWaiver
-          feeName="Travel Fee"
-          feeAmount={calculatedPricing?.travel_fee_cents || order.travel_fee_cents || 0}
-          isWaived={travelFeeWaived}
-          waiveReason={travelFeeWaiveReason}
-          onToggle={onTravelFeeWaivedToggle}
-          color="orange"
-        />
-      )}
+      <TravelFeeManager
+        travelFeeCents={calculatedPricing?.travel_fee_cents || order.travel_fee_cents || 0}
+        travelFeeWaived={travelFeeWaived}
+        travelFeeWaiveReason={travelFeeWaiveReason}
+        onToggle={onTravelFeeWaivedToggle}
+        applyTravelFeeByDefault={pricingRules?.apply_travel_fee_by_default ?? true}
+        originalOrderTravelFeeCents={order.travel_fee_cents}
+      />
 
       {((calculatedPricing?.same_day_pickup_fee_cents || 0) > 0 || (order.same_day_pickup_fee_cents || 0) > 0 || sameDayPickupFeeWaived) && (
         <FeeWaiver
