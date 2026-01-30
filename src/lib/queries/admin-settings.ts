@@ -3,8 +3,8 @@ import { executeQuery, QueryOptions } from './base';
 
 export async function getAllAdminSettings(options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('admin_settings')
         .select('*'),
     { context: 'getAllAdminSettings', ...options }
@@ -13,8 +13,8 @@ export async function getAllAdminSettings(options?: QueryOptions) {
 
 export async function getAdminSetting(key: string, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('admin_settings')
         .select('*')
         .eq('key', key)
@@ -29,8 +29,8 @@ export async function updateAdminSetting(
   options?: QueryOptions
 ) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('admin_settings')
         .update({ value })
         .eq('key', key)

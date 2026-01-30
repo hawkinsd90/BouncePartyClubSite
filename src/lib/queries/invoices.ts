@@ -20,8 +20,8 @@ const INVOICE_WITH_RELATIONS = `
 
 export async function getInvoiceById(invoiceId: string, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('invoices')
         .select(INVOICE_WITH_RELATIONS)
         .eq('id', invoiceId)
@@ -32,8 +32,8 @@ export async function getInvoiceById(invoiceId: string, options?: QueryOptions) 
 
 export async function getInvoiceByToken(token: string, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('invoices')
         .select(INVOICE_WITH_RELATIONS)
         .eq('token', token)
@@ -44,8 +44,8 @@ export async function getInvoiceByToken(token: string, options?: QueryOptions) {
 
 export async function getAllInvoices(options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('invoices')
         .select(`
           *,
@@ -63,8 +63,8 @@ export async function getAllInvoices(options?: QueryOptions) {
 
 export async function createInvoice(invoiceData: any, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('invoices')
         .insert(invoiceData)
         .select()
@@ -75,8 +75,8 @@ export async function createInvoice(invoiceData: any, options?: QueryOptions) {
 
 export async function updateInvoice(invoiceId: string, updates: any, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('invoices')
         .update(updates)
         .eq('id', invoiceId)
@@ -88,8 +88,8 @@ export async function updateInvoice(invoiceId: string, updates: any, options?: Q
 
 export async function deleteInvoice(invoiceId: string, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('invoices')
         .delete()
         .eq('id', invoiceId),

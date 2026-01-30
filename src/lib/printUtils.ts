@@ -1,4 +1,8 @@
-import { formatCurrency, formatOrderId } from './utils';
+import { formatOrderId } from './utils';
+
+function formatCurrency(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
 
 // Enhanced Type Safety
 export interface PrintableItem {

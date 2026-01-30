@@ -3,8 +3,8 @@ import { executeQuery, QueryOptions } from './base';
 
 export async function getContactByEmail(email: string, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('contacts')
         .select('*')
         .eq('email', email)
@@ -15,8 +15,8 @@ export async function getContactByEmail(email: string, options?: QueryOptions) {
 
 export async function getAllContacts(options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('contacts')
         .select('*')
         .order('created_at', { ascending: false }),
@@ -26,8 +26,8 @@ export async function getAllContacts(options?: QueryOptions) {
 
 export async function createContact(contactData: any, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('contacts')
         .insert(contactData)
         .select()
@@ -38,8 +38,8 @@ export async function createContact(contactData: any, options?: QueryOptions) {
 
 export async function updateContact(email: string, updates: any, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('contacts')
         .update(updates)
         .eq('email', email)

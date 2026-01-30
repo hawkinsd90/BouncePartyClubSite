@@ -1,4 +1,3 @@
-import { supabase } from '../supabase';
 import { handleError } from '../errorHandling';
 
 export interface QueryOptions {

@@ -3,8 +3,8 @@ import { executeQuery, QueryOptions } from './base';
 
 export async function getCustomerById(customerId: string, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('customers')
         .select('*')
         .eq('id', customerId)
@@ -15,8 +15,8 @@ export async function getCustomerById(customerId: string, options?: QueryOptions
 
 export async function getCustomerByEmail(email: string, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('customers')
         .select('*')
         .eq('email', email)
@@ -27,8 +27,8 @@ export async function getCustomerByEmail(email: string, options?: QueryOptions) 
 
 export async function getCustomerByPhone(phone: string, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('customers')
         .select('*')
         .eq('phone', phone)
@@ -39,8 +39,8 @@ export async function getCustomerByPhone(phone: string, options?: QueryOptions) 
 
 export async function createCustomer(customerData: any, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('customers')
         .insert(customerData)
         .select()
@@ -55,8 +55,8 @@ export async function updateCustomer(
   options?: QueryOptions
 ) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('customers')
         .update(updates)
         .eq('id', customerId)
@@ -91,8 +91,8 @@ export async function getOrCreateCustomer(customerData: any, options?: QueryOpti
 
 export async function getAllCustomers(options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('customers')
         .select('*')
         .order('last_name', { ascending: true }),

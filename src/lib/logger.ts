@@ -38,7 +38,7 @@ class Logger {
     return LOG_LEVELS[level] >= LOG_LEVELS[this.config.minLevel];
   }
 
-  private formatMessage(level: LogLevel, message: string, data?: any): string {
+  private formatMessage(level: LogLevel, message: string, _data?: any): string {
     const parts: string[] = [];
 
     if (this.config.includeTimestamp) {

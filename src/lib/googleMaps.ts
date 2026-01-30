@@ -3,14 +3,14 @@ let isLoading = false;
 export function loadGoogleMapsAPI(): Promise<void> {
   return new Promise((resolve, reject) => {
     // Check if the new API with importLibrary is available
-    if (window.google?.maps?.importLibrary) {
+    if (typeof window.google?.maps?.importLibrary === 'function') {
       resolve();
       return;
     }
 
     if (isLoading) {
       const checkInterval = setInterval(() => {
-        if (window.google?.maps?.importLibrary) {
+        if (typeof window.google?.maps?.importLibrary === 'function') {
           clearInterval(checkInterval);
           resolve();
         }

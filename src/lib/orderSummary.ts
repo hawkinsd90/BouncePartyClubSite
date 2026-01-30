@@ -159,7 +159,7 @@ async function calculateOriginalFees(order: any, discounts: OrderDiscount[], cus
 
   let surfaceFeeCents = order.surface_fee_cents || 0;
   if (order.surface_fee_waived && surfaceFeeCents === 0 && order.surface === 'concrete') {
-    surfaceFeeCents = pricingData.sandbag_fee_cents || 3500;
+    surfaceFeeCents = pricingData.surface_sandbag_fee_cents || 3500;
   }
 
   let sameDayPickupFeeCents = order.same_day_pickup_fee_cents || 0;
@@ -169,7 +169,7 @@ async function calculateOriginalFees(order: any, discounts: OrderDiscount[], cus
 
   let generatorFeeCents = order.generator_fee_cents || 0;
   if (order.generator_fee_waived && generatorFeeCents === 0 && (order.generator_qty || 0) > 0) {
-    const perGeneratorCents = pricingData.generator_fee_cents || 9500;
+    const perGeneratorCents = pricingData.generator_price_cents || 9500;
     generatorFeeCents = perGeneratorCents * (order.generator_qty || 0);
   }
 

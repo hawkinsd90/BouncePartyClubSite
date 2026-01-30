@@ -6,6 +6,7 @@ import {
   generateRejectionSmsMessage,
 } from './orderEmailTemplates';
 import { checkMultipleUnitsAvailability } from './availability';
+import { formatOrderId } from './utils';
 
 interface ApprovalResult {
   success: boolean;
