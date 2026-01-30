@@ -20,7 +20,7 @@ export function useDiscountTemplates() {
     try {
       setLoading(true);
       const { data, error } = await supabase
-        .from('saved_discount_templates')
+        .from('discount_templates')
         .select('*')
         .order('name');
 

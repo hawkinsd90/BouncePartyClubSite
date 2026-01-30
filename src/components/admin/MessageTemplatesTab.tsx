@@ -10,7 +10,7 @@ interface SMSTemplate {
   id: string;
   template_name: string;
   description: string;
-  message_template: string;
+  message_body: string;
 }
 
 interface EmailTemplate {
@@ -94,7 +94,7 @@ export function MessageTemplatesTab() {
     try {
       const { error } = await supabase
         .from('sms_message_templates')
-        .update({ message_template: editingSMS.message_template })
+        .update({ message_body: editingSMS.message_body })
         .eq('id', editingSMS.id);
 
       if (error) throw error;
@@ -264,13 +264,13 @@ export function MessageTemplatesTab() {
                   {editingSMS?.id === template.id ? (
                     <TextareaInput
                       label="Message Template"
-                      value={editingSMS.message_template}
-                      onChange={(e) => setEditingSMS({ ...editingSMS, message_template: e.target.value })}
+                      value={editingSMS.message_body}
+                      onChange={(e) => setEditingSMS({ ...editingSMS, message_body: e.target.value })}
                       rows={6}
                     />
                   ) : (
                     <div className="bg-slate-50 rounded-lg p-4 mt-3">
-                      <p className="text-sm text-slate-700 whitespace-pre-wrap font-mono">{template.message_template}</p>
+                      <p className="text-sm text-slate-700 whitespace-pre-wrap font-mono">{template.message_body}</p>
                     </div>
                   )}
                 </div>

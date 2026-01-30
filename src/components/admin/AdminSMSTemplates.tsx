@@ -8,7 +8,7 @@ interface SMSTemplate {
   id: string;
   template_name: string;
   description: string;
-  message_template: string;
+  message_body: string;
 }
 
 interface AdminSMSTemplatesProps {
@@ -38,7 +38,7 @@ export function AdminSMSTemplates({ templates, onRefetch }: AdminSMSTemplatesPro
     try {
       const { error } = await supabase
         .from('sms_message_templates')
-        .update({ message_template: editingTemplate.message_template })
+        .update({ message_body: editingTemplate.message_body })
         .eq('id', editingTemplate.id);
 
       if (error) throw error;
@@ -91,7 +91,7 @@ export function AdminSMSTemplates({ templates, onRefetch }: AdminSMSTemplatesPro
               </button>
             </div>
             <div className="mt-3 p-3 bg-slate-50 rounded border border-slate-200">
-              <p className="text-sm text-slate-700 font-mono whitespace-pre-wrap">{template.message_template}</p>
+              <p className="text-sm text-slate-700 font-mono whitespace-pre-wrap">{template.message_body}</p>
             </div>
           </div>
         ))}
@@ -105,8 +105,8 @@ export function AdminSMSTemplates({ templates, onRefetch }: AdminSMSTemplatesPro
             <div className="mb-4">
               <TextareaInput
                 label="Message Template"
-                value={editingTemplate.message_template}
-                onChange={(value) => setEditingTemplate({ ...editingTemplate, message_template: value })}
+                value={editingTemplate.message_body}
+                onChange={(value) => setEditingTemplate({ ...editingTemplate, message_body: value })}
                 rows={6}
                 className="font-mono"
               />

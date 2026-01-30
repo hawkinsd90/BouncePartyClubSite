@@ -39,7 +39,7 @@ export function CustomFeesManager({
     if (saveAsTemplate) {
       try {
         const { data: existing } = await supabase
-          .from('saved_fee_templates')
+          .from('fee_templates')
           .select('id')
           .eq('name', newCustomFee.name)
           .maybeSingle();
@@ -49,7 +49,7 @@ export function CustomFeesManager({
           return;
         }
 
-        await supabase.from('saved_fee_templates').insert({
+        await supabase.from('fee_templates').insert({
           name: newCustomFee.name,
           amount_cents: amount,
         });
@@ -94,7 +94,7 @@ export function CustomFeesManager({
 
     try {
       const { error } = await supabase
-        .from('saved_fee_templates')
+        .from('fee_templates')
         .delete()
         .eq('id', selectedTemplateId);
 

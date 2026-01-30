@@ -46,7 +46,7 @@ export function DiscountsManager({
     if (saveAsTemplate) {
       try {
         const { data: existing } = await supabase
-          .from('saved_discount_templates')
+          .from('discount_templates')
           .select('id')
           .eq('name', newDiscount.name)
           .maybeSingle();
@@ -56,7 +56,7 @@ export function DiscountsManager({
           return;
         }
 
-        await supabase.from('saved_discount_templates').insert({
+        await supabase.from('discount_templates').insert({
           name: newDiscount.name,
           amount_cents: amount,
           percentage: percentage || 0,
@@ -104,7 +104,7 @@ export function DiscountsManager({
 
     try {
       const { error } = await supabase
-        .from('saved_discount_templates')
+        .from('discount_templates')
         .delete()
         .eq('id', selectedTemplateId);
 
