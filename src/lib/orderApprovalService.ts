@@ -34,7 +34,7 @@ export async function approveOrder(
     const availabilityChecks = orderItems.map(item => ({
       unitId: item.unit_id,
       eventStartDate: orderData.event_date,
-      eventEndDate: orderData.event_end_date,
+      eventEndDate: orderData.event_end_date || orderData.event_date,
       excludeOrderId: orderId, // Exclude this order from conflict check
     }));
 
@@ -91,19 +91,7 @@ export async function approveOrder(
     await supabase.from('invoices').insert({
       invoice_number: invoiceNumber,
       order_id: orderId,
-      customer_id: orderData.customer_id,
-      invoice_date: new Date().toISOString().split('T')[0],
       due_date: orderData.event_date,
-      status: 'sent',
-      subtotal_cents: orderData.subtotal_cents,
-      tax_cents: orderData.tax_cents ?? 0,
-      travel_fee_cents: orderData.travel_fee_cents ?? 0,
-      surface_fee_cents: orderData.surface_fee_cents ?? 0,
-      same_day_pickup_fee_cents: orderData.same_day_pickup_fee_cents,
-      total_cents: totalCents,
-      paid_amount_cents:
-        (orderData.deposit_paid_cents || 0) + (orderData.balance_paid_cents || 0),
-      payment_method: 'card',
     });
 
     const { data: orderWithRelations } = await supabase
@@ -150,7 +138,7 @@ export async function forceApproveOrder(orderId: string): Promise<ApprovalResult
     const availabilityChecks = orderItems.map(item => ({
       unitId: item.unit_id,
       eventStartDate: orderData.event_date,
-      eventEndDate: orderData.event_end_date,
+      eventEndDate: orderData.event_end_date || orderData.event_date,
       excludeOrderId: orderId, // Exclude this order from conflict check
     }));
 

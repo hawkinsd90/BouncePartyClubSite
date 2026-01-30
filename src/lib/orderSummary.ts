@@ -313,7 +313,7 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
       custom_deposit_cents: order.custom_deposit_cents,
       pickup_preference: order.pickup_preference,
       event_date: order.event_date,
-      event_end_date: order.event_end_date,
+      event_end_date: order.event_end_date || undefined,
     };
   } catch (error) {
     console.error('Error loading order summary:', error);

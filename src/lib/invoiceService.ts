@@ -57,17 +57,24 @@ interface InvoiceData {
   travelFeeWaiveReason?: string;
   sameDayPickupFeeWaived?: boolean;
   sameDayPickupFeeWaiveReason?: string;
+  surfaceFeeWaived?: boolean;
+  surfaceFeeWaiveReason?: string | null;
+  generatorFeeWaived?: boolean;
+  generatorFeeWaiveReason?: string | null;
 }
 
 async function createAddress(eventDetails: EventDetails) {
   const { data, error } = await supabase
     .from('addresses')
     .insert({
+      customer_id: null,
       line1: eventDetails.address_line1,
       line2: eventDetails.address_line2,
       city: eventDetails.city,
       state: eventDetails.state,
       zip: eventDetails.zip,
+      lat: null,
+      lng: null,
     })
     .select()
     .single();
@@ -131,10 +138,6 @@ async function createOrder(
       travel_fee_waive_reason: travelFeeWaiveReason,
       same_day_pickup_fee_waived: sameDayPickupFeeWaived,
       same_day_pickup_fee_waive_reason: sameDayPickupFeeWaiveReason,
-      surface_fee_waived: surfaceFeeWaived,
-      surface_fee_waive_reason: surfaceFeeWaiveReason,
-      generator_fee_waived: generatorFeeWaived,
-      generator_fee_waive_reason: generatorFeeWaiveReason,
       deposit_due_cents: depositRequired,
       balance_due_cents: totalCents - depositRequired,
       custom_deposit_cents: customDepositCents,

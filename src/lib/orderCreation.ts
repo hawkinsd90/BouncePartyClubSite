@@ -83,6 +83,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
         last_name: contactData.last_name,
         email: contactData.email,
         phone: contactData.phone,
+        business_name: contactData.business_name || null,
       })
       .select()
       .single();
@@ -94,9 +95,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
   // 2. Create or update contact
   const { error: contactError } = await supabase.from('contacts').upsert(
     {
-      customer_id: customer.id,
-      first_name: contactData.first_name,
-      last_name: contactData.last_name,
+      name: `${contactData.first_name} ${contactData.last_name}`,
       email: contactData.email,
       phone: contactData.phone,
       business_name: contactData.business_name || null,
@@ -135,13 +134,12 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
 
   if (addressError) throw addressError;
 
-  // 4. Create order with 'draft' status (unpaid invoice) and deposit_required = true
+  // 4. Create order with 'draft' status (unpaid invoice)
   const { data: order, error: orderError } = await supabase
     .from('orders')
     .insert({
       customer_id: customer.id,
       status: 'draft',
-      deposit_required: true,
       location_type: quoteData.location_type,
       surface: quoteData.can_stake ? 'grass' : 'cement',
       event_date: quoteData.event_date,
@@ -149,10 +147,10 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       pickup_preference: quoteData.pickup_preference || (quoteData.location_type === 'commercial' ? 'same_day' : 'next_day'),
       start_window: quoteData.start_window,
       end_window: quoteData.end_window,
-      overnight_allowed: quoteData.pickup_preference === 'next_day',
-      can_use_stakes: quoteData.can_stake,
-      generator_selected: quoteData.has_generator,
-      has_pets: quoteData.has_pets || false,
+      until_end_of_day: quoteData.until_end_of_day || false,
+      same_day_responsibility_accepted: quoteData.same_day_responsibility_accepted || false,
+      overnight_responsibility_accepted: quoteData.overnight_responsibility_accepted || false,
+      generator_qty: quoteData.generator_qty || 0,
       address_id: address.id,
       subtotal_cents: priceBreakdown.subtotal_cents,
       travel_fee_cents: priceBreakdown.travel_fee_cents,
@@ -163,13 +161,25 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       travel_is_flat_fee: priceBreakdown.travel_is_flat_fee,
       surface_fee_cents: priceBreakdown.surface_fee_cents,
       same_day_pickup_fee_cents: priceBreakdown.same_day_pickup_fee_cents || 0,
+      generator_fee_cents: priceBreakdown.generator_fee_cents || 0,
       tax_cents: priceBreakdown.tax_cents,
+      tax_waived: false,
+      tax_waive_reason: null,
+      travel_fee_waived: false,
+      travel_fee_waive_reason: null,
+      same_day_pickup_fee_waived: false,
+      same_day_pickup_fee_waive_reason: null,
+      tip_cents: 0,
+      total_cents: priceBreakdown.total_cents,
       deposit_due_cents: priceBreakdown.deposit_due_cents,
       deposit_paid_cents: 0,
       balance_due_cents: priceBreakdown.balance_due_cents,
-      card_on_file_consent_text:
-        'I authorize Bounce Party Club LLC to securely store my payment method and charge it for incidentals including damage, excess cleaning, or late fees as itemized in a receipt.',
-      card_on_file_consented_at: cardOnFileConsent ? new Date().toISOString() : null,
+      custom_deposit_cents: null,
+      card_on_file_consent: cardOnFileConsent,
+      sms_consent: smsConsent,
+      admin_message: null,
+      booking_confirmation_sent: false,
+      cancellation_reason: null,
       card_on_file_consent: cardOnFileConsent,
       sms_consent_text:
         'I consent to receive transactional SMS messages from Bounce Party Club LLC regarding my booking, including order confirmations, delivery updates, and service notifications. Message frequency varies. Message and data rates may apply. Reply STOP to opt-out.',
@@ -266,15 +276,15 @@ export async function completeOrderAfterPayment(orderId: string, _paymentIntentI
     throw new Error('Order or customer not found');
   }
 
-  const { data: invoiceLink } = await supabase
-    .from('invoice_links')
-    .select('id')
-    .eq('order_id', orderId)
-    .maybeSingle();
+  // Note: invoice_links table doesn't exist in current schema
+  // const { data: invoiceLink } = await supabase
+  //   .from('invoice_links')
+  //   .select('id')
+  //   .eq('order_id', orderId)
+  //   .maybeSingle();
+  // const isAdminSent = !!invoiceLink;
 
-  const isAdminSent = !!invoiceLink;
-
-  const newStatus = isAdminSent ? 'confirmed' : 'pending_review';
+  const newStatus = 'pending_review';
 
   const updateData: any = {
     status: newStatus,
@@ -306,20 +316,21 @@ export async function completeOrderAfterPayment(orderId: string, _paymentIntentI
   }));
 
 
-  // Create confirmation message
-  await supabase.from('messages').insert({
-    order_id: order.id,
-    to_email: contactData.email,
-    channel: 'email',
-    template_key: 'deposit_receipt',
-    payload_json: {
-      name: `${contactData.first_name} ${contactData.last_name}`,
-      units: cart.map((item: any) => item.unit_name).join(', '),
-      event_date: order.event_date,
-      balance: formatCurrency(order.balance_due_cents),
-    },
-    status: 'pending',
-  });
+  // Note: messages table doesn't exist in current schema
+  // Create confirmation message would go here
+  // await supabase.from('messages').insert({
+  //   order_id: order.id,
+  //   to_email: contactData.email,
+  //   channel: 'email',
+  //   template_key: 'deposit_receipt',
+  //   payload_json: {
+  //     name: `${contactData.first_name} ${contactData.last_name}`,
+  //     units: cart.map((item: any) => item.unit_name).join(', '),
+  //     event_date: order.event_date,
+  //     balance: formatCurrency(order.balance_due_cents),
+  //   },
+  //   status: 'pending',
+  // });
 
   try {
     const { sendAdminSms } = await import('./notificationService');

@@ -28,11 +28,9 @@ export function useRouteOptimization() {
           const { data, error } = await supabase
             .from('task_status')
             .insert({
+              task_id: task.id,
               order_id: task.orderId,
-              task_type: task.type,
               status: 'pending',
-              sort_order: 0,
-              task_date: format(selectedDate, 'yyyy-MM-dd'),
             })
             .select()
             .single();
@@ -43,7 +41,7 @@ export function useRouteOptimization() {
             task.taskStatus = {
               id: data.id,
               status: data.status,
-              sortOrder: data.sort_order || 0,
+              sortOrder: 0,
               deliveryImages: [],
               damageImages: [],
               etaSent: false,
@@ -68,14 +66,8 @@ export function useRouteOptimization() {
       let lateStops = 0;
       for (const stop of optimizedStops) {
         if (stop.id) {
-          const { error } = await supabase
-            .from('task_status')
-            .update({ sort_order: stop.sortOrder })
-            .eq('id', stop.id);
-
-          if (error) {
-            console.error('Error updating sort order:', error);
-          }
+          // Note: sort_order field removed from task_status table
+          // Route optimization order is maintained in memory during processing
 
           if (stop.estimatedLateness && stop.estimatedLateness > 0) {
             lateStops++;
@@ -123,11 +115,9 @@ export function useRouteOptimization() {
           const { data, error } = await supabase
             .from('task_status')
             .insert({
+              task_id: task.id,
               order_id: task.orderId,
-              task_type: task.type,
               status: 'pending',
-              sort_order: 0,
-              task_date: format(selectedDate, 'yyyy-MM-dd'),
             })
             .select()
             .single();
@@ -138,7 +128,7 @@ export function useRouteOptimization() {
             task.taskStatus = {
               id: data.id,
               status: data.status,
-              sortOrder: data.sort_order || 0,
+              sortOrder: 0,
               deliveryImages: [],
               damageImages: [],
               etaSent: false,
@@ -162,14 +152,8 @@ export function useRouteOptimization() {
 
       for (const stop of optimizedStops) {
         if (stop.id) {
-          const { error } = await supabase
-            .from('task_status')
-            .update({ sort_order: stop.sortOrder })
-            .eq('id', stop.id);
-
-          if (error) {
-            console.error('Error updating sort order:', error);
-          }
+          // Note: sort_order field removed from task_status table
+          // Route optimization order is maintained in memory during processing
         }
       }
 

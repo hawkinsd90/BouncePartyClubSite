@@ -10,28 +10,28 @@ interface NotificationContext {
 
 export interface NotificationFailure {
   id: string;
-  notification_type: 'email' | 'sms';
+  order_id: string | null;
+  notification_type: string;
   intended_recipient: string;
   subject: string | null;
   message_preview: string | null;
   error_message: string;
-  context: NotificationContext;
-  fallback_sent: boolean;
-  fallback_type: string | null;
   retry_count: number;
+  last_retry_at: string | null;
   resolved_at: string | null;
+  resolved_by: string | null;
   created_at: string;
 }
 
 export interface SystemStatus {
-  system_type: 'email' | 'sms';
+  id: string;
+  system_type: string;
   is_operational: boolean;
   last_success_at: string | null;
   last_failure_at: string | null;
   consecutive_failures: number;
-  total_failures_24h: number;
-  error_details: any;
-  admin_notified_at: string | null;
+  error_message: string | null;
+  updated_at: string;
 }
 
 export async function recordNotificationFailure(
@@ -44,12 +44,12 @@ export async function recordNotificationFailure(
 ): Promise<string | null> {
   try {
     const { data, error: dbError } = await supabase.rpc('record_notification_failure', {
-      p_type: type,
-      p_recipient: recipient,
+      p_order_id: context.order_id || null,
+      p_notification_type: type,
+      p_intended_recipient: recipient,
       p_subject: subject,
       p_message_preview: messagePreview,
-      p_error: error,
-      p_context: context
+      p_error_message: error
     });
 
     if (dbError) {
@@ -57,7 +57,7 @@ export async function recordNotificationFailure(
       return null;
     }
 
-    return data;
+    return data || null;
   } catch (err) {
     console.error('Error recording notification failure:', err);
     return null;
@@ -66,7 +66,7 @@ export async function recordNotificationFailure(
 
 export async function recordNotificationSuccess(type: 'email' | 'sms'): Promise<void> {
   try {
-    await supabase.rpc('record_notification_success', { p_type: type });
+    await supabase.rpc('record_notification_success', { p_notification_type: type });
   } catch (err) {
     console.error('Error recording notification success:', err);
   }
@@ -137,22 +137,12 @@ export async function getUnresolvedCount(): Promise<{ email: number; sms: number
 export function shouldNotifyAdmin(status: SystemStatus | null): boolean {
   if (!status || status.is_operational) return false;
 
-  if (!status.admin_notified_at) return true;
-
-  const lastNotified = new Date(status.admin_notified_at).getTime();
-  const now = Date.now();
-  const hoursSinceNotification = (now - lastNotified) / (1000 * 60 * 60);
-
-  return hoursSinceNotification >= 4;
+  // Notify if consecutive failures exceed threshold
+  return status.consecutive_failures >= 3;
 }
 
-export async function updateAdminNotificationTime(systemType: 'email' | 'sms'): Promise<void> {
-  try {
-    await supabase
-      .from('notification_system_status')
-      .update({ admin_notified_at: new Date().toISOString() })
-      .eq('system_type', systemType);
-  } catch (err) {
-    console.error('Error updating admin notification time:', err);
-  }
+export async function updateAdminNotificationTime(_systemType: 'email' | 'sms'): Promise<void> {
+  // Note: admin_notified_at field removed from notification_system_status table
+  // Admin notifications are now based on consecutive failure count
+  return Promise.resolve();
 }
