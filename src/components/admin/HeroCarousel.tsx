@@ -74,26 +74,30 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
           'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
-      }).then(res => {
+      }).then(async res => {
         console.log('[Carousel] Fetch response status:', res.status);
-        return res.json();
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data?.message || `HTTP ${res.status}`);
+        }
+
+        return data;
       });
 
       const data = await Promise.race([fetchPromise, timeoutPromise]) as any;
 
       console.log('[Carousel] Query result:', { data });
 
-      const error = null;
-
-      if (error) {
-        console.error('[Carousel] Error loading carousel:', error);
-        setError(`Error: ${(error as any)?.message || 'Unknown error'}`);
+      if (data && !Array.isArray(data)) {
+        console.error('[Carousel] Response is not an array:', data);
+        setError(`Error: ${data?.message || 'Invalid response format'}`);
         setMedia([]);
         setLoading(false);
         return;
       }
 
-      if (data) {
+      if (data && Array.isArray(data)) {
         console.log(`[Carousel] Found ${data.length} items`);
         const mediaWithUrls = await Promise.all(
           data.map(async (item: any) => {
@@ -108,6 +112,8 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
         );
         setMedia(mediaWithUrls);
         console.log('[Carousel] Media loaded successfully');
+      } else {
+        setMedia([]);
       }
       setLoading(false);
     } catch (err) {
