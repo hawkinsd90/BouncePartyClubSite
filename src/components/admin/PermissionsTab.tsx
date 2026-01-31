@@ -366,7 +366,7 @@ export function PermissionsTab() {
 
   function getRoleColor(role: string) {
     switch (role) {
-      case 'master': return 'bg-purple-100 text-purple-800 border-purple-300';
+      case 'master': return 'bg-rose-100 text-rose-800 border-rose-300';
       case 'admin': return 'bg-blue-100 text-blue-800 border-blue-300';
       case 'crew': return 'bg-green-100 text-green-800 border-green-300';
       default: return 'bg-gray-100 text-gray-800 border-gray-300';

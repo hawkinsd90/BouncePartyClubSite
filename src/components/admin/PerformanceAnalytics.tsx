@@ -245,8 +245,8 @@ export function PerformanceAnalytics() {
 
       <div className="bg-white rounded-xl shadow-lg p-6 border-2 border-slate-100">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-            <Activity className="w-6 h-6 text-purple-600" />
+          <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
+            <Activity className="w-6 h-6 text-slate-600" />
           </div>
           <div>
             <h3 className="text-lg font-semibold text-slate-900">Recent Activity</h3>

@@ -8,10 +8,10 @@ interface AdminMessageProps {
 export function AdminMessage({ value, onChange, compact = false, variant = 'order-edit' }: AdminMessageProps) {
   const containerClass = compact
     ? variant === 'order-edit'
-      ? 'bg-purple-50 rounded-lg shadow p-4 sm:p-6'
+      ? 'bg-blue-50 rounded-lg shadow p-4 sm:p-6'
       : 'bg-slate-50 rounded-lg shadow p-4 sm:p-6'
     : variant === 'order-edit'
-      ? 'bg-purple-50 border border-purple-200 rounded-lg p-4'
+      ? 'bg-blue-50 border border-blue-200 rounded-lg p-4'
       : 'bg-slate-50 rounded-lg p-4';
 
   const headingClass = compact ? 'text-base sm:text-lg font-semibold text-slate-900 mb-2' : 'font-semibold text-slate-900 mb-3';
@@ -41,7 +41,7 @@ export function AdminMessage({ value, onChange, compact = false, variant = 'orde
         placeholder={placeholderText}
       />
       {variant === 'order-edit' && value.trim() && (
-        <p className="text-xs text-purple-600 mt-2">
+        <p className="text-xs text-blue-600 mt-2">
           This message will be sent to the customer when you save changes.
         </p>
       )}
