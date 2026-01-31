@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Shield, UserPlus, Trash2, History, Mail } from 'lucide-react';
+import { Shield, Trash2, History, Mail } from 'lucide-react';
 import { notifyError, notifySuccess, showConfirm } from '../../lib/notifications';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 
@@ -31,9 +31,6 @@ export function PermissionsTab() {
   const [users, setUsers] = useState<UserRole[]>([]);
   const [currentUserRole, setCurrentUserRole] = useState<CurrentUser['role']>(null);
   const [loading, setLoading] = useState(true);
-  const [newUserEmail, setNewUserEmail] = useState('');
-  const [newUserRole, setNewUserRole] = useState<'admin' | 'crew'>('crew');
-  const [addingUser, setAddingUser] = useState(false);
   const [selectedUserChangelog, setSelectedUserChangelog] = useState<string | null>(null);
   const [changelog, setChangelog] = useState<ChangelogEntry[]>([]);
   const [loadingChangelog, setLoadingChangelog] = useState(false);
@@ -135,51 +132,6 @@ export function PermissionsTab() {
     }
   }
 
-  async function handleAddUser() {
-    if (!newUserEmail.trim()) {
-      notifyError('Please enter an email address');
-      return;
-    }
-
-    if (currentUserRole === 'admin' && newUserRole === 'admin') {
-      notifyError('Only Master users can create Admin accounts');
-      return;
-    }
-
-    setAddingUser(true);
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-admin-user`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          },
-          body: JSON.stringify({
-            email: newUserEmail.trim(),
-            role: newUserRole,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create user');
-      }
-
-      await sendPermissionChangeEmail('added', newUserEmail, newUserRole);
-
-      notifySuccess(`${newUserRole.charAt(0).toUpperCase() + newUserRole.slice(1)} user created successfully`);
-      setNewUserEmail('');
-      setNewUserRole('crew');
-      fetchData();
-    } catch (error: any) {
-      notifyError(error.message);
-    } finally {
-      setAddingUser(false);
-    }
-  }
 
   async function handleChangeRole(user: UserRole, newRole: 'master' | 'admin' | 'crew' | null) {
     if (!newRole) return;
@@ -300,63 +252,8 @@ export function PermissionsTab() {
     setSelectedUserChangelog(userId);
     setLoadingChangelog(true);
     try {
-      const { data, error } = await supabase
-        .from('user_permissions_changelog' as any)
-        .select(`
-          id,
-          action,
-          old_role,
-          new_role,
-          notes,
-          created_at,
-          changed_by_user_id
-        `)
-        .eq('target_user_id', userId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      const userIds = (data || [])
-        .map(entry => entry.changed_by_user_id)
-        .filter(id => id != null) as string[];
-
-      if (userIds.length === 0) {
-        setChangelog((data || []).map(entry => ({
-          ...entry,
-          changed_by_email: 'System',
-        })));
-        return;
-      }
-
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('No session');
-
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-user-info`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ user_ids: userIds }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch user info');
-      }
-
-      const { userInfo } = await response.json();
-
-      const changelogWithEmails = (data || []).map(entry => ({
-        ...entry,
-        changed_by_email: entry.changed_by_user_id
-          ? userInfo[entry.changed_by_user_id]?.email || 'Unknown'
-          : 'System',
-      }));
-
-      setChangelog(changelogWithEmails);
+      // Changelog disabled - table does not exist
+      setChangelog([]);
     } catch (error: any) {
       notifyError(error.message);
     } finally {

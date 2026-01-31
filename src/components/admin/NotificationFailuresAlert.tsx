@@ -180,12 +180,6 @@ export function NotificationFailuresAlert() {
                         <div className="text-red-600 font-medium mt-2">
                           Error: {failure.error_message}
                         </div>
-                        {failure.fallback_sent && (
-                          <div className="text-green-600 text-xs flex items-center gap-1 mt-1">
-                            <CheckCircle className="w-3 h-3" />
-                            Fallback notification sent via {failure.fallback_type}
-                          </div>
-                        )}
                       </div>
                     </div>
 
@@ -236,10 +230,6 @@ export function NotificationFailuresAlert() {
                       <span className="text-gray-600">Consecutive Failures: </span>
                       <span className="text-red-600">{emailStatus.consecutive_failures}</span>
                     </div>
-                    <div>
-                      <span className="text-gray-600">Failures (24h): </span>
-                      <span className="text-red-600">{emailStatus.total_failures_24h}</span>
-                    </div>
                   </div>
                 </div>
               )}
@@ -272,10 +262,6 @@ export function NotificationFailuresAlert() {
                     <div>
                       <span className="text-gray-600">Consecutive Failures: </span>
                       <span className="text-red-600">{smsStatus.consecutive_failures}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Failures (24h): </span>
-                      <span className="text-red-600">{smsStatus.total_failures_24h}</span>
                     </div>
                   </div>
                 </div>

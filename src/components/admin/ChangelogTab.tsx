@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { History, Package, Shield, Settings, Filter, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
+import { History, Package, Settings, Filter, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { notify, notifyError } from '../../lib/notifications';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { formatOrderId } from '../../lib/utils';
@@ -8,7 +8,7 @@ import { formatOrderId } from '../../lib/utils';
 interface OrderChange {
   id: string;
   order_id: string;
-  field_name: string;
+  field_name: string | null;
   old_value: string | null;
   new_value: string | null;
   change_type: string;
@@ -35,7 +35,7 @@ interface GroupedOrderChange {
 
 interface ChangelogEntry {
   id: string;
-  type: 'order' | 'permission' | 'setting' | 'contact';
+  type: 'order' | 'setting' | 'contact';
   timestamp: string;
   user_email: string;
   title: string;
@@ -50,7 +50,7 @@ export function ChangelogTab() {
   const [groupedOrders, setGroupedOrders] = useState<GroupedOrderChange[]>([]);
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'order' | 'permission' | 'setting' | 'contact'>('all');
+  const [filter, setFilter] = useState<'all' | 'order' | 'setting' | 'contact'>('all');
   const [limit, setLimit] = useState(50);
 
   useEffect(() => {
@@ -71,20 +71,11 @@ export function ChangelogTab() {
 
       if (orderError) throw orderError;
 
-      // Fetch permission changes
-      const { data: permChanges, error: permError } = await supabase
-        .from('user_permissions_changelog' as any)
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(limit);
-
-      if (permError) throw permError;
-
       // Fetch admin settings changes
       const { data: settingChanges, error: settingError } = await supabase
         .from('admin_settings_changelog' as any)
         .select('*')
-        .order('created_at', { ascending: false })
+        .order('changed_at', { ascending: false })
         .limit(limit);
 
       if (settingError) throw settingError;
@@ -93,10 +84,6 @@ export function ChangelogTab() {
       const userIds = new Set<string>();
       (orderChanges || []).forEach(change => {
         if (change.changed_by) userIds.add(change.changed_by);
-      });
-      (permChanges || []).forEach(change => {
-        if (change.changed_by_user_id) userIds.add(change.changed_by_user_id);
-        if (change.target_user_id) userIds.add(change.target_user_id);
       });
       (settingChanges || []).forEach(change => {
         if (change.changed_by) userIds.add(change.changed_by);
@@ -191,33 +178,6 @@ export function ChangelogTab() {
 
       setGroupedOrders(grouped);
 
-      // Process permission changes
-      for (const change of permChanges || []) {
-        const changedByEmail = change.changed_by_user_id
-          ? userInfo[change.changed_by_user_id]?.email || 'Unknown User'
-          : 'System';
-
-        const targetEmail = change.target_user_id
-          ? userInfo[change.target_user_id]?.email || 'Unknown User'
-          : 'Unknown User';
-
-        allEntries.push({
-          id: change.id,
-          type: 'permission',
-          timestamp: change.created_at,
-          user_email: changedByEmail,
-          title: `Permission ${change.action} - ${targetEmail}`,
-          description: change.old_role && change.new_role
-            ? `Changed from ${change.old_role} to ${change.new_role}`
-            : change.new_role
-            ? `Set to ${change.new_role}`
-            : `Removed ${change.old_role}`,
-          old_value: change.old_role,
-          new_value: change.new_role,
-          details: { action: change.action, notes: change.notes }
-        });
-      }
-
       // Process admin settings changes
       for (const change of settingChanges || []) {
         const userEmail = change.changed_by
@@ -227,10 +187,10 @@ export function ChangelogTab() {
         allEntries.push({
           id: change.id,
           type: 'setting',
-          timestamp: change.created_at,
+          timestamp: change.changed_at,
           user_email: userEmail,
           title: `Setting Changed: ${change.setting_key}`,
-          description: change.change_description || 'Setting updated',
+          description: change.change_reason || 'Setting updated',
           old_value: change.old_value,
           new_value: change.new_value,
           details: { setting_key: change.setting_key }
