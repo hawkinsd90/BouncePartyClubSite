@@ -4,7 +4,6 @@ import { AddressAutocomplete } from '../order/AddressAutocomplete';
 import { TravelFeeBreakdown } from '../shared/TravelFeeBreakdown';
 import { calculateTravelFee, type TravelFeeCalculationResult } from '../../lib/travelFeeCalculator';
 import { loadGoogleMapsAPI } from '../../lib/googleMaps';
-import { HOME_BASE } from '../../lib/constants';
 import { formatCurrency } from '../../lib/pricing';
 import { supabase } from '../../lib/supabase';
 import { notifyError } from '../../lib/notifications';
@@ -45,7 +44,7 @@ export function TravelCalculator() {
       if (error) throw error;
       if (!data) throw new Error('Pricing rules not found');
 
-      setPricingRules(data);
+      setPricingRules(data as PricingRules);
     } catch (error: any) {
       notifyError(error.message);
     } finally {

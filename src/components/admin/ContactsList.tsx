@@ -6,21 +6,14 @@ import { useSupabaseQuery, useMutation } from '../../hooks/useDataFetch';
 
 interface Contact {
   id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
+  name: string;
+  email: string | null;
   phone: string | null;
   business_name: string | null;
-  opt_in_email: boolean;
-  opt_in_sms: boolean;
-  source: string;
-  total_bookings: number;
-  total_spent_cents: number;
   created_at: string;
 }
 
 export function ContactsList() {
-  const [filter, setFilter] = useState('all');
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
 
@@ -40,16 +33,13 @@ export function ContactsList() {
   const contacts = contactsData || [];
 
   const updateContactFn = useCallback(async (contact: Contact) => {
-    const { data, error } = await supabase
+    const { data, error} = await supabase
       .from('contacts')
       .update({
+        name: contact.name,
         business_name: contact.business_name || null,
-        first_name: contact.first_name,
-        last_name: contact.last_name,
         email: contact.email,
         phone: contact.phone,
-        opt_in_email: contact.opt_in_email,
-        opt_in_sms: contact.opt_in_sms,
       })
       .eq('id', contact.id)
       .select()
@@ -74,11 +64,7 @@ export function ContactsList() {
     }
   );
 
-  const filteredContacts = contacts.filter((contact: Contact) => {
-    if (filter === 'email') return contact.opt_in_email;
-    if (filter === 'sms') return contact.opt_in_sms;
-    return true;
-  });
+  const filteredContacts = contacts;
 
   function handleEditClick(contact: Contact) {
     setEditingContact({ ...contact });
@@ -100,40 +86,8 @@ export function ContactsList() {
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Contacts & Phonebook</h2>
           <p className="text-xs sm:text-sm text-slate-600 mt-1">
-            {contacts.length} total contacts | {contacts.filter((c: Contact) => c.opt_in_email).length} email subscribers | {contacts.filter((c: Contact) => c.opt_in_sms).length} SMS subscribers
+            {contacts.length} total contacts
           </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setFilter('all')}
-            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium ${
-              filter === 'all'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-slate-700 border border-slate-300'
-            }`}
-          >
-            All Contacts
-          </button>
-          <button
-            onClick={() => setFilter('email')}
-            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium ${
-              filter === 'email'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-slate-700 border border-slate-300'
-            }`}
-          >
-            Email List
-          </button>
-          <button
-            onClick={() => setFilter('sms')}
-            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium ${
-              filter === 'sms'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-slate-700 border border-slate-300'
-            }`}
-          >
-            SMS List
-          </button>
         </div>
       </div>
 
@@ -149,12 +103,6 @@ export function ContactsList() {
               </th>
               <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider whitespace-nowrap">
                 Phone
-              </th>
-              <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider whitespace-nowrap">
-                Stats
-              </th>
-              <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider whitespace-nowrap">
-                Opt-Ins
               </th>
               <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider whitespace-nowrap">
                 Added
@@ -174,40 +122,19 @@ export function ContactsList() {
                     </div>
                   )}
                   <div className="font-medium text-slate-900 text-sm">
-                    {contact.first_name} {contact.last_name}
+                    {contact.name}
                   </div>
-                  <div className="text-xs text-slate-500">{contact.source}</div>
                 </td>
                 <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
                   <div className="flex items-center text-xs sm:text-sm text-slate-900">
                     <Mail className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 text-slate-400 flex-shrink-0" />
-                    <span className="truncate max-w-[150px]">{contact.email}</span>
+                    <span className="truncate max-w-[150px]">{contact.email || 'N/A'}</span>
                   </div>
                 </td>
                 <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
                   <div className="flex items-center text-xs sm:text-sm text-slate-900">
                     <Phone className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 text-slate-400 flex-shrink-0" />
                     {contact.phone || 'N/A'}
-                  </div>
-                </td>
-                <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
-                  <div className="text-slate-900">{contact.total_bookings} bookings</div>
-                  <div className="text-slate-500">
-                    ${(contact.total_spent_cents / 100).toFixed(2)} spent
-                  </div>
-                </td>
-                <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
-                  <div className="flex gap-1 sm:gap-2">
-                    {contact.opt_in_email && (
-                      <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        Email
-                      </span>
-                    )}
-                    {contact.opt_in_sms && (
-                      <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        SMS
-                      </span>
-                    )}
                   </div>
                 </td>
                 <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-slate-500">
@@ -263,46 +190,28 @@ export function ContactsList() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1 sm:mb-2">
-                    First Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editingContact.first_name}
-                    onChange={(e) =>
-                      setEditingContact({ ...editingContact, first_name: e.target.value })
-                    }
-                    className="w-full px-3 sm:px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1 sm:mb-2">
-                    Last Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editingContact.last_name}
-                    onChange={(e) =>
-                      setEditingContact({ ...editingContact, last_name: e.target.value })
-                    }
-                    className="w-full px-3 sm:px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1 sm:mb-2">
+                  Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editingContact.name}
+                  onChange={(e) =>
+                    setEditingContact({ ...editingContact, name: e.target.value })
+                  }
+                  className="w-full px-3 sm:px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                />
               </div>
 
               <div>
                 <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1 sm:mb-2">
-                  Email *
+                  Email
                 </label>
                 <input
                   type="email"
-                  required
-                  value={editingContact.email}
+                  value={editingContact.email || ''}
                   onChange={(e) =>
                     setEditingContact({ ...editingContact, email: e.target.value })
                   }
@@ -323,37 +232,6 @@ export function ContactsList() {
                   className="w-full px-3 sm:px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                 />
               </div>
-
-              <div className="border-t border-slate-200 pt-3 sm:pt-4">
-                <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2 sm:mb-3">
-                  Marketing Preferences
-                </label>
-                <div className="space-y-2">
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={editingContact.opt_in_email}
-                      onChange={(e) =>
-                        setEditingContact({ ...editingContact, opt_in_email: e.target.checked })
-                      }
-                      className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-                    />
-                    <span className="ml-2 text-xs sm:text-sm text-slate-700">Opt-in to Email Marketing</span>
-                  </label>
-
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={editingContact.opt_in_sms}
-                      onChange={(e) =>
-                        setEditingContact({ ...editingContact, opt_in_sms: e.target.checked })
-                      }
-                      className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-                    />
-                    <span className="ml-2 text-xs sm:text-sm text-slate-700">Opt-in to SMS Marketing</span>
-                  </label>
-                </div>
-              </div>
             </div>
 
             <div className="sticky bottom-0 bg-slate-50 border-t border-slate-200 px-4 sm:px-6 py-3 sm:py-4 flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3">
@@ -369,7 +247,7 @@ export function ContactsList() {
               </button>
               <button
                 onClick={handleSaveContact}
-                disabled={saving || !editingContact.first_name || !editingContact.last_name || !editingContact.email}
+                disabled={saving || !editingContact.name}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
               >
                 {saving ? 'Saving...' : 'Save Changes'}

@@ -70,6 +70,7 @@ interface CalculatedPricing {
   travel_chargeable_miles?: number;
   travel_per_mile_cents?: number;
   travel_is_flat_fee?: boolean;
+  travel_fee_display_name?: string;
   distance_miles: number;
   surface_fee_cents: number;
   same_day_pickup_fee_cents: number;
@@ -305,6 +306,7 @@ export function usePricing() {
         travel_chargeable_miles: priceBreakdown.travel_chargeable_miles,
         travel_per_mile_cents: priceBreakdown.travel_per_mile_cents,
         travel_is_flat_fee: priceBreakdown.travel_is_flat_fee,
+        travel_fee_display_name: priceBreakdown.travel_fee_display_name,
         distance_miles: finalTravelMiles,
         surface_fee_cents: finalSurfaceFeeCents,
         same_day_pickup_fee_cents: finalSameDayPickupFeeCents,

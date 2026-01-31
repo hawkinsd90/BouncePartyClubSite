@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { formatCurrency } from '../../lib/pricing';
-import { Edit2, Save, X, DollarSign } from 'lucide-react';
+import { Edit2, Save, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { notifyError, notifySuccess } from '../../lib/notifications';
 
@@ -119,10 +118,6 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
     setIsEditing(true);
   };
 
-  const handleCitiesChange = (value: string) => {
-    const cities = value.split(',').map(c => c.trim()).filter(c => c.length > 0);
-    setEditedRules({ ...editedRules, included_cities: cities.length > 0 ? cities : null });
-  };
 
   return (
     <div className="bg-white rounded-xl shadow-md p-6">

@@ -72,20 +72,10 @@ export function InvoicesList() {
       const totalCents = order.subtotal_cents + (order.travel_fee_cents ?? 0) +
                         (order.surface_fee_cents ?? 0) + (order.same_day_pickup_fee_cents ?? 0) + (order.tax_cents ?? 0);
 
-      const { data, error } = await supabase.from('invoices').insert({
+      const { data, error} = await supabase.from('invoices').insert({
         invoice_number: invoiceNumber,
         order_id: order.id,
-        invoice_date: new Date().toISOString().split('T')[0],
         due_date: order.event_date,
-        status: 'draft',
-        subtotal_cents: order.subtotal_cents,
-        tax_cents: order.tax_cents,
-        travel_fee_cents: order.travel_fee_cents,
-        surface_fee_cents: order.surface_fee_cents,
-        same_day_pickup_fee_cents: order.same_day_pickup_fee_cents,
-        total_cents: totalCents,
-        paid_amount_cents: order.deposit_paid_cents || 0,
-        payment_method: 'card',
       }).select().single();
 
       if (error) throw error;
