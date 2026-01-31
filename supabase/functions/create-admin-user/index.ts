@@ -1,5 +1,5 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2";
+import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -130,11 +130,12 @@ Deno.serve(async (req: Request) => {
         },
       }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Error creating admin user:", error);
+    const errorMessage = error instanceof Error ? error.message : "Failed to create admin user";
     return new Response(
       JSON.stringify({
-        error: error.message || "Failed to create admin user",
+        error: errorMessage,
       }),
       {
         status: 500,

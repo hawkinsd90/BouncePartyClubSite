@@ -1,4 +1,4 @@
-import { createClient } from 'npm:@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -99,7 +99,7 @@ export async function checkRateLimit(
 }
 
 export function createRateLimitResponse(result: RateLimitResult, corsHeaders: Record<string, string>): Response {
-  const headers = {
+  const headers: Record<string, string> = {
     ...corsHeaders,
     'Content-Type': 'application/json',
     'Retry-After': result.retry_after?.toString() || '60',

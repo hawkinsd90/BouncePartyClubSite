@@ -1,6 +1,6 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import Stripe from "npm:stripe@14.14.0";
-import { createClient } from "npm:@supabase/supabase-js@2.39.3";
+import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
+import Stripe from "npm:stripe@20.0.0";
+import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { formatOrderId } from "../_shared/format-order-id.ts";
 
 const corsHeaders = {
@@ -151,7 +151,7 @@ Deno.serve(async (req: Request) => {
         .eq("status", "succeeded");
 
       if (payments && payments.length > 0) {
-        const totalPaid = payments.reduce((sum, p) => sum + p.amount_cents, 0);
+        const totalPaid = payments.reduce((sum: number, p: { amount_cents: number }) => sum + p.amount_cents, 0);
         const alreadyRefunded = order.total_refunded_cents || 0;
         const refundAmount = totalPaid - alreadyRefunded;
 
@@ -205,7 +205,7 @@ Deno.serve(async (req: Request) => {
                   refundId: refund.id,
                 };
               }
-            } catch (refundError: any) {
+            } catch (refundError: unknown) {
               console.error("Refund error:", refundError);
               refundResult = {
                 refunded: false,
@@ -238,7 +238,7 @@ Refund Policy: ${refundPolicy}
 Cancellation Reason:
 ${cancellationReason}
 
-${refundResult?.refunded ? `Automatic refund of $${(refundResult.amount / 100).toFixed(2)} has been issued.` : refundMessage}
+${refundResult?.refunded && refundResult.amount ? `Automatic refund of $${(refundResult.amount / 100).toFixed(2)} has been issued.` : refundMessage}
           `,
         }),
       });

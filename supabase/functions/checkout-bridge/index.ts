@@ -26,9 +26,9 @@
  * - origin: Target origin for postMessage security (e.g., https://yoursite.com)
  */
 
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 
-Deno.serve(async (req) => {
+Deno.serve((req: Request) => {
   // Parse the URL to extract query parameters sent by Stripe
   const url = new URL(req.url);
 

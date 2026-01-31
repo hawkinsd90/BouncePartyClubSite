@@ -1,6 +1,6 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import Stripe from "npm:stripe@14.14.0";
-import { createClient } from "npm:@supabase/supabase-js@2.39.3";
+import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
+import Stripe from "npm:stripe@20.0.0";
+import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { checkRateLimit, createRateLimitResponse, getIdentifier, buildRateLimitKey } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
@@ -135,7 +135,7 @@ Deno.serve(async (req: Request) => {
           break;
         }
       } catch (err) {
-        console.error(\`Error retrieving payment intent \${payment.stripe_payment_intent_id}:\`, err);
+        console.error(`Error retrieving payment intent ${payment.stripe_payment_intent_id}:`, err);
       }
     }
 

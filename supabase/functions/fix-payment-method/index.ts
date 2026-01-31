@@ -1,6 +1,6 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import Stripe from "npm:stripe@14.14.0";
-import { createClient } from "npm:@supabase/supabase-js@2.39.3";
+import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
+import Stripe from "npm:stripe@20.0.0";
+import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -93,7 +93,7 @@ Deno.serve(async (req: Request) => {
     console.log("[fix-payment-method] Found", sessions.data.length, "sessions");
 
     const orderSession = sessions.data.find(
-      (s) => s.metadata?.order_id === orderId
+      (s: { metadata?: { order_id?: string } }) => s.metadata?.order_id === orderId
     );
 
     if (!orderSession) {
@@ -175,10 +175,11 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("[fix-payment-method] Error:", error);
+    const errorMessage = error instanceof Error ? error.message : "An error occurred";
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: errorMessage }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

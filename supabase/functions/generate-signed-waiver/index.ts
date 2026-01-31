@@ -1,5 +1,5 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2.39.3";
+import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { jsPDF } from "npm:jspdf@2.5.2";
 
 const corsHeaders = {

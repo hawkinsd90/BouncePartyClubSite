@@ -4,9 +4,9 @@
  * POST → creates checkout session in payment mode
  */
 
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import Stripe from "npm:stripe@14.14.0";
-import { createClient } from "npm:@supabase/supabase-js@2.39.3";
+import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
+import Stripe from "npm:stripe@20.0.0";
+import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { checkRateLimit, createRateLimitResponse, getIdentifier, buildRateLimitKey } from "../_shared/rate-limit.ts";
 import { formatOrderId } from "../_shared/format-order-id.ts";
 

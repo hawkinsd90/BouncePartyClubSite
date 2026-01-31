@@ -1,4 +1,4 @@
-import Stripe from 'npm:stripe@14.14.0';
+import Stripe from 'npm:stripe@20.0.0';
 
 export interface PaymentMethodValidationResult {
   valid: boolean;
@@ -61,8 +61,8 @@ export async function validatePaymentMethod(
     }
 
     return { valid: true };
-  } catch (error: any) {
-    if (error.code === 'resource_missing') {
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'resource_missing') {
       return {
         valid: false,
         reason: 'Payment method not found',
