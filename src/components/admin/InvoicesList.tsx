@@ -69,13 +69,11 @@ export function InvoicesList() {
       const { data: invoiceNumberData } = await supabase.rpc('generate_invoice_number');
       const invoiceNumber = invoiceNumberData || `INV-${Date.now()}`;
 
-      const totalCents = order.subtotal_cents + (order.travel_fee_cents ?? 0) +
-                        (order.surface_fee_cents ?? 0) + (order.same_day_pickup_fee_cents ?? 0) + (order.tax_cents ?? 0);
-
       const { data, error} = await supabase.from('invoices').insert({
         invoice_number: invoiceNumber,
         order_id: order.id,
         due_date: order.event_date,
+        paid_at: null,
       }).select().single();
 
       if (error) throw error;

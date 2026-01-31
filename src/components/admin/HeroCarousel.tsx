@@ -11,7 +11,7 @@ interface CarouselMedia {
   storage_path: string | null;
   title: string | null;
   description: string | null;
-  display_order: number;
+  sort_order: number;
   is_active: boolean;
 }
 
@@ -62,7 +62,7 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
       console.log('[Carousel] Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
       console.log('[Carousel] Has anon key:', !!import.meta.env.VITE_SUPABASE_ANON_KEY);
 
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/hero_carousel_slides?is_active=eq.true&order=display_order`;
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/hero_carousel_slides?is_active=eq.true&order=sort_order`;
       console.log('[Carousel] Trying direct fetch to:', url);
 
       const timeoutPromise = new Promise((_, reject) =>
@@ -151,17 +151,18 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
   }
 
   async function addMediaToDatabase(url: string, storagePath: string | null = null) {
-    const maxOrder = media.length > 0 ? Math.max(...media.map(m => m.display_order)) : 0;
+    const maxOrder = media.length > 0 ? Math.max(...media.map(m => m.sort_order)) : 0;
 
     const { error } = await supabase
       .from('hero_carousel_slides')
       .insert({
-        image_url: url,
+        media_url: url,
         media_type: newMedia.mediaType,
-        storage_path: storagePath,
         title: newMedia.title || null,
-        description: newMedia.description || null,
-        display_order: maxOrder + 1,
+        subtitle: newMedia.description || null,
+        button_text: null,
+        button_link: null,
+        sort_order: maxOrder + 1,
         is_active: true,
       });
 
@@ -279,20 +280,20 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
     if (!currentMedia) return;
 
     const targetOrder = direction === 'up'
-      ? currentMedia.display_order - 1
-      : currentMedia.display_order + 1;
+      ? currentMedia.sort_order - 1
+      : currentMedia.sort_order + 1;
 
-    const targetMedia = media.find(m => m.display_order === targetOrder);
+    const targetMedia = media.find(m => m.sort_order === targetOrder);
     if (!targetMedia) return;
 
     await supabase
       .from('hero_carousel_slides')
-      .update({ display_order: targetOrder })
+      .update({ sort_order: targetOrder })
       .eq('id', currentMedia.id);
 
     await supabase
       .from('hero_carousel_slides')
-      .update({ display_order: currentMedia.display_order })
+      .update({ sort_order: currentMedia.sort_order })
       .eq('id', targetMedia.id);
 
     loadMedia();

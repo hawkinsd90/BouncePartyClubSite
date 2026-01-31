@@ -200,7 +200,7 @@ export function PermissionsTab() {
 
       if (error) throw error;
 
-      await sendPermissionChangeEmail('removed', user.email || '', user.role);
+      await sendPermissionChangeEmail('removed', user.email || '', user.role || 'user');
 
       notifySuccess('User removed successfully');
       fetchData();

@@ -6,6 +6,7 @@ import { checkMultipleUnitsAvailability } from '../../lib/availability';
 import { formatOrderSummary, type OrderSummaryData } from '../../lib/orderSummary';
 import { calculateDrivingDistance } from '../../lib/pricing';
 import { HOME_BASE } from '../../lib/constants';
+import { formatOrderId } from '../../lib/utils';
 import { StatusChangeDialog } from '../order-detail/StatusChangeDialog';
 import { OrderNotesTab } from '../order-detail/OrderNotesTab';
 import { OrderWorkflowTab } from '../order-detail/OrderWorkflowTab';
@@ -330,7 +331,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       discounts,
       customFees,
       customDepositCents,
-      pricingRules,
+      pricingRules: pricingRules as any,
       feeWaivers: {
         taxWaived,
         travelFeeWaived,
@@ -344,10 +345,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
   async function loadOrderDetails() {
     try {
-      const [itemsRes, notesRes, eventsRes, changelogRes, unitsRes, discountsRes, customFeesRes] = await Promise.all([
+      const [itemsRes, changelogRes, unitsRes, discountsRes, customFeesRes] = await Promise.all([
         supabase.from('order_items').select('*, units(name, price_dry_cents, price_water_cents)').eq('order_id', order.id),
-        supabase.from('order_notes').select('*').eq('order_id', order.id).order('created_at', { ascending: false }),
-        supabase.from('order_workflow_events').select('*').eq('order_id', order.id).order('created_at', { ascending: false }),
         supabase.from('order_changelog').select('*').eq('order_id', order.id).order('created_at', { ascending: false }),
         supabase.from('units').select('*').eq('active', true).order('name'),
         supabase.from('order_discounts').select('*').eq('order_id', order.id).order('created_at', { ascending: false }),
@@ -355,8 +354,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       ]);
 
       if (itemsRes.data) setOrderItems(itemsRes.data);
-      if (notesRes.data) setNotes(notesRes.data);
-      if (eventsRes.data) setWorkflowEvents(eventsRes.data);
       if (changelogRes.data) setChangelog(changelogRes.data);
       if (unitsRes.data) setAvailableUnits(unitsRes.data);
       if (discountsRes.data) setDiscounts(discountsRes.data);
@@ -371,11 +368,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       const user = (await supabase.auth.getUser()).data.user;
       await supabase.from('order_changelog').insert({
         order_id: order.id,
-        user_id: user?.id,
-        field_changed: field,
-        old_value: String(oldValue),
-        new_value: String(newValue),
+        changed_by: user?.id || null,
+        field_name: field,
+        old_value: oldValue ? String(oldValue) : null,
+        new_value: newValue ? String(newValue) : null,
         change_type: action === 'update' ? 'edit' : action === 'add' ? 'add' : 'remove',
+        notes: null,
       });
     } catch (error) {
       console.error('Error logging change:', error);

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { History, Package, Settings, Filter, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
+import { History, Package, Settings, Filter, ChevronDown, ChevronRight } from 'lucide-react';
 import { notify, notifyError } from '../../lib/notifications';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { formatOrderId } from '../../lib/utils';
@@ -229,7 +229,6 @@ export function ChangelogTab() {
   function getIcon(type: string) {
     switch (type) {
       case 'order': return <Package className="w-5 h-5" />;
-      case 'permission': return <Shield className="w-5 h-5" />;
       case 'setting': return <Settings className="w-5 h-5" />;
       default: return <History className="w-5 h-5" />;
     }
@@ -238,7 +237,6 @@ export function ChangelogTab() {
   function getTypeColor(type: string) {
     switch (type) {
       case 'order': return 'bg-blue-100 text-blue-800 border-blue-300';
-      case 'permission': return 'bg-rose-100 text-rose-800 border-rose-300';
       case 'setting': return 'bg-green-100 text-green-800 border-green-300';
       case 'contact': return 'bg-amber-100 text-amber-800 border-amber-300';
       default: return 'bg-slate-100 text-slate-800 border-slate-300';
@@ -298,16 +296,6 @@ export function ChangelogTab() {
             }`}
           >
             Orders ({groupedOrders.length})
-          </button>
-          <button
-            onClick={() => setFilter('permission')}
-            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
-              filter === 'permission'
-                ? 'bg-blue-600 text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            Permissions ({entries.filter(e => e.type === 'permission').length})
           </button>
           <button
             onClick={() => setFilter('setting')}
