@@ -176,11 +176,9 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       balance_due_cents: priceBreakdown.balance_due_cents,
       custom_deposit_cents: null,
       card_on_file_consent: cardOnFileConsent,
-      sms_consent: smsConsent,
       admin_message: null,
       booking_confirmation_sent: false,
       cancellation_reason: null,
-      card_on_file_consent: cardOnFileConsent,
       sms_consent_text:
         'I consent to receive transactional SMS messages from Bounce Party Club LLC regarding my booking, including order confirmations, delivery updates, and service notifications. Message frequency varies. Message and data rates may apply. Reply STOP to opt-out.',
       sms_consented_at: smsConsent ? new Date().toISOString() : null,

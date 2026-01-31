@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { AlertTriangle, Mail, MessageSquare, X, CheckCircle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Mail, MessageSquare, CheckCircle, RefreshCw } from 'lucide-react';
 import {
   getSystemStatus,
   getUnresolvedFailures,

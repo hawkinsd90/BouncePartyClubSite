@@ -36,10 +36,10 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
       const { error: logError } = await supabase.from('order_changelog').insert({
         order_id: order.id,
         change_type: 'status_change',
-        field_changed: 'status',
+        field_name: 'status',
         old_value: order.status,
         new_value: 'confirmed',
-        reason: 'Customer approved order changes via portal',
+        notes: 'Customer approved order changes via portal',
       });
 
       if (logError) console.error('Error logging approval:', logError);

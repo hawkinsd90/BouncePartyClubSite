@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
 import { format, isToday, isFuture, isPast } from 'date-fns';
 import { Search, Calendar, User, Phone } from 'lucide-react';
 import { OrderDetailModal } from '../admin/OrderDetailModal';
@@ -8,6 +7,7 @@ import { PendingOrderCard } from '../admin/PendingOrderCard';
 import { SingleOrderView } from '../admin/SingleOrderView';
 import { useDataFetch } from '../../hooks/useDataFetch';
 import { handleError } from '../../lib/errorHandling';
+import { formatOrderId } from '../../lib/utils';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
 import { getAllOrdersWithContacts } from '../../lib/queries/orders';
 

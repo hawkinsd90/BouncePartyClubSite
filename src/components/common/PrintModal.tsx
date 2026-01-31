@@ -1,4 +1,4 @@
-import { Printer, X, Download, ZoomIn, ZoomOut, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Printer, X, Download, ZoomIn, ZoomOut, Loader2, AlertCircle } from 'lucide-react';
 import { ReactNode, useEffect, useState, useCallback, useRef } from 'react';
 import { PrintState, PrintDocumentType, PRINT_TEMPLATES } from '../../lib/printUtils';
 

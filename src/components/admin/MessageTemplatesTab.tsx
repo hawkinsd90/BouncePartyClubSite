@@ -9,7 +9,7 @@ import { TextInput } from '../forms/TextInput';
 interface SMSTemplate {
   id: string;
   template_name: string;
-  description: string;
+  description: string | null;
   message_body: string;
 }
 
@@ -265,7 +265,7 @@ export function MessageTemplatesTab() {
                     <TextareaInput
                       label="Message Template"
                       value={editingSMS.message_body}
-                      onChange={(e) => setEditingSMS({ ...editingSMS, message_body: e.target.value })}
+                      onChange={(value) => setEditingSMS({ ...editingSMS, message_body: value })}
                       rows={6}
                     />
                   ) : (
@@ -352,17 +352,17 @@ export function MessageTemplatesTab() {
                       <TextInput
                         label="Email Subject"
                         value={editingEmail.subject}
-                        onChange={(e) => setEditingEmail({ ...editingEmail, subject: e.target.value })}
+                        onChange={(value) => setEditingEmail({ ...editingEmail, subject: value })}
                       />
                       <TextInput
                         label="Header Title"
                         value={editingEmail.header_title}
-                        onChange={(e) => setEditingEmail({ ...editingEmail, header_title: e.target.value })}
+                        onChange={(value) => setEditingEmail({ ...editingEmail, header_title: value })}
                       />
                       <TextareaInput
                         label="Email Content (HTML)"
                         value={editingEmail.content_template}
-                        onChange={(e) => setEditingEmail({ ...editingEmail, content_template: e.target.value })}
+                        onChange={(value) => setEditingEmail({ ...editingEmail, content_template: value })}
                         rows={10}
                       />
                     </div>

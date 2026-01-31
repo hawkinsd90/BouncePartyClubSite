@@ -1,3 +1,5 @@
+import { formatOrderId } from '../../lib/utils';
+
 interface ApprovalSuccessViewProps {
   orderId: string;
 }

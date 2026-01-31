@@ -1,4 +1,4 @@
-import { Shield, CreditCard } from 'lucide-react';
+import { Shield } from 'lucide-react';
 import { useBusinessSettings } from '../../contexts/BusinessContext';
 
 interface ConsentSectionProps {

@@ -225,7 +225,7 @@ export function BusinessAddressTab({ onAddressUpdate }: BusinessAddressTabProps)
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Search Address <span className="text-red-600">*</span>
               </label>
-              <AddressAutocomplete onAddressSelect={handleAddressSelect} />
+              <AddressAutocomplete value="" onSelect={handleAddressSelect} />
               <p className="text-xs text-slate-600 mt-1">
                 Start typing to search for your business address
               </p>

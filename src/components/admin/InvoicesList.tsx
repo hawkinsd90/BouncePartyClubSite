@@ -75,7 +75,6 @@ export function InvoicesList() {
       const { data, error } = await supabase.from('invoices').insert({
         invoice_number: invoiceNumber,
         order_id: order.id,
-        customer_id: order.customer_id,
         invoice_date: new Date().toISOString().split('T')[0],
         due_date: order.event_date,
         status: 'draft',

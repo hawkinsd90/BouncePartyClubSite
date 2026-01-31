@@ -8,7 +8,8 @@ interface Item {
   qty: number;
   wet_or_dry?: 'dry' | 'water';
   mode?: 'dry' | 'water';
-  unit_price_cents: number;
+  unit_price_cents?: number;
+  price_cents?: number;
   adjusted_price_cents?: number;
   inventory_qty?: number;
   is_new?: boolean;
@@ -54,7 +55,7 @@ export function ItemsEditor({
   };
 
   const getItemPrice = (item: Item) => {
-    return item.adjusted_price_cents || item.unit_price_cents;
+    return item.adjusted_price_cents || item.unit_price_cents || item.price_cents || 0;
   };
 
   return (
