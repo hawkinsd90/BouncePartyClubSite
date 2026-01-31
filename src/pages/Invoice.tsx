@@ -45,31 +45,33 @@ export function Invoice() {
       if (!orderData) throw new Error('Invoice not found');
 
       const { data: invoiceLink } = await supabase
-        .from('invoice_links')
+        .from('invoice_links' as any)
         .select('id')
         .eq('order_id', id)
         .maybeSingle();
 
       setIsAdminSent(!!invoiceLink);
 
-      if (orderData.status === ORDER_STATUS.CANCELLED) {
+      const orderDataAny = orderData as any;
+
+      if (orderDataAny.status === ORDER_STATUS.CANCELLED) {
         setError('This invoice has been cancelled.');
         setLoading(false);
         return;
       }
 
-      const depositPaid = orderData.deposit_required
-        ? (orderData.deposit_paid_cents ?? 0) >= orderData.deposit_due_cents
+      const depositPaid = orderDataAny.deposit_required
+        ? (orderDataAny.deposit_paid_cents ?? 0) >= (orderDataAny.deposit_due_cents ?? 0)
         : true;
 
-      if (depositPaid && orderData.status !== ORDER_STATUS.DRAFT) {
+      if (depositPaid && orderDataAny.status !== ORDER_STATUS.DRAFT) {
         setPaymentSuccess(true);
       }
 
       setOrder(orderData);
-      setCustomer(orderData.customers as any);
-      setAddress(orderData.addresses as any);
-      setOrderItems(orderData.order_items as any);
+      setCustomer(orderDataAny.customers as any);
+      setAddress(orderDataAny.addresses as any);
+      setOrderItems(orderDataAny.order_items as any);
       setLoading(false);
     } catch (err: any) {
       console.error('Error loading invoice:', err);
@@ -92,9 +94,9 @@ export function Invoice() {
       const { data: availabilityData, error: availabilityError } = await supabase.rpc(
         'check_unit_availability',
         {
-          p_unit_ids: unitIds,
-          p_start_date: order.event_date,
-          p_end_date: order.event_end_date,
+          unit_id: unitIds,
+          start_date: order?.event_date || '',
+          end_date: order?.event_end_date || '',
         }
       );
 
@@ -133,7 +135,7 @@ export function Invoice() {
   };
 
   const handlePaymentSuccess = async () => {
-    if (!orderId) {
+    if (!orderId || !order) {
       alert('Order ID is missing. Please try again.');
       return;
     }
@@ -278,6 +280,14 @@ export function Invoice() {
             Back to Home
           </button>
         </div>
+      </div>
+    );
+  }
+
+  if (!order || !customer || !address) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-slate-100 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     );
   }

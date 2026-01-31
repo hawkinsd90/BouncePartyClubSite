@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Printer, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { SimpleInvoiceDisplay } from '../components/shared/SimpleInvoiceDisplay';
 import { buildOrderSummary } from '../lib/checkoutUtils';
 
 export function InvoicePreview() {
   const navigate = useNavigate();
-  const location = useLocation();
 
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);

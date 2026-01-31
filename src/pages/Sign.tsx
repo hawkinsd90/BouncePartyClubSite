@@ -93,24 +93,26 @@ export default function Sign() {
       if (orderError) throw orderError;
       if (!data) throw new Error('Order not found');
 
-      if (data.waiver_signed_at && data.signed_waiver_url) {
+      const orderData = data as any;
+
+      if (orderData.waiver_signed_at && orderData.signed_waiver_url) {
         setError('This waiver has already been signed.');
       }
 
-      setOrder(data as unknown as OrderData);
+      setOrder(orderData as unknown as OrderData);
 
       // Auto-fill typed name and renter information from order
-      const customer = data.customer as any;
+      const customer = orderData.customer as any;
       const fullName = `${customer.first_name} ${customer.last_name}`;
       setTypedName(fullName);
       setRenterName(fullName);
       setRenterPhone(customer.phone || '');
       setRenterEmail(customer.email || '');
-      setEventDate(data.event_date || '');
-      setEventEndDate(data.event_end_date || '');
+      setEventDate(orderData.event_date || '');
+      setEventEndDate(orderData.event_end_date || '');
 
       // Auto-fill address from related address record
-      const address = data.address as any;
+      const address = orderData.address as any;
       if (address) {
         setEventAddressLine1(address.line1 || '');
         setEventAddressLine2(address.line2 || '');

@@ -50,29 +50,30 @@ export function UnitForm() {
     ]);
 
     if (unitRes.data) {
+      const unit = unitRes.data as any;
       setFormData({
-        name: unitRes.data.name,
-        slug: unitRes.data.slug,
-        type: unitRes.data.type,
-        is_combo: unitRes.data.is_combo ?? false,
-        price_dry_cents: unitRes.data.price_dry_cents,
-        price_water_cents: unitRes.data.price_water_cents ?? 0,
-        dimensions: unitRes.data.dimensions,
-        dimensions_water: unitRes.data.dimensions_water ?? '',
-        footprint_sqft: unitRes.data.footprint_sqft,
-        power_circuits: unitRes.data.power_circuits,
-        capacity: unitRes.data.capacity,
-        indoor_ok: unitRes.data.indoor_ok,
-        outdoor_ok: unitRes.data.outdoor_ok,
-        active: unitRes.data.active,
-        quantity_available: unitRes.data.quantity_available,
+        name: unit.name,
+        slug: unit.slug,
+        type: unit.type,
+        is_combo: unit.is_combo ?? false,
+        price_dry_cents: unit.price_dry_cents,
+        price_water_cents: unit.price_water_cents ?? 0,
+        dimensions: unit.dimensions ?? '',
+        dimensions_water: unit.dimensions_water ?? unit.dimensions_wet ?? '',
+        footprint_sqft: unit.footprint_sqft ?? 0,
+        power_circuits: unit.power_circuits ?? 1,
+        capacity: unit.capacity ?? 0,
+        indoor_ok: unit.indoor_ok ?? true,
+        outdoor_ok: unit.outdoor_ok ?? true,
+        active: unit.active,
+        quantity_available: unit.quantity_available,
       });
-      setOriginalActive(unitRes.data.active);
-      setPriceInput((unitRes.data.price_dry_cents / 100).toFixed(2));
-      if (unitRes.data.price_water_cents) {
-        setPriceWaterInput((unitRes.data.price_water_cents / 100).toFixed(2));
+      setOriginalActive(unit.active);
+      setPriceInput((unit.price_dry_cents / 100).toFixed(2));
+      if (unit.price_water_cents) {
+        setPriceWaterInput((unit.price_water_cents / 100).toFixed(2));
       }
-      if (unitRes.data.dimensions_water) {
+      if (unit.dimensions_water || unit.dimensions_wet) {
         setUseWetSameAsDry(false);
       }
     }
@@ -252,7 +253,7 @@ export function UnitForm() {
         ...formData,
         slug: formData.slug || generateSlug(formData.name),
         dimensions_water: useWetSameAsDry ? null : (formData.dimensions_water || null),
-      };
+      } as any;
 
       let unitId = id;
 

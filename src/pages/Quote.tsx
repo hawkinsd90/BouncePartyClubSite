@@ -39,7 +39,7 @@ export function Quote() {
     return {
       base_radius_miles: Number(data.base_radius_miles ?? 0),
       included_city_list_json: (data.included_city_list_json as string[]) ?? [],
-      included_cities: (data.included_cities as string[]) ?? (data.included_city_list_json as string[]) ?? [],
+      included_cities: (data.included_city_list_json as string[]) ?? [],
       per_mile_after_base_cents: data.per_mile_after_base_cents ?? 0,
       zone_overrides_json: (data.zone_overrides_json as any[]) ?? [],
       surface_sandbag_fee_cents: data.surface_sandbag_fee_cents ?? 0,
@@ -49,10 +49,10 @@ export function Quote() {
       overnight_holiday_only: data.overnight_holiday_only ?? false,
       extra_day_pct: Number(data.extra_day_pct ?? 0),
       generator_price_cents: Number(data.generator_price_cents ?? 0),
-      deposit_per_unit_cents: Number(data.deposit_per_unit_cents ?? 5000),
+      deposit_per_unit_cents: Number((data as any).deposit_per_unit_cents ?? 5000),
       same_day_pickup_fee_cents: Number(data.same_day_pickup_fee_cents ?? 0),
-      generator_fee_single_cents: Number(data.generator_fee_single_cents ?? data.generator_price_cents ?? 10000),
-      generator_fee_multiple_cents: Number(data.generator_fee_multiple_cents ?? data.generator_price_cents ?? 7500),
+      generator_fee_single_cents: Number((data as any).generator_fee_single_cents ?? data.generator_price_cents ?? 10000),
+      generator_fee_multiple_cents: Number((data as any).generator_fee_multiple_cents ?? data.generator_price_cents ?? 7500),
     };
   }, []);
 
