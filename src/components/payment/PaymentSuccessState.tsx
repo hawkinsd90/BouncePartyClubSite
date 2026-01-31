@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { Home } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getBusinessAddressText } from '../../lib/adminSettingsCache';
+import { formatOrderId } from '../../lib/utils';
 
 interface OrderDetails {
   id: string;

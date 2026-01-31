@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import { Edit2 } from 'lucide-react';
+import { formatOrderId } from '../../lib/utils';
 
 interface OrderInfoSectionProps {
   order: any;

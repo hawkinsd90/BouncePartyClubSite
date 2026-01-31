@@ -28,6 +28,7 @@ export function StatusChangeDialog({
   isOpen,
   onClose,
   orderId,
+  currentStatus,
   pendingStatus,
   stagedItems,
   eventDate,
@@ -99,14 +100,15 @@ export function StatusChangeDialog({
       }
 
       // Add changelog entry
+      const userId = (await supabase.auth.getUser()).data.user?.id || null;
       const { error: changelogError } = await supabase.from('order_changelog').insert({
         order_id: orderId,
         change_type: 'status_change',
-        field_changed: 'status',
+        field_name: 'status',
         old_value: null,
         new_value: pendingStatus,
-        changed_by: (await supabase.auth.getUser()).data.user?.id,
-        reason: statusChangeReason,
+        changed_by: userId,
+        notes: statusChangeReason,
       });
 
       if (changelogError) throw changelogError;

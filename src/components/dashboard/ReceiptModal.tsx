@@ -4,6 +4,7 @@ import { OrderSummary } from '../order/OrderSummary';
 import { OrderSummaryDisplay } from '../../lib/orderSummary';
 import { PrintModal } from '../common/PrintModal';
 import { formatCurrency } from '../../lib/pricing';
+import { formatOrderId } from '../../lib/utils';
 import { calculateOrderTotal, formatTime } from '../../lib/orderUtils';
 
 interface ReceiptModalProps {

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { FileText, CreditCard, CheckCircle, Image as ImageIcon, MapPin } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
+import { formatOrderId } from '../../lib/utils';
 import { supabase } from '../../lib/supabase';
 import WaiverTab from '../waiver/WaiverTab';
 import { PaymentTab } from './PaymentTab';
@@ -98,7 +99,7 @@ export function RegularPortalView({ order, orderId, onReload }: RegularPortalVie
 
         // Save metadata to database
         const { error: dbError } = await supabase
-          .from('order_pictures')
+          .from('order_pictures' as any)
           .insert({
             order_id: orderId,
             file_path: fileName,

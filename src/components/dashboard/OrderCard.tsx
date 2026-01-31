@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import { MapPin, DollarSign, Clock, Package, FileText, CheckCircle, Eye, Copy, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { formatOrderId } from '../../lib/utils';
 import { Order, Payment } from '../../types/orders';
 import { OrderStatusBadge } from './OrderStatusBadge';
 import { OrderPaymentStatus } from './OrderPaymentStatus';

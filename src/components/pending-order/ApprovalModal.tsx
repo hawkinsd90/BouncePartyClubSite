@@ -1,4 +1,5 @@
 import { formatCurrency } from '../../lib/pricing';
+import { formatOrderId } from '../../lib/utils';
 
 interface ApprovalModalProps {
   order: any;

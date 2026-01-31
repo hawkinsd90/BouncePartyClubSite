@@ -37,10 +37,10 @@ export function RejectionModal({ isOpen, onClose, order, onSuccess }: RejectionM
       const { error: logError } = await supabase.from('order_changelog').insert({
         order_id: order.id,
         change_type: 'status_change',
-        field_changed: 'status',
+        field_name: 'status',
         old_value: order.status,
         new_value: 'voided',
-        reason: reason ? `Customer rejected changes: ${reason}` : 'Customer rejected order changes via portal',
+        notes: reason ? `Customer rejected changes: ${reason}` : 'Customer rejected order changes via portal',
       });
 
       if (logError) console.error('Error logging rejection:', logError);
