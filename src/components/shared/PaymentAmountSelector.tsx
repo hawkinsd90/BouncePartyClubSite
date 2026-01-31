@@ -95,8 +95,8 @@ export function PaymentAmountSelector({
           <label
             className={`relative flex flex-col p-3 sm:p-4 border-2 rounded-lg cursor-pointer transition-all sm:col-span-2 md:col-span-1 ${
               paymentAmount === 'custom'
-                ? 'border-purple-600 bg-purple-50'
-                : 'border-slate-300 hover:border-purple-400 active:scale-[0.98]'
+                ? 'border-teal-600 bg-teal-50'
+                : 'border-slate-300 hover:border-teal-400 active:scale-[0.98]'
             }`}
           >
             <input
@@ -127,7 +127,7 @@ export function PaymentAmountSelector({
                 value={customAmount}
                 onChange={(e) => handleCustomAmountChange(e.target.value)}
                 placeholder={(depositCents / 100).toFixed(2)}
-                className={`w-full pl-7 sm:pl-8 pr-4 py-2 sm:py-2.5 text-sm sm:text-base border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                className={`w-full pl-7 sm:pl-8 pr-4 py-2 sm:py-2.5 text-sm sm:text-base border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent ${
                   customAmountError ? 'border-red-300 bg-red-50' : 'border-slate-300'
                 }`}
                 required={paymentAmount === 'custom'}

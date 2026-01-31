@@ -95,7 +95,7 @@ export default function WaiverTab({ orderId }: WaiverTabProps) {
 
           <button
             onClick={handleSignWaiver}
-            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg px-8 py-4 font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all flex items-center justify-center gap-2"
+            className="w-full bg-gradient-to-r from-blue-600 to-teal-600 text-white rounded-lg px-8 py-4 font-semibold hover:from-blue-700 hover:to-teal-700 transition-all flex items-center justify-center gap-2"
           >
             <FileCheck className="w-5 h-5" />
             Sign Waiver Now

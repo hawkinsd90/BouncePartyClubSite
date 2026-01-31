@@ -165,12 +165,12 @@ export function OrderDetailsTab({
           ));
 
         return willClearPayment && (
-          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
             <div className="flex items-center gap-2 mb-2">
-              <AlertTriangle className="w-4 h-4 text-purple-700" />
-              <h3 className="font-semibold text-purple-900">Payment Information Will Be Cleared</h3>
+              <AlertTriangle className="w-4 h-4 text-amber-700" />
+              <h3 className="font-semibold text-amber-900">Payment Information Will Be Cleared</h3>
             </div>
-            <p className="text-sm text-purple-700 mb-2">
+            <p className="text-sm text-amber-700 mb-2">
               {itemsChanged
                 ? "Since you're adding or removing units, the saved payment method will be cleared."
                 : finalDepositCents > currentPaidAmount
@@ -178,7 +178,7 @@ export function OrderDetailsTab({
                 : `The customer paid the full amount (${formatCurrency(currentPaidAmount)}), but the new total (${formatCurrency(newTotal)}) exceeds this, so the payment method will be cleared.`
               }
             </p>
-            <p className="text-xs text-purple-600">
+            <p className="text-xs text-amber-600">
               The customer will be asked to provide payment information again when they approve the changes.
             </p>
           </div>

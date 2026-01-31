@@ -117,8 +117,8 @@ export function EventDetailsEditor({
                 onClick={() => onOrderChange({ location_type: 'commercial', pickup_preference: 'same_day', event_end_date: editedOrder.event_date })}
                 className={`flex-1 px-3 py-2 border-2 rounded font-medium ${compact ? 'text-sm' : ''} transition-all min-w-0 ${
                   editedOrder.location_type === 'commercial'
-                    ? 'border-purple-600 bg-purple-50 text-purple-900'
-                    : 'border-slate-300 bg-white text-slate-700 hover:border-purple-400'
+                    ? 'border-orange-600 bg-orange-50 text-orange-900'
+                    : 'border-slate-300 bg-white text-slate-700 hover:border-orange-400'
                 }`}
               >
                 Commercial
