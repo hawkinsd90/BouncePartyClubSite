@@ -132,7 +132,7 @@ export function AddressAutocomplete({
       return new Promise((resolve, reject) => {
         console.log('[AddressAutocomplete] Checking if importLibrary is available...');
 
-        if (window.google?.maps?.importLibrary) {
+        if (typeof window.google?.maps?.importLibrary === 'function') {
           console.log('[AddressAutocomplete] importLibrary already available!');
           resolve();
           return;
@@ -145,7 +145,7 @@ export function AddressAutocomplete({
           attempts++;
           console.log(`[AddressAutocomplete] Poll attempt ${attempts}/${maxAttempts}...`);
 
-          if (window.google?.maps?.importLibrary) {
+          if (typeof window.google?.maps?.importLibrary === 'function') {
             clearInterval(checkInterval);
             console.log(`[AddressAutocomplete] ✅ importLibrary became available after ${attempts} attempts!`);
             resolve();

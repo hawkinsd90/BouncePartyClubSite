@@ -165,18 +165,18 @@ export function PrintableInvoice({
             <span className="text-lg font-bold text-slate-900">{formatCurrency(total)}</span>
           </div>
 
-          {showDepositInfo && metadata?.depositDue && (
+          {showDepositInfo && (metadata as any)?.depositDue && (
             <>
               <div className="flex justify-between py-2 bg-blue-50 px-3 rounded">
                 <span className="text-slate-700 font-semibold">Deposit Due</span>
                 <span className="font-bold text-blue-900">
-                  {formatCurrency(metadata.depositDue)}
+                  {formatCurrency((metadata as any).depositDue)}
                 </span>
               </div>
               <div className="flex justify-between py-2 px-3">
                 <span className="text-slate-700">Balance Due</span>
                 <span className="font-semibold text-slate-900">
-                  {formatCurrency(metadata.balanceDue || 0)}
+                  {formatCurrency((metadata as any).balanceDue || 0)}
                 </span>
               </div>
             </>

@@ -82,10 +82,10 @@ export function ChangelogTab() {
 
       // Collect all unique user IDs
       const userIds = new Set<string>();
-      (orderChanges || []).forEach(change => {
+      (orderChanges || []).forEach((change: any) => {
         if (change.changed_by) userIds.add(change.changed_by);
       });
-      (settingChanges || []).forEach(change => {
+      (settingChanges || []).forEach((change: any) => {
         if (change.changed_by) userIds.add(change.changed_by);
       });
 
@@ -179,7 +179,7 @@ export function ChangelogTab() {
       setGroupedOrders(grouped);
 
       // Process admin settings changes
-      for (const change of settingChanges || []) {
+      for (const change of (settingChanges as any[]) || []) {
         const userEmail = change.changed_by
           ? userInfo[change.changed_by]?.email || 'Unknown User'
           : 'System';

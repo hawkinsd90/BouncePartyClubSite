@@ -27,9 +27,9 @@ export function OrderNotesTab({ orderId, notes, onNotesChanged }: OrderNotesTabP
 
     setSavingNote(true);
     try {
-      const { error } = await supabase.from('order_notes').insert({
+      const { error } = await supabase.from('order_notes' as any).insert({
         order_id: orderId,
-        user_id: (await supabase.auth.getUser()).data.user?.id,
+        user_id: (await supabase.auth.getUser()).data.user?.id || null,
         note: newNote,
       });
 

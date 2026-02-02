@@ -6,13 +6,6 @@ interface InvoicePreviewModalProps {
   quoteData: any;
   priceBreakdown: any;
   cart: any[];
-  contactData: {
-    first_name: string;
-    last_name: string;
-    email: string;
-    phone: string;
-    business_name: string;
-  };
   onClose: () => void;
 }
 
@@ -20,7 +13,6 @@ export function InvoicePreviewModal({
   quoteData,
   priceBreakdown,
   cart,
-  contactData,
   onClose,
 }: InvoicePreviewModalProps) {
   const handlePrint = () => {

@@ -60,10 +60,6 @@ export function CustomerFormFields({
     setErrors(prev => ({ ...prev, [field]: error }));
   };
 
-  const handleBlur = (field: keyof CustomerData) => {
-    setTouched(prev => ({ ...prev, [field]: true }));
-    validateField(field, data[field] || '');
-  };
 
   const handleChange = (field: keyof CustomerData, value: string) => {
     if (field === 'phone') {

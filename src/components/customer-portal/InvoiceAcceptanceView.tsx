@@ -26,8 +26,6 @@ interface InvoiceAcceptanceViewProps {
 export function InvoiceAcceptanceView({
   order,
   orderItems,
-  discounts,
-  customFees,
   invoiceLink,
   orderSummary,
   onReload,
@@ -100,7 +98,7 @@ export function InvoiceAcceptanceView({
           .eq('id', order.id);
 
         await supabase
-          .from('invoice_links')
+          .from('invoice_links' as any)
           .update({ customer_filled: true })
           .eq('id', invoiceLink.id);
       } else {

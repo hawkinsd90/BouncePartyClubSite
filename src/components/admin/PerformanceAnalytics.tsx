@@ -49,14 +49,6 @@ export function PerformanceAnalytics() {
         t.completed_at && new Date(t.completed_at) >= today
       ).length;
 
-      let totalDeliveryMinutes = 0;
-      let deliveryCount = 0;
-      let totalSetupMinutes = 0;
-      let setupCount = 0;
-      let totalTeardownMinutes = 0;
-      let teardownCount = 0;
-      let totalPickupMinutes = 0;
-      let pickupCount = 0;
       let totalServiceMinutes = 0;
       let serviceCount = 0;
       let onTimeDeliveries = 0;

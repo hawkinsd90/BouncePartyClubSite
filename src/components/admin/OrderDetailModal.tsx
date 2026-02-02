@@ -39,8 +39,6 @@ interface StagedItem {
 export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalProps) {
   const [activeSection, setActiveSection] = useState<'details' | 'workflow' | 'notes' | 'changelog' | 'payments'>('details');
   const [orderItems, setOrderItems] = useState<any[]>([]);
-  const [notes, setNotes] = useState<any[]>([]);
-  const [workflowEvents, setWorkflowEvents] = useState<any[]>([]);
   const [changelog, setChangelog] = useState<any[]>([]);
   const [availableUnits, setAvailableUnits] = useState<any[]>([]);
   const [editedOrder, setEditedOrder] = useState<any>({

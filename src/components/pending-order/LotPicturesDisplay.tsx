@@ -17,7 +17,7 @@ interface LotPicture {
   uploaded_at: string;
 }
 
-export function LotPicturesDisplay({ orderId, orderNumber, onPromptCustomer }: LotPicturesDisplayProps) {
+export function LotPicturesDisplay({ orderId, onPromptCustomer }: LotPicturesDisplayProps) {
   const [pictures, setPictures] = useState<LotPicture[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -29,7 +29,7 @@ export function LotPicturesDisplay({ orderId, orderNumber, onPromptCustomer }: L
   const loadPictures = async () => {
     try {
       const { data, error } = await supabase
-        .from('order_lot_pictures')
+        .from('order_lot_pictures' as any)
         .select('*')
         .eq('order_id', orderId)
         .order('uploaded_at', { ascending: false });

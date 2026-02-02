@@ -124,7 +124,6 @@ export function TravelFeeManager({
           currentReason={travelFeeWaiveReason}
           onConfirm={handleConfirm}
           onCancel={handleCancel}
-          applyTravelFeeByDefault={applyTravelFeeByDefault}
         />
       )}
     </>
@@ -137,14 +136,12 @@ function ConfirmationDialog({
   currentReason,
   onConfirm,
   onCancel,
-  applyTravelFeeByDefault,
 }: {
   travelFeeWaived: boolean;
   travelFeeCents: number;
   currentReason?: string;
   onConfirm: (reason: string) => void;
   onCancel: () => void;
-  applyTravelFeeByDefault: boolean;
 }) {
   const [reason, setReason] = useState(currentReason || '');
 

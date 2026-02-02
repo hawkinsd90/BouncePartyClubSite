@@ -35,6 +35,7 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
 
       const { error: logError } = await supabase.from('order_changelog').insert({
         order_id: order.id,
+        changed_by: null,
         change_type: 'status_change',
         field_name: 'status',
         old_value: order.status,

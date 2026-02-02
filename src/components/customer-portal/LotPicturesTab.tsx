@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Upload, X, Image as ImageIcon, CheckCircle } from 'lucide-react';
+import { Upload, Image as ImageIcon, CheckCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { notifyError, notifySuccess } from '../../lib/notifications';
 
@@ -16,7 +16,7 @@ interface LotPicture {
   uploaded_at: string;
 }
 
-export function LotPicturesTab({ orderId, orderNumber }: LotPicturesTabProps) {
+export function LotPicturesTab({ orderId }: LotPicturesTabProps) {
   const [pictures, setPictures] = useState<LotPicture[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -28,7 +28,7 @@ export function LotPicturesTab({ orderId, orderNumber }: LotPicturesTabProps) {
   const loadPictures = async () => {
     try {
       const { data, error } = await supabase
-        .from('order_lot_pictures')
+        .from('order_lot_pictures' as any)
         .select('*')
         .eq('order_id', orderId)
         .order('uploaded_at', { ascending: false });
@@ -77,7 +77,7 @@ export function LotPicturesTab({ orderId, orderNumber }: LotPicturesTabProps) {
 
         // Save record to database
         const { error: dbError } = await supabase
-          .from('order_lot_pictures')
+          .from('order_lot_pictures' as any)
           .insert({
             order_id: orderId,
             file_path: fileName,

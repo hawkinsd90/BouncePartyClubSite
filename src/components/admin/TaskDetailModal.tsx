@@ -348,7 +348,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
     }
   }
 
-  async function handleImageUpload(isDamage: boolean = false) {
+  async function handleImageUpload() {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
@@ -360,7 +360,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
 
       setUploadingImages(true);
       try {
-        const taskStatusId = await ensureTaskStatus();
+        await ensureTaskStatus();
         const uploadedUrls: string[] = [];
 
         for (const file of files) {
@@ -414,7 +414,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
             to: task.customerPhone,
             message,
             order_id: task.orderId,
-            mediaUrls: deliveryImages,
+            mediaUrls: [],
           }),
         }
       );
@@ -488,8 +488,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
       const currentTask = tasksOfSameType[currentIndex];
       const swapTask = tasksOfSameType[swapIndex];
 
-      const currentTaskStatusId = currentTask.taskStatus?.id || await ensureTaskStatus();
-      const swapTaskStatusId = swapTask.taskStatus?.id;
+      await ensureTaskStatus();
 
       if (!swapTaskStatusId) {
         showAlert('Cannot reorder: other task has no status record');
@@ -520,9 +519,6 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
 
     setRecordingCash(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const user = session?.user;
-
       const { error: paymentError } = await supabase
         .from('payments')
         .insert({
@@ -580,9 +576,6 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
 
     setSigningWaiver(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const user = session?.user;
-
       const { error } = await supabase
         .from('order_signatures')
         .insert({
