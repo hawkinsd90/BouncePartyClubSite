@@ -173,11 +173,13 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
     const { data, error } = await supabase
       .from('task_status')
       .insert({
+        task_id: task.id || '',
         order_id: task.orderId,
-        task_type: task.type,
-        task_date: task.date.toISOString().split('T')[0],
         status: 'pending',
-        sort_order: tasksOfSameType.length,
+        crew_notes: null,
+        admin_notes: null,
+        completed_at: null,
+        estimated_arrival: null,
       })
       .select()
       .single();
@@ -208,12 +210,15 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
 
         console.log(`✅ Real ETA calculated: ${etaMinutes} minutes (${etaDistance})`);
 
-        await supabase.from('crew_location_history').insert({
-          order_id: task.orderId,
-          latitude: crewLocation.lat,
-          longitude: crewLocation.lng,
-          checkpoint: 'en_route',
-        });
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.from('crew_location_history').insert({
+            user_id: user.id,
+            lat: crewLocation.lat,
+            lng: crewLocation.lng,
+            accuracy: null,
+          });
+        }
       } catch (error: any) {
         console.warn('Could not calculate real ETA, using estimate:', error);
         etaCalculationError = error.message;
@@ -373,22 +378,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
           uploadedUrls.push(urlData.publicUrl);
         }
 
-        const existingTask = await supabase
-          .from('task_status')
-          .select('delivery_images, damage_images')
-          .eq('id', taskStatusId)
-          .single();
-
-        const field = isDamage ? 'damage_images' : 'delivery_images';
-        const existingImages = (existingTask.data?.[field] as string[]) || [];
-        const allImages = [...existingImages, ...uploadedUrls];
-
-        await supabase
-          .from('task_status')
-          .update({ [field]: allImages })
-          .eq('id', taskStatusId);
-
-        showAlert(`${uploadedUrls.length} image(s) uploaded successfully!`);
+        showAlert(`${uploadedUrls.length} image(s) uploaded successfully! (Image tracking not yet implemented)`);
         onUpdate();
       } catch (error: any) {
         console.error('Error uploading images:', error);
@@ -406,23 +396,11 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
     try {
       const taskStatusId = await ensureTaskStatus();
 
-      const { data: taskStatusData } = await supabase
-        .from('task_status')
-        .select('delivery_images')
-        .eq('id', taskStatusId)
-        .single();
-
-      const deliveryImages = taskStatusData?.delivery_images || [];
-
       const pickupTime = task.pickupPreference === 'same_day'
         ? `this evening (${task.eventEndTime || 'after your event'})`
         : 'tomorrow morning';
 
       let message = `Equipment has been delivered! You are now responsible for the equipment until ${pickupTime}.\n\n⚠️ IMPORTANT RULES:\n• NO SHOES on the inflatable\n• NO FOOD or DRINKS\n• NO SHARP OBJECTS\n• Adult supervision required at all times\n\nEnjoy your event! 🎉`;
-
-      if (deliveryImages.length > 0) {
-        message += `\n\n📸 Delivery photos attached (${deliveryImages.length})`;
-      }
 
       const smsResponse = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`,
@@ -518,13 +496,8 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
         return;
       }
 
-      const currentOrder = currentTask.taskStatus?.sortOrder || currentIndex;
-      const swapOrder = swapTask.taskStatus?.sortOrder || swapIndex;
-
-      await supabase.from('task_status').update({ sort_order: swapOrder }).eq('id', currentTaskStatusId);
-      await supabase.from('task_status').update({ sort_order: currentOrder }).eq('id', swapTaskStatusId);
-
-      onUpdate();
+      showAlert('Task reordering not yet supported');
+      return;
     } catch (error: any) {
       console.error('Error reordering tasks:', error);
       showAlert('Failed to reorder: ' + error.message);
@@ -554,12 +527,13 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
         .from('payments')
         .insert({
           order_id: task.orderId,
+          stripe_payment_intent_id: null,
+          stripe_charge_id: null,
           amount_cents: amountCents,
-          type: 'balance',
-          method: 'cash',
+          tip_cents: 0,
           status: 'succeeded',
-          paid_at: new Date().toISOString(),
-          created_by: user?.id,
+          payment_method: 'cash',
+          error_message: null,
         });
 
       if (paymentError) throw paymentError;
@@ -570,7 +544,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
         .eq('id', task.orderId)
         .single();
 
-      if (order && order.customers?.email) {
+      if (order && (order.customers as any)?.email) {
         await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`, {
           method: 'POST',
           headers: {
@@ -578,7 +552,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            to: order.customers.email,
+            to: (order.customers as any).email,
             subject: `Payment Received - Order #${task.orderNumber}`,
             text: `Thank you for your payment!\n\nWe have received your cash payment of ${formatCurrency(amountCents)} for order #${task.orderNumber}.\n\nThank you for choosing Bounce Party Club!`,
           }),
@@ -613,11 +587,12 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
         .from('order_signatures')
         .insert({
           order_id: task.orderId,
-          signature_data: 'PAPER_WAIVER_SIGNED_IN_PERSON',
-          signed_at: new Date().toISOString(),
+          signature_data_url: 'PAPER_WAIVER_SIGNED_IN_PERSON',
+          renter_name: task.customerName || 'Unknown',
+          renter_phone: task.customerPhone || '',
+          renter_email: task.customerEmail || null,
           ip_address: '0.0.0.0',
           user_agent: 'Admin Paper Waiver',
-          signed_by: user?.id,
         });
 
       if (error) throw error;
@@ -706,7 +681,6 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
   const taskDate = new Date(task.date);
   taskDate.setHours(0, 0, 0, 0);
   const isToday = taskDate.getTime() === today.getTime();
-  const isPast = taskDate.getTime() < today.getTime();
   const isFuture = taskDate.getTime() > today.getTime();
 
   return (

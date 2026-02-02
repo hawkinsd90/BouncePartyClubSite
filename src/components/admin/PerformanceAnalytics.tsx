@@ -37,7 +37,7 @@ export function PerformanceAnalytics() {
       if (error) throw error;
 
       const tasks = taskData || [];
-      const completedTasks = tasks.filter(t => t.pickup_completed_at);
+      const completedTasks = tasks.filter(t => t.completed_at && t.status === 'completed');
       const totalTasks = tasks.length;
 
       const now = new Date();
@@ -46,7 +46,7 @@ export function PerformanceAnalytics() {
 
       const tasksLast30Days = tasks.filter(t => new Date(t.created_at) >= thirtyDaysAgo).length;
       const tasksCompletedToday = tasks.filter(t =>
-        t.pickup_completed_at && new Date(t.pickup_completed_at) >= today
+        t.completed_at && new Date(t.completed_at) >= today
       ).length;
 
       let totalDeliveryMinutes = 0;
@@ -62,49 +62,25 @@ export function PerformanceAnalytics() {
       let onTimeDeliveries = 0;
 
       completedTasks.forEach(task => {
-        if (task.delivery_started_at && task.delivery_completed_at) {
-          const deliveryMinutes = (new Date(task.delivery_completed_at).getTime() - new Date(task.delivery_started_at).getTime()) / 60000;
-          totalDeliveryMinutes += deliveryMinutes;
-          deliveryCount++;
+        if (task.created_at && task.completed_at) {
+          const taskMinutes = (new Date(task.completed_at).getTime() - new Date(task.created_at).getTime()) / 60000;
+          totalServiceMinutes += taskMinutes;
+          serviceCount++;
 
-          if (task.delivery_eta && new Date(task.delivery_completed_at) <= new Date(task.delivery_eta)) {
+          if (task.estimated_arrival && new Date(task.completed_at) <= new Date(task.estimated_arrival)) {
             onTimeDeliveries++;
           }
-        }
-
-        if (task.setup_started_at && task.setup_completed_at) {
-          const setupMinutes = (new Date(task.setup_completed_at).getTime() - new Date(task.setup_started_at).getTime()) / 60000;
-          totalSetupMinutes += setupMinutes;
-          setupCount++;
-        }
-
-        if (task.teardown_started_at && task.teardown_completed_at) {
-          const teardownMinutes = (new Date(task.teardown_completed_at).getTime() - new Date(task.teardown_started_at).getTime()) / 60000;
-          totalTeardownMinutes += teardownMinutes;
-          teardownCount++;
-        }
-
-        if (task.pickup_started_at && task.pickup_completed_at) {
-          const pickupMinutes = (new Date(task.pickup_completed_at).getTime() - new Date(task.pickup_started_at).getTime()) / 60000;
-          totalPickupMinutes += pickupMinutes;
-          pickupCount++;
-        }
-
-        if (task.delivery_started_at && task.pickup_completed_at) {
-          const totalMinutes = (new Date(task.pickup_completed_at).getTime() - new Date(task.delivery_started_at).getTime()) / 60000;
-          totalServiceMinutes += totalMinutes;
-          serviceCount++;
         }
       });
 
       setMetrics({
-        avgDeliveryMinutes: deliveryCount > 0 ? totalDeliveryMinutes / deliveryCount : null,
-        avgSetupMinutes: setupCount > 0 ? totalSetupMinutes / setupCount : null,
-        avgTeardownMinutes: teardownCount > 0 ? totalTeardownMinutes / teardownCount : null,
-        avgPickupMinutes: pickupCount > 0 ? totalPickupMinutes / pickupCount : null,
+        avgDeliveryMinutes: null,
+        avgSetupMinutes: null,
+        avgTeardownMinutes: null,
+        avgPickupMinutes: null,
         totalCompletedTasks: completedTasks.length,
         taskCompletionRate: totalTasks > 0 ? (completedTasks.length / totalTasks) * 100 : 0,
-        onTimeDeliveryRate: deliveryCount > 0 ? (onTimeDeliveries / deliveryCount) * 100 : 0,
+        onTimeDeliveryRate: serviceCount > 0 ? (onTimeDeliveries / serviceCount) * 100 : 0,
         avgTotalServiceMinutes: serviceCount > 0 ? totalServiceMinutes / serviceCount : null,
         tasksLast30Days,
         tasksCompletedToday,
@@ -152,7 +128,7 @@ export function PerformanceAnalytics() {
           <div className="flex items-center justify-between mb-3">
             <Clock className="w-8 h-8 text-blue-600" />
             <span className="text-2xl font-bold text-slate-900">
-              {formatDuration(metrics.avgDeliveryMinutes)}
+              {metrics.avgDeliveryMinutes ? formatDuration(metrics.avgDeliveryMinutes) : 'N/A'}
             </span>
           </div>
           <h3 className="text-sm font-semibold text-slate-900 mb-1">Avg Delivery Time</h3>
@@ -163,7 +139,7 @@ export function PerformanceAnalytics() {
           <div className="flex items-center justify-between mb-3">
             <Activity className="w-8 h-8 text-green-600" />
             <span className="text-2xl font-bold text-slate-900">
-              {formatDuration(metrics.avgSetupMinutes)}
+              {metrics.avgSetupMinutes ? formatDuration(metrics.avgSetupMinutes) : 'N/A'}
             </span>
           </div>
           <h3 className="text-sm font-semibold text-slate-900 mb-1">Avg Setup Time</h3>
@@ -174,7 +150,7 @@ export function PerformanceAnalytics() {
           <div className="flex items-center justify-between mb-3">
             <TrendingDown className="w-8 h-8 text-amber-600" />
             <span className="text-2xl font-bold text-slate-900">
-              {formatDuration(metrics.avgTeardownMinutes)}
+              {metrics.avgTeardownMinutes ? formatDuration(metrics.avgTeardownMinutes) : 'N/A'}
             </span>
           </div>
           <h3 className="text-sm font-semibold text-slate-900 mb-1">Avg Teardown Time</h3>
@@ -185,7 +161,7 @@ export function PerformanceAnalytics() {
           <div className="flex items-center justify-between mb-3">
             <TrendingUp className="w-8 h-8 text-cyan-600" />
             <span className="text-2xl font-bold text-slate-900">
-              {formatDuration(metrics.avgPickupMinutes)}
+              {metrics.avgPickupMinutes ? formatDuration(metrics.avgPickupMinutes) : 'N/A'}
             </span>
           </div>
           <h3 className="text-sm font-semibold text-slate-900 mb-1">Avg Pickup Time</h3>
@@ -236,7 +212,7 @@ export function PerformanceAnalytics() {
             <div className="flex justify-between text-sm">
               <span className="text-slate-600">Avg Total Service:</span>
               <span className="font-semibold text-slate-900">
-                {formatDuration(metrics.avgTotalServiceMinutes)}
+                {metrics.avgTotalServiceMinutes ? formatDuration(metrics.avgTotalServiceMinutes) : 'N/A'}
               </span>
             </div>
           </div>
