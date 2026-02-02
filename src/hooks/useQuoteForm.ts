@@ -20,6 +20,7 @@ export interface QuoteFormData {
   overnight_responsibility_accepted: boolean;
   can_stake: boolean;
   has_generator: boolean;
+  generator_qty: number;
   has_pets: boolean;
   special_details: string;
 }
@@ -43,6 +44,7 @@ const initialFormData: QuoteFormData = {
   overnight_responsibility_accepted: false,
   can_stake: true,
   has_generator: false,
+  generator_qty: 0,
   has_pets: false,
   special_details: '',
 };
@@ -58,7 +60,7 @@ export function useQuoteForm() {
     const prefillData = SafeStorage.getItem<any>('bpc_quote_prefill');
     if (prefillData) {
       applyPrefillData(prefillData);
-      SafeStorage.setItem('bpc_prefill_applied', true, { expirationMinutes: 5 });
+      SafeStorage.setItem('bpc_prefill_applied', true);
       SafeStorage.removeItem('bpc_quote_prefill');
     } else {
       loadSavedForm();

@@ -147,7 +147,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
 
   async function checkIfAdminInvoice() {
     const { data: invoiceLink } = await supabase
-      .from('invoice_links')
+      .from('invoice_links' as any)
       .select('id')
       .eq('order_id', orderId!)
       .maybeSingle();

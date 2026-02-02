@@ -164,7 +164,7 @@ export function AddressAutocomplete({
       const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
       console.log('[AddressAutocomplete] Existing script found:', !!existingScript);
 
-      if (window.google?.maps?.importLibrary) {
+      if (typeof window.google?.maps?.importLibrary === 'function') {
         console.log('[AddressAutocomplete] importLibrary already available, initializing...');
         await initAutocomplete();
       } else if (existingScript) {

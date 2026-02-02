@@ -484,17 +484,6 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
 
   async function handleReorder(direction: 'up' | 'down') {
     try {
-      const swapIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-      const currentTask = tasksOfSameType[currentIndex];
-      const swapTask = tasksOfSameType[swapIndex];
-
-      await ensureTaskStatus();
-
-      if (!swapTaskStatusId) {
-        showAlert('Cannot reorder: other task has no status record');
-        return;
-      }
-
       showAlert('Task reordering not yet supported');
       return;
     } catch (error: any) {

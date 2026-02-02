@@ -35,7 +35,7 @@ export function LotPicturesDisplay({ orderId, onPromptCustomer }: LotPicturesDis
         .order('uploaded_at', { ascending: false });
 
       if (error) throw error;
-      setPictures(data || []);
+      setPictures((data as any) || []);
     } catch (error: any) {
       console.error('Error loading lot pictures:', error);
       notifyError('Failed to load lot pictures');

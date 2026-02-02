@@ -31,7 +31,6 @@ export function CustomerFormFields({
   layout = 'grid',
 }: CustomerFormFieldsProps) {
   const [errors, setErrors] = useState<ValidationErrors>({});
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
 
   const gridClass = layout === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'space-y-4';
 

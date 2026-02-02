@@ -25,7 +25,7 @@ export function useDiscountTemplates() {
         .order('name');
 
       if (error) throw error;
-      setTemplates((data || []) as DiscountTemplate[]);
+      setTemplates((data as any || []) as DiscountTemplate[]);
     } catch (err) {
       console.error('Error loading discount templates:', err);
     } finally {

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { PrintState, PrintStateInfo, PrintEventCallbacks } from '../lib/printUtils';
+import { PrintStateInfo, PrintEventCallbacks } from '../lib/printUtils';
 
 interface UsePrintOptions extends PrintEventCallbacks {
   autoOpenDelay?: number;

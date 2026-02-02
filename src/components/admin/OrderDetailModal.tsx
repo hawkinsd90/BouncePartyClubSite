@@ -40,6 +40,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [activeSection, setActiveSection] = useState<'details' | 'workflow' | 'notes' | 'changelog' | 'payments'>('details');
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [changelog, setChangelog] = useState<any[]>([]);
+  const [notes, setNotes] = useState<any[]>([]);
+  const [workflowEvents, setWorkflowEvents] = useState<any[]>([]);
   const [availableUnits, setAvailableUnits] = useState<any[]>([]);
   const [editedOrder, setEditedOrder] = useState<any>({
     location_type: order.location_type,

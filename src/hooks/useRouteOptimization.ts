@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { format } from 'date-fns';
 import { optimizeMorningRoute, type MorningRouteStop } from '../lib/routeOptimization';
 import { Task } from './useCalendarTasks';
 
 export function useRouteOptimization() {
   const [optimizing, setOptimizing] = useState(false);
 
-  async function optimizeMorningRouteForDay(selectedDate: Date, selectedDayTasks: Task[], onComplete: () => void) {
+  async function optimizeMorningRouteForDay(_selectedDate: Date, selectedDayTasks: Task[], onComplete: () => void) {
     setOptimizing(true);
     try {
       const dropOffTasks = selectedDayTasks.filter(t => t.type === 'drop-off');
@@ -31,6 +30,10 @@ export function useRouteOptimization() {
               task_id: task.id,
               order_id: task.orderId,
               status: 'pending',
+              crew_notes: null,
+              admin_notes: null,
+              completed_at: null,
+              estimated_arrival: null,
             })
             .select()
             .single();
@@ -98,7 +101,7 @@ export function useRouteOptimization() {
     }
   }
 
-  async function optimizeAfternoonRouteForDay(selectedDate: Date, selectedDayTasks: Task[], onComplete: () => void) {
+  async function optimizeAfternoonRouteForDay(_selectedDate: Date, selectedDayTasks: Task[], onComplete: () => void) {
     setOptimizing(true);
     try {
       const afternoonPickUpTasks = selectedDayTasks.filter(t => {
@@ -118,6 +121,10 @@ export function useRouteOptimization() {
               task_id: task.id,
               order_id: task.orderId,
               status: 'pending',
+              crew_notes: null,
+              admin_notes: null,
+              completed_at: null,
+              estimated_arrival: null,
             })
             .select()
             .single();

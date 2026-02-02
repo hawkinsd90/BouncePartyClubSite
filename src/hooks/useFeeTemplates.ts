@@ -26,7 +26,7 @@ export function useFeeTemplates() {
         .order('name');
 
       if (error) throw error;
-      setTemplates((data || []) as FeeTemplate[]);
+      setTemplates((data as any || []) as FeeTemplate[]);
     } catch (err) {
       console.error('Error loading fee templates:', err);
     } finally {

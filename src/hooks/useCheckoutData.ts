@@ -85,8 +85,8 @@ export function useCheckoutData(userId?: string) {
 
           if (error) {
             console.error('Error fetching user contact data:', error);
-          } else if (data && data.length > 0) {
-            const userData = data[0];
+          } else if (data && (data as any).length > 0) {
+            const userData = (data as any)[0];
             if (userData.first_name && userData.email) {
               console.log('Auto-filling contact info with user data from database');
               setContactData({

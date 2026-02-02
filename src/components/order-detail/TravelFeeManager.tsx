@@ -7,7 +7,6 @@ interface TravelFeeManagerProps {
   travelFeeWaived: boolean;
   travelFeeWaiveReason?: string;
   onToggle: (reason: string) => void;
-  applyTravelFeeByDefault?: boolean;
   originalOrderTravelFeeCents?: number;
 }
 
@@ -16,7 +15,6 @@ export function TravelFeeManager({
   travelFeeWaived,
   travelFeeWaiveReason,
   onToggle,
-  applyTravelFeeByDefault = true,
   originalOrderTravelFeeCents,
 }: TravelFeeManagerProps) {
   const [showConfirmation, setShowConfirmation] = useState(false);

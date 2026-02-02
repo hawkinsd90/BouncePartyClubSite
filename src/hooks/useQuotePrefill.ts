@@ -45,8 +45,8 @@ export function useQuotePrefill(user: any, formData: QuoteFormData, callbacks: P
         return;
       }
 
-      if (data && data.length > 0) {
-        const userData = data[0];
+      if (data && (data as any).length > 0) {
+        const userData = (data as any)[0];
         console.log('Auto-filling form with user data:', userData);
 
         if (userData.address_line1 || userData.city) {
