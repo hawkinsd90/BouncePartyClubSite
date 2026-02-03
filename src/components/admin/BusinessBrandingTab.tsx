@@ -11,7 +11,8 @@ interface BusinessSettings {
   business_address: string;
   business_phone: string;
   business_email: string;
-  business_website: string;
+  instagram_url: string;
+  facebook_url: string;
   business_license_number: string;
 }
 
@@ -33,7 +34,8 @@ export function BusinessBrandingTab() {
     business_address: '',
     business_phone: '',
     business_email: '',
-    business_website: '',
+    instagram_url: '',
+    facebook_url: '',
     business_license_number: '',
   });
   const [travelAddress, setTravelAddress] = useState<TravelAddress>({
@@ -45,6 +47,7 @@ export function BusinessBrandingTab() {
     lat: 0,
     lng: 0,
   });
+  const [useBusinessAddress, setUseBusinessAddress] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -64,7 +67,8 @@ export function BusinessBrandingTab() {
           'business_address',
           'business_phone',
           'business_email',
-          'business_website',
+          'instagram_url',
+          'facebook_url',
           'business_license_number',
           'home_address_line1',
           'home_address_line2',
@@ -73,6 +77,7 @@ export function BusinessBrandingTab() {
           'home_address_zip',
           'home_address_lat',
           'home_address_lng',
+          'use_business_address_for_travel',
         ]);
 
       if (error) throw error;
@@ -80,6 +85,7 @@ export function BusinessBrandingTab() {
       if (data) {
         const loadedSettings = { ...settings };
         const loadedAddress = { ...travelAddress };
+        let useBusinessAddrForTravel = true;
 
         data.forEach(({ key, value }) => {
           if (key in loadedSettings) {
@@ -108,11 +114,15 @@ export function BusinessBrandingTab() {
             case 'home_address_lng':
               loadedAddress.lng = parseFloat(value || '0');
               break;
+            case 'use_business_address_for_travel':
+              useBusinessAddrForTravel = value === 'true';
+              break;
           }
         });
 
         setSettings(loadedSettings);
         setTravelAddress(loadedAddress);
+        setUseBusinessAddress(useBusinessAddrForTravel);
       }
     } catch (error: any) {
       showToast('Error loading business settings: ' + error.message, 'error');
@@ -122,12 +132,14 @@ export function BusinessBrandingTab() {
   }
 
   async function handleSave() {
-    if (!travelAddress.line1 || !travelAddress.city || !travelAddress.state || !travelAddress.zip) {
-      showToast('Please fill in all travel address fields', 'error');
+    const effectiveTravelAddress = useBusinessAddress ? parseBusinessAddress() : travelAddress;
+
+    if (!effectiveTravelAddress.line1 || !effectiveTravelAddress.city || !effectiveTravelAddress.state || !effectiveTravelAddress.zip) {
+      showToast('Please fill in all address fields', 'error');
       return;
     }
 
-    if (!travelAddress.lat || !travelAddress.lng) {
+    if (!effectiveTravelAddress.lat || !effectiveTravelAddress.lng) {
       showToast('Please select an address from the autocomplete dropdown to ensure accurate coordinates', 'error');
       return;
     }
@@ -139,13 +151,14 @@ export function BusinessBrandingTab() {
           key,
           value,
         })),
-        { key: 'home_address_line1', value: travelAddress.line1 },
-        { key: 'home_address_line2', value: travelAddress.line2 },
-        { key: 'home_address_city', value: travelAddress.city },
-        { key: 'home_address_state', value: travelAddress.state },
-        { key: 'home_address_zip', value: travelAddress.zip },
-        { key: 'home_address_lat', value: travelAddress.lat.toString() },
-        { key: 'home_address_lng', value: travelAddress.lng.toString() },
+        { key: 'home_address_line1', value: effectiveTravelAddress.line1 },
+        { key: 'home_address_line2', value: effectiveTravelAddress.line2 },
+        { key: 'home_address_city', value: effectiveTravelAddress.city },
+        { key: 'home_address_state', value: effectiveTravelAddress.state },
+        { key: 'home_address_zip', value: effectiveTravelAddress.zip },
+        { key: 'home_address_lat', value: effectiveTravelAddress.lat.toString() },
+        { key: 'home_address_lng', value: effectiveTravelAddress.lng.toString() },
+        { key: 'use_business_address_for_travel', value: useBusinessAddress.toString() },
       ];
 
       for (const { key, value } of updates) {
@@ -165,6 +178,10 @@ export function BusinessBrandingTab() {
     }
   }
 
+  function parseBusinessAddress(): TravelAddress {
+    return travelAddress;
+  }
+
   function getDescription(key: string): string {
     const descriptions: Record<string, string> = {
       business_name: 'Legal business name used in contracts and waivers',
@@ -173,7 +190,8 @@ export function BusinessBrandingTab() {
       business_address: 'Physical business address for contracts',
       business_phone: 'Primary business phone number',
       business_email: 'Primary business email address',
-      business_website: 'Business website URL',
+      instagram_url: 'Instagram profile URL',
+      facebook_url: 'Facebook page URL',
       business_license_number: 'Business license or registration number',
       home_address_line1: 'Travel calculation starting point - Address line 1',
       home_address_line2: 'Travel calculation starting point - Address line 2',
@@ -182,6 +200,7 @@ export function BusinessBrandingTab() {
       home_address_zip: 'Travel calculation starting point - ZIP code',
       home_address_lat: 'Travel calculation starting point - Latitude',
       home_address_lng: 'Travel calculation starting point - Longitude',
+      use_business_address_for_travel: 'Whether to use business address for travel calculations',
     };
     return descriptions[key] || '';
   }
@@ -278,15 +297,55 @@ export function BusinessBrandingTab() {
             <label className="block text-sm font-medium text-slate-700 mb-2">
               Business Address *
             </label>
-            <input
-              type="text"
-              value={settings.business_address}
-              onChange={(e) => setSettings({ ...settings, business_address: e.target.value })}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="123 Main St, City, ST 12345"
-            />
+            {useBusinessAddress ? (
+              <>
+                <AddressAutocomplete
+                  value=""
+                  onSelect={(result) => {
+                    if (!result.geometry?.location) return;
+                    const formatted = result.formatted_address || '';
+                    setSettings({ ...settings, business_address: formatted });
+
+                    // Update travel address with parsed components
+                    const addressComponents = result.address_components || [];
+                    const getComponent = (type: string) =>
+                      addressComponents.find((c) => c.types.includes(type))?.long_name || '';
+                    const streetNumber = getComponent('street_number');
+                    const route = getComponent('route');
+                    const line1 = `${streetNumber} ${route}`.trim();
+
+                    setTravelAddress({
+                      line1,
+                      line2: '',
+                      city: getComponent('locality') || getComponent('sublocality'),
+                      state: getComponent('administrative_area_level_1'),
+                      zip: getComponent('postal_code'),
+                      lat: result.geometry.location.lat(),
+                      lng: result.geometry.location.lng(),
+                    });
+                  }}
+                />
+                <input
+                  type="text"
+                  value={settings.business_address}
+                  onChange={(e) => setSettings({ ...settings, business_address: e.target.value })}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent mt-2"
+                  placeholder="4426 Woodward St, Wayne, MI 48184"
+                />
+              </>
+            ) : (
+              <input
+                type="text"
+                value={settings.business_address}
+                onChange={(e) => setSettings({ ...settings, business_address: e.target.value })}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="4426 Woodward St, Wayne, MI 48184"
+              />
+            )}
             <p className="text-xs text-slate-500 mt-1">
-              Physical address for contracts and correspondence
+              {useBusinessAddress
+                ? 'Use autocomplete to search, then adjust if needed. This will be used for travel calculations.'
+                : 'Physical address for contracts and correspondence'}
             </p>
           </div>
 
@@ -324,17 +383,33 @@ export function BusinessBrandingTab() {
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">
-              Business Website
+              Instagram URL
             </label>
             <input
               type="url"
-              value={settings.business_website}
-              onChange={(e) => setSettings({ ...settings, business_website: e.target.value })}
+              value={settings.instagram_url}
+              onChange={(e) => setSettings({ ...settings, instagram_url: e.target.value })}
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="https://yourbusiness.com"
+              placeholder="http://instagram.com/bouncepartyclub"
             />
             <p className="text-xs text-slate-500 mt-1">
-              Your business website URL
+              Your Instagram profile URL
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Facebook URL
+            </label>
+            <input
+              type="url"
+              value={settings.facebook_url}
+              onChange={(e) => setSettings({ ...settings, facebook_url: e.target.value })}
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="https://www.facebook.com/bouncepartyclub"
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              Your Facebook page URL
             </p>
           </div>
 
@@ -374,7 +449,25 @@ export function BusinessBrandingTab() {
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="mb-6">
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={useBusinessAddress}
+                onChange={(e) => setUseBusinessAddress(e.target.checked)}
+                className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+              />
+              <span className="ml-2 text-sm font-medium text-slate-700">
+                Use business address for travel calculations
+              </span>
+            </label>
+            <p className="text-xs text-slate-500 mt-1 ml-6">
+              When checked, your business address will automatically be used for all distance calculations
+            </p>
+          </div>
+
+          {!useBusinessAddress && (
+            <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Search Address *
@@ -463,6 +556,7 @@ export function BusinessBrandingTab() {
               </div>
             </div>
           </div>
+          )}
         </div>
 
         <div className="mt-6 flex justify-end">
