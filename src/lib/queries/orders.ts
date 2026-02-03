@@ -3,8 +3,8 @@ import { executeQuery, STANDARD_ORDER_SELECT, COMPACT_ORDER_SELECT, QueryOptions
 
 export async function getOrderById(orderId: string, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('orders')
         .select(STANDARD_ORDER_SELECT)
         .eq('id', orderId)
@@ -15,8 +15,8 @@ export async function getOrderById(orderId: string, options?: QueryOptions) {
 
 export async function getOrdersByCustomerId(customerId: string, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('orders')
         .select(COMPACT_ORDER_SELECT)
         .eq('customer_id', customerId)
@@ -38,7 +38,7 @@ export async function getOrdersByEmail(email: string, options?: QueryOptions) {
         return { data: [], error: null };
       }
 
-      return supabase
+      return await supabase
         .from('orders')
         .select(COMPACT_ORDER_SELECT)
         .eq('customer_id', customer.id)
@@ -50,8 +50,8 @@ export async function getOrdersByEmail(email: string, options?: QueryOptions) {
 
 export async function getAllOrders(options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('orders')
         .select(COMPACT_ORDER_SELECT)
         .order('event_date', { ascending: true }),
@@ -65,8 +65,8 @@ export async function getOrdersByDateRange(
   options?: QueryOptions
 ) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('orders')
         .select(COMPACT_ORDER_SELECT)
         .gte('event_date', startDate)
@@ -78,8 +78,8 @@ export async function getOrdersByDateRange(
 
 export async function getOrdersByStatus(status: string, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('orders')
         .select(COMPACT_ORDER_SELECT)
         .eq('status', status)
@@ -94,8 +94,8 @@ export async function updateOrderStatus(
   options?: QueryOptions
 ) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('orders')
         .update({ status, updated_at: new Date().toISOString() })
         .eq('id', orderId)
@@ -107,8 +107,8 @@ export async function updateOrderStatus(
 
 export async function getOrderPayments(orderId: string, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('payments')
         .select('*')
         .eq('order_id', orderId)
@@ -123,8 +123,8 @@ export async function getOrderWithRelations(orderId: string, options?: QueryOpti
 
 export async function checkOrderExists(orderId: string, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('orders')
         .select('id')
         .eq('id', orderId)
@@ -135,8 +135,8 @@ export async function checkOrderExists(orderId: string, options?: QueryOptions) 
 
 export async function getOrdersWithPendingPayments(options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('orders')
         .select(COMPACT_ORDER_SELECT)
         .or('deposit_paid_cents.lt.deposit_due_cents,balance_paid_cents.lt.balance_due_cents')

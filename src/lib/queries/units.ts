@@ -3,8 +3,8 @@ import { executeQuery, QueryOptions } from './base';
 
 export async function getAllUnits(options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('units')
         .select('*')
         .order('sort_order', { ascending: true }),
@@ -14,8 +14,8 @@ export async function getAllUnits(options?: QueryOptions) {
 
 export async function getActiveUnits(options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('units')
         .select('*')
         .eq('active', true)
@@ -26,8 +26,8 @@ export async function getActiveUnits(options?: QueryOptions) {
 
 export async function getUnitById(unitId: string, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('units')
         .select('*')
         .eq('id', unitId)
@@ -38,8 +38,8 @@ export async function getUnitById(unitId: string, options?: QueryOptions) {
 
 export async function getUnitsByType(type: string, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('units')
         .select('*')
         .eq('type', type)
@@ -55,8 +55,8 @@ export async function getUnitsByCategory(category: string, options?: QueryOption
 
 export async function createUnit(unitData: any, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('units')
         .insert(unitData)
         .select()
@@ -67,8 +67,8 @@ export async function createUnit(unitData: any, options?: QueryOptions) {
 
 export async function updateUnit(unitId: string, updates: any, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('units')
         .update(updates)
         .eq('id', unitId)
@@ -80,8 +80,8 @@ export async function updateUnit(unitId: string, updates: any, options?: QueryOp
 
 export async function deleteUnit(unitId: string, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('units')
         .delete()
         .eq('id', unitId),
@@ -98,7 +98,7 @@ export async function checkUnitAvailability(
 ) {
   return executeQuery(
     async () => {
-      const { data, error } = await supabase.rpc('check_unit_availability_array', {
+      const { data, error } = await supabase.rpc('check_unit_availability', {
         p_unit_ids: [unitId],
         p_start_date: startDate,
         p_end_date: endDate,
@@ -125,8 +125,8 @@ export async function checkMultipleUnitsAvailability(
   options?: QueryOptions
 ) {
   return executeQuery(
-    () =>
-      supabase.rpc('check_unit_availability_array', {
+    async () =>
+      await supabase.rpc('check_unit_availability', {
         p_unit_ids: unitIds,
         p_start_date: startDate,
         p_end_date: endDate,

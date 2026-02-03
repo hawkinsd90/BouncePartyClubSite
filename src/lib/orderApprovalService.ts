@@ -30,7 +30,7 @@ export async function approveOrder(
     }
 
     // Check availability before approving
-    const orderItems = orderData.order_items as any[];
+    const orderItems = (Array.isArray(orderData.order_items) ? orderData.order_items : []) as any[];
     const availabilityChecks = orderItems.map(item => ({
       unitId: item.unit_id,
       eventStartDate: orderData.event_date,
@@ -92,6 +92,7 @@ export async function approveOrder(
       invoice_number: invoiceNumber,
       order_id: orderId,
       due_date: orderData.event_date,
+      paid_at: null,
     });
 
     const { data: orderWithRelations } = await supabase
@@ -134,7 +135,7 @@ export async function forceApproveOrder(orderId: string): Promise<ApprovalResult
     }
 
     // Check availability before force approving
-    const orderItems = orderData.order_items as any[];
+    const orderItems = (Array.isArray(orderData.order_items) ? orderData.order_items : []) as any[];
     const availabilityChecks = orderItems.map(item => ({
       unitId: item.unit_id,
       eventStartDate: orderData.event_date,

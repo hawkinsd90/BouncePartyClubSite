@@ -103,11 +103,13 @@ function AdminDashboard() {
 
     // Process units to add image_url from unit_media
     const unitsWithImages = (unitsRes.data || []).map(unit => {
-      const dryImages = (unit.unit_media || [])
+      const unitMedia = Array.isArray(unit.unit_media) ? unit.unit_media : [];
+      const dryImages = unitMedia
         .filter((media: UnitMedia) => media.mode === 'dry')
         .sort((a: UnitMedia, b: UnitMedia) => a.sort - b.sort);
       return {
         ...unit,
+        unit_media: unitMedia,
         image_url: dryImages.length > 0 ? dryImages[0].url : null
       };
     });

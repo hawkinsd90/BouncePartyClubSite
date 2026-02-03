@@ -34,6 +34,14 @@ export function Invoice() {
     }
   }, [orderId]);
 
+  if (!orderId) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+        <div className="text-center text-slate-600">Invalid order ID</div>
+      </div>
+    );
+  }
+
   const loadOrder = async (id: string) => {
     try {
       setLoading(true);
@@ -94,9 +102,9 @@ export function Invoice() {
       const { data: availabilityData, error: availabilityError } = await supabase.rpc(
         'check_unit_availability',
         {
-          unit_id: unitIds,
-          start_date: order?.event_date || '',
-          end_date: order?.event_end_date || '',
+          p_unit_ids: unitIds,
+          p_start_date: order?.event_date || '',
+          p_end_date: order?.event_end_date || '',
         }
       );
 
@@ -194,7 +202,7 @@ export function Invoice() {
     );
   }
 
-  if (paymentSuccess) {
+  if (paymentSuccess && order) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-slate-100 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-2xl p-10 max-w-2xl w-full border-2 border-slate-100">

@@ -44,12 +44,12 @@ export async function recordNotificationFailure(
 ): Promise<string | null> {
   try {
     const { data, error: dbError } = await supabase.rpc('record_notification_failure', {
-      p_order_id: context.order_id || null,
-      p_notification_type: type,
-      p_intended_recipient: recipient,
-      p_subject: subject,
-      p_message_preview: messagePreview,
-      p_error_message: error
+      p_type: type,
+      p_recipient: recipient,
+      p_subject: subject || '',
+      p_message_preview: messagePreview || '',
+      p_error: error,
+      p_context: context || {}
     });
 
     if (dbError) {
@@ -57,7 +57,7 @@ export async function recordNotificationFailure(
       return null;
     }
 
-    return data || null;
+    return data as string || null;
   } catch (err) {
     console.error('Error recording notification failure:', err);
     return null;
@@ -127,7 +127,7 @@ export async function getUnresolvedCount(): Promise<{ email: number; sms: number
     const { data, error } = await supabase.rpc('get_unresolved_failures_count');
 
     if (error) throw error;
-    return data || { email: 0, sms: 0, total: 0 };
+    return (data as { email: number; sms: number; total: number }) || { email: 0, sms: 0, total: 0 };
   } catch (err) {
     console.error('Error getting unresolved count:', err);
     return { email: 0, sms: 0, total: 0 };

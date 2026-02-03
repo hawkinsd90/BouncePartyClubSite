@@ -28,8 +28,8 @@ const TASK_WITH_RELATIONS = `
 
 export async function getAllTasks(options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('tasks')
         .select(TASK_WITH_RELATIONS)
         .order('scheduled_date', { ascending: true }),
@@ -39,8 +39,8 @@ export async function getAllTasks(options?: QueryOptions) {
 
 export async function getTaskById(taskId: string, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('tasks')
         .select(TASK_WITH_RELATIONS)
         .eq('id', taskId)
@@ -55,8 +55,8 @@ export async function getTasksByDateRange(
   options?: QueryOptions
 ) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('tasks')
         .select(TASK_WITH_RELATIONS)
         .gte('scheduled_date', startDate)
@@ -68,8 +68,8 @@ export async function getTasksByDateRange(
 
 export async function getTasksByOrderId(orderId: string, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('tasks')
         .select(TASK_WITH_RELATIONS)
         .eq('order_id', orderId)
@@ -80,8 +80,8 @@ export async function getTasksByOrderId(orderId: string, options?: QueryOptions)
 
 export async function createTask(taskData: any, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('tasks')
         .insert(taskData)
         .select()
@@ -92,8 +92,8 @@ export async function createTask(taskData: any, options?: QueryOptions) {
 
 export async function updateTask(taskId: string, updates: any, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('tasks')
         .update(updates)
         .eq('id', taskId)
@@ -105,8 +105,8 @@ export async function updateTask(taskId: string, updates: any, options?: QueryOp
 
 export async function deleteTask(taskId: string, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('tasks')
         .delete()
         .eq('id', taskId),

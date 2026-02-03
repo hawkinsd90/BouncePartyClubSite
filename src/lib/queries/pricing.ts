@@ -3,8 +3,8 @@ import { executeQuery, QueryOptions } from './base';
 
 export async function getPricingRules(options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('pricing_rules')
         .select('*')
         .maybeSingle(),
@@ -14,8 +14,8 @@ export async function getPricingRules(options?: QueryOptions) {
 
 export async function updatePricingRules(updates: any, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('pricing_rules')
         .update(updates)
         .select()

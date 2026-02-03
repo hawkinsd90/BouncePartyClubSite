@@ -8,7 +8,7 @@ interface Unit {
   id: string;
   name: string;
   type: string;
-  dimensions: string;
+  dimensions: string | null;
   price_dry_cents: number;
   price_water_cents: number | null;
   capacity: number;

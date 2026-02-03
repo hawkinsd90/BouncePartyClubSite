@@ -1,9 +1,5 @@
 import { formatOrderId } from './utils';
 
-function formatCurrency(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
-}
-
 // Enhanced Type Safety
 export interface PrintableItem {
   name: string;
@@ -346,7 +342,7 @@ export function transformPaymentToPrintableReceipt(
     title: 'Payment Receipt',
     payment: paymentInfo,
     metadata: {
-      ...baseDocument.metadata,
+      ...(baseDocument.metadata || {}),
       paymentId: payment.id,
       stripePaymentIntentId: payment.stripe_payment_intent_id,
     },

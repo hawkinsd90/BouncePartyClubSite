@@ -3,8 +3,8 @@ import { executeQuery, QueryOptions } from './base';
 
 export async function getPaymentsByOrderId(orderId: string, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('payments')
         .select('*')
         .eq('order_id', orderId)
@@ -15,8 +15,8 @@ export async function getPaymentsByOrderId(orderId: string, options?: QueryOptio
 
 export async function getPaymentById(paymentId: string, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('payments')
         .select('*')
         .eq('id', paymentId)
@@ -27,8 +27,8 @@ export async function getPaymentById(paymentId: string, options?: QueryOptions) 
 
 export async function createPayment(paymentData: any, options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('payments')
         .insert(paymentData)
         .select()
@@ -43,8 +43,8 @@ export async function updatePayment(
   options?: QueryOptions
 ) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('payments')
         .update(updates)
         .eq('id', paymentId)
@@ -56,8 +56,8 @@ export async function updatePayment(
 
 export async function getAllPayments(options?: QueryOptions) {
   return executeQuery(
-    () =>
-      supabase
+    async () =>
+      await supabase
         .from('payments')
         .select(`
           *,
