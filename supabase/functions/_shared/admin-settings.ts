@@ -1,3 +1,4 @@
+import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { SupabaseClient } from "npm:@supabase/supabase-js@2";
 
 interface AdminSettingsCache {

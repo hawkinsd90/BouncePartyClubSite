@@ -1,3 +1,4 @@
+import 'jsr:@supabase/functions-js@2/edge-runtime.d.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 
 export interface RateLimitResult {

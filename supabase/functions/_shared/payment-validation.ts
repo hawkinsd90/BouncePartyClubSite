@@ -1,3 +1,4 @@
+import 'jsr:@supabase/functions-js@2/edge-runtime.d.ts';
 import Stripe from 'npm:stripe@20.0.0';
 
 export interface PaymentMethodValidationResult {
