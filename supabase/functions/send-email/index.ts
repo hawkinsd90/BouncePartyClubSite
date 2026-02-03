@@ -1,4 +1,4 @@
-import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
+import { createClient, SupabaseClient } from 'npm:@supabase/supabase-js@2.57.4';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,12 +12,12 @@ interface EmailRequest {
   subject: string;
   html?: string;
   text?: string;
-  context?: any;
+  context?: Record<string, unknown>;
   skipFallback?: boolean;
 }
 
 async function sendAdminSMSFallback(
-  supabase: any,
+  supabase: SupabaseClient,
   recipient: string,
   subject: string,
   errorMessage: string
@@ -123,7 +123,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const emailPayload: any = {
+    const emailPayload: Record<string, unknown> = {
       from: from || 'Bounce Party Club <admin@bouncepartyclub.com>',
       to: [to],
       subject,
@@ -179,10 +179,10 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error sending email:', error);
 
-    const errorMsg = error.message || 'Internal server error';
+    const errorMsg = error instanceof Error ? error.message : 'Internal server error';
     const { to, subject, html, text, context, skipFallback } = body || {} as EmailRequest;
 
     if (to && subject) {

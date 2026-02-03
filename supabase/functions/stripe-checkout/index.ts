@@ -103,12 +103,12 @@ Deno.serve(async (req: Request) => {
               const paymentMethodId =
                 typeof setupIntent.payment_method === "string"
                   ? setupIntent.payment_method
-                  : (setupIntent.payment_method as any)?.id;
+                  : (setupIntent.payment_method as unknown as { id?: string })?.id;
 
               const stripeCustomerId =
                 typeof session.customer === "string"
                   ? session.customer
-                  : (session.customer as any)?.id;
+                  : (session.customer as unknown as { id?: string })?.id;
 
               // Check if this order was created via admin invoice
               const { data: invoiceLink } = await supabaseClient

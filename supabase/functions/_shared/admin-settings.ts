@@ -77,7 +77,7 @@ export async function getMultipleAdminSettings(
 
     const now = Date.now();
     keysToFetch.forEach((key) => {
-      const setting = data?.find((s) => s.key === key);
+      const setting = data?.find((s: { key: string; value: string | null }) => s.key === key);
       const value = setting?.value || null;
       results[key] = value;
       cache[key] = { value, timestamp: now };

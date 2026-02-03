@@ -31,11 +31,12 @@ interface UnitMedia {
   sort: number;
 }
 
-interface UnitWithMedia extends Unit {
+interface UnitWithMedia extends Omit<Unit, 'description'> {
   unit_media?: UnitMedia[];
   image_url?: string | null;
   dimensions?: string | null;
   capacity?: string | null;
+  description?: string | null;
 }
 
 interface Customer {
@@ -246,7 +247,7 @@ function AdminDashboard() {
         </div>
       )}
 
-      {activeTab === 'inventory' && <InventorySection units={units} onRefetch={refetch} />}
+      {activeTab === 'inventory' && <InventorySection units={units as any} onRefetch={refetch} />}
 
       {activeTab === 'orders' && (
         <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100">

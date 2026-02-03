@@ -15,7 +15,7 @@ interface ErrorPayload {
   url?: string;
   timestamp?: string;
   userId?: string;
-  additionalInfo?: Record<string, any>;
+  additionalInfo?: Record<string, unknown>;
 }
 
 const LOGO_URL =

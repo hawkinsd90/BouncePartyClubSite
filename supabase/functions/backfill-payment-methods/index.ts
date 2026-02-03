@@ -84,7 +84,7 @@ Deno.serve(async (req: Request) => {
 
         // Extract payment method details
         if (paymentIntent.payment_method) {
-          const pm = paymentIntent.payment_method as any;
+          const pm = paymentIntent.payment_method as unknown as { type?: string; card?: { brand?: string; last4?: string } };
           paymentMethodType = pm.type || null;
 
           if (pm.card) {
@@ -119,9 +119,10 @@ Deno.serve(async (req: Request) => {
 
         successCount++;
         console.log(`✅ Updated payment ${payment.id} with method: ${paymentMethodType}`);
-      } catch (err: any) {
+      } catch (err: unknown) {
         failCount++;
-        const errorMsg = `Payment ${payment.id}: ${err.message}`;
+        const message = err instanceof Error ? err.message : String(err);
+        const errorMsg = `Payment ${payment.id}: ${message}`;
         errors.push(errorMsg);
         console.error(`❌ ${errorMsg}`);
       }
@@ -141,12 +142,13 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("❌ [BACKFILL] Error:", error);
+    const message = error instanceof Error ? error.message : "Internal server error";
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message || "Internal server error"
+        error: message
       }),
       {
         status: 500,

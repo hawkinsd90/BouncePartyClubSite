@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.57.4";
 import { formatOrderId } from "../_shared/format-order-id.ts";
 
 const corsHeaders = {
@@ -18,7 +18,7 @@ interface SmsRequest {
 }
 
 async function sendAdminEmailFallback(
-  supabase: any,
+  supabase: SupabaseClient,
   recipient: string,
   messagePreview: string,
   errorMessage: string
@@ -202,8 +202,8 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const twilioConfig: any = {};
-    settings.forEach((s: any) => {
+    const twilioConfig: Record<string, string | undefined> = {};
+    settings.forEach((s: { key: string; value: string | null }) => {
       if (s.key === "twilio_account_sid") twilioConfig.accountSid = s.value?.trim();
       if (s.key === "twilio_auth_token") twilioConfig.authToken = s.value?.trim();
       if (s.key === "twilio_from_number") twilioConfig.fromNumber = s.value?.trim();
@@ -323,10 +323,10 @@ Deno.serve(async (req: Request) => {
         },
       }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("[send-sms-notification] Error:", error);
 
-    const errorMsg = error.message || "Failed to send SMS";
+    const errorMsg = error instanceof Error ? error.message : "Failed to send SMS";
     const { to, message: messageBody, orderId, skipFallback } = requestBody || {} as SmsRequest;
 
     if (to && messageBody) {

@@ -33,8 +33,9 @@ Deno.serve(async (req: Request) => {
       try {
         event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
         console.log("✅ [WEBHOOK] Signature verified");
-      } catch (err: any) {
-        console.error("❌ [WEBHOOK] Signature verification failed:", err.message);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Unknown error";
+        console.error("❌ [WEBHOOK] Signature verification failed:", message);
         return new Response(JSON.stringify({ error: "Invalid signature" }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -62,7 +63,7 @@ Deno.serve(async (req: Request) => {
         const stripeCustomerId =
           typeof session.customer === "string"
             ? session.customer
-            : (session.customer as any)?.id || null;
+            : (session.customer as unknown as { id?: string })?.id || null;
 
         const piId = session.payment_intent as string | null;
         let paymentMethodId: string | null = null;
@@ -81,7 +82,7 @@ Deno.serve(async (req: Request) => {
           } else if (pi.payment_method?.id) {
             paymentMethodId = pi.payment_method.id;
             // Extract payment method details
-            const pm = pi.payment_method as any;
+            const pm = pi.payment_method as unknown as { type?: string; card?: { brand?: string; last4?: string } };
             paymentMethodType = pm.type || null;
             if (pm.card) {
               paymentBrand = pm.card.brand || null;
@@ -204,15 +205,15 @@ Deno.serve(async (req: Request) => {
           const paymentMethodId =
             typeof paymentIntent.payment_method === "string"
               ? paymentIntent.payment_method
-              : (paymentIntent.payment_method as any)?.id || null;
+              : (paymentIntent.payment_method as unknown as { id?: string })?.id || null;
 
           const stripeCustomerId =
             typeof paymentIntent.customer === "string"
               ? paymentIntent.customer
-              : (paymentIntent.customer as any)?.id || null;
+              : (paymentIntent.customer as unknown as { id?: string })?.id || null;
 
           const amountReceived =
-            (paymentIntent as any).amount_received ?? paymentIntent.amount ?? 0;
+            (paymentIntent as unknown as { amount_received?: number }).amount_received ?? paymentIntent.amount ?? 0;
 
           if (paymentType === "balance") {
             // Handle balance payment
