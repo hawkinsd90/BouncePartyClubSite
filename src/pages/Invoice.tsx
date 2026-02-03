@@ -105,7 +105,7 @@ export function Invoice() {
           p_unit_ids: unitIds,
           p_start_date: order?.event_date || '',
           p_end_date: order?.event_end_date || '',
-        }
+        } as any
       );
 
       if (availabilityError) {

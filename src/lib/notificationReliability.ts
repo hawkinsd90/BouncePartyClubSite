@@ -50,14 +50,14 @@ export async function recordNotificationFailure(
       p_message_preview: messagePreview || '',
       p_error: error,
       p_context: context || {}
-    });
+    } as any);
 
     if (dbError) {
       console.error('Failed to record notification failure:', dbError);
       return null;
     }
 
-    return data as string || null;
+    return (data as string) || null;
   } catch (err) {
     console.error('Error recording notification failure:', err);
     return null;
@@ -66,7 +66,7 @@ export async function recordNotificationFailure(
 
 export async function recordNotificationSuccess(type: 'email' | 'sms'): Promise<void> {
   try {
-    await supabase.rpc('record_notification_success', { p_notification_type: type });
+    await supabase.rpc('record_notification_success', { p_type: type } as any);
   } catch (err) {
     console.error('Error recording notification success:', err);
   }

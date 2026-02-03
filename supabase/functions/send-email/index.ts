@@ -66,6 +66,14 @@ Deno.serve(async (req: Request) => {
 
   try {
     body = await req.json();
+
+    if (!body) {
+      return new Response(JSON.stringify({ error: 'Request body is required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const { to, from, subject, html, text, context, skipFallback } = body;
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;

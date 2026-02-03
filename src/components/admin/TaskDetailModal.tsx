@@ -348,7 +348,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
     }
   }
 
-  async function handleImageUpload() {
+  async function handleImageUpload(isDamage?: boolean) {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
@@ -378,7 +378,8 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
           uploadedUrls.push(urlData.publicUrl);
         }
 
-        showAlert(`${uploadedUrls.length} image(s) uploaded successfully! (Image tracking not yet implemented)`);
+        const photoType = isDamage ? 'damage' : 'proof';
+        showAlert(`${uploadedUrls.length} ${photoType} image(s) uploaded successfully! (Image tracking not yet implemented)`);
         onUpdate();
       } catch (error: any) {
         console.error('Error uploading images:', error);
@@ -482,7 +483,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
     }
   }
 
-  async function handleReorder(direction: 'up' | 'down') {
+  async function handleReorder(_direction: 'up' | 'down') {
     try {
       showAlert('Task reordering not yet supported');
       return;

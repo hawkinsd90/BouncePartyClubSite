@@ -103,11 +103,11 @@ export async function checkUnitAvailability(
         p_start_date: startDate,
         p_end_date: endDate,
         p_exclude_order_id: excludeOrderId || null,
-      });
+      } as any);
 
       if (error) return { data: null, error };
 
-      const unitAvailability = data?.[0];
+      const unitAvailability = Array.isArray(data) ? data[0] : null;
       return {
         data: unitAvailability?.is_available || false,
         error: null,
@@ -131,7 +131,7 @@ export async function checkMultipleUnitsAvailability(
         p_start_date: startDate,
         p_end_date: endDate,
         p_exclude_order_id: excludeOrderId || null,
-      }),
+      } as any),
     { context: 'checkMultipleUnitsAvailability', ...options }
   );
 }

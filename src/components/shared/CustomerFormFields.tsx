@@ -74,7 +74,7 @@ export function CustomerFormFields({
     }
   };
 
-  const handleBlur = (field: keyof CustomerData, value: string) => {
+  const _handleBlur = (field: keyof CustomerData, value: string) => {
     setTouched(prev => ({ ...prev, [field]: true }));
     validateField(field, value);
   };
