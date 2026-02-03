@@ -150,7 +150,7 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
     setUploading(false);
   }
 
-  async function addMediaToDatabase(url: string, filePath: string) {
+  async function addMediaToDatabase(url: string, filePath?: string) {
     const maxOrder = media.length > 0 ? Math.max(...media.map(m => m.sort_order)) : 0;
 
     const { error } = await supabase

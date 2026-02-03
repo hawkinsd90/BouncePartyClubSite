@@ -31,6 +31,7 @@ export function CustomerFormFields({
   layout = 'grid',
 }: CustomerFormFieldsProps) {
   const [errors, setErrors] = useState<ValidationErrors>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
 
   const gridClass = layout === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'space-y-4';
 
@@ -71,6 +72,11 @@ export function CustomerFormFields({
     if (touched[field]) {
       validateField(field, field === 'phone' ? formatPhone(value) : value);
     }
+  };
+
+  const handleBlur = (field: keyof CustomerData, value: string) => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+    validateField(field, value);
   };
 
   return (

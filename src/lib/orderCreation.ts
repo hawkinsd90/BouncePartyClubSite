@@ -1,5 +1,4 @@
 import { supabase } from './supabase';
-import { formatCurrency } from './pricing';
 import { checkMultipleUnitsAvailability } from './availability';
 import { formatOrderId } from './utils';
 
@@ -275,12 +274,12 @@ export async function completeOrderAfterPayment(orderId: string, _paymentIntentI
   }
 
   // Note: invoice_links table doesn't exist in current schema
-  // const { data: invoiceLink } = await supabase
-  //   .from('invoice_links')
-  //   .select('id')
-  //   .eq('order_id', orderId)
-  //   .maybeSingle();
-  // const isAdminSent = !!invoiceLink;
+  const { data: invoiceLink } = await supabase
+    .from('invoice_links' as any)
+    .select('id')
+    .eq('order_id', orderId)
+    .maybeSingle();
+  const isAdminSent = !!invoiceLink;
 
   const newStatus = 'pending_review';
 
@@ -308,10 +307,6 @@ export async function completeOrderAfterPayment(orderId: string, _paymentIntentI
     email: customer.email,
   };
 
-  const cart = ((order.order_items as any) ?? []).map((item: any) => ({
-    unit_name: item.units.name,
-    qty: item.qty,
-  }));
 
 
   // Note: messages table doesn't exist in current schema
