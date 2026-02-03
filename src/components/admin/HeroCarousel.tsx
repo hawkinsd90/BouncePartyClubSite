@@ -11,7 +11,7 @@ interface CarouselMedia {
   storage_path: string | null;
   title: string | null;
   description: string | null;
-  sort_order: number;
+  display_order: number;
   is_active: boolean;
 }
 
@@ -62,7 +62,7 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
       console.log('[Carousel] Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
       console.log('[Carousel] Has anon key:', !!import.meta.env.VITE_SUPABASE_ANON_KEY);
 
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/hero_carousel_slides?is_active=eq.true&order=sort_order`;
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/hero_carousel_images?is_active=eq.true&order=display_order`;
       console.log('[Carousel] Trying direct fetch to:', url);
 
       const timeoutPromise = new Promise((_, reject) =>
@@ -150,19 +150,18 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
     setUploading(false);
   }
 
-  async function addMediaToDatabase(url: string, _filePath?: string) {
-    const maxOrder = media.length > 0 ? Math.max(...media.map(m => m.sort_order)) : 0;
+  async function addMediaToDatabase(url: string, filePath?: string) {
+    const maxOrder = media.length > 0 ? Math.max(...media.map(m => m.display_order)) : 0;
 
     const { error } = await supabase
-      .from('hero_carousel_slides')
+      .from('hero_carousel_images')
       .insert({
-        media_url: url,
+        image_url: url,
+        storage_path: filePath || null,
         media_type: newMedia.mediaType,
         title: newMedia.title || null,
-        subtitle: newMedia.description || null,
-        button_text: null,
-        button_link: null,
-        sort_order: maxOrder + 1,
+        description: newMedia.description || null,
+        display_order: maxOrder + 1,
         is_active: true,
       });
 
@@ -235,7 +234,7 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
     }
 
     const { error } = await supabase
-      .from('hero_carousel_slides')
+      .from('hero_carousel_images')
       .update({
         image_url: imageUrl,
         storage_path: storagePath,
@@ -263,7 +262,7 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
     }
 
     const { error } = await supabase
-      .from('hero_carousel_slides')
+      .from('hero_carousel_images')
       .delete()
       .eq('id', id);
 
@@ -280,20 +279,20 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
     if (!currentMedia) return;
 
     const targetOrder = direction === 'up'
-      ? currentMedia.sort_order - 1
-      : currentMedia.sort_order + 1;
+      ? currentMedia.display_order - 1
+      : currentMedia.display_order + 1;
 
-    const targetMedia = media.find(m => m.sort_order === targetOrder);
+    const targetMedia = media.find(m => m.display_order === targetOrder);
     if (!targetMedia) return;
 
     await supabase
-      .from('hero_carousel_slides')
-      .update({ sort_order: targetOrder })
+      .from('hero_carousel_images')
+      .update({ display_order: targetOrder })
       .eq('id', currentMedia.id);
 
     await supabase
-      .from('hero_carousel_slides')
-      .update({ sort_order: currentMedia.sort_order })
+      .from('hero_carousel_images')
+      .update({ display_order: currentMedia.display_order })
       .eq('id', targetMedia.id);
 
     loadMedia();
