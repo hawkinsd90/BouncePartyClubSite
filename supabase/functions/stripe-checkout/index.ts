@@ -202,7 +202,9 @@ Deno.serve(async (req: Request) => {
     if (!siteOrigin && referer) {
       try {
         siteOrigin = new URL(referer).origin;
-      } catch {}
+      } catch {
+        // Invalid referer URL, will use default
+      }
     }
     siteOrigin = siteOrigin || "http://localhost:5173";
 
@@ -269,10 +271,11 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[stripe-checkout] Fatal error:", error);
+    const message = error instanceof Error ? error.message : "Unknown error";
     return new Response(
-      JSON.stringify({ error: error?.message || "Unknown error" }),
+      JSON.stringify({ error: message }),
       { status: 500, headers: corsHeaders }
     );
   }

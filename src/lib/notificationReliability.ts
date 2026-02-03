@@ -57,7 +57,7 @@ export async function recordNotificationFailure(
       return null;
     }
 
-    return (data as string) || null;
+    return data !== null && data !== undefined ? String(data) : null;
   } catch (err) {
     console.error('Error recording notification failure:', err);
     return null;
@@ -127,7 +127,8 @@ export async function getUnresolvedCount(): Promise<{ email: number; sms: number
     const { data, error } = await supabase.rpc('get_unresolved_failures_count');
 
     if (error) throw error;
-    return (data as { email: number; sms: number; total: number }) || { email: 0, sms: 0, total: 0 };
+    if (!data || typeof data !== 'object') return { email: 0, sms: 0, total: 0 };
+    return data as unknown as { email: number; sms: number; total: number };
   } catch (err) {
     console.error('Error getting unresolved count:', err);
     return { email: 0, sms: 0, total: 0 };

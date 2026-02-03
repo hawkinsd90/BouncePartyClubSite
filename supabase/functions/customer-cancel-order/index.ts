@@ -343,12 +343,14 @@ ${refundResult?.refunded && refundResult.amount ? `Automatic refund of $${(refun
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Cancel order error:", error);
+    const message = error instanceof Error ? error.message : "Failed to cancel order";
+    const details = error instanceof Error ? error.toString() : String(error);
     return new Response(
       JSON.stringify({
-        error: error.message || "Failed to cancel order",
-        details: error.toString(),
+        error: message,
+        details: details,
       }),
       {
         status: 500,

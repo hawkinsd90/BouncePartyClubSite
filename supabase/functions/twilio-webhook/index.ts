@@ -81,7 +81,7 @@ Deno.serve(async (req: Request) => {
         .ilike("phone", `%${normalizedFrom}%`);
 
       if (customers && customers.length > 0) {
-        const customerIds = customers.map(c => c.id);
+        const customerIds = customers.map((c: { id: string; phone: string }) => c.id);
 
         const { data: orders } = await supabase
           .from("orders")

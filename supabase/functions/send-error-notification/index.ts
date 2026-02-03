@@ -159,7 +159,7 @@ Deno.serve(async (req: Request) => {
     console.log(`Sending error notification to ${adminEmail}`);
     console.log('Error details:', errorData);
 
-    const { data: sendEmailData, error: sendEmailError } = await supabase.functions.invoke(
+    const { error: sendEmailError } = await supabase.functions.invoke(
       'resend',
       {
         body: {
@@ -194,14 +194,14 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error in send-error-notification function:', error);
-    
+    const message = error instanceof Error ? error.message : "Unknown error";
     return new Response(
-      JSON.stringify({ 
-        success: false, 
+      JSON.stringify({
+        success: false,
         error: 'Internal server error',
-        message: error.message 
+        message: message
       }),
       {
         status: 500,
