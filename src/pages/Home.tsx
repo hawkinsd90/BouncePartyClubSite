@@ -224,55 +224,55 @@ export function Home() {
         </div>
       </section>
 
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 lg:py-24">
-        <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 text-center mb-12 sm:mb-16 tracking-tight">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-20 lg:py-24">
+        <h2 className="text-2xl sm:text-4xl lg:text-5xl font-bold text-slate-900 text-center mb-6 sm:mb-16 tracking-tight">
           Why Choose Bounce Party Club?
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 sm:gap-10">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-10">
           <div className="text-center group">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-50 rounded-2xl mb-5 shadow-md group-hover:shadow-xl transition-shadow">
-              <Star className="w-10 h-10 text-blue-600" />
+            <div className="inline-flex items-center justify-center w-14 h-14 sm:w-20 sm:h-20 bg-gradient-to-br from-blue-100 to-blue-50 rounded-xl sm:rounded-2xl mb-2 sm:mb-5 shadow-md group-hover:shadow-xl transition-shadow">
+              <Star className="w-7 h-7 sm:w-10 sm:h-10 text-blue-600" />
             </div>
-            <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mb-3">
+            <h3 className="text-base sm:text-2xl font-bold text-slate-900 mb-1 sm:mb-3">
               Premium Quality
             </h3>
-            <p className="text-slate-600 leading-relaxed text-base">
+            <p className="text-slate-600 leading-snug sm:leading-relaxed text-xs sm:text-base hidden sm:block">
               Clean, well-maintained inflatables that exceed safety standards
             </p>
           </div>
 
           <div className="text-center group">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-green-100 to-green-50 rounded-2xl mb-5 shadow-md group-hover:shadow-xl transition-shadow">
-              <Shield className="w-10 h-10 text-green-600" />
+            <div className="inline-flex items-center justify-center w-14 h-14 sm:w-20 sm:h-20 bg-gradient-to-br from-green-100 to-green-50 rounded-xl sm:rounded-2xl mb-2 sm:mb-5 shadow-md group-hover:shadow-xl transition-shadow">
+              <Shield className="w-7 h-7 sm:w-10 sm:h-10 text-green-600" />
             </div>
-            <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mb-3">
+            <h3 className="text-base sm:text-2xl font-bold text-slate-900 mb-1 sm:mb-3">
               Safety First
             </h3>
-            <p className="text-slate-600 leading-relaxed text-base">
+            <p className="text-slate-600 leading-snug sm:leading-relaxed text-xs sm:text-base hidden sm:block">
               Rigorous safety standards and regular equipment inspections
             </p>
           </div>
 
           <div className="text-center group">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-orange-100 to-orange-50 rounded-2xl mb-5 shadow-md group-hover:shadow-xl transition-shadow">
-              <Clock className="w-10 h-10 text-orange-600" />
+            <div className="inline-flex items-center justify-center w-14 h-14 sm:w-20 sm:h-20 bg-gradient-to-br from-orange-100 to-orange-50 rounded-xl sm:rounded-2xl mb-2 sm:mb-5 shadow-md group-hover:shadow-xl transition-shadow">
+              <Clock className="w-7 h-7 sm:w-10 sm:h-10 text-orange-600" />
             </div>
-            <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mb-3">
+            <h3 className="text-base sm:text-2xl font-bold text-slate-900 mb-1 sm:mb-3">
               On-Time Delivery
             </h3>
-            <p className="text-slate-600 leading-relaxed text-base">
+            <p className="text-slate-600 leading-snug sm:leading-relaxed text-xs sm:text-base hidden sm:block">
               Punctual setup and pickup with real-time tracking
             </p>
           </div>
 
           <div className="text-center group">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-cyan-100 to-cyan-50 rounded-2xl mb-5 shadow-md group-hover:shadow-xl transition-shadow">
-              <DollarSign className="w-10 h-10 text-cyan-600" />
+            <div className="inline-flex items-center justify-center w-14 h-14 sm:w-20 sm:h-20 bg-gradient-to-br from-cyan-100 to-cyan-50 rounded-xl sm:rounded-2xl mb-2 sm:mb-5 shadow-md group-hover:shadow-xl transition-shadow">
+              <DollarSign className="w-7 h-7 sm:w-10 sm:h-10 text-cyan-600" />
             </div>
-            <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mb-3">
+            <h3 className="text-base sm:text-2xl font-bold text-slate-900 mb-1 sm:mb-3">
               Best Prices
             </h3>
-            <p className="text-slate-600 leading-relaxed text-base">
+            <p className="text-slate-600 leading-snug sm:leading-relaxed text-xs sm:text-base hidden sm:block">
               Competitive rates with transparent pricing and no hidden fees
             </p>
           </div>
