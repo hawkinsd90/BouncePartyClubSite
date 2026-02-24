@@ -538,7 +538,7 @@ export function UnitForm() {
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               {dryImages.map((img, index) => (
-                <div key={index} className="relative group">
+                <div key={index} className="relative">
                   <img
                     src={img.url}
                     alt={img.alt}
@@ -546,10 +546,15 @@ export function UnitForm() {
                   />
                   <button
                     type="button"
-                    onClick={() => removeDryImage(index)}
-                    className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      removeDryImage(index);
+                    }}
+                    className="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white rounded-full p-2.5 shadow-lg transition-all touch-manipulation active:scale-95 z-10 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                    aria-label="Remove image"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-5 h-5" />
                   </button>
                 </div>
               ))}
@@ -599,7 +604,7 @@ export function UnitForm() {
                 <>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     {wetImages.map((img, index) => (
-                      <div key={index} className="relative group">
+                      <div key={index} className="relative">
                         <img
                           src={img.url}
                           alt={img.alt}
@@ -607,10 +612,15 @@ export function UnitForm() {
                         />
                         <button
                           type="button"
-                          onClick={() => removeWetImage(index)}
-                          className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            removeWetImage(index);
+                          }}
+                          className="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white rounded-full p-2.5 shadow-lg transition-all touch-manipulation active:scale-95 z-10 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                          aria-label="Remove image"
                         >
-                          <X className="w-4 h-4" />
+                          <X className="w-5 h-5" />
                         </button>
                       </div>
                     ))}
