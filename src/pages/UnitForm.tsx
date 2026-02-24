@@ -12,7 +12,7 @@ export function UnitForm() {
   const [formData, setFormData] = useState({
     name: '',
     slug: '',
-    type: 'Bounce House',
+    types: ['Bounce House'] as string[],
     is_combo: false,
     price_dry_cents: 0,
     price_water_cents: 0,
@@ -55,7 +55,7 @@ export function UnitForm() {
       setFormData({
         name: unit.name,
         slug: unit.slug,
-        type: unit.type,
+        types: unit.types ?? (unit.type ? [unit.type] : ['Bounce House']),
         is_combo: unit.is_combo ?? false,
         price_dry_cents: unit.price_dry_cents,
         price_water_cents: unit.price_water_cents ?? 0,
@@ -261,7 +261,7 @@ export function UnitForm() {
     e.preventDefault();
     e.stopPropagation();
 
-    const hasWetMode = formData.is_combo || formData.type === 'Water Slide';
+    const hasWetMode = formData.is_combo || formData.types.includes('Water Slide') || formData.types.includes('Combo');
 
     if (dryImages.length === 0) {
       notifyError('Please add at least one image for dry mode');
@@ -396,50 +396,69 @@ export function UnitForm() {
             </div>
 
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Type *
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-slate-700 mb-3">
+                Types * (Select all that apply)
               </label>
-              <select
-                required
-                value={formData.type}
-                onChange={(e) => {
-                  const newType = e.target.value;
-                  setFormData({ ...formData, type: newType, is_combo: newType === 'Combo' ? true : formData.is_combo });
-                }}
-                className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-              >
-                <option>Bounce House</option>
-                <option>Water Slide</option>
-                <option>Combo</option>
-                <option>Obstacle Course</option>
-                <option>Interactive</option>
-                <option>Games</option>
-                <option>Tent</option>
-                <option>Table & Chairs</option>
-                <option>Concession</option>
-              </select>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {['Bounce House', 'Water Slide', 'Combo', 'Obstacle Course', 'Interactive', 'Games', 'Tent', 'Table & Chairs', 'Concession'].map(type => (
+                  <label
+                    key={type}
+                    className={`flex items-center p-3 border-2 rounded-xl cursor-pointer transition-all ${
+                      formData.types.includes(type)
+                        ? 'bg-blue-50 border-blue-600'
+                        : 'bg-white border-slate-300 hover:border-blue-400'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={formData.types.includes(type)}
+                      onChange={(e) => {
+                        const newTypes = e.target.checked
+                          ? [...formData.types, type]
+                          : formData.types.filter(t => t !== type);
+
+                        if (newTypes.length === 0) {
+                          notifyError('At least one type must be selected');
+                          return;
+                        }
+
+                        const hasWaterType = newTypes.includes('Combo') || newTypes.includes('Water Slide');
+                        setFormData({
+                          ...formData,
+                          types: newTypes,
+                          is_combo: hasWaterType ? true : formData.is_combo
+                        });
+                      }}
+                      className="mr-2 h-4 w-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                    />
+                    <span className="text-sm font-medium text-slate-700">{type}</span>
+                  </label>
+                ))}
+              </div>
             </div>
 
-            {(formData.type !== 'Combo' && formData.type !== 'Water Slide') && (
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="is_combo"
-                  checked={formData.is_combo}
-                  onChange={(e) => {
-                    setFormData({ ...formData, is_combo: e.target.checked });
-                    if (!e.target.checked) {
-                      setPriceWaterInput('');
-                      setFormData(prev => ({ ...prev, price_water_cents: 0, dimensions_water: '' }));
-                      setUseWetSameAsDry(true);
-                      setWetImages([]);
-                    }
-                  }}
-                  className="mr-2 h-4 w-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-                />
-                <label htmlFor="is_combo" className="text-sm font-medium text-slate-700">
-                  Has Water/Wet Mode (Combo Unit)
+            {!formData.types.includes('Combo') && !formData.types.includes('Water Slide') && (
+              <div className="md:col-span-2">
+                <label className="flex items-center p-4 bg-slate-50 border-2 border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100 transition-all">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_combo}
+                    onChange={(e) => {
+                      setFormData({ ...formData, is_combo: e.target.checked });
+                      if (!e.target.checked) {
+                        setPriceWaterInput('');
+                        setFormData(prev => ({ ...prev, price_water_cents: 0, dimensions_water: '' }));
+                        setUseWetSameAsDry(true);
+                        setWetImages([]);
+                      }
+                    }}
+                    className="mr-3 h-5 w-5 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                  />
+                  <div>
+                    <span className="text-sm font-bold text-slate-900">Has Water/Wet Mode (Combo Unit)</span>
+                    <p className="text-xs text-slate-600 mt-1">Check this if the unit can operate in both dry and wet modes</p>
+                  </div>
                 </label>
               </div>
             )}
@@ -478,7 +497,7 @@ export function UnitForm() {
               />
             </div>
 
-            {(formData.is_combo || formData.type === 'Water Slide') && (
+            {(formData.is_combo || formData.types.includes('Water Slide') || formData.types.includes('Combo')) && (
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Water Mode Price $ (optional)
@@ -514,7 +533,7 @@ export function UnitForm() {
               />
             </div>
 
-            {(formData.is_combo || formData.type === 'Water Slide') && !useWetSameAsDry && (
+            {(formData.is_combo || formData.types.includes('Water Slide') || formData.types.includes('Combo')) && !useWetSameAsDry && (
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Dimensions (Wet Mode)
@@ -695,7 +714,7 @@ export function UnitForm() {
             )}
           </div>
 
-          {(formData.is_combo || formData.type === 'Water Slide') && (
+          {(formData.is_combo || formData.types.includes('Water Slide') || formData.types.includes('Combo')) && (
             <div className="border-t pt-6">
               <div className="flex items-center justify-between mb-4">
                 <label className="block text-sm font-medium text-slate-700">

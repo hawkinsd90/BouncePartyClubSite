@@ -9,7 +9,8 @@ interface Unit {
   id: string;
   slug: string;
   name: string;
-  type: string;
+  types: string[];
+  type?: string;
   is_combo: boolean | null;
   price_dry_cents: number;
   price_water_cents: number | null;
@@ -72,10 +73,11 @@ export function Catalog() {
 
   const filteredUnits = units.filter((unit) => {
     if (filterType === 'all') return true;
-    if (filterType === 'combo') return unit.is_combo;
-    if (filterType === 'bounce') return unit.type === 'Bounce House';
-    if (filterType === 'slide') return unit.type.includes('Slide');
-    if (filterType === 'obstacle') return unit.type === 'Obstacle Course';
+    const unitTypes = unit.types || (unit.type ? [unit.type] : []);
+    if (filterType === 'combo') return unit.is_combo || unitTypes.includes('Combo');
+    if (filterType === 'bounce') return unitTypes.includes('Bounce House');
+    if (filterType === 'slide') return unitTypes.some(t => t.includes('Slide'));
+    if (filterType === 'obstacle') return unitTypes.includes('Obstacle Course');
     return true;
   });
 
@@ -236,7 +238,9 @@ export function Catalog() {
                     )}
                   </div>
 
-                  <p className="text-slate-600 text-sm sm:text-base mb-5 font-medium">{unit.type}</p>
+                  <p className="text-slate-600 text-sm sm:text-base mb-5 font-medium">
+                    {(unit.types || (unit.type ? [unit.type] : [])).join(' • ')}
+                  </p>
 
                   <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-5 text-sm">
                     <div className="flex items-center text-slate-700">

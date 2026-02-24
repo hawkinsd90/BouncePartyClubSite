@@ -18,7 +18,8 @@ interface Unit {
   id: string;
   slug: string;
   name: string;
-  type: string;
+  types: string[];
+  type?: string;
   is_combo: boolean;
   price_dry_cents: number;
   price_water_cents: number | null;
@@ -211,7 +212,9 @@ export function UnitDetail() {
                 <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 mb-3 leading-tight tracking-tight">
                   {unit.name}
                 </h1>
-                <p className="text-lg sm:text-xl text-slate-600 font-medium">{unit.type}</p>
+                <p className="text-lg sm:text-xl text-slate-600 font-medium">
+                  {(unit.types || (unit.type ? [unit.type] : [])).join(' • ')}
+                </p>
               </div>
               {unit.is_combo && (
                 <span className="bg-gradient-to-r from-cyan-100 to-cyan-50 text-cyan-800 text-sm font-bold px-4 py-2 rounded-xl border-2 border-cyan-200 shadow-sm">
