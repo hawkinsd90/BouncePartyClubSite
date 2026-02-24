@@ -225,58 +225,52 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div>
           <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">Event Start Date *</label>
-          <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400 pointer-events-none" />
-            <input
-              type="date"
-              required
-              value={formData.event_date}
-              onChange={(e) => {
-                const newStartDate = e.target.value;
-                const oldStartDate = formData.event_date;
-                const oldEndDate = formData.event_end_date;
+          <input
+            type="date"
+            required
+            value={formData.event_date}
+            onChange={(e) => {
+              const newStartDate = e.target.value;
+              const oldStartDate = formData.event_date;
+              const oldEndDate = formData.event_end_date;
 
-                if (oldStartDate && oldEndDate && newStartDate) {
-                  const oldStart = new Date(oldStartDate);
-                  const oldEnd = new Date(oldEndDate);
-                  const dayOffset = Math.round(
-                    (oldEnd.getTime() - oldStart.getTime()) / (1000 * 60 * 60 * 24)
-                  );
+              if (oldStartDate && oldEndDate && newStartDate) {
+                const oldStart = new Date(oldStartDate);
+                const oldEnd = new Date(oldEndDate);
+                const dayOffset = Math.round(
+                  (oldEnd.getTime() - oldStart.getTime()) / (1000 * 60 * 60 * 24)
+                );
 
-                  const newStart = new Date(newStartDate);
-                  const newEnd = new Date(newStart);
-                  newEnd.setDate(newEnd.getDate() + dayOffset);
+                const newStart = new Date(newStartDate);
+                const newEnd = new Date(newStart);
+                newEnd.setDate(newEnd.getDate() + dayOffset);
 
-                  onFormDataChange({
-                    event_date: newStartDate,
-                    event_end_date: newEnd.toISOString().split('T')[0],
-                  });
-                } else {
-                  onFormDataChange({ event_date: newStartDate });
-                }
-              }}
-              min={new Date().toISOString().split('T')[0]}
-              className="w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 text-sm sm:text-base transition-shadow"
-            />
-          </div>
+                onFormDataChange({
+                  event_date: newStartDate,
+                  event_end_date: newEnd.toISOString().split('T')[0],
+                });
+              } else {
+                onFormDataChange({ event_date: newStartDate });
+              }
+            }}
+            min={new Date().toISOString().split('T')[0]}
+            className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 text-sm sm:text-base transition-shadow"
+          />
         </div>
         <div>
           <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">Event End Date *</label>
-          <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400 pointer-events-none" />
-            <input
-              type="date"
-              required
-              value={formData.event_end_date}
-              onChange={(e) => onFormDataChange({ event_end_date: e.target.value })}
-              min={formData.event_date || new Date().toISOString().split('T')[0]}
-              disabled={isSameDayRestricted}
-              className="w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 text-sm sm:text-base disabled:bg-slate-100 transition-shadow"
-            />
-            {isSameDayRestricted && (
-              <p className="text-xs text-slate-500 mt-1.5">Same-day events cannot span multiple days</p>
-            )}
-          </div>
+          <input
+            type="date"
+            required
+            value={formData.event_end_date}
+            onChange={(e) => onFormDataChange({ event_end_date: e.target.value })}
+            min={formData.event_date || new Date().toISOString().split('T')[0]}
+            disabled={isSameDayRestricted}
+            className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 text-sm sm:text-base disabled:bg-slate-100 transition-shadow"
+          />
+          {isSameDayRestricted && (
+            <p className="text-xs text-slate-500 mt-1.5">Same-day events cannot span multiple days</p>
+          )}
         </div>
       </div>
 

@@ -156,7 +156,7 @@ export function Catalog() {
             </button>
           </div>
 
-          <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 border-2 border-blue-200 mb-6">
+          <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 border-2 border-blue-200 mb-6 overflow-hidden">
             <div className="mb-3">
               <label className="block text-sm sm:text-base font-semibold text-slate-700 mb-1">
                 Event Date
@@ -167,19 +167,19 @@ export function Catalog() {
                 </p>
               )}
             </div>
-            <div className="relative">
-              <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400 pointer-events-none z-10" />
+            <div className="relative w-full">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400 pointer-events-none z-10" />
               <input
                 type="date"
                 value={eventDate}
                 onChange={(e) => handleDateChange(e.target.value)}
-                className="w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-3 sm:py-3.5 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 text-sm sm:text-base font-medium transition-all"
+                className="w-full pl-9 sm:pl-11 pr-2 sm:pr-4 py-3 sm:py-3.5 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 text-sm sm:text-base font-medium transition-all"
                 min={new Date().toISOString().split('T')[0]}
                 placeholder="Select event date"
               />
             </div>
             {eventDate && (
-              <p className="text-xs sm:text-sm text-slate-600 mt-2">
+              <p className="text-xs sm:text-sm text-slate-600 mt-2 break-words">
                 Showing inflatables available on <span className="font-bold text-slate-900">{new Date(eventDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
               </p>
             )}
