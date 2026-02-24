@@ -38,6 +38,8 @@ export function UnitDetail() {
   const [unit, setUnit] = useState<Unit | null>(null);
   const [loading, setLoading] = useState(true);
   const [wetOrDry, setWetOrDry] = useState<'dry' | 'water'>('dry');
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
 
   useEffect(() => {
     if (slug) {
@@ -107,36 +109,100 @@ export function UnitDetail() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16">
           <div>
-            <div className="aspect-video bg-slate-200 rounded-2xl overflow-hidden mb-4 shadow-xl border border-slate-200">
-              {unit.media[0] ? (
-                <img
-                  src={unit.media[0].url}
-                  alt={unit.media[0].alt}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-slate-400 font-medium">
-                  No Image
-                </div>
-              )}
-            </div>
-
-            {unit.media.length > 1 && (
-              <div className="grid grid-cols-4 gap-3">
-                {unit.media.slice(1, 5).map((media, idx) => (
-                  <div
-                    key={idx}
-                    className="aspect-video bg-slate-200 rounded-xl overflow-hidden shadow-md border border-slate-200 hover:shadow-lg transition-shadow"
+            {/* Mode selector for combo units */}
+            {unit.is_combo && (
+              <div className="mb-6">
+                <h3 className="text-lg font-bold text-slate-900 mb-3">Select Mode</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    onClick={() => {
+                      setWetOrDry('dry');
+                      setSelectedImageIndex(0);
+                    }}
+                    className={`flex flex-col items-center justify-center p-6 rounded-xl border-2 transition-all ${
+                      wetOrDry === 'dry'
+                        ? 'bg-blue-50 border-blue-600 shadow-md'
+                        : 'bg-white border-slate-300 hover:border-blue-400'
+                    }`}
                   >
-                    <img
-                      src={media.url}
-                      alt={media.alt}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                ))}
+                    <Sun className={`w-10 h-10 mb-2 ${wetOrDry === 'dry' ? 'text-blue-600' : 'text-slate-400'}`} />
+                    <span className={`font-bold text-lg ${wetOrDry === 'dry' ? 'text-blue-900' : 'text-slate-600'}`}>
+                      Dry
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setWetOrDry('water');
+                      setSelectedImageIndex(0);
+                    }}
+                    className={`flex flex-col items-center justify-center p-6 rounded-xl border-2 transition-all ${
+                      wetOrDry === 'water'
+                        ? 'bg-blue-50 border-blue-600 shadow-md'
+                        : 'bg-white border-slate-300 hover:border-blue-400'
+                    }`}
+                  >
+                    <Droplets className={`w-10 h-10 mb-2 ${wetOrDry === 'water' ? 'text-blue-600' : 'text-slate-400'}`} />
+                    <span className={`font-bold text-lg ${wetOrDry === 'water' ? 'text-blue-900' : 'text-slate-600'}`}>
+                      Water
+                    </span>
+                  </button>
+                </div>
               </div>
             )}
+
+            {/* Main image display */}
+            {(() => {
+              const filteredMedia = unit.media.filter((m: any) => {
+                if (unit.is_combo) {
+                  return m.mode === wetOrDry;
+                }
+                return true;
+              });
+              const displayImage = filteredMedia[selectedImageIndex] || filteredMedia[0];
+
+              return (
+                <>
+                  <div
+                    className="aspect-video bg-slate-200 rounded-2xl overflow-hidden mb-4 shadow-xl border border-slate-200 cursor-pointer hover:shadow-2xl transition-shadow"
+                    onClick={() => setIsImageModalOpen(true)}
+                  >
+                    {displayImage ? (
+                      <img
+                        src={displayImage.url}
+                        alt={displayImage.alt}
+                        className="w-full h-full object-contain bg-slate-100"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-400 font-medium">
+                        No Image
+                      </div>
+                    )}
+                  </div>
+
+                  {filteredMedia.length > 1 && (
+                    <div className="grid grid-cols-4 gap-3">
+                      {filteredMedia.slice(0, 4).map((media: any, idx: number) => (
+                        <button
+                          key={idx}
+                          onClick={() => setSelectedImageIndex(idx)}
+                          className={`aspect-video bg-slate-200 rounded-xl overflow-hidden shadow-md transition-all ${
+                            selectedImageIndex === idx
+                              ? 'border-4 border-blue-600 shadow-lg'
+                              : 'border-2 border-slate-200 hover:border-blue-400 hover:shadow-lg'
+                          }`}
+                        >
+                          <img
+                            src={media.url}
+                            alt={media.alt}
+                            className="w-full h-full object-cover"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
 
           <div>
@@ -224,52 +290,6 @@ export function UnitDetail() {
               </div>
             </div>
 
-            {unit.is_combo && (
-              <div className="mb-8">
-                <label className="block text-base sm:text-lg font-bold text-slate-900 mb-4">
-                  Select Mode
-                </label>
-                <div className="grid grid-cols-2 gap-4">
-                  <button
-                    type="button"
-                    onClick={() => setWetOrDry('dry')}
-                    className={`flex flex-col items-center p-5 sm:p-6 rounded-2xl border-2 transition-all shadow-md hover:shadow-lg ${
-                      wetOrDry === 'dry'
-                        ? 'border-blue-600 bg-blue-50 shadow-lg'
-                        : 'border-slate-300 hover:border-blue-400 bg-white'
-                    }`}
-                  >
-                    <Sun className={`w-10 h-10 mb-3 ${
-                      wetOrDry === 'dry' ? 'text-blue-600' : 'text-slate-400'
-                    }`} />
-                    <span className={`font-bold text-lg ${
-                      wetOrDry === 'dry' ? 'text-blue-900' : 'text-slate-700'
-                    }`}>
-                      Dry
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setWetOrDry('water')}
-                    className={`flex flex-col items-center p-5 sm:p-6 rounded-2xl border-2 transition-all shadow-md hover:shadow-lg ${
-                      wetOrDry === 'water'
-                        ? 'border-blue-600 bg-blue-50 shadow-lg'
-                        : 'border-slate-300 hover:border-blue-400 bg-white'
-                    }`}
-                  >
-                    <Droplets className={`w-10 h-10 mb-3 ${
-                      wetOrDry === 'water' ? 'text-blue-600' : 'text-slate-400'
-                    }`} />
-                    <span className={`font-bold text-lg ${
-                      wetOrDry === 'water' ? 'text-blue-900' : 'text-slate-700'
-                    }`}>
-                      Water
-                    </span>
-                  </button>
-                </div>
-              </div>
-            )}
-
             <button
               onClick={() => {
                 const cart = SafeStorage.getItem<any[]>('bpc_cart') || [];
@@ -331,6 +351,67 @@ export function UnitDetail() {
           </div>
         </div>
       </div>
+
+      {/* Image Modal */}
+      {isImageModalOpen && (() => {
+        const filteredMedia = unit.media.filter((m: any) => {
+          if (unit.is_combo) {
+            return m.mode === wetOrDry;
+          }
+          return true;
+        });
+        const displayImage = filteredMedia[selectedImageIndex] || filteredMedia[0];
+
+        return (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4"
+            onClick={() => setIsImageModalOpen(false)}
+          >
+            <div className="relative max-w-7xl w-full h-full flex flex-col">
+              <button
+                onClick={() => setIsImageModalOpen(false)}
+                className="absolute top-4 right-4 z-10 bg-white hover:bg-slate-100 text-slate-900 rounded-full p-3 shadow-lg transition-all"
+              >
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+
+              <div className="flex-1 flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+                {displayImage && (
+                  <img
+                    src={displayImage.url}
+                    alt={displayImage.alt}
+                    className="max-w-full max-h-full object-contain"
+                  />
+                )}
+              </div>
+
+              {filteredMedia.length > 1 && (
+                <div className="mt-4 flex justify-center gap-2 overflow-x-auto pb-4" onClick={(e) => e.stopPropagation()}>
+                  {filteredMedia.map((media: any, idx: number) => (
+                    <button
+                      key={idx}
+                      onClick={() => setSelectedImageIndex(idx)}
+                      className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden transition-all ${
+                        selectedImageIndex === idx
+                          ? 'border-4 border-blue-500 shadow-lg'
+                          : 'border-2 border-white hover:border-blue-300'
+                      }`}
+                    >
+                      <img
+                        src={media.url}
+                        alt={media.alt}
+                        className="w-full h-full object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
