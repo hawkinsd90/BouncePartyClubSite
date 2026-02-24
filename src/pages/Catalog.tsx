@@ -210,12 +210,12 @@ export function Catalog() {
                 to={`/units/${unit.slug}`}
                 className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group border border-slate-200"
               >
-                <div className="aspect-video bg-slate-100 overflow-hidden">
+                <div className="aspect-video bg-slate-200 overflow-hidden">
                   {unit.media[0] ? (
                     <img
                       src={unit.media[0].url}
                       alt={unit.media[0].alt}
-                      className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-slate-400 font-medium">

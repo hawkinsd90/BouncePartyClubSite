@@ -170,7 +170,7 @@ export function UnitDetail() {
                       <img
                         src={displayImage.url}
                         alt={displayImage.alt}
-                        className="w-full h-full object-contain bg-slate-100"
+                        className="w-full h-full object-cover"
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-slate-400 font-medium">
