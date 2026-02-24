@@ -174,7 +174,7 @@ export function Catalog() {
                 : 'bg-white text-slate-700 border-2 border-slate-300 hover:border-blue-600'
             }`}
           >
-            Combo Units
+            Wet or Dry Units
           </button>
           <button
             onClick={() => setFilterType('slide')}
@@ -233,7 +233,7 @@ export function Catalog() {
                     </h3>
                     {((unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide')) && (
                       <span className="bg-gradient-to-r from-cyan-100 to-cyan-50 text-cyan-800 text-xs font-bold px-2.5 py-1.5 rounded-lg border border-cyan-200">
-                        WET MODE
+                        WET/DRY
                       </span>
                     )}
                   </div>

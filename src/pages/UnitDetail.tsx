@@ -218,7 +218,7 @@ export function UnitDetail() {
               </div>
               {((unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide')) && (
                 <span className="bg-gradient-to-r from-cyan-100 to-cyan-50 text-cyan-800 text-sm font-bold px-4 py-2 rounded-xl border-2 border-cyan-200 shadow-sm">
-                  WET MODE
+                  WET/DRY
                 </span>
               )}
             </div>
@@ -233,7 +233,7 @@ export function UnitDetail() {
               {((unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide')) && (
                 <p className="text-sm sm:text-base text-blue-800 flex items-center font-semibold">
                   <Droplets className="w-5 h-5 mr-2 flex-shrink-0" />
-                  <span>This is a combo unit - choose wet or dry mode when requesting your quote</span>
+                  <span>Can be used wet or dry - choose your preferred mode when requesting your quote</span>
                 </p>
               )}
             </div>
