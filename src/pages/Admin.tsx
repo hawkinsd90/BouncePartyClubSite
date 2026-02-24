@@ -29,6 +29,7 @@ interface UnitMedia {
   url: string;
   mode: 'dry' | 'water';
   sort: number;
+  is_featured?: boolean;
 }
 
 interface UnitWithMedia extends Omit<Unit, 'description'> {
@@ -107,7 +108,12 @@ function AdminDashboard() {
       const unitMedia = Array.isArray(unit.unit_media) ? unit.unit_media : [];
       const dryImages = unitMedia
         .filter((media: UnitMedia) => media.mode === 'dry')
-        .sort((a: UnitMedia, b: UnitMedia) => a.sort - b.sort);
+        .sort((a: UnitMedia, b: UnitMedia) => {
+          // Sort by featured first, then by sort order
+          if (a.is_featured && !b.is_featured) return -1;
+          if (!a.is_featured && b.is_featured) return 1;
+          return a.sort - b.sort;
+        });
       return {
         ...unit,
         unit_media: unitMedia,

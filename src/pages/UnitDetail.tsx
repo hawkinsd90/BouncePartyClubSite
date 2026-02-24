@@ -64,6 +64,7 @@ export function UnitDetail() {
         .from('unit_media')
         .select('*')
         .eq('unit_id', unitData.id)
+        .order('is_featured', { ascending: false })
         .order('sort');
 
       if (mediaError) throw mediaError;

@@ -52,6 +52,7 @@ export function Catalog() {
       const { data: mediaData, error: mediaError } = await supabase
         .from('unit_media')
         .select('*')
+        .order('is_featured', { ascending: false })
         .order('sort');
 
       if (mediaError) throw mediaError;

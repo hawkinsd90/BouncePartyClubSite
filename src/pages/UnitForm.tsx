@@ -28,8 +28,8 @@ export function UnitForm() {
   });
   const [priceInput, setPriceInput] = useState('0.00');
   const [priceWaterInput, setPriceWaterInput] = useState('');
-  const [dryImages, setDryImages] = useState<Array<{ id?: string; url: string; alt: string; file?: File; mode?: string }>>([]);
-  const [wetImages, setWetImages] = useState<Array<{ id?: string; url: string; alt: string; file?: File; mode?: string }>>([]);
+  const [dryImages, setDryImages] = useState<Array<{ id?: string; url: string; alt: string; file?: File; mode?: string; is_featured?: boolean }>>([]);
+  const [wetImages, setWetImages] = useState<Array<{ id?: string; url: string; alt: string; file?: File; mode?: string; is_featured?: boolean }>>([]);
   const [deletedImageIds, setDeletedImageIds] = useState<string[]>([]);
   const [useWetSameAsDry, setUseWetSameAsDry] = useState(true);
   const [uploadingImages, setUploadingImages] = useState(false);
@@ -85,12 +85,14 @@ export function UnitForm() {
         url: img.url,
         alt: img.alt,
         mode: img.mode,
+        is_featured: img.is_featured || false,
       }));
       const wetMedia = mediaRes.data.filter((img: any) => img.mode === 'water').map((img: any) => ({
         id: img.id,
         url: img.url,
         alt: img.alt,
         mode: img.mode,
+        is_featured: img.is_featured || false,
       }));
       setDryImages(dryMedia);
       setWetImages(wetMedia);
@@ -165,11 +167,13 @@ export function UnitForm() {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const newImages = Array.from(files).map(file => ({
+    const hasFeatured = dryImages.some(img => img.is_featured);
+    const newImages = Array.from(files).map((file, index) => ({
       url: URL.createObjectURL(file),
       alt: formData.name || 'Unit image',
       file,
       mode: 'dry',
+      is_featured: !hasFeatured && index === 0, // First image is featured if no other is featured
     }));
 
     setDryImages([...dryImages, ...newImages]);
@@ -179,11 +183,13 @@ export function UnitForm() {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const newImages = Array.from(files).map(file => ({
+    const hasFeatured = wetImages.some(img => img.is_featured);
+    const newImages = Array.from(files).map((file, index) => ({
       url: URL.createObjectURL(file),
       alt: formData.name || 'Unit image',
       file,
       mode: 'water',
+      is_featured: !hasFeatured && index === 0, // First image is featured if no other is featured
     }));
 
     setWetImages([...wetImages, ...newImages]);
@@ -228,7 +234,7 @@ export function UnitForm() {
   async function uploadImages(unitId: string) {
     const allImages = [...dryImages, ...(useWetSameAsDry ? [] : wetImages)];
     const imagesToUpload = allImages.filter(img => img.file);
-    const uploadedUrls: Array<{ url: string; alt: string; mode: string }> = [];
+    const uploadedUrls: Array<{ url: string; alt: string; mode: string; is_featured: boolean }> = [];
 
     for (const img of imagesToUpload) {
       if (!img.file) continue;
@@ -243,7 +249,7 @@ export function UnitForm() {
       if (uploadError) throw uploadError;
 
       const { data } = supabase.storage.from('unit-images').getPublicUrl(fileName);
-      uploadedUrls.push({ url: data.publicUrl, alt: img.alt, mode: img.mode || 'dry' });
+      uploadedUrls.push({ url: data.publicUrl, alt: img.alt, mode: img.mode || 'dry', is_featured: img.is_featured || false });
     }
 
     return uploadedUrls;
@@ -320,6 +326,7 @@ export function UnitForm() {
           alt: img.alt,
           mode: img.mode || 'dry',
           sort: existingCount + index,
+          is_featured: img.is_featured || false,
         }));
 
         const { error: mediaError } = await supabase
@@ -327,6 +334,22 @@ export function UnitForm() {
           .insert(mediaRecords);
 
         if (mediaError) throw mediaError;
+      }
+
+      // Update is_featured flags for existing images if changed
+      if (isEdit && unitId) {
+        const existingDryImages = dryImages.filter(img => img.id);
+        const existingWetImages = wetImages.filter(img => img.id);
+        const allExisting = [...existingDryImages, ...existingWetImages];
+
+        for (const img of allExisting) {
+          if (img.id) {
+            await supabase
+              .from('unit_media')
+              .update({ is_featured: img.is_featured || false })
+              .eq('id', img.id);
+          }
+        }
       }
 
       notifySuccess(isEdit ? 'Unit updated successfully!' : 'Unit created successfully!');
@@ -583,18 +606,46 @@ export function UnitForm() {
           </div>
 
           <div className="border-t pt-6">
-            <label className="block text-sm font-medium text-slate-700 mb-4">
+            <label className="block text-sm font-medium text-slate-700 mb-2">
               Dry Mode Images * (Required)
             </label>
+            <p className="text-xs text-slate-600 mb-4">Click the star to set as display picture for catalog and PDF menu</p>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               {dryImages.map((img, index) => (
-                <div key={index} className="relative">
+                <div key={index} className="relative group">
                   <img
                     src={img.url}
                     alt={img.alt}
-                    className="w-full h-32 object-cover rounded-lg border-2 border-slate-300"
+                    className={`w-full h-32 object-cover rounded-lg transition-all ${
+                      img.is_featured
+                        ? 'border-4 border-yellow-400 shadow-lg'
+                        : 'border-2 border-slate-300'
+                    }`}
                   />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const newImages = dryImages.map((im, i) => ({
+                        ...im,
+                        is_featured: i === index
+                      }));
+                      setDryImages(newImages);
+                    }}
+                    className={`absolute top-1 left-1 rounded-full p-2 shadow-lg transition-all z-10 ${
+                      img.is_featured
+                        ? 'bg-yellow-400 text-white'
+                        : 'bg-white text-slate-400 hover:bg-yellow-400 hover:text-white'
+                    }`}
+                    aria-label="Set as featured image"
+                    title="Set as display picture"
+                  >
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                  </button>
                   <button
                     type="button"
                     onClick={(e) => {
@@ -653,14 +704,42 @@ export function UnitForm() {
 
               {!useWetSameAsDry && (
                 <>
+                  <p className="text-xs text-slate-600 mb-4">Click the star to set as display picture for wet mode</p>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     {wetImages.map((img, index) => (
-                      <div key={index} className="relative">
+                      <div key={index} className="relative group">
                         <img
                           src={img.url}
                           alt={img.alt}
-                          className="w-full h-32 object-cover rounded-lg border-2 border-blue-300"
+                          className={`w-full h-32 object-cover rounded-lg transition-all ${
+                            img.is_featured
+                              ? 'border-4 border-yellow-400 shadow-lg'
+                              : 'border-2 border-blue-300'
+                          }`}
                         />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const newImages = wetImages.map((im, i) => ({
+                              ...im,
+                              is_featured: i === index
+                            }));
+                            setWetImages(newImages);
+                          }}
+                          className={`absolute top-1 left-1 rounded-full p-2 shadow-lg transition-all z-10 ${
+                            img.is_featured
+                              ? 'bg-yellow-400 text-white'
+                              : 'bg-white text-slate-400 hover:bg-yellow-400 hover:text-white'
+                          }`}
+                          aria-label="Set as featured image"
+                          title="Set as display picture"
+                        >
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
+                        </button>
                         <button
                           type="button"
                           onClick={(e) => {

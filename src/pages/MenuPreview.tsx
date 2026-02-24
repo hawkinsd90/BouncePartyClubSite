@@ -195,7 +195,8 @@ export function MenuPreview() {
         <div className="menu-print-grid">
           {data.units.map((unit) => {
             const dryImages = (unit.media || []).filter((m: any) => m.mode === 'dry' || !m.mode);
-            const imageUrl = dryImages[0]?.url || unit.media?.[0]?.url || '';
+            const featuredImage = dryImages.find((m: any) => m.is_featured);
+            const imageUrl = featuredImage?.url || dryImages[0]?.url || unit.media?.[0]?.url || '';
 
             return (
               <div key={unit.id} className="menu-unit-card">
