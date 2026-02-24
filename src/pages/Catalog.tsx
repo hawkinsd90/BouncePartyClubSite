@@ -74,7 +74,7 @@ export function Catalog() {
   const filteredUnits = units.filter((unit) => {
     if (filterType === 'all') return true;
     const unitTypes = unit.types || (unit.type ? [unit.type] : []);
-    if (filterType === 'combo') return unitTypes.includes('Combo') || unitTypes.includes('Water Slide');
+    if (filterType === 'combo') return unitTypes.includes('Combo');
     if (filterType === 'bounce') return unitTypes.includes('Bounce House');
     if (filterType === 'slide') return unitTypes.some(t => t.includes('Slide'));
     if (filterType === 'obstacle') return unitTypes.includes('Obstacle Course');
