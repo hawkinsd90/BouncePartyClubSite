@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Search, Star, Shield, Clock, DollarSign, Home as HomeIcon, Building2, Zap } from 'lucide-react';
+import { Calendar, Search, Star, Shield, Clock, DollarSign, Home as HomeIcon, Building2, Zap, ExternalLink } from 'lucide-react';
 import { AddressAutocomplete } from '../components/order/AddressAutocomplete';
 import { HeroCarousel } from '../components/admin/HeroCarousel';
 import { SafeStorage } from '../lib/safeStorage';
@@ -236,6 +236,58 @@ export function Home() {
             <p className="text-slate-600 leading-relaxed text-base">
               Competitive rates with transparent pricing and no hidden fees
             </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-white py-16 sm:py-20 lg:py-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 text-center mb-3 sm:mb-4 tracking-tight">
+            What Our Customers Say
+          </h2>
+          <div className="flex items-center justify-center mb-10 sm:mb-12">
+            <div className="flex items-center">
+              {[...Array(5)].map((_, i) => (
+                <Star key={i} className="w-6 h-6 sm:w-7 sm:h-7 fill-yellow-400 text-yellow-400" />
+              ))}
+            </div>
+            <span className="ml-3 text-2xl sm:text-3xl font-bold text-slate-900">5.0</span>
+            <span className="ml-2 text-lg sm:text-xl text-slate-600">on Google</span>
+          </div>
+
+          <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 sm:p-8 lg:p-10 shadow-lg max-w-3xl mx-auto mb-8 sm:mb-10">
+            <div className="flex items-start mb-4">
+              <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-blue-600 to-cyan-600 rounded-full flex items-center justify-center text-white font-bold text-xl">
+                S
+              </div>
+              <div className="ml-4 flex-1">
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className="font-bold text-slate-900 text-lg">Shawna Taleah</h3>
+                  <div className="flex">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                    ))}
+                  </div>
+                </div>
+                <p className="text-slate-600 text-sm mb-3">7 months ago</p>
+                <p className="text-slate-700 text-base sm:text-lg leading-relaxed">
+                  "Rented a water slide from them yesterday, and will definitely be using them again.
+                  Super respectful, great communication."
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center">
+            <a
+              href="https://www.google.com/maps/place/Bounce+Party+Club/@42.280800,-83.386300,15z/data=!4m6!3m5!1s0x0:0x0!8m2!3d42.280800!4d-83.386300!16s%2Fg%2F11y3g7k9qy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center text-blue-600 hover:text-blue-700 font-semibold text-lg transition-colors"
+            >
+              Read more reviews on Google
+              <ExternalLink className="w-5 h-5 ml-2" />
+            </a>
           </div>
         </div>
       </section>

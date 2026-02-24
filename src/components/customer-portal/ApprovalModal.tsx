@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { CreditCard, Edit2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
+import { loadStripe } from '@stripe/stripe-js';
 
 interface ApprovalModalProps {
   isOpen: boolean;
@@ -12,8 +14,45 @@ interface ApprovalModalProps {
 export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalModalProps) {
   const [confirmName, setConfirmName] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [updatingCard, setUpdatingCard] = useState(false);
 
   if (!isOpen) return null;
+
+  async function handleUpdateCard() {
+    setUpdatingCard(true);
+    try {
+      const { data: keyData } = await supabase.functions.invoke('get-stripe-publishable-key');
+      if (!keyData?.publishableKey) throw new Error('Failed to get Stripe key');
+
+      const stripe = await loadStripe(keyData.publishableKey);
+      if (!stripe) throw new Error('Failed to load Stripe');
+
+      const { data: sessionData, error: sessionError } = await supabase.functions.invoke(
+        'stripe-checkout',
+        {
+          body: {
+            orderId: order.id,
+            amount: 0,
+            setupMode: true,
+          },
+        }
+      );
+
+      if (sessionError || !sessionData?.sessionId) {
+        throw new Error(sessionError?.message || 'Failed to create checkout session');
+      }
+
+      const { error: stripeError } = await stripe.redirectToCheckout({
+        sessionId: sessionData.sessionId,
+      });
+
+      if (stripeError) throw stripeError;
+    } catch (error: any) {
+      console.error('Error updating card:', error);
+      showToast('Failed to update payment method. Please try again.', 'error');
+      setUpdatingCard(false);
+    }
+  }
 
   async function handleConfirm() {
     const expectedName = `${order.customers?.first_name || ''} ${order.customers?.last_name || ''}`.trim().toLowerCase();
@@ -63,6 +102,32 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
           <p className="text-sm md:text-base text-slate-700 mb-4">
             By approving these changes, you confirm that you have reviewed and accept the updated order details.
           </p>
+
+          {order.stripe_payment_method_id && (
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-start justify-between">
+                <div className="flex items-start">
+                  <CreditCard className="w-5 h-5 text-blue-600 mr-2 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">Payment Method on File</p>
+                    <p className="text-sm text-slate-600 mt-1">
+                      {order.payment_method_last_four
+                        ? `Card ending in ${order.payment_method_last_four}`
+                        : 'Card saved for payment'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleUpdateCard}
+                  disabled={updatingCard}
+                  className="flex items-center text-blue-600 hover:text-blue-700 font-medium text-sm transition-colors"
+                >
+                  <Edit2 className="w-4 h-4 mr-1" />
+                  {updatingCard ? 'Loading...' : 'Update'}
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="mb-6">
             <label className="block text-sm font-medium text-slate-700 mb-2">

@@ -306,17 +306,17 @@ export function UnitForm() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div className="max-w-4xl mx-auto px-3 sm:px-4 lg:px-8 py-6 sm:py-8 md:py-12 pb-8 sm:pb-12">
       <button
         onClick={() => navigate('/admin')}
-        className="flex items-center text-blue-600 hover:text-blue-700 font-semibold mb-6 transition-colors"
+        className="flex items-center text-blue-600 hover:text-blue-700 font-semibold mb-4 sm:mb-6 transition-colors min-h-[44px]"
       >
         <ArrowLeft className="w-5 h-5 mr-2" />
         Back to Admin
       </button>
 
-      <div className="bg-white rounded-2xl shadow-2xl p-10 border-2 border-slate-100">
-        <h1 className="text-4xl font-bold text-slate-900 mb-8 tracking-tight">
+      <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 md:p-10 border-2 border-slate-100">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 mb-6 md:mb-8 tracking-tight">
           {isEdit ? 'Edit Unit' : 'Add New Unit'}
         </h1>
 
@@ -639,17 +639,17 @@ export function UnitForm() {
             </div>
           )}
 
-          <div className="flex gap-4 pt-6">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-6 pb-2">
             <button
               type="submit"
               disabled={saving || dryImages.length === 0}
-              className="flex-1 flex items-center justify-center bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-slate-400 disabled:to-slate-500 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg hover:shadow-xl"
+              className="w-full sm:flex-1 flex items-center justify-center bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-slate-400 disabled:to-slate-500 text-white font-bold py-3 sm:py-4 px-4 sm:px-6 rounded-xl transition-all shadow-lg hover:shadow-xl text-sm sm:text-base min-h-[48px]"
             >
               {saving ? (
                 <>{uploadingImages ? 'Uploading images...' : 'Saving...'}</>
               ) : (
                 <>
-                  <Save className="w-5 h-5 mr-2" />
+                  <Save className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                   {isEdit ? 'Update Unit' : 'Create Unit'}
                 </>
               )}
@@ -657,7 +657,7 @@ export function UnitForm() {
             <button
               type="button"
               onClick={() => navigate('/admin')}
-              className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-4 px-6 rounded-xl transition-all shadow-md"
+              className="w-full sm:flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-3 sm:py-4 px-4 sm:px-6 rounded-xl transition-all shadow-md text-sm sm:text-base min-h-[48px]"
             >
               Cancel
             </button>

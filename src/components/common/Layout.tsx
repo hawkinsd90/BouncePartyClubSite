@@ -1,10 +1,11 @@
 import { Link, Outlet, useNavigate } from 'react-router-dom';
-import { Phone, Mail, LogOut, LogIn, ShoppingCart, Menu, X } from 'lucide-react';
+import { Phone, Mail, LogOut, LogIn, ShoppingCart, Menu, X, Instagram, Facebook } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { SafeStorage } from '../../lib/safeStorage';
 import { useState, useEffect } from 'react';
 import { notifyError } from '../../lib/notifications';
 import { getBusinessAddressText } from '../../lib/adminSettingsCache';
+import { supabase } from '../../lib/supabase';
 
 export function Layout() {
   const { user, isAdmin, hasRole, signOut } = useAuth();
@@ -12,9 +13,27 @@ export function Layout() {
   const [cartCount, setCartCount] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [businessAddress, setBusinessAddress] = useState('');
+  const [instagramUrl, setInstagramUrl] = useState('');
+  const [facebookUrl, setFacebookUrl] = useState('');
 
   useEffect(() => {
     getBusinessAddressText().then(setBusinessAddress);
+
+    const loadSocialLinks = async () => {
+      const { data } = await supabase
+        .from('admin_settings')
+        .select('key, value')
+        .in('key', ['instagram_url', 'facebook_url']);
+
+      if (data) {
+        const instagram = data.find(s => s.key === 'instagram_url')?.value || '';
+        const facebook = data.find(s => s.key === 'facebook_url')?.value || '';
+        setInstagramUrl(instagram);
+        setFacebookUrl(facebook);
+      }
+    };
+
+    loadSocialLinks();
   }, []);
 
   useEffect(() => {
@@ -317,13 +336,42 @@ export function Layout() {
                 <li className="flex items-center">
                   <Mail className="w-4 h-4 mr-2" />
                   <a
-                    href="mailto:info@bouncepartyclub.com"
+                    href="mailto:admin@bouncepartyclub.com"
                     className="hover:text-white transition-colors"
                   >
-                    info@bouncepartyclub.com
+                    admin@bouncepartyclub.com
                   </a>
                 </li>
               </ul>
+              {(instagramUrl || facebookUrl) && (
+                <div className="mt-4">
+                  <h3 className="font-semibold mb-3">Follow Us</h3>
+                  <div className="flex items-center space-x-3">
+                    {instagramUrl && (
+                      <a
+                        href={instagramUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center w-9 h-9 rounded-full bg-slate-800 hover:bg-blue-600 transition-colors"
+                        aria-label="Instagram"
+                      >
+                        <Instagram className="w-5 h-5" />
+                      </a>
+                    )}
+                    {facebookUrl && (
+                      <a
+                        href={facebookUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center w-9 h-9 rounded-full bg-slate-800 hover:bg-blue-600 transition-colors"
+                        aria-label="Facebook"
+                      >
+                        <Facebook className="w-5 h-5" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
