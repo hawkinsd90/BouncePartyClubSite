@@ -136,11 +136,24 @@ Deno.serve(async (req: Request) => {
         toPhone = order.customers?.phone;
       }
 
+      // Fetch Google review URL if needed
+      let reviewUrl = '';
+      if (template.message_template.includes('{review_url}')) {
+        const { data: reviewUrlSetting } = await supabase
+          .from("admin_settings")
+          .select("value")
+          .eq("key", "google_review_url")
+          .maybeSingle();
+        reviewUrl = reviewUrlSetting?.value || '';
+      }
+
       messageBody = template.message_template
         .replace("{customer_name}", `${order.customers?.first_name || ''} ${order.customers?.last_name || ''}`)
+        .replace("{name}", order.customers?.first_name || '')
         .replace("{order_id}", formatOrderId(order.id))
         .replace("{event_date}", order.event_date || '')
-        .replace("{event_address}", order.event_address_line1 || '');
+        .replace("{event_address}", order.event_address_line1 || '')
+        .replace("{review_url}", reviewUrl);
     }
 
     if (!toPhone || !messageBody) {

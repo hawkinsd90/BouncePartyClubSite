@@ -445,8 +445,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
     try {
       const taskStatusId = await ensureTaskStatus();
 
-      const message = `Thank you for choosing Bounce Party Club! 🎉\n\nWe hope you had an amazing event! Would you mind leaving us a Google review? It really helps our small business!\n\n⭐ Review us here:\nhttps://g.page/r/YOUR_GOOGLE_BUSINESS_ID/review\n\nWe'd love to serve you again!`;
-
+      // Send SMS using the pickup_thanks_sms template
       const smsResponse = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`,
         {
@@ -456,14 +455,37 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            to: task.customerPhone,
-            message,
-            order_id: task.orderId,
+            templateKey: 'pickup_thanks_sms',
+            orderId: task.orderId,
           }),
         }
       );
 
-      if (!smsResponse.ok) throw new Error('Failed to send SMS');
+      if (!smsResponse.ok) {
+        const errorData = await smsResponse.json();
+        console.error('SMS error:', errorData);
+        throw new Error(errorData.error || 'Failed to send SMS');
+      }
+
+      // Send email using the pickup_complete template
+      const emailResponse = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            templateName: 'pickup_complete',
+            orderId: task.orderId,
+          }),
+        }
+      );
+
+      if (!emailResponse.ok) {
+        console.error('Email error - continuing anyway');
+      }
 
       await supabase
         .from('task_status')
@@ -473,7 +495,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
         })
         .eq('id', taskStatusId);
 
-      showAlert('Pickup completed and thank you message sent!');
+      showAlert('Pickup completed! Thank you message and review request sent.');
       onUpdate();
     } catch (error: any) {
       console.error('Error completing pickup:', error);
