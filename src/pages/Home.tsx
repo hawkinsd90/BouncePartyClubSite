@@ -224,6 +224,17 @@ export function Home() {
         </div>
       </section>
 
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+        <div className="text-center">
+          <button
+            onClick={() => navigate('/contact')}
+            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-4 sm:py-5 px-8 sm:px-10 rounded-xl transition-all shadow-xl hover:shadow-2xl text-lg sm:text-xl"
+          >
+            Get a Quote
+          </button>
+        </div>
+      </section>
+
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-20 lg:py-24">
         <h2 className="text-2xl sm:text-4xl lg:text-5xl font-bold text-slate-900 text-center mb-6 sm:mb-16 tracking-tight">
           Why Choose Bounce Party Club?
