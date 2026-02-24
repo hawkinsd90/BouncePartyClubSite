@@ -30,6 +30,7 @@ export function UnitForm() {
   const [priceWaterInput, setPriceWaterInput] = useState('');
   const [dryImages, setDryImages] = useState<Array<{ id?: string; url: string; alt: string; file?: File; mode?: string }>>([]);
   const [wetImages, setWetImages] = useState<Array<{ id?: string; url: string; alt: string; file?: File; mode?: string }>>([]);
+  const [deletedImageIds, setDeletedImageIds] = useState<string[]>([]);
   const [useWetSameAsDry, setUseWetSameAsDry] = useState(true);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -190,18 +191,36 @@ export function UnitForm() {
 
   function removeDryImage(index: number) {
     const newImages = [...dryImages];
-    if (newImages[index].url.startsWith('blob:')) {
-      URL.revokeObjectURL(newImages[index].url);
+    const imageToRemove = newImages[index];
+
+    // If this is an existing image from the database, track it for deletion
+    if (imageToRemove.id) {
+      setDeletedImageIds(prev => [...prev, imageToRemove.id!]);
     }
+
+    // If this is a newly uploaded image (blob URL), revoke it
+    if (imageToRemove.url.startsWith('blob:')) {
+      URL.revokeObjectURL(imageToRemove.url);
+    }
+
     newImages.splice(index, 1);
     setDryImages(newImages);
   }
 
   function removeWetImage(index: number) {
     const newImages = [...wetImages];
-    if (newImages[index].url.startsWith('blob:')) {
-      URL.revokeObjectURL(newImages[index].url);
+    const imageToRemove = newImages[index];
+
+    // If this is an existing image from the database, track it for deletion
+    if (imageToRemove.id) {
+      setDeletedImageIds(prev => [...prev, imageToRemove.id!]);
     }
+
+    // If this is a newly uploaded image (blob URL), revoke it
+    if (imageToRemove.url.startsWith('blob:')) {
+      URL.revokeObjectURL(imageToRemove.url);
+    }
+
     newImages.splice(index, 1);
     setWetImages(newImages);
   }
@@ -267,6 +286,19 @@ export function UnitForm() {
           .eq('id', id);
 
         if (error) throw error;
+
+        // Delete removed images from the database
+        if (deletedImageIds.length > 0) {
+          const { error: deleteError } = await supabase
+            .from('unit_media')
+            .delete()
+            .in('id', deletedImageIds);
+
+          if (deleteError) {
+            console.error('Error deleting images:', deleteError);
+            throw deleteError;
+          }
+        }
       } else {
         const { data, error } = await supabase
           .from('units')
