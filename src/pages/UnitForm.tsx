@@ -506,14 +506,14 @@ export function UnitForm() {
               <input
                 type="number"
                 required
-                min="1"
+                min="0.5"
                 step="0.5"
                 value={formData.power_circuits}
                 onChange={(e) => setFormData({ ...formData, power_circuits: parseFloat(e.target.value) || 1 })}
                 placeholder="e.g., 1.5"
                 className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
               />
-              <p className="text-xs text-slate-600 mt-1">Blower motor horsepower needed to inflate</p>
+              <p className="text-xs text-slate-600 mt-1">Blower motor horsepower needed to inflate (supports half values like 0.5, 1.5, etc.)</p>
             </div>
 
             <div>
