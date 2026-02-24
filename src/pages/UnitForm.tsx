@@ -167,13 +167,14 @@ export function UnitForm() {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const hasFeatured = dryImages.some(img => img.is_featured);
+    // Check if ANY image (dry or wet) is already featured
+    const hasFeatured = dryImages.some(img => img.is_featured) || wetImages.some(img => img.is_featured);
     const newImages = Array.from(files).map((file, index) => ({
       url: URL.createObjectURL(file),
       alt: formData.name || 'Unit image',
       file,
       mode: 'dry',
-      is_featured: !hasFeatured && index === 0, // First image is featured if no other is featured
+      is_featured: !hasFeatured && index === 0, // First image is featured if no other image in the unit is featured
     }));
 
     setDryImages([...dryImages, ...newImages]);
@@ -183,13 +184,14 @@ export function UnitForm() {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const hasFeatured = wetImages.some(img => img.is_featured);
+    // Check if ANY image (dry or wet) is already featured
+    const hasFeatured = dryImages.some(img => img.is_featured) || wetImages.some(img => img.is_featured);
     const newImages = Array.from(files).map((file, index) => ({
       url: URL.createObjectURL(file),
       alt: formData.name || 'Unit image',
       file,
       mode: 'water',
-      is_featured: !hasFeatured && index === 0, // First image is featured if no other is featured
+      is_featured: !hasFeatured && index === 0, // First image is featured if no other image in the unit is featured
     }));
 
     setWetImages([...wetImages, ...newImages]);
@@ -609,7 +611,7 @@ export function UnitForm() {
             <label className="block text-sm font-medium text-slate-700 mb-2">
               Dry Mode Images * (Required)
             </label>
-            <p className="text-xs text-slate-600 mb-4">Click the star to set as display picture for catalog and PDF menu</p>
+            <p className="text-xs text-slate-600 mb-4">Click the star to set as main display picture for catalog and PDF menu (only one per unit)</p>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               {dryImages.map((img, index) => (
@@ -628,11 +630,19 @@ export function UnitForm() {
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      const newImages = dryImages.map((im, i) => ({
+                      // Set this dry image as featured
+                      const newDryImages = dryImages.map((im, i) => ({
                         ...im,
                         is_featured: i === index
                       }));
-                      setDryImages(newImages);
+                      setDryImages(newDryImages);
+
+                      // Remove featured flag from all wet images (only one display picture allowed per unit)
+                      const newWetImages = wetImages.map(im => ({
+                        ...im,
+                        is_featured: false
+                      }));
+                      setWetImages(newWetImages);
                     }}
                     className={`absolute top-1 left-1 rounded-full p-2 shadow-lg transition-all z-10 ${
                       img.is_featured
@@ -640,7 +650,7 @@ export function UnitForm() {
                         : 'bg-white text-slate-400 hover:bg-yellow-400 hover:text-white'
                     }`}
                     aria-label="Set as featured image"
-                    title="Set as display picture"
+                    title="Set as main display picture"
                   >
                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
@@ -704,7 +714,7 @@ export function UnitForm() {
 
               {!useWetSameAsDry && (
                 <>
-                  <p className="text-xs text-slate-600 mb-4">Click the star to set as display picture for wet mode</p>
+                  <p className="text-xs text-slate-600 mb-4">Click the star to set as main display picture (only one per unit)</p>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     {wetImages.map((img, index) => (
                       <div key={index} className="relative group">
@@ -722,11 +732,19 @@ export function UnitForm() {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            const newImages = wetImages.map((im, i) => ({
+                            // Set this wet image as featured
+                            const newWetImages = wetImages.map((im, i) => ({
                               ...im,
                               is_featured: i === index
                             }));
-                            setWetImages(newImages);
+                            setWetImages(newWetImages);
+
+                            // Remove featured flag from all dry images (only one display picture allowed per unit)
+                            const newDryImages = dryImages.map(im => ({
+                              ...im,
+                              is_featured: false
+                            }));
+                            setDryImages(newDryImages);
                           }}
                           className={`absolute top-1 left-1 rounded-full p-2 shadow-lg transition-all z-10 ${
                             img.is_featured
@@ -734,7 +752,7 @@ export function UnitForm() {
                               : 'bg-white text-slate-400 hover:bg-yellow-400 hover:text-white'
                           }`}
                           aria-label="Set as featured image"
-                          title="Set as display picture"
+                          title="Set as main display picture"
                         >
                           <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />

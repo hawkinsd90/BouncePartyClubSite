@@ -194,9 +194,13 @@ export function MenuPreview() {
       <div className="menu-print-content max-w-5xl mx-auto">
         <div className="menu-print-grid">
           {data.units.map((unit) => {
-            const dryImages = (unit.media || []).filter((m: any) => m.mode === 'dry' || !m.mode);
-            const featuredImage = dryImages.find((m: any) => m.is_featured);
-            const imageUrl = featuredImage?.url || dryImages[0]?.url || unit.media?.[0]?.url || '';
+            // Find the featured image across ALL images (dry or wet)
+            const allImages = unit.media || [];
+            const featuredImage = allImages.find((m: any) => m.is_featured);
+
+            // Fallback to first dry image, then any first image
+            const dryImages = allImages.filter((m: any) => m.mode === 'dry' || !m.mode);
+            const imageUrl = featuredImage?.url || dryImages[0]?.url || allImages[0]?.url || '';
 
             return (
               <div key={unit.id} className="menu-unit-card">

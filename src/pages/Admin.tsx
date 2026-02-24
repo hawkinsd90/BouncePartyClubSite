@@ -106,18 +106,21 @@ function AdminDashboard() {
     // Process units to add image_url from unit_media
     const unitsWithImages = (unitsRes.data || []).map(unit => {
       const unitMedia = Array.isArray(unit.unit_media) ? unit.unit_media : [];
+
+      // Find featured image across ALL images (dry or wet)
+      const featuredImage = unitMedia.find((media: UnitMedia) => media.is_featured);
+
+      // If no featured image, fall back to first dry image sorted by sort order
       const dryImages = unitMedia
         .filter((media: UnitMedia) => media.mode === 'dry')
-        .sort((a: UnitMedia, b: UnitMedia) => {
-          // Sort by featured first, then by sort order
-          if (a.is_featured && !b.is_featured) return -1;
-          if (!a.is_featured && b.is_featured) return 1;
-          return a.sort - b.sort;
-        });
+        .sort((a: UnitMedia, b: UnitMedia) => a.sort - b.sort);
+
+      const imageUrl = featuredImage?.url || (dryImages.length > 0 ? dryImages[0].url : null);
+
       return {
         ...unit,
         unit_media: unitMedia,
-        image_url: dryImages.length > 0 ? dryImages[0].url : null
+        image_url: imageUrl
       };
     });
 
