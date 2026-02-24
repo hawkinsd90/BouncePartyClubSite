@@ -156,11 +156,18 @@ export function Catalog() {
             </button>
           </div>
 
-          <div className="bg-white rounded-xl shadow-md p-5 sm:p-6 border-2 border-blue-200 mb-6">
-            <label className="block text-sm sm:text-base font-semibold text-slate-700 mb-3">
-              Event Date {eventDate && <span className="text-blue-600">(Filtering available units for this date)</span>}
-            </label>
-            <div className="relative max-w-md">
+          <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 border-2 border-blue-200 mb-6">
+            <div className="mb-3">
+              <label className="block text-sm sm:text-base font-semibold text-slate-700 mb-1">
+                Event Date
+              </label>
+              {eventDate && (
+                <p className="text-xs sm:text-sm text-blue-600 font-medium">
+                  Filtering available units for this date
+                </p>
+              )}
+            </div>
+            <div className="relative">
               <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400 pointer-events-none z-10" />
               <input
                 type="date"
@@ -172,7 +179,7 @@ export function Catalog() {
               />
             </div>
             {eventDate && (
-              <p className="text-sm text-slate-600 mt-2">
+              <p className="text-xs sm:text-sm text-slate-600 mt-2">
                 Showing inflatables available on <span className="font-bold text-slate-900">{new Date(eventDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
               </p>
             )}
