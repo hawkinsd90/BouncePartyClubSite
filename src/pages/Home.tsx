@@ -225,7 +225,7 @@ export function Home() {
       </section>
 
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-        <div className="text-center">
+        <div className="text-left">
           <button
             onClick={() => navigate('/contact')}
             className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-4 sm:py-5 px-8 sm:px-10 rounded-xl transition-all shadow-xl hover:shadow-2xl text-lg sm:text-xl"
@@ -354,24 +354,6 @@ export function Home() {
         </div>
       </section>
 
-      <section className="bg-gradient-to-br from-slate-50 to-slate-100 py-16 sm:py-20 lg:py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 text-center mb-4 sm:mb-5 tracking-tight text-balance">
-            Serving Wayne and the Greater Detroit Area
-          </h2>
-          <p className="text-lg sm:text-xl md:text-2xl text-slate-600 text-center mb-10 sm:mb-12 px-4 leading-relaxed max-w-4xl mx-auto text-pretty">
-            Free delivery within 20 miles of our home base or anywhere in Detroit. Additional travel fees apply beyond our service area.
-          </p>
-          <div className="text-center">
-            <button
-              onClick={() => navigate('/contact')}
-              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-4 sm:py-5 px-8 sm:px-10 rounded-xl transition-all shadow-xl hover:shadow-2xl text-lg sm:text-xl"
-            >
-              Get a Quote
-            </button>
-          </div>
-        </div>
-      </section>
     </div>
   );
 }
