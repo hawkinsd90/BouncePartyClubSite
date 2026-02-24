@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { SafeStorage } from '../lib/safeStorage';
-import { Users, Maximize, Zap, Droplets, Download } from 'lucide-react';
+import { Users, Maximize, Zap, Droplets, Download, Calendar } from 'lucide-react';
 import { notifyError } from '../lib/notifications';
 
 interface Unit {
@@ -27,6 +27,7 @@ export function Catalog() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState<string>('all');
+  const [eventDate, setEventDate] = useState<string>('');
 
   useEffect(() => {
     loadUnits();
@@ -34,9 +35,19 @@ export function Catalog() {
   }, []);
 
   function loadPrefillData() {
-    const data = SafeStorage.getItem<any>('bpc_quote_prefill');
-    if (data) {
-      console.log('Prefill data loaded:', data);
+    // Check for prefill data from home page
+    const prefillData = SafeStorage.getItem<any>('bpc_quote_prefill');
+    if (prefillData && prefillData.event_date) {
+      console.log('Prefill data loaded:', prefillData);
+      setEventDate(prefillData.event_date);
+      return;
+    }
+
+    // Check for saved form data from quote page (when coming back from cart)
+    const formData = SafeStorage.getItem<any>('bpc_quote_form');
+    if (formData && formData.event_date) {
+      console.log('Form data loaded:', formData);
+      setEventDate(formData.event_date);
     }
   }
 
@@ -101,10 +112,6 @@ export function Catalog() {
     navigate('/menu-preview');
   };
 
-
-  const eventDate = searchParams.get('date');
-  const address = searchParams.get('address');
-
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -115,6 +122,22 @@ export function Catalog() {
       </div>
     );
   }
+
+  const handleDateChange = (newDate: string) => {
+    setEventDate(newDate);
+
+    // Update the prefill data if it exists
+    const prefillData = SafeStorage.getItem<any>('bpc_quote_prefill');
+    if (prefillData) {
+      SafeStorage.setItem('bpc_quote_prefill', { ...prefillData, event_date: newDate }, { expirationDays: 7 });
+    }
+
+    // Update the form data if it exists
+    const formData = SafeStorage.getItem<any>('bpc_quote_form');
+    if (formData) {
+      SafeStorage.setItem('bpc_quote_form', { ...formData, event_date: newDate, event_end_date: newDate }, { expirationDays: 7 });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white">
@@ -132,17 +155,28 @@ export function Catalog() {
               <span className="hidden sm:inline">Download Menu PDF</span>
             </button>
           </div>
-          {eventDate && (
-            <p className="text-base sm:text-lg text-slate-600">
-              Showing availability for <span className="font-bold text-slate-900">{eventDate}</span>
-              {address && (
-                <>
-                  {' '}
-                  at <span className="font-bold text-slate-900">{address}</span>
-                </>
-              )}
-            </p>
-          )}
+
+          <div className="bg-white rounded-xl shadow-md p-5 sm:p-6 border-2 border-blue-200 mb-6">
+            <label className="block text-sm sm:text-base font-semibold text-slate-700 mb-3">
+              Event Date {eventDate && <span className="text-blue-600">(Filtering available units for this date)</span>}
+            </label>
+            <div className="relative max-w-md">
+              <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400 pointer-events-none z-10" />
+              <input
+                type="date"
+                value={eventDate}
+                onChange={(e) => handleDateChange(e.target.value)}
+                className="w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-3 sm:py-3.5 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 text-sm sm:text-base font-medium transition-all"
+                min={new Date().toISOString().split('T')[0]}
+                placeholder="Select event date"
+              />
+            </div>
+            {eventDate && (
+              <p className="text-sm text-slate-600 mt-2">
+                Showing inflatables available on <span className="font-bold text-slate-900">{new Date(eventDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-3 sm:gap-4 mb-10 sm:mb-12">
