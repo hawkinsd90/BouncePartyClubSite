@@ -20,16 +20,28 @@ export function Layout() {
     getBusinessAddressText().then(setBusinessAddress);
 
     const loadSocialLinks = async () => {
-      const { data } = await supabase
-        .from('admin_settings')
-        .select('key, value')
-        .in('key', ['instagram_url', 'facebook_url']);
+      try {
+        const { data, error } = await supabase
+          .from('admin_settings')
+          .select('key, value')
+          .in('key', ['instagram_url', 'facebook_url']);
 
-      if (data) {
-        const instagram = data.find(s => s.key === 'instagram_url')?.value || '';
-        const facebook = data.find(s => s.key === 'facebook_url')?.value || '';
-        setInstagramUrl(instagram);
-        setFacebookUrl(facebook);
+        if (error) {
+          console.error('Error loading social links:', error);
+          return;
+        }
+
+        if (data) {
+          console.log('Social links data loaded:', data);
+          const instagram = data.find(s => s.key === 'instagram_url')?.value || '';
+          const facebook = data.find(s => s.key === 'facebook_url')?.value || '';
+          console.log('Instagram URL:', instagram);
+          console.log('Facebook URL:', facebook);
+          setInstagramUrl(instagram);
+          setFacebookUrl(facebook);
+        }
+      } catch (err) {
+        console.error('Exception loading social links:', err);
       }
     };
 

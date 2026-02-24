@@ -232,16 +232,19 @@ export function UnitForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    e.stopPropagation();
 
     const isComboOrWaterSlide = formData.type === 'Combo' || formData.type === 'Water Slide';
 
     if (dryImages.length === 0) {
       notifyError('Please add at least one image for dry mode');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
     if (isComboOrWaterSlide && !useWetSameAsDry && wetImages.length === 0) {
       notifyError('Please add at least one image for wet mode, or check "Same as dry"');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
@@ -643,7 +646,13 @@ export function UnitForm() {
             <button
               type="submit"
               disabled={saving || dryImages.length === 0}
-              className="w-full sm:flex-1 flex items-center justify-center bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-slate-400 disabled:to-slate-500 text-white font-bold py-3 sm:py-4 px-4 sm:px-6 rounded-xl transition-all shadow-lg hover:shadow-xl text-sm sm:text-base min-h-[48px]"
+              onClick={(e) => {
+                if (saving || dryImages.length === 0) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              }}
+              className="w-full sm:flex-1 flex items-center justify-center bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-slate-400 disabled:to-slate-500 text-white font-bold py-3 sm:py-4 px-4 sm:px-6 rounded-xl transition-all shadow-lg hover:shadow-xl text-sm sm:text-base min-h-[48px] touch-manipulation active:scale-95"
             >
               {saving ? (
                 <>{uploadingImages ? 'Uploading images...' : 'Saving...'}</>
@@ -657,7 +666,7 @@ export function UnitForm() {
             <button
               type="button"
               onClick={() => navigate('/admin')}
-              className="w-full sm:flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-3 sm:py-4 px-4 sm:px-6 rounded-xl transition-all shadow-md text-sm sm:text-base min-h-[48px]"
+              className="w-full sm:flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-3 sm:py-4 px-4 sm:px-6 rounded-xl transition-all shadow-md text-sm sm:text-base min-h-[48px] touch-manipulation active:scale-95"
             >
               Cancel
             </button>

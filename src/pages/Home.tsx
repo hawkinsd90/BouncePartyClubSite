@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Calendar, Search, Star, Shield, Clock, DollarSign, Home as HomeIcon, Building2, Zap, ExternalLink } from 'lucide-react';
 import { AddressAutocomplete } from '../components/order/AddressAutocomplete';
@@ -8,8 +8,20 @@ import { useAuth } from '../contexts/AuthContext';
 import { createTestBooking } from '../lib/testBooking';
 import { notifyError } from '../lib/notifications';
 import { createLogger } from '../lib/logger';
+import { supabase } from '../lib/supabase';
 
 const log = createLogger('Home');
+
+interface GoogleReview {
+  id: string;
+  reviewer_name: string;
+  reviewer_initial: string;
+  rating: number;
+  review_text: string;
+  review_date: string;
+  google_review_url: string | null;
+  display_order: number;
+}
 
 export function Home() {
   const navigate = useNavigate();
@@ -19,6 +31,33 @@ export function Home() {
   const [locationType, setLocationType] = useState<'residential' | 'commercial'>('residential');
   const [addressInput, setAddressInput] = useState('');
   const [creatingTestBooking, setCreatingTestBooking] = useState(false);
+  const [reviews, setReviews] = useState<GoogleReview[]>([]);
+  const [averageRating, setAverageRating] = useState(5.0);
+
+  useEffect(() => {
+    loadReviews();
+  }, []);
+
+  async function loadReviews() {
+    try {
+      const { data, error } = await supabase
+        .from('google_reviews')
+        .select('*')
+        .eq('is_active', true)
+        .gte('rating', 4)
+        .order('display_order', { ascending: true });
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        setReviews(data);
+        const avg = data.reduce((sum, review) => sum + review.rating, 0) / data.length;
+        setAverageRating(Math.round(avg * 10) / 10);
+      }
+    } catch (error) {
+      console.error('Error loading reviews:', error);
+    }
+  }
 
   const handleCheckAvailability = (e: React.FormEvent) => {
     e.preventDefault();
@@ -251,32 +290,44 @@ export function Home() {
                 <Star key={i} className="w-6 h-6 sm:w-7 sm:h-7 fill-yellow-400 text-yellow-400" />
               ))}
             </div>
-            <span className="ml-3 text-2xl sm:text-3xl font-bold text-slate-900">5.0</span>
+            <span className="ml-3 text-2xl sm:text-3xl font-bold text-slate-900">{averageRating.toFixed(1)}</span>
             <span className="ml-2 text-lg sm:text-xl text-slate-600">on Google</span>
           </div>
 
-          <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 sm:p-8 lg:p-10 shadow-lg max-w-3xl mx-auto mb-8 sm:mb-10">
-            <div className="flex items-start mb-4">
-              <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-blue-600 to-cyan-600 rounded-full flex items-center justify-center text-white font-bold text-xl">
-                S
-              </div>
-              <div className="ml-4 flex-1">
-                <div className="flex items-center justify-between mb-1">
-                  <h3 className="font-bold text-slate-900 text-lg">Shawna Taleah</h3>
-                  <div className="flex">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                    ))}
+          {reviews.length > 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 sm:mb-10 max-w-6xl mx-auto">
+              {reviews.map((review) => (
+                <div key={review.id} className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 sm:p-8 shadow-lg">
+                  <div className="flex items-start mb-4">
+                    <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-blue-600 to-cyan-600 rounded-full flex items-center justify-center text-white font-bold text-xl">
+                      {review.reviewer_initial}
+                    </div>
+                    <div className="ml-4 flex-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <h3 className="font-bold text-slate-900 text-lg">{review.reviewer_name}</h3>
+                        <div className="flex">
+                          {[...Array(5)].map((_, i) => (
+                            <Star
+                              key={i}
+                              className={`w-4 h-4 ${i < review.rating ? 'fill-yellow-400 text-yellow-400' : 'text-slate-300'}`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-slate-600 text-sm mb-3">{review.review_date}</p>
+                      <p className="text-slate-700 text-base leading-relaxed">
+                        "{review.review_text}"
+                      </p>
+                    </div>
                   </div>
                 </div>
-                <p className="text-slate-600 text-sm mb-3">7 months ago</p>
-                <p className="text-slate-700 text-base sm:text-lg leading-relaxed">
-                  "Rented a water slide from them yesterday, and will definitely be using them again.
-                  Super respectful, great communication."
-                </p>
-              </div>
+              ))}
             </div>
-          </div>
+          ) : (
+            <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 sm:p-8 lg:p-10 shadow-lg max-w-3xl mx-auto mb-8 sm:mb-10">
+              <p className="text-center text-slate-600">Loading reviews...</p>
+            </div>
+          )}
 
           <div className="text-center">
             <a
