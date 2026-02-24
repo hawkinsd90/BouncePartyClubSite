@@ -253,7 +253,7 @@ export function UnitForm() {
     e.preventDefault();
     e.stopPropagation();
 
-    const isComboOrWaterSlide = formData.type === 'Combo' || formData.type === 'Water Slide';
+    const hasWetMode = formData.is_combo || formData.type === 'Water Slide';
 
     if (dryImages.length === 0) {
       notifyError('Please add at least one image for dry mode');
@@ -261,7 +261,7 @@ export function UnitForm() {
       return;
     }
 
-    if (isComboOrWaterSlide && !useWetSameAsDry && wetImages.length === 0) {
+    if (hasWetMode && !useWetSameAsDry && wetImages.length === 0) {
       notifyError('Please add at least one image for wet mode, or check "Same as dry"');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
@@ -380,11 +380,7 @@ export function UnitForm() {
                 value={formData.type}
                 onChange={(e) => {
                   const newType = e.target.value;
-                  setFormData({ ...formData, type: newType, is_combo: newType === 'Combo' });
-                  if (newType !== 'Combo' && newType !== 'Water Slide') {
-                    setPriceWaterInput('');
-                    setFormData(prev => ({ ...prev, price_water_cents: 0 }));
-                  }
+                  setFormData({ ...formData, type: newType, is_combo: newType === 'Combo' ? true : formData.is_combo });
                 }}
                 className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
               >
@@ -399,6 +395,29 @@ export function UnitForm() {
                 <option>Concession</option>
               </select>
             </div>
+
+            {(formData.type !== 'Combo' && formData.type !== 'Water Slide') && (
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="is_combo"
+                  checked={formData.is_combo}
+                  onChange={(e) => {
+                    setFormData({ ...formData, is_combo: e.target.checked });
+                    if (!e.target.checked) {
+                      setPriceWaterInput('');
+                      setFormData(prev => ({ ...prev, price_water_cents: 0, dimensions_water: '' }));
+                      setUseWetSameAsDry(true);
+                      setWetImages([]);
+                    }
+                  }}
+                  className="mr-2 h-4 w-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                />
+                <label htmlFor="is_combo" className="text-sm font-medium text-slate-700">
+                  Has Water/Wet Mode (Combo Unit)
+                </label>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -434,7 +453,7 @@ export function UnitForm() {
               />
             </div>
 
-            {(formData.type === 'Combo' || formData.type === 'Water Slide') && (
+            {(formData.is_combo || formData.type === 'Water Slide') && (
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Water Mode Price $ (optional)
@@ -470,7 +489,7 @@ export function UnitForm() {
               />
             </div>
 
-            {(formData.type === 'Combo' || formData.type === 'Water Slide') && !useWetSameAsDry && (
+            {(formData.is_combo || formData.type === 'Water Slide') && !useWetSameAsDry && (
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Dimensions (Wet Mode)
@@ -615,7 +634,7 @@ export function UnitForm() {
             )}
           </div>
 
-          {(formData.type === 'Combo' || formData.type === 'Water Slide') && (
+          {(formData.is_combo || formData.type === 'Water Slide') && (
             <div className="border-t pt-6">
               <div className="flex items-center justify-between mb-4">
                 <label className="block text-sm font-medium text-slate-700">
