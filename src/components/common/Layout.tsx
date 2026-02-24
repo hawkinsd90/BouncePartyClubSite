@@ -355,35 +355,53 @@ export function Layout() {
                   </a>
                 </li>
               </ul>
-              {(instagramUrl || facebookUrl) && (
-                <div className="mt-4">
-                  <h3 className="font-semibold mb-3">Follow Us</h3>
-                  <div className="flex items-center space-x-3">
-                    {instagramUrl && (
-                      <a
-                        href={instagramUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center w-9 h-9 rounded-full bg-slate-800 hover:bg-blue-600 transition-colors"
-                        aria-label="Instagram"
-                      >
-                        <Instagram className="w-5 h-5" />
-                      </a>
-                    )}
-                    {facebookUrl && (
-                      <a
-                        href={facebookUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center w-9 h-9 rounded-full bg-slate-800 hover:bg-blue-600 transition-colors"
-                        aria-label="Facebook"
-                      >
-                        <Facebook className="w-5 h-5" />
-                      </a>
-                    )}
-                  </div>
+              <div className="mt-4">
+                <h3 className="font-semibold mb-3">Follow Us</h3>
+                <div className="flex items-center space-x-3">
+                  {instagramUrl ? (
+                    <a
+                      href={instagramUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center w-9 h-9 rounded-full bg-slate-800 hover:bg-blue-600 transition-colors"
+                      aria-label="Instagram"
+                    >
+                      <Instagram className="w-5 h-5" />
+                    </a>
+                  ) : (
+                    <a
+                      href="https://instagram.com/bouncepartyclub"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center w-9 h-9 rounded-full bg-slate-800 hover:bg-blue-600 transition-colors"
+                      aria-label="Instagram"
+                    >
+                      <Instagram className="w-5 h-5" />
+                    </a>
+                  )}
+                  {facebookUrl ? (
+                    <a
+                      href={facebookUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center w-9 h-9 rounded-full bg-slate-800 hover:bg-blue-600 transition-colors"
+                      aria-label="Facebook"
+                    >
+                      <Facebook className="w-5 h-5" />
+                    </a>
+                  ) : (
+                    <a
+                      href="https://www.facebook.com/bouncepartyclub"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center w-9 h-9 rounded-full bg-slate-800 hover:bg-blue-600 transition-colors"
+                      aria-label="Facebook"
+                    >
+                      <Facebook className="w-5 h-5" />
+                    </a>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
 
