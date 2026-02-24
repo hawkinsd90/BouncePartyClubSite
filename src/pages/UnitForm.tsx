@@ -261,7 +261,7 @@ export function UnitForm() {
     e.preventDefault();
     e.stopPropagation();
 
-    const hasWetMode = formData.is_combo || formData.types.includes('Water Slide') || formData.types.includes('Combo');
+    const hasWetMode = formData.types.includes('Water Slide') || formData.types.includes('Combo');
 
     if (dryImages.length === 0) {
       notifyError('Please add at least one image for dry mode');
@@ -423,12 +423,16 @@ export function UnitForm() {
                           return;
                         }
 
+                        setFormData({ ...formData, types: newTypes });
+
+                        // If unchecking Combo or Water Slide and no water types remain, clear water mode data
                         const hasWaterType = newTypes.includes('Combo') || newTypes.includes('Water Slide');
-                        setFormData({
-                          ...formData,
-                          types: newTypes,
-                          is_combo: hasWaterType ? true : formData.is_combo
-                        });
+                        if (!hasWaterType && (type === 'Combo' || type === 'Water Slide')) {
+                          setPriceWaterInput('');
+                          setFormData(prev => ({ ...prev, types: newTypes, price_water_cents: 0, dimensions_water: '' }));
+                          setUseWetSameAsDry(true);
+                          setWetImages([]);
+                        }
                       }}
                       className="mr-2 h-4 w-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
                     />
@@ -436,32 +440,10 @@ export function UnitForm() {
                   </label>
                 ))}
               </div>
+              <p className="text-xs text-slate-600 mt-2">
+                Tip: Select "Combo" or "Water Slide" for units with wet mode capabilities
+              </p>
             </div>
-
-            {!formData.types.includes('Combo') && !formData.types.includes('Water Slide') && (
-              <div className="md:col-span-2">
-                <label className="flex items-center p-4 bg-slate-50 border-2 border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100 transition-all">
-                  <input
-                    type="checkbox"
-                    checked={formData.is_combo}
-                    onChange={(e) => {
-                      setFormData({ ...formData, is_combo: e.target.checked });
-                      if (!e.target.checked) {
-                        setPriceWaterInput('');
-                        setFormData(prev => ({ ...prev, price_water_cents: 0, dimensions_water: '' }));
-                        setUseWetSameAsDry(true);
-                        setWetImages([]);
-                      }
-                    }}
-                    className="mr-3 h-5 w-5 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-                  />
-                  <div>
-                    <span className="text-sm font-bold text-slate-900">Has Water/Wet Mode (Combo Unit)</span>
-                    <p className="text-xs text-slate-600 mt-1">Check this if the unit can operate in both dry and wet modes</p>
-                  </div>
-                </label>
-              </div>
-            )}
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -497,7 +479,7 @@ export function UnitForm() {
               />
             </div>
 
-            {(formData.is_combo || formData.types.includes('Water Slide') || formData.types.includes('Combo')) && (
+            {(formData.types.includes('Water Slide') || formData.types.includes('Combo')) && (
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Water Mode Price $ (optional)
@@ -533,7 +515,7 @@ export function UnitForm() {
               />
             </div>
 
-            {(formData.is_combo || formData.types.includes('Water Slide') || formData.types.includes('Combo')) && !useWetSameAsDry && (
+            {(formData.types.includes('Water Slide') || formData.types.includes('Combo')) && !useWetSameAsDry && (
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Dimensions (Wet Mode)
@@ -714,7 +696,7 @@ export function UnitForm() {
             )}
           </div>
 
-          {(formData.is_combo || formData.types.includes('Water Slide') || formData.types.includes('Combo')) && (
+          {(formData.types.includes('Water Slide') || formData.types.includes('Combo')) && (
             <div className="border-t pt-6">
               <div className="flex items-center justify-between mb-4">
                 <label className="block text-sm font-medium text-slate-700">

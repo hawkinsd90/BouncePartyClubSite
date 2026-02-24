@@ -74,7 +74,7 @@ export function Catalog() {
   const filteredUnits = units.filter((unit) => {
     if (filterType === 'all') return true;
     const unitTypes = unit.types || (unit.type ? [unit.type] : []);
-    if (filterType === 'combo') return unit.is_combo || unitTypes.includes('Combo');
+    if (filterType === 'combo') return unitTypes.includes('Combo') || unitTypes.includes('Water Slide');
     if (filterType === 'bounce') return unitTypes.includes('Bounce House');
     if (filterType === 'slide') return unitTypes.some(t => t.includes('Slide'));
     if (filterType === 'obstacle') return unitTypes.includes('Obstacle Course');
@@ -231,9 +231,9 @@ export function Catalog() {
                     <h3 className="text-xl sm:text-2xl font-bold text-slate-900 group-hover:text-blue-600 transition-colors leading-tight">
                       {unit.name}
                     </h3>
-                    {unit.is_combo && (
+                    {((unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide')) && (
                       <span className="bg-gradient-to-r from-cyan-100 to-cyan-50 text-cyan-800 text-xs font-bold px-2.5 py-1.5 rounded-lg border border-cyan-200">
-                        COMBO
+                        WET MODE
                       </span>
                     )}
                   </div>
@@ -255,7 +255,7 @@ export function Catalog() {
                       <Zap className="w-4 h-4 mr-2 text-blue-600" />
                       <span className="font-semibold">{unit.footprint_sqft} sq ft</span>
                     </div>
-                    {unit.is_combo && (
+                    {((unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide')) && (
                       <div className="flex items-center text-slate-700">
                         <Droplets className="w-4 h-4 mr-2 text-blue-600" />
                         <span className="font-semibold">Wet/Dry</span>

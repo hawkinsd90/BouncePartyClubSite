@@ -111,7 +111,7 @@ export function UnitDetail() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16">
           <div>
             {/* Mode selector for combo units */}
-            {unit.is_combo && (
+            {((unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide')) && (
               <div className="mb-6">
                 <h3 className="text-lg font-bold text-slate-900 mb-3">Select Mode</h3>
                 <div className="grid grid-cols-2 gap-4">
@@ -154,7 +154,7 @@ export function UnitDetail() {
             {/* Main image display */}
             {(() => {
               const filteredMedia = unit.media.filter((m: any) => {
-                if (unit.is_combo) {
+                if (((unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide'))) {
                   return m.mode === wetOrDry;
                 }
                 return true;
@@ -216,9 +216,9 @@ export function UnitDetail() {
                   {(unit.types || (unit.type ? [unit.type] : [])).join(' • ')}
                 </p>
               </div>
-              {unit.is_combo && (
+              {((unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide')) && (
                 <span className="bg-gradient-to-r from-cyan-100 to-cyan-50 text-cyan-800 text-sm font-bold px-4 py-2 rounded-xl border-2 border-cyan-200 shadow-sm">
-                  COMBO
+                  WET MODE
                 </span>
               )}
             </div>
@@ -230,7 +230,7 @@ export function UnitDetail() {
               <p className="text-sm sm:text-base text-blue-800 mb-3 leading-relaxed">
                 Pricing varies based on event date, location, setup preferences, and rental duration.
               </p>
-              {unit.is_combo && (
+              {((unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide')) && (
                 <p className="text-sm sm:text-base text-blue-800 flex items-center font-semibold">
                   <Droplets className="w-5 h-5 mr-2 flex-shrink-0" />
                   <span>This is a combo unit - choose wet or dry mode when requesting your quote</span>
@@ -314,7 +314,7 @@ export function UnitDetail() {
                   wet_or_dry: wetOrDry,
                   unit_price_cents: wetOrDry === 'water' && unit.price_water_cents ? unit.price_water_cents : unit.price_dry_cents,
                   qty: 1,
-                  is_combo: unit.is_combo,
+                  is_combo: ((unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide')),
                 };
                 cart.push(cartItem);
                 SafeStorage.setItem('bpc_cart', cart, { expirationDays: 7 });
@@ -358,7 +358,7 @@ export function UnitDetail() {
       {/* Image Modal */}
       {isImageModalOpen && (() => {
         const filteredMedia = unit.media.filter((m: any) => {
-          if (unit.is_combo) {
+          if (((unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide'))) {
             return m.mode === wetOrDry;
           }
           return true;
