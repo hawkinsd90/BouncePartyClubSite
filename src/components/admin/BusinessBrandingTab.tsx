@@ -13,6 +13,7 @@ interface BusinessSettings {
   business_email: string;
   instagram_url: string;
   facebook_url: string;
+  google_review_url: string;
   business_license_number: string;
 }
 
@@ -36,6 +37,7 @@ export function BusinessBrandingTab() {
     business_email: '',
     instagram_url: '',
     facebook_url: '',
+    google_review_url: '',
     business_license_number: '',
   });
   const [travelAddress, setTravelAddress] = useState<TravelAddress>({
@@ -69,6 +71,7 @@ export function BusinessBrandingTab() {
           'business_email',
           'instagram_url',
           'facebook_url',
+          'google_review_url',
           'business_license_number',
           'home_address_line1',
           'home_address_line2',
@@ -192,6 +195,7 @@ export function BusinessBrandingTab() {
       business_email: 'Primary business email address',
       instagram_url: 'Instagram profile URL',
       facebook_url: 'Facebook page URL',
+      google_review_url: 'Google review link for customers',
       business_license_number: 'Business license or registration number',
       home_address_line1: 'Travel calculation starting point - Address line 1',
       home_address_line2: 'Travel calculation starting point - Address line 2',
@@ -410,6 +414,22 @@ export function BusinessBrandingTab() {
             />
             <p className="text-xs text-slate-500 mt-1">
               Your Facebook page URL
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Google Review URL
+            </label>
+            <input
+              type="url"
+              value={settings.google_review_url}
+              onChange={(e) => setSettings({ ...settings, google_review_url: e.target.value })}
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="https://g.page/r/YOUR_PLACE_ID/review"
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              Your Google review link (sent to customers after pickup)
             </p>
           </div>
 
