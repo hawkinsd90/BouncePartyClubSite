@@ -191,7 +191,7 @@ export function Home() {
                       type="date"
                       value={eventDate}
                       onChange={(e) => setEventDate(e.target.value)}
-                      className="w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-3 sm:py-3.5 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 text-sm sm:text-base font-medium transition-all appearance-none"
+                      className="w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-3 sm:py-3.5 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 text-base font-medium transition-all appearance-none"
                       min={new Date().toISOString().split('T')[0]}
                     />
                   </div>

@@ -31,6 +31,15 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     cardOnFileConsent,
   } = data;
 
+  // Fetch the current pricing rules to check apply_taxes_by_default setting
+  const { data: pricingRulesData } = await supabase
+    .from('pricing_rules')
+    .select('apply_taxes_by_default')
+    .limit(1)
+    .maybeSingle();
+
+  const applyTaxesByDefault = pricingRulesData?.apply_taxes_by_default ?? true;
+
   // 0. CRITICAL SAFETY CHECK: Verify availability before creating order
   const availabilityChecks = cart.map(item => ({
     unitId: item.unit_id,
@@ -161,7 +170,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       surface_fee_cents: priceBreakdown.surface_fee_cents,
       same_day_pickup_fee_cents: priceBreakdown.same_day_pickup_fee_cents || 0,
       generator_fee_cents: priceBreakdown.generator_fee_cents || 0,
-      tax_cents: priceBreakdown.tax_cents,
+      tax_cents: applyTaxesByDefault ? priceBreakdown.tax_cents : 0,
       tax_waived: false,
       tax_waive_reason: null,
       travel_fee_waived: false,
@@ -169,10 +178,10 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       same_day_pickup_fee_waived: false,
       same_day_pickup_fee_waive_reason: null,
       tip_cents: 0,
-      total_cents: priceBreakdown.total_cents,
+      total_cents: applyTaxesByDefault ? priceBreakdown.total_cents : (priceBreakdown.total_cents - priceBreakdown.tax_cents),
       deposit_due_cents: priceBreakdown.deposit_due_cents,
       deposit_paid_cents: 0,
-      balance_due_cents: priceBreakdown.balance_due_cents,
+      balance_due_cents: applyTaxesByDefault ? priceBreakdown.balance_due_cents : (priceBreakdown.balance_due_cents - priceBreakdown.tax_cents),
       custom_deposit_cents: null,
       card_on_file_consent: cardOnFileConsent,
       admin_message: null,
