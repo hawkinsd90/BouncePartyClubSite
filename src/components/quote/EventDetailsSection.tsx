@@ -254,8 +254,8 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
               }
             }}
             min={new Date().toISOString().split('T')[0]}
-            style={{ fontSize: '16px' }}
-            className="w-full px-3 sm:px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 transition-shadow"
+            style={{ fontSize: '16px', height: '44px', padding: '8px 12px' }}
+            className="w-full border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 transition-shadow"
           />
         </div>
         <div>
@@ -267,8 +267,8 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
             onChange={(e) => onFormDataChange({ event_end_date: e.target.value })}
             min={formData.event_date || new Date().toISOString().split('T')[0]}
             disabled={isSameDayRestricted}
-            style={{ fontSize: '16px' }}
-            className="w-full px-3 sm:px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 disabled:bg-slate-100 transition-shadow"
+            style={{ fontSize: '16px', height: '44px', padding: '8px 12px' }}
+            className="w-full border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 disabled:bg-slate-100 transition-shadow"
           />
           {isSameDayRestricted && (
             <p className="text-xs text-slate-500 mt-1.5">Same-day events cannot span multiple days</p>
@@ -284,8 +284,8 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
             required
             value={formData.start_window}
             onChange={(e) => onFormDataChange({ start_window: e.target.value })}
-            style={{ fontSize: '16px' }}
-            className="w-full px-3 sm:px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 transition-shadow"
+            style={{ fontSize: '16px', height: '44px', padding: '8px 12px' }}
+            className="w-full border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 transition-shadow"
           />
         </div>
         <div>
@@ -304,8 +304,8 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
                 onFormDataChange({ end_window: newTime });
               }}
               max={isSameDayRestricted ? '19:00' : undefined}
-              style={{ fontSize: '16px' }}
-              className="w-full px-3 sm:px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 disabled:bg-slate-100 transition-shadow"
+              style={{ fontSize: '16px', height: '44px', padding: '8px 12px' }}
+              className="w-full border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 disabled:bg-slate-100 transition-shadow"
             />
             {isSameDayRestricted && <p className="text-xs text-slate-500">Max 7:00 PM for same-day pickup</p>}
             <label className="flex items-center text-xs sm:text-sm text-slate-600">

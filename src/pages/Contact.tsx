@@ -137,8 +137,8 @@ export function Contact() {
                       type="date"
                       value={formData.eventDate}
                       onChange={(e) => setFormData({ ...formData, eventDate: e.target.value })}
-                      style={{ fontSize: '16px', height: '48px' }}
-                      className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      style={{ fontSize: '16px', height: '48px', padding: '12px 16px' }}
+                      className="w-full border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                     />
                   </div>
 
