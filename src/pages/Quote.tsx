@@ -53,6 +53,7 @@ export function Quote() {
       same_day_pickup_fee_cents: Number(data.same_day_pickup_fee_cents ?? 0),
       generator_fee_single_cents: Number((data as any).generator_fee_single_cents ?? data.generator_price_cents ?? 10000),
       generator_fee_multiple_cents: Number((data as any).generator_fee_multiple_cents ?? data.generator_price_cents ?? 7500),
+      apply_taxes_by_default: (data as any).apply_taxes_by_default ?? true,
     };
   }, []);
 

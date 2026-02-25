@@ -90,6 +90,7 @@ export function Contact() {
                       required
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      style={{ fontSize: '16px' }}
                       className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                       placeholder="John Smith"
                     />
@@ -105,6 +106,7 @@ export function Contact() {
                       required
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      style={{ fontSize: '16px' }}
                       className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                       placeholder="john@example.com"
                     />
@@ -120,6 +122,7 @@ export function Contact() {
                       required
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      style={{ fontSize: '16px' }}
                       className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                       placeholder="(313) 555-0123"
                     />
@@ -134,7 +137,8 @@ export function Contact() {
                       type="date"
                       value={formData.eventDate}
                       onChange={(e) => setFormData({ ...formData, eventDate: e.target.value })}
-                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base transition-all"
+                      style={{ fontSize: '16px' }}
+                      className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                     />
                   </div>
 
@@ -147,6 +151,7 @@ export function Contact() {
                       type="text"
                       value={formData.guestCount}
                       onChange={(e) => setFormData({ ...formData, guestCount: e.target.value })}
+                      style={{ fontSize: '16px' }}
                       className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                       placeholder="e.g., 20-30 kids"
                     />

@@ -85,6 +85,8 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
           key: 'apply_travel_fee_by_default',
           value: applyTravelFeeByDefault.toString(),
           updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'key'
         });
 
       if (travelError) throw travelError;
