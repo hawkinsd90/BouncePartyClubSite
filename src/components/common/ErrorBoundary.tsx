@@ -23,6 +23,10 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error('Error caught by boundary:', error, errorInfo);
   }
 
+  handleReset = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
   render() {
     if (this.state.hasError) {
       return (
@@ -34,7 +38,7 @@ export class ErrorBoundary extends Component<Props, State> {
               </svg>
               <h1 className="text-2xl font-bold text-slate-900 mb-2">Something went wrong</h1>
               <p className="text-slate-600 text-sm mb-4">
-                The application encountered an error. Please try refreshing the page.
+                The application encountered an error. You can try to continue or refresh the page.
               </p>
               {this.state.error && (
                 <details className="text-left bg-slate-50 rounded p-3 text-xs">
@@ -45,12 +49,20 @@ export class ErrorBoundary extends Component<Props, State> {
                 </details>
               )}
             </div>
-            <button
-              onClick={() => window.location.reload()}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded transition-colors"
-            >
-              Refresh Page
-            </button>
+            <div className="space-y-3">
+              <button
+                onClick={this.handleReset}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded transition-colors"
+              >
+                Try Again
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 px-4 rounded transition-colors"
+              >
+                Refresh Page
+              </button>
+            </div>
           </div>
         </div>
       );

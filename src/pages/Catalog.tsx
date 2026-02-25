@@ -30,8 +30,67 @@ export function Catalog() {
   const [eventDate, setEventDate] = useState<string>('');
 
   useEffect(() => {
-    loadUnits();
+    let mounted = true;
+
     loadPrefillData();
+
+    async function loadUnitsAsync() {
+      try {
+        const { data: unitsData, error: unitsError } = await supabase
+          .from('units')
+          .select('*')
+          .eq('active', true)
+          .order('name');
+
+        if (unitsError) throw unitsError;
+
+        const { data: mediaData, error: mediaError } = await supabase
+          .from('unit_media')
+          .select('*')
+          .order('is_featured', { ascending: false })
+          .order('sort');
+
+        if (mediaError) throw mediaError;
+
+        const unitsWithMedia = unitsData.map((unit) => ({
+          ...unit,
+          media: mediaData.filter((m) => m.unit_id === unit.id),
+        }));
+
+        // Only update state if component is still mounted
+        if (mounted) {
+          setUnits(unitsWithMedia as any);
+        }
+      } catch (error) {
+        console.error('Error loading units:', error);
+        // Don't throw error - just show empty state
+        if (mounted) {
+          notifyError('Failed to load units. Please refresh the page.');
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadUnitsAsync();
+
+    // Handle page visibility changes (when user returns to the app)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && mounted && units.length > 0) {
+        console.log('Page became visible, data is already loaded');
+        // Data is already loaded, no need to reload
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Cleanup function to prevent state updates after unmount
+    return () => {
+      mounted = false;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   function loadPrefillData() {
@@ -48,37 +107,6 @@ export function Catalog() {
     if (formData && formData.event_date) {
       console.log('Form data loaded:', formData);
       setEventDate(formData.event_date);
-    }
-  }
-
-  async function loadUnits() {
-    try {
-      const { data: unitsData, error: unitsError } = await supabase
-        .from('units')
-        .select('*')
-        .eq('active', true)
-        .order('name');
-
-      if (unitsError) throw unitsError;
-
-      const { data: mediaData, error: mediaError } = await supabase
-        .from('unit_media')
-        .select('*')
-        .order('is_featured', { ascending: false })
-        .order('sort');
-
-      if (mediaError) throw mediaError;
-
-      const unitsWithMedia = unitsData.map((unit) => ({
-        ...unit,
-        media: mediaData.filter((m) => m.unit_id === unit.id),
-      }));
-
-      setUnits(unitsWithMedia as any);
-    } catch (error) {
-      console.error('Error loading units:', error);
-    } finally {
-      setLoading(false);
     }
   }
 
