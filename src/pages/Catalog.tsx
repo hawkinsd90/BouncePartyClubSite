@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { SafeStorage } from '../lib/safeStorage';
-import { Users, Maximize, Zap, Droplets, Download, Calendar } from 'lucide-react';
+import { Users, Maximize, Zap, Droplets, Download } from 'lucide-react';
 import { notifyError } from '../lib/notifications';
+import { DatePickerInput } from '../components/ui/DatePickerInput';
 
 interface Unit {
   id: string;
@@ -195,16 +196,13 @@ export function Catalog() {
                 </p>
               )}
             </div>
-            <div className="relative max-w-sm">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400 pointer-events-none z-10" />
-              <input
-                type="date"
+            <div className="max-w-sm">
+              <DatePickerInput
                 value={eventDate}
-                onChange={(e) => handleDateChange(e.target.value)}
-                style={{ fontSize: '16px', height: '44px' }}
-                className="w-full pl-9 sm:pl-11 pr-3 sm:pr-4 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 font-medium transition-all"
+                onChange={handleDateChange}
                 min={new Date().toISOString().split('T')[0]}
                 placeholder="Select event date"
+                showIcon={true}
               />
             </div>
             {eventDate && (

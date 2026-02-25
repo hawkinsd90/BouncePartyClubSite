@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Prevent iOS zoom on input focus - apply 16px minimum font size */
+input,
+select,
+textarea {
+  font-size: 16px !important;
+}
+
 @keyframes scale-in {
   from {
     transform: scale(0);

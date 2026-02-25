@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { MessageSquare, Send, Phone, Mail, MapPin, Clock } from 'lucide-react';
 import { getBusinessAddressText } from '../lib/adminSettingsCache';
+import { DatePickerInput } from '../components/ui/DatePickerInput';
 
 export function Contact() {
   const [businessAddress, setBusinessAddress] = useState('');
@@ -132,13 +133,10 @@ export function Contact() {
                     <label htmlFor="eventDate" className="block text-sm font-medium text-slate-700 mb-2">
                       Event Date
                     </label>
-                    <input
-                      id="eventDate"
-                      type="date"
+                    <DatePickerInput
                       value={formData.eventDate}
-                      onChange={(e) => setFormData({ ...formData, eventDate: e.target.value })}
-                      style={{ fontSize: '16px', height: '48px', padding: '12px 16px' }}
-                      className="w-full border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      onChange={(value) => setFormData({ ...formData, eventDate: value })}
+                      showIcon={false}
                     />
                   </div>
 
