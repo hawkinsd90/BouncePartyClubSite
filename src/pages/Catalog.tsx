@@ -195,13 +195,13 @@ export function Catalog() {
                 </p>
               )}
             </div>
-            <div className="relative">
+            <div className="relative max-w-md">
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400 pointer-events-none z-10" />
               <input
                 type="date"
                 value={eventDate}
                 onChange={(e) => handleDateChange(e.target.value)}
-                style={{ fontSize: '16px', maxWidth: '400px' }}
+                style={{ fontSize: '16px' }}
                 className="w-full pl-9 sm:pl-11 pr-3 sm:pr-4 py-3 sm:py-3.5 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 font-medium transition-all"
                 min={new Date().toISOString().split('T')[0]}
                 placeholder="Select event date"
