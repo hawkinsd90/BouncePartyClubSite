@@ -1,4 +1,4 @@
-import { Calendar, Home, Building2 } from 'lucide-react';
+import { Calendar, Home, Building2, Clock } from 'lucide-react';
 import type { QuoteFormData } from '../../hooks/useQuoteForm';
 import { DatePickerInput } from '../ui/DatePickerInput';
 import { TimePickerInput } from '../ui/TimePickerInput';
