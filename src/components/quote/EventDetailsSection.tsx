@@ -1,5 +1,7 @@
-import { Calendar, Home, Building2, Clock } from 'lucide-react';
+import { Calendar, Home, Building2 } from 'lucide-react';
 import type { QuoteFormData } from '../../hooks/useQuoteForm';
+import { DatePickerInput } from '../ui/DatePickerInput';
+import { TimePickerInput } from '../ui/TimePickerInput';
 
 interface EventDetailsSectionProps {
   formData: QuoteFormData;
@@ -225,12 +227,9 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div>
           <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">Event Start Date *</label>
-          <input
-            type="date"
-            required
+          <DatePickerInput
             value={formData.event_date}
-            onChange={(e) => {
-              const newStartDate = e.target.value;
+            onChange={(newStartDate) => {
               const oldStartDate = formData.event_date;
               const oldEndDate = formData.event_end_date;
 
@@ -254,21 +253,21 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
               }
             }}
             min={new Date().toISOString().split('T')[0]}
-            style={{ fontSize: '16px', height: '44px', padding: '8px 12px' }}
-            className="w-full border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 transition-shadow"
+            required={true}
+            showIcon={false}
+            className="border-2"
           />
         </div>
         <div>
           <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">Event End Date *</label>
-          <input
-            type="date"
-            required
+          <DatePickerInput
             value={formData.event_end_date}
-            onChange={(e) => onFormDataChange({ event_end_date: e.target.value })}
+            onChange={(value) => onFormDataChange({ event_end_date: value })}
             min={formData.event_date || new Date().toISOString().split('T')[0]}
             disabled={isSameDayRestricted}
-            style={{ fontSize: '16px', height: '44px', padding: '8px 12px' }}
-            className="w-full border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 disabled:bg-slate-100 transition-shadow"
+            required={true}
+            showIcon={false}
+            className="border-2"
           />
           {isSameDayRestricted && (
             <p className="text-xs text-slate-500 mt-1.5">Same-day events cannot span multiple days</p>
@@ -279,33 +278,29 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div>
           <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">Start Time *</label>
-          <input
-            type="time"
-            required
+          <TimePickerInput
             value={formData.start_window}
-            onChange={(e) => onFormDataChange({ start_window: e.target.value })}
-            style={{ fontSize: '16px', height: '44px', padding: '8px 12px' }}
-            className="w-full border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 transition-shadow"
+            onChange={(value) => onFormDataChange({ start_window: value })}
+            required={true}
+            showIcon={false}
           />
         </div>
         <div>
           <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">End Time *</label>
           <div className="space-y-2">
-            <input
-              type="time"
-              required={!formData.until_end_of_day}
-              disabled={formData.until_end_of_day}
+            <TimePickerInput
               value={formData.end_window}
-              onChange={(e) => {
-                let newTime = e.target.value;
+              onChange={(newTime) => {
+                let adjustedTime = newTime;
                 if (isSameDayRestricted && newTime > '19:00') {
-                  newTime = '19:00';
+                  adjustedTime = '19:00';
                 }
-                onFormDataChange({ end_window: newTime });
+                onFormDataChange({ end_window: adjustedTime });
               }}
               max={isSameDayRestricted ? '19:00' : undefined}
-              style={{ fontSize: '16px', height: '44px', padding: '8px 12px' }}
-              className="w-full border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 disabled:bg-slate-100 transition-shadow"
+              disabled={formData.until_end_of_day}
+              required={!formData.until_end_of_day}
+              showIcon={false}
             />
             {isSameDayRestricted && <p className="text-xs text-slate-500">Max 7:00 PM for same-day pickup</p>}
             <label className="flex items-center text-xs sm:text-sm text-slate-600">
