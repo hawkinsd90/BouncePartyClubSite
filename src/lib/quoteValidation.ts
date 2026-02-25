@@ -8,6 +8,7 @@ interface CartItem {
 interface ValidationResult {
   isValid: boolean;
   errorMessage?: string;
+  errorSection?: 'cart' | 'address' | 'event' | 'setup';
 }
 
 export function validateQuote(
@@ -18,6 +19,7 @@ export function validateQuote(
     return {
       isValid: false,
       errorMessage: 'Please add at least one inflatable to your quote.',
+      errorSection: 'cart',
     };
   }
 
@@ -27,6 +29,7 @@ export function validateQuote(
     return {
       isValid: false,
       errorMessage: `The following inflatables are not available for your selected dates: ${unavailableNames}. Please choose different dates or remove these items.`,
+      errorSection: 'cart',
     };
   }
 
@@ -38,6 +41,7 @@ export function validateQuote(
     return {
       isValid: false,
       errorMessage: 'Please accept the overnight responsibility agreement.',
+      errorSection: 'setup',
     };
   }
 
@@ -48,6 +52,7 @@ export function validateQuote(
     return {
       isValid: false,
       errorMessage: 'Please accept the responsibility agreement for same-day pickup.',
+      errorSection: 'setup',
     };
   }
 

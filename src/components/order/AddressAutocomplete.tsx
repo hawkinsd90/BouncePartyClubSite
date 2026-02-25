@@ -220,6 +220,19 @@ export function AddressAutocomplete({
     }
   };
 
+  // Handle focus - scroll into view on mobile
+  const handleFocus = () => {
+    if (inputRef.current) {
+      // Delay to allow keyboard to open first
+      setTimeout(() => {
+        inputRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }, 300);
+    }
+  };
+
   return (
     <div>
       <input
@@ -227,6 +240,7 @@ export function AddressAutocomplete({
         type="text"
         value={value}
         onChange={handleChange}
+        onFocus={handleFocus}
         placeholder={placeholder}
         required={required}
         style={{ fontSize: '16px' }}

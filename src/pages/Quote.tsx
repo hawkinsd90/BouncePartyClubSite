@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -21,6 +21,12 @@ export function Quote() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [showClearModal, setShowClearModal] = useState(false);
+
+  // Refs for scrolling to sections
+  const cartRef = useRef<HTMLDivElement>(null);
+  const addressRef = useRef<HTMLDivElement>(null);
+  const eventRef = useRef<HTMLDivElement>(null);
+  const setupRef = useRef<HTMLDivElement>(null);
 
   const { cart, updateCartItem, removeFromCart, clearCart, checkCartAvailability } = useQuoteCart();
   const { formData, setFormData, updateFormData, addressInput, setAddressInput, saveFormData, clearForm } =
@@ -87,12 +93,32 @@ export function Quote() {
     setShowClearModal(false);
   };
 
+  const scrollToSection = (section: 'cart' | 'address' | 'event' | 'setup') => {
+    const refs = {
+      cart: cartRef,
+      address: addressRef,
+      event: eventRef,
+      setup: setupRef,
+    };
+
+    const targetRef = refs[section];
+    if (targetRef.current) {
+      targetRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const validation = validateQuote(cart, formData);
     if (!validation.isValid) {
       alert(validation.errorMessage);
+      if (validation.errorSection) {
+        scrollToSection(validation.errorSection);
+      }
       return;
     }
 
@@ -104,6 +130,7 @@ export function Quote() {
       alert(
         `Sorry, the following inflatables were just booked by another customer: ${unavailableNames}. Please choose different dates or remove these items.`
       );
+      scrollToSection('cart');
       return;
     }
 
@@ -139,29 +166,37 @@ export function Quote() {
         <form onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-10">
             <div className="lg:col-span-2 space-y-8">
-              <CartSection
-                cart={cart}
-                eventDate={formData.event_date}
-                onUpdateItem={updateCartItem}
-                onRemoveItem={removeFromCart}
-              />
+              <div ref={cartRef}>
+                <CartSection
+                  cart={cart}
+                  eventDate={formData.event_date}
+                  onUpdateItem={updateCartItem}
+                  onRemoveItem={removeFromCart}
+                />
+              </div>
 
-              <AddressSection
-                formData={formData}
-                addressInput={addressInput}
-                onAddressInputChange={setAddressInput}
-                onFormDataChange={(updates) => setFormData({ ...formData, ...updates })}
-              />
+              <div ref={addressRef}>
+                <AddressSection
+                  formData={formData}
+                  addressInput={addressInput}
+                  onAddressInputChange={setAddressInput}
+                  onFormDataChange={(updates) => setFormData({ ...formData, ...updates })}
+                />
+              </div>
 
-              <EventDetailsSection
-                formData={formData}
-                onFormDataChange={(updates) => setFormData({ ...formData, ...updates })}
-              />
+              <div ref={eventRef}>
+                <EventDetailsSection
+                  formData={formData}
+                  onFormDataChange={(updates) => setFormData({ ...formData, ...updates })}
+                />
+              </div>
 
-              <SetupDetailsSection
-                formData={formData}
-                onFormDataChange={(updates) => setFormData({ ...formData, ...updates })}
-              />
+              <div ref={setupRef}>
+                <SetupDetailsSection
+                  formData={formData}
+                  onFormDataChange={(updates) => setFormData({ ...formData, ...updates })}
+                />
+              </div>
             </div>
 
             <div className="lg:col-span-1">
