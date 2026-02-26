@@ -122,8 +122,18 @@ export function Quote() {
       setup: setupRef,
     };
 
-    const targetRef = refs[section];
-    const element = targetRef.current;
+    const sectionIds = {
+      cart: 'section-cart',
+      address: 'section-address',
+      event: 'section-event',
+      setup: 'section-setup',
+    };
+
+    // Try ref first, then getElementById as fallback
+    let element = refs[section].current;
+    if (!element) {
+      element = document.getElementById(sectionIds[section]);
+    }
 
     const debug: Partial<DebugInfo> = {
       scrollAttempted: true,
@@ -140,48 +150,42 @@ export function Quote() {
     }
 
     try {
-      // Calculate scroll position accounting for sticky header (80px)
+      // Calculate absolute position accounting for sticky header
       const elementRect = element.getBoundingClientRect();
       const absoluteTop = elementRect.top + window.scrollY;
-      const offsetTop = absoluteTop - 100; // 80px header + 20px padding
+      const headerOffset = 100; // 80px header + 20px padding
+      const targetScrollTop = absoluteTop - headerOffset;
 
       debug.elementTop = absoluteTop;
-      debug.scrollTop = offsetTop;
+      debug.scrollTop = targetScrollTop;
 
-      // Primary method: scrollIntoView with margin
-      element.style.scrollMarginTop = '100px';
-      element.scrollIntoView({
+      // Use window.scrollTo for most reliable iOS behavior
+      window.scrollTo({
+        top: targetScrollTop,
         behavior: 'smooth',
-        block: 'start',
       });
-
-      // Fallback: window.scrollTo (more reliable on iOS)
-      setTimeout(() => {
-        window.scrollTo({
-          top: offsetTop,
-          behavior: 'smooth',
-        });
-      }, 50);
 
       if (debugMode) {
         setDebugInfo((prev) => ({ ...prev!, ...debug }));
       }
     } catch (error) {
-      // Ultra fallback: instant scroll
+      // Emergency fallback: instant scroll
       const rect = element.getBoundingClientRect();
+      const fallbackTop = rect.top + window.scrollY - 100;
       window.scrollTo({
-        top: rect.top + window.scrollY - 100,
+        top: fallbackTop,
         behavior: 'auto',
       });
 
       if (debugMode) {
-        setDebugInfo((prev) => ({ ...prev!, ...debug, scrollTop: rect.top + window.scrollY - 100 }));
+        setDebugInfo((prev) => ({ ...prev!, ...debug, scrollTop: fallbackTop }));
       }
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
 
     const validation = validateQuote(cart, formData);
     if (!validation.isValid) {
@@ -259,36 +263,30 @@ export function Quote() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white">
-      {validationError && (
-        <ValidationErrorBanner message={validationError} onDismiss={() => setValidationError(null)} />
-      )}
-
-      {/* Debug Info Panel - Always visible in debug mode */}
-      {debugMode && (
-        <div className="fixed bottom-4 left-4 z-[9999] bg-yellow-100 border-2 border-yellow-600 rounded-lg p-3 text-xs font-mono max-w-xs shadow-2xl">
-          <div className="font-bold text-yellow-900 mb-2">DEBUG MODE (v{APP_VERSION})</div>
-          {debugInfo ? (
-            <div className="space-y-1 text-yellow-900">
-              <div>Time: {new Date(debugInfo.timestamp).toLocaleTimeString()}</div>
-              <div>Validation Failed: {debugInfo.validationFailed ? '✓ YES' : '✗ NO'}</div>
-              <div>Error Section: {debugInfo.errorSection || 'none'}</div>
-              <div>Scroll Attempted: {debugInfo.scrollAttempted ? '✓ YES' : '✗ NO'}</div>
-              <div>Ref Found: {debugInfo.refFound ? '✓ YES' : '✗ NO'}</div>
-              <div>Element Top: {debugInfo.elementTop ?? 'null'}px</div>
-              <div>Scroll Target: {debugInfo.scrollTop ?? 'null'}px</div>
-            </div>
-          ) : (
-            <div className="text-yellow-700">Waiting for validation...</div>
-          )}
-        </div>
-      )}
-
-      {/* Version Stamp - Always visible */}
-      <div className="fixed top-2 left-2 z-50 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-50 hover:opacity-100 transition-opacity">
-        v{APP_VERSION}
-      </div>
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 lg:py-16">
+        {validationError && (
+          <ValidationErrorBanner message={validationError} onDismiss={() => setValidationError(null)} />
+        )}
+
+        {/* Debug Info Panel - Only visible with ?debug=1 */}
+        {debugMode && (
+          <div className="fixed bottom-4 left-4 z-[9999] bg-yellow-100 border-2 border-yellow-600 rounded-lg p-3 text-xs font-mono max-w-xs shadow-2xl">
+            <div className="font-bold text-yellow-900 mb-2">DEBUG MODE (v{APP_VERSION})</div>
+            {debugInfo ? (
+              <div className="space-y-1 text-yellow-900">
+                <div>Time: {new Date(debugInfo.timestamp).toLocaleTimeString()}</div>
+                <div>Validation Failed: {debugInfo.validationFailed ? '✓ YES' : '✗ NO'}</div>
+                <div>Error Section: {debugInfo.errorSection || 'none'}</div>
+                <div>Scroll Attempted: {debugInfo.scrollAttempted ? '✓ YES' : '✗ NO'}</div>
+                <div>Ref Found: {debugInfo.refFound ? '✓ YES' : '✗ NO'}</div>
+                <div>Element Top: {debugInfo.elementTop ?? 'null'}px</div>
+                <div>Scroll Target: {debugInfo.scrollTop ?? 'null'}px</div>
+              </div>
+            ) : (
+              <div className="text-yellow-700">Waiting for validation...</div>
+            )}
+          </div>
+        )}
         <div className="mb-10 sm:mb-12 flex items-start justify-between">
           <div>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 mb-3 sm:mb-4 tracking-tight">
@@ -310,10 +308,10 @@ export function Quote() {
           )}
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form noValidate onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-10">
             <div className="lg:col-span-2 space-y-8">
-              <div ref={cartRef} style={{ scrollMarginTop: '100px' }}>
+              <div ref={cartRef} id="section-cart" style={{ scrollMarginTop: '100px' }}>
                 <CartSection
                   cart={cart}
                   eventDate={formData.event_date}
@@ -322,7 +320,7 @@ export function Quote() {
                 />
               </div>
 
-              <div ref={addressRef} style={{ scrollMarginTop: '100px' }}>
+              <div ref={addressRef} id="section-address" style={{ scrollMarginTop: '100px' }}>
                 <AddressSection
                   formData={formData}
                   addressInput={addressInput}
@@ -331,14 +329,14 @@ export function Quote() {
                 />
               </div>
 
-              <div ref={eventRef} style={{ scrollMarginTop: '100px' }}>
+              <div ref={eventRef} id="section-event" style={{ scrollMarginTop: '100px' }}>
                 <EventDetailsSection
                   formData={formData}
                   onFormDataChange={(updates) => setFormData({ ...formData, ...updates })}
                 />
               </div>
 
-              <div ref={setupRef} style={{ scrollMarginTop: '100px' }}>
+              <div ref={setupRef} id="section-setup" style={{ scrollMarginTop: '100px' }}>
                 <SetupDetailsSection
                   formData={formData}
                   onFormDataChange={(updates) => setFormData({ ...formData, ...updates })}
