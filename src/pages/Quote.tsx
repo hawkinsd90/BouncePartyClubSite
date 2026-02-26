@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { flushSync } from 'react-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useQuoteCart } from '../hooks/useQuoteCart';
@@ -18,11 +19,29 @@ import { QuoteSummarySection } from '../components/quote/QuoteSummarySection';
 import { SimpleConfirmModal } from '../components/common/SimpleConfirmModal';
 import { ValidationErrorBanner } from '../components/quote/ValidationErrorBanner';
 
+// Build version for cache verification
+const APP_VERSION = '2.1.0';
+
+interface DebugInfo {
+  timestamp: string;
+  validationFailed: boolean;
+  errorSection: string | null;
+  scrollAttempted: boolean;
+  refFound: boolean;
+  scrollTop: number | null;
+  elementTop: number | null;
+}
+
 export function Quote() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [showClearModal, setShowClearModal] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
+
+  // Debug mode enabled via ?debug=1
+  const debugMode = searchParams.get('debug') === '1' || import.meta.env.DEV;
 
   // Refs for scrolling to sections
   const cartRef = useRef<HTMLDivElement>(null);
@@ -104,38 +123,98 @@ export function Quote() {
     };
 
     const targetRef = refs[section];
-    if (targetRef.current) {
-      // iOS-safe scroll: Use requestAnimationFrame to ensure DOM is updated
-      // and give time for any React state changes to render
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          targetRef.current?.scrollIntoView({
-            behavior: 'smooth',
-            block: 'center',
-          });
-        }, 100);
+    const element = targetRef.current;
+
+    const debug: Partial<DebugInfo> = {
+      scrollAttempted: true,
+      refFound: !!element,
+      scrollTop: null,
+      elementTop: null,
+    };
+
+    if (!element) {
+      if (debugMode) {
+        setDebugInfo((prev) => ({ ...prev!, ...debug }));
+      }
+      return;
+    }
+
+    try {
+      // Calculate scroll position accounting for sticky header (80px)
+      const elementRect = element.getBoundingClientRect();
+      const absoluteTop = elementRect.top + window.scrollY;
+      const offsetTop = absoluteTop - 100; // 80px header + 20px padding
+
+      debug.elementTop = absoluteTop;
+      debug.scrollTop = offsetTop;
+
+      // Primary method: scrollIntoView with margin
+      element.style.scrollMarginTop = '100px';
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
       });
+
+      // Fallback: window.scrollTo (more reliable on iOS)
+      setTimeout(() => {
+        window.scrollTo({
+          top: offsetTop,
+          behavior: 'smooth',
+        });
+      }, 50);
+
+      if (debugMode) {
+        setDebugInfo((prev) => ({ ...prev!, ...debug }));
+      }
+    } catch (error) {
+      // Ultra fallback: instant scroll
+      const rect = element.getBoundingClientRect();
+      window.scrollTo({
+        top: rect.top + window.scrollY - 100,
+        behavior: 'auto',
+      });
+
+      if (debugMode) {
+        setDebugInfo((prev) => ({ ...prev!, ...debug, scrollTop: rect.top + window.scrollY - 100 }));
+      }
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Clear any existing validation errors
-    setValidationError(null);
-
     const validation = validateQuote(cart, formData);
     if (!validation.isValid) {
-      // Set inline error banner (iOS-safe, doesn't block)
-      setValidationError(validation.errorMessage || 'Please fix the errors below');
+      const errorMessage = validation.errorMessage || 'Please fix the errors below';
 
-      // Scroll to problem section AFTER state update
+      // Use flushSync to update state synchronously within user gesture
+      // This ensures scroll happens in the same event loop tick
+      flushSync(() => {
+        setValidationError(errorMessage);
+
+        if (debugMode) {
+          setDebugInfo({
+            timestamp: new Date().toISOString(),
+            validationFailed: true,
+            errorSection: validation.errorSection || null,
+            scrollAttempted: false,
+            refFound: false,
+            scrollTop: null,
+            elementTop: null,
+          });
+        }
+      });
+
+      // Scroll immediately after state update (still in user gesture)
       if (validation.errorSection) {
         scrollToSection(validation.errorSection);
       }
 
       // Auto-dismiss after 8 seconds
-      setTimeout(() => setValidationError(null), 8000);
+      setTimeout(() => {
+        setValidationError(null);
+        if (debugMode) setDebugInfo(null);
+      }, 8000);
 
       return;
     }
@@ -145,17 +224,30 @@ export function Quote() {
     const stillUnavailable = cart.filter((item) => item.isAvailable === false);
     if (stillUnavailable.length > 0) {
       const unavailableNames = stillUnavailable.map((item) => item.unit_name).join(', ');
+      const errorMessage = `Sorry, the following inflatables were just booked: ${unavailableNames}. Please choose different dates or remove these items.`;
 
-      // Set inline error banner
-      setValidationError(
-        `Sorry, the following inflatables were just booked: ${unavailableNames}. Please choose different dates or remove these items.`
-      );
+      flushSync(() => {
+        setValidationError(errorMessage);
 
-      // Scroll to cart
+        if (debugMode) {
+          setDebugInfo({
+            timestamp: new Date().toISOString(),
+            validationFailed: true,
+            errorSection: 'cart',
+            scrollAttempted: false,
+            refFound: false,
+            scrollTop: null,
+            elementTop: null,
+          });
+        }
+      });
+
       scrollToSection('cart');
 
-      // Auto-dismiss after 10 seconds
-      setTimeout(() => setValidationError(null), 10000);
+      setTimeout(() => {
+        setValidationError(null);
+        if (debugMode) setDebugInfo(null);
+      }, 10000);
 
       return;
     }
@@ -170,6 +262,31 @@ export function Quote() {
       {validationError && (
         <ValidationErrorBanner message={validationError} onDismiss={() => setValidationError(null)} />
       )}
+
+      {/* Debug Info Panel - Always visible in debug mode */}
+      {debugMode && (
+        <div className="fixed bottom-4 left-4 z-[9999] bg-yellow-100 border-2 border-yellow-600 rounded-lg p-3 text-xs font-mono max-w-xs shadow-2xl">
+          <div className="font-bold text-yellow-900 mb-2">DEBUG MODE (v{APP_VERSION})</div>
+          {debugInfo ? (
+            <div className="space-y-1 text-yellow-900">
+              <div>Time: {new Date(debugInfo.timestamp).toLocaleTimeString()}</div>
+              <div>Validation Failed: {debugInfo.validationFailed ? '✓ YES' : '✗ NO'}</div>
+              <div>Error Section: {debugInfo.errorSection || 'none'}</div>
+              <div>Scroll Attempted: {debugInfo.scrollAttempted ? '✓ YES' : '✗ NO'}</div>
+              <div>Ref Found: {debugInfo.refFound ? '✓ YES' : '✗ NO'}</div>
+              <div>Element Top: {debugInfo.elementTop ?? 'null'}px</div>
+              <div>Scroll Target: {debugInfo.scrollTop ?? 'null'}px</div>
+            </div>
+          ) : (
+            <div className="text-yellow-700">Waiting for validation...</div>
+          )}
+        </div>
+      )}
+
+      {/* Version Stamp - Always visible */}
+      <div className="fixed top-2 left-2 z-50 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-50 hover:opacity-100 transition-opacity">
+        v{APP_VERSION}
+      </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 lg:py-16">
         <div className="mb-10 sm:mb-12 flex items-start justify-between">
@@ -196,7 +313,7 @@ export function Quote() {
         <form onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-10">
             <div className="lg:col-span-2 space-y-8">
-              <div ref={cartRef}>
+              <div ref={cartRef} style={{ scrollMarginTop: '100px' }}>
                 <CartSection
                   cart={cart}
                   eventDate={formData.event_date}
@@ -205,7 +322,7 @@ export function Quote() {
                 />
               </div>
 
-              <div ref={addressRef}>
+              <div ref={addressRef} style={{ scrollMarginTop: '100px' }}>
                 <AddressSection
                   formData={formData}
                   addressInput={addressInput}
@@ -214,14 +331,14 @@ export function Quote() {
                 />
               </div>
 
-              <div ref={eventRef}>
+              <div ref={eventRef} style={{ scrollMarginTop: '100px' }}>
                 <EventDetailsSection
                   formData={formData}
                   onFormDataChange={(updates) => setFormData({ ...formData, ...updates })}
                 />
               </div>
 
-              <div ref={setupRef}>
+              <div ref={setupRef} style={{ scrollMarginTop: '100px' }}>
                 <SetupDetailsSection
                   formData={formData}
                   onFormDataChange={(updates) => setFormData({ ...formData, ...updates })}
