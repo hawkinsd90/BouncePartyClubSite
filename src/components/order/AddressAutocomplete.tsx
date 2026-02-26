@@ -11,6 +11,7 @@ interface AddressResult {
 }
 
 interface AddressAutocompleteProps {
+  id?: string;
   value: string;
   onSelect: (address: AddressResult) => void;
   onChange?: (value: string) => void;
@@ -19,6 +20,7 @@ interface AddressAutocompleteProps {
 }
 
 export function AddressAutocomplete({
+  id,
   value,
   onSelect,
   onChange,
@@ -236,6 +238,7 @@ export function AddressAutocomplete({
   return (
     <div>
       <input
+        id={id}
         ref={inputRef}
         type="text"
         value={value}

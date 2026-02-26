@@ -1,6 +1,7 @@
 import { Clock } from 'lucide-react';
 
 interface TimePickerInputProps {
+  id?: string;
   value: string; // HH:mm format
   onChange: (value: string) => void;
   min?: string; // HH:mm format
@@ -13,6 +14,7 @@ interface TimePickerInputProps {
 }
 
 export function TimePickerInput({
+  id,
   value,
   onChange,
   min,
@@ -57,6 +59,7 @@ export function TimePickerInput({
 
       {/* Native time input overlaid (invisible but receives taps) */}
       <input
+        id={id}
         type="time"
         value={value}
         onChange={(e) => onChange(e.target.value)}

@@ -133,8 +133,9 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
           </div>
           {formData.pickup_preference === 'next_day' && (
             <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <label className="flex items-start cursor-pointer">
+              <label htmlFor="overnight-responsibility-checkbox" className="flex items-start cursor-pointer">
                 <input
+                  id="overnight-responsibility-checkbox"
                   type="checkbox"
                   checked={formData.overnight_responsibility_accepted}
                   onChange={(e) =>
@@ -152,8 +153,9 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
           )}
           {formData.pickup_preference === 'same_day' && (
             <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <label className="flex items-start cursor-pointer">
+              <label htmlFor="same-day-responsibility-checkbox" className="flex items-start cursor-pointer">
                 <input
+                  id="same-day-responsibility-checkbox"
                   type="checkbox"
                   checked={formData.same_day_responsibility_accepted}
                   onChange={(e) =>
@@ -205,8 +207,9 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
             </p>
           </div>
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-            <label className="flex items-start cursor-pointer">
+            <label htmlFor="commercial-responsibility-checkbox" className="flex items-start cursor-pointer">
               <input
+                id="commercial-responsibility-checkbox"
                 type="checkbox"
                 checked={formData.same_day_responsibility_accepted}
                 onChange={(e) =>
@@ -226,8 +229,9 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div>
-          <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">Event Start Date *</label>
+          <label htmlFor="event-start-date" className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">Event Start Date *</label>
           <DatePickerInput
+            id="event-start-date"
             value={formData.event_date}
             onChange={(newStartDate) => {
               const oldStartDate = formData.event_date;
@@ -259,8 +263,9 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
           />
         </div>
         <div>
-          <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">Event End Date *</label>
+          <label htmlFor="event-end-date" className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">Event End Date *</label>
           <DatePickerInput
+            id="event-end-date"
             value={formData.event_end_date}
             onChange={(value) => onFormDataChange({ event_end_date: value })}
             min={formData.event_date || new Date().toISOString().split('T')[0]}
@@ -277,8 +282,9 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div>
-          <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">Start Time *</label>
+          <label htmlFor="start-time" className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">Start Time *</label>
           <TimePickerInput
+            id="start-time"
             value={formData.start_window}
             onChange={(value) => onFormDataChange({ start_window: value })}
             required={true}
@@ -286,9 +292,10 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
           />
         </div>
         <div>
-          <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">End Time *</label>
+          <label htmlFor="end-time" className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">End Time *</label>
           <div className="space-y-2">
             <TimePickerInput
+              id="end-time"
               value={formData.end_window}
               onChange={(newTime) => {
                 let adjustedTime = newTime;

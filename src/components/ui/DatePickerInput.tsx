@@ -1,6 +1,7 @@
 import { Calendar } from 'lucide-react';
 
 interface DatePickerInputProps {
+  id?: string;
   value: string; // ISO format YYYY-MM-DD
   onChange: (value: string) => void;
   min?: string; // ISO format YYYY-MM-DD
@@ -13,6 +14,7 @@ interface DatePickerInputProps {
 }
 
 export function DatePickerInput({
+  id,
   value,
   onChange,
   min,
@@ -59,6 +61,7 @@ export function DatePickerInput({
 
       {/* Native date input overlaid (invisible but receives taps) */}
       <input
+        id={id}
         type="date"
         value={value}
         onChange={(e) => onChange(e.target.value)}

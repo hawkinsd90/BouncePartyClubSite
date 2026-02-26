@@ -114,6 +114,62 @@ export function Quote() {
     setShowClearModal(false);
   };
 
+  const scrollToField = (fieldId: string) => {
+    const element = document.getElementById(fieldId);
+
+    const debug: Partial<DebugInfo> = {
+      scrollAttempted: true,
+      refFound: !!element,
+      scrollTop: null,
+      elementTop: null,
+    };
+
+    if (!element) {
+      if (debugMode) {
+        setDebugInfo((prev) => ({ ...prev!, ...debug }));
+      }
+      return;
+    }
+
+    try {
+      // Calculate absolute position accounting for sticky header
+      const elementRect = element.getBoundingClientRect();
+      const absoluteTop = elementRect.top + window.scrollY;
+      const headerOffset = 100; // 80px header + 20px padding
+      const targetScrollTop = absoluteTop - headerOffset;
+
+      debug.elementTop = absoluteTop;
+      debug.scrollTop = targetScrollTop;
+
+      // Use window.scrollTo for most reliable iOS behavior
+      window.scrollTo({
+        top: targetScrollTop,
+        behavior: 'smooth',
+      });
+
+      // Optional: Focus the field after scroll (with delay for smooth scroll)
+      setTimeout(() => {
+        element.focus({ preventScroll: true });
+      }, 500);
+
+      if (debugMode) {
+        setDebugInfo((prev) => ({ ...prev!, ...debug }));
+      }
+    } catch (error) {
+      // Emergency fallback: instant scroll
+      const rect = element.getBoundingClientRect();
+      const fallbackTop = rect.top + window.scrollY - 100;
+      window.scrollTo({
+        top: fallbackTop,
+        behavior: 'auto',
+      });
+
+      if (debugMode) {
+        setDebugInfo((prev) => ({ ...prev!, ...debug, scrollTop: fallbackTop }));
+      }
+    }
+  };
+
   const scrollToSection = (section: 'cart' | 'address' | 'event' | 'setup') => {
     const refs = {
       cart: cartRef,
@@ -209,8 +265,10 @@ export function Quote() {
         }
       });
 
-      // Scroll immediately after state update (still in user gesture)
-      if (validation.errorSection) {
+      // Scroll to exact field if errorFieldId is provided, otherwise scroll to section
+      if (validation.errorFieldId) {
+        scrollToField(validation.errorFieldId);
+      } else if (validation.errorSection) {
         scrollToSection(validation.errorSection);
       }
 

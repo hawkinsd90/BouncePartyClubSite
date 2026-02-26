@@ -25,8 +25,9 @@ export function AddressSection({
       </div>
       <div className="space-y-4">
         <div>
-          <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">Street Address *</label>
+          <label htmlFor="address-input" className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">Street Address *</label>
           <AddressAutocomplete
+            id="address-input"
             value={addressInput}
             onChange={onAddressInputChange}
             onSelect={(address) => {
@@ -60,8 +61,9 @@ export function AddressSection({
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
           <div className="col-span-2 sm:col-span-1">
-            <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">City *</label>
+            <label htmlFor="city-input" className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">City *</label>
             <input
+              id="city-input"
               type="text"
               required
               value={formData.city}
@@ -70,8 +72,9 @@ export function AddressSection({
             />
           </div>
           <div>
-            <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">State *</label>
+            <label htmlFor="state-input" className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">State *</label>
             <input
+              id="state-input"
               type="text"
               required
               value={formData.state}
@@ -80,8 +83,9 @@ export function AddressSection({
             />
           </div>
           <div>
-            <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">ZIP Code *</label>
+            <label htmlFor="zip-input" className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">ZIP Code *</label>
             <input
+              id="zip-input"
               type="text"
               required
               value={formData.zip}
