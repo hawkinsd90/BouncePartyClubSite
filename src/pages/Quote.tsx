@@ -16,11 +16,13 @@ import { EventDetailsSection } from '../components/quote/EventDetailsSection';
 import { SetupDetailsSection } from '../components/quote/SetupDetailsSection';
 import { QuoteSummarySection } from '../components/quote/QuoteSummarySection';
 import { SimpleConfirmModal } from '../components/common/SimpleConfirmModal';
+import { ValidationErrorBanner } from '../components/quote/ValidationErrorBanner';
 
 export function Quote() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [showClearModal, setShowClearModal] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   // Refs for scrolling to sections
   const cartRef = useRef<HTMLDivElement>(null);
@@ -103,9 +105,15 @@ export function Quote() {
 
     const targetRef = refs[section];
     if (targetRef.current) {
-      targetRef.current.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
+      // iOS-safe scroll: Use requestAnimationFrame to ensure DOM is updated
+      // and give time for any React state changes to render
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          targetRef.current?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+          });
+        }, 100);
       });
     }
   };
@@ -113,12 +121,22 @@ export function Quote() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Clear any existing validation errors
+    setValidationError(null);
+
     const validation = validateQuote(cart, formData);
     if (!validation.isValid) {
-      alert(validation.errorMessage);
+      // Set inline error banner (iOS-safe, doesn't block)
+      setValidationError(validation.errorMessage || 'Please fix the errors below');
+
+      // Scroll to problem section AFTER state update
       if (validation.errorSection) {
         scrollToSection(validation.errorSection);
       }
+
+      // Auto-dismiss after 8 seconds
+      setTimeout(() => setValidationError(null), 8000);
+
       return;
     }
 
@@ -127,10 +145,18 @@ export function Quote() {
     const stillUnavailable = cart.filter((item) => item.isAvailable === false);
     if (stillUnavailable.length > 0) {
       const unavailableNames = stillUnavailable.map((item) => item.unit_name).join(', ');
-      alert(
-        `Sorry, the following inflatables were just booked by another customer: ${unavailableNames}. Please choose different dates or remove these items.`
+
+      // Set inline error banner
+      setValidationError(
+        `Sorry, the following inflatables were just booked: ${unavailableNames}. Please choose different dates or remove these items.`
       );
+
+      // Scroll to cart
       scrollToSection('cart');
+
+      // Auto-dismiss after 10 seconds
+      setTimeout(() => setValidationError(null), 10000);
+
       return;
     }
 
@@ -141,6 +167,10 @@ export function Quote() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white">
+      {validationError && (
+        <ValidationErrorBanner message={validationError} onDismiss={() => setValidationError(null)} />
+      )}
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 lg:py-16">
         <div className="mb-10 sm:mb-12 flex items-start justify-between">
           <div>
