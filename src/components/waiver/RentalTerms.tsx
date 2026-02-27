@@ -1,16 +1,19 @@
 import { FileText } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { formatCurrency } from '../../lib/pricing';
-import { getDepositAmount } from '../../lib/pricingCache';
+import { getDepositAmount, getGeneratorFeeSingle } from '../../lib/pricingCache';
 
 export function RentalTerms() {
   const [depositCents, setDepositCents] = useState(5000);
+  const [generatorFeeCents, setGeneratorFeeCents] = useState(10000);
 
   useEffect(() => {
     getDepositAmount().then(setDepositCents);
+    getGeneratorFeeSingle().then(setGeneratorFeeCents);
   }, []);
 
   const depositAmount = formatCurrency(depositCents);
+  const generatorFee = formatCurrency(generatorFeeCents);
 
   return (
     <div className="bg-white rounded-xl shadow-md p-6 print-terms-container">
@@ -42,7 +45,7 @@ export function RentalTerms() {
           <p className="font-medium text-slate-900 mb-1">Before Setup:</p>
           <ul className="list-disc pl-5 space-y-1 text-slate-600 mb-3">
             <li>The event yard should be reasonably maintained, including clear grass, no trash, and no pet waste in the setup area</li>
-            <li>We require access to a standard electrical outlet within 50 feet. If unavailable, a $35 generator rental fee applies</li>
+            <li>We require access to a standard electrical outlet within 50 feet. If unavailable, a {generatorFee} generator rental fee applies</li>
             <li>We guarantee all deliveries will occur before 12:00 PM (noon) on the day of the event</li>
             <li>An adult must be present between 7:00 AM and 12:00 PM to receive the inflatable and review safety information with our team</li>
           </ul>

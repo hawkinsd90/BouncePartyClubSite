@@ -2,10 +2,32 @@ import { supabase } from './supabase';
 
 interface PricingRules {
   deposit_percentage: number;
+  deposit_per_unit_cents: number;
+  generator_fee_single_cents: number;
+  generator_fee_multiple_cents: number;
 }
 
 let cachedPricingRules: PricingRules | null = null;
 let fetchPromise: Promise<PricingRules | null> | null = null;
+
+async function fetchPricingRules(): Promise<PricingRules | null> {
+  try {
+    const { data, error } = await supabase
+      .from('pricing_rules')
+      .select('deposit_percentage, deposit_per_unit_cents, generator_fee_single_cents, generator_fee_multiple_cents')
+      .maybeSingle();
+
+    if (error) throw error;
+
+    cachedPricingRules = data;
+    return data;
+  } catch (error) {
+    console.error('Failed to fetch pricing rules:', error);
+    return null;
+  } finally {
+    fetchPromise = null;
+  }
+}
 
 export async function getDepositPercentage(): Promise<number> {
   // If we already have cached data, return it
@@ -20,34 +42,50 @@ export async function getDepositPercentage(): Promise<number> {
   }
 
   // Start a new fetch
-  fetchPromise = (async () => {
-    try {
-      const { data, error } = await supabase
-        .from('pricing_rules')
-        .select('deposit_percentage')
-        .maybeSingle();
-
-      if (error) throw error;
-
-      cachedPricingRules = data;
-      return data;
-    } catch (error) {
-      console.error('Failed to fetch pricing rules:', error);
-      return null;
-    } finally {
-      fetchPromise = null;
-    }
-  })();
+  fetchPromise = fetchPricingRules();
 
   const result = await fetchPromise;
   return result?.deposit_percentage || 0.25; // Default 25%
 }
 
-// Legacy function for backward compatibility
+// Get deposit amount per unit in cents
 export async function getDepositAmount(): Promise<number> {
-  const percentage = await getDepositPercentage();
-  // This is now a placeholder - callers should use getDepositPercentage instead
-  return Math.round(5000 * percentage);
+  // If we already have cached data, return it
+  if (cachedPricingRules) {
+    return cachedPricingRules.deposit_per_unit_cents || 5000;
+  }
+
+  // If a fetch is already in progress, wait for it
+  if (fetchPromise) {
+    const result = await fetchPromise;
+    return result?.deposit_per_unit_cents || 5000;
+  }
+
+  // Start a new fetch
+  fetchPromise = fetchPricingRules();
+
+  const result = await fetchPromise;
+  return result?.deposit_per_unit_cents || 5000;
+}
+
+// Get generator fee for single generator in cents
+export async function getGeneratorFeeSingle(): Promise<number> {
+  // If we already have cached data, return it
+  if (cachedPricingRules) {
+    return cachedPricingRules.generator_fee_single_cents || 10000;
+  }
+
+  // If a fetch is already in progress, wait for it
+  if (fetchPromise) {
+    const result = await fetchPromise;
+    return result?.generator_fee_single_cents || 10000;
+  }
+
+  // Start a new fetch
+  fetchPromise = fetchPricingRules();
+
+  const result = await fetchPromise;
+  return result?.generator_fee_single_cents || 10000;
 }
 
 export function clearPricingCache() {
