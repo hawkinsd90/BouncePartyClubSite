@@ -72,20 +72,20 @@ export async function getDepositAmount(): Promise<number> {
 export async function getGeneratorFeeSingle(): Promise<number> {
   // If we already have cached data, return it
   if (cachedPricingRules) {
-    return cachedPricingRules.generator_fee_single_cents || 10000;
+    return cachedPricingRules.generator_fee_single_cents || 9500;
   }
 
   // If a fetch is already in progress, wait for it
   if (fetchPromise) {
     const result = await fetchPromise;
-    return result?.generator_fee_single_cents || 10000;
+    return result?.generator_fee_single_cents || 9500;
   }
 
   // Start a new fetch
   fetchPromise = fetchPricingRules();
 
   const result = await fetchPromise;
-  return result?.generator_fee_single_cents || 10000;
+  return result?.generator_fee_single_cents || 9500;
 }
 
 export function clearPricingCache() {

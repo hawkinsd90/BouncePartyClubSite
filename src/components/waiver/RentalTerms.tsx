@@ -5,7 +5,7 @@ import { getDepositAmount, getGeneratorFeeSingle } from '../../lib/pricingCache'
 
 export function RentalTerms() {
   const [depositCents, setDepositCents] = useState(5000);
-  const [generatorFeeCents, setGeneratorFeeCents] = useState(10000);
+  const [generatorFeeCents, setGeneratorFeeCents] = useState(9500);
 
   useEffect(() => {
     getDepositAmount().then(setDepositCents);
