@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Trash2 } from 'lucide-react';
+import { Trash2, AlertCircle, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useQuoteCart } from '../hooks/useQuoteCart';
 import { useQuoteForm } from '../hooks/useQuoteForm';
@@ -38,6 +38,8 @@ export function Quote() {
   const [searchParams] = useSearchParams();
   const [showClearModal, setShowClearModal] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [validationErrorFieldId, setValidationErrorFieldId] = useState<string | null>(null);
+  const [showBottomToast, setShowBottomToast] = useState(false);
   const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
 
   // Debug mode enabled via ?debug=1
@@ -251,6 +253,8 @@ export function Quote() {
       // This ensures scroll happens in the same event loop tick
       flushSync(() => {
         setValidationError(errorMessage);
+        setValidationErrorFieldId(validation.errorFieldId || null);
+        setShowBottomToast(true);
 
         if (debugMode) {
           setDebugInfo({
@@ -272,11 +276,7 @@ export function Quote() {
         scrollToSection(validation.errorSection);
       }
 
-      // Auto-dismiss after 8 seconds
-      setTimeout(() => {
-        setValidationError(null);
-        if (debugMode) setDebugInfo(null);
-      }, 8000);
+      // NO AUTO-DISMISS - user must fix error or manually dismiss
 
       return;
     }
@@ -290,6 +290,8 @@ export function Quote() {
 
       flushSync(() => {
         setValidationError(errorMessage);
+        setValidationErrorFieldId(null);
+        setShowBottomToast(true);
 
         if (debugMode) {
           setDebugInfo({
@@ -306,10 +308,7 @@ export function Quote() {
 
       scrollToSection('cart');
 
-      setTimeout(() => {
-        setValidationError(null);
-        if (debugMode) setDebugInfo(null);
-      }, 10000);
+      // NO AUTO-DISMISS - user must fix error or manually dismiss
 
       return;
     }
@@ -323,7 +322,35 @@ export function Quote() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 lg:py-16">
         {validationError && (
-          <ValidationErrorBanner message={validationError} onDismiss={() => setValidationError(null)} />
+          <ValidationErrorBanner
+            message={validationError}
+            onDismiss={() => {
+              setValidationError(null);
+              setValidationErrorFieldId(null);
+              setShowBottomToast(false);
+            }}
+          />
+        )}
+
+        {/* Bottom Toast Fallback for iPhone */}
+        {showBottomToast && validationError && (
+          <div className="fixed bottom-4 left-4 right-4 z-[9998] bg-red-600 text-white rounded-lg shadow-2xl p-4 flex items-start gap-3 animate-slide-up">
+            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold break-words">{validationError}</p>
+            </div>
+            <button
+              onClick={() => {
+                setShowBottomToast(false);
+                setValidationError(null);
+                setValidationErrorFieldId(null);
+              }}
+              className="text-white hover:bg-red-700 rounded-lg p-1.5 transition-colors flex-shrink-0"
+              aria-label="Dismiss error"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         )}
 
         {/* Debug Info Panel - Only visible with ?debug=1 */}
@@ -335,6 +362,9 @@ export function Quote() {
                 <div>Time: {new Date(debugInfo.timestamp).toLocaleTimeString()}</div>
                 <div>Validation Failed: {debugInfo.validationFailed ? '✓ YES' : '✗ NO'}</div>
                 <div>Error Section: {debugInfo.errorSection || 'none'}</div>
+                <div>Error Field ID: {validationErrorFieldId || 'none'}</div>
+                <div>Banner Mounted: {validationError ? '✓ YES' : '✗ NO'}</div>
+                <div>Toast Mounted: {showBottomToast ? '✓ YES' : '✗ NO'}</div>
                 <div>Scroll Attempted: {debugInfo.scrollAttempted ? '✓ YES' : '✗ NO'}</div>
                 <div>Ref Found: {debugInfo.refFound ? '✓ YES' : '✗ NO'}</div>
                 <div>Element Top: {debugInfo.elementTop ?? 'null'}px</div>
@@ -391,6 +421,7 @@ export function Quote() {
                 <EventDetailsSection
                   formData={formData}
                   onFormDataChange={(updates) => setFormData({ ...formData, ...updates })}
+                  validationErrorFieldId={validationErrorFieldId}
                 />
               </div>
 

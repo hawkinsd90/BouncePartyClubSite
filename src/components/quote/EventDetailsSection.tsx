@@ -1,4 +1,4 @@
-import { Calendar, Home, Building2, Clock } from 'lucide-react';
+import { Calendar, Home, Building2, Clock, AlertCircle } from 'lucide-react';
 import type { QuoteFormData } from '../../hooks/useQuoteForm';
 import { DatePickerInput } from '../ui/DatePickerInput';
 import { TimePickerInput } from '../ui/TimePickerInput';
@@ -6,9 +6,10 @@ import { TimePickerInput } from '../ui/TimePickerInput';
 interface EventDetailsSectionProps {
   formData: QuoteFormData;
   onFormDataChange: (updates: Partial<QuoteFormData>) => void;
+  validationErrorFieldId?: string | null;
 }
 
-export function EventDetailsSection({ formData, onFormDataChange }: EventDetailsSectionProps) {
+export function EventDetailsSection({ formData, onFormDataChange, validationErrorFieldId }: EventDetailsSectionProps) {
   const isSameDayRestricted =
     (formData.location_type === 'residential' && formData.pickup_preference === 'same_day') ||
     formData.location_type === 'commercial';
@@ -132,43 +133,91 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
             </button>
           </div>
           {formData.pickup_preference === 'next_day' && (
-            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <label htmlFor="overnight-responsibility-checkbox" className="flex items-start cursor-pointer">
+            <div
+              id="overnight-responsibility-checkbox"
+              className={`mt-3 p-3 rounded-lg ${
+                validationErrorFieldId === 'overnight-responsibility-checkbox'
+                  ? 'bg-red-50 border-2 border-red-500 ring-2 ring-red-300'
+                  : 'bg-amber-50 border border-amber-200'
+              }`}
+              style={{ scrollMarginTop: '120px' }}
+            >
+              <label htmlFor="overnight-responsibility-input" className="flex items-start cursor-pointer">
                 <input
-                  id="overnight-responsibility-checkbox"
+                  id="overnight-responsibility-input"
                   type="checkbox"
                   checked={formData.overnight_responsibility_accepted}
                   onChange={(e) =>
                     onFormDataChange({ overnight_responsibility_accepted: e.target.checked })
                   }
-                  className="mt-0.5 mr-3 flex-shrink-0"
+                  className={`mt-0.5 mr-3 flex-shrink-0 w-5 h-5 ${
+                    validationErrorFieldId === 'overnight-responsibility-checkbox'
+                      ? 'accent-red-600 border-red-500'
+                      : ''
+                  }`}
                   required
                 />
-                <p className="text-xs text-amber-900 font-medium leading-relaxed">
+                <p className={`text-xs font-medium leading-relaxed ${
+                  validationErrorFieldId === 'overnight-responsibility-checkbox'
+                    ? 'text-red-900'
+                    : 'text-amber-900'
+                }`}>
                   ⚠️ I understand the inflatable will remain on my property overnight and I am
                   legally responsible for its safety and security until pickup the next morning. *
                 </p>
               </label>
+              {validationErrorFieldId === 'overnight-responsibility-checkbox' && (
+                <div className="mt-3 flex items-start gap-2 p-3 bg-red-100 border border-red-400 rounded-lg">
+                  <AlertCircle className="w-5 h-5 text-red-700 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm font-bold text-red-900">
+                    You must accept the overnight responsibility agreement to continue.
+                  </p>
+                </div>
+              )}
             </div>
           )}
           {formData.pickup_preference === 'same_day' && (
-            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <label htmlFor="same-day-responsibility-checkbox" className="flex items-start cursor-pointer">
+            <div
+              id="same-day-responsibility-checkbox"
+              className={`mt-3 p-3 rounded-lg ${
+                validationErrorFieldId === 'same-day-responsibility-checkbox'
+                  ? 'bg-red-50 border-2 border-red-500 ring-2 ring-red-300'
+                  : 'bg-amber-50 border border-amber-200'
+              }`}
+              style={{ scrollMarginTop: '120px' }}
+            >
+              <label htmlFor="same-day-responsibility-input" className="flex items-start cursor-pointer">
                 <input
-                  id="same-day-responsibility-checkbox"
+                  id="same-day-responsibility-input"
                   type="checkbox"
                   checked={formData.same_day_responsibility_accepted}
                   onChange={(e) =>
                     onFormDataChange({ same_day_responsibility_accepted: e.target.checked })
                   }
-                  className="mt-0.5 mr-3 flex-shrink-0"
+                  className={`mt-0.5 mr-3 flex-shrink-0 w-5 h-5 ${
+                    validationErrorFieldId === 'same-day-responsibility-checkbox'
+                      ? 'accent-red-600 border-red-500'
+                      : ''
+                  }`}
                   required
                 />
-                <p className="text-xs text-amber-900 font-medium leading-relaxed">
+                <p className={`text-xs font-medium leading-relaxed ${
+                  validationErrorFieldId === 'same-day-responsibility-checkbox'
+                    ? 'text-red-900'
+                    : 'text-amber-900'
+                }`}>
                   ⚠️ I understand I am legally responsible for the inflatable until Bounce Party
                   Club picks it up this evening. *
                 </p>
               </label>
+              {validationErrorFieldId === 'same-day-responsibility-checkbox' && (
+                <div className="mt-3 flex items-start gap-2 p-3 bg-red-100 border border-red-400 rounded-lg">
+                  <AlertCircle className="w-5 h-5 text-red-700 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm font-bold text-red-900">
+                    You must accept the same-day responsibility agreement to continue.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -206,23 +255,47 @@ export function EventDetailsSection({ formData, onFormDataChange }: EventDetails
               safety at parks, churches, schools, and other public locations.
             </p>
           </div>
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-            <label htmlFor="commercial-responsibility-checkbox" className="flex items-start cursor-pointer">
+          <div
+            id="commercial-responsibility-checkbox"
+            className={`p-3 rounded-lg ${
+              validationErrorFieldId === 'commercial-responsibility-checkbox'
+                ? 'bg-red-50 border-2 border-red-500 ring-2 ring-red-300'
+                : 'bg-amber-50 border border-amber-200'
+            }`}
+            style={{ scrollMarginTop: '120px' }}
+          >
+            <label htmlFor="commercial-responsibility-input" className="flex items-start cursor-pointer">
               <input
-                id="commercial-responsibility-checkbox"
+                id="commercial-responsibility-input"
                 type="checkbox"
                 checked={formData.same_day_responsibility_accepted}
                 onChange={(e) =>
                   onFormDataChange({ same_day_responsibility_accepted: e.target.checked })
                 }
-                className="mt-0.5 mr-3 flex-shrink-0"
+                className={`mt-0.5 mr-3 flex-shrink-0 w-5 h-5 ${
+                  validationErrorFieldId === 'commercial-responsibility-checkbox'
+                    ? 'accent-red-600 border-red-500'
+                    : ''
+                }`}
                 required
               />
-              <p className="text-xs text-amber-900 font-medium leading-relaxed">
+              <p className={`text-xs font-medium leading-relaxed ${
+                validationErrorFieldId === 'commercial-responsibility-checkbox'
+                  ? 'text-red-900'
+                  : 'text-amber-900'
+              }`}>
                 ⚠️ I understand I am legally responsible for the inflatable until Bounce Party Club
                 picks it up by 7:00 PM. *
               </p>
             </label>
+            {validationErrorFieldId === 'commercial-responsibility-checkbox' && (
+              <div className="mt-3 flex items-start gap-2 p-3 bg-red-100 border border-red-400 rounded-lg">
+                <AlertCircle className="w-5 h-5 text-red-700 flex-shrink-0 mt-0.5" />
+                <p className="text-sm font-bold text-red-900">
+                  You must accept the commercial responsibility agreement to continue.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
