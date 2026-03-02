@@ -144,7 +144,17 @@ export function SignUp() {
   };
 
   const handleAddressSelect = (address: any) => {
-    setAddressData(address);
+    const formattedAddress = {
+      line1: address.street,
+      line2: '',
+      city: address.city,
+      state: address.state,
+      zip: address.zip,
+      lat: address.lat,
+      lng: address.lng,
+      formatted_address: address.formatted_address,
+    };
+    setAddressData(formattedAddress);
     setAddressInput(address.formatted_address || '');
   };
 
@@ -274,9 +284,8 @@ export function SignUp() {
                   <AddressAutocomplete
                     value={addressInput}
                     onChange={setAddressInput}
-                    onAddressSelect={handleAddressSelect}
+                    onSelect={handleAddressSelect}
                     placeholder="123 Main St, Detroit, MI 48197"
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-base"
                   />
                   <p className="text-xs text-slate-500 mt-1">
                     Start typing and select from suggestions
