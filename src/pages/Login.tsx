@@ -201,6 +201,7 @@ export function Login() {
                 Google
               </button>
 
+              {/* Apple Sign-In - Uncomment when backend is configured
               {isIOS && (
                 <button
                   onClick={handleAppleSignIn}
@@ -213,6 +214,7 @@ export function Login() {
                   Apple
                 </button>
               )}
+              */}
             </div>
           </div>
 
