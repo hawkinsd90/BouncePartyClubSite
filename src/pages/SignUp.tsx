@@ -128,8 +128,13 @@ export function SignUp() {
         console.error('Customer creation error:', customerError);
       }
 
+      // Wait a moment for the session to be fully established
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       notifySuccess('Account created successfully! You are now signed in.');
-      navigate('/');
+
+      // Force a page reload to ensure auth state is picked up
+      window.location.href = '/';
     } catch (err: any) {
       console.error('Sign up error:', err);
       notifyError(err.message || 'Failed to create account. Please try again.');
