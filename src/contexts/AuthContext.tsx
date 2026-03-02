@@ -10,6 +10,7 @@ interface AuthContextType {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  signInWithApple: () => Promise<void>;
   signUp: (email: string, password: string, metadata?: any) => Promise<void>;
   signOut: () => Promise<void>;
   hasRole: (checkRole: string) => boolean;
@@ -161,6 +162,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('[Auth] Google sign-in initiated successfully, redirecting to:', data?.url);
   };
 
+  const signInWithApple = async () => {
+    const redirectUrl = `${window.location.origin}/`;
+    console.log('[Auth] Starting Apple sign-in...');
+    console.log('[Auth] Current URL:', window.location.href);
+    console.log('[Auth] Origin:', window.location.origin);
+    console.log('[Auth] Redirect URL:', redirectUrl);
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'apple',
+      options: {
+        redirectTo: redirectUrl,
+      },
+    });
+
+    console.log('[Auth] signInWithOAuth response:', { data, error });
+
+    if (error) {
+      console.error('[Auth] Apple sign-in error:', error);
+      throw error;
+    }
+
+    console.log('[Auth] Apple sign-in initiated successfully, redirecting to:', data?.url);
+  };
+
   const signUp = async (email: string, password: string, metadata?: any) => {
     const { error } = await supabase.auth.signUp({
       email,
@@ -198,6 +223,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading,
       signIn,
       signInWithGoogle,
+      signInWithApple,
       signUp,
       signOut,
       hasRole,
