@@ -79,6 +79,32 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
       }
 
       if (!customerData) {
+        console.log('No customer record found, attempting to backfill...');
+        try {
+          const { data: session } = await supabase.auth.getSession();
+          if (session?.session?.access_token) {
+            const response = await fetch(
+              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/backfill-oauth-customers`,
+              {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${session.session.access_token}`,
+                  'Content-Type': 'application/json',
+                },
+              }
+            );
+
+            if (response.ok) {
+              const result = await response.json();
+              console.log('Customer backfill result:', result);
+
+              await loadProfileAndDefaults(userId);
+              return;
+            }
+          }
+        } catch (backfillError) {
+          console.error('Error backfilling customer:', backfillError);
+        }
         return;
       }
 
