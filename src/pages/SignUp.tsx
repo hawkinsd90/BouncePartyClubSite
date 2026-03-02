@@ -47,6 +47,12 @@ export function SignUp() {
       newErrors.email = 'Invalid email address';
     }
     if (!formData.phone.trim()) newErrors.phone = 'Phone is required';
+    else {
+      const phoneDigits = formData.phone.replace(/\D/g, '');
+      if (phoneDigits.length !== 10) {
+        newErrors.phone = 'Phone number must be 10 digits';
+      }
+    }
     if (!formData.password) newErrors.password = 'Password is required';
     else if (formData.password.length < 6) {
       newErrors.password = 'Password must be at least 6 characters';
@@ -133,7 +139,24 @@ export function SignUp() {
   };
 
   const handleChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    let processedValue = value;
+
+    if (field === 'phone') {
+      const digits = value.replace(/\D/g, '');
+      if (digits.length <= 10) {
+        if (digits.length >= 6) {
+          processedValue = `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+        } else if (digits.length >= 3) {
+          processedValue = `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+        } else {
+          processedValue = digits;
+        }
+      } else {
+        return;
+      }
+    }
+
+    setFormData(prev => ({ ...prev, [field]: processedValue }));
     if (errors[field]) {
       setErrors(prev => {
         const newErrors = { ...prev };
@@ -236,6 +259,9 @@ export function SignUp() {
               {errors.email && (
                 <p className="text-red-600 text-sm mt-1">{errors.email}</p>
               )}
+              {!errors.email && formData.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email) && (
+                <p className="text-green-600 text-sm mt-1">Valid email address ✓</p>
+              )}
             </div>
 
             <div>
@@ -252,6 +278,9 @@ export function SignUp() {
               />
               {errors.phone && (
                 <p className="text-red-600 text-sm mt-1">{errors.phone}</p>
+              )}
+              {!errors.phone && formData.phone && formData.phone.replace(/\D/g, '').length === 10 && (
+                <p className="text-green-600 text-sm mt-1">Valid phone number ✓</p>
               )}
             </div>
 
