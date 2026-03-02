@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { UserPlus, Loader2, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { notifySuccess, notifyError } from '../lib/notifications';
+import { AddressAutocomplete } from '../components/order/AddressAutocomplete';
 
 export function SignUp() {
   const navigate = useNavigate();
@@ -17,13 +18,24 @@ export function SignUp() {
     password: '',
     confirmPassword: '',
     businessName: '',
-    addressLine1: '',
-    addressLine2: '',
-    city: '',
-    state: '',
-    zip: '',
   });
+  const [addressData, setAddressData] = useState<any>(null);
+  const [addressInput, setAddressInput] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (formData.password && formData.confirmPassword) {
+      if (formData.password !== formData.confirmPassword) {
+        setErrors(prev => ({ ...prev, confirmPassword: 'Passwords do not match' }));
+      } else {
+        setErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors.confirmPassword;
+          return newErrors;
+        });
+      }
+    }
+  }, [formData.password, formData.confirmPassword]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -75,22 +87,24 @@ export function SignUp() {
 
       let addressId = null;
 
-      if (formData.addressLine1 && formData.city && formData.state && formData.zip) {
-        const { data: addressData, error: addressError } = await supabase
+      if (addressData && addressData.line1 && addressData.city && addressData.state && addressData.zip) {
+        const { data: savedAddress, error: addressError } = await supabase
           .from('addresses')
           .insert({
             customer_id: authData.user.id,
-            line1: formData.addressLine1,
-            line2: formData.addressLine2 || null,
-            city: formData.city,
-            state: formData.state,
-            zip: formData.zip,
+            line1: addressData.line1,
+            line2: addressData.line2 || null,
+            city: addressData.city,
+            state: addressData.state,
+            zip: addressData.zip,
+            lat: addressData.lat || null,
+            lng: addressData.lng || null,
           })
           .select()
           .single();
 
-        if (!addressError && addressData) {
-          addressId = addressData.id;
+        if (!addressError && savedAddress) {
+          addressId = savedAddress.id;
         }
       }
 
@@ -121,35 +135,46 @@ export function SignUp() {
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[field];
+        return newErrors;
+      });
     }
   };
 
+  const handleAddressSelect = (address: any) => {
+    setAddressData(address);
+    setAddressInput(address.formatted_address || '');
+  };
+
+  const isPasswordMismatch = formData.password && formData.confirmPassword && formData.password !== formData.confirmPassword;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 py-6 sm:py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 border border-slate-100">
+        <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 lg:p-8 border border-slate-100">
           <button
             onClick={() => navigate('/login')}
-            className="inline-flex items-center text-slate-600 hover:text-slate-900 mb-6 transition-colors"
+            className="inline-flex items-center text-slate-600 hover:text-slate-900 mb-4 sm:mb-6 transition-colors text-sm sm:text-base"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Sign In
           </button>
 
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl mb-4 shadow-lg">
-              <UserPlus className="w-10 h-10 text-white" />
+          <div className="text-center mb-6 sm:mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl mb-3 sm:mb-4 shadow-lg">
+              <UserPlus className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
             </div>
-            <h2 className="text-4xl font-bold text-slate-900 tracking-tight">
+            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">
               Create Account
             </h2>
-            <p className="mt-3 text-lg text-slate-600">
+            <p className="mt-2 sm:mt-3 text-base sm:text-lg text-slate-600">
               Join Bounce Party Club today
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -160,7 +185,7 @@ export function SignUp() {
                   required
                   value={formData.firstName}
                   onChange={(e) => handleChange('firstName', e.target.value)}
-                  className={`w-full px-4 py-3 border-2 ${errors.firstName ? 'border-red-300' : 'border-slate-300'} rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all`}
+                  className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 ${errors.firstName ? 'border-red-300' : 'border-slate-300'} rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-base`}
                   placeholder="John"
                 />
                 {errors.firstName && (
@@ -177,7 +202,7 @@ export function SignUp() {
                   required
                   value={formData.lastName}
                   onChange={(e) => handleChange('lastName', e.target.value)}
-                  className={`w-full px-4 py-3 border-2 ${errors.lastName ? 'border-red-300' : 'border-slate-300'} rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all`}
+                  className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 ${errors.lastName ? 'border-red-300' : 'border-slate-300'} rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-base`}
                   placeholder="Doe"
                 />
                 {errors.lastName && (
@@ -195,7 +220,7 @@ export function SignUp() {
                 required
                 value={formData.email}
                 onChange={(e) => handleChange('email', e.target.value)}
-                className={`w-full px-4 py-3 border-2 ${errors.email ? 'border-red-300' : 'border-slate-300'} rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all`}
+                className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 ${errors.email ? 'border-red-300' : 'border-slate-300'} rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-base`}
                 placeholder="you@example.com"
               />
               {errors.email && (
@@ -212,7 +237,7 @@ export function SignUp() {
                 required
                 value={formData.phone}
                 onChange={(e) => handleChange('phone', e.target.value)}
-                className={`w-full px-4 py-3 border-2 ${errors.phone ? 'border-red-300' : 'border-slate-300'} rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all`}
+                className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 ${errors.phone ? 'border-red-300' : 'border-slate-300'} rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-base`}
                 placeholder="(123) 456-7890"
               />
               {errors.phone && (
@@ -228,16 +253,16 @@ export function SignUp() {
                 type="text"
                 value={formData.businessName}
                 onChange={(e) => handleChange('businessName', e.target.value)}
-                className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-base"
                 placeholder="Leave blank if booking as an individual"
               />
             </div>
 
-            <div className="border-t border-slate-200 pt-6">
-              <h3 className="text-lg font-semibold text-slate-900 mb-4">
+            <div className="border-t border-slate-200 pt-4 sm:pt-6">
+              <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-3 sm:mb-4">
                 Default Address (Optional)
               </h3>
-              <p className="text-sm text-slate-600 mb-4">
+              <p className="text-sm text-slate-600 mb-3 sm:mb-4">
                 Save time on future bookings by adding your address now
               </p>
 
@@ -246,73 +271,33 @@ export function SignUp() {
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     Street Address
                   </label>
-                  <input
-                    type="text"
-                    value={formData.addressLine1}
-                    onChange={(e) => handleChange('addressLine1', e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                    placeholder="123 Main St"
+                  <AddressAutocomplete
+                    value={addressInput}
+                    onChange={setAddressInput}
+                    onAddressSelect={handleAddressSelect}
+                    placeholder="123 Main St, Detroit, MI 48197"
+                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-base"
                   />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Start typing and select from suggestions
+                  </p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Apt, Suite, etc. (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.addressLine2}
-                    onChange={(e) => handleChange('addressLine2', e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                    placeholder="Apt 4B"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      City
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.city}
-                      onChange={(e) => handleChange('city', e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                      placeholder="Detroit"
-                    />
+                {addressData && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+                    <p className="text-sm font-medium text-blue-900 mb-1">Selected Address:</p>
+                    <p className="text-sm text-blue-700">
+                      {addressData.line1}
+                      {addressData.line2 && `, ${addressData.line2}`}
+                      <br />
+                      {addressData.city}, {addressData.state} {addressData.zip}
+                    </p>
                   </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      State
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.state}
-                      onChange={(e) => handleChange('state', e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                      placeholder="MI"
-                      maxLength={2}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      ZIP Code
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.zip}
-                      onChange={(e) => handleChange('zip', e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                      placeholder="48197"
-                    />
-                  </div>
-                </div>
+                )}
               </div>
             </div>
 
-            <div className="border-t border-slate-200 pt-6">
+            <div className="border-t border-slate-200 pt-4 sm:pt-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -324,7 +309,7 @@ export function SignUp() {
                       required
                       value={formData.password}
                       onChange={(e) => handleChange('password', e.target.value)}
-                      className={`w-full px-4 py-3 pr-12 border-2 ${errors.password ? 'border-red-300' : 'border-slate-300'} rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all`}
+                      className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 pr-12 border-2 ${errors.password ? 'border-red-300' : 'border-slate-300'} rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-base`}
                       placeholder="••••••••"
                       minLength={6}
                     />
@@ -339,6 +324,14 @@ export function SignUp() {
                   {errors.password && (
                     <p className="text-red-600 text-sm mt-1">{errors.password}</p>
                   )}
+                  {!errors.password && formData.password && (
+                    <p className="text-slate-500 text-xs mt-1">
+                      {formData.password.length < 6
+                        ? `${6 - formData.password.length} more character${6 - formData.password.length === 1 ? '' : 's'} needed`
+                        : 'Strong password ✓'
+                      }
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -351,7 +344,9 @@ export function SignUp() {
                       required
                       value={formData.confirmPassword}
                       onChange={(e) => handleChange('confirmPassword', e.target.value)}
-                      className={`w-full px-4 py-3 pr-12 border-2 ${errors.confirmPassword ? 'border-red-300' : 'border-slate-300'} rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all`}
+                      className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 pr-12 border-2 ${
+                        isPasswordMismatch ? 'border-red-300' : errors.confirmPassword ? 'border-red-300' : 'border-slate-300'
+                      } rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-base`}
                       placeholder="••••••••"
                       minLength={6}
                     />
@@ -363,8 +358,11 @@ export function SignUp() {
                       {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
                   </div>
-                  {errors.confirmPassword && (
-                    <p className="text-red-600 text-sm mt-1">{errors.confirmPassword}</p>
+                  {isPasswordMismatch && (
+                    <p className="text-red-600 text-sm mt-1">Passwords do not match</p>
+                  )}
+                  {!isPasswordMismatch && formData.confirmPassword && formData.password === formData.confirmPassword && (
+                    <p className="text-green-600 text-sm mt-1">Passwords match ✓</p>
                   )}
                 </div>
               </div>
@@ -372,8 +370,8 @@ export function SignUp() {
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-slate-400 disabled:to-slate-500 text-white font-bold py-4 px-4 rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:scale-[1.02] flex items-center justify-center min-h-[48px]"
+              disabled={loading || isPasswordMismatch}
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-slate-400 disabled:to-slate-500 disabled:cursor-not-allowed text-white font-bold py-3 sm:py-4 px-4 rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none flex items-center justify-center min-h-[48px] text-base sm:text-lg"
             >
               {loading ? (
                 <>
@@ -386,8 +384,8 @@ export function SignUp() {
             </button>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-slate-600">
+          <div className="mt-4 sm:mt-6 text-center">
+            <p className="text-sm sm:text-base text-slate-600">
               Already have an account?{' '}
               <button
                 onClick={() => navigate('/login')}
