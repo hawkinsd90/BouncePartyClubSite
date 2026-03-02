@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { SafeStorage } from '../lib/safeStorage';
+import { useAuth } from '../contexts/AuthContext';
+import { useCustomerProfile } from '../contexts/CustomerProfileContext';
 
 interface ContactData {
   first_name: string;
@@ -11,6 +13,8 @@ interface ContactData {
 }
 
 export function useCheckoutData(userId?: string) {
+  const { user } = useAuth();
+  const { sessionData, loading: profileLoading } = useCustomerProfile();
   const [quoteData, setQuoteData] = useState<any>(null);
   const [priceBreakdown, setPriceBreakdown] = useState<any>(null);
   const [cart, setCart] = useState<any[]>([]);
@@ -33,6 +37,31 @@ export function useCheckoutData(userId?: string) {
   const [tipAmount, setTipAmount] = useState<'none' | '10' | '15' | '20' | 'custom'>('none');
   const [customTip, setCustomTip] = useState('');
   const [loading, setLoading] = useState(true);
+  const [profileApplied, setProfileApplied] = useState(false);
+
+  useEffect(() => {
+    if (user && !profileLoading && !profileApplied && sessionData.firstName) {
+      if (!contactData.first_name) {
+        setContactData({
+          first_name: sessionData.firstName,
+          last_name: sessionData.lastName,
+          email: sessionData.email,
+          phone: sessionData.phone,
+          business_name: sessionData.businessName,
+        });
+      }
+      if (!billingAddress.line1 && sessionData.addressLine1) {
+        setBillingAddress({
+          line1: sessionData.addressLine1,
+          line2: sessionData.addressLine2,
+          city: sessionData.city,
+          state: sessionData.state,
+          zip: sessionData.zip,
+        });
+      }
+      setProfileApplied(true);
+    }
+  }, [user, profileLoading, sessionData, profileApplied, contactData.first_name, billingAddress.line1]);
 
   useEffect(() => {
     async function loadCheckoutData() {

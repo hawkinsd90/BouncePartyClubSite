@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { AuthProvider } from './contexts/AuthContext';
 import { BusinessProvider } from './contexts/BusinessContext';
+import { CustomerProfileProvider } from './contexts/CustomerProfileContext';
 import { ProtectedRoute } from './components/common/ProtectedRoute';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Layout } from './components/common/Layout';
@@ -26,6 +27,9 @@ const CustomerDashboard = lazy(() => import('./pages/CustomerDashboard').then(m 
 const Sign = lazy(() => import('./pages/Sign'));
 const InvoicePreview = lazy(() => import('./pages/InvoicePreview').then(m => ({ default: m.InvoicePreview })));
 const MenuPreview = lazy(() => import('./pages/MenuPreview').then(m => ({ default: m.MenuPreview })));
+const SignUp = lazy(() => import('./pages/SignUp').then(m => ({ default: m.SignUp })));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword').then(m => ({ default: m.ForgotPassword })));
+const ResetPassword = lazy(() => import('./pages/ResetPassword').then(m => ({ default: m.ResetPassword })));
 
 
 function App() {
@@ -34,6 +38,7 @@ function App() {
       <BrowserRouter>
         <BusinessProvider>
           <AuthProvider>
+            <CustomerProfileProvider>
         <Suspense fallback={
           <div className="min-h-screen flex items-center justify-center bg-slate-50">
             <div className="text-center">
@@ -45,6 +50,9 @@ function App() {
         <Routes>
           <Route path="/setup" element={<Setup />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<SignUp />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/invoice/:token" element={<CustomerPortal />} />
           <Route path="/invoice/view/:orderId" element={<Invoice />} />
           <Route path="/invoice-preview" element={<InvoicePreview />} />
@@ -106,6 +114,7 @@ function App() {
           </Route>
         </Routes>
         </Suspense>
+            </CustomerProfileProvider>
           </AuthProvider>
         </BusinessProvider>
     </BrowserRouter>

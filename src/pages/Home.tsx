@@ -5,6 +5,7 @@ import { AddressAutocomplete } from '../components/order/AddressAutocomplete';
 import { HeroCarousel } from '../components/admin/HeroCarousel';
 import { SafeStorage } from '../lib/safeStorage';
 import { useAuth } from '../contexts/AuthContext';
+import { useCustomerProfile } from '../contexts/CustomerProfileContext';
 import { createTestBooking } from '../lib/testBooking';
 import { notifyError } from '../lib/notifications';
 import { createLogger } from '../lib/logger';
@@ -25,7 +26,8 @@ interface GoogleReview {
 
 export function Home() {
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
+  const { sessionData, loading: profileLoading } = useCustomerProfile();
   const [eventDate, setEventDate] = useState('');
   const [addressData, setAddressData] = useState<any>(null);
   const [locationType, setLocationType] = useState<'residential' | 'commercial'>('residential');
@@ -33,10 +35,27 @@ export function Home() {
   const [creatingTestBooking, setCreatingTestBooking] = useState(false);
   const [reviews, setReviews] = useState<GoogleReview[]>([]);
   const [averageRating, setAverageRating] = useState(5.0);
+  const [addressAutofilled, setAddressAutofilled] = useState(false);
 
   useEffect(() => {
     loadReviews();
   }, []);
+
+  useEffect(() => {
+    if (user && !profileLoading && !addressAutofilled && sessionData.addressLine1) {
+      const formattedAddress = `${sessionData.addressLine1}${sessionData.addressLine2 ? ', ' + sessionData.addressLine2 : ''}, ${sessionData.city}, ${sessionData.state} ${sessionData.zip}`;
+      setAddressInput(formattedAddress);
+      setAddressData({
+        formatted_address: formattedAddress,
+        line1: sessionData.addressLine1,
+        line2: sessionData.addressLine2,
+        city: sessionData.city,
+        state: sessionData.state,
+        zip: sessionData.zip,
+      });
+      setAddressAutofilled(true);
+    }
+  }, [user, profileLoading, sessionData, addressAutofilled]);
 
   async function loadReviews() {
     try {

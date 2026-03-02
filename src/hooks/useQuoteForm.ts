@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { SafeStorage } from '../lib/safeStorage';
+import { useAuth } from '../contexts/AuthContext';
+import { useCustomerProfile } from '../contexts/CustomerProfileContext';
 
 export interface QuoteFormData {
   event_date: string;
@@ -52,6 +54,8 @@ const initialFormData: QuoteFormData = {
 const FORM_STORAGE_KEY = 'bpc_quote_form';
 
 export function useQuoteForm() {
+  const { user } = useAuth();
+  const { sessionData, loading: profileLoading } = useCustomerProfile();
   const [formData, setFormData] = useState<QuoteFormData>(initialFormData);
   const [addressInput, setAddressInput] = useState('');
   const [isInitialized, setIsInitialized] = useState(false);
@@ -67,6 +71,21 @@ export function useQuoteForm() {
     }
     setIsInitialized(true);
   }, []);
+
+  useEffect(() => {
+    if (user && !profileLoading && isInitialized && !formData.address_line1 && sessionData.addressLine1) {
+      setFormData(prev => ({
+        ...prev,
+        address_line1: sessionData.addressLine1,
+        address_line2: sessionData.addressLine2,
+        city: sessionData.city,
+        state: sessionData.state,
+        zip: sessionData.zip,
+      }));
+      const formatted = `${sessionData.addressLine1}${sessionData.addressLine2 ? ', ' + sessionData.addressLine2 : ''}, ${sessionData.city}, ${sessionData.state} ${sessionData.zip}`;
+      setAddressInput(formatted);
+    }
+  }, [user, profileLoading, isInitialized, sessionData, formData.address_line1]);
 
   // Auto-save form data whenever it changes (after initial load)
   useEffect(() => {

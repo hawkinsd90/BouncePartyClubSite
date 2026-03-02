@@ -10,12 +10,9 @@ const log = createLogger('Login');
 export function Login() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signIn, signUp, signInWithGoogle } = useAuth();
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const { signIn, signInWithGoogle } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -28,27 +25,10 @@ export function Login() {
     setLoading(true);
 
     try {
-      if (mode === 'signup') {
-        if (password !== confirmPassword) {
-          setError('Passwords do not match');
-          setLoading(false);
-          return;
-        }
-        if (password.length < 6) {
-          setError('Password must be at least 6 characters');
-          setLoading(false);
-          return;
-        }
-        await signUp(email, password, { name: displayName });
-        setError('');
-        notifySuccess('Account created! Please check your email to verify your account.');
-        setMode('signin');
-      } else {
-        await signIn(email, password);
-        navigate(from, { replace: true });
-      }
+      await signIn(email, password);
+      navigate(from, { replace: true });
     } catch (err: any) {
-      setError(err.message || `Failed to ${mode === 'signup' ? 'sign up' : 'sign in'}`);
+      setError(err.message || 'Failed to sign in');
     } finally {
       setLoading(false);
     }
@@ -94,10 +74,10 @@ export function Login() {
               <Lock className="w-10 h-10 text-white" />
             </div>
             <h2 className="text-4xl font-bold text-slate-900 tracking-tight">
-              {mode === 'signup' ? 'Create Account' : 'Sign In'}
+              Sign In
             </h2>
             <p className="mt-3 text-lg text-slate-600">
-              {mode === 'signup' ? 'Join Bounce Party Club' : 'Welcome back!'}
+              Welcome back!
             </p>
           </div>
 
@@ -105,22 +85,6 @@ export function Login() {
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3">
                 <p className="text-sm text-red-800">{error}</p>
-              </div>
-            )}
-
-            {mode === 'signup' && (
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base transition-all"
-                  placeholder="John Doe"
-                />
               </div>
             )}
 
@@ -150,7 +114,6 @@ export function Login() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-4 py-3 pr-12 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base transition-all"
                   placeholder="••••••••"
-                  minLength={mode === 'signup' ? 6 : undefined}
                 />
                 <button
                   type="button"
@@ -167,23 +130,6 @@ export function Login() {
               </div>
             </div>
 
-            {mode === 'signup' && (
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Confirm Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base transition-all"
-                  placeholder="••••••••"
-                  minLength={6}
-                />
-              </div>
-            )}
-
             <button
               type="submit"
               disabled={loading}
@@ -192,10 +138,10 @@ export function Login() {
               {loading ? (
                 <>
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  {mode === 'signup' ? 'Creating account...' : 'Signing in...'}
+                  Signing in...
                 </>
               ) : (
-                mode === 'signup' ? 'Create Account' : 'Sign In'
+                'Sign In'
               )}
             </button>
           </form>
@@ -228,14 +174,19 @@ export function Login() {
           <div className="mt-6 text-center space-y-3">
             <button
               type="button"
-              onClick={() => {
-                setMode(mode === 'signin' ? 'signup' : 'signin');
-                setError('');
-              }}
+              onClick={() => navigate('/signup')}
               className="text-blue-600 hover:text-blue-700 font-medium"
             >
-              {mode === 'signup' ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+              Don't have an account? Sign up
             </button>
+            <div>
+              <button
+                onClick={() => navigate('/forgot-password')}
+                className="text-sm text-slate-600 hover:text-slate-700 font-medium"
+              >
+                Forgot password?
+              </button>
+            </div>
             <div>
               <button
                 onClick={() => navigate('/')}
@@ -244,13 +195,6 @@ export function Login() {
                 Back to Home
               </button>
             </div>
-          </div>
-
-          <div className="mt-6 p-4 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-sm text-slate-700 font-bold mb-2">Staff Login:</p>
-            <p className="text-sm text-slate-600">
-              Master: admin@bouncepartyclub.com / admin123
-            </p>
           </div>
         </div>
       </div>
