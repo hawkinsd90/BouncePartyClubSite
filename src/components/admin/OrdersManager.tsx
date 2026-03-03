@@ -227,26 +227,27 @@ export function OrdersManager() {
     }
 
     function handleScroll() {
-      const cards = Array.from(orderCardsRef.current.values());
+      let bestMatch = null;
+      let closestDistance = Infinity;
 
-      let closestOrder = null;
-      let smallestOffset = Infinity;
-
-      cards.forEach((element) => {
+      orderCardsRef.current.forEach((element, orderId) => {
         const rect = element.getBoundingClientRect();
-        const offset = Math.abs(rect.top);
 
-        if (rect.top <= 150 && rect.bottom > 0 && offset < smallestOffset) {
-          smallestOffset = offset;
-          const orderId = element.getAttribute('data-order-id');
-          const order = filteredOrders.find(o => o.id === orderId);
-          if (order) {
-            closestOrder = order;
+        // Only consider cards that are at least partially visible
+        if (rect.bottom > 0 && rect.top < window.innerHeight) {
+          const distanceFromTop = Math.abs(rect.top);
+
+          if (distanceFromTop < closestDistance) {
+            closestDistance = distanceFromTop;
+            const order = filteredOrders.find(o => o.id === orderId);
+            if (order) {
+              bestMatch = order;
+            }
           }
         }
       });
 
-      setVisibleOrder(closestOrder);
+      setVisibleOrder(bestMatch);
     }
 
     window.addEventListener('scroll', handleScroll, { passive: true });

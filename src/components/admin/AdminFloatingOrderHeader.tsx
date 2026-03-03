@@ -1,1 +1,62 @@
-Nothing
+import { format } from 'date-fns';
+import { Calendar, MapPin, User, Hash } from 'lucide-react';
+import { formatOrderId } from '../../lib/utils';
+
+interface AdminFloatingOrderHeaderProps {
+  order: any | null;
+  isVisible: boolean;
+}
+
+export function AdminFloatingOrderHeader({ order, isVisible }: AdminFloatingOrderHeaderProps) {
+  if (!isVisible || !order) {
+    return null;
+  }
+
+  return (
+    <div className="fixed top-16 left-0 right-0 bg-gradient-to-b from-blue-50 to-blue-100 border-b-4 border-blue-400 shadow-lg z-[100] animate-slide-down">
+      <div className="max-w-7xl mx-auto px-4 py-3">
+        <div className="flex flex-wrap items-center gap-4 text-sm">
+          <div className="flex items-center gap-2">
+            <Hash className="w-4 h-4 text-blue-600" />
+            <span className="font-mono font-bold text-blue-700">
+              {formatOrderId(order.id).toUpperCase()}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <User className="w-4 h-4 text-slate-600" />
+            <span className="font-semibold text-slate-900">
+              {order.customers?.first_name} {order.customers?.last_name}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-slate-600" />
+            <span className="text-slate-700">
+              {format(new Date(order.event_date), 'MMM d, yyyy')}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-slate-600" />
+            <span className="text-slate-700">
+              {order.addresses?.city}, {order.addresses?.state}
+            </span>
+          </div>
+
+          <div className="ml-auto">
+            <span className={`inline-flex px-3 py-1 text-xs font-bold rounded-full ${
+              order.status === 'pending_review'
+                ? 'bg-yellow-200 text-yellow-900'
+                : order.status === 'awaiting_customer_approval'
+                ? 'bg-blue-200 text-blue-900'
+                : 'bg-slate-200 text-slate-900'
+            }`}>
+              {order.status.replace(/_/g, ' ').toUpperCase()}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
