@@ -40,7 +40,7 @@ export function AdminFloatingOrderHeader({ order, isVisible }: AdminFloatingOrde
   const eventDate = format(new Date(order.event_date), 'EEE, MMM d, yyyy');
 
   return (
-    <div className="fixed top-0 left-0 right-0 bg-gradient-to-b from-blue-50 to-blue-100 border-b-4 border-blue-400 shadow-lg z-50 animate-slide-down">
+    <div className="fixed top-16 left-0 right-0 bg-gradient-to-b from-blue-50 to-blue-100 border-b-4 border-blue-400 shadow-lg z-[100] animate-slide-down">
       <div className="max-w-7xl mx-auto px-3 py-2 md:px-6 md:py-3">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div className="flex flex-col min-w-0">

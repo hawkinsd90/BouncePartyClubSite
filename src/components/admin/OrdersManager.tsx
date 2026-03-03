@@ -226,41 +226,34 @@ export function OrdersManager() {
       return;
     }
 
-    const observerOptions = {
-      root: null,
-      rootMargin: '-20% 0px -60% 0px',
-      threshold: 0,
-    };
+    function handleScroll() {
+      const cards = Array.from(orderCardsRef.current.values());
 
-    const observerCallback = (entries: IntersectionObserverEntry[]) => {
-      const visibleEntry = entries.find(entry => entry.isIntersecting);
+      let closestOrder = null;
+      let smallestOffset = Infinity;
 
-      if (visibleEntry) {
-        const orderId = visibleEntry.target.getAttribute('data-order-id');
-        const order = filteredOrders.find(o => o.id === orderId);
-        if (order) {
-          setVisibleOrder(order);
+      cards.forEach((element) => {
+        const rect = element.getBoundingClientRect();
+        const offset = Math.abs(rect.top);
+
+        if (rect.top <= 150 && rect.bottom > 0 && offset < smallestOffset) {
+          smallestOffset = offset;
+          const orderId = element.getAttribute('data-order-id');
+          const order = filteredOrders.find(o => o.id === orderId);
+          if (order) {
+            closestOrder = order;
+          }
         }
-      } else {
-        const hasVisibleCard = Array.from(orderCardsRef.current.values()).some(element => {
-          const rect = element.getBoundingClientRect();
-          return rect.top < window.innerHeight && rect.bottom > 0;
-        });
+      });
 
-        if (!hasVisibleCard) {
-          setVisibleOrder(null);
-        }
-      }
-    };
+      setVisibleOrder(closestOrder);
+    }
 
-    const observer = new IntersectionObserver(observerCallback, observerOptions);
-
-    orderCardsRef.current.forEach(element => {
-      observer.observe(element);
-    });
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
 
     return () => {
-      observer.disconnect();
+      window.removeEventListener('scroll', handleScroll);
     };
   }, [activeTab, filteredOrders]);
 
@@ -273,11 +266,13 @@ export function OrdersManager() {
     );
   }
 
+  const showFloatingHeader = !!visibleOrder && (activeTab === 'pending_review' || activeTab === 'awaiting_customer_approval');
+
   return (
-    <div>
+    <div className={showFloatingHeader ? 'pt-20' : ''}>
       <AdminFloatingOrderHeader
         order={visibleOrder}
-        isVisible={!!visibleOrder && (activeTab === 'pending_review' || activeTab === 'awaiting_customer_approval')}
+        isVisible={showFloatingHeader}
       />
 
       <div className="mb-6">
