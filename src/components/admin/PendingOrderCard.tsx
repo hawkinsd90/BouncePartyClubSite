@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, forwardRef } from 'react';
 import { OrderDetailModal } from './OrderDetailModal';
 import { OrderSummary } from '../order/OrderSummary';
 import { usePendingOrderData } from '../../hooks/usePendingOrderData';
@@ -14,15 +14,15 @@ import { ApprovalModal } from '../pending-order/ApprovalModal';
 import { RejectionModal } from '../pending-order/RejectionModal';
 import { PaymentLinkSection } from '../pending-order/PaymentLinkSection';
 
-export function PendingOrderCard({
-  order,
-  onUpdate,
-  openEditMode = false
-}: {
+export const PendingOrderCard = forwardRef<HTMLDivElement, {
   order: any;
   onUpdate: () => void;
   openEditMode?: boolean;
-}) {
+}>(function PendingOrderCard({
+  order,
+  onUpdate,
+  openEditMode = false
+}, ref) {
   const [processing, setProcessing] = useState(false);
   const [showRejectionModal, setShowRejectionModal] = useState(false);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
@@ -168,7 +168,11 @@ export function PendingOrderCard({
   };
 
   return (
-    <div className="border border-blue-300 bg-blue-50 rounded-lg p-3 md:p-6">
+    <div
+      ref={ref}
+      data-order-id={order.id}
+      className="border border-blue-300 bg-blue-50 rounded-lg p-3 md:p-6"
+    >
       <OrderInfoSection
         order={order}
         customerDisplayName={getCustomerDisplayName()}
@@ -292,4 +296,4 @@ export function PendingOrderCard({
       )}
     </div>
   );
-}
+});

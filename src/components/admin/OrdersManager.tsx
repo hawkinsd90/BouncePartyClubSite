@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { format, isToday, isFuture, isPast } from 'date-fns';
 import { Search, Calendar, User, Phone } from 'lucide-react';
 import { OrderDetailModal } from '../admin/OrderDetailModal';
 import { PendingOrderCard } from '../admin/PendingOrderCard';
 import { SingleOrderView } from '../admin/SingleOrderView';
+import { AdminFloatingOrderHeader } from '../admin/AdminFloatingOrderHeader';
 import { useDataFetch } from '../../hooks/useDataFetch';
 import { handleError } from '../../lib/errorHandling';
 import { formatOrderId } from '../../lib/utils';
@@ -29,6 +30,8 @@ export function OrdersManager() {
   const [searchTerm, setSearchTerm] = useState('');
   const [singleOrderSearchId, setSingleOrderSearchId] = useState(singleOrderId || '');
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [visibleOrder, setVisibleOrder] = useState<any>(null);
+  const orderCardsRef = useRef<Map<string, HTMLElement>>(new Map());
 
   const fetchOrdersData = useCallback(async () => {
     const { data, error } = await getAllOrdersWithContacts();
@@ -217,6 +220,50 @@ export function OrdersManager() {
     }
   }
 
+  useEffect(() => {
+    if (activeTab !== 'pending_review' && activeTab !== 'awaiting_customer_approval') {
+      setVisibleOrder(null);
+      return;
+    }
+
+    const observerOptions = {
+      root: null,
+      rootMargin: '-20% 0px -60% 0px',
+      threshold: 0,
+    };
+
+    const observerCallback = (entries: IntersectionObserverEntry[]) => {
+      const visibleEntry = entries.find(entry => entry.isIntersecting);
+
+      if (visibleEntry) {
+        const orderId = visibleEntry.target.getAttribute('data-order-id');
+        const order = filteredOrders.find(o => o.id === orderId);
+        if (order) {
+          setVisibleOrder(order);
+        }
+      } else {
+        const hasVisibleCard = Array.from(orderCardsRef.current.values()).some(element => {
+          const rect = element.getBoundingClientRect();
+          return rect.top < window.innerHeight && rect.bottom > 0;
+        });
+
+        if (!hasVisibleCard) {
+          setVisibleOrder(null);
+        }
+      }
+    };
+
+    const observer = new IntersectionObserver(observerCallback, observerOptions);
+
+    orderCardsRef.current.forEach(element => {
+      observer.observe(element);
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [activeTab, filteredOrders]);
+
   if (loading) {
     return (
       <div className="text-center py-12">
@@ -228,6 +275,11 @@ export function OrdersManager() {
 
   return (
     <div>
+      <AdminFloatingOrderHeader
+        order={visibleOrder}
+        isVisible={!!visibleOrder && (activeTab === 'pending_review' || activeTab === 'awaiting_customer_approval')}
+      />
+
       <div className="mb-6">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
@@ -307,7 +359,18 @@ export function OrdersManager() {
       ) : activeTab === 'pending_review' || activeTab === 'awaiting_customer_approval' ? (
         <div className="space-y-4">
           {filteredOrders.map(order => (
-            <PendingOrderCard key={order.id} order={order} onUpdate={refetch} />
+            <PendingOrderCard
+              key={order.id}
+              order={order}
+              onUpdate={refetch}
+              ref={(el: HTMLElement | null) => {
+                if (el) {
+                  orderCardsRef.current.set(order.id, el);
+                } else {
+                  orderCardsRef.current.delete(order.id);
+                }
+              }}
+            />
           ))}
         </div>
       ) : (
