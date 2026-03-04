@@ -68,7 +68,7 @@ export const STANDARD_ORDER_SELECT = `
     units (
       id,
       name,
-      type,
+      types,
       price_dry_cents,
       price_water_cents,
       dimensions,

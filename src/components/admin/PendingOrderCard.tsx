@@ -201,7 +201,7 @@ export const PendingOrderCard = forwardRef<{ card: HTMLElement, actionButtons: H
           orderId={order.id}
           orderNumber={formatOrderId(order.id)}
           onPromptCustomer={() => {
-            const message = `Hi! We're reviewing your order #${formatOrderId(order.id)}. Could you please upload pictures of the event location through your customer portal? This helps us prepare better for your event. Link: ${window.location.origin}/customer-portal/${order.id}`;
+            const message = `Bounce Party Club - Hi! We're reviewing your order #${formatOrderId(order.id)}. Could you please upload pictures of the event location through your customer portal? This helps us prepare better for your event. Link: ${window.location.origin}/customer-portal/${order.id}`;
             sendSms(message);
           }}
         />
