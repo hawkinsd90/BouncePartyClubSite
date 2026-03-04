@@ -14,10 +14,12 @@ import { showToast } from '../../lib/notifications';
 interface RegularPortalViewProps {
   order: any;
   orderId: string;
+  orderItems: any[];
+  orderSummary: any;
   onReload: () => void;
 }
 
-export function RegularPortalView({ order, orderId, onReload }: RegularPortalViewProps) {
+export function RegularPortalView({ order, orderId, orderItems, orderSummary, onReload }: RegularPortalViewProps) {
   const isPendingReview = order.status === 'pending_review';
   const [showWaiverModal, setShowWaiverModal] = useState(false);
   const [showLotPicturesModal, setShowLotPicturesModal] = useState(isPendingReview);
@@ -178,55 +180,41 @@ export function RegularPortalView({ order, orderId, onReload }: RegularPortalVie
             <div className="mb-6">
               <h2 className="text-lg font-semibold text-slate-900 mb-4">Complete These Steps</h2>
               <div className="flex flex-wrap gap-3">
-                {isPendingReview && (
-                  <button
-                    onClick={() => setShowLotPicturesModal(true)}
-                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-lg font-semibold transition-colors"
-                  >
-                    <MapPin className="w-5 h-5" />
-                    Upload Lot Pictures
-                  </button>
-                )}
+                <button
+                  onClick={() => setShowLotPicturesModal(true)}
+                  className={`flex items-center gap-2 px-5 py-3 rounded-lg font-semibold transition-colors ${
+                    isPendingReview
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                      : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                  }`}
+                >
+                  <MapPin className="w-5 h-5" />
+                  {isPendingReview ? 'Upload Lot Pictures' : 'Lot Pictures'}
+                </button>
 
-                {!isPendingReview && (
-                  <>
-                    <button
-                      onClick={() => setShowLotPicturesModal(true)}
-                      className={`flex items-center gap-2 px-5 py-3 rounded-lg font-semibold transition-colors ${
-                        needsWaiver
-                          ? 'bg-slate-200 text-slate-600 hover:bg-slate-300'
-                          : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
-                      }`}
-                    >
-                      <MapPin className="w-5 h-5" />
-                      Lot Pictures
-                    </button>
+                <button
+                  onClick={() => setShowWaiverModal(true)}
+                  className={`flex items-center gap-2 px-5 py-3 rounded-lg font-semibold transition-colors ${
+                    needsWaiver
+                      ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                      : 'bg-green-600 hover:bg-green-700 text-white'
+                  }`}
+                >
+                  {needsWaiver ? (
+                    <FileText className="w-5 h-5" />
+                  ) : (
+                    <CheckCircle className="w-5 h-5" />
+                  )}
+                  {needsWaiver ? 'Sign Waiver (Required)' : 'Waiver Signed'}
+                </button>
 
-                    <button
-                      onClick={() => setShowWaiverModal(true)}
-                      className={`flex items-center gap-2 px-5 py-3 rounded-lg font-semibold transition-colors ${
-                        needsWaiver
-                          ? 'bg-amber-600 hover:bg-amber-700 text-white'
-                          : 'bg-green-600 hover:bg-green-700 text-white'
-                      }`}
-                    >
-                      {needsWaiver ? (
-                        <FileText className="w-5 h-5" />
-                      ) : (
-                        <CheckCircle className="w-5 h-5" />
-                      )}
-                      {needsWaiver ? 'Sign Waiver (Required)' : 'Waiver Signed'}
-                    </button>
-
-                    <button
-                      onClick={() => setShowPicturesModal(true)}
-                      className="flex items-center gap-2 bg-slate-200 text-slate-600 hover:bg-slate-300 px-5 py-3 rounded-lg font-semibold transition-colors"
-                    >
-                      <ImageIcon className="w-5 h-5" />
-                      Event Pictures
-                    </button>
-                  </>
-                )}
+                <button
+                  onClick={() => setShowPicturesModal(true)}
+                  className="flex items-center gap-2 bg-slate-200 text-slate-600 hover:bg-slate-300 px-5 py-3 rounded-lg font-semibold transition-colors"
+                >
+                  <ImageIcon className="w-5 h-5" />
+                  Event Pictures
+                </button>
               </div>
             </div>
 
@@ -269,6 +257,23 @@ export function RegularPortalView({ order, orderId, onReload }: RegularPortalVie
 
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-slate-900 mb-4">Payment Summary</h3>
+
+                {orderItems && orderItems.length > 0 && (
+                  <div className="mb-4 pb-4 border-b border-slate-300">
+                    <p className="text-sm font-semibold text-slate-700 mb-2">Items:</p>
+                    {orderItems.map((item: any) => (
+                      <div key={item.id} className="flex justify-between text-sm mb-1">
+                        <span className="text-slate-600">
+                          {item.units?.name || 'Item'} × {item.quantity} ({item.rental_days} day{item.rental_days > 1 ? 's' : ''})
+                        </span>
+                        <span className="font-medium text-slate-900">
+                          {formatCurrency(item.price_per_unit_per_day_cents * item.quantity * item.rental_days)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-600">Subtotal:</span>

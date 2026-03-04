@@ -89,5 +89,13 @@ export function CustomerPortal() {
     );
   }
 
-  return <RegularPortalView order={order} orderId={orderId!} onReload={handleReload} />;
+  return (
+    <RegularPortalView
+      order={order}
+      orderId={orderId!}
+      orderItems={orderItems}
+      orderSummary={orderSummary}
+      onReload={handleReload}
+    />
+  );
 }
