@@ -133,8 +133,8 @@ Deno.serve(async (req: Request) => {
     }
 
     // Build success/cancel URLs
-    const success_url = `${siteOrigin}/portal/${orderId}?payment=success`;
-    const cancel_url = `${siteOrigin}/portal/${orderId}?payment=canceled`;
+    const success_url = `${siteOrigin}/customer-portal/${orderId}?payment=success`;
+    const cancel_url = `${siteOrigin}/customer-portal/${orderId}?payment=canceled`;
 
     // Create Stripe Checkout session in payment mode
     const session = await stripe.checkout.sessions.create({

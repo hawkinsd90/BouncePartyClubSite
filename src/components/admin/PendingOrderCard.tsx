@@ -5,6 +5,7 @@ import { usePendingOrderData } from '../../hooks/usePendingOrderData';
 import { useSmsHandling } from '../../hooks/useSmsHandling';
 import { approveOrder, forceApproveOrder, rejectOrder } from '../../lib/orderApprovalService';
 import { generatePaymentLinkSmsMessage } from '../../lib/orderEmailTemplates';
+import { formatOrderId } from '../../lib/utils';
 import { OrderInfoSection } from '../pending-order/OrderInfoSection';
 import { SmsConversation } from '../pending-order/SmsConversation';
 import { PaymentManagementSection } from '../pending-order/PaymentManagementSection';
@@ -198,9 +199,9 @@ export const PendingOrderCard = forwardRef<{ card: HTMLElement, actionButtons: H
       <div className="mb-4">
         <LotPicturesDisplay
           orderId={order.id}
-          orderNumber={order.order_number}
+          orderNumber={formatOrderId(order.id)}
           onPromptCustomer={() => {
-            const message = `Hi! We're reviewing your order #${order.order_number}. Could you please upload pictures of the event location through your customer portal? This helps us prepare better for your event. Link: ${window.location.origin}/portal/${order.id}`;
+            const message = `Hi! We're reviewing your order #${formatOrderId(order.id)}. Could you please upload pictures of the event location through your customer portal? This helps us prepare better for your event. Link: ${window.location.origin}/customer-portal/${order.id}`;
             sendSms(message);
           }}
         />
