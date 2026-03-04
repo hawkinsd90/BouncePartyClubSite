@@ -31,7 +31,7 @@ export function OrdersManager() {
   const [singleOrderSearchId, setSingleOrderSearchId] = useState(singleOrderId || '');
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [visibleOrder, setVisibleOrder] = useState<any>(null);
-  const orderCardsRef = useRef<Map<string, HTMLElement>>(new Map());
+  const orderCardsRef = useRef<Map<string, { card: HTMLElement, actionButtons: HTMLElement | null }>>(new Map());
 
   const fetchOrdersData = useCallback(async () => {
     const { data, error } = await getAllOrdersWithContacts();
@@ -230,12 +230,22 @@ export function OrdersManager() {
       let bestMatch = null;
       let closestDistance = Infinity;
 
-      orderCardsRef.current.forEach((element, orderId) => {
-        const rect = element.getBoundingClientRect();
+      orderCardsRef.current.forEach((refs, orderId) => {
+        const { card, actionButtons } = refs;
+        const cardRect = card.getBoundingClientRect();
 
-        // Only consider cards that are at least partially visible
-        if (rect.bottom > 0 && rect.top < window.innerHeight) {
-          const distanceFromTop = Math.abs(rect.top);
+        // Use action buttons position if available, otherwise use card bottom
+        const triggerElement = actionButtons || card;
+        const triggerRect = triggerElement.getBoundingClientRect();
+
+        // Header should appear only after we've scrolled past the top of the card
+        const hasScrolledPastTop = cardRect.top < 64; // 64px = top-16 (header height)
+
+        // Header should disappear when action buttons scroll out of view
+        const actionButtonsVisible = triggerRect.bottom > 64;
+
+        if (hasScrolledPastTop && actionButtonsVisible) {
+          const distanceFromTop = Math.abs(cardRect.top - 64);
 
           if (distanceFromTop < closestDistance) {
             closestDistance = distanceFromTop;
@@ -359,9 +369,9 @@ export function OrdersManager() {
               key={order.id}
               order={order}
               onUpdate={refetch}
-              ref={(el: HTMLElement | null) => {
-                if (el) {
-                  orderCardsRef.current.set(order.id, el);
+              ref={(refs: { card: HTMLElement, actionButtons: HTMLElement | null } | null) => {
+                if (refs) {
+                  orderCardsRef.current.set(order.id, refs);
                 } else {
                   orderCardsRef.current.delete(order.id);
                 }

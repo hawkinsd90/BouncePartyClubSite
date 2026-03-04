@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../lib/pricing';
@@ -19,6 +19,7 @@ import { InventorySection } from '../components/admin/InventorySection';
 import { PricingSection } from '../components/admin/PricingSection';
 import { PerformanceAnalytics } from '../components/admin/PerformanceAnalytics';
 import { NotificationFailuresAlert } from '../components/admin/NotificationFailuresAlert';
+import { AdminFloatingOrderHeader } from '../components/admin/AdminFloatingOrderHeader';
 import { TabNavigation, type AdminTab } from '../components/admin/TabNavigation';
 import { useDataFetch } from '../hooks/useDataFetch';
 import { handleError } from '../lib/errorHandling';
@@ -80,6 +81,15 @@ function AdminDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get('tab') as AdminTab | null;
   const [activeTab, setActiveTab] = useState<AdminTab>(tabFromUrl || 'pending');
+  const [visibleOrder, setVisibleOrder] = useState<any>(null);
+  const orderCardsRef = useRef<Map<string, { card: HTMLElement, actionButtons: HTMLElement | null }>>(new Map());
+
+  // Set URL parameter on initial load if not present
+  useEffect(() => {
+    if (!tabFromUrl) {
+      setSearchParams({ tab: 'pending' });
+    }
+  }, []);
 
   const fetchAdminData = useCallback(async () => {
     const [unitsRes, ordersRes, pricingRes] = await Promise.all([
@@ -153,6 +163,56 @@ function AdminDashboard() {
     }
   }, [tabFromUrl]);
 
+  // Scroll detection for floating header
+  useEffect(() => {
+    if (activeTab !== 'pending') {
+      setVisibleOrder(null);
+      return;
+    }
+
+    function handleScroll() {
+      const pendingOrders = orders.filter(o => o.status === 'pending_review');
+      let bestMatch = null;
+      let closestDistance = Infinity;
+
+      orderCardsRef.current.forEach((refs, orderId) => {
+        const { card, actionButtons } = refs;
+        const cardRect = card.getBoundingClientRect();
+
+        // Use action buttons position if available, otherwise use card bottom
+        const triggerElement = actionButtons || card;
+        const triggerRect = triggerElement.getBoundingClientRect();
+
+        // Header should appear only after we've scrolled past the top of the card
+        const hasScrolledPastTop = cardRect.top < 64; // 64px = top-16 (header height)
+
+        // Header should disappear when action buttons scroll out of view
+        const actionButtonsVisible = triggerRect.bottom > 64;
+
+        if (hasScrolledPastTop && actionButtonsVisible) {
+          const distanceFromTop = Math.abs(cardRect.top - 64);
+
+          if (distanceFromTop < closestDistance) {
+            closestDistance = distanceFromTop;
+            const order = pendingOrders.find(o => o.id === orderId);
+            if (order) {
+              bestMatch = order;
+            }
+          }
+        }
+      });
+
+      setVisibleOrder(bestMatch);
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, [activeTab, orders]);
+
   function changeTab(tab: AdminTab) {
     setActiveTab(tab);
     setSearchParams({ tab });
@@ -222,32 +282,50 @@ function AdminDashboard() {
       )}
 
       {activeTab === 'pending' && (
-        <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-slate-900">Pending Review</h2>
-            <button
-              onClick={refetch}
-              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg hover:shadow-xl"
-            >
-              Refresh
-            </button>
-          </div>
+        <>
+          <AdminFloatingOrderHeader
+            order={visibleOrder}
+            isVisible={!!visibleOrder}
+          />
 
-          {orders.filter(o => o.status === 'pending_review').length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-slate-600 mb-2">No pending bookings</p>
-              <p className="text-sm text-slate-500">New bookings will appear here for review</p>
+          <div className={`bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100 ${visibleOrder ? 'pt-20' : ''}`}>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-slate-900">Pending Review</h2>
+              <button
+                onClick={refetch}
+                className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg hover:shadow-xl"
+              >
+                Refresh
+              </button>
             </div>
-          ) : (
-            <div className="space-y-4">
-              {orders
-                .filter(o => o.status === 'pending_review')
-                .map((order) => (
-                  <PendingOrderCard key={order.id} order={order} onUpdate={refetch} />
-                ))}
-            </div>
-          )}
-        </div>
+
+            {orders.filter(o => o.status === 'pending_review').length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-slate-600 mb-2">No pending bookings</p>
+                <p className="text-sm text-slate-500">New bookings will appear here for review</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {orders
+                  .filter(o => o.status === 'pending_review')
+                  .map((order) => (
+                    <PendingOrderCard
+                      key={order.id}
+                      order={order}
+                      onUpdate={refetch}
+                      ref={(refs: { card: HTMLElement, actionButtons: HTMLElement | null } | null) => {
+                        if (refs) {
+                          orderCardsRef.current.set(order.id, refs);
+                        } else {
+                          orderCardsRef.current.delete(order.id);
+                        }
+                      }}
+                    />
+                  ))}
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {activeTab === 'calendar' && (

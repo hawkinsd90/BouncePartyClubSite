@@ -1,4 +1,4 @@
-import { useState, useEffect, forwardRef } from 'react';
+import { useState, useEffect, forwardRef, useRef, useImperativeHandle } from 'react';
 import { OrderDetailModal } from './OrderDetailModal';
 import { OrderSummary } from '../order/OrderSummary';
 import { usePendingOrderData } from '../../hooks/usePendingOrderData';
@@ -14,7 +14,7 @@ import { ApprovalModal } from '../pending-order/ApprovalModal';
 import { RejectionModal } from '../pending-order/RejectionModal';
 import { PaymentLinkSection } from '../pending-order/PaymentLinkSection';
 
-export const PendingOrderCard = forwardRef<HTMLDivElement, {
+export const PendingOrderCard = forwardRef<{ card: HTMLElement, actionButtons: HTMLElement | null }, {
   order: any;
   onUpdate: () => void;
   openEditMode?: boolean;
@@ -28,6 +28,15 @@ export const PendingOrderCard = forwardRef<HTMLDivElement, {
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(openEditMode);
   const [selectedImage, setSelectedImage] = useState<{ url: string; label: string } | null>(null);
+
+  const cardRef = useRef<HTMLDivElement>(null);
+  const actionButtonsRef = useRef<HTMLDivElement>(null);
+
+  // Expose both refs to parent
+  useImperativeHandle(ref, () => ({
+    card: cardRef.current!,
+    actionButtons: actionButtonsRef.current
+  }), []);
 
   const {
     smsConversations,
@@ -169,7 +178,7 @@ export const PendingOrderCard = forwardRef<HTMLDivElement, {
 
   return (
     <div
-      ref={ref}
+      ref={cardRef}
       data-order-id={order.id}
       className="border border-blue-300 bg-blue-50 rounded-lg p-3 md:p-6"
     >
@@ -218,7 +227,7 @@ export const PendingOrderCard = forwardRef<HTMLDivElement, {
       <PaymentManagementSection order={order} payments={payments} />
 
       {isDraft ? (
-        <div className="space-y-3">
+        <div ref={actionButtonsRef} className="space-y-3">
           <PaymentLinkSection
             paymentUrl={paymentUrl}
             onCopyLink={handleCopyPaymentLink}
@@ -234,7 +243,7 @@ export const PendingOrderCard = forwardRef<HTMLDivElement, {
           </button>
         </div>
       ) : isAwaitingApproval ? (
-        <div className="space-y-3">
+        <div ref={actionButtonsRef} className="space-y-3">
           <div className="p-4 bg-amber-50 border border-amber-300 rounded-lg">
             <p className="text-sm text-amber-900 font-semibold mb-1">⏳ Awaiting Customer Approval</p>
             <p className="text-xs text-amber-800">
@@ -250,7 +259,7 @@ export const PendingOrderCard = forwardRef<HTMLDivElement, {
           </button>
         </div>
       ) : (
-        <div className="flex gap-3">
+        <div ref={actionButtonsRef} className="flex gap-3">
           <button
             onClick={() => setShowApprovalModal(true)}
             disabled={processing}
