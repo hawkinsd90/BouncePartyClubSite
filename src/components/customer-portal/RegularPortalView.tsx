@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { FileText, CreditCard, CheckCircle, Image as ImageIcon, MapPin, Printer, Calendar, MapPin as MapPinIcon, X } from 'lucide-react';
+import { FileText, CreditCard, CheckCircle, Image as ImageIcon, MapPin, Printer, Calendar, MapPin as MapPinIcon } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
 import { supabase } from '../../lib/supabase';
@@ -21,9 +21,9 @@ interface RegularPortalViewProps {
 
 export function RegularPortalView({ order, orderId, orderItems, orderSummary, onReload }: RegularPortalViewProps) {
   const isPendingReview = order.status === 'pending_review';
-  const [showWaiverModal, setShowWaiverModal] = useState(false);
-  const [showLotPicturesModal, setShowLotPicturesModal] = useState(isPendingReview);
-  const [showPicturesModal, setShowPicturesModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'lot-pictures' | 'waiver' | 'payment' | 'pictures'>(
+    isPendingReview ? 'lot-pictures' : (order.waiver_signed_at ? 'payment' : 'waiver')
+  );
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [payments, setPayments] = useState<any[]>([]);
 
@@ -179,208 +179,290 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
           <div className="px-8 py-6">
             <div className="mb-6">
               <h2 className="text-lg font-semibold text-slate-900 mb-4">Complete These Steps</h2>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  onClick={() => setShowLotPicturesModal(true)}
-                  className={`flex items-center gap-2 px-5 py-3 rounded-lg font-semibold transition-colors ${
-                    isPendingReview
-                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                      : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
-                  }`}
-                >
-                  <MapPin className="w-5 h-5" />
-                  {isPendingReview ? 'Upload Lot Pictures' : 'Lot Pictures'}
-                </button>
-
-                <button
-                  onClick={() => setShowWaiverModal(true)}
-                  className={`flex items-center gap-2 px-5 py-3 rounded-lg font-semibold transition-colors ${
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div
+                  className={`border rounded-lg p-4 ${
                     needsWaiver
-                      ? 'bg-amber-600 hover:bg-amber-700 text-white'
-                      : 'bg-green-600 hover:bg-green-700 text-white'
+                      ? 'border-amber-500 bg-amber-50'
+                      : 'border-green-500 bg-green-50'
                   }`}
                 >
-                  {needsWaiver ? (
-                    <FileText className="w-5 h-5" />
-                  ) : (
-                    <CheckCircle className="w-5 h-5" />
-                  )}
-                  {needsWaiver ? 'Sign Waiver (Required)' : 'Waiver Signed'}
-                </button>
+                  <div className="flex items-center gap-3">
+                    {needsWaiver ? (
+                      <FileText className="w-6 h-6 text-amber-600" />
+                    ) : (
+                      <CheckCircle className="w-6 h-6 text-green-600" />
+                    )}
+                    <div>
+                      <p className="font-semibold text-slate-900">Sign Waiver</p>
+                      <p className="text-xs text-slate-600">
+                        {needsWaiver ? 'Required' : 'Complete'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
-                <button
-                  onClick={() => setShowPicturesModal(true)}
-                  className="flex items-center gap-2 bg-slate-200 text-slate-600 hover:bg-slate-300 px-5 py-3 rounded-lg font-semibold transition-colors"
+                <div
+                  className={`border rounded-lg p-4 ${
+                    needsPayment
+                      ? 'border-amber-500 bg-amber-50'
+                      : 'border-green-500 bg-green-50'
+                  }`}
                 >
-                  <ImageIcon className="w-5 h-5" />
-                  Event Pictures
-                </button>
+                  <div className="flex items-center gap-3">
+                    {needsPayment ? (
+                      <CreditCard className="w-6 h-6 text-amber-600" />
+                    ) : (
+                      <CheckCircle className="w-6 h-6 text-green-600" />
+                    )}
+                    <div>
+                      <p className="font-semibold text-slate-900">Payment</p>
+                      <p className="text-xs text-slate-600">
+                        {needsPayment ? `${formatCurrency(balanceDue)} due` : 'Complete'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border border-slate-300 rounded-lg p-4 bg-slate-50">
+                  <div className="flex items-center gap-3">
+                    <ImageIcon className="w-6 h-6 text-slate-600" />
+                    <div>
+                      <p className="font-semibold text-slate-900">Pictures</p>
+                      <p className="text-xs text-slate-600">Optional</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="space-y-6">
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-slate-900 mb-4">Order Information</h3>
+            <div className="flex gap-2 mb-6 border-b border-slate-200 overflow-x-auto">
+              <button
+                onClick={() => setActiveTab('lot-pictures')}
+                className={`px-4 py-2 font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
+                  activeTab === 'lot-pictures'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <MapPin className="w-4 h-4" />
+                Lot Pictures
+              </button>
+              <button
+                onClick={() => setActiveTab('waiver')}
+                className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  activeTab === 'waiver'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Waiver
+              </button>
+              <button
+                onClick={() => setActiveTab('payment')}
+                disabled={needsWaiver}
+                className={`px-4 py-2 font-medium border-b-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap ${
+                  activeTab === 'payment'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Payment
+              </button>
+              <button
+                onClick={() => setActiveTab('pictures')}
+                className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  activeTab === 'pictures'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Pictures
+              </button>
+            </div>
 
-                <div className="grid md:grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <p className="text-xs text-slate-600 mb-1">Event Date</p>
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-blue-600" />
-                      <p className="font-medium text-slate-900">
-                        {format(new Date(order.event_date), 'MMMM d, yyyy')}
-                      </p>
-                    </div>
-                  </div>
+            {activeTab === 'lot-pictures' && (
+              <LotPicturesTab orderId={orderId} orderNumber={order.order_number} />
+            )}
 
-                  <div>
-                    <p className="text-xs text-slate-600 mb-1">Time Window</p>
-                    <p className="font-medium text-slate-900">{order.start_window}</p>
-                  </div>
-                </div>
+            {activeTab === 'waiver' && <WaiverTab orderId={orderId} order={order} />}
 
-                {order.addresses && (
-                  <div className="mb-4">
-                    <p className="text-xs text-slate-600 mb-1">Event Location</p>
-                    <div className="flex items-start gap-2">
-                      <MapPinIcon className="w-4 h-4 text-blue-600 mt-0.5" />
-                      <p className="font-medium text-slate-900">
-                        {order.addresses.line1}
-                        {order.addresses.line2 && `, ${order.addresses.line2}`}
-                        <br />
-                        {order.addresses.city}, {order.addresses.state} {order.addresses.zip}
-                      </p>
-                    </div>
+            {activeTab === 'payment' && (
+              <div className="space-y-6">
+                {totalPaid === 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <p className="text-amber-800 font-medium">Order Pending Approval</p>
+                    <p className="text-sm text-amber-700 mt-1">
+                      Your order is pending approval. Payment will be required once approved.
+                    </p>
                   </div>
                 )}
-              </div>
 
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-slate-900 mb-4">Payment Summary</h3>
-
-                {orderItems && orderItems.length > 0 && (
-                  <div className="mb-4 pb-4 border-b border-slate-300">
-                    <p className="text-sm font-semibold text-slate-700 mb-2">Items:</p>
-                    {orderItems.map((item: any) => (
-                      <div key={item.id} className="flex justify-between text-sm mb-1">
-                        <span className="text-slate-600">
-                          {item.units?.name || 'Item'} × {item.quantity} ({item.rental_days} day{item.rental_days > 1 ? 's' : ''})
-                        </span>
-                        <span className="font-medium text-slate-900">
-                          {formatCurrency(item.price_per_unit_per_day_cents * item.quantity * item.rental_days)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Subtotal:</span>
-                    <span className="font-semibold text-slate-900">
-                      {formatCurrency(order.subtotal_cents)}
-                    </span>
-                  </div>
-                  {order.travel_fee_cents > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-600">Travel Fee:</span>
-                      <span className="font-semibold text-slate-900">
-                        {formatCurrency(order.travel_fee_cents)}
-                      </span>
-                    </div>
-                  )}
-                  {order.surface_fee_cents > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-600">Surface Fee:</span>
-                      <span className="font-semibold text-slate-900">
-                        {formatCurrency(order.surface_fee_cents)}
-                      </span>
-                    </div>
-                  )}
-                  {order.tax_cents > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-600">Tax:</span>
-                      <span className="font-semibold text-slate-900">
-                        {formatCurrency(order.tax_cents)}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex justify-between pt-2 border-t border-slate-300">
-                    <span className="font-semibold text-slate-900">Total:</span>
-                    <span className="text-lg font-bold text-slate-900">
-                      {formatCurrency(
-                        order.subtotal_cents +
-                        order.travel_fee_cents +
-                        order.surface_fee_cents +
-                        order.same_day_pickup_fee_cents +
-                        order.tax_cents
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Already Paid:</span>
-                    <span className="font-semibold text-green-700">
-                      {formatCurrency(totalPaid)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between pt-2 border-t border-slate-300">
-                    <span className="font-semibold text-slate-900">Balance Due:</span>
-                    <span className="text-xl font-bold text-blue-600">
-                      {formatCurrency(balanceDue)}
-                    </span>
-                  </div>
-                </div>
-
-                {balanceDue > 0 ? (
-                  <button
-                    onClick={handlePayment}
-                    className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
-                  >
-                    <CreditCard className="w-5 h-5" />
-                    Pay Balance Now
-                  </button>
-                ) : (
-                  <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-                    <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
-                    <p className="font-semibold text-green-900">Payment Complete</p>
-                    <p className="text-sm text-green-700 mt-1">Thank you for your payment!</p>
-                  </div>
-                )}
-              </div>
-
-              {successfulPayments.length > 0 && (
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
-                  <h3 className="text-lg font-semibold text-slate-900 mb-4">Payment History</h3>
-                  <div className="space-y-3">
-                    {successfulPayments.map((payment) => (
-                      <div
-                        key={payment.id}
-                        className="flex items-center justify-between bg-white border border-slate-200 rounded-lg p-4"
-                      >
-                        <div>
-                          <p className="font-medium text-slate-900">
-                            {formatCurrency(payment.amount_cents)}
-                          </p>
-                          <p className="text-xs text-slate-600">
-                            {format(new Date(payment.created_at), 'MMM d, yyyy h:mm a')}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {payment.payment_method === 'card' ? 'Credit Card' : payment.payment_method}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => window.print()}
-                          className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                        >
-                          <Printer className="w-4 h-4" />
-                          Print Receipt
-                        </button>
+                  <h3 className="text-lg font-semibold text-slate-900 mb-4">Order Information</h3>
+
+                  <div className="grid md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <p className="text-xs text-slate-600 mb-1">Event Date</p>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-blue-600" />
+                        <p className="font-medium text-slate-900">
+                          {format(new Date(order.event_date), 'MMMM d, yyyy')}
+                        </p>
                       </div>
-                    ))}
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-slate-600 mb-1">Time Window</p>
+                      <p className="font-medium text-slate-900">{order.start_window}</p>
+                    </div>
                   </div>
+
+                  {order.addresses && (
+                    <div>
+                      <p className="text-xs text-slate-600 mb-1">Event Location</p>
+                      <div className="flex items-start gap-2">
+                        <MapPinIcon className="w-4 h-4 text-blue-600 mt-0.5" />
+                        <p className="font-medium text-slate-900">
+                          {order.addresses.line1}
+                          {order.addresses.line2 && `, ${order.addresses.line2}`}
+                          <br />
+                          {order.addresses.city}, {order.addresses.state} {order.addresses.zip}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
+                  <h3 className="text-lg font-semibold text-slate-900 mb-4">Payment Summary</h3>
+
+                  {orderItems && orderItems.length > 0 && (
+                    <div className="mb-4 pb-4 border-b border-slate-300">
+                      <p className="text-sm font-semibold text-slate-700 mb-2">Items:</p>
+                      {orderItems.map((item: any) => (
+                        <div key={item.id} className="flex justify-between text-sm mb-1">
+                          <span className="text-slate-600">
+                            {item.units?.name || 'Item'} × {item.quantity} ({item.rental_days} day{item.rental_days > 1 ? 's' : ''})
+                          </span>
+                          <span className="font-medium text-slate-900">
+                            {formatCurrency(item.price_per_unit_per_day_cents * item.quantity * item.rental_days)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Subtotal:</span>
+                      <span className="font-semibold text-slate-900">
+                        {formatCurrency(order.subtotal_cents)}
+                      </span>
+                    </div>
+                    {order.travel_fee_cents > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Travel Fee:</span>
+                        <span className="font-semibold text-slate-900">
+                          {formatCurrency(order.travel_fee_cents)}
+                        </span>
+                      </div>
+                    )}
+                    {order.surface_fee_cents > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Surface Fee:</span>
+                        <span className="font-semibold text-slate-900">
+                          {formatCurrency(order.surface_fee_cents)}
+                        </span>
+                      </div>
+                    )}
+                    {order.tax_cents > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Tax:</span>
+                        <span className="font-semibold text-slate-900">
+                          {formatCurrency(order.tax_cents)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between pt-2 border-t border-slate-300">
+                      <span className="font-semibold text-slate-900">Total:</span>
+                      <span className="text-lg font-bold text-slate-900">
+                        {formatCurrency(
+                          order.subtotal_cents +
+                          order.travel_fee_cents +
+                          order.surface_fee_cents +
+                          order.same_day_pickup_fee_cents +
+                          order.tax_cents
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Already Paid:</span>
+                      <span className="font-semibold text-green-700">
+                        {formatCurrency(totalPaid)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between pt-2 border-t border-slate-300">
+                      <span className="font-semibold text-slate-900">Balance Due:</span>
+                      <span className="text-xl font-bold text-blue-600">
+                        {formatCurrency(balanceDue)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {balanceDue > 0 ? (
+                    <button
+                      onClick={handlePayment}
+                      className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                      <CreditCard className="w-5 h-5" />
+                      Pay Balance Now
+                    </button>
+                  ) : (
+                    <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                      <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
+                      <p className="font-semibold text-green-900">Payment Complete</p>
+                      <p className="text-sm text-green-700 mt-1">Thank you for your payment!</p>
+                    </div>
+                  )}
+                </div>
+
+                {successfulPayments.length > 0 && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Payment History</h3>
+                    <div className="space-y-3">
+                      {successfulPayments.map((payment) => (
+                        <div
+                          key={payment.id}
+                          className="flex items-center justify-between bg-white border border-slate-200 rounded-lg p-4"
+                        >
+                          <div>
+                            <p className="font-medium text-slate-900">
+                              {formatCurrency(payment.amount_cents)}
+                            </p>
+                            <p className="text-xs text-slate-600">
+                              {format(new Date(payment.created_at), 'MMM d, yyyy h:mm a')}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {payment.payment_method === 'card' ? 'Credit Card' : payment.payment_method}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => window.print()}
+                            className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                          >
+                            <Printer className="w-4 h-4" />
+                            Print Receipt
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'pictures' && <PicturesTab onSubmit={handleSubmitPictures} />}
           </div>
         </div>
 
@@ -388,63 +470,6 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
           <p>Questions? Call us or text us at the number provided in your confirmation.</p>
         </div>
       </div>
-
-      {showWaiverModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-              <h2 className="text-xl font-bold text-slate-900">Sign Waiver</h2>
-              <button
-                onClick={() => setShowWaiverModal(false)}
-                className="text-slate-400 hover:text-slate-600 transition-colors"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
-              <WaiverTab orderId={orderId} order={order} />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showLotPicturesModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-              <h2 className="text-xl font-bold text-slate-900">Lot Pictures</h2>
-              <button
-                onClick={() => setShowLotPicturesModal(false)}
-                className="text-slate-400 hover:text-slate-600 transition-colors"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
-              <LotPicturesTab orderId={orderId} orderNumber={order.order_number} />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showPicturesModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-              <h2 className="text-xl font-bold text-slate-900">Event Pictures</h2>
-              <button
-                onClick={() => setShowPicturesModal(false)}
-                className="text-slate-400 hover:text-slate-600 transition-colors"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
-              <PicturesTab onSubmit={handleSubmitPictures} />
-            </div>
-          </div>
-        </div>
-      )}
 
       {showCancelModal && (
         <CancelOrderModal
