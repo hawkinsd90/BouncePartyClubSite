@@ -24,6 +24,27 @@ export function LotPicturesDisplay({ orderId, onPromptCustomer }: LotPicturesDis
 
   useEffect(() => {
     loadPictures();
+
+    // Set up real-time listener for new picture uploads
+    const channel = supabase
+      .channel(`lot-pictures-${orderId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'order_lot_pictures',
+          filter: `order_id=eq.${orderId}`,
+        },
+        () => {
+          loadPictures();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [orderId]);
 
   const loadPictures = async () => {

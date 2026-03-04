@@ -6,6 +6,7 @@ import { useSmsHandling } from '../../hooks/useSmsHandling';
 import { approveOrder, forceApproveOrder, rejectOrder } from '../../lib/orderApprovalService';
 import { generatePaymentLinkSmsMessage } from '../../lib/orderEmailTemplates';
 import { formatOrderId } from '../../lib/utils';
+import { supabase } from '../../lib/supabase';
 import { OrderInfoSection } from '../pending-order/OrderInfoSection';
 import { SmsConversation } from '../pending-order/SmsConversation';
 import { PaymentManagementSection } from '../pending-order/PaymentManagementSection';
@@ -200,9 +201,29 @@ export const PendingOrderCard = forwardRef<{ card: HTMLElement, actionButtons: H
         <LotPicturesDisplay
           orderId={order.id}
           orderNumber={formatOrderId(order.id)}
-          onPromptCustomer={() => {
-            const message = `Bounce Party Club - Hi! We're reviewing your order #${formatOrderId(order.id)}. Could you please upload pictures of the event location through your customer portal? This helps us prepare better for your event. Link: ${window.location.origin}/customer-portal/${order.id}`;
-            sendSms(message);
+          onPromptCustomer={async () => {
+            try {
+              // Mark that lot pictures have been requested
+              const { error } = await supabase
+                .from('orders')
+                .update({
+                  lot_pictures_requested: true,
+                  lot_pictures_requested_at: new Date().toISOString(),
+                })
+                .eq('id', order.id);
+
+              if (error) throw error;
+
+              // Send SMS to customer
+              const message = `Bounce Party Club - Hi! We're reviewing your order #${formatOrderId(order.id)}. Could you please upload pictures of the event location through your customer portal? This helps us prepare better for your event. Link: ${window.location.origin}/customer-portal/${order.id}`;
+              await sendSms(message);
+
+              // Reload order data
+              onUpdate();
+            } catch (error) {
+              console.error('Error requesting lot pictures:', error);
+              alert('Failed to send request. Please try again.');
+            }
           }}
         />
       </div>

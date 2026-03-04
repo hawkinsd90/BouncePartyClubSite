@@ -20,6 +20,12 @@ async function notifyAdminOfPictureUpload(orderId: string, pictureCount: number)
 
     if (!order) return;
 
+    // Only notify if admin requested lot pictures
+    if (!order.lot_pictures_requested) {
+      console.log('Lot pictures uploaded but not requested by admin, skipping notification');
+      return;
+    }
+
     const customerName = `${order.customers?.first_name || ''} ${order.customers?.last_name || ''}`.trim();
     const formattedOrderId = formatOrderId(orderId);
     const portalLink = `${window.location.origin}/admin?tab=pending`;
