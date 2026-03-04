@@ -51,7 +51,7 @@ export function CustomerPortal() {
 
   const needsApproval = order.status === 'awaiting_customer_approval';
   const isDraft = order.status === 'draft';
-  const isActive = ['confirmed', 'in_progress', 'completed'].includes(order.status);
+  const isActive = ['pending_review', 'confirmed', 'in_progress', 'completed'].includes(order.status);
 
   if (approvalSuccess) {
     return <ApprovalSuccessView orderId={order.id} />;

@@ -229,37 +229,41 @@ export function RegularPortalView({ order, orderId, onReload }: RegularPortalVie
                   Lot Pictures
                 </button>
               )}
-              <button
-                onClick={() => setActiveTab('waiver')}
-                className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  activeTab === 'waiver'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Waiver
-              </button>
-              <button
-                onClick={() => setActiveTab('payment')}
-                disabled={needsWaiver}
-                className={`px-4 py-2 font-medium border-b-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap ${
-                  activeTab === 'payment'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Payment
-              </button>
-              <button
-                onClick={() => setActiveTab('pictures')}
-                className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  activeTab === 'pictures'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Pictures
-              </button>
+              {!isPendingReview && (
+                <>
+                  <button
+                    onClick={() => setActiveTab('waiver')}
+                    className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === 'waiver'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Waiver
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('payment')}
+                    disabled={needsWaiver}
+                    className={`px-4 py-2 font-medium border-b-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap ${
+                      activeTab === 'payment'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Payment
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('pictures')}
+                    className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === 'pictures'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Pictures
+                  </button>
+                </>
+              )}
             </div>
 
             {activeTab === 'lot-pictures' && (
