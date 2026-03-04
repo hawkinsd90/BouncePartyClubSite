@@ -2,10 +2,81 @@ import { useState, useEffect } from 'react';
 import { Upload, Image as ImageIcon, CheckCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { notifyError, notifySuccess } from '../../lib/notifications';
+import { formatOrderId } from '../../lib/utils';
 
 interface LotPicturesTabProps {
   orderId: string;
   orderNumber: string;
+}
+
+async function notifyAdminOfPictureUpload(orderId: string, pictureCount: number) {
+  try {
+    // Get order details
+    const { data: order } = await supabase
+      .from('orders')
+      .select('*, customers(first_name, last_name, email), addresses(line1, city, state)')
+      .eq('id', orderId)
+      .single();
+
+    if (!order) return;
+
+    const customerName = `${order.customers?.first_name || ''} ${order.customers?.last_name || ''}`.trim();
+    const formattedOrderId = formatOrderId(orderId);
+    const portalLink = `${window.location.origin}/admin?tab=pending`;
+
+    // Send SMS notification
+    try {
+      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderId,
+          templateKey: 'lot_pictures_uploaded_admin',
+        }),
+      });
+    } catch (smsError) {
+      console.error('Failed to send SMS notification:', smsError);
+    }
+
+    // Send email notification
+    try {
+      const emailSubject = `Lot Pictures Uploaded - Order ${formattedOrderId}`;
+      const emailBody = `
+        <h2>Lot Pictures Uploaded</h2>
+        <p><strong>${customerName}</strong> has uploaded <strong>${pictureCount}</strong> picture${pictureCount > 1 ? 's' : ''} of the event location.</p>
+
+        <p><strong>Order Details:</strong></p>
+        <ul>
+          <li>Order ID: ${formattedOrderId}</li>
+          <li>Customer: ${customerName}</li>
+          <li>Event Date: ${order.event_date}</li>
+          <li>Location: ${order.addresses?.line1}, ${order.addresses?.city}, ${order.addresses?.state}</li>
+        </ul>
+
+        <p><a href="${portalLink}" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 6px; margin-top: 16px;">View Order</a></p>
+      `;
+
+      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          templateName: 'admin_notification',
+          subject: emailSubject,
+          htmlContent: emailBody,
+        }),
+      });
+    } catch (emailError) {
+      console.error('Failed to send email notification:', emailError);
+    }
+  } catch (error) {
+    console.error('Error notifying admin:', error);
+  }
 }
 
 interface LotPicture {
@@ -94,6 +165,9 @@ export function LotPicturesTab({ orderId }: LotPicturesTabProps) {
       await Promise.all(uploadPromises);
       notifySuccess(`Successfully uploaded ${files.length} picture${files.length > 1 ? 's' : ''}`);
       await loadPictures();
+
+      // Notify admin about the upload
+      await notifyAdminOfPictureUpload(orderId, files.length);
     } catch (error: any) {
       notifyError(error.message || 'Failed to upload pictures');
     } finally {
