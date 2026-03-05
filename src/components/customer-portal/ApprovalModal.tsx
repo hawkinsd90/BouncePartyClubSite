@@ -1,10 +1,13 @@
-import { useState } from 'react';
-import { CreditCard, CreditCard as Edit2, MapPin, Calendar } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { CreditCard, CreditCard as Edit2, MapPin, Calendar, DollarSign, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
 import { loadStripe } from '@stripe/stripe-js';
-import { formatOrderId } from '../../lib/utils';
+import { formatOrderId, dollarsToCents } from '../../lib/utils';
 import { format } from 'date-fns';
+import { formatCurrency } from '../../lib/pricing';
+import { PaymentAmountSelector } from '../shared/PaymentAmountSelector';
+import { TipSelector, calculateTipCents } from '../payment/TipSelector';
 
 interface ApprovalModalProps {
   isOpen: boolean;
@@ -17,6 +20,11 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
   const [confirmName, setConfirmName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [updatingCard, setUpdatingCard] = useState(false);
+
+  const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom' | 'keep-original'>('deposit');
+  const [customAmount, setCustomAmount] = useState('');
+  const [tipAmount, setTipAmount] = useState<'none' | '10' | '15' | '20' | 'custom'>('none');
+  const [customTip, setCustomTip] = useState('');
 
   if (!isOpen) return null;
 
@@ -67,9 +75,27 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
 
     setSubmitting(true);
     try {
+      const tipCents = calculateTipCents(tipAmount, customTip, currentTotalCents);
+      let selectedPaymentCents = 0;
+
+      if (paymentAmount === 'keep-original') {
+        selectedPaymentCents = originalPaymentCents;
+      } else if (paymentAmount === 'deposit') {
+        selectedPaymentCents = currentDepositCents;
+      } else if (paymentAmount === 'full') {
+        selectedPaymentCents = currentTotalCents;
+      } else if (paymentAmount === 'custom') {
+        selectedPaymentCents = dollarsToCents(customAmount);
+      }
+
       const { error: updateError } = await supabase
         .from('orders')
-        .update({ status: 'confirmed' })
+        .update({
+          status: 'confirmed',
+          customer_selected_payment_cents: selectedPaymentCents,
+          customer_selected_payment_type: paymentAmount,
+          tip_cents: tipCents,
+        })
         .eq('id', order.id);
 
       if (updateError) throw updateError;
@@ -81,7 +107,7 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
         field_name: 'status',
         old_value: order.status,
         new_value: 'confirmed',
-        notes: 'Customer approved order changes via portal',
+        notes: `Customer approved order changes via portal. Payment: ${formatCurrency(selectedPaymentCents)}${tipCents > 0 ? ` + ${formatCurrency(tipCents)} tip` : ''}`,
       });
 
       if (logError) console.error('Error logging approval:', logError);
@@ -104,26 +130,63 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
     ? format(new Date(order.event_date + 'T12:00:00'), 'EEEE, MMMM d, yyyy')
     : 'No date';
 
-  const totalAmount = (
+  const currentTotalCents =
     order.subtotal_cents +
     (order.generator_fee_cents || 0) +
     order.travel_fee_cents +
     order.surface_fee_cents +
     (order.same_day_pickup_fee_cents || 0) +
     order.tax_cents -
-    (order.discount_cents || 0)
-  ) / 100;
+    (order.discount_cents || 0);
 
-  const totalPaid = (order.deposit_paid_cents || 0) / 100;
-  const customerSelectedPayment = (order.customer_selected_payment_cents || order.deposit_due_cents || 0) / 100;
-  const tipAmount = (order.tip_cents || 0) / 100;
-  const amountChargingNow = customerSelectedPayment + tipAmount;
+  const currentDepositCents = order.deposit_due_cents || 0;
+  const originalPaymentCents = order.customer_selected_payment_cents || currentDepositCents;
+  const originalTipCents = order.tip_cents || 0;
+
+  const hasPriceChanged = originalPaymentCents !== currentDepositCents;
+
+  const tipCents = calculateTipCents(tipAmount, customTip, currentTotalCents);
+  let selectedPaymentCents = 0;
+
+  if (paymentAmount === 'keep-original') {
+    selectedPaymentCents = originalPaymentCents;
+  } else if (paymentAmount === 'deposit') {
+    selectedPaymentCents = currentDepositCents;
+  } else if (paymentAmount === 'full') {
+    selectedPaymentCents = currentTotalCents;
+  } else if (paymentAmount === 'custom') {
+    selectedPaymentCents = dollarsToCents(customAmount);
+  }
+
+  const amountChargingNow = selectedPaymentCents + tipCents;
 
   const paymentMethodText = order.payment_method_last_four && order.payment_method_brand
     ? `${order.payment_method_brand.charAt(0).toUpperCase() + order.payment_method_brand.slice(1)} •••• ${order.payment_method_last_four}`
     : order.payment_method_last_four
     ? `Card •••• ${order.payment_method_last_four}`
     : null;
+
+  useEffect(() => {
+    if (isOpen) {
+      if (hasPriceChanged && originalPaymentCents >= currentDepositCents) {
+        setPaymentAmount('keep-original');
+      } else {
+        setPaymentAmount('deposit');
+      }
+
+      if (originalTipCents > 0) {
+        const tipPercent = Math.round((originalTipCents / currentTotalCents) * 100);
+        if (tipPercent === 10 || tipPercent === 15 || tipPercent === 20) {
+          setTipAmount(tipPercent.toString() as any);
+        } else {
+          setTipAmount('custom');
+          setCustomTip((originalTipCents / 100).toFixed(2));
+        }
+      } else {
+        setTipAmount('none');
+      }
+    }
+  }, [isOpen, hasPriceChanged, originalPaymentCents, currentDepositCents, originalTipCents, currentTotalCents]);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -161,6 +224,20 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
             </div>
           </div>
 
+          {hasPriceChanged && (
+            <div className="mb-3 p-3 bg-amber-50 border border-amber-300 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-xs font-semibold text-amber-900">Price Changed</p>
+                  <p className="text-xs text-amber-800 mt-0.5">
+                    Original payment: {formatCurrency(originalPaymentCents)} → New minimum: {formatCurrency(currentDepositCents)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {order.stripe_payment_method_id && (
             <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-center justify-between">
@@ -186,6 +263,153 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
               </div>
             </div>
           )}
+
+          <div className="mb-3">
+            <h4 className="text-sm font-semibold text-slate-900 mb-2 flex items-center">
+              <DollarSign className="w-4 h-4 mr-1 text-green-600" />
+              Payment Amount
+            </h4>
+            <div className="space-y-2">
+              {hasPriceChanged && originalPaymentCents >= currentDepositCents && (
+                <label
+                  className={`relative flex items-center p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                    paymentAmount === 'keep-original'
+                      ? 'border-green-600 bg-green-50'
+                      : 'border-slate-300 hover:border-green-400'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="paymentAmount"
+                    value="keep-original"
+                    checked={paymentAmount === 'keep-original'}
+                    onChange={(e) => setPaymentAmount(e.target.value as any)}
+                    className="sr-only"
+                  />
+                  <div className="flex-1">
+                    <span className="text-sm font-semibold text-slate-900 block">Keep Original Amount</span>
+                    <span className="text-lg font-bold text-green-600">{formatCurrency(originalPaymentCents)}</span>
+                    {originalPaymentCents > currentTotalCents && (
+                      <p className="text-xs text-green-700 mt-1">
+                        Excess ${((originalPaymentCents - currentTotalCents) / 100).toFixed(2)} will be applied as tip
+                      </p>
+                    )}
+                    {originalPaymentCents < currentTotalCents && originalPaymentCents >= currentDepositCents && (
+                      <p className="text-xs text-slate-600 mt-1">
+                        Balance due: {formatCurrency(currentTotalCents - originalPaymentCents)}
+                      </p>
+                    )}
+                  </div>
+                </label>
+              )}
+
+              {paymentAmount !== 'keep-original' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  <label
+                    className={`relative flex flex-col p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                      paymentAmount === 'deposit'
+                        ? 'border-blue-600 bg-blue-50'
+                        : 'border-slate-300 hover:border-blue-400'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="newPaymentAmount"
+                      value="deposit"
+                      checked={paymentAmount === 'deposit'}
+                      onChange={(e) => setPaymentAmount(e.target.value as any)}
+                      className="sr-only"
+                    />
+                    <span className="text-xs sm:text-sm font-semibold text-slate-900">New Minimum</span>
+                    <span className="text-base sm:text-lg font-bold text-blue-600 mt-1">
+                      {formatCurrency(currentDepositCents)}
+                    </span>
+                    <span className="text-xs text-slate-600">Pay balance at event</span>
+                  </label>
+
+                  <label
+                    className={`relative flex flex-col p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                      paymentAmount === 'full'
+                        ? 'border-green-600 bg-green-50'
+                        : 'border-slate-300 hover:border-green-400'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="newPaymentAmount"
+                      value="full"
+                      checked={paymentAmount === 'full'}
+                      onChange={(e) => setPaymentAmount(e.target.value as any)}
+                      className="sr-only"
+                    />
+                    <span className="text-xs sm:text-sm font-semibold text-slate-900">Full Payment</span>
+                    <span className="text-base sm:text-lg font-bold text-green-600 mt-1">
+                      {formatCurrency(currentTotalCents)}
+                    </span>
+                    <span className="text-xs text-slate-600">Nothing due at event</span>
+                  </label>
+
+                  <label
+                    className={`relative flex flex-col p-3 border-2 rounded-lg cursor-pointer transition-all sm:col-span-2 md:col-span-1 ${
+                      paymentAmount === 'custom'
+                        ? 'border-teal-600 bg-teal-50'
+                        : 'border-slate-300 hover:border-teal-400'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="newPaymentAmount"
+                      value="custom"
+                      checked={paymentAmount === 'custom'}
+                      onChange={(e) => setPaymentAmount(e.target.value as any)}
+                      className="sr-only"
+                    />
+                    <span className="text-xs sm:text-sm font-semibold text-slate-900">Custom</span>
+                    <span className="text-xs text-slate-600">Choose amount</span>
+                  </label>
+                </div>
+              )}
+
+              {paymentAmount === 'custom' && (
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                  <label className="block text-xs font-medium text-slate-700 mb-2">
+                    Payment Amount <span className="text-red-500">*</span> (Min: {formatCurrency(currentDepositCents)})
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-slate-600 text-sm">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min={(currentDepositCents / 100).toFixed(2)}
+                      max={(currentTotalCents / 100).toFixed(2)}
+                      value={customAmount}
+                      onChange={(e) => setCustomAmount(e.target.value)}
+                      placeholder={(currentDepositCents / 100).toFixed(2)}
+                      className="w-full pl-8 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <h4 className="text-sm font-semibold text-slate-900 mb-2 flex items-center">
+              <DollarSign className="w-4 h-4 mr-1 text-green-600" />
+              Add Tip (Optional)
+            </h4>
+            <p className="text-xs text-slate-600 mb-2">
+              Show your appreciation for our crew! Tips are optional but greatly appreciated.
+            </p>
+            <TipSelector
+              totalCents={currentTotalCents}
+              tipAmount={tipAmount}
+              customTipAmount={customTip}
+              onTipAmountChange={setTipAmount}
+              onCustomTipAmountChange={setCustomTip}
+              formatCurrency={formatCurrency}
+            />
+          </div>
 
           <div className="mb-4">
             <label className="block text-xs font-medium text-slate-700 mb-1.5">
