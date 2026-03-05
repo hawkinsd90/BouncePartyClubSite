@@ -1,7 +1,5 @@
 import { useNavigate } from 'react-router-dom';
 import { Home } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { getBusinessAddressText } from '../../lib/adminSettingsCache';
 import { formatOrderId } from '../../lib/utils';
 
 interface OrderDetails {
@@ -9,6 +7,13 @@ interface OrderDetails {
   event_date: string;
   deposit_due_cents: number;
   balance_due_cents: number;
+  customer_selected_payment_cents?: number;
+  subtotal_cents: number;
+  travel_fee_cents: number;
+  surface_fee_cents: number;
+  same_day_pickup_fee_cents: number;
+  tax_cents: number;
+  tip_cents: number;
   customer?: {
     email: string;
   };
@@ -21,11 +26,6 @@ interface PaymentSuccessStateProps {
 
 export function PaymentSuccessState({ orderDetails, isAdminInvoice }: PaymentSuccessStateProps) {
   const navigate = useNavigate();
-  const [businessAddress, setBusinessAddress] = useState('');
-
-  useEffect(() => {
-    getBusinessAddressText().then(setBusinessAddress);
-  }, []);
 
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-4 py-8">
@@ -90,6 +90,14 @@ export function PaymentSuccessState({ orderDetails, isAdminInvoice }: PaymentSuc
                   ${((orderDetails.customer_selected_payment_cents || orderDetails.deposit_due_cents) / 100).toFixed(2)}
                 </p>
               </div>
+              {orderDetails.tip_cents > 0 && (
+                <div>
+                  <p className="text-sm text-slate-600 mb-1">Crew Tip:</p>
+                  <p className="font-semibold text-green-600">
+                    ${(orderDetails.tip_cents / 100).toFixed(2)}
+                  </p>
+                </div>
+              )}
               <div>
                 <p className="text-sm text-slate-600 mb-1">Balance Due Day of Event:</p>
                 <p className="font-semibold text-slate-900">
@@ -103,27 +111,6 @@ export function PaymentSuccessState({ orderDetails, isAdminInvoice }: PaymentSuc
                 A confirmation email has been queued for{' '}
                 <span className="font-semibold">{orderDetails.customer?.email}</span>. Please allow a
                 few minutes for it to arrive.
-              </p>
-            </div>
-
-            <div className="p-6 bg-slate-50 rounded-lg">
-              <p className="text-sm text-slate-700 leading-relaxed mb-3">
-                {isAdminInvoice ? (
-                  <>
-                    Your order is confirmed and we're preparing for your event. We'll contact you to confirm
-                    the drop-off time.
-                  </>
-                ) : (
-                  <>
-                    Our admin team will review your booking request and contact you within 24 hours to
-                    confirm your delivery time window and finalize your reservation details.
-                  </>
-                )}
-              </p>
-              <p className="text-sm text-slate-600">
-                If you have any questions, contact us at{' '}
-                <span className="font-semibold">(313) 889-3860</span> or visit us at{' '}
-                <span className="font-semibold">{businessAddress}</span>.
               </p>
             </div>
 
@@ -141,6 +128,26 @@ export function PaymentSuccessState({ orderDetails, isAdminInvoice }: PaymentSuc
                 </a>
               </div>
             )}
+
+            <div className="p-6 bg-slate-50 rounded-lg">
+              <p className="text-sm text-slate-700 leading-relaxed mb-3">
+                {isAdminInvoice ? (
+                  <>
+                    Your order is confirmed and we're preparing for your event. We'll contact you to confirm
+                    the drop-off time.
+                  </>
+                ) : (
+                  <>
+                    Our admin team will review your booking request and contact you within 24 hours to
+                    confirm your delivery time window and finalize your reservation details.
+                  </>
+                )}
+              </p>
+              <p className="text-sm text-slate-600">
+                If you have any questions, contact us at{' '}
+                <span className="font-semibold">(313) 889-3860</span>.
+              </p>
+            </div>
           </div>
         )}
 
