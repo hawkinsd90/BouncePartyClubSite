@@ -193,96 +193,105 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
           </div>
 
           <div className="px-8 py-6">
-            {totalPaid > 0 && (
-              <div className="mb-6">
-                <h2 className="text-lg font-semibold text-slate-900 mb-4">Complete These Steps</h2>
-                <div className={`grid grid-cols-1 ${lotPicturesRequested ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4 mb-4`}>
-                  {lotPicturesRequested && (
-                    <button
-                      onClick={() => setActiveTab('lot-pictures')}
-                      className={`border rounded-lg p-4 transition-all ${
-                        !lotPicturesUploaded
-                          ? 'border-amber-500 bg-amber-50 hover:border-amber-600'
-                          : 'border-green-500 bg-green-50 hover:border-green-600'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        {!lotPicturesUploaded ? (
-                          <MapPin className="w-6 h-6 text-amber-600" />
-                        ) : (
-                          <CheckCircle className="w-6 h-6 text-green-600" />
-                        )}
-                        <div className="text-left">
-                          <p className="font-semibold text-slate-900">Lot Pictures</p>
-                          <p className="text-xs text-slate-600">
-                            {!lotPicturesUploaded ? 'Required' : 'Complete'}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
-                  )}
-
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-slate-900 mb-4">Complete These Steps</h2>
+              <div className={`grid grid-cols-1 ${lotPicturesRequested ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4 mb-4`}>
+                {lotPicturesRequested && (
                   <button
-                    onClick={() => setActiveTab('waiver')}
+                    onClick={() => setActiveTab('lot-pictures')}
                     className={`border rounded-lg p-4 transition-all ${
-                      needsWaiver
+                      !lotPicturesUploaded
                         ? 'border-amber-500 bg-amber-50 hover:border-amber-600'
                         : 'border-green-500 bg-green-50 hover:border-green-600'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      {needsWaiver ? (
-                        <FileText className="w-6 h-6 text-amber-600" />
+                      {!lotPicturesUploaded ? (
+                        <MapPin className="w-6 h-6 text-amber-600" />
                       ) : (
                         <CheckCircle className="w-6 h-6 text-green-600" />
                       )}
                       <div className="text-left">
-                        <p className="font-semibold text-slate-900">Sign Waiver</p>
+                        <p className="font-semibold text-slate-900">Lot Pictures</p>
                         <p className="text-xs text-slate-600">
-                          {needsWaiver ? 'Required' : 'Complete'}
+                          {!lotPicturesUploaded ? 'Required' : 'Complete'}
                         </p>
                       </div>
                     </div>
                   </button>
+                )}
 
-                  <button
-                    onClick={() => setActiveTab('payment')}
-                    className={`border rounded-lg p-4 transition-all ${
-                      needsPayment
-                        ? 'border-amber-500 bg-amber-50 hover:border-amber-600'
-                        : 'border-green-500 bg-green-50 hover:border-green-600'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      {needsPayment ? (
-                        <CreditCard className="w-6 h-6 text-amber-600" />
-                      ) : (
-                        <CheckCircle className="w-6 h-6 text-green-600" />
-                      )}
-                      <div className="text-left">
-                        <p className="font-semibold text-slate-900">Payment</p>
-                        <p className="text-xs text-slate-600">
-                          {needsPayment ? `${formatCurrency(balanceDue)} due` : 'Complete'}
-                        </p>
-                      </div>
+                <button
+                  onClick={() => totalPaid > 0 && setActiveTab('waiver')}
+                  disabled={totalPaid === 0}
+                  className={`border rounded-lg p-4 transition-all ${
+                    totalPaid === 0
+                      ? 'border-slate-300 bg-slate-100 cursor-not-allowed opacity-60'
+                      : needsWaiver
+                      ? 'border-amber-500 bg-amber-50 hover:border-amber-600'
+                      : 'border-green-500 bg-green-50 hover:border-green-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    {needsWaiver ? (
+                      <FileText className="w-6 h-6 text-amber-600" />
+                    ) : (
+                      <CheckCircle className="w-6 h-6 text-green-600" />
+                    )}
+                    <div className="text-left">
+                      <p className="font-semibold text-slate-900">Sign Waiver</p>
+                      <p className="text-xs text-slate-600">
+                        {needsWaiver ? 'Required' : 'Complete'}
+                      </p>
                     </div>
-                  </button>
+                  </div>
+                </button>
 
-                  <button
-                    onClick={() => setActiveTab('pictures')}
-                    className="border border-slate-300 rounded-lg p-4 bg-slate-50 hover:border-slate-400 transition-all"
-                  >
-                    <div className="flex items-center gap-3">
-                      <ImageIcon className="w-6 h-6 text-slate-600" />
-                      <div className="text-left">
-                        <p className="font-semibold text-slate-900">Pictures</p>
-                        <p className="text-xs text-slate-600">Optional</p>
-                      </div>
+                <button
+                  onClick={() => totalPaid > 0 && setActiveTab('payment')}
+                  disabled={totalPaid === 0}
+                  className={`border rounded-lg p-4 transition-all ${
+                    totalPaid === 0
+                      ? 'border-slate-300 bg-slate-100 cursor-not-allowed opacity-60'
+                      : needsPayment
+                      ? 'border-amber-500 bg-amber-50 hover:border-amber-600'
+                      : 'border-green-500 bg-green-50 hover:border-green-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    {needsPayment ? (
+                      <CreditCard className="w-6 h-6 text-amber-600" />
+                    ) : (
+                      <CheckCircle className="w-6 h-6 text-green-600" />
+                    )}
+                    <div className="text-left">
+                      <p className="font-semibold text-slate-900">Payment</p>
+                      <p className="text-xs text-slate-600">
+                        {needsPayment ? `${formatCurrency(balanceDue)} due` : 'Complete'}
+                      </p>
                     </div>
-                  </button>
-                </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => totalPaid > 0 && setActiveTab('pictures')}
+                  disabled={totalPaid === 0}
+                  className={`border rounded-lg p-4 transition-all ${
+                    totalPaid === 0
+                      ? 'border-slate-300 bg-slate-100 cursor-not-allowed opacity-60'
+                      : 'border-slate-300 bg-slate-50 hover:border-slate-400'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <ImageIcon className="w-6 h-6 text-slate-600" />
+                    <div className="text-left">
+                      <p className="font-semibold text-slate-900">Pictures</p>
+                      <p className="text-xs text-slate-600">Optional</p>
+                    </div>
+                  </div>
+                </button>
               </div>
-            )}
+            </div>
 
             <div className="flex gap-2 mb-6 border-b border-slate-200 overflow-x-auto">
               <button
@@ -306,40 +315,45 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                 <MapPin className="w-4 h-4" />
                 Lot Pictures
               </button>
-              {totalPaid > 0 && (
-                <>
-                  <button
-                    onClick={() => setActiveTab('waiver')}
-                    className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
-                      activeTab === 'waiver'
-                        ? 'border-blue-600 text-blue-600'
-                        : 'border-transparent text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Waiver
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('payment')}
-                    className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
-                      activeTab === 'payment'
-                        ? 'border-blue-600 text-blue-600'
-                        : 'border-transparent text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Payment
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('pictures')}
-                    className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
-                      activeTab === 'pictures'
-                        ? 'border-blue-600 text-blue-600'
-                        : 'border-transparent text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Pictures
-                  </button>
-                </>
-              )}
+              <button
+                onClick={() => totalPaid > 0 && setActiveTab('waiver')}
+                disabled={totalPaid === 0}
+                className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  totalPaid === 0
+                    ? 'border-transparent text-slate-400 cursor-not-allowed'
+                    : activeTab === 'waiver'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Waiver
+              </button>
+              <button
+                onClick={() => totalPaid > 0 && setActiveTab('payment')}
+                disabled={totalPaid === 0}
+                className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  totalPaid === 0
+                    ? 'border-transparent text-slate-400 cursor-not-allowed'
+                    : activeTab === 'payment'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Payment
+              </button>
+              <button
+                onClick={() => totalPaid > 0 && setActiveTab('pictures')}
+                disabled={totalPaid === 0}
+                className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  totalPaid === 0
+                    ? 'border-transparent text-slate-400 cursor-not-allowed'
+                    : activeTab === 'pictures'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Pictures
+              </button>
             </div>
 
             {activeTab === 'details' && (
@@ -454,22 +468,18 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                         )}
                       </span>
                     </div>
-                    {totalPaid > 0 && (
-                      <>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-600">Already Paid:</span>
-                          <span className="font-semibold text-green-700">
-                            {formatCurrency(totalPaid)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between pt-2 border-t border-slate-300">
-                          <span className="font-semibold text-slate-900">Balance Due:</span>
-                          <span className="text-xl font-bold text-blue-600">
-                            {formatCurrency(balanceDue)}
-                          </span>
-                        </div>
-                      </>
-                    )}
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Already Paid:</span>
+                      <span className="font-semibold text-green-700">
+                        {formatCurrency(totalPaid)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between pt-2 border-t border-slate-300">
+                      <span className="font-semibold text-slate-900">Balance Due:</span>
+                      <span className="text-xl font-bold text-blue-600">
+                        {formatCurrency(balanceDue)}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -519,9 +529,9 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
               />
             )}
 
-            {activeTab === 'waiver' && totalPaid > 0 && <WaiverTab orderId={orderId} order={order} />}
+            {activeTab === 'waiver' && <WaiverTab orderId={orderId} order={order} />}
 
-            {activeTab === 'payment' && totalPaid > 0 && (
+            {activeTab === 'payment' && (
               <PaymentTab
                 orderId={orderId}
                 order={order}
@@ -530,7 +540,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
               />
             )}
 
-            {activeTab === 'pictures' && totalPaid > 0 && <PicturesTab onSubmit={handleSubmitPictures} />}
+            {activeTab === 'pictures' && <PicturesTab onSubmit={handleSubmitPictures} />}
           </div>
         </div>
 
