@@ -243,6 +243,7 @@ export const PendingOrderCard = forwardRef<PendingOrderCardRef, {
             showDeposit={true}
             showTip={order.tip_cents > 0}
             className="bg-white rounded-lg p-3 md:p-4"
+            customDepositCents={order.customer_selected_payment_cents}
           />
         </div>
       )}
