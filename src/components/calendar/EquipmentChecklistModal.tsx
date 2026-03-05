@@ -9,8 +9,8 @@ interface EquipmentChecklistModalProps {
 
 interface EquipmentSummary {
   bounceHouses: { name: string; wetOrDry: string }[];
-  hasStakes: boolean;
-  hasSandbags: boolean;
+  needsStakes: boolean;
+  needsSandbags: boolean;
   hasGenerators: boolean;
   generatorCount: number;
 }
@@ -21,8 +21,8 @@ export function EquipmentChecklistModal({ isOpen, tasks, onClose }: EquipmentChe
   // Calculate equipment needed from all tasks
   const equipment: EquipmentSummary = {
     bounceHouses: [],
-    hasStakes: false,
-    hasSandbags: false,
+    needsStakes: false,
+    needsSandbags: false,
     hasGenerators: false,
     generatorCount: 0,
   };
@@ -38,10 +38,14 @@ export function EquipmentChecklistModal({ isOpen, tasks, onClose }: EquipmentChe
         });
       }
     });
-  });
 
-  // Every delivery needs stakes or sandbags - show both since we don't track surface type
-  const needsSecuring = equipment.bounceHouses.length > 0;
+    // Check surface type to determine if stakes or sandbags are needed
+    if (task.surface === 'grass') {
+      equipment.needsStakes = true;
+    } else if (task.surface === 'cement') {
+      equipment.needsSandbags = true;
+    }
+  });
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
@@ -94,21 +98,39 @@ export function EquipmentChecklistModal({ isOpen, tasks, onClose }: EquipmentChe
             </div>
           </div>
 
-          {/* Stakes & Sandbags - Show for all deliveries */}
-          {needsSecuring && (
+          {/* Stakes - Show only if needed */}
+          {equipment.needsStakes && (
             <div>
               <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-3">
                 <Anchor className="w-5 h-5 text-green-600" />
-                Stakes & Sandbags
+                Stakes
+              </h3>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <p className="text-base font-bold text-green-900 mb-2">Grass/Dirt Surfaces</p>
+                <p className="text-sm text-slate-700">
+                  <strong>Stakes needed:</strong> 4 per bounce house
+                </p>
+                <p className="text-xs text-slate-600 mt-2">
+                  Total units needing stakes: {tasks.filter(t => t.surface === 'grass').reduce((sum, t) => sum + t.numInflatables, 0)}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Sandbags - Show only if needed */}
+          {equipment.needsSandbags && (
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-3">
+                <PackageIcon className="w-5 h-5 text-amber-600" />
+                Sandbags
               </h3>
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                <p className="text-base font-bold text-amber-900 mb-2">Bring Both:</p>
-                <ul className="text-sm text-slate-700 space-y-1">
-                  <li><strong>Stakes:</strong> 4 per unit for grass/dirt surfaces</li>
-                  <li><strong>Sandbags:</strong> 4 per unit for concrete/indoor setups</li>
-                </ul>
-                <p className="text-xs text-slate-600 mt-3">
-                  Total units: {equipment.bounceHouses.length}
+                <p className="text-base font-bold text-amber-900 mb-2">Concrete/Indoor Surfaces</p>
+                <p className="text-sm text-slate-700">
+                  <strong>Sandbags needed:</strong> 4 per bounce house
+                </p>
+                <p className="text-xs text-slate-600 mt-2">
+                  Total units needing sandbags: {tasks.filter(t => t.surface === 'cement').reduce((sum, t) => sum + t.numInflatables, 0)}
                 </p>
               </div>
             </div>

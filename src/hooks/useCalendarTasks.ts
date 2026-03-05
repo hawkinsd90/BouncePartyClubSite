@@ -24,6 +24,7 @@ export interface Task {
   waiverSigned: boolean;
   balanceDue: number;
   pickupPreference?: string;
+  surface?: string;
   payments?: Array<{
     id: string;
     amount_cents: number;
@@ -178,6 +179,7 @@ export function useCalendarTasks(currentMonth: Date) {
           waiverSigned: !!order.waiver_signed_at,
           balanceDue,
           pickupPreference: order.pickup_preference,
+          surface: order.surface,
           payments: order.payments as any || [],
           taskStatus: dropOffStatus ? {
             id: dropOffStatus.id,
@@ -218,6 +220,7 @@ export function useCalendarTasks(currentMonth: Date) {
           waiverSigned: !!order.waiver_signed_at,
           balanceDue,
           pickupPreference: order.pickup_preference,
+          surface: order.surface,
           payments: order.payments as any || [],
           taskStatus: pickUpStatus ? {
             id: pickUpStatus.id,
