@@ -85,15 +85,15 @@ export function PaymentSuccessState({ orderDetails, isAdminInvoice }: PaymentSuc
                 </p>
               </div>
               <div>
-                <p className="text-sm text-slate-600 mb-1">Deposit:</p>
+                <p className="text-sm text-slate-600 mb-1">Payment Made:</p>
                 <p className="font-semibold text-green-600">
-                  ${(orderDetails.deposit_due_cents / 100).toFixed(2)}
+                  ${((orderDetails.customer_selected_payment_cents || orderDetails.deposit_due_cents) / 100).toFixed(2)}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-slate-600 mb-1">Balance Due:</p>
+                <p className="text-sm text-slate-600 mb-1">Balance Due Day of Event:</p>
                 <p className="font-semibold text-slate-900">
-                  ${(orderDetails.balance_due_cents / 100).toFixed(2)}
+                  ${(Math.max(0, (orderDetails.subtotal_cents + orderDetails.travel_fee_cents + orderDetails.surface_fee_cents + (orderDetails.same_day_pickup_fee_cents || 0) + orderDetails.tax_cents - (orderDetails.customer_selected_payment_cents || orderDetails.deposit_due_cents))) / 100).toFixed(2)}
                 </p>
               </div>
             </div>

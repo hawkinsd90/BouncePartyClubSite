@@ -9,6 +9,7 @@ interface OrderDetails {
   event_date: string;
   deposit_due_cents: number;
   balance_due_cents: number;
+  customer_selected_payment_cents?: number;
   subtotal_cents: number;
   travel_fee_cents: number;
   surface_fee_cents: number;
