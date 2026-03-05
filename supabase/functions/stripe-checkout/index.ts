@@ -110,6 +110,22 @@ Deno.serve(async (req: Request) => {
                   ? session.customer
                   : (session.customer as unknown as { id?: string })?.id;
 
+              // Retrieve payment method details
+              let paymentMethodBrand: string | null = null;
+              let paymentMethodLastFour: string | null = null;
+
+              if (paymentMethodId) {
+                try {
+                  const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+                  if (paymentMethod.card) {
+                    paymentMethodBrand = paymentMethod.card.brand;
+                    paymentMethodLastFour = paymentMethod.card.last4;
+                  }
+                } catch (pmError) {
+                  console.error('[stripe-checkout] Error retrieving payment method:', pmError);
+                }
+              }
+
               // Check if this order was created via admin invoice
               const { data: invoiceLink } = await supabaseClient
                 .from("invoice_links")
@@ -127,6 +143,8 @@ Deno.serve(async (req: Request) => {
                   stripe_payment_status: "card_on_file",
                   stripe_payment_method_id: paymentMethodId,
                   stripe_customer_id: stripeCustomerId,
+                  payment_method_brand: paymentMethodBrand,
+                  payment_method_last_four: paymentMethodLastFour,
                   status: newStatus,
                 })
                 .eq("id", orderId);

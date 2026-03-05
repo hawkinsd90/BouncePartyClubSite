@@ -26,6 +26,8 @@ export function RouteManagementModal({
   const [saving, setSaving] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
+  const [touchStartY, setTouchStartY] = useState<number | null>(null);
+  const [touchCurrentY, setTouchCurrentY] = useState<number | null>(null);
 
   const sortedTasks = [...tasks]
     .filter(t => t.type === type)
@@ -87,6 +89,30 @@ export function RouteManagementModal({
     setDraggedIndex(null);
   }
 
+  function handleTouchStart(e: React.TouchEvent, index: number) {
+    setDraggedIndex(index);
+    setTouchStartY(e.touches[0].clientY);
+    setTouchCurrentY(e.touches[0].clientY);
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    if (draggedIndex === null || touchStartY === null) return;
+    setTouchCurrentY(e.touches[0].clientY);
+  }
+
+  function handleTouchEnd(e: React.TouchEvent, dropIndex: number) {
+    if (draggedIndex === null) return;
+
+    // Only reorder if the touch moved significantly and ended on a different item
+    if (draggedIndex !== dropIndex) {
+      handleReorder(draggedIndex, dropIndex);
+    }
+
+    setDraggedIndex(null);
+    setTouchStartY(null);
+    setTouchCurrentY(null);
+  }
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -141,8 +167,11 @@ export function RouteManagementModal({
                 onDragStart={() => handleDragStart(index)}
                 onDragOver={(e) => handleDragOver(e, index)}
                 onDrop={(e) => handleDrop(e, index)}
-                className={`bg-slate-50 border-2 border-slate-200 rounded-lg p-3 sm:p-4 hover:border-blue-400 transition-colors cursor-move ${
-                  draggedIndex === index ? 'opacity-50' : ''
+                onTouchStart={(e) => handleTouchStart(e, index)}
+                onTouchMove={(e) => handleTouchMove(e)}
+                onTouchEnd={(e) => handleTouchEnd(e, index)}
+                className={`bg-slate-50 border-2 border-slate-200 rounded-lg p-3 sm:p-4 hover:border-blue-400 transition-colors cursor-move touch-none ${
+                  draggedIndex === index ? 'opacity-50 scale-105' : ''
                 }`}
               >
                 <div className="flex items-start gap-2 sm:gap-3">

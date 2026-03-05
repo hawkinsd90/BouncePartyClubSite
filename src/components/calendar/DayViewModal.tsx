@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
-import { X, Truck as TruckIcon, Package, MousePointer, Route, Car, Settings } from 'lucide-react';
+import { X, Truck as TruckIcon, Package, MousePointer, Route, Car, Settings, ClipboardList } from 'lucide-react';
 import { Task } from '../../hooks/useCalendarTasks';
 import { getStopNumber } from '../../lib/calendarUtils';
 import { TaskCard } from './TaskCard';
 import { MileageModal } from './MileageModal';
 import { RouteManagementModal } from './RouteManagementModal';
+import { EquipmentChecklistModal } from './EquipmentChecklistModal';
 
 interface DayViewModalProps {
   selectedDate: Date;
@@ -30,6 +31,7 @@ export function DayViewModal({
   const [mileageType, setMileageType] = useState<'start' | 'end'>('start');
   const [showRouteModal, setShowRouteModal] = useState(false);
   const [routeType, setRouteType] = useState<'drop-off' | 'pick-up'>('drop-off');
+  const [showEquipmentChecklist, setShowEquipmentChecklist] = useState(false);
 
   const dropOffTasks = tasks.filter(t => t.type === 'drop-off');
   const pickUpTasks = tasks.filter(t => t.type === 'pick-up');
@@ -51,8 +53,8 @@ export function DayViewModal({
 
   return (
     <>
-      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto pt-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto my-auto">
         <div className="sticky top-0 bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center gap-3 z-10">
           <div className="flex-1 min-w-0 pr-2">
             <h2 className="text-lg sm:text-2xl font-bold text-slate-900 break-words">
@@ -103,13 +105,22 @@ export function DayViewModal({
                   Drop-offs / Deliveries ({dropOffTasks.length})
                 </h3>
                 {dropOffTasks.length >= 1 && (
-                  <button
-                    onClick={() => handleManageRoute('drop-off')}
-                    className="flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap"
-                  >
-                    <Settings className="w-4 h-4 flex-shrink-0" />
-                    <span>Manage Route</span>
-                  </button>
+                  <div className="flex flex-row gap-2">
+                    <button
+                      onClick={() => setShowEquipmentChecklist(true)}
+                      className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap"
+                    >
+                      <ClipboardList className="w-4 h-4 flex-shrink-0" />
+                      <span>Equipment</span>
+                    </button>
+                    <button
+                      onClick={() => handleManageRoute('drop-off')}
+                      className="flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap"
+                    >
+                      <Settings className="w-4 h-4 flex-shrink-0" />
+                      <span>Manage Route</span>
+                    </button>
+                  </div>
                 )}
               </div>
               <div className="space-y-3">
@@ -187,6 +198,12 @@ export function DayViewModal({
         }}
         onOptimize={routeType === 'drop-off' ? onOptimizeMorning : onOptimizeAfternoon}
         optimizing={optimizing}
+      />
+
+      <EquipmentChecklistModal
+        isOpen={showEquipmentChecklist}
+        tasks={dropOffTasks}
+        onClose={() => setShowEquipmentChecklist(false)}
       />
     </>
   );
