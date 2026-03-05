@@ -110,6 +110,8 @@ export function Checkout() {
         return;
       }
 
+      const paymentCents = getPaymentAmountCents(paymentAmount, customAmount, priceBreakdown);
+
       const orderId = await createOrderBeforePayment({
         contactData,
         quoteData,
@@ -119,9 +121,11 @@ export function Checkout() {
         billingSameAsEvent,
         smsConsent,
         cardOnFileConsent,
+        customerSelectedPaymentCents: paymentCents,
+        customerSelectedPaymentType: paymentAmount,
       });
 
-      const depositCents = getPaymentAmountCents(paymentAmount, customAmount, priceBreakdown);
+      const depositCents = paymentCents;
 
       try {
         const response = await fetch(

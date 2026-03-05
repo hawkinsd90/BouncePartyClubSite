@@ -17,6 +17,8 @@ interface OrderData {
   billingSameAsEvent: boolean;
   smsConsent: boolean;
   cardOnFileConsent: boolean;
+  customerSelectedPaymentCents?: number;
+  customerSelectedPaymentType?: 'deposit' | 'full' | 'custom';
 }
 
 export async function createOrderBeforePayment(data: OrderData): Promise<string> {
@@ -29,6 +31,8 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     billingSameAsEvent,
     smsConsent,
     cardOnFileConsent,
+    customerSelectedPaymentCents,
+    customerSelectedPaymentType,
   } = data;
 
   // Fetch the current pricing rules to check apply_taxes_by_default setting
@@ -182,6 +186,8 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       deposit_paid_cents: 0,
       balance_due_cents: applyTaxesByDefault ? priceBreakdown.balance_due_cents : (priceBreakdown.balance_due_cents - priceBreakdown.tax_cents),
       custom_deposit_cents: null,
+      customer_selected_payment_cents: customerSelectedPaymentCents || priceBreakdown.deposit_due_cents,
+      customer_selected_payment_type: customerSelectedPaymentType || 'deposit',
       card_on_file_consent: cardOnFileConsent,
       admin_message: null,
       booking_confirmation_sent: false,
