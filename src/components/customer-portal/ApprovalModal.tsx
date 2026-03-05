@@ -270,10 +270,67 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
               Payment Amount
             </h4>
             <div className="space-y-2">
-              {hasPriceChanged && originalPaymentCents >= currentDepositCents && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {hasPriceChanged && originalPaymentCents >= currentDepositCents && (
+                  <label
+                    className={`relative flex flex-col p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                      paymentAmount === 'keep-original'
+                        ? 'border-green-600 bg-green-50'
+                        : 'border-slate-300 hover:border-green-400'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="paymentAmount"
+                      value="keep-original"
+                      checked={paymentAmount === 'keep-original'}
+                      onChange={(e) => setPaymentAmount(e.target.value as any)}
+                      className="sr-only"
+                    />
+                    <span className="text-xs sm:text-sm font-semibold text-slate-900">Keep Original</span>
+                    <span className="text-base sm:text-lg font-bold text-green-600 mt-1">
+                      {formatCurrency(originalPaymentCents)}
+                    </span>
+                    {originalPaymentCents > currentTotalCents && (
+                      <span className="text-xs text-green-700 mt-1">
+                        Excess becomes tip
+                      </span>
+                    )}
+                    {originalPaymentCents < currentTotalCents && originalPaymentCents >= currentDepositCents && (
+                      <span className="text-xs text-slate-600 mt-1">
+                        Balance at event
+                      </span>
+                    )}
+                  </label>
+                )}
+
                 <label
-                  className={`relative flex items-center p-3 border-2 rounded-lg cursor-pointer transition-all ${
-                    paymentAmount === 'keep-original'
+                  className={`relative flex flex-col p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                    paymentAmount === 'deposit'
+                      ? 'border-blue-600 bg-blue-50'
+                      : 'border-slate-300 hover:border-blue-400'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="paymentAmount"
+                    value="deposit"
+                    checked={paymentAmount === 'deposit'}
+                    onChange={(e) => setPaymentAmount(e.target.value as any)}
+                    className="sr-only"
+                  />
+                  <span className="text-xs sm:text-sm font-semibold text-slate-900">
+                    {hasPriceChanged ? 'New Minimum' : 'Minimum Deposit'}
+                  </span>
+                  <span className="text-base sm:text-lg font-bold text-blue-600 mt-1">
+                    {formatCurrency(currentDepositCents)}
+                  </span>
+                  <span className="text-xs text-slate-600 mt-1">Pay balance at event</span>
+                </label>
+
+                <label
+                  className={`relative flex flex-col p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                    paymentAmount === 'full'
                       ? 'border-green-600 bg-green-50'
                       : 'border-slate-300 hover:border-green-400'
                   }`}
@@ -281,94 +338,37 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
                   <input
                     type="radio"
                     name="paymentAmount"
-                    value="keep-original"
-                    checked={paymentAmount === 'keep-original'}
+                    value="full"
+                    checked={paymentAmount === 'full'}
                     onChange={(e) => setPaymentAmount(e.target.value as any)}
                     className="sr-only"
                   />
-                  <div className="flex-1">
-                    <span className="text-sm font-semibold text-slate-900 block">Keep Original Amount</span>
-                    <span className="text-lg font-bold text-green-600">{formatCurrency(originalPaymentCents)}</span>
-                    {originalPaymentCents > currentTotalCents && (
-                      <p className="text-xs text-green-700 mt-1">
-                        Excess ${((originalPaymentCents - currentTotalCents) / 100).toFixed(2)} will be applied as tip
-                      </p>
-                    )}
-                    {originalPaymentCents < currentTotalCents && originalPaymentCents >= currentDepositCents && (
-                      <p className="text-xs text-slate-600 mt-1">
-                        Balance due: {formatCurrency(currentTotalCents - originalPaymentCents)}
-                      </p>
-                    )}
-                  </div>
+                  <span className="text-xs sm:text-sm font-semibold text-slate-900">Full Payment</span>
+                  <span className="text-base sm:text-lg font-bold text-green-600 mt-1">
+                    {formatCurrency(currentTotalCents)}
+                  </span>
+                  <span className="text-xs text-slate-600 mt-1">Nothing due at event</span>
                 </label>
-              )}
 
-              {paymentAmount !== 'keep-original' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                  <label
-                    className={`relative flex flex-col p-3 border-2 rounded-lg cursor-pointer transition-all ${
-                      paymentAmount === 'deposit'
-                        ? 'border-blue-600 bg-blue-50'
-                        : 'border-slate-300 hover:border-blue-400'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="newPaymentAmount"
-                      value="deposit"
-                      checked={paymentAmount === 'deposit'}
-                      onChange={(e) => setPaymentAmount(e.target.value as any)}
-                      className="sr-only"
-                    />
-                    <span className="text-xs sm:text-sm font-semibold text-slate-900">New Minimum</span>
-                    <span className="text-base sm:text-lg font-bold text-blue-600 mt-1">
-                      {formatCurrency(currentDepositCents)}
-                    </span>
-                    <span className="text-xs text-slate-600">Pay balance at event</span>
-                  </label>
-
-                  <label
-                    className={`relative flex flex-col p-3 border-2 rounded-lg cursor-pointer transition-all ${
-                      paymentAmount === 'full'
-                        ? 'border-green-600 bg-green-50'
-                        : 'border-slate-300 hover:border-green-400'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="newPaymentAmount"
-                      value="full"
-                      checked={paymentAmount === 'full'}
-                      onChange={(e) => setPaymentAmount(e.target.value as any)}
-                      className="sr-only"
-                    />
-                    <span className="text-xs sm:text-sm font-semibold text-slate-900">Full Payment</span>
-                    <span className="text-base sm:text-lg font-bold text-green-600 mt-1">
-                      {formatCurrency(currentTotalCents)}
-                    </span>
-                    <span className="text-xs text-slate-600">Nothing due at event</span>
-                  </label>
-
-                  <label
-                    className={`relative flex flex-col p-3 border-2 rounded-lg cursor-pointer transition-all sm:col-span-2 md:col-span-1 ${
-                      paymentAmount === 'custom'
-                        ? 'border-teal-600 bg-teal-50'
-                        : 'border-slate-300 hover:border-teal-400'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="newPaymentAmount"
-                      value="custom"
-                      checked={paymentAmount === 'custom'}
-                      onChange={(e) => setPaymentAmount(e.target.value as any)}
-                      className="sr-only"
-                    />
-                    <span className="text-xs sm:text-sm font-semibold text-slate-900">Custom</span>
-                    <span className="text-xs text-slate-600">Choose amount</span>
-                  </label>
-                </div>
-              )}
+                <label
+                  className={`relative flex flex-col p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                    paymentAmount === 'custom'
+                      ? 'border-teal-600 bg-teal-50'
+                      : 'border-slate-300 hover:border-teal-400'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="paymentAmount"
+                    value="custom"
+                    checked={paymentAmount === 'custom'}
+                    onChange={(e) => setPaymentAmount(e.target.value as any)}
+                    className="sr-only"
+                  />
+                  <span className="text-xs sm:text-sm font-semibold text-slate-900">Custom Amount</span>
+                  <span className="text-xs text-slate-600 mt-1">Choose your amount</span>
+                </label>
+              </div>
 
               {paymentAmount === 'custom' && (
                 <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
