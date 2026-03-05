@@ -244,7 +244,7 @@ export function OrderSummary({
                 )}
                 <span className="text-slate-700 font-semibold">
                   {formatCurrency(customDepositCents !== null && customDepositCents !== undefined
-                    ? Math.max(0, (summary.total - summary.tip) - customDepositCents)
+                    ? Math.max(0, summary.total - customDepositCents)
                     : summary.balanceDue)}
                 </span>
               </div>
