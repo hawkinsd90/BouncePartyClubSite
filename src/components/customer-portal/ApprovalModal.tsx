@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { CreditCard, CreditCard as Edit2 } from 'lucide-react';
+import { CreditCard, CreditCard as Edit2, MapPin, Calendar } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
 import { loadStripe } from '@stripe/stripe-js';
+import { formatOrderId } from '../../lib/utils';
+import { format } from 'date-fns';
 
 interface ApprovalModalProps {
   isOpen: boolean;
@@ -94,6 +96,24 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
     }
   }
 
+  const customerName = `${order.customers?.first_name || ''} ${order.customers?.last_name || ''}`.trim();
+  const address = order.addresses
+    ? `${order.addresses.line1}, ${order.addresses.city}, ${order.addresses.state} ${order.addresses.zip}`
+    : 'No address';
+  const eventDate = order.event_date
+    ? format(new Date(order.event_date + 'T12:00:00'), 'EEEE, MMMM d, yyyy')
+    : 'No date';
+
+  const totalAmount = (
+    order.subtotal_cents +
+    (order.generator_fee_cents || 0) +
+    order.travel_fee_cents +
+    order.surface_fee_cents +
+    (order.same_day_pickup_fee_cents || 0) +
+    order.tax_cents -
+    (order.discount_cents || 0)
+  ) / 100;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
@@ -102,6 +122,35 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
           <p className="text-sm md:text-base text-slate-700 mb-4">
             By approving these changes, you confirm that you have reviewed and accept the updated order details.
           </p>
+
+          <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
+            <div>
+              <p className="text-xs text-slate-500 mb-1">Order Number</p>
+              <p className="font-mono font-semibold text-slate-900">{formatOrderId(order.id)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 mb-1">Customer Name</p>
+              <p className="font-medium text-slate-900">{customerName}</p>
+            </div>
+            <div className="flex items-start">
+              <MapPin className="w-4 h-4 text-slate-500 mr-2 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-xs text-slate-500 mb-1">Event Address</p>
+                <p className="text-sm text-slate-900">{address}</p>
+              </div>
+            </div>
+            <div className="flex items-start">
+              <Calendar className="w-4 h-4 text-slate-500 mr-2 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-xs text-slate-500 mb-1">Event Date</p>
+                <p className="text-sm text-slate-900">{eventDate}</p>
+              </div>
+            </div>
+            <div className="pt-3 border-t border-slate-300">
+              <p className="text-xs text-slate-500 mb-1">Total Amount</p>
+              <p className="text-xl font-bold text-green-700">${totalAmount.toFixed(2)}</p>
+            </div>
+          </div>
 
           {order.stripe_payment_method_id && (
             <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">

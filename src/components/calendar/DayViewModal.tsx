@@ -53,8 +53,8 @@ export function DayViewModal({
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
       <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-start sm:items-center gap-2 z-10">
-          <div className="flex-1 min-w-0">
+        <div className="sticky top-0 bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center gap-3 z-10">
+          <div className="flex-1 min-w-0 pr-2">
             <h2 className="text-lg sm:text-2xl font-bold text-slate-900 break-words">
               <span className="hidden sm:inline">{format(selectedDate, 'EEEE, MMMM d, yyyy')}</span>
               <span className="sm:hidden">{format(selectedDate, 'EEE, MMM d, yyyy')}</span>
@@ -65,9 +65,9 @@ export function DayViewModal({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 sm:p-2 hover:bg-slate-100 rounded-lg transition-colors flex-shrink-0"
+            className="p-2 hover:bg-slate-100 rounded-lg transition-colors flex-shrink-0"
           >
-            <X className="w-5 h-5 sm:w-6 sm:h-6" />
+            <X className="w-6 h-6" />
           </button>
         </div>
 

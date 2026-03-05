@@ -125,7 +125,7 @@ export function RouteManagementModal({
                 onOptimize();
                 onClose();
               }}
-              disabled={reordering || optimizing}
+              disabled={saving || optimizing}
               className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
             >
               <Shuffle className="w-4 h-4" />
