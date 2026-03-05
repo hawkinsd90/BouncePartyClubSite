@@ -217,7 +217,11 @@ export function OrderSummary({
         {showDeposit && (
           <div className="pt-4 border-t-2 border-slate-300 space-y-2">
             <div className="flex justify-between text-green-700 font-medium">
-              <span className="font-semibold">Deposit Due Now:</span>
+              <span className="font-semibold">
+                {customDepositCents !== null && customDepositCents !== undefined
+                  ? 'Amount Paying Now:'
+                  : 'Deposit Due Now:'}
+              </span>
               <div className="flex items-center gap-2">
                 {hasChanged('deposit_due') && getOldValue('deposit_due') && (
                   <span className="text-xs text-slate-400 line-through">{formatCurrency(parseInt(getOldValue('deposit_due')!))}</span>

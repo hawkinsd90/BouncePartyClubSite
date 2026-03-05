@@ -116,7 +116,8 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
 
   const totalPaid = (order.deposit_paid_cents || 0) / 100;
   const customerSelectedPayment = (order.customer_selected_payment_cents || order.deposit_due_cents || 0) / 100;
-  const amountChargingNow = customerSelectedPayment;
+  const tipAmount = (order.tip_cents || 0) / 100;
+  const amountChargingNow = customerSelectedPayment + tipAmount;
 
   const paymentMethodText = order.payment_method_last_four && order.payment_method_brand
     ? `${order.payment_method_brand.charAt(0).toUpperCase() + order.payment_method_brand.slice(1)} •••• ${order.payment_method_last_four}`
