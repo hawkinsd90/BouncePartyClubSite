@@ -219,34 +219,35 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete }: LotPi
     return data.publicUrl;
   };
 
-  const handleDeletePicture = async (picture: LotPicture) => {
+  const handleDeletePicture = async (picture: LotPicture, skipConfirm = false) => {
     if (!canDelete) {
       notifyError('Pictures can only be deleted before order approval');
       return;
     }
 
-    if (!confirm(`Are you sure you want to delete ${picture.file_name}?`)) {
+    if (!skipConfirm && !confirm(`Are you sure you want to delete ${picture.file_name}?`)) {
       return;
     }
 
     setDeleting(picture.id);
     try {
-      // Delete from database first
+      // Delete from storage first
+      const { error: storageError } = await supabase.storage
+        .from('lot-pictures')
+        .remove([picture.file_path]);
+
+      if (storageError) {
+        console.error('Storage delete error:', storageError);
+        throw new Error('Failed to delete file from storage');
+      }
+
+      // Delete from database
       const { error: dbError } = await supabase
         .from('order_lot_pictures' as any)
         .delete()
         .eq('id', picture.id);
 
       if (dbError) throw dbError;
-
-      // Delete from storage
-      const { error: storageError } = await supabase.storage
-        .from('lot-pictures')
-        .remove([picture.file_path]);
-
-      if (storageError) {
-        console.error('Failed to delete file from storage:', storageError);
-      }
 
       notifySuccess('Picture deleted successfully');
       await loadPictures();
@@ -256,6 +257,7 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete }: LotPi
         setSelectedPicture(null);
       }
     } catch (error: any) {
+      console.error('Delete error:', error);
       notifyError(error.message || 'Failed to delete picture');
     } finally {
       setDeleting(null);
@@ -355,16 +357,6 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete }: LotPi
                     >
                       <Maximize className="w-4 h-4 text-slate-700" />
                     </button>
-                    {canDelete && (
-                      <button
-                        onClick={() => handleDeletePicture(picture)}
-                        disabled={deleting === picture.id}
-                        className="p-2 bg-white rounded-full hover:bg-red-50 transition-colors disabled:opacity-50"
-                        title="Delete picture"
-                      >
-                        <Trash2 className="w-4 h-4 text-red-600" />
-                      </button>
-                    )}
                   </div>
                 </div>
                 <p className="text-xs text-slate-600 mt-1 truncate" title={picture.file_name}>
