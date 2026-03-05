@@ -141,16 +141,13 @@ export function RouteManagementModal({
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-4 sm:p-6 space-y-4">
           <div className="flex flex-col gap-3 mb-4">
             <p className="text-sm text-slate-600">
               Drag items to reorder stops manually, or use auto-optimization
             </p>
             <button
-              onClick={() => {
-                onOptimize();
-                onClose();
-              }}
+              onClick={onOptimize}
               disabled={saving || optimizing}
               className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
             >
@@ -159,7 +156,7 @@ export function RouteManagementModal({
             </button>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 px-2">
             {localTasks.map((task, index) => (
               <div
                 key={task.id}
@@ -170,13 +167,13 @@ export function RouteManagementModal({
                 onTouchStart={(e) => handleTouchStart(e, index)}
                 onTouchMove={(e) => handleTouchMove(e)}
                 onTouchEnd={(e) => handleTouchEnd(e, index)}
-                className={`bg-slate-50 border-2 border-slate-200 rounded-lg p-3 sm:p-4 hover:border-blue-400 transition-colors cursor-move touch-none ${
-                  draggedIndex === index ? 'opacity-50 scale-105' : ''
+                className={`bg-slate-50 border-2 border-slate-200 rounded-lg p-3 sm:p-4 hover:border-blue-400 transition-all ${
+                  draggedIndex === index ? 'opacity-50 scale-105 shadow-lg border-blue-500' : 'cursor-grab active:cursor-grabbing'
                 }`}
               >
                 <div className="flex items-start gap-2 sm:gap-3">
                   <div className="flex-shrink-0">
-                    <GripVertical className="w-5 h-5 text-slate-400 mt-1 cursor-move" />
+                    <GripVertical className="w-5 h-5 text-slate-400 mt-1 cursor-grab active:cursor-grabbing" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">

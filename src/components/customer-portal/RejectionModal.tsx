@@ -29,7 +29,7 @@ export function RejectionModal({ isOpen, onClose, order, onSuccess }: RejectionM
     try {
       const { error: updateError } = await supabase
         .from('orders')
-        .update({ status: 'voided' })
+        .update({ status: 'cancelled' })
         .eq('id', order.id);
 
       if (updateError) throw updateError;
@@ -40,7 +40,7 @@ export function RejectionModal({ isOpen, onClose, order, onSuccess }: RejectionM
         change_type: 'status_change',
         field_name: 'status',
         old_value: order.status,
-        new_value: 'voided',
+        new_value: 'cancelled',
         notes: reason ? `Customer rejected changes: ${reason}` : 'Customer rejected order changes via portal',
       });
 

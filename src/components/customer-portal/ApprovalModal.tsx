@@ -115,7 +115,8 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
   ) / 100;
 
   const totalPaid = (order.deposit_paid_cents || 0) / 100;
-  const amountDue = totalAmount - totalPaid;
+  const depositDue = (order.deposit_due_cents || 0) / 100;
+  const amountChargingNow = depositDue;
 
   const paymentMethodText = order.payment_method_last_four && order.payment_method_brand
     ? `${order.payment_method_brand.charAt(0).toUpperCase() + order.payment_method_brand.slice(1)} •••• ${order.payment_method_last_four}`
@@ -139,8 +140,8 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
                 <p className="font-mono text-sm font-semibold text-slate-900">{formatOrderId(order.id)}</p>
               </div>
               <div className="text-right">
-                <p className="text-xs text-slate-500">Amount Due</p>
-                <p className="text-lg font-bold text-green-700">${amountDue.toFixed(2)}</p>
+                <p className="text-xs text-slate-500">Charging Now</p>
+                <p className="text-lg font-bold text-green-700">${amountChargingNow.toFixed(2)}</p>
               </div>
             </div>
             <div className="mb-2">

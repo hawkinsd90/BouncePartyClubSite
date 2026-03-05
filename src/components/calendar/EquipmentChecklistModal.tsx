@@ -9,9 +9,10 @@ interface EquipmentChecklistModalProps {
 
 interface EquipmentSummary {
   bounceHouses: { name: string; wetOrDry: string }[];
-  totalStakes: number;
-  totalSandbags: number;
-  totalGenerators: number;
+  hasStakes: boolean;
+  hasSandbags: boolean;
+  hasGenerators: boolean;
+  generatorCount: number;
 }
 
 export function EquipmentChecklistModal({ isOpen, tasks, onClose }: EquipmentChecklistModalProps) {
@@ -20,9 +21,10 @@ export function EquipmentChecklistModal({ isOpen, tasks, onClose }: EquipmentChe
   // Calculate equipment needed from all tasks
   const equipment: EquipmentSummary = {
     bounceHouses: [],
-    totalStakes: 0,
-    totalSandbags: 0,
-    totalGenerators: 0,
+    hasStakes: false,
+    hasSandbags: false,
+    hasGenerators: false,
+    generatorCount: 0,
   };
 
   tasks.forEach(task => {
@@ -36,18 +38,12 @@ export function EquipmentChecklistModal({ isOpen, tasks, onClose }: EquipmentChe
         });
       }
     });
-
-    // Count inflatable units for stakes/sandbags calculation
-    // Typically: 4 stakes per unit OR 4 sandbags per unit if grass not available
-    const numUnits = task.numInflatables || 0;
-    equipment.totalStakes += numUnits * 4;
-    equipment.totalSandbags += numUnits * 4;
   });
 
-  // Check if any tasks need generators
-  // This would need to be tracked in the order data
-  // For now, we'll leave it at 0 or you can add logic based on your requirements
-  equipment.totalGenerators = 0;
+  // Note: Stakes, sandbags, and generators would need to be tracked in order data
+  // For now, these flags remain false unless we add those fields to the database
+  // You can add surface_type field to orders to determine if stakes or sandbags are needed
+  // and generator_qty field to track generator requirements
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
@@ -100,47 +96,53 @@ export function EquipmentChecklistModal({ isOpen, tasks, onClose }: EquipmentChe
             </div>
           </div>
 
-          {/* Stakes */}
-          <div>
-            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-3">
-              <Anchor className="w-5 h-5 text-green-600" />
-              Stakes
-            </h3>
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <p className="text-2xl font-bold text-green-700">{equipment.totalStakes} stakes</p>
-              <p className="text-sm text-slate-600 mt-1">
-                (4 per bounce house for grass setup)
-              </p>
+          {/* Stakes - Only show if needed */}
+          {equipment.hasStakes && (
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-3">
+                <Anchor className="w-5 h-5 text-green-600" />
+                Stakes
+              </h3>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <p className="text-lg font-bold text-green-700">Stakes needed</p>
+                <p className="text-sm text-slate-600 mt-1">
+                  (4 per bounce house for grass setup)
+                </p>
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Sandbags */}
-          <div>
-            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-3">
-              <PackageIcon className="w-5 h-5 text-amber-600" />
-              Sandbags
-            </h3>
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-              <p className="text-2xl font-bold text-amber-700">{equipment.totalSandbags} sandbags</p>
-              <p className="text-sm text-slate-600 mt-1">
-                (4 per bounce house for concrete/indoor setup)
-              </p>
+          {/* Sandbags - Only show if needed */}
+          {equipment.hasSandbags && (
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-3">
+                <PackageIcon className="w-5 h-5 text-amber-600" />
+                Sandbags
+              </h3>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <p className="text-lg font-bold text-amber-700">Sandbags needed</p>
+                <p className="text-sm text-slate-600 mt-1">
+                  (4 per bounce house for concrete/indoor setup)
+                </p>
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Generators */}
-          <div>
-            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-3">
-              <Zap className="w-5 h-5 text-yellow-600" />
-              Generators
-            </h3>
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <p className="text-2xl font-bold text-yellow-700">{equipment.totalGenerators} generators</p>
-              <p className="text-sm text-slate-600 mt-1">
-                Check individual orders for generator requirements
-              </p>
+          {/* Generators - Only show if needed */}
+          {equipment.hasGenerators && (
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-3">
+                <Zap className="w-5 h-5 text-yellow-600" />
+                Generators
+              </h3>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <p className="text-lg font-bold text-yellow-700">{equipment.generatorCount} generator{equipment.generatorCount !== 1 ? 's' : ''}</p>
+                <p className="text-sm text-slate-600 mt-1">
+                  Check individual orders for generator requirements
+                </p>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="pt-4 border-t border-slate-200">
             <button

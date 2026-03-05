@@ -147,10 +147,11 @@ export function useCalendarTasks(currentMonth: Date) {
                      order.travel_fee_cents +
                      order.surface_fee_cents +
                      (order.same_day_pickup_fee_cents || 0) +
-                     order.tax_cents;
+                     order.tax_cents -
+                     (order.discount_cents || 0);
 
-        const balanceDue = (order.deposit_due_cents || 0) + (order.balance_due_cents || 0) -
-                          ((order.deposit_paid_cents || 0) + (order.balance_paid_cents || 0));
+        const totalPaid = (order.deposit_paid_cents || 0) + (order.balance_paid_cents || 0);
+        const balanceDue = Math.max(0, total - totalPaid);
 
         const dropOffStatus = taskStatuses?.find(
           ts => ts.order_id === order.id && ts.task_type === 'drop-off'

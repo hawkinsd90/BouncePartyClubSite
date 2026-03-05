@@ -214,10 +214,10 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack }: T
   async function handleEnRoute() {
     if (!mileageLog || !mileageLog.start_mileage) {
       const confirmed = await showConfirm(
-        'You have not recorded your starting mileage for today. Would you like to enter it now?\n\nYou must enter starting mileage before beginning deliveries.'
+        'Starting mileage required before marking tasks as En Route.\n\nWould you like to record your starting mileage now?'
       );
       if (confirmed) {
-        showAlert('Please close this task and use the "Start Day Mileage" button in the day view to enter your starting mileage.');
+        showAlert('Please use the "Start Day Mileage" button at the top of the day view to record your starting mileage, then return here to mark this task as En Route.');
       }
       return;
     }
