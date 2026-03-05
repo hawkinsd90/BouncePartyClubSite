@@ -389,16 +389,19 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                   {orderItems && orderItems.length > 0 && (
                     <div className="mb-4 pb-4 border-b border-slate-300">
                       <p className="text-sm font-semibold text-slate-700 mb-2">Items:</p>
-                      {orderItems.map((item: any) => (
-                        <div key={item.id} className="flex justify-between text-sm mb-1">
-                          <span className="text-slate-600">
-                            {item.units?.name || 'Item'} × {item.quantity} ({item.rental_days} day{item.rental_days > 1 ? 's' : ''})
-                          </span>
-                          <span className="font-medium text-slate-900">
-                            {formatCurrency(item.price_per_unit_per_day_cents * item.quantity * item.rental_days)}
-                          </span>
-                        </div>
-                      ))}
+                      {orderItems.map((item: any) => {
+                        const itemTotal = (item.price_per_unit_per_day_cents || 0) * (item.quantity || 1) * (item.rental_days || 1);
+                        return (
+                          <div key={item.id} className="flex justify-between text-sm mb-1">
+                            <span className="text-slate-600">
+                              {item.units?.name || 'Item'} × {item.quantity || 1} ({item.rental_days || 1} day{item.rental_days > 1 ? 's' : ''})
+                            </span>
+                            <span className="font-medium text-slate-900">
+                              {formatCurrency(itemTotal)}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 
@@ -445,18 +448,22 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                         )}
                       </span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-600">Already Paid:</span>
-                      <span className="font-semibold text-green-700">
-                        {formatCurrency(totalPaid)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between pt-2 border-t border-slate-300">
-                      <span className="font-semibold text-slate-900">Balance Due:</span>
-                      <span className="text-xl font-bold text-blue-600">
-                        {formatCurrency(balanceDue)}
-                      </span>
-                    </div>
+                    {totalPaid > 0 && (
+                      <>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-600">Already Paid:</span>
+                          <span className="font-semibold text-green-700">
+                            {formatCurrency(totalPaid)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between pt-2 border-t border-slate-300">
+                          <span className="font-semibold text-slate-900">Balance Due:</span>
+                          <span className="text-xl font-bold text-blue-600">
+                            {formatCurrency(balanceDue)}
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
 
