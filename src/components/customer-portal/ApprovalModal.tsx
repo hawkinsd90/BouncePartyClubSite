@@ -208,7 +208,7 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
               </div>
               <div className="text-right">
                 <p className="text-xs text-slate-500">Charging Now</p>
-                <p className="text-lg font-bold text-green-700">${amountChargingNow.toFixed(2)}</p>
+                <p className="text-lg font-bold text-green-700">{formatCurrency(amountChargingNow)}</p>
               </div>
             </div>
             <div className="mb-2">
