@@ -328,7 +328,6 @@ function calculateTotalFromOrder(order: any, discounts: OrderDiscount[], customF
   const sameDayFee = order.same_day_pickup_fee_cents || 0;
   const generatorFee = order.generator_fee_cents || 0;
   const tax = order.tax_cents || 0;
-  const tip = order.tip_cents || 0;
 
   const totalFees = travelFee + surfaceFee + sameDayFee + generatorFee;
   const totalCustomFees = customFees.reduce((sum, fee) => sum + (fee.amount_cents || 0), 0);
@@ -340,7 +339,8 @@ function calculateTotalFromOrder(order: any, discounts: OrderDiscount[], customF
     return sum + (discount.amount_cents || 0);
   }, 0);
 
-  return subtotal + totalFees + totalCustomFees - discountTotal + tax + tip;
+  // Tip is tracked separately and should NOT be included in order total
+  return subtotal + totalFees + totalCustomFees - discountTotal + tax;
 }
 
 export function formatOrderSummary(data: OrderSummaryData): OrderSummaryDisplay {
