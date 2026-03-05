@@ -29,9 +29,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
 
   useEffect(() => {
     loadPayments();
-    if (lotPicturesRequested) {
-      loadLotPictures();
-    }
+    loadLotPictures();
 
     // Check URL params for payment status
     const params = new URLSearchParams(window.location.search);
@@ -295,19 +293,17 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
               >
                 Order Details
               </button>
-              {lotPicturesRequested && (
-                <button
-                  onClick={() => setActiveTab('lot-pictures')}
-                  className={`px-4 py-2 font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
-                    activeTab === 'lot-pictures'
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <MapPin className="w-4 h-4" />
-                  Lot Pictures
-                </button>
-              )}
+              <button
+                onClick={() => setActiveTab('lot-pictures')}
+                className={`px-4 py-2 font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
+                  activeTab === 'lot-pictures'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <MapPin className="w-4 h-4" />
+                Lot Pictures
+              </button>
               <button
                 onClick={() => setActiveTab('waiver')}
                 className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
