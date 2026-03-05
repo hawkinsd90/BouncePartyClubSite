@@ -119,7 +119,14 @@ Deno.serve(async (req: Request) => {
         throw new Error(`Order '${orderId}' not found`);
       }
 
-      if (templateKey === "booking_received_admin") {
+      // Admin templates should send to admin phone
+      const adminTemplates = [
+        "booking_received_admin",
+        "lot_pictures_uploaded_admin",
+        "order_cancellation_admin"
+      ];
+
+      if (adminTemplates.includes(templateKey)) {
         const { data: adminPhoneSetting } = await supabase
           .from("admin_settings")
           .select("value")
