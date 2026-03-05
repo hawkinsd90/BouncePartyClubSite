@@ -193,94 +193,96 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
           </div>
 
           <div className="px-8 py-6">
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold text-slate-900 mb-4">Complete These Steps</h2>
-              <div className={`grid grid-cols-1 ${lotPicturesRequested ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4 mb-4`}>
-                {lotPicturesRequested && (
+            {totalPaid > 0 && (
+              <div className="mb-6">
+                <h2 className="text-lg font-semibold text-slate-900 mb-4">Complete These Steps</h2>
+                <div className={`grid grid-cols-1 ${lotPicturesRequested ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4 mb-4`}>
+                  {lotPicturesRequested && (
+                    <button
+                      onClick={() => setActiveTab('lot-pictures')}
+                      className={`border rounded-lg p-4 transition-all ${
+                        !lotPicturesUploaded
+                          ? 'border-amber-500 bg-amber-50 hover:border-amber-600'
+                          : 'border-green-500 bg-green-50 hover:border-green-600'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {!lotPicturesUploaded ? (
+                          <MapPin className="w-6 h-6 text-amber-600" />
+                        ) : (
+                          <CheckCircle className="w-6 h-6 text-green-600" />
+                        )}
+                        <div className="text-left">
+                          <p className="font-semibold text-slate-900">Lot Pictures</p>
+                          <p className="text-xs text-slate-600">
+                            {!lotPicturesUploaded ? 'Required' : 'Complete'}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  )}
+
                   <button
-                    onClick={() => setActiveTab('lot-pictures')}
+                    onClick={() => setActiveTab('waiver')}
                     className={`border rounded-lg p-4 transition-all ${
-                      !lotPicturesUploaded
+                      needsWaiver
                         ? 'border-amber-500 bg-amber-50 hover:border-amber-600'
                         : 'border-green-500 bg-green-50 hover:border-green-600'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      {!lotPicturesUploaded ? (
-                        <MapPin className="w-6 h-6 text-amber-600" />
+                      {needsWaiver ? (
+                        <FileText className="w-6 h-6 text-amber-600" />
                       ) : (
                         <CheckCircle className="w-6 h-6 text-green-600" />
                       )}
                       <div className="text-left">
-                        <p className="font-semibold text-slate-900">Lot Pictures</p>
+                        <p className="font-semibold text-slate-900">Sign Waiver</p>
                         <p className="text-xs text-slate-600">
-                          {!lotPicturesUploaded ? 'Required' : 'Complete'}
+                          {needsWaiver ? 'Required' : 'Complete'}
                         </p>
                       </div>
                     </div>
                   </button>
-                )}
 
-                <button
-                  onClick={() => setActiveTab('waiver')}
-                  className={`border rounded-lg p-4 transition-all ${
-                    needsWaiver
-                      ? 'border-amber-500 bg-amber-50 hover:border-amber-600'
-                      : 'border-green-500 bg-green-50 hover:border-green-600'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    {needsWaiver ? (
-                      <FileText className="w-6 h-6 text-amber-600" />
-                    ) : (
-                      <CheckCircle className="w-6 h-6 text-green-600" />
-                    )}
-                    <div className="text-left">
-                      <p className="font-semibold text-slate-900">Sign Waiver</p>
-                      <p className="text-xs text-slate-600">
-                        {needsWaiver ? 'Required' : 'Complete'}
-                      </p>
+                  <button
+                    onClick={() => setActiveTab('payment')}
+                    className={`border rounded-lg p-4 transition-all ${
+                      needsPayment
+                        ? 'border-amber-500 bg-amber-50 hover:border-amber-600'
+                        : 'border-green-500 bg-green-50 hover:border-green-600'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {needsPayment ? (
+                        <CreditCard className="w-6 h-6 text-amber-600" />
+                      ) : (
+                        <CheckCircle className="w-6 h-6 text-green-600" />
+                      )}
+                      <div className="text-left">
+                        <p className="font-semibold text-slate-900">Payment</p>
+                        <p className="text-xs text-slate-600">
+                          {needsPayment ? `${formatCurrency(balanceDue)} due` : 'Complete'}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                </button>
+                  </button>
 
-                <button
-                  onClick={() => setActiveTab('payment')}
-                  className={`border rounded-lg p-4 transition-all ${
-                    needsPayment
-                      ? 'border-amber-500 bg-amber-50 hover:border-amber-600'
-                      : 'border-green-500 bg-green-50 hover:border-green-600'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    {needsPayment ? (
-                      <CreditCard className="w-6 h-6 text-amber-600" />
-                    ) : (
-                      <CheckCircle className="w-6 h-6 text-green-600" />
-                    )}
-                    <div className="text-left">
-                      <p className="font-semibold text-slate-900">Payment</p>
-                      <p className="text-xs text-slate-600">
-                        {needsPayment ? `${formatCurrency(balanceDue)} due` : 'Complete'}
-                      </p>
+                  <button
+                    onClick={() => setActiveTab('pictures')}
+                    className="border border-slate-300 rounded-lg p-4 bg-slate-50 hover:border-slate-400 transition-all"
+                  >
+                    <div className="flex items-center gap-3">
+                      <ImageIcon className="w-6 h-6 text-slate-600" />
+                      <div className="text-left">
+                        <p className="font-semibold text-slate-900">Pictures</p>
+                        <p className="text-xs text-slate-600">Optional</p>
+                      </div>
                     </div>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('pictures')}
-                  className="border border-slate-300 rounded-lg p-4 bg-slate-50 hover:border-slate-400 transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <ImageIcon className="w-6 h-6 text-slate-600" />
-                    <div className="text-left">
-                      <p className="font-semibold text-slate-900">Pictures</p>
-                      <p className="text-xs text-slate-600">Optional</p>
-                    </div>
-                  </div>
-                </button>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="flex gap-2 mb-6 border-b border-slate-200 overflow-x-auto">
               <button
@@ -304,36 +306,40 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                 <MapPin className="w-4 h-4" />
                 Lot Pictures
               </button>
-              <button
-                onClick={() => setActiveTab('waiver')}
-                className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  activeTab === 'waiver'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Waiver
-              </button>
-              <button
-                onClick={() => setActiveTab('payment')}
-                className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  activeTab === 'payment'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Payment
-              </button>
-              <button
-                onClick={() => setActiveTab('pictures')}
-                className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  activeTab === 'pictures'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Pictures
-              </button>
+              {totalPaid > 0 && (
+                <>
+                  <button
+                    onClick={() => setActiveTab('waiver')}
+                    className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === 'waiver'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Waiver
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('payment')}
+                    className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === 'payment'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Payment
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('pictures')}
+                    className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === 'pictures'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Pictures
+                  </button>
+                </>
+              )}
             </div>
 
             {activeTab === 'details' && (
@@ -513,9 +519,9 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
               />
             )}
 
-            {activeTab === 'waiver' && <WaiverTab orderId={orderId} order={order} />}
+            {activeTab === 'waiver' && totalPaid > 0 && <WaiverTab orderId={orderId} order={order} />}
 
-            {activeTab === 'payment' && (
+            {activeTab === 'payment' && totalPaid > 0 && (
               <PaymentTab
                 orderId={orderId}
                 order={order}
@@ -524,7 +530,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
               />
             )}
 
-            {activeTab === 'pictures' && <PicturesTab onSubmit={handleSubmitPictures} />}
+            {activeTab === 'pictures' && totalPaid > 0 && <PicturesTab onSubmit={handleSubmitPictures} />}
           </div>
         </div>
 
