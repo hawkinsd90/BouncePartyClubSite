@@ -286,6 +286,7 @@ export function OrderApprovalView({
                     title="Complete Price Breakdown"
                     changelog={changelog}
                     className="p-3 md:p-4"
+                    customDepositCents={order.customer_selected_payment_cents}
                     taxWaived={order.tax_waived || false}
                     travelFeeWaived={order.travel_fee_waived || false}
                     surfaceFeeWaived={order.surface_fee_waived || false}
