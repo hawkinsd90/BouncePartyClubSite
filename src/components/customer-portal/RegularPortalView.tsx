@@ -526,6 +526,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
               <LotPicturesTab
                 orderId={orderId}
                 orderNumber={order.order_number}
+                orderStatus={order.status}
                 onUploadComplete={() => {
                   loadLotPictures();
                   onReload();
