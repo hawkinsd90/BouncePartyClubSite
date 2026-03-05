@@ -43,15 +43,20 @@ async function getDistanceMatrix(
 ): Promise<DistanceMatrixResult[][]> {
   await loadGoogleMapsAPI();
 
+  // Ensure Google Maps is available
+  if (!window.google?.maps) {
+    throw new Error('Google Maps API not loaded');
+  }
+
   return new Promise((resolve, reject) => {
-    const service = new google.maps.DistanceMatrixService();
+    const service = new window.google.maps.DistanceMatrixService();
 
     service.getDistanceMatrix(
       {
         origins,
         destinations,
-        travelMode: google.maps.TravelMode.DRIVING,
-        unitSystem: google.maps.UnitSystem.IMPERIAL,
+        travelMode: window.google.maps.TravelMode.DRIVING,
+        unitSystem: window.google.maps.UnitSystem.IMPERIAL,
       },
       (response, status) => {
         if (status !== 'OK') {

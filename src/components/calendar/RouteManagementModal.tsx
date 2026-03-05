@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, GripVertical, Route as RouteIcon, Shuffle } from 'lucide-react';
+import { X, GripVertical, Route as RouteIcon, Shuffle, ChevronUp, ChevronDown } from 'lucide-react';
 import { Task } from '../../hooks/useCalendarTasks';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
@@ -11,6 +11,7 @@ interface RouteManagementModalProps {
   onClose: () => void;
   onUpdate: () => void;
   onOptimize: () => void;
+  optimizing?: boolean;
 }
 
 export function RouteManagementModal({
@@ -20,6 +21,7 @@ export function RouteManagementModal({
   onClose,
   onUpdate,
   onOptimize,
+  optimizing = false,
 }: RouteManagementModalProps) {
   const [reordering, setReordering] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -29,6 +31,12 @@ export function RouteManagementModal({
   const sortedTasks = [...tasks]
     .filter(t => t.type === type)
     .sort((a, b) => (a.taskStatus?.sortOrder || 0) - (b.taskStatus?.sortOrder || 0));
+
+  async function moveTask(fromIndex: number, direction: 'up' | 'down') {
+    const toIndex = direction === 'up' ? fromIndex - 1 : fromIndex + 1;
+    if (toIndex < 0 || toIndex >= sortedTasks.length) return;
+    await handleReorder(fromIndex, toIndex);
+  }
 
   async function handleReorder(fromIndex: number, toIndex: number) {
     if (fromIndex === toIndex) return;
@@ -93,20 +101,20 @@ export function RouteManagementModal({
         </div>
 
         <div className="p-6 space-y-4">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col gap-3 mb-4">
             <p className="text-sm text-slate-600">
-              Drag and drop to reorder stops, or use the optimize button
+              Use arrow buttons or drag items to reorder stops manually, or use auto-optimization
             </p>
             <button
               onClick={() => {
                 onOptimize();
                 onClose();
               }}
-              disabled={reordering}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              disabled={reordering || optimizing}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
             >
               <Shuffle className="w-4 h-4" />
-              Auto-Optimize
+              {optimizing ? 'Optimizing Route...' : 'Auto-Optimize Route'}
             </button>
           </div>
 
@@ -118,12 +126,14 @@ export function RouteManagementModal({
                 onDragStart={() => handleDragStart(index)}
                 onDragOver={(e) => handleDragOver(e, index)}
                 onDrop={(e) => handleDrop(e, index)}
-                className={`bg-slate-50 border-2 border-slate-200 rounded-lg p-4 cursor-move hover:border-blue-400 transition-colors ${
+                className={`bg-slate-50 border-2 border-slate-200 rounded-lg p-3 sm:p-4 hover:border-blue-400 transition-colors ${
                   draggedIndex === index ? 'opacity-50' : ''
                 }`}
               >
-                <div className="flex items-start gap-3">
-                  <GripVertical className="w-5 h-5 text-slate-400 mt-1 flex-shrink-0" />
+                <div className="flex items-start gap-2 sm:gap-3">
+                  <div className="hidden sm:block">
+                    <GripVertical className="w-5 h-5 text-slate-400 mt-1 flex-shrink-0 cursor-move" />
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="inline-flex items-center justify-center w-8 h-8 bg-blue-600 text-white font-bold rounded-full text-sm flex-shrink-0">
@@ -139,6 +149,24 @@ export function RouteManagementModal({
                     <p className="text-xs text-slate-500 mt-1">
                       {task.eventStartTime} - {task.eventEndTime}
                     </p>
+                  </div>
+                  <div className="flex flex-col gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => moveTask(index, 'up')}
+                      disabled={index === 0 || reordering}
+                      className="p-1.5 hover:bg-blue-100 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      title="Move up"
+                    >
+                      <ChevronUp className="w-5 h-5 text-slate-600" />
+                    </button>
+                    <button
+                      onClick={() => moveTask(index, 'down')}
+                      disabled={index === sortedTasks.length - 1 || reordering}
+                      className="p-1.5 hover:bg-blue-100 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      title="Move down"
+                    >
+                      <ChevronDown className="w-5 h-5 text-slate-600" />
+                    </button>
                   </div>
                 </div>
               </div>

@@ -103,23 +103,13 @@ export function DayViewModal({
                   Drop-offs / Deliveries ({dropOffTasks.length})
                 </h3>
                 {dropOffTasks.length >= 1 && (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleManageRoute('drop-off')}
-                      className="flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap"
-                    >
-                      <Settings className="w-4 h-4 flex-shrink-0" />
-                      <span>Manage Route</span>
-                    </button>
-                    <button
-                      onClick={onOptimizeMorning}
-                      disabled={optimizing}
-                      className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-                    >
-                      <Route className="w-4 h-4 flex-shrink-0" />
-                      <span>{optimizing ? 'Optimizing...' : 'Auto-Optimize'}</span>
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => handleManageRoute('drop-off')}
+                    className="flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap"
+                  >
+                    <Settings className="w-4 h-4 flex-shrink-0" />
+                    <span>Manage Route</span>
+                  </button>
                 )}
               </div>
               <div className="space-y-3">
@@ -145,25 +135,13 @@ export function DayViewModal({
                   Pick-ups / Retrievals ({pickUpTasks.length})
                 </h3>
                 {pickUpTasks.length >= 1 && (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleManageRoute('pick-up')}
-                      className="flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap"
-                    >
-                      <Settings className="w-4 h-4 flex-shrink-0" />
-                      <span>Manage Route</span>
-                    </button>
-                    {pickUpTasks.filter(t => t.pickupPreference === 'same_day').length >= 2 && (
-                      <button
-                        onClick={onOptimizeAfternoon}
-                        disabled={optimizing}
-                        className="flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-                      >
-                        <Route className="w-4 h-4 flex-shrink-0" />
-                        <span>{optimizing ? 'Optimizing...' : 'Auto-Optimize'}</span>
-                      </button>
-                    )}
-                  </div>
+                  <button
+                    onClick={() => handleManageRoute('pick-up')}
+                    className="flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap"
+                  >
+                    <Settings className="w-4 h-4 flex-shrink-0" />
+                    <span>Manage Route</span>
+                  </button>
                 )}
               </div>
               <div className="space-y-3">
@@ -208,6 +186,7 @@ export function DayViewModal({
           window.location.reload();
         }}
         onOptimize={routeType === 'drop-off' ? onOptimizeMorning : onOptimizeAfternoon}
+        optimizing={optimizing}
       />
     </>
   );

@@ -27,13 +27,10 @@ export function useRouteOptimization() {
           const { data, error } = await supabase
             .from('task_status')
             .insert({
-              task_id: task.id,
               order_id: task.orderId,
+              task_type: task.type,
+              task_date: task.date.toISOString().split('T')[0],
               status: 'pending',
-              crew_notes: null,
-              admin_notes: null,
-              completed_at: null,
-              estimated_arrival: null,
             })
             .select()
             .single();
@@ -118,13 +115,10 @@ export function useRouteOptimization() {
           const { data, error } = await supabase
             .from('task_status')
             .insert({
-              task_id: task.id,
               order_id: task.orderId,
+              task_type: task.type,
+              task_date: task.date.toISOString().split('T')[0],
               status: 'pending',
-              crew_notes: null,
-              admin_notes: null,
-              completed_at: null,
-              estimated_arrival: null,
             })
             .select()
             .single();

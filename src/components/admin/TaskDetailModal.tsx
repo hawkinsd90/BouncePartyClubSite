@@ -66,6 +66,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack }: T
   const [cancelling, setCancelling] = useState(false);
   const [showCancelForm, setShowCancelForm] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+  const [mileageLog, setMileageLog] = useState<any>(null);
   const currentStatus = task.taskStatus?.status || 'pending';
   const navigate = useNavigate();
 
@@ -91,6 +92,29 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack }: T
       supabase.removeChannel(channel);
     };
   }, [task.orderId, onUpdate]);
+
+  useEffect(() => {
+    async function loadMileageLog() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const dateStr = task.date.toISOString().split('T')[0];
+        const { data } = await supabase
+          .from('daily_mileage_logs')
+          .select('*')
+          .eq('date', dateStr)
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        setMileageLog(data);
+      } catch (error) {
+        console.error('Error loading mileage log:', error);
+      }
+    }
+
+    loadMileageLog();
+  }, [task.date]);
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -174,13 +198,11 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack }: T
     const { data, error } = await supabase
       .from('task_status')
       .insert({
-        task_id: task.id || '',
         order_id: task.orderId,
+        task_type: task.type,
+        task_date: task.date.toISOString().split('T')[0],
         status: 'pending',
-        crew_notes: null,
-        admin_notes: null,
-        completed_at: null,
-        estimated_arrival: null,
+        notes: null,
       })
       .select()
       .single();
@@ -190,6 +212,16 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack }: T
   }
 
   async function handleEnRoute() {
+    if (!mileageLog || !mileageLog.start_mileage) {
+      const confirmed = await showConfirm(
+        'You have not recorded your starting mileage for today. Would you like to enter it now?\n\nYou must enter starting mileage before beginning deliveries.'
+      );
+      if (confirmed) {
+        showAlert('Please close this task and use the "Start Day Mileage" button in the day view to enter your starting mileage.');
+      }
+      return;
+    }
+
     setProcessing(true);
     try {
       const taskStatusId = await ensureTaskStatus();
@@ -295,6 +327,11 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack }: T
   }
 
   async function handleArrived() {
+    if (!mileageLog || !mileageLog.start_mileage) {
+      showAlert('You must enter your starting mileage before marking tasks. Please use the "Start Day Mileage" button in the day view.');
+      return;
+    }
+
     setProcessing(true);
     try {
       const taskStatusId = await ensureTaskStatus();
@@ -394,6 +431,11 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack }: T
   }
 
   async function handleDropOffComplete() {
+    if (!mileageLog || !mileageLog.start_mileage) {
+      showAlert('You must enter your starting mileage before completing tasks. Please use the "Start Day Mileage" button in the day view.');
+      return;
+    }
+
     setProcessing(true);
     try {
       const taskStatusId = await ensureTaskStatus();
@@ -442,6 +484,11 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack }: T
   }
 
   async function handlePickupComplete() {
+    if (!mileageLog || !mileageLog.start_mileage) {
+      showAlert('You must enter your starting mileage before completing tasks. Please use the "Start Day Mileage" button in the day view.');
+      return;
+    }
+
     setProcessing(true);
     try {
       const taskStatusId = await ensureTaskStatus();
@@ -723,27 +770,29 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack }: T
   const isFuture = taskDate.getTime() > today.getTime();
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[95vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-4 sm:px-6 py-4 flex justify-between items-start z-10">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
-              {onBack && (
-                <button
-                  onClick={onBack}
-                  className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors mr-1"
-                  title="Back to day view"
-                >
-                  <ArrowLeft className="w-5 h-5" />
-                </button>
-              )}
-              <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
-                {isDropOff ? '🚚 Delivery' : '📦 Pickup'}
-              </h2>
-              <span className={`text-xs px-2 py-1 rounded-full font-semibold ${statusColor}`}>
-                {currentStatus.toUpperCase()}
-              </span>
-            </div>
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl my-2 sm:my-4 mx-2 sm:mx-4 max-h-[calc(100vh-16px)] sm:max-h-[95vh] overflow-y-auto flex flex-col">
+        <div className="sticky top-0 bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 z-10 flex-shrink-0">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium text-sm mb-3 -ml-1 px-1 py-1 hover:bg-blue-50 rounded-lg transition-colors"
+              title="Back to day view"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to day view</span>
+            </button>
+          )}
+          <div className="flex justify-between items-start">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <h2 className="text-lg sm:text-2xl font-bold text-slate-900">
+                  {isDropOff ? '🚚 Delivery' : '📦 Pickup'}
+                </h2>
+                <span className={`text-xs px-2 py-1 rounded-full font-semibold ${statusColor}`}>
+                  {currentStatus.toUpperCase()}
+                </span>
+              </div>
             <button
               onClick={handleViewOrder}
               className="text-sm text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1"
@@ -785,13 +834,14 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack }: T
                 </span>
               </button>
             </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-slate-100 rounded-lg transition-colors flex-shrink-0"
+            >
+              <X className="w-6 h-6" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-slate-100 rounded-lg transition-colors flex-shrink-0"
-          >
-            <X className="w-6 h-6" />
-          </button>
         </div>
 
         <div className="p-4 sm:p-6 space-y-6">

@@ -55,7 +55,9 @@ export const STANDARD_ORDER_SELECT = `
     line2,
     city,
     state,
-    zip
+    zip,
+    lat,
+    lng
   ),
   order_items (
     id,
@@ -83,6 +85,8 @@ export const STANDARD_ORDER_SELECT = `
     status,
     stripe_payment_intent_id,
     payment_method,
+    payment_method_last_four,
+    payment_method_brand,
     created_at
   ),
   order_discounts (
