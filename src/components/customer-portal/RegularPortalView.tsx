@@ -468,18 +468,22 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                         )}
                       </span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-600">Already Paid:</span>
-                      <span className="font-semibold text-green-700">
-                        {formatCurrency(totalPaid)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between pt-2 border-t border-slate-300">
-                      <span className="font-semibold text-slate-900">Balance Due:</span>
-                      <span className="text-xl font-bold text-blue-600">
-                        {formatCurrency(balanceDue)}
-                      </span>
-                    </div>
+                    {totalPaid > 0 && (
+                      <>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-600">Already Paid:</span>
+                          <span className="font-semibold text-green-700">
+                            {formatCurrency(totalPaid)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between pt-2 border-t border-slate-300">
+                          <span className="font-semibold text-slate-900">Balance Due:</span>
+                          <span className="text-xl font-bold text-blue-600">
+                            {formatCurrency(balanceDue)}
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
 

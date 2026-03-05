@@ -125,6 +125,14 @@ export function LotPicturesTab({ orderId, onUploadComplete }: LotPicturesTabProp
     const files = event.target.files;
     if (!files || files.length === 0) return;
 
+    // Check if adding these files would exceed the 4-picture limit
+    const totalPictures = pictures.length + files.length;
+    if (totalPictures > 4) {
+      notifyError(`You can upload a maximum of 4 pictures. You currently have ${pictures.length} picture${pictures.length !== 1 ? 's' : ''}.`);
+      event.target.value = '';
+      return;
+    }
+
     setUploading(true);
 
     try {
@@ -234,25 +242,25 @@ export function LotPicturesTab({ orderId, onUploadComplete }: LotPicturesTabProp
           multiple
           accept="image/*"
           onChange={handleFileSelect}
-          disabled={uploading}
+          disabled={uploading || pictures.length >= 4}
           className="hidden"
         />
         <label
           htmlFor="lot-pictures-upload"
-          className="cursor-pointer flex flex-col items-center gap-3"
+          className={`flex flex-col items-center gap-3 ${pictures.length >= 4 ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
         >
           <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
             <Upload className="w-8 h-8 text-blue-600" />
           </div>
           <div>
             <p className="text-lg font-semibold text-slate-900 mb-1">
-              {uploading ? 'Uploading...' : 'Click to upload pictures'}
+              {uploading ? 'Uploading...' : pictures.length >= 4 ? 'Maximum pictures reached' : 'Click to upload pictures'}
             </p>
             <p className="text-sm text-slate-600">
-              or drag and drop images here
+              {pictures.length >= 4 ? `You've uploaded all 4 pictures` : 'or drag and drop images here'}
             </p>
             <p className="text-xs text-slate-500 mt-2">
-              PNG, JPG, WEBP, HEIC up to 10MB each
+              {pictures.length >= 4 ? `${pictures.length} of 4 pictures uploaded` : `PNG, JPG, WEBP, HEIC up to 10MB each (max 4 pictures)`}
             </p>
           </div>
         </label>
