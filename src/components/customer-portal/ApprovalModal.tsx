@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CreditCard, Edit2 } from 'lucide-react';
+import { CreditCard, CreditCard as Edit2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
 import { loadStripe } from '@stripe/stripe-js';
@@ -111,7 +111,9 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
                   <div>
                     <p className="text-sm font-medium text-slate-900">Payment Method on File</p>
                     <p className="text-sm text-slate-600 mt-1">
-                      {order.payment_method_last_four
+                      {order.payment_method_last_four && order.payment_method_brand
+                        ? `${order.payment_method_brand.charAt(0).toUpperCase() + order.payment_method_brand.slice(1)} ending in ${order.payment_method_last_four}`
+                        : order.payment_method_last_four
                         ? `Card ending in ${order.payment_method_last_four}`
                         : 'Card saved for payment'}
                     </p>

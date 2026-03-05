@@ -279,11 +279,18 @@ export function OrdersManager() {
 
   const showFloatingHeader = !!visibleOrder && (activeTab === 'pending_review' || activeTab === 'awaiting_customer_approval');
 
+  const handleEditFromFloatingHeader = () => {
+    if (visibleOrder) {
+      setSelectedOrder(visibleOrder);
+    }
+  };
+
   return (
     <div className={showFloatingHeader ? 'pt-20' : ''}>
       <AdminFloatingOrderHeader
         order={visibleOrder}
         isVisible={showFloatingHeader}
+        onEditClick={handleEditFromFloatingHeader}
       />
 
       <div className="mb-6">

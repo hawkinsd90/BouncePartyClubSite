@@ -26,6 +26,11 @@ export function AdminCalendar() {
     setShowDayModal(false);
   }
 
+  function handleBackToDayView() {
+    setSelectedTask(null);
+    setShowDayModal(true);
+  }
+
   const selectedDayTasks = selectedDate ? getTasksForDate(tasks, selectedDate) : [];
 
   return (
@@ -62,6 +67,7 @@ export function AdminCalendar() {
             setSelectedTask(null);
             reload();
           }}
+          onBack={selectedDate ? handleBackToDayView : undefined}
         />
       )}
     </div>

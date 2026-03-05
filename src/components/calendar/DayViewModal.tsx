@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import { format } from 'date-fns';
-import { X, TruckIcon, Package, MousePointer, Route } from 'lucide-react';
+import { X, Truck as TruckIcon, Package, MousePointer, Route, Car, Settings } from 'lucide-react';
 import { Task } from '../../hooks/useCalendarTasks';
 import { getStopNumber } from '../../lib/calendarUtils';
 import { TaskCard } from './TaskCard';
+import { MileageModal } from './MileageModal';
+import { RouteManagementModal } from './RouteManagementModal';
 
 interface DayViewModalProps {
   selectedDate: Date;
@@ -23,11 +26,32 @@ export function DayViewModal({
   onOptimizeMorning,
   onOptimizeAfternoon,
 }: DayViewModalProps) {
+  const [showMileageModal, setShowMileageModal] = useState(false);
+  const [mileageType, setMileageType] = useState<'start' | 'end'>('start');
+  const [showRouteModal, setShowRouteModal] = useState(false);
+  const [routeType, setRouteType] = useState<'drop-off' | 'pick-up'>('drop-off');
+
   const dropOffTasks = tasks.filter(t => t.type === 'drop-off');
   const pickUpTasks = tasks.filter(t => t.type === 'pick-up');
 
+  function handleStartDay() {
+    setMileageType('start');
+    setShowMileageModal(true);
+  }
+
+  function handleEndDay() {
+    setMileageType('end');
+    setShowMileageModal(true);
+  }
+
+  function handleManageRoute(type: 'drop-off' | 'pick-up') {
+    setRouteType(type);
+    setShowRouteModal(true);
+  }
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+    <>
+      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
       <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-start sm:items-center gap-2 z-10">
           <div className="flex-1 min-w-0">
@@ -49,10 +73,26 @@ export function DayViewModal({
 
         <div className="p-4 sm:p-6 space-y-6">
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 mb-4">
-            <p className="text-sm text-blue-900 flex items-center gap-2">
+            <p className="text-sm text-blue-900 flex items-center gap-2 mb-3">
               <MousePointer className="w-4 h-4" />
               Click on any task below to view details and take action
             </p>
+            <div className="flex gap-2">
+              <button
+                onClick={handleStartDay}
+                className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium py-2 px-3 rounded-lg transition-colors"
+              >
+                <Car className="w-4 h-4" />
+                Start Day Mileage
+              </button>
+              <button
+                onClick={handleEndDay}
+                className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-2 px-3 rounded-lg transition-colors"
+              >
+                <Car className="w-4 h-4" />
+                End Day Mileage
+              </button>
+            </div>
           </div>
 
           {dropOffTasks.length > 0 && (
@@ -63,14 +103,23 @@ export function DayViewModal({
                   Drop-offs / Deliveries ({dropOffTasks.length})
                 </h3>
                 {dropOffTasks.length >= 1 && (
-                  <button
-                    onClick={onOptimizeMorning}
-                    disabled={optimizing}
-                    className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-                  >
-                    <Route className="w-4 h-4 flex-shrink-0" />
-                    <span>{optimizing ? 'Optimizing...' : 'Optimize Morning Route'}</span>
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleManageRoute('drop-off')}
+                      className="flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap"
+                    >
+                      <Settings className="w-4 h-4 flex-shrink-0" />
+                      <span>Manage Route</span>
+                    </button>
+                    <button
+                      onClick={onOptimizeMorning}
+                      disabled={optimizing}
+                      className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                    >
+                      <Route className="w-4 h-4 flex-shrink-0" />
+                      <span>{optimizing ? 'Optimizing...' : 'Auto-Optimize'}</span>
+                    </button>
+                  </div>
                 )}
               </div>
               <div className="space-y-3">
@@ -95,15 +144,26 @@ export function DayViewModal({
                   <Package className="w-5 h-5" />
                   Pick-ups / Retrievals ({pickUpTasks.length})
                 </h3>
-                {pickUpTasks.filter(t => t.pickupPreference === 'same_day').length >= 2 && (
-                  <button
-                    onClick={onOptimizeAfternoon}
-                    disabled={optimizing}
-                    className="flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-                  >
-                    <Route className="w-4 h-4 flex-shrink-0" />
-                    <span>{optimizing ? 'Optimizing...' : 'Optimize Afternoon Route'}</span>
-                  </button>
+                {pickUpTasks.length >= 1 && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleManageRoute('pick-up')}
+                      className="flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap"
+                    >
+                      <Settings className="w-4 h-4 flex-shrink-0" />
+                      <span>Manage Route</span>
+                    </button>
+                    {pickUpTasks.filter(t => t.pickupPreference === 'same_day').length >= 2 && (
+                      <button
+                        onClick={onOptimizeAfternoon}
+                        disabled={optimizing}
+                        className="flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                      >
+                        <Route className="w-4 h-4 flex-shrink-0" />
+                        <span>{optimizing ? 'Optimizing...' : 'Auto-Optimize'}</span>
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
               <div className="space-y-3">
@@ -129,5 +189,26 @@ export function DayViewModal({
         </div>
       </div>
     </div>
+
+      <MileageModal
+        isOpen={showMileageModal}
+        date={selectedDate}
+        type={mileageType}
+        onClose={() => setShowMileageModal(false)}
+        onSuccess={() => setShowMileageModal(false)}
+      />
+
+      <RouteManagementModal
+        isOpen={showRouteModal}
+        tasks={tasks}
+        type={routeType}
+        onClose={() => setShowRouteModal(false)}
+        onUpdate={() => {
+          setShowRouteModal(false);
+          window.location.reload();
+        }}
+        onOptimize={routeType === 'drop-off' ? onOptimizeMorning : onOptimizeAfternoon}
+      />
+    </>
   );
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { X, Navigation, CheckCircle, Camera, MessageCircle, ChevronUp, ChevronDown, Star, AlertTriangle, RefreshCw, RotateCcw, DollarSign, FileCheck, Ban, ExternalLink } from 'lucide-react';
+import { X, Navigation, CheckCircle, Camera, MessageCircle, ChevronUp, ChevronDown, Star, AlertTriangle, RefreshCw, RotateCcw, DollarSign, FileCheck, Ban, ExternalLink, ArrowLeft } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { showAlert, showConfirm } from '../common/CustomModal';
 import { getCurrentLocation, calculateETA } from '../../lib/googleMaps';
@@ -47,9 +47,10 @@ interface TaskDetailModalProps {
   allTasks: Task[];
   onClose: () => void;
   onUpdate: () => void;
+  onBack?: () => void;
 }
 
-export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetailModalProps) {
+export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack }: TaskDetailModalProps) {
   const [processing, setProcessing] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -505,10 +506,43 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
     }
   }
 
-  async function handleReorder(_direction: 'up' | 'down') {
+  async function handleReorder(direction: 'up' | 'down') {
     try {
-      showAlert('Task reordering not yet supported');
-      return;
+      const currentIndex = tasksOfSameType.findIndex(t => t.id === task.id);
+      if (currentIndex === -1) return;
+
+      const swapIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+      if (swapIndex < 0 || swapIndex >= tasksOfSameType.length) return;
+
+      const currentTask = tasksOfSameType[currentIndex];
+      const swapTask = tasksOfSameType[swapIndex];
+
+      const currentOrder = currentTask.taskStatus?.sortOrder || currentIndex;
+      const swapOrder = swapTask.taskStatus?.sortOrder || swapIndex;
+
+      const updates = [];
+
+      if (currentTask.taskStatus?.id) {
+        updates.push(
+          supabase
+            .from('task_status')
+            .update({ sort_order: swapOrder })
+            .eq('id', currentTask.taskStatus.id)
+        );
+      }
+
+      if (swapTask.taskStatus?.id) {
+        updates.push(
+          supabase
+            .from('task_status')
+            .update({ sort_order: currentOrder })
+            .eq('id', swapTask.taskStatus.id)
+        );
+      }
+
+      await Promise.all(updates);
+      showAlert(`Task moved ${direction}`);
+      onUpdate();
     } catch (error: any) {
       console.error('Error reordering tasks:', error);
       showAlert('Failed to reorder: ' + error.message);
@@ -694,6 +728,15 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate }: TaskDetai
         <div className="sticky top-0 bg-white border-b border-slate-200 px-4 sm:px-6 py-4 flex justify-between items-start z-10">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-2">
+              {onBack && (
+                <button
+                  onClick={onBack}
+                  className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors mr-1"
+                  title="Back to day view"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+              )}
               <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
                 {isDropOff ? '🚚 Delivery' : '📦 Pickup'}
               </h2>

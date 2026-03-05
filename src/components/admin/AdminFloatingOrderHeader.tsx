@@ -1,13 +1,14 @@
 import { format } from 'date-fns';
-import { Calendar, MapPin, User, Hash } from 'lucide-react';
+import { Calendar, MapPin, User, Hash, CreditCard as Edit } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
 
 interface AdminFloatingOrderHeaderProps {
   order: any | null;
   isVisible: boolean;
+  onEditClick?: () => void;
 }
 
-export function AdminFloatingOrderHeader({ order, isVisible }: AdminFloatingOrderHeaderProps) {
+export function AdminFloatingOrderHeader({ order, isVisible, onEditClick }: AdminFloatingOrderHeaderProps) {
   if (!isVisible || !order) {
     return null;
   }
@@ -46,7 +47,16 @@ export function AdminFloatingOrderHeader({ order, isVisible }: AdminFloatingOrde
                 </span>
               </div>
 
-              <div className="ml-auto">
+              <div className="ml-auto flex items-center gap-3">
+                {onEditClick && (
+                  <button
+                    onClick={onEditClick}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-blue-50 text-blue-700 font-semibold rounded-lg border-2 border-blue-400 transition-colors"
+                  >
+                    <Edit className="w-3.5 h-3.5" />
+                    <span>Edit Order</span>
+                  </button>
+                )}
                 <span className={`inline-flex px-3 py-1 text-xs font-bold rounded-full ${
                   order.status === 'pending_review'
                     ? 'bg-yellow-200 text-yellow-900'
