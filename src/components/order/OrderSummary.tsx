@@ -216,10 +216,16 @@ export function OrderSummary({
 
         {showDeposit && (
           <div className="pt-4 border-t-2 border-slate-300 space-y-2">
+            {summary.tip > 0 && (
+              <div className="flex justify-between text-green-600 font-medium">
+                <span>Total Tip:</span>
+                <span>+{formatCurrency(summary.tip)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-green-700 font-medium">
               <span className="font-semibold">
                 {customDepositCents !== null && customDepositCents !== undefined
-                  ? 'Amount Paying Now:'
+                  ? `Amount Paying Now (min ${formatCurrency(summary.depositDue)}):`
                   : 'Deposit Due Now:'}
               </span>
               <div className="flex items-center gap-2">
