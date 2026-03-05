@@ -71,7 +71,7 @@ async function notifyAdminOfPictureUpload(orderId: string, pictureCount: number)
       const { data: adminEmailSetting } = await supabase
         .from('admin_settings')
         .select('value')
-        .eq('key', 'admin_notification_email')
+        .eq('key', 'admin_email')
         .maybeSingle();
 
       const adminEmail = adminEmailSetting?.value;

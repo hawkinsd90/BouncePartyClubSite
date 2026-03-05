@@ -333,16 +333,55 @@ export async function completeOrderAfterPayment(orderId: string, _paymentIntentI
   //   status: 'pending',
   // });
 
-  try {
-    const { sendAdminSms } = await import('./notificationService');
+  // Send admin notifications (SMS + Email) for new orders
+  if (!isAdminSent) {
+    try {
+      // Send SMS using template
+      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderId: order.id,
+          templateKey: 'booking_received_admin',
+        }),
+      });
+    } catch (smsError) {
+      console.error('Error sending admin SMS notification:', smsError);
+    }
 
-    const smsMessage = isAdminSent
-      ? `✅ INVOICE PAID! ${contactData.first_name} ${contactData.last_name} for ${order.event_date}. Order CONFIRMED. #${formatOrderId(order.id)}`
-      : `🎈 NEW BOOKING! ${contactData.first_name} ${contactData.last_name} for ${order.event_date}. Review in admin panel. Order #${formatOrderId(order.id)}`;
+    try {
+      // Send email notification
+      const { sendAdminEmail } = await import('./notificationService');
+      const formattedOrderId = formatOrderId(order.id);
+      const customerName = `${contactData.first_name} ${contactData.last_name}`;
+      const portalLink = `${window.location.origin}/admin?tab=pending`;
 
-    await sendAdminSms(smsMessage, order.id);
-  } catch (smsError) {
-    console.error('Error sending SMS notification:', smsError);
+      await sendAdminEmail(
+        `New Order Pending Review - #${formattedOrderId}`,
+        `
+          <h2>New Order Received</h2>
+          <p>A new order has been submitted and is pending your review.</p>
+
+          <h3>Order Details</h3>
+          <ul>
+            <li><strong>Order ID:</strong> ${formattedOrderId}</li>
+            <li><strong>Customer:</strong> ${customerName}</li>
+            <li><strong>Email:</strong> ${contactData.email}</li>
+            <li><strong>Phone:</strong> ${contactData.phone}</li>
+            <li><strong>Event Date:</strong> ${order.event_date}</li>
+            <li><strong>Event Location:</strong> ${order.event_address_line1}</li>
+            <li><strong>Total:</strong> ${formatCurrency(order.balance_due_cents)}</li>
+          </ul>
+
+          <p><a href="${portalLink}" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 6px; margin-top: 16px;">Review Order</a></p>
+        `
+      );
+    } catch (emailError) {
+      console.error('Error sending admin email notification:', emailError);
+    }
   }
 
   return order.id;
