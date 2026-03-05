@@ -114,74 +114,76 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
     (order.discount_cents || 0)
   ) / 100;
 
+  const paymentMethodText = order.payment_method_last_four && order.payment_method_brand
+    ? `${order.payment_method_brand.charAt(0).toUpperCase() + order.payment_method_brand.slice(1)} •••• ${order.payment_method_last_four}`
+    : order.payment_method_last_four
+    ? `Card •••• ${order.payment_method_last_four}`
+    : null;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-4 md:p-6">
-          <h3 className="text-lg md:text-xl font-bold text-green-900 mb-3">Approve Order Changes</h3>
-          <p className="text-sm md:text-base text-slate-700 mb-4">
-            By approving these changes, you confirm that you have reviewed and accept the updated order details.
+        <div className="p-4 md:p-5">
+          <h3 className="text-lg md:text-xl font-bold text-green-900 mb-2">Approve Order Changes</h3>
+          <p className="text-xs md:text-sm text-slate-600 mb-3">
+            Review and confirm the updated order details below.
           </p>
 
-          <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
-            <div>
-              <p className="text-xs text-slate-500 mb-1">Order Number</p>
-              <p className="font-mono font-semibold text-slate-900">{formatOrderId(order.id)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 mb-1">Customer Name</p>
-              <p className="font-medium text-slate-900">{customerName}</p>
-            </div>
-            <div className="flex items-start">
-              <MapPin className="w-4 h-4 text-slate-500 mr-2 mt-0.5 flex-shrink-0" />
+          <div className="mb-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2 mb-2">
               <div>
-                <p className="text-xs text-slate-500 mb-1">Event Address</p>
-                <p className="text-sm text-slate-900">{address}</p>
+                <p className="text-xs text-slate-500">Order #</p>
+                <p className="font-mono text-sm font-semibold text-slate-900">{formatOrderId(order.id)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-slate-500">Total</p>
+                <p className="text-lg font-bold text-green-700">${totalAmount.toFixed(2)}</p>
               </div>
             </div>
-            <div className="flex items-start">
-              <Calendar className="w-4 h-4 text-slate-500 mr-2 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-xs text-slate-500 mb-1">Event Date</p>
-                <p className="text-sm text-slate-900">{eventDate}</p>
+            <div className="mb-2">
+              <p className="text-xs text-slate-500">Customer</p>
+              <p className="text-sm font-medium text-slate-900">{customerName}</p>
+            </div>
+            <div className="flex items-start gap-1.5 mb-2">
+              <MapPin className="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-slate-900 break-words">{address}</p>
               </div>
             </div>
-            <div className="pt-3 border-t border-slate-300">
-              <p className="text-xs text-slate-500 mb-1">Total Amount</p>
-              <p className="text-xl font-bold text-green-700">${totalAmount.toFixed(2)}</p>
+            <div className="flex items-start gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-slate-900">{eventDate}</p>
             </div>
           </div>
 
           {order.stripe_payment_method_id && (
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start">
-                  <CreditCard className="w-5 h-5 text-blue-600 mr-2 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-slate-900">Payment Method on File</p>
-                    <p className="text-sm text-slate-600 mt-1">
-                      {order.payment_method_last_four && order.payment_method_brand
-                        ? `${order.payment_method_brand.charAt(0).toUpperCase() + order.payment_method_brand.slice(1)} ending in ${order.payment_method_last_four}`
-                        : order.payment_method_last_four
-                        ? `Card ending in ${order.payment_method_last_four}`
-                        : 'Card saved for payment'}
-                    </p>
+            <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <CreditCard className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-slate-900">Payment Method on File</p>
+                    {paymentMethodText ? (
+                      <p className="text-xs text-slate-700 font-medium">{paymentMethodText}</p>
+                    ) : (
+                      <p className="text-xs text-slate-600">Card saved for payment</p>
+                    )}
                   </div>
                 </div>
                 <button
                   onClick={handleUpdateCard}
                   disabled={updatingCard}
-                  className="flex items-center text-blue-600 hover:text-blue-700 font-medium text-sm transition-colors"
+                  className="flex items-center text-blue-600 hover:text-blue-700 font-medium text-xs transition-colors whitespace-nowrap ml-2"
                 >
-                  <Edit2 className="w-4 h-4 mr-1" />
+                  <Edit2 className="w-3.5 h-3.5 mr-1" />
                   {updatingCard ? 'Loading...' : 'Update'}
                 </button>
               </div>
             </div>
           )}
 
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-slate-700 mb-2">
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-slate-700 mb-1.5">
               To confirm, enter your full name: <span className="text-red-600">*</span>
             </label>
             <input
@@ -189,27 +191,27 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
               value={confirmName}
               onChange={(e) => setConfirmName(e.target.value)}
               placeholder={`${order.customers?.first_name || 'Unknown'} ${order.customers?.last_name || ''}`}
-              className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:outline-none focus:border-green-500 text-sm md:text-base"
+              className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
             />
             <p className="text-xs text-slate-500 mt-1">
               Must match: {order.customers?.first_name || 'Unknown'} {order.customers?.last_name || ''}
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex flex-col sm:flex-row gap-2">
             <button
               onClick={() => {
                 setConfirmName('');
                 onClose();
               }}
-              className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold py-2.5 md:py-3 px-4 rounded-lg transition-colors text-sm md:text-base"
+              className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold py-2.5 px-4 rounded-lg transition-colors text-sm"
             >
               Cancel
             </button>
             <button
               onClick={handleConfirm}
               disabled={!confirmName.trim() || submitting}
-              className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed text-white font-bold py-2.5 md:py-3 px-4 rounded-lg transition-colors text-sm md:text-base"
+              className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed text-white font-bold py-2.5 px-4 rounded-lg transition-colors text-sm"
             >
               {submitting ? 'Processing...' : 'Confirm Approval'}
             </button>
