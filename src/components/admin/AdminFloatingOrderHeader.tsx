@@ -14,7 +14,7 @@ export function AdminFloatingOrderHeader({ order, isVisible, onEditClick }: Admi
   }
 
   return (
-    <div className="fixed top-16 left-0 right-0 z-[999]">
+    <div className="fixed top-16 left-0 right-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-gradient-to-b from-blue-50 to-blue-100 border-b-4 border-blue-400 shadow-lg rounded-b-xl animate-slide-down">
           <div className="px-4 py-3">
@@ -59,9 +59,11 @@ export function AdminFloatingOrderHeader({ order, isVisible, onEditClick }: Admi
                 )}
                 <span className={`inline-flex px-3 py-1 text-xs font-bold rounded-full ${
                   order.status === 'pending_review'
-                    ? 'bg-yellow-200 text-yellow-900'
+                    ? 'bg-orange-600 text-white'
                     : order.status === 'awaiting_customer_approval'
-                    ? 'bg-blue-200 text-blue-900'
+                    ? 'bg-amber-600 text-white'
+                    : order.status === 'draft'
+                    ? 'bg-orange-600 text-white'
                     : 'bg-slate-200 text-slate-900'
                 }`}>
                   {order.status.replace(/_/g, ' ').toUpperCase()}

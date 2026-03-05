@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, GripVertical, Route as RouteIcon, Shuffle, ChevronUp, ChevronDown } from 'lucide-react';
+import { X, GripVertical, Route as RouteIcon, Shuffle } from 'lucide-react';
 import { Task } from '../../hooks/useCalendarTasks';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
@@ -23,31 +23,34 @@ export function RouteManagementModal({
   onOptimize,
   optimizing = false,
 }: RouteManagementModalProps) {
-  const [reordering, setReordering] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-
-  if (!isOpen) return null;
+  const [hasChanges, setHasChanges] = useState(false);
 
   const sortedTasks = [...tasks]
     .filter(t => t.type === type)
     .sort((a, b) => (a.taskStatus?.sortOrder || 0) - (b.taskStatus?.sortOrder || 0));
 
-  async function moveTask(fromIndex: number, direction: 'up' | 'down') {
-    const toIndex = direction === 'up' ? fromIndex - 1 : fromIndex + 1;
-    if (toIndex < 0 || toIndex >= sortedTasks.length) return;
-    await handleReorder(fromIndex, toIndex);
-  }
+  const [localTasks, setLocalTasks] = useState(sortedTasks);
 
-  async function handleReorder(fromIndex: number, toIndex: number) {
+  if (!isOpen) return null;
+
+
+  function handleReorder(fromIndex: number, toIndex: number) {
     if (fromIndex === toIndex) return;
 
-    setReordering(true);
-    try {
-      const reorderedTasks = [...sortedTasks];
-      const [movedTask] = reorderedTasks.splice(fromIndex, 1);
-      reorderedTasks.splice(toIndex, 0, movedTask);
+    const reorderedTasks = [...localTasks];
+    const [movedTask] = reorderedTasks.splice(fromIndex, 1);
+    reorderedTasks.splice(toIndex, 0, movedTask);
 
-      const updates = reorderedTasks.map((task, index) => {
+    setLocalTasks(reorderedTasks);
+    setHasChanges(true);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const updates = localTasks.map((task, index) => {
         if (!task.taskStatus?.id) return null;
         return supabase
           .from('task_status')
@@ -56,13 +59,15 @@ export function RouteManagementModal({
       }).filter(Boolean);
 
       await Promise.all(updates);
-      showToast('Route updated successfully', 'success');
+      showToast('Route saved successfully', 'success');
+      setHasChanges(false);
       onUpdate();
+      onClose();
     } catch (error: any) {
-      console.error('Error reordering route:', error);
-      showToast('Failed to reorder route', 'error');
+      console.error('Error saving route:', error);
+      showToast('Failed to save route', 'error');
     } finally {
-      setReordering(false);
+      setSaving(false);
     }
   }
 
@@ -93,7 +98,17 @@ export function RouteManagementModal({
             </h2>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => {
+              if (hasChanges) {
+                if (confirm('You have unsaved changes. Are you sure you want to close?')) {
+                  setHasChanges(false);
+                  setLocalTasks(sortedTasks);
+                  onClose();
+                }
+              } else {
+                onClose();
+              }
+            }}
             className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
           >
             <X className="w-6 h-6" />
@@ -103,7 +118,7 @@ export function RouteManagementModal({
         <div className="p-6 space-y-4">
           <div className="flex flex-col gap-3 mb-4">
             <p className="text-sm text-slate-600">
-              Use arrow buttons or drag items to reorder stops manually, or use auto-optimization
+              Drag items to reorder stops manually, or use auto-optimization
             </p>
             <button
               onClick={() => {
@@ -119,20 +134,20 @@ export function RouteManagementModal({
           </div>
 
           <div className="space-y-2">
-            {sortedTasks.map((task, index) => (
+            {localTasks.map((task, index) => (
               <div
                 key={task.id}
                 draggable
                 onDragStart={() => handleDragStart(index)}
                 onDragOver={(e) => handleDragOver(e, index)}
                 onDrop={(e) => handleDrop(e, index)}
-                className={`bg-slate-50 border-2 border-slate-200 rounded-lg p-3 sm:p-4 hover:border-blue-400 transition-colors ${
+                className={`bg-slate-50 border-2 border-slate-200 rounded-lg p-3 sm:p-4 hover:border-blue-400 transition-colors cursor-move ${
                   draggedIndex === index ? 'opacity-50' : ''
                 }`}
               >
                 <div className="flex items-start gap-2 sm:gap-3">
-                  <div className="hidden sm:block">
-                    <GripVertical className="w-5 h-5 text-slate-400 mt-1 flex-shrink-0 cursor-move" />
+                  <div className="flex-shrink-0">
+                    <GripVertical className="w-5 h-5 text-slate-400 mt-1 cursor-move" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -150,32 +165,38 @@ export function RouteManagementModal({
                       {task.eventStartTime} - {task.eventEndTime}
                     </p>
                   </div>
-                  <div className="flex flex-col gap-1 flex-shrink-0">
-                    <button
-                      onClick={() => moveTask(index, 'up')}
-                      disabled={index === 0 || reordering}
-                      className="p-1.5 hover:bg-blue-100 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      title="Move up"
-                    >
-                      <ChevronUp className="w-5 h-5 text-slate-600" />
-                    </button>
-                    <button
-                      onClick={() => moveTask(index, 'down')}
-                      disabled={index === sortedTasks.length - 1 || reordering}
-                      className="p-1.5 hover:bg-blue-100 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      title="Move down"
-                    >
-                      <ChevronDown className="w-5 h-5 text-slate-600" />
-                    </button>
-                  </div>
                 </div>
               </div>
             ))}
           </div>
 
-          {sortedTasks.length === 0 && (
+          {localTasks.length === 0 && (
             <div className="text-center py-8 text-slate-500">
               No tasks for this route type
+            </div>
+          )}
+
+          {hasChanges && (
+            <div className="sticky bottom-0 pt-4 pb-2 bg-white border-t border-slate-200 -mx-6 px-6">
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setLocalTasks(sortedTasks);
+                    setHasChanges(false);
+                  }}
+                  disabled={saving}
+                  className="flex-1 bg-slate-200 hover:bg-slate-300 disabled:bg-slate-100 text-slate-700 font-semibold py-3 px-6 rounded-lg transition-colors"
+                >
+                  Cancel Changes
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+                >
+                  {saving ? 'Saving...' : 'Save Route'}
+                </button>
+              </div>
             </div>
           )}
         </div>

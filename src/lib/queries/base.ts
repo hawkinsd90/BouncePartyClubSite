@@ -85,8 +85,8 @@ export const STANDARD_ORDER_SELECT = `
     status,
     stripe_payment_intent_id,
     payment_method,
-    payment_method_last_four,
-    payment_method_brand,
+    payment_last4,
+    payment_brand,
     created_at
   ),
   order_discounts (
