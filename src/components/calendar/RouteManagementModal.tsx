@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { X, GripVertical, Route as RouteIcon, Shuffle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Route as RouteIcon, Shuffle, ChevronUp, ChevronDown, Truck, Package } from 'lucide-react';
 import { Task } from '../../hooks/useCalendarTasks';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
@@ -24,27 +24,44 @@ export function RouteManagementModal({
   optimizing = false,
 }: RouteManagementModalProps) {
   const [saving, setSaving] = useState(false);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
-  const [touchStartY, setTouchStartY] = useState<number | null>(null);
-  const [touchCurrentY, setTouchCurrentY] = useState<number | null>(null);
 
-  const sortedTasks = [...tasks]
-    .filter(t => t.type === type)
+  // Combine both deliveries and pickups for the same route
+  const allRouteTasks = [...tasks]
+    .filter(t => {
+      // For morning route (deliveries), include all same-day pickups
+      // For afternoon route (pickups), include all next-day pickups
+      if (type === 'drop-off') {
+        return t.type === 'drop-off' || (t.type === 'pick-up' && t.pickupPreference === 'same_day');
+      }
+      return t.type === 'pick-up' && t.pickupPreference !== 'same_day';
+    })
     .sort((a, b) => (a.taskStatus?.sortOrder || 0) - (b.taskStatus?.sortOrder || 0));
 
-  const [localTasks, setLocalTasks] = useState(sortedTasks);
+  const [localTasks, setLocalTasks] = useState(allRouteTasks);
+
+  // Update local tasks when modal opens or tasks change
+  useEffect(() => {
+    if (isOpen) {
+      setLocalTasks(allRouteTasks);
+      setHasChanges(false);
+    }
+  }, [isOpen, tasks]);
 
   if (!isOpen) return null;
 
-
-  function handleReorder(fromIndex: number, toIndex: number) {
-    if (fromIndex === toIndex) return;
-
+  function moveUp(index: number) {
+    if (index === 0) return;
     const reorderedTasks = [...localTasks];
-    const [movedTask] = reorderedTasks.splice(fromIndex, 1);
-    reorderedTasks.splice(toIndex, 0, movedTask);
+    [reorderedTasks[index - 1], reorderedTasks[index]] = [reorderedTasks[index], reorderedTasks[index - 1]];
+    setLocalTasks(reorderedTasks);
+    setHasChanges(true);
+  }
 
+  function moveDown(index: number) {
+    if (index === localTasks.length - 1) return;
+    const reorderedTasks = [...localTasks];
+    [reorderedTasks[index], reorderedTasks[index + 1]] = [reorderedTasks[index + 1], reorderedTasks[index]];
     setLocalTasks(reorderedTasks);
     setHasChanges(true);
   }
@@ -73,46 +90,6 @@ export function RouteManagementModal({
     }
   }
 
-  function handleDragStart(index: number) {
-    setDraggedIndex(index);
-  }
-
-  function handleDragOver(e: React.DragEvent, index: number) {
-    e.preventDefault();
-    if (draggedIndex === null || draggedIndex === index) return;
-  }
-
-  function handleDrop(e: React.DragEvent, toIndex: number) {
-    e.preventDefault();
-    if (draggedIndex === null) return;
-    handleReorder(draggedIndex, toIndex);
-    setDraggedIndex(null);
-  }
-
-  function handleTouchStart(e: React.TouchEvent, index: number) {
-    setDraggedIndex(index);
-    setTouchStartY(e.touches[0].clientY);
-    setTouchCurrentY(e.touches[0].clientY);
-  }
-
-  function handleTouchMove(e: React.TouchEvent) {
-    if (draggedIndex === null || touchStartY === null) return;
-    setTouchCurrentY(e.touches[0].clientY);
-  }
-
-  function handleTouchEnd(e: React.TouchEvent, dropIndex: number) {
-    if (draggedIndex === null) return;
-
-    // Only reorder if the touch moved significantly and ended on a different item
-    if (draggedIndex !== dropIndex) {
-      handleReorder(draggedIndex, dropIndex);
-    }
-
-    setDraggedIndex(null);
-    setTouchStartY(null);
-    setTouchCurrentY(null);
-  }
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -120,7 +97,7 @@ export function RouteManagementModal({
           <div className="flex items-center gap-3">
             <RouteIcon className="w-6 h-6 text-blue-600" />
             <h2 className="text-xl font-bold text-slate-900">
-              Manage {type === 'drop-off' ? 'Delivery' : 'Pickup'} Route
+              Manage {type === 'drop-off' ? 'Morning' : 'Afternoon'} Route
             </h2>
           </div>
           <button
@@ -128,7 +105,7 @@ export function RouteManagementModal({
               if (hasChanges) {
                 if (confirm('You have unsaved changes. Are you sure you want to close?')) {
                   setHasChanges(false);
-                  setLocalTasks(sortedTasks);
+                  setLocalTasks(allRouteTasks);
                   onClose();
                 }
               } else {
@@ -144,7 +121,7 @@ export function RouteManagementModal({
         <div className="p-4 sm:p-6 space-y-4">
           <div className="flex flex-col gap-3 mb-4">
             <p className="text-sm text-slate-600">
-              Drag items to reorder stops manually, or use auto-optimization
+              Use the up and down arrows to reorder stops, or use auto-optimization
             </p>
             <button
               onClick={onOptimize}
@@ -160,33 +137,47 @@ export function RouteManagementModal({
             {localTasks.map((task, index) => (
               <div
                 key={task.id}
-                draggable
-                onDragStart={() => handleDragStart(index)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDrop={(e) => handleDrop(e, index)}
-                onTouchStart={(e) => handleTouchStart(e, index)}
-                onTouchMove={(e) => handleTouchMove(e)}
-                onTouchEnd={(e) => handleTouchEnd(e, index)}
-                className={`bg-slate-50 border-2 border-slate-200 rounded-lg p-3 sm:p-4 hover:border-blue-400 transition-all ${
-                  draggedIndex === index ? 'opacity-50 scale-105 shadow-lg border-blue-500' : 'cursor-grab active:cursor-grabbing'
-                }`}
+                className="bg-slate-50 border-2 border-slate-200 rounded-lg p-3 sm:p-4"
               >
                 <div className="flex items-start gap-2 sm:gap-3">
-                  <div className="flex-shrink-0">
-                    <GripVertical className="w-5 h-5 text-slate-400 mt-1 cursor-grab active:cursor-grabbing" />
+                  <div className="flex flex-col gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => moveUp(index)}
+                      disabled={index === 0}
+                      className="p-1 hover:bg-slate-200 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      title="Move up"
+                    >
+                      <ChevronUp className="w-5 h-5 text-slate-600" />
+                    </button>
+                    <button
+                      onClick={() => moveDown(index)}
+                      disabled={index === localTasks.length - 1}
+                      className="p-1 hover:bg-slate-200 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      title="Move down"
+                    >
+                      <ChevronDown className="w-5 h-5 text-slate-600" />
+                    </button>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="inline-flex items-center justify-center w-8 h-8 bg-blue-600 text-white font-bold rounded-full text-sm flex-shrink-0">
                         {index + 1}
                       </span>
+                      {task.type === 'pick-up' ? (
+                        <Package className="w-4 h-4 text-orange-600 flex-shrink-0" />
+                      ) : (
+                        <Truck className="w-4 h-4 text-green-600 flex-shrink-0" />
+                      )}
                       <h3 className="font-semibold text-slate-900 truncate">
                         {task.customerName}
                       </h3>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
+                        task.type === 'pick-up' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'
+                      }`}>
+                        {task.type === 'pick-up' ? 'PICKUP' : 'DELIVERY'}
+                      </span>
                     </div>
-                    <p className="text-sm text-slate-600 truncate">
-                      {task.address}
-                    </p>
+                    <p className="text-sm text-slate-600 truncate">{task.address}</p>
                     <p className="text-xs text-slate-500 mt-1">
                       {task.eventStartTime} - {task.eventEndTime}
                     </p>
@@ -196,35 +187,25 @@ export function RouteManagementModal({
             ))}
           </div>
 
-          {localTasks.length === 0 && (
-            <div className="text-center py-8 text-slate-500">
-              No tasks for this route type
-            </div>
-          )}
-
-          {hasChanges && (
-            <div className="sticky bottom-0 pt-4 pb-2 bg-white border-t border-slate-200 -mx-6 px-6">
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setLocalTasks(sortedTasks);
-                    setHasChanges(false);
-                  }}
-                  disabled={saving}
-                  className="flex-1 bg-slate-200 hover:bg-slate-300 disabled:bg-slate-100 text-slate-700 font-semibold py-3 px-6 rounded-lg transition-colors"
-                >
-                  Cancel Changes
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-                >
-                  {saving ? 'Saving...' : 'Save Route'}
-                </button>
-              </div>
-            </div>
-          )}
+          <div className="flex gap-3 pt-4 border-t border-slate-200">
+            <button
+              onClick={() => {
+                setLocalTasks(allRouteTasks);
+                setHasChanges(false);
+                onClose();
+              }}
+              className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold py-3 px-4 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!hasChanges || saving}
+              className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
+            >
+              {saving ? 'Saving...' : 'Save Route'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

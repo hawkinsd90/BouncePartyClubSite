@@ -126,6 +126,21 @@ export function PaymentSuccessState({ orderDetails, isAdminInvoice }: PaymentSuc
                 <span className="font-semibold">{businessAddress}</span>.
               </p>
             </div>
+
+            {orderDetails && (
+              <div className="p-6 bg-green-50 rounded-lg border border-green-200">
+                <p className="text-sm font-semibold text-green-900 mb-2">Track Your Order</p>
+                <p className="text-sm text-green-800 leading-relaxed mb-3">
+                  View live updates, check order status, and manage your booking through your customer portal:
+                </p>
+                <a
+                  href={`/customer-portal/${orderDetails.id}`}
+                  className="inline-block px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                >
+                  View Customer Portal
+                </a>
+              </div>
+            )}
           </div>
         )}
 

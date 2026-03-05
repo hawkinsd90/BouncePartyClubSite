@@ -237,14 +237,14 @@ export function OrderSummary({
               </div>
             )}
             <div className="flex justify-between">
-              <span className="text-slate-600">Balance Due After Event:</span>
+              <span className="text-slate-600">Balance Due Day of Event:</span>
               <div className="flex items-center gap-2">
                 {hasChanged('balance_due') && getOldValue('balance_due') && (
                   <span className="text-xs text-slate-400 line-through">{formatCurrency(parseInt(getOldValue('balance_due')!))}</span>
                 )}
                 <span className="text-slate-700 font-semibold">
                   {formatCurrency(customDepositCents !== null && customDepositCents !== undefined
-                    ? summary.total - customDepositCents
+                    ? Math.max(0, (summary.total - summary.tip) - customDepositCents)
                     : summary.balanceDue)}
                 </span>
               </div>

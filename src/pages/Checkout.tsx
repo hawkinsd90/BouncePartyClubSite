@@ -243,6 +243,7 @@ export function Checkout() {
               cardOnFileConsent={cardOnFileConsent}
               smsConsent={smsConsent}
               tipCents={tipCents}
+              paymentAmountCents={getPaymentAmountCents(paymentAmount, customAmount, priceBreakdown)}
               onViewInvoice={handleViewInvoice}
             />
           </div>

@@ -9,6 +9,7 @@ interface CheckoutSummaryProps {
   cardOnFileConsent: boolean;
   smsConsent: boolean;
   tipCents: number;
+  paymentAmountCents?: number;
   onViewInvoice: () => void;
 }
 
@@ -19,6 +20,7 @@ export function CheckoutSummary({
   cardOnFileConsent,
   smsConsent,
   tipCents,
+  paymentAmountCents,
   onViewInvoice,
 }: CheckoutSummaryProps) {
   return (
@@ -48,6 +50,7 @@ export function CheckoutSummary({
           showTip={tipCents > 0}
           title=""
           className="mb-6"
+          customDepositCents={paymentAmountCents}
         />
       )}
 
