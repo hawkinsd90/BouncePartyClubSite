@@ -182,9 +182,11 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       same_day_pickup_fee_waived: false,
       same_day_pickup_fee_waive_reason: null,
       tip_cents: 0,
-      deposit_due_cents: priceBreakdown.deposit_due_cents,
+      deposit_due_cents: customerSelectedPaymentCents || priceBreakdown.deposit_due_cents,
       deposit_paid_cents: 0,
-      balance_due_cents: applyTaxesByDefault ? priceBreakdown.balance_due_cents : (priceBreakdown.balance_due_cents - priceBreakdown.tax_cents),
+      balance_due_cents: applyTaxesByDefault
+        ? Math.max(0, priceBreakdown.total_cents - (customerSelectedPaymentCents || priceBreakdown.deposit_due_cents))
+        : Math.max(0, (priceBreakdown.total_cents - priceBreakdown.tax_cents) - (customerSelectedPaymentCents || priceBreakdown.deposit_due_cents)),
       custom_deposit_cents: null,
       customer_selected_payment_cents: customerSelectedPaymentCents || priceBreakdown.deposit_due_cents,
       customer_selected_payment_type: customerSelectedPaymentType || 'deposit',
