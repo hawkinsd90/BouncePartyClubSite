@@ -3,6 +3,7 @@ import { Upload, Image as ImageIcon, CheckCircle, X, Maximize, Trash2 } from 'lu
 import { supabase } from '../../lib/supabase';
 import { notifyError, notifySuccess } from '../../lib/notifications';
 import { formatOrderId } from '../../lib/utils';
+import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
 
 interface LotPicturesTabProps {
   orderId: string;
@@ -112,6 +113,7 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete }: LotPi
   const [uploading, setUploading] = useState(false);
   const [selectedPicture, setSelectedPicture] = useState<LotPicture | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [pictureToDelete, setPictureToDelete] = useState<LotPicture | null>(null);
 
   // Can only delete if order is in pending_review or awaiting_customer_approval
   const canDelete = ['pending_review', 'awaiting_customer_approval'].includes(orderStatus || '');
@@ -219,22 +221,23 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete }: LotPi
     return data.publicUrl;
   };
 
-  const handleDeletePicture = async (picture: LotPicture, skipConfirm = false) => {
+  const handleDeleteClick = (picture: LotPicture) => {
     if (!canDelete) {
       notifyError('Pictures can only be deleted before order approval');
       return;
     }
+    setPictureToDelete(picture);
+  };
 
-    if (!skipConfirm && !confirm(`Are you sure you want to delete ${picture.file_name}?`)) {
-      return;
-    }
+  const handleConfirmDelete = async () => {
+    if (!pictureToDelete) return;
 
-    setDeleting(picture.id);
+    setDeleting(pictureToDelete.id);
     try {
       // Delete from storage first
       const { error: storageError } = await supabase.storage
         .from('lot-pictures')
-        .remove([picture.file_path]);
+        .remove([pictureToDelete.file_path]);
 
       if (storageError) {
         console.error('Storage delete error:', storageError);
@@ -245,7 +248,7 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete }: LotPi
       const { error: dbError } = await supabase
         .from('order_lot_pictures' as any)
         .delete()
-        .eq('id', picture.id);
+        .eq('id', pictureToDelete.id);
 
       if (dbError) throw dbError;
 
@@ -253,7 +256,7 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete }: LotPi
       await loadPictures();
 
       // Close modal if this was the selected picture
-      if (selectedPicture?.id === picture.id) {
+      if (selectedPicture?.id === pictureToDelete.id) {
         setSelectedPicture(null);
       }
     } catch (error: any) {
@@ -261,6 +264,7 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete }: LotPi
       notifyError(error.message || 'Failed to delete picture');
     } finally {
       setDeleting(null);
+      setPictureToDelete(null);
     }
   };
 
@@ -428,7 +432,7 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete }: LotPi
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDeletePicture(selectedPicture);
+                    handleDeleteClick(selectedPicture);
                   }}
                   disabled={deleting === selectedPicture.id}
                   className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
@@ -441,6 +445,18 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete }: LotPi
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <SimpleConfirmModal
+        isOpen={!!pictureToDelete}
+        onClose={() => setPictureToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Picture"
+        message={`Are you sure you want to delete ${pictureToDelete?.file_name}? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </div>
   );
 }
