@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CreditCard, CreditCard as Edit2, MapPin, Calendar, DollarSign, AlertCircle } from 'lucide-react';
+import { CreditCard, CreditCard as Edit2, MapPin, Calendar, DollarSign } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
 import { loadStripe } from '@stripe/stripe-js';
@@ -21,7 +21,8 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
   const [submitting, setSubmitting] = useState(false);
   const [updatingCard, setUpdatingCard] = useState(false);
 
-  const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom' | 'keep-original'>('deposit');
+  const [keepOriginalPayment, setKeepOriginalPayment] = useState(true);
+  const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
   const [customAmount, setCustomAmount] = useState('');
   const [tipAmount, setTipAmount] = useState<'none' | '10' | '15' | '20' | 'custom'>('none');
   const [customTip, setCustomTip] = useState('');
@@ -77,15 +78,20 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
     try {
       const tipCents = calculateTipCents(tipAmount, customTip, currentTotalCents);
       let selectedPaymentCents = 0;
+      let selectedPaymentType = '';
 
-      if (paymentAmount === 'keep-original') {
+      if (keepOriginalPayment) {
         selectedPaymentCents = originalPaymentCents;
+        selectedPaymentType = 'keep-original';
       } else if (paymentAmount === 'deposit') {
         selectedPaymentCents = currentDepositCents;
+        selectedPaymentType = 'deposit';
       } else if (paymentAmount === 'full') {
         selectedPaymentCents = currentTotalCents;
+        selectedPaymentType = 'full';
       } else if (paymentAmount === 'custom') {
         selectedPaymentCents = dollarsToCents(customAmount);
+        selectedPaymentType = 'custom';
       }
 
       const { error: updateError } = await supabase
@@ -93,7 +99,7 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
         .update({
           status: 'confirmed',
           customer_selected_payment_cents: selectedPaymentCents,
-          customer_selected_payment_type: paymentAmount,
+          customer_selected_payment_type: selectedPaymentType,
           tip_cents: tipCents,
         })
         .eq('id', order.id);
@@ -143,12 +149,12 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
   const originalPaymentCents = order.customer_selected_payment_cents || currentDepositCents;
   const originalTipCents = order.tip_cents || 0;
 
-  const hasPriceChanged = originalPaymentCents !== currentDepositCents;
+  const originalMeetsMinimum = originalPaymentCents >= currentDepositCents;
 
   const tipCents = calculateTipCents(tipAmount, customTip, currentTotalCents);
   let selectedPaymentCents = 0;
 
-  if (paymentAmount === 'keep-original') {
+  if (keepOriginalPayment) {
     selectedPaymentCents = originalPaymentCents;
   } else if (paymentAmount === 'deposit') {
     selectedPaymentCents = currentDepositCents;
@@ -168,11 +174,8 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
 
   useEffect(() => {
     if (isOpen) {
-      if (hasPriceChanged && originalPaymentCents >= currentDepositCents) {
-        setPaymentAmount('keep-original');
-      } else {
-        setPaymentAmount('deposit');
-      }
+      setKeepOriginalPayment(originalMeetsMinimum);
+      setPaymentAmount('deposit');
 
       if (originalTipCents > 0) {
         const tipPercent = Math.round((originalTipCents / currentTotalCents) * 100);
@@ -186,7 +189,7 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
         setTipAmount('none');
       }
     }
-  }, [isOpen, hasPriceChanged, originalPaymentCents, currentDepositCents, originalTipCents, currentTotalCents]);
+  }, [isOpen, originalMeetsMinimum, originalTipCents, currentTotalCents]);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -224,20 +227,6 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
             </div>
           </div>
 
-          {hasPriceChanged && (
-            <div className="mb-3 p-3 bg-amber-50 border border-amber-300 rounded-lg">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-xs font-semibold text-amber-900">Price Changed</p>
-                  <p className="text-xs text-amber-800 mt-0.5">
-                    Original payment: {formatCurrency(originalPaymentCents)} → New minimum: {formatCurrency(currentDepositCents)}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
           {order.stripe_payment_method_id && (
             <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-center justify-between">
@@ -265,132 +254,60 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
           )}
 
           <div className="mb-3">
-            <h4 className="text-sm font-semibold text-slate-900 mb-2 flex items-center">
-              <DollarSign className="w-4 h-4 mr-1 text-green-600" />
-              Payment Amount
-            </h4>
-            <div className="space-y-2">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {hasPriceChanged && originalPaymentCents >= currentDepositCents && (
-                  <label
-                    className={`relative flex flex-col p-3 border-2 rounded-lg cursor-pointer transition-all ${
-                      paymentAmount === 'keep-original'
-                        ? 'border-green-600 bg-green-50'
-                        : 'border-slate-300 hover:border-green-400'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="paymentAmount"
-                      value="keep-original"
-                      checked={paymentAmount === 'keep-original'}
-                      onChange={(e) => setPaymentAmount(e.target.value as any)}
-                      className="sr-only"
-                    />
-                    <span className="text-xs sm:text-sm font-semibold text-slate-900">Keep Original</span>
-                    <span className="text-base sm:text-lg font-bold text-green-600 mt-1">
-                      {formatCurrency(originalPaymentCents)}
-                    </span>
-                    {originalPaymentCents > currentTotalCents && (
-                      <span className="text-xs text-green-700 mt-1">
-                        Excess becomes tip
-                      </span>
-                    )}
-                    {originalPaymentCents < currentTotalCents && originalPaymentCents >= currentDepositCents && (
-                      <span className="text-xs text-slate-600 mt-1">
-                        Balance at event
-                      </span>
-                    )}
-                  </label>
-                )}
-
-                <label
-                  className={`relative flex flex-col p-3 border-2 rounded-lg cursor-pointer transition-all ${
-                    paymentAmount === 'deposit'
-                      ? 'border-blue-600 bg-blue-50'
-                      : 'border-slate-300 hover:border-blue-400'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="paymentAmount"
-                    value="deposit"
-                    checked={paymentAmount === 'deposit'}
-                    onChange={(e) => setPaymentAmount(e.target.value as any)}
-                    className="sr-only"
-                  />
-                  <span className="text-xs sm:text-sm font-semibold text-slate-900">
-                    {hasPriceChanged ? 'New Minimum' : 'Minimum Deposit'}
-                  </span>
-                  <span className="text-base sm:text-lg font-bold text-blue-600 mt-1">
-                    {formatCurrency(currentDepositCents)}
-                  </span>
-                  <span className="text-xs text-slate-600 mt-1">Pay balance at event</span>
-                </label>
-
-                <label
-                  className={`relative flex flex-col p-3 border-2 rounded-lg cursor-pointer transition-all ${
-                    paymentAmount === 'full'
-                      ? 'border-green-600 bg-green-50'
-                      : 'border-slate-300 hover:border-green-400'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="paymentAmount"
-                    value="full"
-                    checked={paymentAmount === 'full'}
-                    onChange={(e) => setPaymentAmount(e.target.value as any)}
-                    className="sr-only"
-                  />
-                  <span className="text-xs sm:text-sm font-semibold text-slate-900">Full Payment</span>
-                  <span className="text-base sm:text-lg font-bold text-green-600 mt-1">
-                    {formatCurrency(currentTotalCents)}
-                  </span>
-                  <span className="text-xs text-slate-600 mt-1">Nothing due at event</span>
-                </label>
-
-                <label
-                  className={`relative flex flex-col p-3 border-2 rounded-lg cursor-pointer transition-all ${
-                    paymentAmount === 'custom'
-                      ? 'border-teal-600 bg-teal-50'
-                      : 'border-slate-300 hover:border-teal-400'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="paymentAmount"
-                    value="custom"
-                    checked={paymentAmount === 'custom'}
-                    onChange={(e) => setPaymentAmount(e.target.value as any)}
-                    className="sr-only"
-                  />
-                  <span className="text-xs sm:text-sm font-semibold text-slate-900">Custom Amount</span>
-                  <span className="text-xs text-slate-600 mt-1">Choose your amount</span>
-                </label>
-              </div>
-
-              {paymentAmount === 'custom' && (
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                  <label className="block text-xs font-medium text-slate-700 mb-2">
-                    Payment Amount <span className="text-red-500">*</span> (Min: {formatCurrency(currentDepositCents)})
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-slate-600 text-sm">$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min={(currentDepositCents / 100).toFixed(2)}
-                      max={(currentTotalCents / 100).toFixed(2)}
-                      value={customAmount}
-                      onChange={(e) => setCustomAmount(e.target.value)}
-                      placeholder={(currentDepositCents / 100).toFixed(2)}
-                      className="w-full pl-8 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                    />
-                  </div>
+            <div className="mb-3 p-3 bg-green-50 border-2 border-green-200 rounded-lg">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={keepOriginalPayment}
+                  onChange={(e) => setKeepOriginalPayment(e.target.checked)}
+                  disabled={!originalMeetsMinimum}
+                  className="mt-0.5 w-4 h-4 text-green-600 border-green-300 rounded focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-slate-900">
+                    Keep original payment amount
+                  </p>
+                  <p className="text-lg font-bold text-green-700 mt-1">
+                    {formatCurrency(originalPaymentCents)}
+                  </p>
+                  {!originalMeetsMinimum && (
+                    <p className="text-xs text-red-600 mt-1">
+                      Original amount no longer meets minimum deposit of {formatCurrency(currentDepositCents)}
+                    </p>
+                  )}
+                  {originalMeetsMinimum && originalPaymentCents > currentTotalCents && (
+                    <p className="text-xs text-green-700 mt-1">
+                      Excess ${((originalPaymentCents - currentTotalCents) / 100).toFixed(2)} will be applied as tip
+                    </p>
+                  )}
+                  {originalMeetsMinimum && originalPaymentCents < currentTotalCents && (
+                    <p className="text-xs text-slate-600 mt-1">
+                      Balance due: {formatCurrency(currentTotalCents - originalPaymentCents)}
+                    </p>
+                  )}
                 </div>
-              )}
+              </label>
             </div>
+
+            {!keepOriginalPayment && (
+              <div>
+                <h4 className="text-sm font-semibold text-slate-900 mb-2 flex items-center">
+                  <DollarSign className="w-4 h-4 mr-1 text-green-600" />
+                  Select New Payment Amount
+                </h4>
+                <PaymentAmountSelector
+                  depositCents={currentDepositCents}
+                  totalCents={currentTotalCents}
+                  paymentAmount={paymentAmount}
+                  customAmount={customAmount}
+                  onPaymentAmountChange={setPaymentAmount}
+                  onCustomAmountChange={setCustomAmount}
+                  showCard={false}
+                  showApprovalNote={false}
+                  icon="credit-card"
+                />
+              </div>
+            )}
           </div>
 
           <div className="mb-4">
