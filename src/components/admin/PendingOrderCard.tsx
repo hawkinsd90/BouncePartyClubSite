@@ -16,7 +16,13 @@ import { ApprovalModal } from '../pending-order/ApprovalModal';
 import { RejectionModal } from '../pending-order/RejectionModal';
 import { PaymentLinkSection } from '../pending-order/PaymentLinkSection';
 
-export const PendingOrderCard = forwardRef<{ card: HTMLElement, actionButtons: HTMLElement | null }, {
+export interface PendingOrderCardRef {
+  card: HTMLElement;
+  actionButtons: HTMLElement | null;
+  openEdit: () => void;
+}
+
+export const PendingOrderCard = forwardRef<PendingOrderCardRef, {
   order: any;
   onUpdate: () => void;
   openEditMode?: boolean;
@@ -34,10 +40,11 @@ export const PendingOrderCard = forwardRef<{ card: HTMLElement, actionButtons: H
   const cardRef = useRef<HTMLDivElement>(null);
   const actionButtonsRef = useRef<HTMLDivElement>(null);
 
-  // Expose both refs to parent
+  // Expose both refs and openEdit function to parent
   useImperativeHandle(ref, () => ({
     card: cardRef.current!,
-    actionButtons: actionButtonsRef.current
+    actionButtons: actionButtonsRef.current,
+    openEdit: () => setShowEditModal(true)
   }), []);
 
   const {

@@ -21,6 +21,7 @@ import { PerformanceAnalytics } from '../components/admin/PerformanceAnalytics';
 import { NotificationFailuresAlert } from '../components/admin/NotificationFailuresAlert';
 import { AdminFloatingOrderHeader } from '../components/admin/AdminFloatingOrderHeader';
 import { TabNavigation, type AdminTab } from '../components/admin/TabNavigation';
+import { PendingOrderCardRef } from '../components/admin/PendingOrderCard';
 import { useDataFetch } from '../hooks/useDataFetch';
 import { handleError } from '../lib/errorHandling';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
@@ -82,7 +83,7 @@ function AdminDashboard() {
   const tabFromUrl = searchParams.get('tab') as AdminTab | null;
   const [activeTab, setActiveTab] = useState<AdminTab>(tabFromUrl || 'pending');
   const [visibleOrder, setVisibleOrder] = useState<any>(null);
-  const orderCardsRef = useRef<Map<string, { card: HTMLElement, actionButtons: HTMLElement | null }>>(new Map());
+  const orderCardsRef = useRef<Map<string, PendingOrderCardRef>>(new Map());
 
   // Set URL parameter on initial load if not present
   useEffect(() => {
@@ -162,6 +163,15 @@ function AdminDashboard() {
       setActiveTab(tabFromUrl);
     }
   }, [tabFromUrl]);
+
+  function handleEditFromFloatingHeader() {
+    if (!visibleOrder) return;
+
+    const orderRef = orderCardsRef.current.get(visibleOrder.id);
+    if (orderRef?.openEdit) {
+      orderRef.openEdit();
+    }
+  }
 
   // Scroll detection for floating header
   useEffect(() => {
@@ -286,6 +296,7 @@ function AdminDashboard() {
           <AdminFloatingOrderHeader
             order={visibleOrder}
             isVisible={!!visibleOrder}
+            onEditClick={handleEditFromFloatingHeader}
           />
 
           <div className={`bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100 ${visibleOrder ? 'pt-20' : ''}`}>
@@ -313,7 +324,7 @@ function AdminDashboard() {
                       key={order.id}
                       order={order}
                       onUpdate={refetch}
-                      ref={(refs: { card: HTMLElement, actionButtons: HTMLElement | null } | null) => {
+                      ref={(refs: PendingOrderCardRef | null) => {
                         if (refs) {
                           orderCardsRef.current.set(order.id, refs);
                         } else {
