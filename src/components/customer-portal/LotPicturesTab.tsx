@@ -7,6 +7,7 @@ import { formatOrderId } from '../../lib/utils';
 interface LotPicturesTabProps {
   orderId: string;
   orderNumber: string;
+  onUploadComplete?: () => void;
 }
 
 async function notifyAdminOfPictureUpload(orderId: string, pictureCount: number) {
@@ -93,7 +94,7 @@ interface LotPicture {
   uploaded_at: string;
 }
 
-export function LotPicturesTab({ orderId }: LotPicturesTabProps) {
+export function LotPicturesTab({ orderId, onUploadComplete }: LotPicturesTabProps) {
   const [pictures, setPictures] = useState<LotPicture[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -174,6 +175,11 @@ export function LotPicturesTab({ orderId }: LotPicturesTabProps) {
 
       // Notify admin about the upload
       await notifyAdminOfPictureUpload(orderId, files.length);
+
+      // Notify parent to refresh status
+      if (onUploadComplete) {
+        onUploadComplete();
+      }
     } catch (error: any) {
       notifyError(error.message || 'Failed to upload pictures');
     } finally {

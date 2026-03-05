@@ -25,9 +25,13 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
   const [activeTab, setActiveTab] = useState<'details' | 'lot-pictures' | 'waiver' | 'payment' | 'pictures'>('details');
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [payments, setPayments] = useState<any[]>([]);
+  const [lotPicturesUploaded, setLotPicturesUploaded] = useState(false);
 
   useEffect(() => {
     loadPayments();
+    if (lotPicturesRequested) {
+      loadLotPictures();
+    }
 
     // Check URL params for payment status
     const params = new URLSearchParams(window.location.search);
@@ -57,6 +61,21 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
       setPayments(data || []);
     } catch (error) {
       console.error('Error loading payments:', error);
+    }
+  }
+
+  async function loadLotPictures() {
+    try {
+      const { data, error } = await supabase
+        .from('order_lot_pictures' as any)
+        .select('id')
+        .eq('order_id', orderId)
+        .limit(1);
+
+      if (error) throw error;
+      setLotPicturesUploaded((data || []).length > 0);
+    } catch (error) {
+      console.error('Error loading lot pictures:', error);
     }
   }
 
@@ -183,13 +202,13 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                   <button
                     onClick={() => setActiveTab('lot-pictures')}
                     className={`border rounded-lg p-4 transition-all ${
-                      isPendingReview
+                      !lotPicturesUploaded
                         ? 'border-amber-500 bg-amber-50 hover:border-amber-600'
                         : 'border-green-500 bg-green-50 hover:border-green-600'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      {isPendingReview ? (
+                      {!lotPicturesUploaded ? (
                         <MapPin className="w-6 h-6 text-amber-600" />
                       ) : (
                         <CheckCircle className="w-6 h-6 text-green-600" />
@@ -197,7 +216,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                       <div className="text-left">
                         <p className="font-semibold text-slate-900">Lot Pictures</p>
                         <p className="text-xs text-slate-600">
-                          {isPendingReview ? 'Required' : 'Complete'}
+                          {!lotPicturesUploaded ? 'Required' : 'Complete'}
                         </p>
                       </div>
                     </div>
@@ -481,7 +500,14 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
             )}
 
             {activeTab === 'lot-pictures' && (
-              <LotPicturesTab orderId={orderId} orderNumber={order.order_number} />
+              <LotPicturesTab
+                orderId={orderId}
+                orderNumber={order.order_number}
+                onUploadComplete={() => {
+                  loadLotPictures();
+                  onReload();
+                }}
+              />
             )}
 
             {activeTab === 'waiver' && <WaiverTab orderId={orderId} order={order} />}
