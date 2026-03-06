@@ -71,6 +71,18 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack }: T
   const navigate = useNavigate();
 
   useEffect(() => {
+    let debounceTimer: NodeJS.Timeout | null = null;
+
+    const debouncedUpdate = () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+      debounceTimer = setTimeout(() => {
+        setLastUpdated(new Date());
+        onUpdate();
+      }, 300);
+    };
+
     const channel = supabase
       .channel(`order-${task.orderId}`)
       .on(
@@ -81,14 +93,14 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack }: T
           table: 'orders',
           filter: `id=eq.${task.orderId}`,
         },
-        () => {
-          setLastUpdated(new Date());
-          onUpdate();
-        }
+        debouncedUpdate
       )
       .subscribe();
 
     return () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
       supabase.removeChannel(channel);
     };
   }, [task.orderId, onUpdate]);

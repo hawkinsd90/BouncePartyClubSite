@@ -25,6 +25,17 @@ export function LotPicturesDisplay({ orderId, onPromptCustomer }: LotPicturesDis
   useEffect(() => {
     loadPictures();
 
+    let debounceTimer: NodeJS.Timeout | null = null;
+
+    const debouncedLoadPictures = () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+      debounceTimer = setTimeout(() => {
+        loadPictures();
+      }, 300);
+    };
+
     // Set up real-time listener for new picture uploads
     const channel = supabase
       .channel(`lot-pictures-${orderId}`)
@@ -36,13 +47,14 @@ export function LotPicturesDisplay({ orderId, onPromptCustomer }: LotPicturesDis
           table: 'order_lot_pictures',
           filter: `order_id=eq.${orderId}`,
         },
-        () => {
-          loadPictures();
-        }
+        debouncedLoadPictures
       )
       .subscribe();
 
     return () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
       supabase.removeChannel(channel);
     };
   }, [orderId]);

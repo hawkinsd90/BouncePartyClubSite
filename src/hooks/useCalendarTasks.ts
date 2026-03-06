@@ -49,6 +49,18 @@ export function useCalendarTasks(currentMonth: Date) {
   useEffect(() => {
     loadTasks();
 
+    // Debounce timer to prevent cascading reloads
+    let debounceTimer: NodeJS.Timeout | null = null;
+
+    const debouncedLoadTasks = () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+      debounceTimer = setTimeout(() => {
+        loadTasks();
+      }, 500); // Wait 500ms after last change before reloading
+    };
+
     const channel = supabase
       .channel('orders-changes')
       .on(
@@ -58,9 +70,7 @@ export function useCalendarTasks(currentMonth: Date) {
           schema: 'public',
           table: 'orders',
         },
-        () => {
-          loadTasks();
-        }
+        debouncedLoadTasks
       )
       .on(
         'postgres_changes',
@@ -69,13 +79,14 @@ export function useCalendarTasks(currentMonth: Date) {
           schema: 'public',
           table: 'task_status',
         },
-        () => {
-          loadTasks();
-        }
+        debouncedLoadTasks
       )
       .subscribe();
 
     return () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
       supabase.removeChannel(channel);
     };
   }, [currentMonth]);
