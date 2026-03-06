@@ -57,48 +57,6 @@ export function OrdersManager() {
   const orders = data?.orders || [];
   const contactsMap = data?.contactsMap || new Map();
 
-  useEffect(() => {
-    if (!tabFromUrl && !singleOrderId && tabCounts) {
-      determineDefaultTab();
-    }
-  }, [tabCounts, tabFromUrl, singleOrderId]);
-
-  useEffect(() => {
-    if (tabFromUrl) {
-      setActiveTab(tabFromUrl);
-    }
-    if (singleOrderId) {
-      setSingleOrderSearchId(singleOrderId);
-      setActiveTab('single_order');
-    }
-  }, [tabFromUrl, singleOrderId]);
-
-  useEffect(() => {
-    if (orderIdFromUrl && orders.length > 0 && !selectedOrder) {
-      const order = orders.find(o => o.id === orderIdFromUrl);
-      if (order) {
-        setSelectedOrder(order);
-        const params = new URLSearchParams(searchParams);
-        params.delete('order');
-        setSearchParams(params);
-      }
-    }
-  }, [orderIdFromUrl, orders, selectedOrder]);
-
-  function determineDefaultTab() {
-    if (tabCounts.pending_review > 0) {
-      setActiveTab('pending_review');
-    } else if (tabCounts.awaiting_customer_approval > 0) {
-      setActiveTab('awaiting_customer_approval');
-    } else if (tabCounts.current > 0) {
-      setActiveTab('current');
-    } else if (tabCounts.upcoming > 0) {
-      setActiveTab('upcoming');
-    } else {
-      setActiveTab('all');
-    }
-  }
-
   // Categorize orders once for performance
   const categorizedOrders = useMemo(() => {
     const now = new Date();
@@ -187,6 +145,48 @@ export function OrdersManager() {
     all: orders.length,
     single_order: 0,
   }), [categorizedOrders, orders.length]);
+
+  function determineDefaultTab() {
+    if (tabCounts.pending_review > 0) {
+      setActiveTab('pending_review');
+    } else if (tabCounts.awaiting_customer_approval > 0) {
+      setActiveTab('awaiting_customer_approval');
+    } else if (tabCounts.current > 0) {
+      setActiveTab('current');
+    } else if (tabCounts.upcoming > 0) {
+      setActiveTab('upcoming');
+    } else {
+      setActiveTab('all');
+    }
+  }
+
+  useEffect(() => {
+    if (!tabFromUrl && !singleOrderId) {
+      determineDefaultTab();
+    }
+  }, [tabCounts, tabFromUrl, singleOrderId]);
+
+  useEffect(() => {
+    if (tabFromUrl) {
+      setActiveTab(tabFromUrl);
+    }
+    if (singleOrderId) {
+      setSingleOrderSearchId(singleOrderId);
+      setActiveTab('single_order');
+    }
+  }, [tabFromUrl, singleOrderId]);
+
+  useEffect(() => {
+    if (orderIdFromUrl && orders.length > 0 && !selectedOrder) {
+      const order = orders.find(o => o.id === orderIdFromUrl);
+      if (order) {
+        setSelectedOrder(order);
+        const params = new URLSearchParams(searchParams);
+        params.delete('order');
+        setSearchParams(params);
+      }
+    }
+  }, [orderIdFromUrl, orders, selectedOrder]);
 
   function getTabCount(tab: OrderTab): number {
     return tabCounts[tab] || 0;
