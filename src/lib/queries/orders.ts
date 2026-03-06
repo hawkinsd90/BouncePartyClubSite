@@ -48,13 +48,20 @@ export async function getOrdersByEmail(email: string, options?: QueryOptions) {
   );
 }
 
-export async function getAllOrders(options?: QueryOptions) {
+export async function getAllOrders(limit?: number, options?: QueryOptions) {
   return executeQuery(
-    async () =>
-      await supabase
+    async () => {
+      let query = supabase
         .from('orders')
         .select(COMPACT_ORDER_SELECT)
-        .order('event_date', { ascending: true }),
+        .order('event_date', { ascending: true });
+
+      if (limit) {
+        query = query.limit(limit);
+      }
+
+      return await query;
+    },
     { context: 'getAllOrders', ...options }
   );
 }
@@ -145,13 +152,19 @@ export async function getOrdersWithPendingPayments(options?: QueryOptions) {
   );
 }
 
-export async function getAllOrdersWithContacts(options?: QueryOptions) {
+export async function getAllOrdersWithContacts(limit?: number, options?: QueryOptions) {
   return executeQuery(
     async () => {
-      const { data: ordersData, error: ordersError } = await supabase
+      let query = supabase
         .from('orders')
         .select(COMPACT_ORDER_SELECT)
         .order('event_date', { ascending: true });
+
+      if (limit) {
+        query = query.limit(limit);
+      }
+
+      const { data: ordersData, error: ordersError } = await query;
 
       if (ordersError) {
         throw ordersError;

@@ -67,7 +67,8 @@ export function useOrders(userId: string | undefined, userEmail: string | undefi
           )
         `)
         .in('customer_id', customerIds)
-        .order('event_date', { ascending: false });
+        .order('event_date', { ascending: false })
+        .limit(50);
 
       if (error) {
         console.error('Error loading orders:', error);

@@ -34,7 +34,8 @@ export function OrdersManager() {
   const orderCardsRef = useRef<Map<string, { card: HTMLElement, actionButtons: HTMLElement | null }>>(new Map());
 
   const fetchOrdersData = useCallback(async () => {
-    const { data, error } = await getAllOrdersWithContacts();
+    // Load up to 200 most recent orders by default for performance
+    const { data, error } = await getAllOrdersWithContacts(200);
 
     if (error) throw error;
 
