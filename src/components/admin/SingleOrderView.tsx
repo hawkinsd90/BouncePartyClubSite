@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { PendingOrderCard } from './PendingOrderCard';
+import { AdminFloatingOrderHeader } from './AdminFloatingOrderHeader';
 import { supabase } from '../../lib/supabase';
 
 interface SingleOrderViewProps {
@@ -14,6 +15,8 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showFloatingHeader, setShowFloatingHeader] = useState(false);
+  const cardRef = useRef<{ card: HTMLElement, actionButtons: HTMLElement | null, openEdit: () => void } | null>(null);
 
   useEffect(() => {
     loadOrder();
@@ -42,9 +45,26 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
         `);
 
       if (isPartialId) {
-        // For partial IDs, fetch all orders and filter client-side
-        // UUID columns don't support pattern matching directly in PostgreSQL
-        const { data: orders, error: searchError } = await supabase
+        // For partial IDs, first fetch only order IDs to find match
+        const { data: orderIds, error: searchError } = await supabase
+          .from('orders')
+          .select('id');
+
+        if (searchError) throw searchError;
+
+        // Filter to find matching order ID
+        const matchingId = orderIds?.find(o =>
+          o.id.toLowerCase().startsWith(orderId.toLowerCase())
+        )?.id;
+
+        if (!matchingId) {
+          setError('Order not found');
+          setLoading(false);
+          return;
+        }
+
+        // Now fetch the full order data with relations
+        const { data: fullOrder, error: fullOrderError } = await supabase
           .from('orders')
           .select(`
             *,
@@ -56,21 +76,13 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
             ),
             order_custom_fees (*),
             order_discounts (*)
-          `);
+          `)
+          .eq('id', matchingId)
+          .maybeSingle();
 
-        if (searchError) throw searchError;
+        if (fullOrderError) throw fullOrderError;
 
-        // Filter results to find the matching order
-        const matchingOrder = orders?.find(o =>
-          o.id.toLowerCase().startsWith(orderId.toLowerCase())
-        );
-
-        if (!matchingOrder) {
-          setError('Order not found');
-          return;
-        }
-
-        setOrder(matchingOrder);
+        setOrder(fullOrder);
         setLoading(false);
         return;
       } else {
@@ -100,6 +112,48 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
     onUpdate();
   }
 
+  useEffect(() => {
+    if (!order) {
+      setShowFloatingHeader(false);
+      return;
+    }
+
+    function handleScroll() {
+      if (!cardRef.current) {
+        setShowFloatingHeader(false);
+        return;
+      }
+
+      const { card, actionButtons } = cardRef.current;
+      const cardRect = card.getBoundingClientRect();
+
+      // Use action buttons position if available, otherwise use card bottom
+      const triggerElement = actionButtons || card;
+      const triggerRect = triggerElement.getBoundingClientRect();
+
+      // Header should appear only after we've scrolled past the top of the card
+      const hasScrolledPastTop = cardRect.top < 64; // 64px = top-16 (header height)
+
+      // Header should disappear when action buttons scroll out of view
+      const actionButtonsVisible = triggerRect.bottom > 64;
+
+      setShowFloatingHeader(hasScrolledPastTop && actionButtonsVisible);
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, [order]);
+
+  function handleEditFromFloatingHeader() {
+    if (cardRef.current) {
+      cardRef.current.openEdit();
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -127,16 +181,29 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
   }
 
   return (
-    <div className="space-y-4">
-      <button
-        onClick={onBack}
-        className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4 mr-2" />
-        Back to Orders
-      </button>
+    <div className={showFloatingHeader ? 'pt-20' : ''}>
+      <AdminFloatingOrderHeader
+        order={order}
+        isVisible={showFloatingHeader}
+        onEditClick={handleEditFromFloatingHeader}
+      />
 
-      <PendingOrderCard order={order} onUpdate={handleUpdate} openEditMode={openEditMode} />
+      <div className="space-y-4">
+        <button
+          onClick={onBack}
+          className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Orders
+        </button>
+
+        <PendingOrderCard
+          ref={cardRef}
+          order={order}
+          onUpdate={handleUpdate}
+          openEditMode={openEditMode}
+        />
+      </div>
     </div>
   );
 }

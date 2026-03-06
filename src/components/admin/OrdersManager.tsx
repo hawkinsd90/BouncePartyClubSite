@@ -58,10 +58,10 @@ export function OrdersManager() {
   const contactsMap = data?.contactsMap || new Map();
 
   useEffect(() => {
-    if (!tabFromUrl && !singleOrderId) {
+    if (!tabFromUrl && !singleOrderId && tabCounts) {
       determineDefaultTab();
     }
-  }, [orders, tabFromUrl, singleOrderId]);
+  }, [tabCounts, tabFromUrl, singleOrderId]);
 
   useEffect(() => {
     if (tabFromUrl) {
@@ -86,26 +86,74 @@ export function OrdersManager() {
   }, [orderIdFromUrl, orders, selectedOrder]);
 
   function determineDefaultTab() {
-    const pendingReview = orders.filter(o => o.status === ORDER_STATUS.PENDING).length;
-    const awaitingApproval = orders.filter(o => o.status === ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL).length;
-    const current = orders.filter(o => isToday(new Date(o.event_date)) && o.status !== ORDER_STATUS.CANCELLED && o.status !== ORDER_STATUS.PENDING && o.status !== ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL && o.status !== ORDER_STATUS.DRAFT).length;
-    const upcoming = orders.filter(o => isFuture(new Date(o.event_date)) && o.status !== ORDER_STATUS.CANCELLED && o.status !== ORDER_STATUS.PENDING && o.status !== ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL && o.status !== ORDER_STATUS.DRAFT).length;
-
-    if (pendingReview > 0) {
+    if (tabCounts.pending_review > 0) {
       setActiveTab('pending_review');
-    } else if (awaitingApproval > 0) {
+    } else if (tabCounts.awaiting_customer_approval > 0) {
       setActiveTab('awaiting_customer_approval');
-    } else if (current > 0) {
+    } else if (tabCounts.current > 0) {
       setActiveTab('current');
-    } else if (upcoming > 0) {
+    } else if (tabCounts.upcoming > 0) {
       setActiveTab('upcoming');
     } else {
       setActiveTab('all');
     }
   }
 
+  // Categorize orders once for performance
+  const categorizedOrders = useMemo(() => {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(todayStart);
+    todayEnd.setDate(todayEnd.getDate() + 1);
+
+    const categories = {
+      draft: [] as any[],
+      pending_review: [] as any[],
+      awaiting_customer_approval: [] as any[],
+      current: [] as any[],
+      upcoming: [] as any[],
+      past: [] as any[],
+      cancelled: [] as any[],
+      all: orders,
+    };
+
+    orders.forEach(order => {
+      const eventDate = new Date(order.event_date);
+
+      // Add to status-specific categories
+      if (order.status === 'draft') {
+        categories.draft.push(order);
+      } else if (order.status === 'pending_review') {
+        categories.pending_review.push(order);
+      } else if (order.status === 'awaiting_customer_approval') {
+        categories.awaiting_customer_approval.push(order);
+      } else if (order.status === 'cancelled') {
+        categories.cancelled.push(order);
+      }
+
+      // Add to time-based categories (exclude certain statuses)
+      const isExcludedStatus =
+        order.status === 'cancelled' ||
+        order.status === 'pending_review' ||
+        order.status === 'awaiting_customer_approval' ||
+        order.status === 'draft';
+
+      if (!isExcludedStatus) {
+        if (eventDate >= todayStart && eventDate < todayEnd) {
+          categories.current.push(order);
+        } else if (eventDate >= todayEnd) {
+          categories.upcoming.push(order);
+        } else {
+          categories.past.push(order);
+        }
+      }
+    });
+
+    return categories;
+  }, [orders]);
+
   const filteredOrders = useMemo(() => {
-    let filtered = [...orders];
+    let filtered = categorizedOrders[activeTab as keyof typeof categorizedOrders] || [];
 
     const search = searchTerm.toLowerCase();
     if (search) {
@@ -124,68 +172,24 @@ export function OrdersManager() {
       });
     }
 
-    switch (activeTab) {
-      case 'draft':
-        filtered = filtered.filter(o => o.status === 'draft');
-        break;
-      case 'pending_review':
-        filtered = filtered.filter(o => o.status === 'pending_review');
-        break;
-      case 'awaiting_customer_approval':
-        filtered = filtered.filter(o => o.status === 'awaiting_customer_approval');
-        break;
-      case 'current':
-        filtered = filtered.filter(o => {
-          const eventDate = new Date(o.event_date);
-          return isToday(eventDate) && o.status !== 'cancelled' && o.status !== 'pending_review' && o.status !== 'awaiting_customer_approval' && o.status !== 'draft';
-        });
-        break;
-      case 'upcoming':
-        filtered = filtered.filter(o => {
-          const eventDate = new Date(o.event_date);
-          return isFuture(eventDate) && o.status !== 'cancelled' && o.status !== 'pending_review' && o.status !== 'awaiting_customer_approval' && o.status !== 'draft';
-        });
-        break;
-      case 'past':
-        filtered = filtered.filter(o => {
-          const eventDate = new Date(o.event_date);
-          return isPast(eventDate) && !isToday(eventDate) && o.status !== 'cancelled' && o.status !== 'pending_review' && o.status !== 'draft';
-        });
-        break;
-      case 'cancelled':
-        filtered = filtered.filter(o => o.status === 'cancelled');
-        break;
-    }
-
     return filtered;
-  }, [orders, activeTab, searchTerm]);
+  }, [categorizedOrders, activeTab, searchTerm]);
+
+  // Memoize tab counts for performance
+  const tabCounts = useMemo(() => ({
+    draft: categorizedOrders.draft.length,
+    pending_review: categorizedOrders.pending_review.length,
+    awaiting_customer_approval: categorizedOrders.awaiting_customer_approval.length,
+    current: categorizedOrders.current.length,
+    upcoming: categorizedOrders.upcoming.length,
+    past: categorizedOrders.past.length,
+    cancelled: categorizedOrders.cancelled.length,
+    all: orders.length,
+    single_order: 0,
+  }), [categorizedOrders, orders.length]);
 
   function getTabCount(tab: OrderTab): number {
-    switch (tab) {
-      case 'draft':
-        return orders.filter(o => o.status === 'draft').length;
-      case 'pending_review':
-        return orders.filter(o => o.status === 'pending_review').length;
-      case 'awaiting_customer_approval':
-        return orders.filter(o => o.status === 'awaiting_customer_approval').length;
-      case 'current':
-        return orders.filter(o => isToday(new Date(o.event_date)) && o.status !== 'cancelled' && o.status !== 'pending_review' && o.status !== 'awaiting_customer_approval' && o.status !== 'draft').length;
-      case 'upcoming':
-        return orders.filter(o => isFuture(new Date(o.event_date)) && o.status !== 'cancelled' && o.status !== 'pending_review' && o.status !== 'awaiting_customer_approval' && o.status !== 'draft').length;
-      case 'past':
-        return orders.filter(o => {
-          const eventDate = new Date(o.event_date);
-          return isPast(eventDate) && !isToday(eventDate) && o.status !== 'cancelled' && o.status !== 'pending_review' && o.status !== 'awaiting_customer_approval' && o.status !== 'draft';
-        }).length;
-      case 'cancelled':
-        return orders.filter(o => o.status === 'cancelled').length;
-      case 'all':
-        return orders.length;
-      case 'single_order':
-        return 0;
-      default:
-        return 0;
-    }
+    return tabCounts[tab] || 0;
   }
 
   const tabs: { key: OrderTab; label: string }[] = [
