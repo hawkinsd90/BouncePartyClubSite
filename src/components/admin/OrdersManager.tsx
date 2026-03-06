@@ -222,7 +222,7 @@ export function OrdersManager() {
   }
 
   useEffect(() => {
-    if (activeTab === 'single_order') {
+    if (activeTab !== 'pending_review' && activeTab !== 'awaiting_customer_approval') {
       setVisibleOrder(null);
       return;
     }
@@ -231,64 +231,32 @@ export function OrdersManager() {
       let bestMatch = null;
       let closestDistance = Infinity;
 
-      // For pending_review and awaiting_customer_approval tabs, use card refs
-      if (activeTab === 'pending_review' || activeTab === 'awaiting_customer_approval') {
-        orderCardsRef.current.forEach((refs, orderId) => {
-          const { card, actionButtons } = refs;
-          const cardRect = card.getBoundingClientRect();
+      orderCardsRef.current.forEach((refs, orderId) => {
+        const { card, actionButtons } = refs;
+        const cardRect = card.getBoundingClientRect();
 
-          // Use action buttons position if available, otherwise use card bottom
-          const triggerElement = actionButtons || card;
-          const triggerRect = triggerElement.getBoundingClientRect();
+        // Use action buttons position if available, otherwise use card bottom
+        const triggerElement = actionButtons || card;
+        const triggerRect = triggerElement.getBoundingClientRect();
 
-          // Header should appear only after we've scrolled past the top of the card
-          const hasScrolledPastTop = cardRect.top < 64; // 64px = top-16 (header height)
+        // Header should appear only after we've scrolled past the top of the card
+        const hasScrolledPastTop = cardRect.top < 64; // 64px = top-16 (header height)
 
-          // Header should disappear when action buttons scroll out of view
-          const actionButtonsVisible = triggerRect.bottom > 64;
+        // Header should disappear when action buttons scroll out of view
+        const actionButtonsVisible = triggerRect.bottom > 64;
 
-          if (hasScrolledPastTop && actionButtonsVisible) {
-            const distanceFromTop = Math.abs(cardRect.top - 64);
+        if (hasScrolledPastTop && actionButtonsVisible) {
+          const distanceFromTop = Math.abs(cardRect.top - 64);
 
-            if (distanceFromTop < closestDistance) {
-              closestDistance = distanceFromTop;
-              const order = filteredOrders.find(o => o.id === orderId);
-              if (order) {
-                bestMatch = order;
-              }
+          if (distanceFromTop < closestDistance) {
+            closestDistance = distanceFromTop;
+            const order = filteredOrders.find(o => o.id === orderId);
+            if (order) {
+              bestMatch = order;
             }
           }
-        });
-      } else {
-        // For table views, find the first row that's scrolled past the header
-        const table = document.querySelector('tbody');
-        if (table) {
-          const rows = Array.from(table.querySelectorAll('tr'));
-
-          rows.forEach((row) => {
-            const rect = row.getBoundingClientRect();
-            const orderId = row.getAttribute('data-order-id');
-
-            // Show header for rows that have scrolled past the top (but are still in viewport)
-            const hasScrolledPastTop = rect.top < 120; // Account for header + some buffer
-            const isStillInViewport = rect.bottom > 64;
-
-            if (hasScrolledPastTop && isStillInViewport) {
-              const distanceFromTop = Math.abs(rect.top);
-
-              if (distanceFromTop < closestDistance) {
-                closestDistance = distanceFromTop;
-                if (orderId) {
-                  const order = filteredOrders.find(o => o.id === orderId);
-                  if (order) {
-                    bestMatch = order;
-                  }
-                }
-              }
-            }
-          });
         }
-      }
+      });
 
       setVisibleOrder(bestMatch);
     }
@@ -310,7 +278,7 @@ export function OrdersManager() {
     );
   }
 
-  const showFloatingHeader = !!visibleOrder && activeTab !== 'single_order';
+  const showFloatingHeader = !!visibleOrder && (activeTab === 'pending_review' || activeTab === 'awaiting_customer_approval');
 
   const handleEditFromFloatingHeader = () => {
     if (visibleOrder) {
@@ -437,7 +405,6 @@ export function OrdersManager() {
               {filteredOrders.map(order => (
                 <tr
                   key={order.id}
-                  data-order-id={order.id}
                   onClick={() => setSelectedOrder(order)}
                   className="hover:bg-slate-50 cursor-pointer transition-colors"
                 >
