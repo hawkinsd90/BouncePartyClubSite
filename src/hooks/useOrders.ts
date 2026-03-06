@@ -18,22 +18,19 @@ export function useOrders(userId: string | undefined, userEmail: string | undefi
     try {
       const { data: profileData } = await supabase
         .from('customer_profiles')
-        .select('contact_id')
+        .select(`
+          contact_id,
+          contacts (
+            customer_id
+          )
+        `)
         .eq('user_id', userId)
         .maybeSingle();
 
       let customerIds: string[] = [];
 
-      if (profileData?.contact_id) {
-        const { data: contactData } = await supabase
-          .from('contacts')
-          .select('customer_id')
-          .eq('id', profileData.contact_id)
-          .maybeSingle();
-
-        if (contactData?.customer_id) {
-          customerIds.push(contactData.customer_id);
-        }
+      if (profileData?.contacts && (profileData.contacts as any)?.customer_id) {
+        customerIds.push((profileData.contacts as any).customer_id);
       }
 
       const { data: emailCustomers } = await supabase

@@ -39,23 +39,29 @@ export function Catalog() {
       try {
         const { data: unitsData, error: unitsError } = await supabase
           .from('units')
-          .select('*')
+          .select(`
+            *,
+            unit_media (
+              id,
+              url,
+              alt,
+              sort,
+              is_featured
+            )
+          `)
           .eq('active', true)
           .order('name');
 
         if (unitsError) throw unitsError;
 
-        const { data: mediaData, error: mediaError } = await supabase
-          .from('unit_media')
-          .select('*')
-          .order('is_featured', { ascending: false })
-          .order('sort');
-
-        if (mediaError) throw mediaError;
-
-        const unitsWithMedia = unitsData.map((unit) => ({
+        const unitsWithMedia = unitsData.map((unit: any) => ({
           ...unit,
-          media: mediaData.filter((m) => m.unit_id === unit.id),
+          media: (unit.unit_media || []).sort((a: any, b: any) => {
+            if (a.is_featured !== b.is_featured) {
+              return b.is_featured ? 1 : -1;
+            }
+            return (a.sort || 0) - (b.sort || 0);
+          }),
         }));
 
         // Only update state if component is still mounted
