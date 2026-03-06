@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, DollarSign } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
-import { formatOrderId } from '../../lib/utils';
+import { formatOrderId, dollarsToCents } from '../../lib/utils';
 import { OrderSummary } from '../order/OrderSummary';
 import { OrderSummaryDisplay } from '../../lib/orderSummary';
 import { ApprovalModal } from './ApprovalModal';
 import { RejectionModal } from './RejectionModal';
+import { PaymentAmountSelector } from '../shared/PaymentAmountSelector';
 
 interface OrderApprovalViewProps {
   order: any;
@@ -25,6 +26,10 @@ export function OrderApprovalView({
 }: OrderApprovalViewProps) {
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
+
+  const [keepOriginalPayment, setKeepOriginalPayment] = useState(true);
+  const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
+  const [customAmount, setCustomAmount] = useState('');
 
   const formatValue = (val: string, field: string) => {
     if (!val || val === 'null' || val === '') return '';
@@ -79,6 +84,36 @@ export function OrderApprovalView({
   const relevantChanges = changelog.filter((c) =>
     customerRelevantFields.includes(c.field_changed)
   );
+
+  const currentTotalCents =
+    order.subtotal_cents +
+    (order.generator_fee_cents || 0) +
+    order.travel_fee_cents +
+    order.surface_fee_cents +
+    (order.same_day_pickup_fee_cents || 0) +
+    order.tax_cents -
+    (order.discount_cents || 0);
+
+  const currentDepositCents = order.deposit_due_cents || 0;
+  const originalPaymentCents = order.customer_selected_payment_cents || currentDepositCents;
+  const originalMeetsMinimum = originalPaymentCents >= currentDepositCents;
+
+  let selectedPaymentCents = 0;
+
+  if (keepOriginalPayment) {
+    selectedPaymentCents = originalPaymentCents;
+  } else if (paymentAmount === 'deposit') {
+    selectedPaymentCents = currentDepositCents;
+  } else if (paymentAmount === 'full') {
+    selectedPaymentCents = currentTotalCents;
+  } else if (paymentAmount === 'custom') {
+    selectedPaymentCents = dollarsToCents(customAmount);
+  }
+
+  useEffect(() => {
+    setKeepOriginalPayment(originalMeetsMinimum);
+    setPaymentAmount('deposit');
+  }, [originalMeetsMinimum]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-50 py-4 md:py-12 px-3 sm:px-6 lg:px-8">
@@ -286,7 +321,7 @@ export function OrderApprovalView({
                     title="Complete Price Breakdown"
                     changelog={changelog}
                     className="p-3 md:p-4"
-                    customDepositCents={order.customer_selected_payment_cents}
+                    customDepositCents={selectedPaymentCents}
                     taxWaived={order.tax_waived || false}
                     travelFeeWaived={order.travel_fee_waived || false}
                     surfaceFeeWaived={order.surface_fee_waived || false}
@@ -295,6 +330,67 @@ export function OrderApprovalView({
                   />
                 )}
               </div>
+            </div>
+
+            <div className="bg-white border-2 border-green-400 rounded-lg p-4 md:p-6 mb-4 md:mb-6">
+              <h3 className="font-bold text-green-900 mb-3 md:mb-4 text-base md:text-lg flex items-center gap-2">
+                <DollarSign className="w-5 h-5" />
+                Payment Amount Selection
+              </h3>
+
+              <div className="mb-4">
+                <label className="flex items-start gap-3 cursor-pointer p-3 bg-green-50 border-2 border-green-200 rounded-lg hover:bg-green-100 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={keepOriginalPayment}
+                    onChange={(e) => setKeepOriginalPayment(e.target.checked)}
+                    disabled={!originalMeetsMinimum}
+                    className="mt-0.5 w-5 h-5 text-green-600 border-green-300 rounded focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm md:text-base font-semibold text-slate-900">
+                      Keep original payment amount
+                    </p>
+                    <p className="text-lg md:text-xl font-bold text-green-700 mt-1">
+                      {formatCurrency(originalPaymentCents)}
+                    </p>
+                    {!originalMeetsMinimum && (
+                      <p className="text-xs md:text-sm text-red-600 mt-1">
+                        Original amount no longer meets minimum deposit of {formatCurrency(currentDepositCents)}
+                      </p>
+                    )}
+                    {originalMeetsMinimum && originalPaymentCents > currentTotalCents && (
+                      <p className="text-xs md:text-sm text-green-700 mt-1">
+                        Excess ${((originalPaymentCents - currentTotalCents) / 100).toFixed(2)} will be applied as tip
+                      </p>
+                    )}
+                    {originalMeetsMinimum && originalPaymentCents < currentTotalCents && (
+                      <p className="text-xs md:text-sm text-slate-600 mt-1">
+                        Balance due day of event: {formatCurrency(currentTotalCents - originalPaymentCents)}
+                      </p>
+                    )}
+                  </div>
+                </label>
+              </div>
+
+              {!keepOriginalPayment && (
+                <div>
+                  <h4 className="text-sm md:text-base font-semibold text-slate-900 mb-3">
+                    Select New Payment Amount
+                  </h4>
+                  <PaymentAmountSelector
+                    depositCents={currentDepositCents}
+                    totalCents={currentTotalCents}
+                    paymentAmount={paymentAmount}
+                    customAmount={customAmount}
+                    onPaymentAmountChange={setPaymentAmount}
+                    onCustomAmountChange={setCustomAmount}
+                    showCard={false}
+                    showApprovalNote={false}
+                    icon="credit-card"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-6 mb-6">
@@ -342,6 +438,8 @@ export function OrderApprovalView({
             onClose={() => setShowApproveModal(false)}
             order={order}
             onSuccess={onApprovalSuccess}
+            selectedPaymentCents={selectedPaymentCents}
+            keepOriginalPayment={keepOriginalPayment}
           />
 
           <RejectionModal

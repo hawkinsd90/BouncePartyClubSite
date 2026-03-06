@@ -3,10 +3,9 @@ import { CreditCard, CreditCard as Edit2, MapPin, Calendar, DollarSign } from 'l
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
 import { loadStripe } from '@stripe/stripe-js';
-import { formatOrderId, dollarsToCents } from '../../lib/utils';
+import { formatOrderId } from '../../lib/utils';
 import { format } from 'date-fns';
 import { formatCurrency } from '../../lib/pricing';
-import { PaymentAmountSelector } from '../shared/PaymentAmountSelector';
 import { TipSelector, calculateTipCents } from '../payment/TipSelector';
 
 interface ApprovalModalProps {
@@ -14,16 +13,22 @@ interface ApprovalModalProps {
   onClose: () => void;
   order: any;
   onSuccess: () => void;
+  selectedPaymentCents: number;
+  keepOriginalPayment: boolean;
 }
 
-export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalModalProps) {
+export function ApprovalModal({
+  isOpen,
+  onClose,
+  order,
+  onSuccess,
+  selectedPaymentCents,
+  keepOriginalPayment
+}: ApprovalModalProps) {
   const [confirmName, setConfirmName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [updatingCard, setUpdatingCard] = useState(false);
 
-  const [keepOriginalPayment, setKeepOriginalPayment] = useState(true);
-  const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
-  const [customAmount, setCustomAmount] = useState('');
   const [tipAmount, setTipAmount] = useState<'none' | '10' | '15' | '20' | 'custom'>('none');
   const [customTip, setCustomTip] = useState('');
 
@@ -77,22 +82,8 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
     setSubmitting(true);
     try {
       const tipCents = calculateTipCents(tipAmount, customTip, currentTotalCents);
-      let selectedPaymentCents = 0;
-      let selectedPaymentType = '';
 
-      if (keepOriginalPayment) {
-        selectedPaymentCents = originalPaymentCents;
-        selectedPaymentType = 'keep-original';
-      } else if (paymentAmount === 'deposit') {
-        selectedPaymentCents = currentDepositCents;
-        selectedPaymentType = 'deposit';
-      } else if (paymentAmount === 'full') {
-        selectedPaymentCents = currentTotalCents;
-        selectedPaymentType = 'full';
-      } else if (paymentAmount === 'custom') {
-        selectedPaymentCents = dollarsToCents(customAmount);
-        selectedPaymentType = 'custom';
-      }
+      const selectedPaymentType = keepOriginalPayment ? 'keep-original' : 'modified';
 
       const { error: updateError } = await supabase
         .from('orders')
@@ -145,25 +136,9 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
     order.tax_cents -
     (order.discount_cents || 0);
 
-  const currentDepositCents = order.deposit_due_cents || 0;
-  const originalPaymentCents = order.customer_selected_payment_cents || currentDepositCents;
   const originalTipCents = order.tip_cents || 0;
 
-  const originalMeetsMinimum = originalPaymentCents >= currentDepositCents;
-
   const tipCents = calculateTipCents(tipAmount, customTip, currentTotalCents);
-  let selectedPaymentCents = 0;
-
-  if (keepOriginalPayment) {
-    selectedPaymentCents = originalPaymentCents;
-  } else if (paymentAmount === 'deposit') {
-    selectedPaymentCents = currentDepositCents;
-  } else if (paymentAmount === 'full') {
-    selectedPaymentCents = currentTotalCents;
-  } else if (paymentAmount === 'custom') {
-    selectedPaymentCents = dollarsToCents(customAmount);
-  }
-
   const amountChargingNow = selectedPaymentCents + tipCents;
 
   const paymentMethodText = order.payment_method_last_four && order.payment_method_brand
@@ -174,9 +149,6 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
 
   useEffect(() => {
     if (isOpen) {
-      setKeepOriginalPayment(originalMeetsMinimum);
-      setPaymentAmount('deposit');
-
       if (originalTipCents > 0) {
         const tipPercent = Math.round((originalTipCents / currentTotalCents) * 100);
         if (tipPercent === 10 || tipPercent === 15 || tipPercent === 20) {
@@ -189,7 +161,7 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
         setTipAmount('none');
       }
     }
-  }, [isOpen, originalMeetsMinimum, originalTipCents, currentTotalCents]);
+  }, [isOpen, originalTipCents, currentTotalCents]);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -253,61 +225,18 @@ export function ApprovalModal({ isOpen, onClose, order, onSuccess }: ApprovalMod
             </div>
           )}
 
-          <div className="mb-3">
-            <div className="mb-3 p-3 bg-green-50 border-2 border-green-200 rounded-lg">
-              <label className="flex items-start gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={keepOriginalPayment}
-                  onChange={(e) => setKeepOriginalPayment(e.target.checked)}
-                  disabled={!originalMeetsMinimum}
-                  className="mt-0.5 w-4 h-4 text-green-600 border-green-300 rounded focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                />
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-slate-900">
-                    Keep original payment amount
-                  </p>
-                  <p className="text-lg font-bold text-green-700 mt-1">
-                    {formatCurrency(originalPaymentCents)}
-                  </p>
-                  {!originalMeetsMinimum && (
-                    <p className="text-xs text-red-600 mt-1">
-                      Original amount no longer meets minimum deposit of {formatCurrency(currentDepositCents)}
-                    </p>
-                  )}
-                  {originalMeetsMinimum && originalPaymentCents > currentTotalCents && (
-                    <p className="text-xs text-green-700 mt-1">
-                      Excess ${((originalPaymentCents - currentTotalCents) / 100).toFixed(2)} will be applied as tip
-                    </p>
-                  )}
-                  {originalMeetsMinimum && originalPaymentCents < currentTotalCents && (
-                    <p className="text-xs text-slate-600 mt-1">
-                      Balance due: {formatCurrency(currentTotalCents - originalPaymentCents)}
-                    </p>
-                  )}
-                </div>
-              </label>
-            </div>
-
-            {!keepOriginalPayment && (
+          <div className="mb-3 p-3 bg-green-50 border-2 border-green-200 rounded-lg">
+            <div className="flex items-center justify-between">
               <div>
-                <h4 className="text-sm font-semibold text-slate-900 mb-2 flex items-center">
-                  <DollarSign className="w-4 h-4 mr-1 text-green-600" />
-                  Select New Payment Amount
-                </h4>
-                <PaymentAmountSelector
-                  depositCents={currentDepositCents}
-                  totalCents={currentTotalCents}
-                  paymentAmount={paymentAmount}
-                  customAmount={customAmount}
-                  onPaymentAmountChange={setPaymentAmount}
-                  onCustomAmountChange={setCustomAmount}
-                  showCard={false}
-                  showApprovalNote={false}
-                  icon="credit-card"
-                />
+                <p className="text-sm font-medium text-slate-600">Payment Amount Selected</p>
+                <p className="text-2xl font-bold text-green-700">{formatCurrency(selectedPaymentCents)}</p>
+                {selectedPaymentCents < currentTotalCents && (
+                  <p className="text-xs text-slate-600 mt-1">
+                    Balance due day of event: {formatCurrency(currentTotalCents - selectedPaymentCents)}
+                  </p>
+                )}
               </div>
-            )}
+            </div>
           </div>
 
           <div className="mb-4">
