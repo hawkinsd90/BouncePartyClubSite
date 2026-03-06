@@ -260,7 +260,7 @@ export function OrdersManager() {
           }
         });
       } else {
-        // For table views, find the topmost visible row
+        // For table views, find the first row that's scrolled past the header
         const table = document.querySelector('tbody');
         if (table) {
           const rows = Array.from(table.querySelectorAll('tr'));
@@ -269,9 +269,12 @@ export function OrdersManager() {
             const rect = row.getBoundingClientRect();
             const orderId = row.getAttribute('data-order-id');
 
-            // Row is visible if it's below the header (64px) and above the bottom of viewport
-            if (rect.top >= 64 && rect.top < window.innerHeight) {
-              const distanceFromTop = Math.abs(rect.top - 64);
+            // Show header for rows that have scrolled past the top (but are still in viewport)
+            const hasScrolledPastTop = rect.top < 120; // Account for header + some buffer
+            const isStillInViewport = rect.bottom > 64;
+
+            if (hasScrolledPastTop && isStillInViewport) {
+              const distanceFromTop = Math.abs(rect.top);
 
               if (distanceFromTop < closestDistance) {
                 closestDistance = distanceFromTop;
