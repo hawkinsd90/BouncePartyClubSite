@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { calculatePrice, calculateDrivingDistance, type PricingRules } from '../lib/pricing';
 import { HOME_BASE } from '../lib/constants';
 import { SafeStorage } from '../lib/safeStorage';
@@ -15,11 +15,28 @@ const PRICE_BREAKDOWN_STORAGE_KEY = 'bpc_price_breakdown';
 
 export function useQuotePricing(cart: CartItem[], formData: QuoteFormData, pricingRules: PricingRules | null) {
   const [priceBreakdown, setPriceBreakdown] = useState<any>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    if (cart.length > 0 && pricingRules && formData.zip && formData.lat && formData.lng) {
-      calculatePricing();
+    // Clear existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
     }
+
+    // Only calculate if we have the required data
+    if (cart.length > 0 && pricingRules && formData.zip && formData.lat && formData.lng) {
+      // Debounce the pricing calculation by 500ms
+      debounceTimerRef.current = setTimeout(() => {
+        calculatePricing();
+      }, 500);
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
   }, [cart, pricingRules, formData]);
 
   async function calculatePricing() {

@@ -108,46 +108,49 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // Parallelize address queries instead of sequential waterfall
       let defaultAddress: Address | null = null;
 
-      if (customerData.default_address_id) {
-        const { data: addressData } = await supabase
-          .from('addresses')
-          .select('*')
-          .eq('id', customerData.default_address_id)
-          .maybeSingle();
-
-        if (addressData) {
-          defaultAddress = {
-            id: addressData.id,
-            line1: addressData.line1,
-            line2: addressData.line2,
-            city: addressData.city,
-            state: addressData.state,
-            zip: addressData.zip,
-          };
-        }
-      }
-
-      if (!defaultAddress) {
-        const { data: lastOrder } = await supabase
+      const [addressResult, lastOrderResult] = await Promise.all([
+        // Fetch default address if ID exists
+        customerData.default_address_id
+          ? supabase
+              .from('addresses')
+              .select('*')
+              .eq('id', customerData.default_address_id)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+        // Fetch last order address as fallback
+        supabase
           .from('orders')
           .select('address_id, addresses(*)')
           .eq('customer_id', customerData.id)
           .order('created_at', { ascending: false })
           .limit(1)
-          .maybeSingle();
+          .maybeSingle(),
+      ]);
 
-        if (lastOrder?.addresses) {
-          defaultAddress = {
-            id: lastOrder.addresses.id,
-            line1: lastOrder.addresses.line1,
-            line2: lastOrder.addresses.line2,
-            city: lastOrder.addresses.city,
-            state: lastOrder.addresses.state,
-            zip: lastOrder.addresses.zip,
-          };
-        }
+      // Use default address if available
+      if (addressResult.data) {
+        defaultAddress = {
+          id: addressResult.data.id,
+          line1: addressResult.data.line1,
+          line2: addressResult.data.line2,
+          city: addressResult.data.city,
+          state: addressResult.data.state,
+          zip: addressResult.data.zip,
+        };
+      }
+      // Fallback to last order address
+      else if (lastOrderResult.data?.addresses) {
+        defaultAddress = {
+          id: lastOrderResult.data.addresses.id,
+          line1: lastOrderResult.data.addresses.line1,
+          line2: lastOrderResult.data.addresses.line2,
+          city: lastOrderResult.data.addresses.city,
+          state: lastOrderResult.data.addresses.state,
+          zip: lastOrderResult.data.addresses.zip,
+        };
       }
 
       const profileData: CustomerProfile = {

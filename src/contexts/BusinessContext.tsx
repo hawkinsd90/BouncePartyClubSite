@@ -28,7 +28,6 @@ const BusinessContext = createContext<BusinessSettings>(defaultSettings);
 
 export function BusinessProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<BusinessSettings>(defaultSettings);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadBusinessSettings();
@@ -52,7 +51,6 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('Error loading business settings:', error);
-        setLoading(false);
         return;
       }
 
@@ -73,13 +71,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
       setSettings(newSettings);
     } catch (error) {
       console.error('Error loading business settings:', error);
-    } finally {
-      setLoading(false);
     }
-  }
-
-  if (loading) {
-    return null;
   }
 
   return (
