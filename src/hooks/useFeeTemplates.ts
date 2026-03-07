@@ -21,7 +21,7 @@ export function useFeeTemplates() {
     try {
       setLoading(true);
       const { data, error } = await supabase
-        .from('fee_templates')
+        .from('saved_fee_templates')
         .select('*')
         .order('name');
 
