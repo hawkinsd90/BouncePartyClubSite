@@ -107,7 +107,8 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
   // 2. Create or update contact
   const { error: contactError } = await supabase.from('contacts').upsert(
     {
-      name: `${contactData.first_name} ${contactData.last_name}`,
+      first_name: contactData.first_name,
+      last_name: contactData.last_name,
       email: contactData.email,
       phone: contactData.phone,
       business_name: contactData.business_name || null,
