@@ -98,6 +98,13 @@ export function OrderApprovalView({
   const originalPaymentCents = order.customer_selected_payment_cents || currentDepositCents;
   const originalMeetsMinimum = originalPaymentCents >= currentDepositCents;
 
+  // Initialize payment settings once when order loads
+  useEffect(() => {
+    const meetsMinimum = (order.customer_selected_payment_cents || currentDepositCents) >= currentDepositCents;
+    setKeepOriginalPayment(meetsMinimum);
+    setPaymentAmount('deposit');
+  }, [order.id]);
+
   let selectedPaymentCents = 0;
 
   if (keepOriginalPayment) {
@@ -109,11 +116,6 @@ export function OrderApprovalView({
   } else if (paymentAmount === 'custom') {
     selectedPaymentCents = dollarsToCents(customAmount);
   }
-
-  useEffect(() => {
-    setKeepOriginalPayment(originalMeetsMinimum);
-    setPaymentAmount('deposit');
-  }, [originalMeetsMinimum]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-50 py-4 md:py-12 px-3 sm:px-6 lg:px-8">

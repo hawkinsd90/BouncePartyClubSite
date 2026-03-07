@@ -146,25 +146,22 @@ export function OrdersManager() {
     single_order: 0,
   }), [categorizedOrders, orders.length]);
 
-  function determineDefaultTab() {
-    if (tabCounts.pending_review > 0) {
-      setActiveTab('pending_review');
-    } else if (tabCounts.awaiting_customer_approval > 0) {
-      setActiveTab('awaiting_customer_approval');
-    } else if (tabCounts.current > 0) {
-      setActiveTab('current');
-    } else if (tabCounts.upcoming > 0) {
-      setActiveTab('upcoming');
-    } else {
-      setActiveTab('all');
-    }
-  }
-
   useEffect(() => {
     if (!tabFromUrl && !singleOrderId) {
-      determineDefaultTab();
+      // Determine default tab based on counts
+      if (tabCounts.pending_review > 0) {
+        setActiveTab('pending_review');
+      } else if (tabCounts.awaiting_customer_approval > 0) {
+        setActiveTab('awaiting_customer_approval');
+      } else if (tabCounts.current > 0) {
+        setActiveTab('current');
+      } else if (tabCounts.upcoming > 0) {
+        setActiveTab('upcoming');
+      } else {
+        setActiveTab('all');
+      }
     }
-  }, [tabCounts, tabFromUrl, singleOrderId]);
+  }, [orders.length, tabFromUrl, singleOrderId]);
 
   useEffect(() => {
     if (tabFromUrl) {
