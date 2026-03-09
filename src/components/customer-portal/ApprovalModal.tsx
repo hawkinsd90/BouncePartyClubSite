@@ -1,12 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
-import { CreditCard, CreditCard as Edit2, MapPin, Calendar, DollarSign } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { CreditCard, CreditCard as Edit2, MapPin, Calendar } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
 import { loadStripe } from '@stripe/stripe-js';
 import { formatOrderId } from '../../lib/utils';
 import { format } from 'date-fns';
 import { formatCurrency } from '../../lib/pricing';
-import { TipSelector, calculateTipCents } from '../payment/TipSelector';
 
 interface ApprovalModalProps {
   isOpen: boolean;
@@ -28,9 +27,6 @@ export function ApprovalModal({
   const [confirmName, setConfirmName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [updatingCard, setUpdatingCard] = useState(false);
-
-  const [tipAmount, setTipAmount] = useState<'none' | '10' | '15' | '20' | 'custom'>('none');
-  const [customTip, setCustomTip] = useState('');
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -87,8 +83,6 @@ export function ApprovalModal({
 
     setSubmitting(true);
     try {
-      const tipCents = calculateTipCents(tipAmount, customTip, currentTotalCents);
-
       const selectedPaymentType = keepOriginalPayment ? 'keep-original' : 'modified';
 
       const { error: updateError } = await supabase
@@ -97,7 +91,6 @@ export function ApprovalModal({
           status: 'confirmed',
           customer_selected_payment_cents: selectedPaymentCents,
           customer_selected_payment_type: selectedPaymentType,
-          tip_cents: tipCents,
         })
         .eq('id', order.id);
 
@@ -110,7 +103,7 @@ export function ApprovalModal({
         field_name: 'status',
         old_value: order.status,
         new_value: 'confirmed',
-        notes: `Customer approved order changes via portal. Payment: ${formatCurrency(selectedPaymentCents)}${tipCents > 0 ? ` + ${formatCurrency(tipCents)} tip` : ''}`,
+        notes: `Customer approved order changes via portal. Payment: ${formatCurrency(selectedPaymentCents)}`,
       });
 
       if (logError) console.error('Error logging approval:', logError);
@@ -150,32 +143,11 @@ export function ApprovalModal({
     order.tax_cents -
     (order.discount_cents || 0);
 
-  const originalTipCents = order.tip_cents || 0;
-
-  const tipCents = calculateTipCents(tipAmount, customTip, currentTotalCents);
-  const amountChargingNow = selectedPaymentCents + tipCents;
-
   const paymentMethodText = order.payment_method_last_four && order.payment_method_brand
     ? `${order.payment_method_brand.charAt(0).toUpperCase() + order.payment_method_brand.slice(1)} •••• ${order.payment_method_last_four}`
     : order.payment_method_last_four
     ? `Card •••• ${order.payment_method_last_four}`
     : null;
-
-  useEffect(() => {
-    if (isOpen) {
-      if (originalTipCents > 0) {
-        const tipPercent = Math.round((originalTipCents / currentTotalCents) * 100);
-        if (tipPercent === 10 || tipPercent === 15 || tipPercent === 20) {
-          setTipAmount(tipPercent.toString() as any);
-        } else {
-          setTipAmount('custom');
-          setCustomTip((originalTipCents / 100).toFixed(2));
-        }
-      } else {
-        setTipAmount('none');
-      }
-    }
-  }, [isOpen, originalTipCents, currentTotalCents]);
 
   if (!isOpen) return null;
 
@@ -196,7 +168,7 @@ export function ApprovalModal({
               </div>
               <div className="text-right">
                 <p className="text-xs text-slate-500">Charging Now</p>
-                <p className="text-lg font-bold text-green-700">{formatCurrency(amountChargingNow)}</p>
+                <p className="text-lg font-bold text-green-700">{formatCurrency(selectedPaymentCents)}</p>
               </div>
             </div>
             <div className="mb-2">
@@ -253,24 +225,6 @@ export function ApprovalModal({
                 )}
               </div>
             </div>
-          </div>
-
-          <div className="mb-4">
-            <h4 className="text-sm font-semibold text-slate-900 mb-2 flex items-center">
-              <DollarSign className="w-4 h-4 mr-1 text-green-600" />
-              Add Tip (Optional)
-            </h4>
-            <p className="text-xs text-slate-600 mb-2">
-              Show your appreciation for our crew! Tips are optional but greatly appreciated.
-            </p>
-            <TipSelector
-              totalCents={currentTotalCents}
-              tipAmount={tipAmount}
-              customTipAmount={customTip}
-              onTipAmountChange={setTipAmount}
-              onCustomTipAmountChange={setCustomTip}
-              formatCurrency={formatCurrency}
-            />
           </div>
 
           <div className="mb-4">
