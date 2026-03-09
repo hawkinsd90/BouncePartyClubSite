@@ -119,8 +119,13 @@ export function ApprovalModal({
 
       showToast('Order approved successfully!', 'success');
 
-      // Call onSuccess - let parent handle navigation
-      onSuccess();
+      // Close modal first
+      onClose();
+
+      // Then call onSuccess after a brief delay to ensure modal is fully unmounted
+      setTimeout(() => {
+        onSuccess();
+      }, 100);
     } catch (error) {
       console.error('Error approving order:', error);
       showToast('Failed to approve order. Please try again.', 'error');

@@ -56,8 +56,13 @@ export function RejectionModal({ isOpen, onClose, order, onSuccess }: RejectionM
 
       showToast('Order has been cancelled.', 'success');
 
-      // Call onSuccess - let parent handle navigation
-      onSuccess();
+      // Close modal first
+      onClose();
+
+      // Then call onSuccess after a brief delay to ensure modal is fully unmounted
+      setTimeout(() => {
+        onSuccess();
+      }, 100);
     } catch (error) {
       console.error('Error rejecting order:', error);
       showToast('Failed to reject order. Please try again.', 'error');
