@@ -80,8 +80,7 @@ export function CustomerPortal() {
         order={order}
         changelog={changelog}
         orderSummary={orderSummary}
-        onApprovalSuccess={async () => {
-          await handleReload();
+        onApprovalSuccess={() => {
           setApprovalSuccess(true);
         }}
         onRejectionSuccess={handleReload}
