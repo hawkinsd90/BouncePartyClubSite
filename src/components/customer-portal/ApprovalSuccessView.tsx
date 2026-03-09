@@ -1,3 +1,5 @@
+import { useNavigate } from 'react-router-dom';
+import { Home, FileText } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
 
 interface ApprovalSuccessViewProps {
@@ -5,6 +7,8 @@ interface ApprovalSuccessViewProps {
 }
 
 export function ApprovalSuccessView({ orderId }: ApprovalSuccessViewProps) {
+  const navigate = useNavigate();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 flex items-center justify-center py-12 px-4">
       <div className="max-w-2xl w-full bg-white rounded-xl shadow-2xl overflow-hidden border-4 border-green-500">
@@ -52,9 +56,26 @@ export function ApprovalSuccessView({ orderId }: ApprovalSuccessViewProps) {
             </ul>
           </div>
 
-          <p className="text-slate-600">
+          <p className="text-slate-600 mb-6">
             You can safely close this window. We'll be in touch soon!
           </p>
+
+          <div className="flex gap-4 justify-center">
+            <button
+              onClick={() => navigate('/')}
+              className="flex items-center gap-2 px-6 py-3 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-medium transition-colors"
+            >
+              <Home className="w-5 h-5" />
+              Return Home
+            </button>
+            <button
+              onClick={() => navigate(`/customer-portal/${orderId}`)}
+              className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+            >
+              <FileText className="w-5 h-5" />
+              View Order Details
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -11,7 +11,7 @@ import { PaymentAmountSelector } from '../shared/PaymentAmountSelector';
 
 interface OrderApprovalViewProps {
   order: any;
-  changelog: any[];
+  changelog?: any[];
   orderSummary: OrderSummaryDisplay | null;
   onApprovalSuccess: () => void;
   onRejectionSuccess: () => void;
@@ -81,7 +81,7 @@ export function OrderApprovalView({
     'order_items',
   ];
 
-  const relevantChanges = changelog.filter((c) =>
+  const relevantChanges = (changelog || []).filter((c) =>
     customerRelevantFields.includes(c.field_changed)
   );
 
@@ -158,7 +158,7 @@ export function OrderApprovalView({
             )}
 
             {!order.stripe_payment_method_id &&
-              changelog.some((c) => c.field_changed === 'payment_method') && (
+              (changelog || []).some((c) => c.field_changed === 'payment_method') && (
                 <div className="bg-amber-50 border-2 border-amber-400 rounded-lg p-4 md:p-6 mb-4 md:mb-6">
                   <h3 className="font-bold text-amber-900 mb-2 md:mb-3 text-base md:text-lg">
                     Payment Update Required
