@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { CreditCard, CreditCard as Edit2, MapPin, Calendar, DollarSign } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
@@ -31,6 +31,14 @@ export function ApprovalModal({
 
   const [tipAmount, setTipAmount] = useState<'none' | '10' | '15' | '20' | 'custom'>('none');
   const [customTip, setCustomTip] = useState('');
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -111,14 +119,14 @@ export function ApprovalModal({
 
       showToast('Order approved successfully!', 'success');
 
-      // Call onSuccess after a brief delay to allow toast to show
-      setTimeout(() => {
-        onSuccess();
-      }, 100);
+      // Call onSuccess - let parent handle navigation
+      onSuccess();
     } catch (error) {
       console.error('Error approving order:', error);
       showToast('Failed to approve order. Please try again.', 'error');
-      setSubmitting(false);
+      if (isMountedRef.current) {
+        setSubmitting(false);
+      }
     }
   }
 

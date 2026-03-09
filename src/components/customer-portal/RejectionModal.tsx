@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
 
@@ -13,6 +13,14 @@ export function RejectionModal({ isOpen, onClose, order, onSuccess }: RejectionM
   const [confirmName, setConfirmName] = useState('');
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -48,14 +56,14 @@ export function RejectionModal({ isOpen, onClose, order, onSuccess }: RejectionM
 
       showToast('Order has been cancelled.', 'success');
 
-      // Call onSuccess after a brief delay to allow toast to show
-      setTimeout(() => {
-        onSuccess();
-      }, 100);
+      // Call onSuccess - let parent handle navigation
+      onSuccess();
     } catch (error) {
       console.error('Error rejecting order:', error);
       showToast('Failed to reject order. Please try again.', 'error');
-      setSubmitting(false);
+      if (isMountedRef.current) {
+        setSubmitting(false);
+      }
     }
   }
 
