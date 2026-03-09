@@ -110,11 +110,14 @@ export function ApprovalModal({
       if (logError) console.error('Error logging approval:', logError);
 
       showToast('Order approved successfully!', 'success');
-      onSuccess();
+
+      // Call onSuccess after a brief delay to allow toast to show
+      setTimeout(() => {
+        onSuccess();
+      }, 100);
     } catch (error) {
       console.error('Error approving order:', error);
       showToast('Failed to approve order. Please try again.', 'error');
-    } finally {
       setSubmitting(false);
     }
   }

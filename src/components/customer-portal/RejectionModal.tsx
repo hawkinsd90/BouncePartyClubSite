@@ -47,11 +47,14 @@ export function RejectionModal({ isOpen, onClose, order, onSuccess }: RejectionM
       if (logError) console.error('Error logging rejection:', logError);
 
       showToast('Order has been cancelled.', 'success');
-      onSuccess();
+
+      // Call onSuccess after a brief delay to allow toast to show
+      setTimeout(() => {
+        onSuccess();
+      }, 100);
     } catch (error) {
       console.error('Error rejecting order:', error);
       showToast('Failed to reject order. Please try again.', 'error');
-    } finally {
       setSubmitting(false);
     }
   }
