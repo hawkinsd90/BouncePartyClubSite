@@ -85,10 +85,10 @@ export function ApprovalModal({
     try {
       const selectedPaymentType = keepOriginalPayment ? 'keep-original' : 'modified';
 
+      // First, update the customer's payment selection
       const { error: updateError } = await supabase
         .from('orders')
         .update({
-          status: 'confirmed',
           customer_selected_payment_cents: selectedPaymentCents,
           customer_selected_payment_type: selectedPaymentType,
         })
@@ -96,19 +96,34 @@ export function ApprovalModal({
 
       if (updateError) throw updateError;
 
+      // Log the approval
       const { error: logError } = await supabase.from('order_changelog').insert({
         order_id: order.id,
         changed_by: null,
-        change_type: 'status_change',
-        field_name: 'status',
-        old_value: order.status,
-        new_value: 'confirmed',
+        change_type: 'customer_approval',
+        field_name: 'customer_approval',
+        old_value: 'awaiting_customer_approval',
+        new_value: 'approved',
         notes: `Customer approved order changes via portal. Payment: ${formatCurrency(selectedPaymentCents)}`,
       });
 
       if (logError) console.error('Error logging approval:', logError);
 
-      showToast('Order approved successfully!', 'success');
+      // Call charge-deposit edge function to process payment and update status
+      const { data: chargeData, error: chargeError } = await supabase.functions.invoke('charge-deposit', {
+        body: { orderId: order.id }
+      });
+
+      if (chargeError) {
+        console.error('Charge deposit error:', chargeError);
+        throw new Error(chargeError.message || 'Failed to process payment');
+      }
+
+      if (!chargeData?.success) {
+        throw new Error(chargeData?.error || 'Payment processing failed');
+      }
+
+      showToast('Order approved and payment processed successfully!', 'success');
 
       // Close modal first
       onClose();
@@ -117,9 +132,9 @@ export function ApprovalModal({
       setTimeout(() => {
         onSuccess();
       }, 100);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error approving order:', error);
-      showToast('Failed to approve order. Please try again.', 'error');
+      showToast(error.message || 'Failed to approve order. Please try again.', 'error');
       if (isMountedRef.current) {
         setSubmitting(false);
       }
