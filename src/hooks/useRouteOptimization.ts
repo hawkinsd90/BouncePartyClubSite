@@ -25,12 +25,19 @@ export function useRouteOptimization() {
 
       const optimizedStops = await optimizeMorningRoute(routeStops);
 
+      console.log('[useRouteOptimization] Optimized stops order:',
+        optimizedStops.map((s, i) => `${i + 1}. ${s.address}`).join('\n'));
+
       // Map optimized stops back to tasks in the new order
-      const optimizedTasks = optimizedStops.map(stop => {
+      const optimizedTasks = optimizedStops.map((stop, index) => {
         const task = tasks.find(t => t.id === stop.taskId);
         if (!task) throw new Error('Task not found');
+        console.log(`[useRouteOptimization] Position ${index + 1}: ${task.customerName} at ${task.address}`);
         return task;
       });
+
+      console.log('[useRouteOptimization] Final optimized tasks order:',
+        optimizedTasks.map((t, i) => `${i + 1}. ${t.customerName}`).join(', '));
 
       return optimizedTasks;
     } catch (error) {

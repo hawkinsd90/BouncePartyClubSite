@@ -114,14 +114,19 @@ export function RouteManagementModal({
       }
 
       const beforeOrder = localTasks.map(t => t.customerName).join(', ');
+      const beforeIds = localTasks.map(t => t.id).join(', ');
       console.log('Before optimization:', beforeOrder);
+      console.log('Before IDs:', beforeIds);
 
       const optimizedTasks = await onOptimizeRoute(localTasks);
 
       const afterOrder = optimizedTasks.map(t => t.customerName).join(', ');
+      const afterIds = optimizedTasks.map(t => t.id).join(', ');
       console.log('After optimization:', afterOrder);
+      console.log('After IDs:', afterIds);
 
-      setLocalTasks(optimizedTasks);
+      // Force new array reference to trigger React re-render
+      setLocalTasks([...optimizedTasks]);
       checkForChanges(optimizedTasks);
 
       // Check if order actually changed

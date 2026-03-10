@@ -399,7 +399,7 @@ export async function optimizeMorningRoute(stops: MorningRouteStop[]): Promise<O
 
   console.log('[Route Optimization] Attempting swap improvements...');
   route = trySwapImprovement(route, distanceMatrix, dependencies, departureTime);
-  console.log('[Route Optimization] Final optimized route:', route.map(r => r.address).join(' → '));
+  console.log('[Route Optimization] Final optimized route:', route.map((r, i) => `${i + 1}. ${r.address} (taskId: ${r.taskId})`).join('\n'));
 
   return route;
 }
