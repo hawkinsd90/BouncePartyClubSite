@@ -1,7 +1,8 @@
 import { loadGoogleMapsAPI } from './googleMaps';
 
-const DEFAULT_DEPARTURE_TIME = '06:30';
+const DEFAULT_DEPARTURE_TIME = '06:20';
 const SETUP_MINUTES_PER_UNIT = 20;
+const PICKUP_MINUTES = 15;
 
 export interface MorningRouteStop {
   id: string;
@@ -49,7 +50,8 @@ async function getDistanceMatrix(
   }
 
   // Load the routes library which includes DistanceMatrixService
-  const { DistanceMatrixService } = await google.maps.importLibrary("routes") as google.maps.RoutesLibrary;
+  const routesLib = await (window.google.maps as any).importLibrary("routes");
+  const DistanceMatrixService = routesLib.DistanceMatrixService;
 
   return new Promise((resolve, reject) => {
     const service = new DistanceMatrixService();
@@ -219,7 +221,9 @@ async function greedyRouteConstruction(
 
       const driveDuration = distanceMatrix[currentLocationIndex][i + 1].duration;
       const arrivalTime = new Date(currentTime.getTime() + driveDuration * 1000);
-      const setupMinutes = (stop.numInflatables || 1) * SETUP_MINUTES_PER_UNIT;
+      const setupMinutes = stop.type === 'pick-up'
+        ? PICKUP_MINUTES
+        : (stop.numInflatables || 1) * SETUP_MINUTES_PER_UNIT;
       const lateness = calculateLateness(arrivalTime, stop, setupMinutes);
 
       const distanceFromBase = distanceMatrix[0][i + 1].duration;
@@ -245,7 +249,9 @@ async function greedyRouteConstruction(
 
     if (!bestCandidate) break;
 
-    const setupMinutes = (bestCandidate.stop.numInflatables || 1) * SETUP_MINUTES_PER_UNIT;
+    const setupMinutes = bestCandidate.stop.type === 'pick-up'
+      ? PICKUP_MINUTES
+      : (bestCandidate.stop.numInflatables || 1) * SETUP_MINUTES_PER_UNIT;
 
     route.push({
       ...bestCandidate.stop,
@@ -324,7 +330,9 @@ function evaluateRoute(
     totalDuration += driveDuration;
 
     currentTime = new Date(currentTime.getTime() + driveDuration * 1000);
-    const setupMinutes = (route[i].numInflatables || 1) * SETUP_MINUTES_PER_UNIT;
+    const setupMinutes = route[i].type === 'pick-up'
+      ? PICKUP_MINUTES
+      : (route[i].numInflatables || 1) * SETUP_MINUTES_PER_UNIT;
     const lateness = calculateLateness(currentTime, route[i], setupMinutes);
     totalLateness += lateness;
 
@@ -343,7 +351,9 @@ export async function optimizeMorningRoute(stops: MorningRouteStop[]): Promise<O
     return [{
       ...stops[0],
       sortOrder: 1,
-      setupMinutes: (stops[0].numInflatables || 1) * SETUP_MINUTES_PER_UNIT,
+      setupMinutes: stops[0].type === 'pick-up'
+        ? PICKUP_MINUTES
+        : (stops[0].numInflatables || 1) * SETUP_MINUTES_PER_UNIT,
       estimatedLateness: 0
     }];
   }

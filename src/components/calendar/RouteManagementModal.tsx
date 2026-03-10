@@ -168,18 +168,31 @@ export function RouteManagementModal({
                       ) : (
                         <Truck className="w-4 h-4 text-green-600 flex-shrink-0" />
                       )}
-                      <h3 className="font-semibold text-slate-900 truncate">
-                        {task.customerName}
-                      </h3>
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
                         task.type === 'pick-up' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'
                       }`}>
                         {task.type === 'pick-up' ? 'PICKUP' : 'DELIVERY'}
                       </span>
                     </div>
-                    <p className="text-sm text-slate-600 truncate">{task.address}</p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      {task.eventStartTime} - {task.eventEndTime}
+                    <h3 className="font-semibold text-slate-900 text-sm mb-1">
+                      {task.customerName}
+                    </h3>
+                    <p className="text-sm text-slate-600 truncate mb-2">{task.address}</p>
+
+                    {/* Equipment List */}
+                    {task.items && task.items.length > 0 && (
+                      <div className="bg-white border border-slate-200 rounded p-2 mb-2">
+                        <p className="text-xs font-semibold text-slate-700 mb-1">Equipment:</p>
+                        <ul className="text-xs text-slate-600 space-y-0.5">
+                          {task.items.map((item, idx) => (
+                            <li key={idx}>• {item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    <p className="text-xs text-slate-500">
+                      Event: {task.eventStartTime} - {task.eventEndTime}
                     </p>
                   </div>
                 </div>
