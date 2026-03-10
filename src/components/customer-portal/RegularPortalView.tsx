@@ -10,6 +10,7 @@ import { PaymentTab } from './PaymentTab';
 import { PicturesTab } from './PicturesTab';
 import { LotPicturesTab } from './LotPicturesTab';
 import { CancelOrderModal } from './CancelOrderModal';
+import { ReceiptModal } from '../dashboard/ReceiptModal';
 import { showToast } from '../../lib/notifications';
 
 interface RegularPortalViewProps {
@@ -28,6 +29,8 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [payments, setPayments] = useState<any[]>([]);
   const [lotPicturesUploaded, setLotPicturesUploaded] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<any>(null);
 
   useEffect(() => {
     loadPayments();
@@ -174,32 +177,36 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           <div className="bg-gradient-to-r from-blue-600 to-cyan-600 px-8 py-6 text-white">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h1 className="text-3xl font-bold">Customer Portal</h1>
-                <p className="mt-2">Order #{formatOrderId(order.id)}</p>
-                <p className="text-sm opacity-90">
-                  Event Date: {format(new Date(order.event_date), 'MMMM d, yyyy')} at{' '}
-                  {order.start_window}
-                </p>
-              </div>
-              <div className="flex gap-2">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-4">
                 <button
                   onClick={() => navigate('/')}
-                  className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-semibold transition-colors text-sm"
+                  className="hover:opacity-80 transition-opacity flex-shrink-0"
+                  title="Return to Home"
                 >
-                  <Home className="w-4 h-4" />
-                  Home
+                  <img
+                    src="/bounce%20party%20club%20logo.png"
+                    alt="Bounce Party Club"
+                    className="h-16 w-16 object-contain"
+                  />
                 </button>
-                {canCancel && (
-                  <button
-                    onClick={() => setShowCancelModal(true)}
-                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors text-sm"
-                  >
-                    Cancel Order
-                  </button>
-                )}
+                <div>
+                  <h1 className="text-3xl font-bold">Customer Portal</h1>
+                  <p className="mt-2">Order #{formatOrderId(order.id)}</p>
+                  <p className="text-sm opacity-90">
+                    Event Date: {format(new Date(order.event_date), 'MMMM d, yyyy')} at{' '}
+                    {order.start_window}
+                  </p>
+                </div>
               </div>
+              {canCancel && (
+                <button
+                  onClick={() => setShowCancelModal(true)}
+                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors text-sm"
+                >
+                  Cancel Order
+                </button>
+              )}
             </div>
           </div>
 
@@ -519,7 +526,10 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                             </p>
                           </div>
                           <button
-                            onClick={() => window.print()}
+                            onClick={() => {
+                              setSelectedPayment(payment);
+                              setShowReceiptModal(true);
+                            }}
                             className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                           >
                             <Printer className="w-4 h-4" />
@@ -573,6 +583,19 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
           onSuccess={() => {
             onReload();
             showToast('Your order has been cancelled', 'success');
+          }}
+        />
+      )}
+
+      {showReceiptModal && selectedPayment && (
+        <ReceiptModal
+          order={order}
+          payment={selectedPayment}
+          summary={orderSummary}
+          loading={false}
+          onClose={() => {
+            setShowReceiptModal(false);
+            setSelectedPayment(null);
           }}
         />
       )}

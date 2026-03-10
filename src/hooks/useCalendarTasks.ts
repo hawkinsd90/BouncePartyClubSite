@@ -97,6 +97,12 @@ export function useCalendarTasks(currentMonth: Date) {
       const monthStart = startOfMonth(currentMonth);
       const monthEnd = endOfMonth(currentMonth);
 
+      // We need to fetch orders that have either:
+      // 1. Event date within the month (for drop-offs)
+      // 2. Pickup date within the month (event date could be previous month)
+      // Since pickup can be event_date or event_date + 1, we need to query from monthStart - 1 day
+      const queryStart = addDays(monthStart, -1);
+
       const { data: orders, error } = await supabase
         .from('orders')
         .select(`
@@ -105,7 +111,7 @@ export function useCalendarTasks(currentMonth: Date) {
           addresses (line1, city, state, zip),
           payments (id, amount_cents, status, paid_at, type)
         `)
-        .gte('event_date', format(monthStart, 'yyyy-MM-dd'))
+        .gte('event_date', format(queryStart, 'yyyy-MM-dd'))
         .lte('event_date', format(monthEnd, 'yyyy-MM-dd'))
         .in('status', ['confirmed', 'in_progress', 'completed', 'pending_review'])
         .order('event_date', { ascending: true });
