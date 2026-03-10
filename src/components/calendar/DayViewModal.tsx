@@ -209,7 +209,7 @@ export function DayViewModal({
 
       <EquipmentChecklistModal
         isOpen={showEquipmentChecklist}
-        tasks={dropOffTasks}
+        tasks={morningTasks}
         onClose={() => setShowEquipmentChecklist(false)}
       />
     </>
