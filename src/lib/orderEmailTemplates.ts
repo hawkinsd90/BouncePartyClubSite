@@ -102,6 +102,13 @@ export function generateConfirmationReceiptEmail(data: OrderEmailData): string {
     });
   }
 
+  if ((order.tip_cents ?? 0) > 0) {
+    pricingRows.push({
+      label: 'Tip',
+      value: `$${((order.tip_cents ?? 0) / 100).toFixed(2)}`,
+    });
+  }
+
   pricingRows.push({
     label: 'Total',
     value: `$${(totalCents / 100).toFixed(2)}`,
@@ -159,11 +166,14 @@ export function generateConfirmationReceiptEmail(data: OrderEmailData): string {
     });
   }
 
+  const portalUrl = `${window.location.origin}/customer-portal/${order.id}`;
+
   content += `
     <div style="background-color: #eff6ff; border: 2px solid #3b82f6; border-radius: 6px; padding: 18px; margin: 25px 0;">
       <h3 style="margin: 0 0 12px; color: #1e40af; font-size: 15px; font-weight: 600;">What's Next?</h3>
       ${createBulletList({
         items: [
+          `<a href="${portalUrl}" style="color: #1e40af; text-decoration: underline;">Track your order status</a> on our customer portal`,
           'We will contact you closer to your event date to confirm details',
           'The remaining balance is due on or before your event date',
           `Reply to this email or call us at ${COMPANY_PHONE} with questions`,
@@ -184,7 +194,8 @@ export function generateConfirmationReceiptEmail(data: OrderEmailData): string {
 }
 
 export function generateConfirmationSmsMessage(order: any, customerFirstName: string): string {
-  return `Hi ${customerFirstName}, your booking for ${format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')} is confirmed! Order #${formatOrderId(order.id)}. We'll contact you closer to your event date. Reply to this message anytime with questions.`;
+  const portalUrl = `${window.location.origin}/customer-portal/${order.id}`;
+  return `Hi ${customerFirstName}, your booking for ${format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')} is confirmed! Order #${formatOrderId(order.id)}. Track your order: ${portalUrl}. We'll contact you closer to your event date.`;
 }
 
 export function generateRejectionSmsMessage(

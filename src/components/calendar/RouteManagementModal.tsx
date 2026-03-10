@@ -315,6 +315,7 @@ export function RouteManagementModal({
           setShowCloseConfirm(false);
           setHasChanges(false);
           setLocalTasks(initialTasks);
+          setModalJustOpened(false);
           onClose();
         }}
         onCancel={() => setShowCloseConfirm(false)}

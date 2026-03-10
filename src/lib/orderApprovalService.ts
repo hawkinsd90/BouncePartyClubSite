@@ -91,8 +91,16 @@ export async function approveOrder(
     await supabase.from('invoices').insert({
       invoice_number: invoiceNumber,
       order_id: orderId,
+      customer_id: orderData.customer_id,
       due_date: orderData.event_date,
-      paid_at: null,
+      status: 'paid',
+      subtotal_cents: orderData.subtotal_cents,
+      tax_cents: orderData.tax_cents ?? 0,
+      travel_fee_cents: orderData.travel_fee_cents ?? 0,
+      surface_fee_cents: orderData.surface_fee_cents ?? 0,
+      same_day_pickup_fee_cents: orderData.same_day_pickup_fee_cents ?? 0,
+      total_cents: totalAmountCents,
+      paid_amount_cents: orderData.deposit_due_cents,
     });
 
     const { data: orderWithRelations } = await supabase

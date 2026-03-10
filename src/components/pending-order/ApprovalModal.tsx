@@ -43,9 +43,14 @@ export function ApprovalModal({
           <p className="text-sm text-slate-600 mb-2">
             <strong>Order:</strong> #{formatOrderId(order.id)}
           </p>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-slate-600 mb-2">
             <strong>Deposit:</strong> {formatCurrency(order.deposit_due_cents)}
           </p>
+          {order.tip_cents > 0 && (
+            <p className="text-sm text-slate-600">
+              <strong>Tip:</strong> {formatCurrency(order.tip_cents)}
+            </p>
+          )}
         </div>
 
         <div className="flex gap-3">

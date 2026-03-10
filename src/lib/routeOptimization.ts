@@ -21,8 +21,8 @@ export interface MorningRouteStop {
 
 export interface OptimizedMorningStop extends MorningRouteStop {
   sortOrder: number;
-  distanceFromPrevious?: number;
-  durationFromPrevious?: number;
+  distanceFromPreviousMeters?: number;
+  durationFromPreviousSeconds?: number;
   arrivalTime?: string;
   setupMinutes?: number;
   estimatedLateness?: number;
@@ -35,7 +35,7 @@ interface DistanceMatrixResult {
 
 interface Candidate {
   stop: MorningRouteStop;
-  driveDuration: number;
+  driveDurationSeconds: number;
   arrivalTime: Date;
   lateness: number;
   score: number;
@@ -61,7 +61,7 @@ async function getDistanceMatrix(
   const routesLib = await google.maps.importLibrary("routes");
   const DistanceMatrixService = routesLib.DistanceMatrixService;
 
-  console.log(`[Route Optimization] Calculating distances for ${origins.length} locations...`);
+  console.log(`[Route Optimization] Calculating distance matrix (distances and durations) for ${origins.length} locations...`);
   if (departureTime) {
     console.log(`[Route Optimization] Using traffic-aware routing for ${departureTime.toLocaleString()}`);
   }
@@ -203,11 +203,11 @@ function calculateLateness(
 
 function calculateScore(
   candidate: Candidate,
-  distanceFromBase: number,
+  baseDriveDurationSeconds: number,
   isHighPriority: boolean
 ): number {
-  const driveDurationMinutes = candidate.driveDuration / 60;
-  const distanceFromBaseMinutes = distanceFromBase / 60;
+  const driveDurationMinutes = candidate.driveDurationSeconds / 60;
+  const baseDriveDurationMinutes = baseDriveDurationSeconds / 60;
 
   const LATENESS_PENALTY = 100;
   const FAR_EARLY_BONUS = 0.1;
@@ -215,7 +215,7 @@ function calculateScore(
 
   let score = driveDurationMinutes;
   score += candidate.lateness * LATENESS_PENALTY;
-  score -= distanceFromBaseMinutes * FAR_EARLY_BONUS;
+  score -= baseDriveDurationMinutes * FAR_EARLY_BONUS;
 
   if (isHighPriority) {
     score -= HIGH_PRIORITY_BONUS;
@@ -249,14 +249,14 @@ async function greedyRouteConstruction(
         throw new Error(`[Route Optimization] Missing matrix index for ${stop.taskId} (${stop.address})`);
       }
 
-      const driveDuration = distanceMatrix[currentMatrixIndex][stopMatrixIndex].duration;
-      const arrivalTime = new Date(currentTime.getTime() + driveDuration * 1000);
+      const driveDurationSeconds = distanceMatrix[currentMatrixIndex][stopMatrixIndex].duration;
+      const arrivalTime = new Date(currentTime.getTime() + driveDurationSeconds * 1000);
       const setupMinutes = stop.type === 'pick-up'
         ? PICKUP_MINUTES
         : (stop.numInflatables || 1) * SETUP_MINUTES_PER_UNIT;
       const lateness = calculateLateness(arrivalTime, stop, setupMinutes);
 
-      const distanceFromBase = distanceMatrix[0][stopMatrixIndex].duration;
+      const baseDriveDurationSeconds = distanceMatrix[0][stopMatrixIndex].duration;
       const isHighPriority =
         isEarlyEvent(stop.eventStartTime) ||
         stop.type === 'pick-up' ||
@@ -264,12 +264,12 @@ async function greedyRouteConstruction(
 
       const candidate: Candidate = {
         stop,
-        driveDuration,
+        driveDurationSeconds,
         arrivalTime,
         lateness,
         score: 0
       };
-      candidate.score = calculateScore(candidate, distanceFromBase, isHighPriority || false);
+      candidate.score = calculateScore(candidate, baseDriveDurationSeconds, isHighPriority || false);
 
       if (bestCandidate === null || candidate.score < bestCandidate.score) {
         bestCandidate = candidate;
@@ -291,8 +291,8 @@ async function greedyRouteConstruction(
     route.push({
       ...bestCandidate.stop,
       sortOrder: route.length + 1,
-      distanceFromPrevious: distanceMatrix[currentMatrixIndex][bestStopMatrixIndex].distance,
-      durationFromPrevious: distanceMatrix[currentMatrixIndex][bestStopMatrixIndex].duration,
+      distanceFromPreviousMeters: distanceMatrix[currentMatrixIndex][bestStopMatrixIndex].distance,
+      durationFromPreviousSeconds: distanceMatrix[currentMatrixIndex][bestStopMatrixIndex].duration,
       arrivalTime: formatTime(bestCandidate.arrivalTime),
       setupMinutes,
       estimatedLateness: bestCandidate.lateness
@@ -323,10 +323,10 @@ function evaluateRoute(
       throw new Error(`[Route Optimization] Missing matrix index for ${stop.taskId} (${stop.address})`);
     }
 
-    const driveDuration = distanceMatrix[currentMatrixIndex][stopMatrixIndex].duration;
-    totalDuration += driveDuration;
+    const driveDurationSeconds = distanceMatrix[currentMatrixIndex][stopMatrixIndex].duration;
+    totalDuration += driveDurationSeconds;
 
-    currentTime = new Date(currentTime.getTime() + driveDuration * 1000);
+    currentTime = new Date(currentTime.getTime() + driveDurationSeconds * 1000);
     const setupMinutes = stop.type === 'pick-up'
       ? PICKUP_MINUTES
       : (stop.numInflatables || 1) * SETUP_MINUTES_PER_UNIT;
@@ -455,8 +455,8 @@ async function greedyRouteConstructionWithStart(
     throw new Error(`[Route Optimization] Missing matrix index for ${firstStop.taskId} (${firstStop.address})`);
   }
 
-  const driveDuration = distanceMatrix[0][firstStopMatrixIndex].duration;
-  const arrivalTime = new Date(currentTime.getTime() + driveDuration * 1000);
+  const driveDurationSeconds = distanceMatrix[0][firstStopMatrixIndex].duration;
+  const arrivalTime = new Date(currentTime.getTime() + driveDurationSeconds * 1000);
   const setupMinutes = firstStop.type === 'pick-up'
     ? PICKUP_MINUTES
     : (firstStop.numInflatables || 1) * SETUP_MINUTES_PER_UNIT;
@@ -464,8 +464,8 @@ async function greedyRouteConstructionWithStart(
   route.push({
     ...firstStop,
     sortOrder: 1,
-    distanceFromPrevious: distanceMatrix[0][firstStopMatrixIndex].distance,
-    durationFromPrevious: driveDuration,
+    distanceFromPreviousMeters: distanceMatrix[0][firstStopMatrixIndex].distance,
+    durationFromPreviousSeconds: driveDurationSeconds,
     arrivalTime: formatTime(arrivalTime),
     setupMinutes,
     estimatedLateness: calculateLateness(arrivalTime, firstStop, setupMinutes)
@@ -488,14 +488,14 @@ async function greedyRouteConstructionWithStart(
         throw new Error(`[Route Optimization] Missing matrix index for ${stop.taskId} (${stop.address})`);
       }
 
-      const driveDuration = distanceMatrix[currentMatrixIndex][stopMatrixIndex].duration;
-      const arrivalTime = new Date(currentTime.getTime() + driveDuration * 1000);
+      const driveDurationSeconds = distanceMatrix[currentMatrixIndex][stopMatrixIndex].duration;
+      const arrivalTime = new Date(currentTime.getTime() + driveDurationSeconds * 1000);
       const setupMinutes = stop.type === 'pick-up'
         ? PICKUP_MINUTES
         : (stop.numInflatables || 1) * SETUP_MINUTES_PER_UNIT;
       const lateness = calculateLateness(arrivalTime, stop, setupMinutes);
 
-      const distanceFromBase = distanceMatrix[0][stopMatrixIndex].duration;
+      const baseDriveDurationSeconds = distanceMatrix[0][stopMatrixIndex].duration;
       const isHighPriority =
         isEarlyEvent(stop.eventStartTime) ||
         stop.type === 'pick-up' ||
@@ -503,12 +503,12 @@ async function greedyRouteConstructionWithStart(
 
       const candidate: Candidate = {
         stop,
-        driveDuration,
+        driveDurationSeconds,
         arrivalTime,
         lateness,
         score: 0
       };
-      candidate.score = calculateScore(candidate, distanceFromBase, isHighPriority || false);
+      candidate.score = calculateScore(candidate, baseDriveDurationSeconds, isHighPriority || false);
 
       if (bestCandidate === null || candidate.score < bestCandidate.score) {
         bestCandidate = candidate;
@@ -530,8 +530,8 @@ async function greedyRouteConstructionWithStart(
     route.push({
       ...bestCandidate.stop,
       sortOrder: route.length + 1,
-      distanceFromPrevious: distanceMatrix[currentMatrixIndex][bestStopMatrixIndex].distance,
-      durationFromPrevious: distanceMatrix[currentMatrixIndex][bestStopMatrixIndex].duration,
+      distanceFromPreviousMeters: distanceMatrix[currentMatrixIndex][bestStopMatrixIndex].distance,
+      durationFromPreviousSeconds: distanceMatrix[currentMatrixIndex][bestStopMatrixIndex].duration,
       arrivalTime: formatTime(bestCandidate.arrivalTime),
       setupMinutes,
       estimatedLateness: bestCandidate.lateness

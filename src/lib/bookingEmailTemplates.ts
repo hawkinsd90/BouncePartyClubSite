@@ -33,6 +33,7 @@ interface OrderEmailData {
   surface_fee_cents: number;
   same_day_pickup_fee_cents: number;
   tax_cents: number;
+  tip_cents?: number;
   deposit_due_cents: number;
   balance_due_cents: number;
   travel_total_miles: number | null;
@@ -135,6 +136,13 @@ export function generateCustomerBookingEmail(order: OrderEmailData): string {
     pricingRows.push({
       label: 'Tax',
       value: `$${(order.tax_cents / 100).toFixed(2)}`,
+    });
+  }
+
+  if (order.tip_cents && order.tip_cents > 0) {
+    pricingRows.push({
+      label: 'Tip',
+      value: `$${(order.tip_cents / 100).toFixed(2)}`,
     });
   }
 
