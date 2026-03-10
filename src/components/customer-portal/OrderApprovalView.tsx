@@ -96,12 +96,12 @@ export function OrderApprovalView({
     (order.tip_cents || 0);
 
   const currentDepositCents = order.deposit_due_cents || 0;
-  const originalPaymentCents = order.customer_selected_payment_cents || currentDepositCents;
-  const originalMeetsMinimum = originalPaymentCents >= currentDepositCents;
+  const originalPaymentCents = (order.customer_selected_payment_cents || currentDepositCents) + (order.tip_cents || 0);
+  const originalMeetsMinimum = (order.customer_selected_payment_cents || currentDepositCents) >= currentDepositCents;
 
   // Initialize payment settings once when order loads
   useEffect(() => {
-    const meetsMinimum = (order.customer_selected_payment_cents || currentDepositCents) >= currentDepositCents;
+    const meetsMinimum = (order.customer_selected_payment_cents || 0) >= currentDepositCents;
     setKeepOriginalPayment(meetsMinimum);
     setPaymentAmount('deposit');
   }, [order.id]);
