@@ -14,6 +14,8 @@ export interface MorningRouteStop {
   equipmentIds: string[];
   feedsOrderIds?: string[];
   numInflatables?: number;
+  lat?: number;
+  lng?: number;
 }
 
 export interface OptimizedMorningStop extends MorningRouteStop {
@@ -213,31 +215,31 @@ async function greedyRouteConstruction(
   stops: MorningRouteStop[],
   distanceMatrix: DistanceMatrixResult[][],
   dependencies: Map<string, string[]>,
-  departureTime: Date
+  departureTime: Date,
+  matrixIndexByTaskId: Map<string, number>
 ): Promise<OptimizedMorningStop[]> {
   const route: OptimizedMorningStop[] = [];
   const scheduled = new Set<string>();
   let currentTime = new Date(departureTime);
-  let currentLocationIndex = 0;
+  let currentMatrixIndex = 0; // Start at home base
 
   while (scheduled.size < stops.length) {
     let bestCandidate: Candidate | null = null;
-    let bestStopIndex = -1;
+    let bestStop: MorningRouteStop | null = null;
 
-    for (let i = 0; i < stops.length; i++) {
-      const stop = stops[i];
-
+    for (const stop of stops) {
       if (scheduled.has(stop.taskId)) continue;
       if (!canSchedule(stop, scheduled, dependencies)) continue;
 
-      const driveDuration = distanceMatrix[currentLocationIndex][i + 1].duration;
+      const stopMatrixIndex = matrixIndexByTaskId.get(stop.taskId)!;
+      const driveDuration = distanceMatrix[currentMatrixIndex][stopMatrixIndex].duration;
       const arrivalTime = new Date(currentTime.getTime() + driveDuration * 1000);
       const setupMinutes = stop.type === 'pick-up'
         ? PICKUP_MINUTES
         : (stop.numInflatables || 1) * SETUP_MINUTES_PER_UNIT;
       const lateness = calculateLateness(arrivalTime, stop, setupMinutes);
 
-      const distanceFromBase = distanceMatrix[0][i + 1].duration;
+      const distanceFromBase = distanceMatrix[0][stopMatrixIndex].duration;
       const isHighPriority =
         isEarlyEvent(stop.eventStartTime) ||
         stop.type === 'pick-up' ||
@@ -254,21 +256,23 @@ async function greedyRouteConstruction(
 
       if (bestCandidate === null || candidate.score < bestCandidate.score) {
         bestCandidate = candidate;
-        bestStopIndex = i;
+        bestStop = stop;
       }
     }
 
-    if (!bestCandidate) break;
+    if (!bestCandidate || !bestStop) break;
 
     const setupMinutes = bestCandidate.stop.type === 'pick-up'
       ? PICKUP_MINUTES
       : (bestCandidate.stop.numInflatables || 1) * SETUP_MINUTES_PER_UNIT;
 
+    const bestStopMatrixIndex = matrixIndexByTaskId.get(bestStop.taskId)!;
+
     route.push({
       ...bestCandidate.stop,
       sortOrder: route.length + 1,
-      distanceFromPrevious: distanceMatrix[currentLocationIndex][bestStopIndex + 1].distance,
-      durationFromPrevious: distanceMatrix[currentLocationIndex][bestStopIndex + 1].duration,
+      distanceFromPrevious: distanceMatrix[currentMatrixIndex][bestStopMatrixIndex].distance,
+      durationFromPrevious: distanceMatrix[currentMatrixIndex][bestStopMatrixIndex].duration,
       arrivalTime: formatTime(bestCandidate.arrivalTime),
       setupMinutes,
       estimatedLateness: bestCandidate.lateness
@@ -276,145 +280,79 @@ async function greedyRouteConstruction(
 
     scheduled.add(bestCandidate.stop.taskId);
     currentTime = new Date(bestCandidate.arrivalTime.getTime() + setupMinutes * 60 * 1000);
-    currentLocationIndex = bestStopIndex + 1;
+    currentMatrixIndex = bestStopMatrixIndex;
   }
 
   return route;
 }
 
-function trySwapImprovement(
-  route: OptimizedMorningStop[],
-  distanceMatrix: DistanceMatrixResult[][],
-  dependencies: Map<string, string[]>,
-  departureTime: Date
-): OptimizedMorningStop[] {
-  let improved = true;
-  let currentRoute = [...route];
-
-  while (improved) {
-    improved = false;
-
-    for (let i = 0; i < currentRoute.length - 1; i++) {
-      const stopA = currentRoute[i];
-      const stopB = currentRoute[i + 1];
-
-      const depsB = dependencies.get(stopB.taskId) || [];
-      if (depsB.includes(stopA.taskId)) {
-        continue;
-      }
-
-      const testRoute = [...currentRoute];
-      [testRoute[i], testRoute[i + 1]] = [testRoute[i + 1], testRoute[i]];
-
-      const currentScore = evaluateRoute(currentRoute, distanceMatrix, departureTime);
-      const testScore = evaluateRoute(testRoute, distanceMatrix, departureTime);
-
-      if (testScore < currentScore) {
-        currentRoute = testRoute;
-        improved = true;
-        break;
-      }
-    }
-  }
-
-  for (let i = 0; i < currentRoute.length; i++) {
-    currentRoute[i].sortOrder = i + 1;
-  }
-
-  return currentRoute;
-}
 
 function evaluateRoute(
   route: OptimizedMorningStop[],
   distanceMatrix: DistanceMatrixResult[][],
-  departureTime: Date
+  departureTime: Date,
+  matrixIndexByTaskId: Map<string, number>
 ): number {
   let totalDuration = 0;
   let totalLateness = 0;
   let currentTime = new Date(departureTime);
+  let currentMatrixIndex = 0; // Start at home base
 
-  for (let i = 0; i < route.length; i++) {
-    const prevIndex = i;
-    const currentIndex = i + 1;
-
-    const driveDuration = distanceMatrix[prevIndex][currentIndex].duration;
+  for (const stop of route) {
+    const stopMatrixIndex = matrixIndexByTaskId.get(stop.taskId)!;
+    const driveDuration = distanceMatrix[currentMatrixIndex][stopMatrixIndex].duration;
     totalDuration += driveDuration;
 
     currentTime = new Date(currentTime.getTime() + driveDuration * 1000);
-    const setupMinutes = route[i].type === 'pick-up'
+    const setupMinutes = stop.type === 'pick-up'
       ? PICKUP_MINUTES
-      : (route[i].numInflatables || 1) * SETUP_MINUTES_PER_UNIT;
-    const lateness = calculateLateness(currentTime, route[i], setupMinutes);
+      : (stop.numInflatables || 1) * SETUP_MINUTES_PER_UNIT;
+    const lateness = calculateLateness(currentTime, stop, setupMinutes);
     totalLateness += lateness;
 
     currentTime = new Date(currentTime.getTime() + setupMinutes * 60 * 1000);
+    currentMatrixIndex = stopMatrixIndex;
   }
 
   return totalDuration + totalLateness * 100;
 }
 
 /**
- * IMPROVEMENT 1: Geographic Sweep Ordering
+ * IMPROVEMENT 1: Geographic Sweep Ordering (NO GEOCODING)
  *
- * Sorts stops by their geographic angle relative to the home base.
+ * Sorts stops by their geographic angle relative to the home base using cached coordinates.
  * This groups nearby stops together and prevents zig-zag routes.
+ * Falls back to original order if coordinates are not available.
  */
-async function sortStopsByAngle(
+function sortStopsByAngle(
   stops: MorningRouteStop[],
-  homeBaseAddress: string
-): Promise<MorningRouteStop[]> {
-  console.log('[Geographic Sweep] Getting coordinates for all locations...');
-
-  // Load Google Maps API
-  await loadGoogleMapsAPI();
-  if (!window.google?.maps) {
-    console.warn('[Geographic Sweep] Google Maps not available, skipping geographic sort');
+  homeBaseLat?: number,
+  homeBaseLng?: number
+): MorningRouteStop[] {
+  // Check if we have home base coordinates
+  if (homeBaseLat === undefined || homeBaseLng === undefined) {
+    console.log('[Geographic Sweep] Home base coordinates not available, skipping sweep ordering');
     return stops;
   }
 
-  const geocoder = new google.maps.Geocoder();
-
-  // Geocode all addresses
-  const geocodeAddress = (address: string): Promise<{ lat: number; lng: number } | null> => {
-    return new Promise((resolve) => {
-      geocoder.geocode({ address }, (results, status) => {
-        if (status === 'OK' && results && results[0]) {
-          const location = results[0].geometry.location;
-          resolve({ lat: location.lat(), lng: location.lng() });
-        } else {
-          console.warn(`[Geographic Sweep] Failed to geocode: ${address}`);
-          resolve(null);
-        }
-      });
-    });
-  };
-
-  // Get home base coordinates
-  const homeCoords = await geocodeAddress(homeBaseAddress);
-  if (!homeCoords) {
-    console.warn('[Geographic Sweep] Could not geocode home base, skipping geographic sort');
-    return stops;
-  }
-
-  console.log('[Geographic Sweep] Home base coordinates:', homeCoords);
-
-  // Get coordinates for all stops
-  const stopsWithCoords = await Promise.all(
-    stops.map(async (stop) => {
-      const coords = await geocodeAddress(stop.address);
-      return { stop, coords };
-    })
+  // Check if all stops have coordinates
+  const allStopsHaveCoords = stops.every(stop =>
+    stop.lat !== undefined && stop.lng !== undefined
   );
 
+  if (!allStopsHaveCoords) {
+    console.log('[Geographic Sweep] Not all stops have coordinates, skipping sweep ordering');
+    return stops;
+  }
+
+  console.log('[Geographic Sweep] Sorting stops by angle from home base...');
+  console.log('[Geographic Sweep] Home base:', { lat: homeBaseLat, lng: homeBaseLng });
+
   // Calculate angles and sort
-  const stopsWithAngles = stopsWithCoords.map(({ stop, coords }) => {
-    let angle = 0;
-    if (coords) {
-      // Calculate angle from home base using atan2
-      const deltaLat = coords.lat - homeCoords.lat;
-      const deltaLng = coords.lng - homeCoords.lng;
-      angle = Math.atan2(deltaLat, deltaLng);
-    }
+  const stopsWithAngles = stops.map((stop) => {
+    const deltaLat = stop.lat! - homeBaseLat;
+    const deltaLng = stop.lng! - homeBaseLng;
+    const angle = Math.atan2(deltaLat, deltaLng);
     return { stop, angle };
   });
 
@@ -438,7 +376,8 @@ async function generateMultipleGreedyRoutes(
   stops: MorningRouteStop[],
   distanceMatrix: DistanceMatrixResult[][],
   dependencies: Map<string, string[]>,
-  departureTime: Date
+  departureTime: Date,
+  matrixIndexByTaskId: Map<string, number>
 ): Promise<OptimizedMorningStop[]> {
   console.log('[Multi-Start Greedy] Generating multiple route candidates...');
 
@@ -460,7 +399,8 @@ async function generateMultipleGreedyRoutes(
         distanceMatrix,
         dependencies,
         departureTime,
-        startIdx
+        startIdx,
+        matrixIndexByTaskId
       );
 
       routes.push(route);
@@ -470,15 +410,15 @@ async function generateMultipleGreedyRoutes(
   }
 
   // Also include the standard greedy route
-  const standardRoute = await greedyRouteConstruction(stops, distanceMatrix, dependencies, departureTime);
+  const standardRoute = await greedyRouteConstruction(stops, distanceMatrix, dependencies, departureTime, matrixIndexByTaskId);
   routes.push(standardRoute);
 
   // Evaluate all routes and pick the best one
   let bestRoute = routes[0];
-  let bestScore = evaluateRoute(bestRoute, distanceMatrix, departureTime);
+  let bestScore = evaluateRoute(bestRoute, distanceMatrix, departureTime, matrixIndexByTaskId);
 
   for (let i = 1; i < routes.length; i++) {
-    const score = evaluateRoute(routes[i], distanceMatrix, departureTime);
+    const score = evaluateRoute(routes[i], distanceMatrix, departureTime, matrixIndexByTaskId);
     console.log(`[Multi-Start Greedy] Route ${i + 1} score: ${score.toFixed(2)}`);
 
     if (score < bestScore) {
@@ -499,7 +439,8 @@ async function greedyRouteConstructionWithStart(
   distanceMatrix: DistanceMatrixResult[][],
   dependencies: Map<string, string[]>,
   departureTime: Date,
-  startStopIndex: number
+  startStopIndex: number,
+  matrixIndexByTaskId: Map<string, number>
 ): Promise<OptimizedMorningStop[]> {
   const route: OptimizedMorningStop[] = [];
   const scheduled = new Set<string>();
@@ -507,7 +448,8 @@ async function greedyRouteConstructionWithStart(
 
   // Start with the specified stop
   const firstStop = stops[startStopIndex];
-  const driveDuration = distanceMatrix[0][startStopIndex + 1].duration;
+  const firstStopMatrixIndex = matrixIndexByTaskId.get(firstStop.taskId)!;
+  const driveDuration = distanceMatrix[0][firstStopMatrixIndex].duration;
   const arrivalTime = new Date(currentTime.getTime() + driveDuration * 1000);
   const setupMinutes = firstStop.type === 'pick-up'
     ? PICKUP_MINUTES
@@ -516,7 +458,7 @@ async function greedyRouteConstructionWithStart(
   route.push({
     ...firstStop,
     sortOrder: 1,
-    distanceFromPrevious: distanceMatrix[0][startStopIndex + 1].distance,
+    distanceFromPrevious: distanceMatrix[0][firstStopMatrixIndex].distance,
     durationFromPrevious: driveDuration,
     arrivalTime: formatTime(arrivalTime),
     setupMinutes,
@@ -525,27 +467,26 @@ async function greedyRouteConstructionWithStart(
 
   scheduled.add(firstStop.taskId);
   currentTime = new Date(arrivalTime.getTime() + setupMinutes * 60 * 1000);
-  let currentLocationIndex = startStopIndex + 1;
+  let currentMatrixIndex = firstStopMatrixIndex;
 
   // Continue with standard greedy for remaining stops
   while (scheduled.size < stops.length) {
     let bestCandidate: Candidate | null = null;
-    let bestStopIndex = -1;
+    let bestStop: MorningRouteStop | null = null;
 
-    for (let i = 0; i < stops.length; i++) {
-      const stop = stops[i];
-
+    for (const stop of stops) {
       if (scheduled.has(stop.taskId)) continue;
       if (!canSchedule(stop, scheduled, dependencies)) continue;
 
-      const driveDuration = distanceMatrix[currentLocationIndex][i + 1].duration;
+      const stopMatrixIndex = matrixIndexByTaskId.get(stop.taskId)!;
+      const driveDuration = distanceMatrix[currentMatrixIndex][stopMatrixIndex].duration;
       const arrivalTime = new Date(currentTime.getTime() + driveDuration * 1000);
       const setupMinutes = stop.type === 'pick-up'
         ? PICKUP_MINUTES
         : (stop.numInflatables || 1) * SETUP_MINUTES_PER_UNIT;
       const lateness = calculateLateness(arrivalTime, stop, setupMinutes);
 
-      const distanceFromBase = distanceMatrix[0][i + 1].duration;
+      const distanceFromBase = distanceMatrix[0][stopMatrixIndex].duration;
       const isHighPriority =
         isEarlyEvent(stop.eventStartTime) ||
         stop.type === 'pick-up' ||
@@ -562,21 +503,23 @@ async function greedyRouteConstructionWithStart(
 
       if (bestCandidate === null || candidate.score < bestCandidate.score) {
         bestCandidate = candidate;
-        bestStopIndex = i;
+        bestStop = stop;
       }
     }
 
-    if (!bestCandidate) break;
+    if (!bestCandidate || !bestStop) break;
 
     const setupMinutes = bestCandidate.stop.type === 'pick-up'
       ? PICKUP_MINUTES
       : (bestCandidate.stop.numInflatables || 1) * SETUP_MINUTES_PER_UNIT;
 
+    const bestStopMatrixIndex = matrixIndexByTaskId.get(bestStop.taskId)!;
+
     route.push({
       ...bestCandidate.stop,
       sortOrder: route.length + 1,
-      distanceFromPrevious: distanceMatrix[currentLocationIndex][bestStopIndex + 1].distance,
-      durationFromPrevious: distanceMatrix[currentLocationIndex][bestStopIndex + 1].duration,
+      distanceFromPrevious: distanceMatrix[currentMatrixIndex][bestStopMatrixIndex].distance,
+      durationFromPrevious: distanceMatrix[currentMatrixIndex][bestStopMatrixIndex].duration,
       arrivalTime: formatTime(bestCandidate.arrivalTime),
       setupMinutes,
       estimatedLateness: bestCandidate.lateness
@@ -584,7 +527,7 @@ async function greedyRouteConstructionWithStart(
 
     scheduled.add(bestCandidate.stop.taskId);
     currentTime = new Date(bestCandidate.arrivalTime.getTime() + setupMinutes * 60 * 1000);
-    currentLocationIndex = bestStopIndex + 1;
+    currentMatrixIndex = bestStopMatrixIndex;
   }
 
   return route;
@@ -600,7 +543,8 @@ function twoOptOptimizeRoute(
   route: OptimizedMorningStop[],
   distanceMatrix: DistanceMatrixResult[][],
   dependencies: Map<string, string[]>,
-  departureTime: Date
+  departureTime: Date,
+  matrixIndexByTaskId: Map<string, number>
 ): OptimizedMorningStop[] {
   console.log('[2-Opt] Starting 2-opt optimization...');
 
@@ -629,8 +573,8 @@ function twoOptOptimizeRoute(
         }
 
         // Evaluate the new route
-        const currentScore = evaluateRoute(currentRoute, distanceMatrix, departureTime);
-        const testScore = evaluateRoute(testRoute, distanceMatrix, departureTime);
+        const currentScore = evaluateRoute(currentRoute, distanceMatrix, departureTime, matrixIndexByTaskId);
+        const testScore = evaluateRoute(testRoute, distanceMatrix, departureTime, matrixIndexByTaskId);
 
         if (testScore < currentScore) {
           console.log(`[2-Opt] Improvement found: ${currentScore.toFixed(2)} → ${testScore.toFixed(2)}`);
@@ -711,6 +655,15 @@ export async function optimizeMorningRoute(stops: MorningRouteStop[]): Promise<O
 
   const distanceMatrix = await getDistanceMatrix(addresses, addresses);
 
+  // Build matrix index map: taskId -> matrix index
+  console.log('[Route Optimization] Building matrix index map...');
+  const matrixIndexByTaskId = new Map<string, number>();
+  for (let i = 0; i < stops.length; i++) {
+    // Matrix indices: 0 = home, 1..N = stops in original order
+    matrixIndexByTaskId.set(stops[i].taskId, i + 1);
+  }
+  console.log('[Route Optimization] Matrix index map created with', matrixIndexByTaskId.size, 'entries');
+
   const dependencies = buildDependencyGraph(stops);
   console.log('[Route Optimization] Dependency graph built, dependencies:', dependencies.size);
 
@@ -724,9 +677,9 @@ export async function optimizeMorningRoute(stops: MorningRouteStop[]): Promise<O
   console.log('[Route Optimization] Starting Enhanced Optimization Pipeline');
   console.log('[Route Optimization] ========================================');
 
-  // Step 1: Geographic Sweep Ordering
+  // Step 1: Geographic Sweep Ordering (using cached coordinates if available)
   console.log('[Route Optimization] Step 1/3: Geographic sweep ordering...');
-  const sweepOrderedStops = await sortStopsByAngle(stops, homeBaseAddress);
+  const sweepOrderedStops = sortStopsByAngle(stops, homeBase.lat, homeBase.lng);
 
   // Step 2: Multi-Start Greedy Construction
   console.log('[Route Optimization] Step 2/3: Multi-start greedy construction...');
@@ -734,19 +687,20 @@ export async function optimizeMorningRoute(stops: MorningRouteStop[]): Promise<O
     sweepOrderedStops,
     distanceMatrix,
     dependencies,
-    departureTime
+    departureTime,
+    matrixIndexByTaskId
   );
-  const greedyScore = evaluateRoute(greedyRoute, distanceMatrix, departureTime);
+  const greedyScore = evaluateRoute(greedyRoute, distanceMatrix, departureTime, matrixIndexByTaskId);
   console.log('[Route Optimization] Best greedy route score:', greedyScore.toFixed(2));
   console.log('[Route Optimization] Greedy route order:', greedyRoute.map(r => r.address).join(' → '));
 
   // Step 3: 2-Opt Optimization
   console.log('[Route Optimization] Step 3/3: 2-opt route optimization...');
-  const optimizedRoute = twoOptOptimizeRoute(greedyRoute, distanceMatrix, dependencies, departureTime);
-  const finalScore = evaluateRoute(optimizedRoute, distanceMatrix, departureTime);
+  const optimizedRoute = twoOptOptimizeRoute(greedyRoute, distanceMatrix, dependencies, departureTime, matrixIndexByTaskId);
+  const finalScore = evaluateRoute(optimizedRoute, distanceMatrix, departureTime, matrixIndexByTaskId);
   console.log('[Route Optimization] Final optimized score:', finalScore.toFixed(2));
-  console.log('[Route Optimization] Improvement:', ((greedyScore - finalScore) / greedyScore * 100).toFixed(1) + '%');
-  console.log('[Route Optimization] Final route:', optimizedRoute.map((r, i) => `${i + 1}. ${r.address} (taskId: ${r.taskId})`).join('\n'));
+  console.log('[Route Optimization] Improvement from greedy:', ((greedyScore - finalScore) / greedyScore * 100).toFixed(1) + '%');
+  console.log('[Route Optimization] Final route order:', optimizedRoute.map((r, i) => `${i + 1}. ${r.address}`).join(' → '));
 
   console.log('[Route Optimization] ========================================');
   console.log('[Route Optimization] Optimization Complete');
