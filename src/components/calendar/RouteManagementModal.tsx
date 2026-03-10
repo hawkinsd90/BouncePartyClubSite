@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Route as RouteIcon, Shuffle, ChevronUp, ChevronDown, Truck, Package } from 'lucide-react';
+import { format } from 'date-fns';
 import { Task } from '../../hooks/useCalendarTasks';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
@@ -8,6 +9,7 @@ interface RouteManagementModalProps {
   isOpen: boolean;
   tasks: Task[];
   type: 'drop-off' | 'pick-up';
+  date: Date;
   onClose: () => void;
   onUpdate: () => void;
   onOptimize: () => void;
@@ -18,6 +20,7 @@ export function RouteManagementModal({
   isOpen,
   tasks,
   type,
+  date,
   onClose,
   onUpdate,
   onOptimize,
@@ -94,11 +97,16 @@ export function RouteManagementModal({
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center z-10">
-          <div className="flex items-center gap-3">
-            <RouteIcon className="w-6 h-6 text-blue-600" />
-            <h2 className="text-xl font-bold text-slate-900">
-              Manage {type === 'drop-off' ? 'Morning' : 'Afternoon'} Route
-            </h2>
+          <div className="flex-1">
+            <div className="flex items-center gap-3 mb-1">
+              <RouteIcon className="w-6 h-6 text-blue-600" />
+              <h2 className="text-xl font-bold text-slate-900">
+                Manage {type === 'drop-off' ? 'Morning' : 'Afternoon'} Route
+              </h2>
+            </div>
+            <p className="text-sm text-slate-600 ml-9">
+              {format(date, 'EEEE, MMMM d, yyyy')}
+            </p>
           </div>
           <button
             onClick={() => {

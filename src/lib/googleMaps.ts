@@ -126,7 +126,7 @@ export async function calculateETA(
   await loadGoogleMapsAPI();
 
   // Load the routes library which includes DistanceMatrixService
-  const routesLib = await (window.google.maps as any).importLibrary("routes");
+  const routesLib = await (google.maps as any).importLibrary("routes");
   const DistanceMatrixService = routesLib.DistanceMatrixService;
 
   return new Promise((resolve, reject) => {

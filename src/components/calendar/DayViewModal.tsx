@@ -132,15 +132,15 @@ export function DayViewModal({
               </div>
 
               {/* Drop-offs / Deliveries Section */}
-              {morningTasks.filter(t => t.taskType === 'drop-off').length > 0 && (
+              {morningTasks.filter(t => t.type === 'drop-off').length > 0 && (
                 <div className="mb-6">
                   <h4 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
                     <TruckIcon className="w-4 h-4 text-green-600" />
-                    Drop-offs / Deliveries ({morningTasks.filter(t => t.taskType === 'drop-off').length})
+                    Drop-offs / Deliveries ({morningTasks.filter(t => t.type === 'drop-off').length})
                   </h4>
                   <div className="space-y-3">
                     {morningTasks
-                      .filter(t => t.taskType === 'drop-off')
+                      .filter(t => t.type === 'drop-off')
                       .sort((a, b) => (a.taskStatus?.sortOrder || 0) - (b.taskStatus?.sortOrder || 0))
                       .map((task) => (
                         <TaskCard
@@ -155,15 +155,15 @@ export function DayViewModal({
               )}
 
               {/* Pick-ups / Retrievals Section */}
-              {morningTasks.filter(t => t.taskType === 'pick-up').length > 0 && (
+              {morningTasks.filter(t => t.type === 'pick-up').length > 0 && (
                 <div>
                   <h4 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
                     <Package className="w-4 h-4 text-orange-600" />
-                    Pick-ups / Retrievals ({morningTasks.filter(t => t.taskType === 'pick-up').length})
+                    Pick-ups / Retrievals ({morningTasks.filter(t => t.type === 'pick-up').length})
                   </h4>
                   <div className="space-y-3">
                     {morningTasks
-                      .filter(t => t.taskType === 'pick-up')
+                      .filter(t => t.type === 'pick-up')
                       .sort((a, b) => (a.taskStatus?.sortOrder || 0) - (b.taskStatus?.sortOrder || 0))
                       .map((task) => (
                         <TaskCard
@@ -232,10 +232,10 @@ export function DayViewModal({
         isOpen={showRouteModal}
         tasks={tasks}
         type={routeType}
+        date={selectedDate}
         onClose={() => setShowRouteModal(false)}
         onUpdate={() => {
           setShowRouteModal(false);
-          window.location.reload();
         }}
         onOptimize={routeType === 'drop-off' ? onOptimizeMorning : onOptimizeAfternoon}
         optimizing={optimizing}
