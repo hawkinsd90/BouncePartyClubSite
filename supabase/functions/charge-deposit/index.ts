@@ -257,6 +257,20 @@ Deno.serve(async (req: Request) => {
       // Don't fail the whole request since charge succeeded, just log it
     }
 
+    // Send receipt email
+    try {
+      await supabaseClient.functions.invoke("send-email", {
+        body: {
+          orderId: orderId,
+          emailType: "payment_receipt",
+          paymentId: paymentIntent.id,
+        },
+      });
+    } catch (emailError) {
+      console.error("Failed to send receipt email:", emailError);
+      // Don't fail the request if email fails
+    }
+
     return new Response(
       JSON.stringify({ success: true }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
