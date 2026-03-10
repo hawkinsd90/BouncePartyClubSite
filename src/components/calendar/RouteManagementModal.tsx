@@ -5,6 +5,7 @@ import { Task } from '../../hooks/useCalendarTasks';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
 import { sortTasksByOrder } from '../../lib/calendarUtils';
+import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
 
 interface RouteManagementModalProps {
   isOpen: boolean;
@@ -31,6 +32,7 @@ export function RouteManagementModal({
   const [hasChanges, setHasChanges] = useState(false);
   const [localTasks, setLocalTasks] = useState<Task[]>([]);
   const [initialOrder, setInitialOrder] = useState<string[]>([]);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
   // Update local tasks when modal opens or tasks change
   useEffect(() => {
@@ -162,11 +164,7 @@ export function RouteManagementModal({
           <button
             onClick={() => {
               if (hasChanges) {
-                if (confirm('You have unsaved changes. Are you sure you want to close?')) {
-                  setHasChanges(false);
-                  setLocalTasks(allRouteTasks);
-                  onClose();
-                }
+                setShowCloseConfirm(true);
               } else {
                 onClose();
               }
@@ -280,6 +278,19 @@ export function RouteManagementModal({
           </div>
         </div>
       </div>
+
+      <SimpleConfirmModal
+        isOpen={showCloseConfirm}
+        title="Unsaved Changes"
+        message="You have unsaved changes. Are you sure you want to close without saving?"
+        onConfirm={() => {
+          setShowCloseConfirm(false);
+          setHasChanges(false);
+          setLocalTasks(allRouteTasks);
+          onClose();
+        }}
+        onCancel={() => setShowCloseConfirm(false)}
+      />
     </div>
   );
 }

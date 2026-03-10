@@ -16,6 +16,15 @@ export function sortTasksByOrder(tasks: Task[]): Task[] {
 
     // If both have sortOrder, use it
     if (orderA !== undefined && orderA !== null && orderB !== undefined && orderB !== null) {
+      // If sortOrder is the same, prioritize deliveries over pickups
+      if (orderA === orderB) {
+        if (a.type === 'drop-off' && b.type === 'pick-up') return -1;
+        if (a.type === 'pick-up' && b.type === 'drop-off') return 1;
+        // If same type and same sortOrder, use event times
+        const timeA = a.type === 'drop-off' ? a.eventStartTime : a.eventEndTime;
+        const timeB = b.type === 'drop-off' ? b.eventStartTime : b.eventEndTime;
+        return timeA.localeCompare(timeB);
+      }
       return orderA - orderB;
     }
 
@@ -23,7 +32,10 @@ export function sortTasksByOrder(tasks: Task[]): Task[] {
     if (orderA !== undefined && orderA !== null) return -1;
     if (orderB !== undefined && orderB !== null) return 1;
 
-    // If neither has sortOrder, sort by event start time for deliveries, end time for pickups
+    // If neither has sortOrder, prioritize deliveries over pickups, then sort by event times
+    if (a.type === 'drop-off' && b.type === 'pick-up') return -1;
+    if (a.type === 'pick-up' && b.type === 'drop-off') return 1;
+
     const timeA = a.type === 'drop-off' ? a.eventStartTime : a.eventEndTime;
     const timeB = b.type === 'drop-off' ? b.eventStartTime : b.eventEndTime;
     return timeA.localeCompare(timeB);
