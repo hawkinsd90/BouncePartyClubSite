@@ -109,21 +109,39 @@ export function ApprovalModal({
 
       if (logError) console.error('Error logging approval:', logError);
 
-      // Call charge-deposit edge function to process payment and update status
-      const { data: chargeData, error: chargeError } = await supabase.functions.invoke('charge-deposit', {
-        body: { orderId: order.id }
-      });
+      // Check if customer already paid the initial deposit
+      const alreadyPaidDeposit = (order.deposit_paid_cents || 0) >= (order.deposit_due_cents || 0);
 
-      if (chargeError) {
-        console.error('Charge deposit error:', chargeError);
-        throw new Error(chargeError.message || 'Failed to process payment');
+      if (alreadyPaidDeposit) {
+        // Customer already paid initial deposit - just update status to confirmed
+        // Any price increases (from added items) will be added to the final balance due
+        const { error: statusError } = await supabase
+          .from('orders')
+          .update({ status: 'confirmed' })
+          .eq('id', order.id);
+
+        if (statusError) {
+          throw new Error(statusError.message || 'Failed to update order status');
+        }
+
+        showToast('Order approved successfully! Any changes will be added to your final balance.', 'success');
+      } else {
+        // Customer hasn't paid initial deposit yet - charge the deposit
+        const { data: chargeData, error: chargeError } = await supabase.functions.invoke('charge-deposit', {
+          body: { orderId: order.id }
+        });
+
+        if (chargeError) {
+          console.error('Charge deposit error:', chargeError);
+          throw new Error(chargeError.message || 'Failed to process payment');
+        }
+
+        if (!chargeData?.success) {
+          throw new Error(chargeData?.error || 'Payment processing failed');
+        }
+
+        showToast('Order approved and payment processed successfully!', 'success');
       }
-
-      if (!chargeData?.success) {
-        throw new Error(chargeData?.error || 'Payment processing failed');
-      }
-
-      showToast('Order approved and payment processed successfully!', 'success');
 
       // Close modal first
       onClose();
