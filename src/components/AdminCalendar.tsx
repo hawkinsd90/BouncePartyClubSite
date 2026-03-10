@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { TaskDetailModal } from './admin/TaskDetailModal';
 import { CalendarHeader } from './calendar/CalendarHeader';
 import { CalendarGrid } from './calendar/CalendarGrid';
@@ -6,6 +6,7 @@ import { DayViewModal } from './calendar/DayViewModal';
 import { useCalendarTasks, Task } from '../hooks/useCalendarTasks';
 import { useRouteOptimization } from '../hooks/useRouteOptimization';
 import { getTasksForDate } from '../lib/calendarUtils';
+import { format, parse } from 'date-fns';
 
 export function AdminCalendar() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -14,7 +15,40 @@ export function AdminCalendar() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   const { tasks, loading, reload } = useCalendarTasks(currentMonth);
-  const { optimizing, optimizeMorningRouteForDay, optimizeAfternoonRouteForDay } = useRouteOptimization();
+  const { optimizing, optimizeRoute } = useRouteOptimization();
+
+  // Load date from URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const dateParam = params.get('date');
+    if (dateParam) {
+      try {
+        const date = parse(dateParam, 'yyyy-MM-dd', new Date());
+        setSelectedDate(date);
+        setShowDayModal(true);
+      } catch (error) {
+        console.error('Invalid date in URL:', error);
+      }
+    }
+  }, []);
+
+  // Update URL when date is selected
+  useEffect(() => {
+    if (selectedDate && showDayModal) {
+      const params = new URLSearchParams(window.location.search);
+      params.set('date', format(selectedDate, 'yyyy-MM-dd'));
+      const newUrl = `${window.location.pathname}?${params.toString()}`;
+      window.history.replaceState({}, '', newUrl);
+    } else if (!showDayModal) {
+      // Remove date param when modal is closed
+      const params = new URLSearchParams(window.location.search);
+      params.delete('date');
+      const newUrl = params.toString()
+        ? `${window.location.pathname}?${params.toString()}`
+        : window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [selectedDate, showDayModal]);
 
   function handleDateClick(date: Date) {
     setSelectedDate(date);
@@ -46,8 +80,7 @@ export function AdminCalendar() {
           optimizing={optimizing}
           onClose={() => setShowDayModal(false)}
           onTaskClick={handleTaskClick}
-          onOptimizeMorning={() => optimizeMorningRouteForDay(selectedDate, selectedDayTasks, reload)}
-          onOptimizeAfternoon={() => optimizeAfternoonRouteForDay(selectedDate, selectedDayTasks, reload)}
+          onOptimizeRoute={optimizeRoute}
           onRefresh={reload}
         />
       )}

@@ -12,7 +12,7 @@ interface RouteManagementModalProps {
   date: Date;
   onClose: () => void;
   onUpdate: () => void;
-  onOptimize: () => void;
+  onOptimizeRoute: (tasks: Task[]) => Promise<Task[]>;
   optimizing?: boolean;
 }
 
@@ -23,7 +23,7 @@ export function RouteManagementModal({
   date,
   onClose,
   onUpdate,
-  onOptimize,
+  onOptimizeRoute,
   optimizing = false,
 }: RouteManagementModalProps) {
   const [saving, setSaving] = useState(false);
@@ -67,6 +67,47 @@ export function RouteManagementModal({
     [reorderedTasks[index], reorderedTasks[index + 1]] = [reorderedTasks[index + 1], reorderedTasks[index]];
     setLocalTasks(reorderedTasks);
     setHasChanges(true);
+  }
+
+  async function handleOptimize() {
+    try {
+      // Ensure all tasks have task_status records
+      for (const task of localTasks) {
+        if (!task.taskStatus) {
+          const { data, error } = await supabase
+            .from('task_status')
+            .insert({
+              order_id: task.orderId,
+              task_type: task.type,
+              task_date: task.date.toISOString().split('T')[0],
+              status: 'pending',
+            })
+            .select()
+            .single();
+
+          if (error) {
+            console.error('Error creating task status:', error);
+            throw error;
+          } else if (data) {
+            task.taskStatus = {
+              id: data.id,
+              status: data.status,
+              sortOrder: 0,
+              deliveryImages: [],
+              damageImages: [],
+              etaSent: false,
+            };
+          }
+        }
+      }
+
+      const optimizedTasks = await onOptimizeRoute(localTasks);
+      setLocalTasks(optimizedTasks);
+      setHasChanges(true);
+    } catch (error: any) {
+      console.error('Error optimizing route:', error);
+      showToast(error.message || 'Failed to optimize route', 'error');
+    }
   }
 
   async function handleSave() {
@@ -132,12 +173,12 @@ export function RouteManagementModal({
               Use the up and down arrows to reorder stops, or use auto-optimization
             </p>
             <button
-              onClick={onOptimize}
-              disabled={saving || optimizing}
+              onClick={handleOptimize}
+              disabled={saving || optimizing || localTasks.length < 2}
               className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
             >
               <Shuffle className="w-4 h-4" />
-              {optimizing ? 'Optimizing Route...' : 'Auto-Optimize Route'}
+              {optimizing ? 'Optimizing...' : 'Auto-Optimize Route'}
             </button>
           </div>
 

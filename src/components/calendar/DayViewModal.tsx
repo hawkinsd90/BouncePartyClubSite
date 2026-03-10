@@ -14,8 +14,7 @@ interface DayViewModalProps {
   optimizing: boolean;
   onClose: () => void;
   onTaskClick: (task: Task) => void;
-  onOptimizeMorning: () => void;
-  onOptimizeAfternoon: () => void;
+  onOptimizeRoute: (tasks: Task[]) => Promise<Task[]>;
   onRefresh?: () => void;
 }
 
@@ -25,8 +24,7 @@ export function DayViewModal({
   optimizing,
   onClose,
   onTaskClick,
-  onOptimizeMorning,
-  onOptimizeAfternoon,
+  onOptimizeRoute,
   onRefresh,
 }: DayViewModalProps) {
   const [showMileageModal, setShowMileageModal] = useState(false);
@@ -242,7 +240,7 @@ export function DayViewModal({
             onRefresh();
           }
         }}
-        onOptimize={routeType === 'drop-off' ? onOptimizeMorning : onOptimizeAfternoon}
+        onOptimizeRoute={onOptimizeRoute}
         optimizing={optimizing}
       />
 
