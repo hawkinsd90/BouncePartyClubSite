@@ -46,11 +46,11 @@ export function ApprovalSuccessView({ orderId }: ApprovalSuccessViewProps) {
             <h3 className="font-bold text-blue-900 mb-2">What happens next?</h3>
             <ul className="text-left text-blue-800 space-y-2 text-sm">
               <li>
-                • Our team will review your approval and finalize the booking details
+                • Your updated booking is now confirmed with the new details
               </li>
-              <li>• You'll receive a confirmation once everything is ready</li>
+              <li>• You'll receive a confirmation email with the updated information</li>
               <li>
-                • We'll send you instructions for signing the waiver and payment
+                • We'll be in touch closer to your event date with final details
               </li>
               <li>• Contact us at (313) 889-3860 if you have any questions</li>
             </ul>
