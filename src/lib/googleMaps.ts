@@ -54,7 +54,16 @@ export function loadGoogleMapsAPI(): Promise<void> {
     script.onload = () => {
       isLoading = false;
       console.log('✅ Google Maps API loaded successfully with new loader');
-      resolve();
+
+      // Wait for importLibrary to be available
+      const waitForImportLibrary = () => {
+        if (typeof window.google?.maps?.importLibrary === 'function') {
+          resolve();
+        } else {
+          setTimeout(waitForImportLibrary, 50);
+        }
+      };
+      waitForImportLibrary();
     };
     script.onerror = (e) => {
       isLoading = false;
@@ -125,8 +134,13 @@ export async function calculateETA(
 ): Promise<ETAResult> {
   await loadGoogleMapsAPI();
 
+  // Ensure importLibrary is available
+  if (typeof google.maps.importLibrary !== 'function') {
+    throw new Error('Google Maps importLibrary not available');
+  }
+
   // Load the routes library which includes DistanceMatrixService
-  const routesLib = await (google.maps as any).importLibrary("routes");
+  const routesLib = await google.maps.importLibrary("routes");
   const DistanceMatrixService = routesLib.DistanceMatrixService;
 
   return new Promise((resolve, reject) => {

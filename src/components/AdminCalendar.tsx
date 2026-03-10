@@ -48,6 +48,7 @@ export function AdminCalendar() {
           onTaskClick={handleTaskClick}
           onOptimizeMorning={() => optimizeMorningRouteForDay(selectedDate, selectedDayTasks, reload)}
           onOptimizeAfternoon={() => optimizeAfternoonRouteForDay(selectedDate, selectedDayTasks, reload)}
+          onRefresh={reload}
         />
       )}
 
