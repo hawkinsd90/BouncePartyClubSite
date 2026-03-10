@@ -21,6 +21,7 @@ export function useRouteOptimization() {
         eventStartTime: task.type === 'drop-off' ? task.eventStartTime : task.eventEndTime,
         equipmentIds: task.equipmentIds,
         numInflatables: task.numInflatables,
+        routeDateISO: task.date.toISOString().split('T')[0],
       }));
 
       const optimizedStops = await optimizeMorningRoute(routeStops);
