@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { Task } from '../../hooks/useCalendarTasks';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
+import { sortTasksByOrder } from '../../lib/calendarUtils';
 
 interface RouteManagementModalProps {
   isOpen: boolean;
@@ -35,33 +36,17 @@ export function RouteManagementModal({
   useEffect(() => {
     if (isOpen) {
       // Combine both deliveries and pickups for the same route
-      const allRouteTasks = [...tasks]
-        .filter(t => {
-          // Morning route: deliveries + next-day pickups (pickup happens next morning)
-          // Afternoon route: same-day pickups (pickup happens same afternoon/evening)
-          if (type === 'drop-off') {
-            return t.type === 'drop-off' || (t.type === 'pick-up' && t.pickupPreference === 'next_day');
-          }
-          return t.type === 'pick-up' && t.pickupPreference === 'same_day';
-        })
-        .sort((a, b) => {
-          const orderA = a.taskStatus?.sortOrder;
-          const orderB = b.taskStatus?.sortOrder;
+      const filteredTasks = tasks.filter(t => {
+        // Morning route: deliveries + next-day pickups (pickup happens next morning)
+        // Afternoon route: same-day pickups (pickup happens same afternoon/evening)
+        if (type === 'drop-off') {
+          return t.type === 'drop-off' || (t.type === 'pick-up' && t.pickupPreference === 'next_day');
+        }
+        return t.type === 'pick-up' && t.pickupPreference === 'same_day';
+      });
 
-          // If both have sortOrder, use it
-          if (orderA !== undefined && orderA !== null && orderB !== undefined && orderB !== null) {
-            return orderA - orderB;
-          }
-
-          // If only one has sortOrder, prioritize it
-          if (orderA !== undefined && orderA !== null) return -1;
-          if (orderB !== undefined && orderB !== null) return 1;
-
-          // If neither has sortOrder, sort by event start time for deliveries, end time for pickups
-          const timeA = a.type === 'drop-off' ? a.eventStartTime : a.eventEndTime;
-          const timeB = b.type === 'drop-off' ? b.eventStartTime : b.eventEndTime;
-          return timeA.localeCompare(timeB);
-        });
+      // Use the SAME sorting function as DayViewModal and getStopNumber
+      const allRouteTasks = sortTasksByOrder(filteredTasks);
 
       setLocalTasks(allRouteTasks);
       setInitialOrder(allRouteTasks.map(t => t.id));
