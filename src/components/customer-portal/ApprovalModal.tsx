@@ -182,6 +182,8 @@ export function ApprovalModal({
     ? `Card •••• ${order.payment_method_last_four}`
     : null;
 
+  const alreadyPaidDeposit = (order.deposit_paid_cents || 0) >= (order.deposit_due_cents || 0);
+
   if (!isOpen) return null;
 
   return (
@@ -200,7 +202,9 @@ export function ApprovalModal({
                 <p className="font-mono text-sm font-semibold text-slate-900">{formatOrderId(order.id)}</p>
               </div>
               <div className="text-right">
-                <p className="text-xs text-slate-500">Charging Now</p>
+                <p className="text-xs text-slate-500">
+                  {alreadyPaidDeposit ? 'Total Amount' : 'Charging Now'}
+                </p>
                 <p className="text-lg font-bold text-green-700">{formatCurrency(selectedPaymentCents)}</p>
               </div>
             </div>
