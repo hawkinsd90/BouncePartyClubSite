@@ -92,7 +92,8 @@ export function OrderApprovalView({
     order.surface_fee_cents +
     (order.same_day_pickup_fee_cents || 0) +
     order.tax_cents -
-    (order.discount_cents || 0);
+    (order.discount_cents || 0) +
+    (order.tip_cents || 0);
 
   const currentDepositCents = order.deposit_due_cents || 0;
   const originalPaymentCents = order.customer_selected_payment_cents || currentDepositCents;

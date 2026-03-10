@@ -174,7 +174,8 @@ export function ApprovalModal({
     order.surface_fee_cents +
     (order.same_day_pickup_fee_cents || 0) +
     order.tax_cents -
-    (order.discount_cents || 0);
+    (order.discount_cents || 0) +
+    (order.tip_cents || 0);
 
   const paymentMethodText = order.payment_method_last_four && order.payment_method_brand
     ? `${order.payment_method_brand.charAt(0).toUpperCase() + order.payment_method_brand.slice(1)} •••• ${order.payment_method_last_four}`
