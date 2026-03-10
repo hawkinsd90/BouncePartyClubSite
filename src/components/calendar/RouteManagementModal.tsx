@@ -33,10 +33,13 @@ export function RouteManagementModal({
   const [localTasks, setLocalTasks] = useState<Task[]>([]);
   const [initialOrder, setInitialOrder] = useState<string[]>([]);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [modalJustOpened, setModalJustOpened] = useState(false);
 
-  // Update local tasks when modal opens or tasks change
+  // Update local tasks ONLY when modal first opens
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !modalJustOpened) {
+      setModalJustOpened(true);
+
       // Combine both deliveries and pickups for the same route
       const filteredTasks = tasks.filter(t => {
         // Morning route: deliveries + next-day pickups (pickup happens next morning)
@@ -53,8 +56,11 @@ export function RouteManagementModal({
       setLocalTasks(allRouteTasks);
       setInitialOrder(allRouteTasks.map(t => t.id));
       setHasChanges(false);
+    } else if (!isOpen && modalJustOpened) {
+      // Reset flag when modal closes
+      setModalJustOpened(false);
     }
-  }, [isOpen, tasks, type]);
+  }, [isOpen, tasks, type, modalJustOpened]);
 
   if (!isOpen) return null;
 
