@@ -35,7 +35,7 @@ export interface Task {
   taskStatus?: {
     id: string;
     status: string;
-    sortOrder: number;
+    sortOrder: number | null;
     deliveryImages?: string[];
     damageImages?: string[];
     etaSent: boolean;
@@ -201,7 +201,7 @@ export function useCalendarTasks(currentMonth: Date) {
           taskStatus: dropOffStatus ? {
             id: dropOffStatus.id,
             status: dropOffStatus.status,
-            sortOrder: dropOffStatus.sort_order || 0,
+            sortOrder: dropOffStatus.sort_order,
             deliveryImages: (dropOffStatus.delivery_images as any) || [],
             damageImages: (dropOffStatus.damage_images as any) || [],
             etaSent: dropOffStatus.eta_sent || false,
@@ -242,7 +242,7 @@ export function useCalendarTasks(currentMonth: Date) {
           taskStatus: pickUpStatus ? {
             id: pickUpStatus.id,
             status: pickUpStatus.status,
-            sortOrder: pickUpStatus.sort_order || 0,
+            sortOrder: pickUpStatus.sort_order,
             deliveryImages: (pickUpStatus.delivery_images as any) || [],
             damageImages: (pickUpStatus.damage_images as any) || [],
             etaSent: pickUpStatus.eta_sent || false,
