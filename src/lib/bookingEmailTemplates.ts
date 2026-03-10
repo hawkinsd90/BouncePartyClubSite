@@ -173,8 +173,8 @@ export function generateCustomerBookingEmail(order: OrderEmailData): string {
   content += createContactInfo();
 
   return createEmailWrapper({
-    title: 'Booking Request Received',
-    headerTitle: 'Booking Request Received!',
+    title: 'Booking Request Confirmed',
+    headerTitle: 'Booking Request Confirmed!',
     content,
     theme: EMAIL_THEMES.primary,
   });

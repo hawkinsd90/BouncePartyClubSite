@@ -83,7 +83,7 @@ Deno.serve(async (req: Request) => {
     const { data: order, error: orderError } = await supabaseClient
       .from("orders")
       .select(
-        "id, stripe_customer_id, stripe_payment_method_id, deposit_due_cents, tip_cents, deposit_paid_cents, status"
+        "id, stripe_customer_id, stripe_payment_method_id, deposit_due_cents, tip_cents, deposit_paid_cents, status, customer_selected_payment_cents"
       )
       .eq("id", orderId)
       .maybeSingle();
@@ -105,7 +105,10 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    if (!order.deposit_due_cents || order.deposit_due_cents <= 0) {
+    // Use customer_selected_payment_cents if available (for approval flow), otherwise deposit_due_cents
+    const paymentAmountCents = order.customer_selected_payment_cents || order.deposit_due_cents;
+
+    if (!paymentAmountCents || paymentAmountCents <= 0) {
       return new Response(
         JSON.stringify({
           success: false,
@@ -116,7 +119,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // If already paid, just update status to confirmed (avoid double charge)
-    if (order.deposit_paid_cents && order.deposit_paid_cents >= order.deposit_due_cents) {
+    if (order.deposit_paid_cents && order.deposit_paid_cents >= paymentAmountCents) {
       // Still need to update status if it's not confirmed yet
       if (order.status !== 'confirmed') {
         const { error: updateError } = await supabaseClient
@@ -167,11 +170,12 @@ Deno.serve(async (req: Request) => {
         .eq("id", orderId);
     }
 
-    const amountCents =
-      order.deposit_due_cents + (order.tip_cents ?? 0);
+    // Charge the payment amount + tip
+    // IMPORTANT: Tip is ONLY added to the charge amount, NOT to deposit_paid_cents
+    const chargeAmountCents = paymentAmountCents + (order.tip_cents ?? 0);
 
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: amountCents,
+      amount: chargeAmountCents,
       currency: "usd",
       customer: order.stripe_customer_id,
       payment_method: order.stripe_payment_method_id,
@@ -194,11 +198,12 @@ Deno.serve(async (req: Request) => {
     }
 
     // Update order as paid & confirmed
+    // IMPORTANT: deposit_paid_cents should NOT include tip
     const { error: updateError } = await supabaseClient
       .from("orders")
       .update({
         status: "confirmed",
-        deposit_paid_cents: amountCents,
+        deposit_paid_cents: paymentAmountCents,
         stripe_payment_status: "paid",
       })
       .eq("id", orderId);
@@ -239,11 +244,11 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Record payment
+    // Record payment with the full charge amount (including tip)
     const { error: paymentError } = await supabaseClient.from("payments").insert({
       order_id: orderId,
       stripe_payment_intent_id: paymentIntent.id,
-      amount_cents: amountCents,
+      amount_cents: chargeAmountCents,
       type: "deposit",
       status: "succeeded",
       paid_at: new Date().toISOString(),

@@ -69,7 +69,10 @@ export function ApprovalSuccessView({ orderId }: ApprovalSuccessViewProps) {
               Return Home
             </button>
             <button
-              onClick={() => navigate(`/customer-portal/${orderId}`)}
+              onClick={() => {
+                // Force a full page reload to ensure portal reloads with new data
+                window.location.href = `/customer-portal/${orderId}`;
+              }}
               className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
             >
               <FileText className="w-5 h-5" />

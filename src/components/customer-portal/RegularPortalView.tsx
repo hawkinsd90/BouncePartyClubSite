@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { FileText, CreditCard, CheckCircle, Image as ImageIcon, MapPin, Printer, Calendar, MapPin as MapPinIcon } from 'lucide-react';
+import { FileText, CreditCard, CheckCircle, Image as ImageIcon, MapPin, Printer, Calendar, MapPin as MapPinIcon, Home } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
 import { supabase } from '../../lib/supabase';
@@ -20,6 +21,7 @@ interface RegularPortalViewProps {
 }
 
 export function RegularPortalView({ order, orderId, orderItems, orderSummary, onReload }: RegularPortalViewProps) {
+  const navigate = useNavigate();
   const isPendingReview = order.status === 'pending_review';
   const lotPicturesRequested = order.lot_pictures_requested || false;
   const [activeTab, setActiveTab] = useState<'details' | 'lot-pictures' | 'waiver' | 'payment' | 'pictures'>('details');
@@ -172,7 +174,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           <div className="bg-gradient-to-r from-blue-600 to-cyan-600 px-8 py-6 text-white">
-            <div className="flex justify-between items-start">
+            <div className="flex justify-between items-start mb-4">
               <div>
                 <h1 className="text-3xl font-bold">Customer Portal</h1>
                 <p className="mt-2">Order #{formatOrderId(order.id)}</p>
@@ -181,14 +183,23 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                   {order.start_window}
                 </p>
               </div>
-              {canCancel && (
+              <div className="flex gap-2">
                 <button
-                  onClick={() => setShowCancelModal(true)}
-                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors text-sm"
+                  onClick={() => navigate('/')}
+                  className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-semibold transition-colors text-sm"
                 >
-                  Cancel Order
+                  <Home className="w-4 h-4" />
+                  Home
                 </button>
-              )}
+                {canCancel && (
+                  <button
+                    onClick={() => setShowCancelModal(true)}
+                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors text-sm"
+                  >
+                    Cancel Order
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 

@@ -161,6 +161,14 @@ export function ReceiptModal({ order, payment, summary, loading, onClose }: Rece
                     </span>
                   </p>
                 )}
+                {order.pickup_preference && (
+                  <p>
+                    <span className="text-gray-600">Pickup: </span>
+                    <span className="font-medium text-gray-900">
+                      {order.pickup_preference === 'same_day' ? 'Same Day Pickup' : 'Next Day Pickup'}
+                    </span>
+                  </p>
+                )}
               </div>
             </div>
 

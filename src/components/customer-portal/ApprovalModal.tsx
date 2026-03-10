@@ -28,6 +28,7 @@ export function ApprovalModal({
   const [submitting, setSubmitting] = useState(false);
   const [updatingCard, setUpdatingCard] = useState(false);
   const isMountedRef = useRef(true);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -35,6 +36,14 @@ export function ApprovalModal({
       isMountedRef.current = false;
     };
   }, []);
+
+  // Handle mobile keyboard - keep input in view
+  const handleInputFocus = () => {
+    // Delay to ensure keyboard is shown
+    setTimeout(() => {
+      inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+  };
 
   async function handleUpdateCard() {
     setUpdatingCard(true);
@@ -270,9 +279,11 @@ export function ApprovalModal({
               To confirm, enter your full name: <span className="text-red-600">*</span>
             </label>
             <input
+              ref={inputRef}
               type="text"
               value={confirmName}
               onChange={(e) => setConfirmName(e.target.value)}
+              onFocus={handleInputFocus}
               placeholder={`${order.customers?.first_name || 'Unknown'} ${order.customers?.last_name || ''}`}
               className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
             />
