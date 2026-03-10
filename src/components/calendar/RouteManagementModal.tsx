@@ -113,9 +113,24 @@ export function RouteManagementModal({
         }
       }
 
+      const beforeOrder = localTasks.map(t => t.customerName).join(', ');
+      console.log('Before optimization:', beforeOrder);
+
       const optimizedTasks = await onOptimizeRoute(localTasks);
+
+      const afterOrder = optimizedTasks.map(t => t.customerName).join(', ');
+      console.log('After optimization:', afterOrder);
+
       setLocalTasks(optimizedTasks);
       checkForChanges(optimizedTasks);
+
+      // Check if order actually changed
+      const orderChanged = beforeOrder !== afterOrder;
+      if (orderChanged) {
+        showToast('Route optimized successfully', 'success');
+      } else {
+        showToast('Route is already optimal', 'info');
+      }
     } catch (error: any) {
       console.error('Error optimizing route:', error);
       showToast(error.message || 'Failed to optimize route', 'error');

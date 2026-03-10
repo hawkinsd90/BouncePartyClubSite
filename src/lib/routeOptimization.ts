@@ -42,11 +42,12 @@ async function getDistanceMatrix(
   origins: string[],
   destinations: string[]
 ): Promise<DistanceMatrixResult[][]> {
+  console.log('[Route Optimization] Loading Google Maps API...');
   await loadGoogleMapsAPI();
 
   // Ensure Google Maps is available
   if (!window.google?.maps) {
-    throw new Error('Google Maps API not loaded');
+    throw new Error('Google Maps API not loaded. Please check your API key configuration.');
   }
 
   // Ensure importLibrary is available
@@ -54,10 +55,12 @@ async function getDistanceMatrix(
     throw new Error('Google Maps importLibrary not available');
   }
 
+  console.log('[Route Optimization] Loading Distance Matrix service...');
   // Load the routes library which includes DistanceMatrixService
   const routesLib = await google.maps.importLibrary("routes");
   const DistanceMatrixService = routesLib.DistanceMatrixService;
 
+  console.log(`[Route Optimization] Calculating distances for ${origins.length} locations...`);
   return new Promise((resolve, reject) => {
     const service = new DistanceMatrixService();
 
@@ -70,7 +73,8 @@ async function getDistanceMatrix(
       },
       (response, status) => {
         if (status !== 'OK') {
-          reject(new Error(`Distance Matrix API error: ${status}`));
+          console.error('[Route Optimization] Distance Matrix API error:', status);
+          reject(new Error(`Distance Matrix API error: ${status}. This may be due to invalid addresses or API quota limits.`));
           return;
         }
 
@@ -79,6 +83,7 @@ async function getDistanceMatrix(
           return;
         }
 
+        console.log('[Route Optimization] Distance matrix calculated successfully');
         const results: DistanceMatrixResult[][] = [];
 
         for (const row of response.rows) {
@@ -90,6 +95,7 @@ async function getDistanceMatrix(
                 duration: element.duration.value,
               });
             } else {
+              console.warn('[Route Optimization] Failed to get distance for route segment:', element.status);
               rowResults.push({
                 distance: Infinity,
                 duration: Infinity,
@@ -348,11 +354,15 @@ function evaluateRoute(
 }
 
 export async function optimizeMorningRoute(stops: MorningRouteStop[]): Promise<OptimizedMorningStop[]> {
+  console.log(`[Route Optimization] Starting optimization for ${stops.length} stops`);
+
   if (stops.length === 0) {
+    console.log('[Route Optimization] No stops to optimize');
     return [];
   }
 
   if (stops.length === 1) {
+    console.log('[Route Optimization] Only 1 stop, no optimization needed');
     return [{
       ...stops[0],
       sortOrder: 1,
@@ -364,22 +374,32 @@ export async function optimizeMorningRoute(stops: MorningRouteStop[]): Promise<O
   }
 
   // Get home base address for routing
+  console.log('[Route Optimization] Getting home base address...');
   const { getHomeBaseAddress } = await import('./adminSettingsCache');
   const homeBase = await getHomeBaseAddress();
   const homeBaseAddress = homeBase.address;
+  console.log('[Route Optimization] Home base:', homeBaseAddress);
 
   const addresses = [homeBaseAddress, ...stops.map(s => s.address)];
+  console.log('[Route Optimization] Stop addresses:', stops.map((s, i) => `${i + 1}. ${s.address}`).join('\n'));
+
   const distanceMatrix = await getDistanceMatrix(addresses, addresses);
 
   const dependencies = buildDependencyGraph(stops);
+  console.log('[Route Optimization] Dependency graph built, dependencies:', dependencies.size);
 
   const today = new Date();
   const [hours, minutes] = DEFAULT_DEPARTURE_TIME.split(':').map(Number);
   const departureTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
+  console.log('[Route Optimization] Departure time:', departureTime.toLocaleTimeString());
 
+  console.log('[Route Optimization] Running greedy route construction...');
   let route = await greedyRouteConstruction(stops, distanceMatrix, dependencies, departureTime);
+  console.log('[Route Optimization] Initial route order:', route.map(r => r.address).join(' → '));
 
+  console.log('[Route Optimization] Attempting swap improvements...');
   route = trySwapImprovement(route, distanceMatrix, dependencies, departureTime);
+  console.log('[Route Optimization] Final optimized route:', route.map(r => r.address).join(' → '));
 
   return route;
 }
