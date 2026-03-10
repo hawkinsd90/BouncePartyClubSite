@@ -33,8 +33,15 @@ export function DayViewModal({
   const [routeType, setRouteType] = useState<'drop-off' | 'pick-up'>('drop-off');
   const [showEquipmentChecklist, setShowEquipmentChecklist] = useState(false);
 
-  const dropOffTasks = tasks.filter(t => t.type === 'drop-off');
-  const pickUpTasks = tasks.filter(t => t.type === 'pick-up');
+  // Morning tasks: deliveries + next-day pickups
+  const morningTasks = tasks.filter(t =>
+    t.type === 'drop-off' || (t.type === 'pick-up' && t.pickupPreference === 'next_day')
+  );
+
+  // Afternoon tasks: same-day pickups only
+  const afternoonTasks = tasks.filter(t =>
+    t.type === 'pick-up' && t.pickupPreference === 'same_day'
+  );
 
   function handleStartDay() {
     setMileageType('start');
@@ -97,14 +104,14 @@ export function DayViewModal({
             </div>
           </div>
 
-          {dropOffTasks.length > 0 && (
+          {morningTasks.length > 0 && (
             <div>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                 <h3 className="text-base sm:text-lg font-bold text-green-900 flex items-center gap-2">
                   <TruckIcon className="w-5 h-5" />
-                  Drop-offs / Deliveries ({dropOffTasks.length})
+                  Morning Route ({morningTasks.length})
                 </h3>
-                {dropOffTasks.length >= 1 && (
+                {morningTasks.length >= 1 && (
                   <div className="flex flex-row gap-2">
                     <button
                       onClick={() => setShowEquipmentChecklist(true)}
@@ -124,7 +131,7 @@ export function DayViewModal({
                 )}
               </div>
               <div className="space-y-3">
-                {dropOffTasks
+                {morningTasks
                   .sort((a, b) => (a.taskStatus?.sortOrder || 0) - (b.taskStatus?.sortOrder || 0))
                   .map((task) => (
                     <TaskCard
@@ -138,14 +145,14 @@ export function DayViewModal({
             </div>
           )}
 
-          {pickUpTasks.length > 0 && (
+          {afternoonTasks.length > 0 && (
             <div>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                 <h3 className="text-base sm:text-lg font-bold text-orange-900 flex items-center gap-2">
                   <Package className="w-5 h-5" />
-                  Pick-ups / Retrievals ({pickUpTasks.length})
+                  Afternoon Route ({afternoonTasks.length})
                 </h3>
-                {pickUpTasks.length >= 1 && (
+                {afternoonTasks.length >= 1 && (
                   <button
                     onClick={() => handleManageRoute('pick-up')}
                     className="flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap"
@@ -156,7 +163,7 @@ export function DayViewModal({
                 )}
               </div>
               <div className="space-y-3">
-                {pickUpTasks
+                {afternoonTasks
                   .sort((a, b) => (a.taskStatus?.sortOrder || 0) - (b.taskStatus?.sortOrder || 0))
                   .map((task) => (
                     <TaskCard

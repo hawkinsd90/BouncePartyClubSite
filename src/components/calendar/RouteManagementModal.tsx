@@ -29,12 +29,12 @@ export function RouteManagementModal({
   // Combine both deliveries and pickups for the same route
   const allRouteTasks = [...tasks]
     .filter(t => {
-      // For morning route (deliveries), include all same-day pickups
-      // For afternoon route (pickups), include all next-day pickups
+      // Morning route: deliveries + next-day pickups (pickup happens next morning)
+      // Afternoon route: same-day pickups (pickup happens same afternoon/evening)
       if (type === 'drop-off') {
-        return t.type === 'drop-off' || (t.type === 'pick-up' && t.pickupPreference === 'same_day');
+        return t.type === 'drop-off' || (t.type === 'pick-up' && t.pickupPreference === 'next_day');
       }
-      return t.type === 'pick-up' && t.pickupPreference !== 'same_day';
+      return t.type === 'pick-up' && t.pickupPreference === 'same_day';
     })
     .sort((a, b) => (a.taskStatus?.sortOrder || 0) - (b.taskStatus?.sortOrder || 0));
 
