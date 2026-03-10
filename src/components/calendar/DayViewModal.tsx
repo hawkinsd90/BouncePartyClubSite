@@ -33,14 +33,40 @@ export function DayViewModal({
   const [routeType, setRouteType] = useState<'drop-off' | 'pick-up'>('drop-off');
   const [showEquipmentChecklist, setShowEquipmentChecklist] = useState(false);
 
-  // Morning tasks: deliveries + next-day pickups
-  const morningTasks = tasks.filter(t =>
-    t.type === 'drop-off' || (t.type === 'pick-up' && t.pickupPreference === 'next_day')
+  // Helper function to sort tasks consistently
+  function sortTasks(tasksToSort: Task[]): Task[] {
+    return [...tasksToSort].sort((a, b) => {
+      const orderA = a.taskStatus?.sortOrder;
+      const orderB = b.taskStatus?.sortOrder;
+
+      // If both have sortOrder, use it
+      if (orderA !== undefined && orderA !== null && orderB !== undefined && orderB !== null) {
+        return orderA - orderB;
+      }
+
+      // If only one has sortOrder, prioritize it
+      if (orderA !== undefined && orderA !== null) return -1;
+      if (orderB !== undefined && orderB !== null) return 1;
+
+      // If neither has sortOrder, sort by event start time for deliveries, end time for pickups
+      const timeA = a.type === 'drop-off' ? a.eventStartTime : a.eventEndTime;
+      const timeB = b.type === 'drop-off' ? b.eventStartTime : b.eventEndTime;
+      return timeA.localeCompare(timeB);
+    });
+  }
+
+  // Morning tasks: deliveries + next-day pickups (sorted together!)
+  const morningTasks = sortTasks(
+    tasks.filter(t =>
+      t.type === 'drop-off' || (t.type === 'pick-up' && t.pickupPreference === 'next_day')
+    )
   );
 
   // Afternoon tasks: same-day pickups only
-  const afternoonTasks = tasks.filter(t =>
-    t.type === 'pick-up' && t.pickupPreference === 'same_day'
+  const afternoonTasks = sortTasks(
+    tasks.filter(t =>
+      t.type === 'pick-up' && t.pickupPreference === 'same_day'
+    )
   );
 
   function handleStartDay() {
@@ -141,7 +167,6 @@ export function DayViewModal({
                   <div className="space-y-3">
                     {morningTasks
                       .filter(t => t.type === 'drop-off')
-                      .sort((a, b) => (a.taskStatus?.sortOrder || 0) - (b.taskStatus?.sortOrder || 0))
                       .map((task) => (
                         <TaskCard
                           key={task.id}
@@ -164,7 +189,6 @@ export function DayViewModal({
                   <div className="space-y-3">
                     {morningTasks
                       .filter(t => t.type === 'pick-up')
-                      .sort((a, b) => (a.taskStatus?.sortOrder || 0) - (b.taskStatus?.sortOrder || 0))
                       .map((task) => (
                         <TaskCard
                           key={task.id}
@@ -197,16 +221,14 @@ export function DayViewModal({
                 )}
               </div>
               <div className="space-y-3">
-                {afternoonTasks
-                  .sort((a, b) => (a.taskStatus?.sortOrder || 0) - (b.taskStatus?.sortOrder || 0))
-                  .map((task) => (
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      stopNumber={getStopNumber(task, tasks)}
-                      onClick={() => onTaskClick(task)}
-                    />
-                  ))}
+                {afternoonTasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    stopNumber={getStopNumber(task, tasks)}
+                    onClick={() => onTaskClick(task)}
+                  />
+                ))}
               </div>
             </div>
           )}

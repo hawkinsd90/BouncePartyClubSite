@@ -28,37 +28,62 @@ export function RouteManagementModal({
 }: RouteManagementModalProps) {
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-
-  // Combine both deliveries and pickups for the same route
-  const allRouteTasks = [...tasks]
-    .filter(t => {
-      // Morning route: deliveries + next-day pickups (pickup happens next morning)
-      // Afternoon route: same-day pickups (pickup happens same afternoon/evening)
-      if (type === 'drop-off') {
-        return t.type === 'drop-off' || (t.type === 'pick-up' && t.pickupPreference === 'next_day');
-      }
-      return t.type === 'pick-up' && t.pickupPreference === 'same_day';
-    })
-    .sort((a, b) => (a.taskStatus?.sortOrder || 0) - (b.taskStatus?.sortOrder || 0));
-
-  const [localTasks, setLocalTasks] = useState(allRouteTasks);
+  const [localTasks, setLocalTasks] = useState<Task[]>([]);
+  const [initialOrder, setInitialOrder] = useState<string[]>([]);
 
   // Update local tasks when modal opens or tasks change
   useEffect(() => {
     if (isOpen) {
+      // Combine both deliveries and pickups for the same route
+      const allRouteTasks = [...tasks]
+        .filter(t => {
+          // Morning route: deliveries + next-day pickups (pickup happens next morning)
+          // Afternoon route: same-day pickups (pickup happens same afternoon/evening)
+          if (type === 'drop-off') {
+            return t.type === 'drop-off' || (t.type === 'pick-up' && t.pickupPreference === 'next_day');
+          }
+          return t.type === 'pick-up' && t.pickupPreference === 'same_day';
+        })
+        .sort((a, b) => {
+          const orderA = a.taskStatus?.sortOrder;
+          const orderB = b.taskStatus?.sortOrder;
+
+          // If both have sortOrder, use it
+          if (orderA !== undefined && orderA !== null && orderB !== undefined && orderB !== null) {
+            return orderA - orderB;
+          }
+
+          // If only one has sortOrder, prioritize it
+          if (orderA !== undefined && orderA !== null) return -1;
+          if (orderB !== undefined && orderB !== null) return 1;
+
+          // If neither has sortOrder, sort by event start time for deliveries, end time for pickups
+          const timeA = a.type === 'drop-off' ? a.eventStartTime : a.eventEndTime;
+          const timeB = b.type === 'drop-off' ? b.eventStartTime : b.eventEndTime;
+          return timeA.localeCompare(timeB);
+        });
+
       setLocalTasks(allRouteTasks);
+      setInitialOrder(allRouteTasks.map(t => t.id));
       setHasChanges(false);
     }
-  }, [isOpen, tasks]);
+  }, [isOpen, tasks, type]);
 
   if (!isOpen) return null;
+
+  // Check if order has changed from initial
+  function checkForChanges(newTasks: Task[]) {
+    const newOrder = newTasks.map(t => t.id);
+    const hasOrderChanged = JSON.stringify(newOrder) !== JSON.stringify(initialOrder);
+    setHasChanges(hasOrderChanged);
+  }
 
   function moveUp(index: number) {
     if (index === 0) return;
     const reorderedTasks = [...localTasks];
     [reorderedTasks[index - 1], reorderedTasks[index]] = [reorderedTasks[index], reorderedTasks[index - 1]];
     setLocalTasks(reorderedTasks);
-    setHasChanges(true);
+    checkForChanges(reorderedTasks);
   }
 
   function moveDown(index: number) {
@@ -66,7 +91,7 @@ export function RouteManagementModal({
     const reorderedTasks = [...localTasks];
     [reorderedTasks[index], reorderedTasks[index + 1]] = [reorderedTasks[index + 1], reorderedTasks[index]];
     setLocalTasks(reorderedTasks);
-    setHasChanges(true);
+    checkForChanges(reorderedTasks);
   }
 
   async function handleOptimize() {
@@ -103,7 +128,7 @@ export function RouteManagementModal({
 
       const optimizedTasks = await onOptimizeRoute(localTasks);
       setLocalTasks(optimizedTasks);
-      setHasChanges(true);
+      checkForChanges(optimizedTasks);
     } catch (error: any) {
       console.error('Error optimizing route:', error);
       showToast(error.message || 'Failed to optimize route', 'error');
