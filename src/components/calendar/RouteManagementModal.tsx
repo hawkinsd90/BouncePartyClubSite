@@ -31,6 +31,7 @@ export function RouteManagementModal({
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [localTasks, setLocalTasks] = useState<Task[]>([]);
+  const [initialTasks, setInitialTasks] = useState<Task[]>([]); // Keep initial tasks for reset
   const [initialOrder, setInitialOrder] = useState<string[]>([]);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [modalJustOpened, setModalJustOpened] = useState(false);
@@ -54,6 +55,7 @@ export function RouteManagementModal({
       const allRouteTasks = sortTasksByOrder(filteredTasks);
 
       setLocalTasks(allRouteTasks);
+      setInitialTasks(allRouteTasks); // Save initial state for reset
       setInitialOrder(allRouteTasks.map(t => t.id));
       setHasChanges(false);
     } else if (!isOpen && modalJustOpened) {
@@ -286,7 +288,7 @@ export function RouteManagementModal({
           <div className="flex gap-3 pt-4 border-t border-slate-200">
             <button
               onClick={() => {
-                setLocalTasks(allRouteTasks);
+                setLocalTasks(initialTasks);
                 setHasChanges(false);
                 onClose();
               }}
@@ -312,7 +314,7 @@ export function RouteManagementModal({
         onConfirm={() => {
           setShowCloseConfirm(false);
           setHasChanges(false);
-          setLocalTasks(allRouteTasks);
+          setLocalTasks(initialTasks);
           onClose();
         }}
         onCancel={() => setShowCloseConfirm(false)}
