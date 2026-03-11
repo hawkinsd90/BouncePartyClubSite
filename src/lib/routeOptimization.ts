@@ -58,73 +58,65 @@ async function getDistanceMatrix(
   }
 
   console.log('[Route Optimization] Loading Routes library...');
-  const { RoutesClient } = await google.maps.importLibrary("routes") as any;
+  const { RouteMatrixService } = await google.maps.importLibrary("routes") as any;
 
   console.log(`[Route Optimization] Calculating distance matrix (distances and durations) for ${origins.length} locations...`);
   if (departureTime) {
     console.log(`[Route Optimization] Using traffic-aware routing for ${departureTime.toLocaleString()}`);
   }
 
-  const resultsMatrix: DistanceMatrixResult[][] = Array(origins.length)
-    .fill(null)
-    .map(() => Array(destinations.length).fill(null));
+  // Build origin and destination waypoints
+  const originWaypoints = origins.map(address => ({
+    waypoint: { address }
+  }));
 
-  for (let i = 0; i < origins.length; i++) {
-    for (let j = 0; j < destinations.length; j++) {
-      const origin = origins[i];
-      const destination = destinations[j];
+  const destinationWaypoints = destinations.map(address => ({
+    waypoint: { address }
+  }));
 
-      const request = {
-        origin: {
-          address: origin,
-        },
-        destination: {
-          address: destination,
-        },
-        travelMode: 'DRIVE',
-        routingPreference: 'TRAFFIC_AWARE',
-        departureTime: departureTime ? departureTime.toISOString() : undefined,
-        computeAlternativeRoutes: false,
-        routeModifiers: {
-          avoidTolls: false,
-          avoidHighways: false,
-          avoidFerries: false,
-        },
-        languageCode: 'en-US',
-        units: 'IMPERIAL',
-      };
+  const request = {
+    origins: originWaypoints,
+    destinations: destinationWaypoints,
+    travelMode: 'DRIVE',
+    routingPreference: 'TRAFFIC_AWARE',
+    departureTime: departureTime ? departureTime.toISOString() : undefined,
+  };
 
-      try {
-        const response = await RoutesClient.computeRoutes(request);
+  try {
+    const response = await RouteMatrixService.computeRouteMatrix(request);
 
-        if (response.routes && response.routes.length > 0) {
-          const route = response.routes[0];
-          const distanceMeters = route.distanceMeters || 0;
-          const durationSeconds = parseInt(route.duration?.replace('s', '') || '0');
+    console.log('[Route Optimization] Distance matrix calculated successfully');
+    const results: DistanceMatrixResult[][] = [];
 
-          resultsMatrix[i][j] = {
-            distance: distanceMeters,
+    // Process the response - RouteMatrixService returns a flat array
+    for (let i = 0; i < origins.length; i++) {
+      const rowResults: DistanceMatrixResult[] = [];
+      for (let j = 0; j < destinations.length; j++) {
+        const idx = i * destinations.length + j;
+        const element = response[idx];
+
+        if (element && element.status === 'OK' && element.distanceMeters && element.duration) {
+          const durationSeconds = parseInt(element.duration.replace('s', ''));
+          rowResults.push({
+            distance: element.distanceMeters,
             duration: durationSeconds,
-          };
+          });
         } else {
-          console.warn(`[Route Optimization] No route found from ${origin} to ${destination}`);
-          resultsMatrix[i][j] = {
+          console.warn(`[Route Optimization] Failed to get route from ${origins[i]} to ${destinations[j]}`);
+          rowResults.push({
             distance: Infinity,
             duration: Infinity,
-          };
+          });
         }
-      } catch (error) {
-        console.error(`[Route Optimization] Error computing route from ${origin} to ${destination}:`, error);
-        resultsMatrix[i][j] = {
-          distance: Infinity,
-          duration: Infinity,
-        };
       }
+      results.push(rowResults);
     }
-  }
 
-  console.log('[Route Optimization] Distance matrix calculated successfully');
-  return resultsMatrix;
+    return results;
+  } catch (error) {
+    console.error('[Route Optimization] Error computing distance matrix:', error);
+    throw new Error(`Distance Matrix API error. This may be due to invalid addresses or API quota limits.`);
+  }
 }
 
 function parseTimeToMinutes(timeStr: string): number {
