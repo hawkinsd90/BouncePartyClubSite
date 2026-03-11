@@ -51,16 +51,18 @@ export async function logTransaction(data: TransactionReceiptData): Promise<stri
         return existingReceipt.receipt_number;
       }
     }
-    // Fallback: if only charge_id is available (no PI or type), check by charge_id
-    else if (data.stripeChargeId) {
+    // Fallback: if only charge_id is available (no PI), check by (charge_id, transaction_type)
+    // IMPORTANT: Must include transaction_type to avoid returning deposit receipt when logging tip
+    else if (data.stripeChargeId && data.transactionType) {
       const { data: existingReceipt } = await supabase
         .from('transaction_receipts')
         .select('receipt_number')
         .eq('stripe_charge_id', data.stripeChargeId)
+        .eq('transaction_type', data.transactionType)
         .maybeSingle();
 
       if (existingReceipt) {
-        console.log('[TransactionReceipt] Receipt already exists for charge:', existingReceipt.receipt_number);
+        console.log('[TransactionReceipt] Receipt already exists for (charge_id, type):', existingReceipt.receipt_number);
         return existingReceipt.receipt_number;
       }
     }
@@ -102,12 +104,14 @@ export async function logTransaction(data: TransactionReceiptData): Promise<stri
           }
         }
 
-        // Fallback to charge_id if PI/type not available
-        if (data.stripeChargeId) {
+        // Fallback to (charge_id, transaction_type) if PI/type not available
+        // IMPORTANT: Must include transaction_type to avoid returning deposit receipt when logging tip
+        if (data.stripeChargeId && data.transactionType) {
           const { data: existingReceipt } = await supabase
             .from('transaction_receipts')
             .select('receipt_number')
             .eq('stripe_charge_id', data.stripeChargeId)
+            .eq('transaction_type', data.transactionType)
             .maybeSingle();
 
           if (existingReceipt) {
