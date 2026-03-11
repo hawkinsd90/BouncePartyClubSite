@@ -89,7 +89,7 @@ export function PaymentSuccessState({ orderDetails, isAdminInvoice, sessionTipCe
                 </p>
               </div>
               <div>
-                <p className="text-sm text-slate-600 mb-1">Payment Made:</p>
+                <p className="text-sm text-slate-600 mb-1">{isAdminInvoice ? 'Payment Made:' : 'Deposit Amount:'}</p>
                 <p className="font-semibold text-green-600">
                   ${((orderDetails.customer_selected_payment_cents || orderDetails.deposit_due_cents) / 100).toFixed(2)}
                 </p>
@@ -104,7 +104,7 @@ export function PaymentSuccessState({ orderDetails, isAdminInvoice, sessionTipCe
               )}
               {displayTipCents > 0 && (
                 <div className="col-span-2">
-                  <p className="text-sm text-slate-600 mb-1">Total Payment (including tip):</p>
+                  <p className="text-sm text-slate-600 mb-1">{isAdminInvoice ? 'Total Payment (including tip):' : 'Total After Approval (including tip):'}</p>
                   <p className="font-semibold text-green-600 text-lg">
                     ${(((orderDetails.customer_selected_payment_cents || orderDetails.deposit_due_cents) + displayTipCents) / 100).toFixed(2)}
                   </p>
