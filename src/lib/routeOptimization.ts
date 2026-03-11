@@ -662,10 +662,18 @@ export async function optimizeMorningRoute(stops: MorningRouteStop[]): Promise<O
   );
   console.log('[Route Optimization] Departure time:', departureTime.toLocaleString());
 
+  // Check if departure time is in the past
+  const now = new Date();
+  const trafficDepartureTime = departureTime > now ? departureTime : undefined;
+
+  if (!trafficDepartureTime) {
+    console.log('[Route Optimization] Departure time is in the past. Traffic information is only available for future and current times.');
+  }
+
   const addresses = [homeBaseAddress, ...stops.map(s => s.address)];
   console.log('[Route Optimization] Stop addresses:', stops.map((s, i) => `${i + 1}. ${s.address}`).join('\n'));
 
-  const distanceMatrix = await getDistanceMatrix(addresses, addresses, departureTime);
+  const distanceMatrix = await getDistanceMatrix(addresses, addresses, trafficDepartureTime);
 
   console.log('[Route Optimization] Building matrix index map...');
   const matrixIndexByTaskId = new Map<string, number>();
