@@ -7,6 +7,7 @@ import {
 } from './orderEmailTemplates';
 import { checkMultipleUnitsAvailability } from './availability';
 import { formatOrderId } from './utils';
+import { logAndNotifyTransaction } from './transactionReceiptService';
 
 interface ApprovalResult {
   success: boolean;
@@ -78,6 +79,64 @@ export async function approveOrder(
 
     console.log('Deposit charged successfully:', data);
 
+    // Get payment record to link to transaction receipt
+    const { data: paymentRecord } = await supabase
+      .from('payments')
+      .select('id')
+      .eq('stripe_payment_intent_id', data.paymentDetails?.paymentIntentId)
+      .maybeSingle();
+
+    // Get customer data for transaction receipt
+    const { data: customerData } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('id', orderData.customer_id)
+      .single();
+
+    // Log deposit transaction and notify admin
+    if (customerData) {
+      const depositAmount = orderData.deposit_due_cents;
+      const tipAmount = orderData.tip_cents ?? 0;
+
+      // Log deposit transaction
+      await logAndNotifyTransaction(
+        {
+          transactionType: 'deposit',
+          orderId,
+          customerId: orderData.customer_id,
+          paymentId: paymentRecord?.id,
+          amountCents: depositAmount,
+          paymentMethod: data.paymentDetails?.paymentMethod,
+          paymentMethodBrand: data.paymentDetails?.paymentBrand,
+          stripeChargeId: data.paymentDetails?.chargeId,
+          stripePaymentIntentId: data.paymentDetails?.paymentIntentId,
+          notes: `Deposit payment for Order ${formatOrderId(orderId)}`,
+        },
+        orderData,
+        customerData
+      );
+
+      // Log tip transaction separately if tip was charged
+      if (tipAmount > 0) {
+        await logAndNotifyTransaction(
+          {
+            transactionType: 'tip',
+            orderId,
+            customerId: orderData.customer_id,
+            paymentId: paymentRecord?.id,
+            amountCents: tipAmount,
+            paymentMethod: data.paymentDetails?.paymentMethod,
+            paymentMethodBrand: data.paymentDetails?.paymentBrand,
+            stripeChargeId: data.paymentDetails?.chargeId,
+            stripePaymentIntentId: data.paymentDetails?.paymentIntentId,
+            notes: `Crew tip for Order ${formatOrderId(orderId)}`,
+          },
+          orderData,
+          customerData
+        );
+      }
+    }
+
     const { data: invoiceNumberData } = await supabase.rpc('generate_invoice_number');
     const invoiceNumber = invoiceNumberData || `INV-${Date.now()}`;
 
@@ -86,7 +145,8 @@ export async function approveOrder(
       orderData.travel_fee_cents +
       (orderData.surface_fee_cents ?? 0) +
       (orderData.same_day_pickup_fee_cents ?? 0) +
-      (orderData.tax_cents ?? 0);
+      (orderData.tax_cents ?? 0) +
+      (orderData.tip_cents ?? 0);
 
     await supabase.from('invoices').insert({
       invoice_number: invoiceNumber,
@@ -99,8 +159,8 @@ export async function approveOrder(
       travel_fee_cents: orderData.travel_fee_cents ?? 0,
       surface_fee_cents: orderData.surface_fee_cents ?? 0,
       same_day_pickup_fee_cents: orderData.same_day_pickup_fee_cents ?? 0,
-      total_cents: totalAmountCents,
-      paid_amount_cents: orderData.deposit_due_cents,
+      total_cents: totalCents,
+      paid_amount_cents: orderData.deposit_due_cents + (orderData.tip_cents ?? 0),
     });
 
     const { data: orderWithRelations } = await supabase

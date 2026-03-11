@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import Stripe from "npm:stripe@20.0.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { logTransaction } from "../_shared/transaction-logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -106,7 +107,7 @@ Deno.serve(async (req: Request) => {
 
             // Create payment record
             if (piId) {
-              await supabaseClient
+              const { data: paymentRecord } = await supabaseClient
                 .from("payments")
                 .insert({
                   order_id: orderId,
@@ -119,7 +120,32 @@ Deno.serve(async (req: Request) => {
                   payment_method: paymentMethodType,
                   payment_brand: paymentBrand,
                   payment_last4: paymentLast4,
+                })
+                .select('id')
+                .single();
+
+              // Get order details for transaction logging
+              const { data: order } = await supabaseClient
+                .from("orders")
+                .select("customer_id")
+                .eq("id", orderId)
+                .single();
+
+              // Log balance payment transaction
+              if (order && paymentRecord) {
+                await logTransaction(supabaseClient, {
+                  transactionType: 'balance',
+                  orderId,
+                  customerId: order.customer_id,
+                  paymentId: paymentRecord.id,
+                  amountCents: amountPaid,
+                  paymentMethod: paymentMethodType,
+                  paymentMethodBrand: paymentBrand,
+                  stripeChargeId: session.latest_charge as string || null,
+                  stripePaymentIntentId: piId,
+                  notes: 'Customer portal balance payment',
                 });
+              }
             }
           } else {
             // Handle deposit payment

@@ -277,7 +277,17 @@ Deno.serve(async (req: Request) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({
+        success: true,
+        paymentDetails: {
+          paymentIntentId: paymentIntent.id,
+          chargeId: paymentIntent.latest_charge,
+          amountCents: chargeAmountCents,
+          paymentMethod,
+          paymentBrand,
+          paymentLast4,
+        }
+      }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
