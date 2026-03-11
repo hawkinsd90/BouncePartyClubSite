@@ -169,11 +169,15 @@ export function generateConfirmationReceiptEmail(data: OrderEmailData): string {
   const portalUrl = `${window.location.origin}/customer-portal/${order.id}`;
 
   content += `
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${portalUrl}" style="display: inline-block; background-color: #3b82f6; color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 700; font-size: 16px; box-shadow: 0 4px 6px rgba(59, 130, 246, 0.25);">
+        Track Your Order
+      </a>
+    </div>
     <div style="background-color: #eff6ff; border: 2px solid #3b82f6; border-radius: 6px; padding: 18px; margin: 25px 0;">
       <h3 style="margin: 0 0 12px; color: #1e40af; font-size: 15px; font-weight: 600;">What's Next?</h3>
       ${createBulletList({
         items: [
-          `<a href="${portalUrl}" style="color: #1e40af; text-decoration: underline;">Track your order status</a> on our customer portal`,
           'We will contact you closer to your event date to confirm details',
           'The remaining balance is due on or before your event date',
           `Reply to this email or call us at ${COMPANY_PHONE} with questions`,

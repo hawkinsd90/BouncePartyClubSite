@@ -30,6 +30,7 @@ const MenuPreview = lazy(() => import('./pages/MenuPreview').then(m => ({ defaul
 const SignUp = lazy(() => import('./pages/SignUp').then(m => ({ default: m.SignUp })));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword').then(m => ({ default: m.ForgotPassword })));
 const ResetPassword = lazy(() => import('./pages/ResetPassword').then(m => ({ default: m.ResetPassword })));
+const Receipt = lazy(() => import('./pages/Receipt').then(m => ({ default: m.Receipt })));
 
 
 function App() {
@@ -60,6 +61,7 @@ function App() {
           <Route path="/sign/:orderId" element={<Sign />} />
           <Route path="/customer-portal/:orderId" element={<CustomerPortal />} />
           <Route path="/customer-portal" element={<CustomerPortal />} />
+          <Route path="/receipt/:orderId/:paymentId" element={<Receipt />} />
           <Route path="/payment-complete" element={<PaymentComplete />} />
           <Route path="/payment-canceled" element={<PaymentCanceled />} />
           <Route path="/checkout/:orderId" element={<Checkout />} />

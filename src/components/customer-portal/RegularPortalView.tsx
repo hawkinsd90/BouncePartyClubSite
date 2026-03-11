@@ -10,7 +10,6 @@ import { PaymentTab } from './PaymentTab';
 import { PicturesTab } from './PicturesTab';
 import { LotPicturesTab } from './LotPicturesTab';
 import { CancelOrderModal } from './CancelOrderModal';
-import { ReceiptModal } from '../dashboard/ReceiptModal';
 import { showToast } from '../../lib/notifications';
 
 interface RegularPortalViewProps {
@@ -29,8 +28,6 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [payments, setPayments] = useState<any[]>([]);
   const [lotPicturesUploaded, setLotPicturesUploaded] = useState(false);
-  const [showReceiptModal, setShowReceiptModal] = useState(false);
-  const [selectedPayment, setSelectedPayment] = useState<any>(null);
 
   useEffect(() => {
     loadPayments();
@@ -532,8 +529,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                           </div>
                           <button
                             onClick={() => {
-                              setSelectedPayment(payment);
-                              setShowReceiptModal(true);
+                              window.open(`/receipt/${orderId}/${payment.id}`, '_blank');
                             }}
                             className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                           >
@@ -592,18 +588,6 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
         />
       )}
 
-      {showReceiptModal && selectedPayment && (
-        <ReceiptModal
-          order={order}
-          payment={selectedPayment}
-          summary={orderSummary}
-          loading={false}
-          onClose={() => {
-            setShowReceiptModal(false);
-            setSelectedPayment(null);
-          }}
-        />
-      )}
     </div>
   );
 }
