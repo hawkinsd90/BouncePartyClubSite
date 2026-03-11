@@ -142,6 +142,39 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
           customer_selected_payment_cents: order.customer_selected_payment_cents,
         });
 
+        // If webhook still hasn't processed after retries, manually update the order
+        if (order.status === 'draft' && sessionId) {
+          console.log('[PAYMENT-COMPLETE] Webhook failed to process, manually updating order status...');
+
+          // Check if this is an admin invoice
+          const { data: invoiceLink } = await supabase
+            .from('invoice_links' as any)
+            .select('id')
+            .eq('order_id', orderId!)
+            .maybeSingle();
+
+          const isAdminInvoice = !!invoiceLink;
+          const newStatus = isAdminInvoice ? 'confirmed' : 'pending_review';
+
+          // Update order status
+          const { error: updateError } = await supabase
+            .from('orders')
+            .update({
+              status: newStatus,
+              tip_cents: sessionTipCents,
+              stripe_payment_status: 'paid'
+            })
+            .eq('id', orderId!);
+
+          if (updateError) {
+            console.error('[PAYMENT-COMPLETE] Error manually updating order:', updateError);
+          } else {
+            console.log(`[PAYMENT-COMPLETE] Successfully updated order to status: ${newStatus}`);
+            // Refetch order with updated data
+            order = await fetchOrderDetails();
+          }
+        }
+
         setOrderDetails(order);
         await checkIfAdminInvoice();
 
