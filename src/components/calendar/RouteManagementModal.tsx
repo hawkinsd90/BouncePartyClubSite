@@ -318,7 +318,7 @@ export function RouteManagementModal({
           setModalJustOpened(false);
           onClose();
         }}
-        onCancel={() => setShowCloseConfirm(false)}
+        onClose={() => setShowCloseConfirm(false)}
       />
     </div>
   );
