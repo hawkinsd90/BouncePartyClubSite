@@ -160,19 +160,41 @@ async function processWebhookEvent(
         console.log(`💰 [WEBHOOK] Payment completed: ${paymentType} for order ${orderId}`);
 
         if (paymentType === "balance") {
-          // Extract latest_charge for fee lookup
+          // Extract payment method details and latest_charge from expanded PaymentIntent
           const piId = paymentIntentId;
           let latestChargeId: string | null = null;
+          let paymentMethodType: string | null = null;
+          let paymentBrand: string | null = null;
+          let paymentLast4: string | null = null;
 
           if (piId) {
             try {
-              const pi = await stripe.paymentIntents.retrieve(piId);
+              // IMPORTANT: expand payment_method and latest_charge for reliable payment details
+              const pi = await stripe.paymentIntents.retrieve(piId, {
+                expand: ['payment_method', 'latest_charge'],
+              });
+
+              // Extract latest_charge ID
               latestChargeId =
                 typeof pi.latest_charge === "string"
                   ? pi.latest_charge
                   : pi.latest_charge?.id || null;
+
+              // Extract payment method details from expanded payment_method
+              const pm = pi.payment_method;
+              if (pm && typeof pm === 'object') {
+                // @ts-ignore (pm is expanded PaymentMethod)
+                paymentMethodType = pm.type || null;
+                // @ts-ignore
+                if (pm.card) {
+                  // @ts-ignore
+                  paymentBrand = pm.card.brand || null;
+                  // @ts-ignore
+                  paymentLast4 = pm.card.last4 || null;
+                }
+              }
             } catch (err) {
-              console.error("[WEBHOOK] Failed to retrieve PI:", err);
+              console.error("[WEBHOOK] Failed to retrieve PI with expansions:", err);
             }
           }
 
@@ -205,24 +227,6 @@ async function processWebhookEvent(
               }
             } catch (err) {
               console.error('[WEBHOOK] Failed to retrieve charge fee data:', err);
-            }
-          }
-
-          // Get payment method details if available
-          let paymentMethodType: string | null = null;
-          let paymentBrand: string | null = null;
-          let paymentLast4: string | null = null;
-
-          if (paymentMethodId) {
-            try {
-              const pm = await stripe.paymentMethods.retrieve(paymentMethodId);
-              paymentMethodType = pm.type || null;
-              if (pm.card) {
-                paymentBrand = pm.card.brand || null;
-                paymentLast4 = pm.card.last4 || null;
-              }
-            } catch (pmError) {
-              console.error("[WEBHOOK] Failed to retrieve payment method details:", pmError);
             }
           }
 
@@ -430,6 +434,8 @@ async function processWebhookEvent(
 
         if (originalPayment?.order_id) {
           const refundAmountCents = charge.amount_refunded || 0;
+          // Store refunds as negative amounts for correct ledger math
+          const refundAmountSigned = -Math.abs(refundAmountCents);
           const refundId = (charge.refunds?.data?.[0]?.id as string) || null;
 
           // Get order and customer details
@@ -439,13 +445,13 @@ async function processWebhookEvent(
             .eq("id", originalPayment.order_id)
             .single();
 
-          // Create refund payment record
+          // Create refund payment record with negative amount
           const { data: refundPayment } = await supabaseClient
             .from("payments")
             .insert({
               order_id: originalPayment.order_id,
               stripe_payment_intent_id: paymentIntentId,
-              amount_cents: refundAmountCents,
+              amount_cents: refundAmountSigned,
               type: "refund",
               status: "succeeded",
               paid_at: new Date().toISOString(),
@@ -453,20 +459,20 @@ async function processWebhookEvent(
               payment_brand: originalPayment.payment_brand,
               refunded_payment_id: originalPayment.id,
               stripe_fee_amount: 0,
-              stripe_net_amount: refundAmountCents,
+              stripe_net_amount: refundAmountSigned,
               currency: 'usd',
             })
             .select('id')
             .single();
 
-          // Create transaction receipt for refund
+          // Create transaction receipt for refund with negative amount
           if (order && refundPayment) {
             await logTransaction(supabaseClient, {
               transactionType: 'refund',
               orderId: originalPayment.order_id,
               customerId: order.customer_id,
               paymentId: refundPayment.id,
-              amountCents: refundAmountCents,
+              amountCents: refundAmountSigned,
               paymentMethod: originalPayment.payment_method,
               paymentMethodBrand: originalPayment.payment_brand,
               stripeChargeId: charge.id,
@@ -475,7 +481,7 @@ async function processWebhookEvent(
             });
           }
 
-          // Keep existing order_refunds insert for backwards compatibility
+          // Keep existing order_refunds insert for backwards compatibility (positive amount)
           await supabaseClient.from("order_refunds").insert({
             order_id: originalPayment.order_id,
             amount_cents: refundAmountCents,
@@ -485,7 +491,7 @@ async function processWebhookEvent(
             status: charge.refunded ? "succeeded" : "pending",
           });
 
-          console.log(`✅ [WEBHOOK] Refund processed: $${(refundAmountCents / 100).toFixed(2)} for order ${originalPayment.order_id}`);
+          console.log(`✅ [WEBHOOK] Refund processed: -$${(refundAmountCents / 100).toFixed(2)} for order ${originalPayment.order_id}`);
         }
         break;
       }
