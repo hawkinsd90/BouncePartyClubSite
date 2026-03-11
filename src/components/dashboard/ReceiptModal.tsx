@@ -56,6 +56,12 @@ export function ReceiptModal({ order, payment, summary, loading, onClose }: Rece
               </div>
             </div>
 
+            <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 mb-4">
+              <div className="text-sm font-medium text-blue-900">
+                Payment Type: {payment.type === 'deposit' ? 'Deposit Payment' : 'Final Balance Payment'}
+              </div>
+            </div>
+
             <div className="bg-green-50 p-4 rounded-lg border-2 border-green-200">
               <div className="space-y-2">
                 {/* Show breakdown if tip was included */}

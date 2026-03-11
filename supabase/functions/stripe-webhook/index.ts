@@ -308,6 +308,7 @@ async function processWebhookEvent(
               stripe_payment_method_id: paymentMethodId,
               stripe_customer_id: stripeCustomerId,
               deposit_paid_cents: depositOnly,
+              tip_cents: tipCents,
               status: newStatus,
             })
             .eq("id", orderId);

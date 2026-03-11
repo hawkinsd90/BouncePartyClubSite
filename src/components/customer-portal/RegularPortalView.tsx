@@ -429,8 +429,12 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                       <p className="text-sm font-semibold text-slate-700 mb-2">Items:</p>
                       {orderSummary.items.map((item: any, index: number) => (
                         <div key={index} className="flex justify-between text-sm mb-1">
-                          <span className="text-slate-600">{item.description}</span>
-                          <span className="font-medium text-slate-900">{item.price}</span>
+                          <span className="text-slate-600">
+                            {item.name} ({item.mode}) × {item.qty}
+                          </span>
+                          <span className="font-medium text-slate-900">
+                            {formatCurrency(item.lineTotal)}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -528,112 +532,13 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                           </div>
                           <button
                             onClick={() => {
-                              // Open receipt in new tab for printing
-                              const receiptWindow = window.open('', '_blank');
-                              if (receiptWindow) {
-                                receiptWindow.document.write(`
-                                  <!DOCTYPE html>
-                                  <html>
-                                    <head>
-                                      <title>Payment Receipt - Order #${order.order_number}</title>
-                                      <meta charset="utf-8">
-                                      <meta name="viewport" content="width=device-width, initial-scale=1">
-                                      <style>
-                                        * { margin: 0; padding: 0; box-sizing: border-box; }
-                                        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }
-                                        .header { text-align: center; margin-bottom: 40px; padding-bottom: 30px; border-bottom: 2px solid #e2e8f0; }
-                                        .header img { height: 80px; margin-bottom: 16px; }
-                                        .header h1 { font-size: 24px; font-weight: bold; color: #1e293b; }
-                                        .header p { color: #64748b; margin-top: 8px; }
-                                        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; padding: 20px; background: #eff6ff; border-radius: 8px; }
-                                        .info-item { }
-                                        .info-label { color: #64748b; font-size: 14px; margin-bottom: 4px; }
-                                        .info-value { font-weight: 600; color: #1e293b; font-size: 16px; }
-                                        .amount-box { padding: 24px; background: #f0fdf4; border: 2px solid #bbf7d0; border-radius: 8px; margin-bottom: 32px; }
-                                        .amount-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-                                        .amount-row:last-child { margin-bottom: 0; padding-top: 12px; border-top: 1px solid #bbf7d0; }
-                                        .amount-label { font-size: 14px; color: #374151; }
-                                        .amount-value { font-weight: 600; color: #1e293b; }
-                                        .amount-total { font-size: 20px; font-weight: bold; }
-                                        .amount-total .amount-value { color: #16a34a; font-size: 28px; }
-                                        .payment-method { padding: 16px; background: #f8fafc; border-radius: 8px; margin-bottom: 32px; display: flex; justify-content: space-between; }
-                                        .footer { text-align: center; padding-top: 32px; border-top: 2px solid #e2e8f0; color: #64748b; font-size: 14px; }
-                                        @media print {
-                                          body { padding: 20px; }
-                                          @page { margin: 0.5in; }
-                                        }
-                                      </style>
-                                    </head>
-                                    <body>
-                                      <div class="header">
-                                        <img src="/bounce%20party%20club%20logo.png" alt="Bounce Party Club" />
-                                        <h1>Bounce Party Club</h1>
-                                        <p>(313) 889-3860</p>
-                                      </div>
-
-                                      <div class="info-grid">
-                                        <div class="info-item">
-                                          <div class="info-label">Payment Received</div>
-                                          <div class="info-value">${format(new Date(payment.paid_at || payment.created_at), 'MMM d, yyyy h:mm a')}</div>
-                                        </div>
-                                        <div class="info-item">
-                                          <div class="info-label">Order ID</div>
-                                          <div class="info-value">#${order.order_number}</div>
-                                        </div>
-                                      </div>
-
-                                      <div class="amount-box">
-                                        ${order.tip_cents > 0 && payment.type === 'deposit' ? `
-                                          <div class="amount-row">
-                                            <span class="amount-label">Order Amount:</span>
-                                            <span class="amount-value">$${((payment.amount_cents - order.tip_cents) / 100).toFixed(2)}</span>
-                                          </div>
-                                          <div class="amount-row">
-                                            <span class="amount-label">Crew Tip:</span>
-                                            <span class="amount-value" style="color: #16a34a;">$${(order.tip_cents / 100).toFixed(2)}</span>
-                                          </div>
-                                        ` : ''}
-                                        <div class="amount-row amount-total">
-                                          <span class="amount-label">Total Paid</span>
-                                          <span class="amount-value">$${(payment.amount_cents / 100).toFixed(2)}</span>
-                                        </div>
-                                      </div>
-
-                                      ${payment.payment_method ? `
-                                        <div class="payment-method">
-                                          <span class="amount-label">Payment Method:</span>
-                                          <span class="amount-value">${
-                                            payment.payment_method === 'card' && payment.payment_brand
-                                              ? `${payment.payment_brand.charAt(0).toUpperCase() + payment.payment_brand.slice(1)}${payment.payment_last4 ? ' ****' + payment.payment_last4 : ''}`
-                                              : payment.payment_method === 'apple_pay' ? 'Apple Pay'
-                                              : payment.payment_method === 'google_pay' ? 'Google Pay'
-                                              : payment.payment_method.charAt(0).toUpperCase() + payment.payment_method.slice(1)
-                                          }</span>
-                                        </div>
-                                      ` : ''}
-
-                                      <div class="footer">
-                                        <p>Thank you for your business!</p>
-                                        <p style="margin-top: 8px;">Please keep this receipt for your records.</p>
-                                      </div>
-
-                                      <script>
-                                        window.onload = function() {
-                                          setTimeout(function() {
-                                            window.print();
-                                          }, 250);
-                                        };
-                                      </script>
-                                    </body>
-                                  </html>
-                                `);
-                                receiptWindow.document.close();
-                              }
+                              setSelectedPayment(payment);
+                              setShowReceiptModal(true);
                             }}
                             className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                           >
                             <Printer className="w-4 h-4" />
-                            Print Receipt
+                            View Receipt
                           </button>
                         </div>
                       ))}

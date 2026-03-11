@@ -111,7 +111,7 @@ Deno.serve(async (req: Request) => {
       metadata: {
         order_id: orderId,
         deposit_amount: depositCents.toString(),
-        tip_amount: tipCents.toString(),
+        tip_cents: tipCents.toString(),
       },
     });
 
