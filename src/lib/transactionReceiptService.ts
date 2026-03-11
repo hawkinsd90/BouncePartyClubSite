@@ -36,8 +36,23 @@ interface ReceiptEmailData {
  */
 export async function logTransaction(data: TransactionReceiptData): Promise<string | null> {
   try {
-    // If stripe_charge_id exists, check for existing receipt first
-    if (data.stripeChargeId) {
+    // Pre-check for existing receipt using PRIMARY dedupe key: (payment_intent_id, transaction_type)
+    // This prevents collapsing tip into deposit when both share same charge_id
+    if (data.stripePaymentIntentId && data.transactionType) {
+      const { data: existingReceipt } = await supabase
+        .from('transaction_receipts')
+        .select('receipt_number')
+        .eq('stripe_payment_intent_id', data.stripePaymentIntentId)
+        .eq('transaction_type', data.transactionType)
+        .maybeSingle();
+
+      if (existingReceipt) {
+        console.log('[TransactionReceipt] Receipt already exists for (PI, type):', existingReceipt.receipt_number);
+        return existingReceipt.receipt_number;
+      }
+    }
+    // Fallback: if only charge_id is available (no PI or type), check by charge_id
+    else if (data.stripeChargeId) {
       const { data: existingReceipt } = await supabase
         .from('transaction_receipts')
         .select('receipt_number')
@@ -69,17 +84,35 @@ export async function logTransaction(data: TransactionReceiptData): Promise<stri
       .single();
 
     if (error) {
-      // If unique constraint violation on stripe_charge_id, try to fetch existing receipt
-      if (error.code === '23505' && data.stripeChargeId) {
-        console.warn('[TransactionReceipt] Duplicate charge_id detected, fetching existing receipt');
-        const { data: existingReceipt } = await supabase
-          .from('transaction_receipts')
-          .select('receipt_number')
-          .eq('stripe_charge_id', data.stripeChargeId)
-          .maybeSingle();
+      // If unique constraint violation, recover using PRIMARY dedupe key
+      if (error.code === '23505') {
+        console.warn('[TransactionReceipt] Duplicate detected (23505), fetching existing receipt');
 
-        if (existingReceipt) {
-          return existingReceipt.receipt_number;
+        // Try by (payment_intent_id, transaction_type) first (primary dedupe key)
+        if (data.stripePaymentIntentId && data.transactionType) {
+          const { data: existingReceipt } = await supabase
+            .from('transaction_receipts')
+            .select('receipt_number')
+            .eq('stripe_payment_intent_id', data.stripePaymentIntentId)
+            .eq('transaction_type', data.transactionType)
+            .maybeSingle();
+
+          if (existingReceipt) {
+            return existingReceipt.receipt_number;
+          }
+        }
+
+        // Fallback to charge_id if PI/type not available
+        if (data.stripeChargeId) {
+          const { data: existingReceipt } = await supabase
+            .from('transaction_receipts')
+            .select('receipt_number')
+            .eq('stripe_charge_id', data.stripeChargeId)
+            .maybeSingle();
+
+          if (existingReceipt) {
+            return existingReceipt.receipt_number;
+          }
         }
       }
 

@@ -145,19 +145,25 @@ export async function approveOrder(
       (orderData.tax_cents ?? 0) +
       (orderData.tip_cents ?? 0);
 
+    // Calculate paid amount (deposit + tip charged at approval)
+    const paidAmount = orderData.deposit_due_cents + (orderData.tip_cents ?? 0);
+
+    // Determine invoice status based on payment amount vs total
+    const invoiceStatus = paidAmount >= totalCents ? 'paid' : (paidAmount > 0 ? 'partial' : 'sent');
+
     await supabase.from('invoices').insert({
       invoice_number: invoiceNumber,
       order_id: orderId,
       customer_id: orderData.customer_id,
       due_date: orderData.event_date,
-      status: 'paid',
+      status: invoiceStatus,
       subtotal_cents: orderData.subtotal_cents,
       tax_cents: orderData.tax_cents ?? 0,
       travel_fee_cents: orderData.travel_fee_cents ?? 0,
       surface_fee_cents: orderData.surface_fee_cents ?? 0,
       same_day_pickup_fee_cents: orderData.same_day_pickup_fee_cents ?? 0,
       total_cents: totalCents,
-      paid_amount_cents: orderData.deposit_due_cents + (orderData.tip_cents ?? 0),
+      paid_amount_cents: paidAmount,
     });
 
     const { data: orderWithRelations } = await supabase
@@ -285,7 +291,7 @@ async function sendConfirmationEmail(orderWithItems: any, totalCents: number) {
       .select('*')
       .eq('order_id', orderWithItems.id)
       .eq('type', 'deposit')
-      .eq('status', 'completed')
+      .eq('status', 'succeeded')
       .order('paid_at', { ascending: false })
       .limit(1)
       .maybeSingle();
