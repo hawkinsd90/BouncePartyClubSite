@@ -166,6 +166,19 @@ async function processWebhookEvent(
         if (session.mode === "setup" && setupIntentId) {
           console.log(`🔐 [WEBHOOK] Setup session completed for order ${orderId}`);
 
+          // CRITICAL: Retrieve the SetupIntent to get the payment_method
+          // In setup mode, payment_method is NOT on the session, it's on the SetupIntent
+          let actualPaymentMethodId = paymentMethodId;
+          try {
+            const setupIntent = await stripe.setupIntents.retrieve(setupIntentId);
+            actualPaymentMethodId = typeof setupIntent.payment_method === "string"
+              ? setupIntent.payment_method
+              : setupIntent.payment_method?.id || null;
+            console.log(`[WEBHOOK] Retrieved payment method from SetupIntent: ${actualPaymentMethodId}`);
+          } catch (err) {
+            console.error(`[WEBHOOK] Failed to retrieve SetupIntent ${setupIntentId}:`, err);
+          }
+
           const tipCents = parseInt(session.metadata?.tip_cents || "0", 10);
 
           // Check if this is an admin invoice
@@ -181,7 +194,7 @@ async function processWebhookEvent(
           const { error: updateError } = await supabaseClient
             .from("orders")
             .update({
-              stripe_payment_method_id: paymentMethodId,
+              stripe_payment_method_id: actualPaymentMethodId,
               stripe_customer_id: stripeCustomerId,
               tip_cents: tipCents,
               status: newStatus,
@@ -191,7 +204,7 @@ async function processWebhookEvent(
           if (updateError) {
             console.error(`[WEBHOOK] Error updating order ${orderId}:`, updateError);
           } else {
-            console.log(`[WEBHOOK] Setup completed - order ${orderId} updated to ${newStatus} with tip: $${(tipCents/100).toFixed(2)}`);
+            console.log(`[WEBHOOK] Setup completed - order ${orderId} updated to ${newStatus} with payment method: ${actualPaymentMethodId}, tip: $${(tipCents/100).toFixed(2)}`);
           }
           break;
         }
