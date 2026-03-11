@@ -74,10 +74,21 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       const order = await fetchOrderDetails();
+      console.log('[PAYMENT-COMPLETE] Order fetch result:', order ? 'SUCCESS' : 'NULL');
+
       if (order) {
+        console.log('[PAYMENT-COMPLETE] Order details:', {
+          id: order.id,
+          tip_cents: order.tip_cents,
+          deposit_due_cents: order.deposit_due_cents,
+          customer_selected_payment_cents: order.customer_selected_payment_cents,
+        });
         setOrderDetails(order);
         await checkIfAdminInvoice();
         await sendNotificationsIfNeeded(order);
+      } else {
+        console.error('[PAYMENT-COMPLETE] Order is null, setting error state');
+        setError('Unable to load order details');
       }
 
       clearLocalStorage();
@@ -120,10 +131,15 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
       `
       )
       .eq('id', orderId!)
-      .single();
+      .maybeSingle();
 
     if (orderError) {
       console.error('[PAYMENT-COMPLETE] Error fetching order:', orderError);
+      return null;
+    }
+
+    if (!order) {
+      console.error('[PAYMENT-COMPLETE] No order found with ID:', orderId);
       return null;
     }
 

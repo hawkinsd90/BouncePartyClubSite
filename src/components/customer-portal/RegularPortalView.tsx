@@ -424,22 +424,15 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
                   <h3 className="text-lg font-semibold text-slate-900 mb-4">Payment Summary</h3>
 
-                  {orderItems && orderItems.length > 0 && (
+                  {orderSummary && orderSummary.items && orderSummary.items.length > 0 && (
                     <div className="mb-4 pb-4 border-b border-slate-300">
                       <p className="text-sm font-semibold text-slate-700 mb-2">Items:</p>
-                      {orderItems.map((item: any) => {
-                        const itemTotal = (item.price_per_unit_per_day_cents || 0) * (item.quantity || 1) * (item.rental_days || 1);
-                        return (
-                          <div key={item.id} className="flex justify-between text-sm mb-1">
-                            <span className="text-slate-600">
-                              {item.units?.name || 'Item'} × {item.quantity || 1} ({item.rental_days || 1} day{item.rental_days > 1 ? 's' : ''})
-                            </span>
-                            <span className="font-medium text-slate-900">
-                              {formatCurrency(itemTotal)}
-                            </span>
-                          </div>
-                        );
-                      })}
+                      {orderSummary.items.map((item: any, index: number) => (
+                        <div key={index} className="flex justify-between text-sm mb-1">
+                          <span className="text-slate-600">{item.description}</span>
+                          <span className="font-medium text-slate-900">{item.price}</span>
+                        </div>
+                      ))}
                     </div>
                   )}
 
@@ -486,6 +479,14 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                         )}
                       </span>
                     </div>
+                    {order.tip_cents > 0 && (
+                      <div className="flex justify-between text-sm bg-green-50 p-2 rounded">
+                        <span className="text-green-800 font-medium">Crew Tip:</span>
+                        <span className="font-semibold text-green-700">
+                          {formatCurrency(order.tip_cents)}
+                        </span>
+                      </div>
+                    )}
                     {totalPaid > 0 && (
                       <>
                         <div className="flex justify-between text-sm">
