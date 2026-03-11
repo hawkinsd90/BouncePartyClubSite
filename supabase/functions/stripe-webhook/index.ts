@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import Stripe from "npm:stripe@20.0.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { logTransaction } from "../_shared/transaction-logger.ts";
-import { checkWebhookIdempotency } from "../_shared/webhook-idempotency.ts";
+import { beginWebhookProcessing, finalizeWebhookSuccess, finalizeWebhookFailure } from "../_shared/webhook-idempotency.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -55,30 +55,80 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    // Check webhook idempotency - prevent duplicate processing
-    const { shouldProcess, alreadyProcessed } = await checkWebhookIdempotency(
+    // Begin webhook processing with safe idempotency
+    const { shouldProcess, alreadyProcessed, alreadyProcessing } = await beginWebhookProcessing(
       supabaseClient,
       event.id,
-      event.type
+      event.type,
+      event
     );
 
     if (alreadyProcessed) {
-      console.log(`✅ [WEBHOOK] Event already processed: ${event.id}`);
-      return new Response(JSON.stringify({ received: true, skipped: true }), {
+      console.log(`✅ [WEBHOOK] Event already succeeded: ${event.id}`);
+      return new Response(JSON.stringify({ received: true, skipped: true, reason: 'already_processed' }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (alreadyProcessing) {
+      console.log(`⏳ [WEBHOOK] Event currently processing: ${event.id}`);
+      return new Response(JSON.stringify({ received: true, skipped: true, reason: 'currently_processing' }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     if (!shouldProcess) {
-      console.error(`❌ [WEBHOOK] Failed to mark event as processing: ${event.id}`);
-      return new Response(JSON.stringify({ error: "Failed to process event" }), {
+      console.error(`❌ [WEBHOOK] Cannot process event: ${event.id}`);
+      return new Response(JSON.stringify({ error: "Failed to begin processing" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    switch (event.type) {
+    // Wrap processing in try-catch for proper error handling
+    try {
+      await processWebhookEvent(event, supabaseClient, stripe);
+
+      // Mark as succeeded
+      await finalizeWebhookSuccess(supabaseClient, event.id);
+
+      return new Response(JSON.stringify({ received: true }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    } catch (processingError: unknown) {
+      const errorMessage = processingError instanceof Error ? processingError.message : "Unknown error";
+      console.error(`❌ [WEBHOOK] Processing error for ${event.id}:`, errorMessage);
+
+      // Mark as failed
+      await finalizeWebhookFailure(supabaseClient, event.id, errorMessage);
+
+      return new Response(JSON.stringify({ error: errorMessage }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("❌ [WEBHOOK] Fatal error:", message);
+    return new Response(JSON.stringify({ error: message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});
+
+/**
+ * Process webhook event (extracted for error handling)
+ */
+async function processWebhookEvent(
+  event: Stripe.Event,
+  supabaseClient: any,
+  stripe: Stripe
+): Promise<void> {
+  switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         const orderId = session.metadata?.order_id || null;
@@ -340,23 +390,71 @@ Deno.serve(async (req: Request) => {
         const charge = event.data.object as Stripe.Charge;
         const paymentIntentId = charge.payment_intent as string;
 
-        // Link refund to order via original payment row
-        const { data: payment } = await supabaseClient
+        // Find the original payment
+        const { data: originalPayment } = await supabaseClient
           .from("payments")
-          .select("order_id")
+          .select("id, order_id, payment_method, payment_brand")
           .eq("stripe_payment_intent_id", paymentIntentId)
-          .single();
+          .maybeSingle();
 
-        if (payment?.order_id) {
-          // Record a refund entry (your schema: order_refunds)
+        if (originalPayment?.order_id) {
+          const refundAmountCents = charge.amount_refunded || 0;
+          const refundId = (charge.refunds?.data?.[0]?.id as string) || null;
+
+          // Get order and customer details
+          const { data: order } = await supabaseClient
+            .from("orders")
+            .select("customer_id")
+            .eq("id", originalPayment.order_id)
+            .single();
+
+          // Create refund payment record
+          const { data: refundPayment } = await supabaseClient
+            .from("payments")
+            .insert({
+              order_id: originalPayment.order_id,
+              stripe_payment_intent_id: paymentIntentId,
+              amount_cents: refundAmountCents, // Positive value, type indicates refund
+              type: "refund",
+              status: "succeeded",
+              paid_at: new Date().toISOString(),
+              payment_method: originalPayment.payment_method,
+              payment_brand: originalPayment.payment_brand,
+              refunded_payment_id: originalPayment.id, // Link to original payment
+              stripe_fee_amount: 0, // Refunds typically don't have fees
+              stripe_net_amount: refundAmountCents,
+              currency: 'usd',
+            })
+            .select('id')
+            .single();
+
+          // Create transaction receipt for refund
+          if (order && refundPayment) {
+            await logTransaction(supabaseClient, {
+              transactionType: 'refund',
+              orderId: originalPayment.order_id,
+              customerId: order.customer_id,
+              paymentId: refundPayment.id,
+              amountCents: refundAmountCents,
+              paymentMethod: originalPayment.payment_method,
+              paymentMethodBrand: originalPayment.payment_brand,
+              stripeChargeId: charge.id,
+              stripePaymentIntentId: paymentIntentId,
+              notes: `Refund for charge ${charge.id}${charge.refund_reason ? ` - ${charge.refund_reason}` : ''}`,
+            });
+          }
+
+          // Keep existing order_refunds insert for backwards compatibility
           await supabaseClient.from("order_refunds").insert({
-            order_id: payment.order_id,
-            amount_cents: charge.amount_refunded || 0,
-            reason: charge.reason || "refund",
-            stripe_refund_id: (charge.refunds?.data?.[0]?.id as string) || null,
+            order_id: originalPayment.order_id,
+            amount_cents: refundAmountCents,
+            reason: charge.refund_reason || "refund",
+            stripe_refund_id: refundId,
             refunded_by: null,
             status: charge.refunded ? "succeeded" : "pending",
           });
+
+          console.log(`✅ [WEBHOOK] Refund processed: $${(refundAmountCents / 100).toFixed(2)} for order ${originalPayment.order_id}`);
         }
         break;
       }
@@ -364,20 +462,4 @@ Deno.serve(async (req: Request) => {
       default:
         console.log(`ℹ️ [WEBHOOK] Unhandled event type: ${event.type}`);
     }
-
-    return new Response(JSON.stringify({ received: true }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (error: unknown) {
-    console.error("❌ [WEBHOOK] Error:", error);
-    const message = error instanceof Error ? error.message : "Internal server error";
-    return new Response(
-      JSON.stringify({ error: message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
-  }
-});
+}

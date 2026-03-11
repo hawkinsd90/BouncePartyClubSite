@@ -246,18 +246,27 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Retrieve Stripe fees from the charge
+    // Retrieve Stripe fees from the charge (with balance_transaction expansion)
     if (paymentIntent.latest_charge) {
       try {
         const chargeId = typeof paymentIntent.latest_charge === "string"
           ? paymentIntent.latest_charge
           : paymentIntent.latest_charge.id;
-        const charge = await stripe.charges.retrieve(chargeId);
+
+        // IMPORTANT: Expand balance_transaction to get fee/net as object
+        const charge = await stripe.charges.retrieve(chargeId, {
+          expand: ['balance_transaction']
+        });
+
         const balanceTx = charge.balance_transaction;
 
+        // After expansion, balance_transaction should be an object
         if (balanceTx && typeof balanceTx === 'object') {
           stripeFee = balanceTx.fee || 0;
           stripeNet = balanceTx.net || chargeAmountCents;
+          console.log(`[Fees] Stripe fee: ${stripeFee}, Net: ${stripeNet}, Currency: ${charge.currency}`);
+        } else {
+          console.warn('[Fees] balance_transaction not expanded, fees will be 0');
         }
       } catch (feeError) {
         console.error("Failed to retrieve Stripe fee data:", feeError);
