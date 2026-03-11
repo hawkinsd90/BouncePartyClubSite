@@ -60,8 +60,8 @@ function App() {
           <Route path="/sign/:orderId" element={<Sign />} />
           <Route path="/customer-portal/:orderId" element={<CustomerPortal />} />
           <Route path="/customer-portal" element={<CustomerPortal />} />
-          <Route path="/checkout/payment-complete" element={<PaymentComplete />} />
-          <Route path="/checkout/payment-canceled" element={<PaymentCanceled />} />
+          <Route path="/payment-complete" element={<PaymentComplete />} />
+          <Route path="/payment-canceled" element={<PaymentCanceled />} />
           <Route path="/checkout/:orderId" element={<Checkout />} />
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />
