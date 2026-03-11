@@ -53,7 +53,10 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
   const [isAdminInvoice, setIsAdminInvoice] = useState(false);
 
   useEffect(() => {
+    console.log('[PAYMENT-COMPLETE] useEffect triggered with orderId:', orderId, 'sessionId:', sessionId);
+
     if (!orderId) {
+      console.log('[PAYMENT-COMPLETE] No order ID - setting error state');
       setError('No order ID provided');
       setStatus('error');
       return;
@@ -87,6 +90,8 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
   }
 
   async function fetchOrderDetails(): Promise<OrderDetails | null> {
+    console.log('[PAYMENT-COMPLETE] Fetching order details for:', orderId);
+
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .select(
@@ -122,6 +127,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
       return null;
     }
 
+    console.log('[PAYMENT-COMPLETE] Order fetched successfully:', order);
     return order as unknown as OrderDetails;
   }
 
