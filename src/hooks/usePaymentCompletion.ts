@@ -72,6 +72,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
       console.log('[PAYMENT-COMPLETE] Processing payment for order:', orderId);
 
       // Retrieve tip from Stripe session if available
+      let retrievedTipCents = 0;
       if (sessionId) {
         try {
           const sessionResponse = await fetch(
@@ -88,9 +89,9 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
 
           if (sessionResponse.ok) {
             const sessionData = await sessionResponse.json();
-            const tipCents = parseInt(sessionData.metadata?.tip_cents || '0', 10);
-            setSessionTipCents(tipCents);
-            console.log('[PAYMENT-COMPLETE] Retrieved tip from session:', tipCents);
+            retrievedTipCents = parseInt(sessionData.metadata?.tip_cents || '0', 10);
+            setSessionTipCents(retrievedTipCents);
+            console.log('[PAYMENT-COMPLETE] Retrieved tip from session:', retrievedTipCents);
           }
         } catch (err) {
           console.error('[PAYMENT-COMPLETE] Error retrieving session metadata:', err);
@@ -148,6 +149,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
         // If webhook still hasn't processed after retries, manually update the order
         if (order.status === 'draft' && sessionId) {
           console.log('[PAYMENT-COMPLETE] Webhook failed to process, manually updating order status...');
+          console.log('[PAYMENT-COMPLETE] Will save tip amount:', retrievedTipCents);
 
           // Check if this is an admin invoice
           const { data: invoiceLink } = await supabase
@@ -164,14 +166,14 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
             .from('orders')
             .update({
               status: newStatus,
-              tip_cents: sessionTipCents,
+              tip_cents: retrievedTipCents,
             })
             .eq('id', orderId!);
 
           if (updateError) {
             console.error('[PAYMENT-COMPLETE] Error manually updating order:', updateError);
           } else {
-            console.log(`[PAYMENT-COMPLETE] Successfully updated order to status: ${newStatus}`);
+            console.log(`[PAYMENT-COMPLETE] Successfully updated order to status: ${newStatus}, tip saved: ${retrievedTipCents}`);
             // Refetch order with updated data
             order = await fetchOrderDetails();
           }
