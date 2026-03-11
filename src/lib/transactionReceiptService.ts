@@ -37,17 +37,15 @@ interface ReceiptEmailData {
 export async function logTransaction(data: TransactionReceiptData): Promise<string | null> {
   try {
     // If stripe_charge_id exists, check for existing receipt first
-    // IMPORTANT: Must also check transaction_type to allow multiple receipts (deposit+tip) for same charge
     if (data.stripeChargeId) {
       const { data: existingReceipt } = await supabase
         .from('transaction_receipts')
         .select('receipt_number')
         .eq('stripe_charge_id', data.stripeChargeId)
-        .eq('transaction_type', data.transactionType)
         .maybeSingle();
 
       if (existingReceipt) {
-        console.log('[TransactionReceipt] Receipt already exists for charge+type:', existingReceipt.receipt_number);
+        console.log('[TransactionReceipt] Receipt already exists for charge:', existingReceipt.receipt_number);
         return existingReceipt.receipt_number;
       }
     }
@@ -71,37 +69,17 @@ export async function logTransaction(data: TransactionReceiptData): Promise<stri
       .single();
 
     if (error) {
-      // If unique constraint violation, try to fetch existing receipt
-      // Check both stripe_charge_id and payment_intent_id + type constraints
-      if (error.code === '23505') {
-        console.warn('[TransactionReceipt] Duplicate detected, fetching existing receipt');
+      // If unique constraint violation on stripe_charge_id, try to fetch existing receipt
+      if (error.code === '23505' && data.stripeChargeId) {
+        console.warn('[TransactionReceipt] Duplicate charge_id detected, fetching existing receipt');
+        const { data: existingReceipt } = await supabase
+          .from('transaction_receipts')
+          .select('receipt_number')
+          .eq('stripe_charge_id', data.stripeChargeId)
+          .maybeSingle();
 
-        // Try stripe_charge_id + transaction_type first (most specific)
-        if (data.stripeChargeId) {
-          const { data: existingReceipt } = await supabase
-            .from('transaction_receipts')
-            .select('receipt_number')
-            .eq('stripe_charge_id', data.stripeChargeId)
-            .eq('transaction_type', data.transactionType)
-            .maybeSingle();
-
-          if (existingReceipt) {
-            return existingReceipt.receipt_number;
-          }
-        }
-
-        // Fallback to payment_intent_id + transaction_type (unique_receipt_pi_type constraint)
-        if (data.stripePaymentIntentId) {
-          const { data: existingReceipt } = await supabase
-            .from('transaction_receipts')
-            .select('receipt_number')
-            .eq('stripe_payment_intent_id', data.stripePaymentIntentId)
-            .eq('transaction_type', data.transactionType)
-            .maybeSingle();
-
-          if (existingReceipt) {
-            return existingReceipt.receipt_number;
-          }
+        if (existingReceipt) {
+          return existingReceipt.receipt_number;
         }
       }
 

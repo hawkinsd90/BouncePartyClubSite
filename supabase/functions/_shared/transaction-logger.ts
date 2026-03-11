@@ -43,41 +43,6 @@ export async function logTransaction(
       .single();
 
     if (error) {
-      // If unique constraint violation (23505), try to fetch existing receipt
-      if (error.code === '23505') {
-        console.warn('[TransactionLogger] Duplicate detected, fetching existing receipt');
-
-        // Try stripe_charge_id + transaction_type first (most specific)
-        if (data.stripeChargeId) {
-          const { data: existingReceipt } = await supabaseClient
-            .from('transaction_receipts')
-            .select('receipt_number')
-            .eq('stripe_charge_id', data.stripeChargeId)
-            .eq('transaction_type', data.transactionType)
-            .maybeSingle();
-
-          if (existingReceipt) {
-            console.log('[TransactionLogger] Found existing receipt by charge_id+type:', existingReceipt.receipt_number);
-            return existingReceipt.receipt_number;
-          }
-        }
-
-        // Fallback to payment_intent_id + transaction_type (unique_receipt_pi_type constraint)
-        if (data.stripePaymentIntentId) {
-          const { data: existingReceipt } = await supabaseClient
-            .from('transaction_receipts')
-            .select('receipt_number')
-            .eq('stripe_payment_intent_id', data.stripePaymentIntentId)
-            .eq('transaction_type', data.transactionType)
-            .maybeSingle();
-
-          if (existingReceipt) {
-            console.log('[TransactionLogger] Found existing receipt by pi+type:', existingReceipt.receipt_number);
-            return existingReceipt.receipt_number;
-          }
-        }
-      }
-
       console.error('[TransactionLogger] Error logging transaction:', error);
       return null;
     }
