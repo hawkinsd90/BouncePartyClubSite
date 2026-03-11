@@ -93,11 +93,14 @@ export async function approveOrder(
       .eq('id', orderData.customer_id)
       .single();
 
+    // Calculate amounts to match what was actually charged in charge-deposit
+    // charge-deposit uses: customer_selected_payment_cents || deposit_due_cents
+    const depositAmountCents = orderData.customer_selected_payment_cents ?? orderData.deposit_due_cents;
+    const tipAmountCents = orderData.tip_cents ?? 0;
+    const paidAmountCents = depositAmountCents + tipAmountCents;
+
     // Log deposit transaction and notify admin with grouped receipts
     if (customerData) {
-      const depositAmount = orderData.deposit_due_cents;
-      const tipAmount = orderData.tip_cents ?? 0;
-
       // Build array of transactions to log (grouped)
       const transactions = [
         {
@@ -105,7 +108,7 @@ export async function approveOrder(
           orderId,
           customerId: orderData.customer_id,
           paymentId: paymentRecord?.id,
-          amountCents: depositAmount,
+          amountCents: depositAmountCents,
           paymentMethod: data.paymentDetails?.paymentMethod,
           paymentMethodBrand: data.paymentDetails?.paymentBrand,
           stripeChargeId: data.paymentDetails?.chargeId,
@@ -115,13 +118,13 @@ export async function approveOrder(
       ];
 
       // Add tip transaction if present
-      if (tipAmount > 0) {
+      if (tipAmountCents > 0) {
         transactions.push({
           transactionType: 'tip' as const,
           orderId,
           customerId: orderData.customer_id,
           paymentId: paymentRecord?.id,
-          amountCents: tipAmount,
+          amountCents: tipAmountCents,
           paymentMethod: data.paymentDetails?.paymentMethod,
           paymentMethodBrand: data.paymentDetails?.paymentBrand,
           stripeChargeId: data.paymentDetails?.chargeId,
@@ -145,11 +148,8 @@ export async function approveOrder(
       (orderData.tax_cents ?? 0) +
       (orderData.tip_cents ?? 0);
 
-    // Calculate paid amount (deposit + tip charged at approval)
-    const paidAmount = orderData.deposit_due_cents + (orderData.tip_cents ?? 0);
-
     // Determine invoice status based on payment amount vs total
-    const invoiceStatus = paidAmount >= totalCents ? 'paid' : (paidAmount > 0 ? 'partial' : 'sent');
+    const invoiceStatus = paidAmountCents >= totalCents ? 'paid' : (paidAmountCents > 0 ? 'partial' : 'sent');
 
     await supabase.from('invoices').insert({
       invoice_number: invoiceNumber,
@@ -163,7 +163,7 @@ export async function approveOrder(
       surface_fee_cents: orderData.surface_fee_cents ?? 0,
       same_day_pickup_fee_cents: orderData.same_day_pickup_fee_cents ?? 0,
       total_cents: totalCents,
-      paid_amount_cents: paidAmount,
+      paid_amount_cents: paidAmountCents,
     });
 
     const { data: orderWithRelations } = await supabase
