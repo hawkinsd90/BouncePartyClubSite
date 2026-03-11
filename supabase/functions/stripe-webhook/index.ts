@@ -145,6 +145,11 @@ async function processWebhookEvent(
             ? session.payment_intent
             : session.payment_intent?.id || null;
 
+        const setupIntentId =
+          typeof session.setup_intent === "string"
+            ? session.setup_intent
+            : session.setup_intent?.id || null;
+
         const paymentMethodId =
           typeof session.payment_method === "string"
             ? session.payment_method
@@ -154,6 +159,40 @@ async function processWebhookEvent(
 
         if (!orderId) {
           console.warn("[WEBHOOK] No order_id in session metadata, skipping");
+          break;
+        }
+
+        // Handle setup mode (card saved, no charge yet)
+        if (session.mode === "setup" && setupIntentId) {
+          console.log(`🔐 [WEBHOOK] Setup session completed for order ${orderId}`);
+
+          const tipCents = parseInt(session.metadata?.tip_cents || "0", 10);
+
+          // Check if this is an admin invoice
+          const { data: invoiceLink } = await supabaseClient
+            .from("invoice_links")
+            .select("id")
+            .eq("order_id", orderId)
+            .maybeSingle();
+
+          const isAdminInvoice = !!invoiceLink;
+          const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
+
+          const { error: updateError } = await supabaseClient
+            .from("orders")
+            .update({
+              stripe_payment_method_id: paymentMethodId,
+              stripe_customer_id: stripeCustomerId,
+              tip_cents: tipCents,
+              status: newStatus,
+            })
+            .eq("id", orderId);
+
+          if (updateError) {
+            console.error(`[WEBHOOK] Error updating order ${orderId}:`, updateError);
+          } else {
+            console.log(`[WEBHOOK] Setup completed - order ${orderId} updated to ${newStatus} with tip: $${(tipCents/100).toFixed(2)}`);
+          }
           break;
         }
 

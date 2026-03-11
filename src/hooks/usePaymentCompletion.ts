@@ -105,18 +105,21 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
         console.log('[PAYMENT-COMPLETE] Payment already processed, skipping notifications');
       }
 
-      // Wait for webhook to process and retry a few times if order status hasn't updated
+      // Check immediately first, then retry with delays if needed
       let order = null;
       let retries = 0;
       const maxRetries = 3;
 
       while (retries < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, retries === 0 ? 2000 : 1000));
+        // Only wait on retries (not on first attempt)
+        if (retries > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
 
         order = await fetchOrderDetails();
 
         if (order) {
-          console.log('[PAYMENT-COMPLETE] Retry', retries, '- Order status:', order.status, 'tip_cents:', order.tip_cents);
+          console.log('[PAYMENT-COMPLETE] Attempt', retries + 1, '- Order status:', order.status, 'tip_cents:', order.tip_cents);
 
           // Check if webhook has processed (status changed from draft)
           if (order.status !== 'draft') {
