@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import Stripe from "npm:stripe@20.0.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { logTransaction } from "../_shared/transaction-logger.ts";
+import { checkWebhookIdempotency } from "../_shared/webhook-idempotency.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -54,6 +55,29 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
+    // Check webhook idempotency - prevent duplicate processing
+    const { shouldProcess, alreadyProcessed } = await checkWebhookIdempotency(
+      supabaseClient,
+      event.id,
+      event.type
+    );
+
+    if (alreadyProcessed) {
+      console.log(`✅ [WEBHOOK] Event already processed: ${event.id}`);
+      return new Response(JSON.stringify({ received: true, skipped: true }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!shouldProcess) {
+      console.error(`❌ [WEBHOOK] Failed to mark event as processing: ${event.id}`);
+      return new Response(JSON.stringify({ error: "Failed to process event" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
@@ -73,10 +97,11 @@ Deno.serve(async (req: Request) => {
         let paymentMethodType: string | null = null;
         let paymentBrand: string | null = null;
         let paymentLast4: string | null = null;
+        let latestChargeId: string | null = null;
 
         if (piId) {
           const pi = await stripe.paymentIntents.retrieve(piId, {
-            expand: ["payment_method"],
+            expand: ["payment_method", "latest_charge"],
           });
           if (typeof pi.payment_method === "string") {
             paymentMethodId = pi.payment_method;
@@ -91,6 +116,7 @@ Deno.serve(async (req: Request) => {
             }
           }
           amountPaid = pi.amount_received || session.amount_total || 0;
+          latestChargeId = typeof pi.latest_charge === "string" ? pi.latest_charge : null;
         }
 
         if (orderId) {
@@ -105,8 +131,26 @@ Deno.serve(async (req: Request) => {
               })
               .eq("id", orderId);
 
-            // Create payment record
+            // Create payment record with Stripe fee data
             if (piId) {
+              // Retrieve charge details for fee information
+              let stripeFee = 0;
+              let stripeNet = amountPaid;
+
+              if (latestChargeId) {
+                try {
+                  const charge = await stripe.charges.retrieve(latestChargeId);
+                  const balanceTx = charge.balance_transaction;
+
+                  if (balanceTx && typeof balanceTx === 'object') {
+                    stripeFee = balanceTx.fee || 0;
+                    stripeNet = balanceTx.net || amountPaid;
+                  }
+                } catch (err) {
+                  console.error('[WEBHOOK] Failed to retrieve charge fee data:', err);
+                }
+              }
+
               const { data: paymentRecord } = await supabaseClient
                 .from("payments")
                 .insert({
@@ -120,6 +164,9 @@ Deno.serve(async (req: Request) => {
                   payment_method: paymentMethodType,
                   payment_brand: paymentBrand,
                   payment_last4: paymentLast4,
+                  stripe_fee_amount: stripeFee,
+                  stripe_net_amount: stripeNet,
+                  currency: 'usd',
                 })
                 .select('id')
                 .single();
@@ -131,7 +178,7 @@ Deno.serve(async (req: Request) => {
                 .eq("id", orderId)
                 .single();
 
-              // Log balance payment transaction
+              // Log balance payment transaction (with idempotency via unique stripe_charge_id)
               if (order && paymentRecord) {
                 await logTransaction(supabaseClient, {
                   transactionType: 'balance',
@@ -141,7 +188,7 @@ Deno.serve(async (req: Request) => {
                   amountCents: amountPaid,
                   paymentMethod: paymentMethodType,
                   paymentMethodBrand: paymentBrand,
-                  stripeChargeId: session.latest_charge as string || null,
+                  stripeChargeId: latestChargeId,
                   stripePaymentIntentId: piId,
                   notes: 'Customer portal balance payment',
                 });

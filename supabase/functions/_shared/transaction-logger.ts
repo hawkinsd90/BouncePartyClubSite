@@ -12,6 +12,7 @@ interface TransactionLogData {
   stripeChargeId?: string | null;
   stripePaymentIntentId?: string | null;
   notes?: string;
+  receiptGroupId?: string; // For grouping multi-line transactions
 }
 
 /**
@@ -36,6 +37,7 @@ export async function logTransaction(
         stripe_charge_id: data.stripeChargeId,
         stripe_payment_intent_id: data.stripePaymentIntentId,
         notes: data.notes,
+        receipt_group_id: data.receiptGroupId,
       })
       .select('receipt_number')
       .single();
@@ -69,13 +71,14 @@ async function sendAdminNotification(
   data: TransactionLogData
 ): Promise<void> {
   try {
-    // Get admin email from settings
-    const { data: settings } = await supabaseClient
+    // Get admin email from settings (key-value lookup)
+    const { data } = await supabaseClient
       .from('admin_settings')
-      .select('admin_email')
-      .single();
+      .select('value')
+      .eq('key', 'admin_email')
+      .maybeSingle();
 
-    const adminEmail = settings?.admin_email;
+    const adminEmail = data?.value;
     if (!adminEmail) {
       console.error('[TransactionLogger] Admin email not configured');
       return;

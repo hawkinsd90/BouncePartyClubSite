@@ -7,7 +7,7 @@ import {
 } from './orderEmailTemplates';
 import { checkMultipleUnitsAvailability } from './availability';
 import { formatOrderId } from './utils';
-import { logAndNotifyTransaction } from './transactionReceiptService';
+import { logGroupedTransactions } from './transactionReceiptService';
 
 interface ApprovalResult {
   success: boolean;
@@ -93,15 +93,15 @@ export async function approveOrder(
       .eq('id', orderData.customer_id)
       .single();
 
-    // Log deposit transaction and notify admin
+    // Log deposit transaction and notify admin with grouped receipts
     if (customerData) {
       const depositAmount = orderData.deposit_due_cents;
       const tipAmount = orderData.tip_cents ?? 0;
 
-      // Log deposit transaction
-      await logAndNotifyTransaction(
+      // Build array of transactions to log (grouped)
+      const transactions = [
         {
-          transactionType: 'deposit',
+          transactionType: 'deposit' as const,
           orderId,
           customerId: orderData.customer_id,
           paymentId: paymentRecord?.id,
@@ -111,30 +111,27 @@ export async function approveOrder(
           stripeChargeId: data.paymentDetails?.chargeId,
           stripePaymentIntentId: data.paymentDetails?.paymentIntentId,
           notes: `Deposit payment for Order ${formatOrderId(orderId)}`,
-        },
-        orderData,
-        customerData
-      );
+        }
+      ];
 
-      // Log tip transaction separately if tip was charged
+      // Add tip transaction if present
       if (tipAmount > 0) {
-        await logAndNotifyTransaction(
-          {
-            transactionType: 'tip',
-            orderId,
-            customerId: orderData.customer_id,
-            paymentId: paymentRecord?.id,
-            amountCents: tipAmount,
-            paymentMethod: data.paymentDetails?.paymentMethod,
-            paymentMethodBrand: data.paymentDetails?.paymentBrand,
-            stripeChargeId: data.paymentDetails?.chargeId,
-            stripePaymentIntentId: data.paymentDetails?.paymentIntentId,
-            notes: `Crew tip for Order ${formatOrderId(orderId)}`,
-          },
-          orderData,
-          customerData
-        );
+        transactions.push({
+          transactionType: 'tip' as const,
+          orderId,
+          customerId: orderData.customer_id,
+          paymentId: paymentRecord?.id,
+          amountCents: tipAmount,
+          paymentMethod: data.paymentDetails?.paymentMethod,
+          paymentMethodBrand: data.paymentDetails?.paymentBrand,
+          stripeChargeId: data.paymentDetails?.chargeId,
+          stripePaymentIntentId: data.paymentDetails?.paymentIntentId,
+          notes: `Crew tip for Order ${formatOrderId(orderId)}`,
+        });
       }
+
+      // Log all transactions as a grouped receipt
+      await logGroupedTransactions(transactions, orderData, customerData);
     }
 
     const { data: invoiceNumberData } = await supabase.rpc('generate_invoice_number');

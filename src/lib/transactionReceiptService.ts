@@ -13,6 +13,7 @@ interface TransactionReceiptData {
   stripeChargeId?: string;
   stripePaymentIntentId?: string;
   notes?: string;
+  receiptGroupId?: string; // For grouping multi-line transactions
 }
 
 interface ReceiptEmailData {
@@ -47,6 +48,7 @@ export async function logTransaction(data: TransactionReceiptData): Promise<stri
         stripe_charge_id: data.stripeChargeId,
         stripe_payment_intent_id: data.stripePaymentIntentId,
         notes: data.notes,
+        receipt_group_id: data.receiptGroupId,
       })
       .select('receipt_number')
       .single();
@@ -72,13 +74,14 @@ export async function sendAdminTransactionReceipt(
   receiptData: ReceiptEmailData
 ): Promise<void> {
   try {
-    // Get admin email from settings
-    const { data: settings } = await supabase
+    // Get admin email from settings (key-value lookup)
+    const { data } = await supabase
       .from('admin_settings')
-      .select('admin_email')
-      .single();
+      .select('value')
+      .eq('key', 'admin_email')
+      .maybeSingle();
 
-    const adminEmail = settings?.admin_email;
+    const adminEmail = data?.value;
     if (!adminEmail) {
       console.error('[TransactionReceipt] Admin email not configured');
       return;
@@ -214,6 +217,253 @@ function generateAdminReceiptEmail(data: ReceiptEmailData): string {
       <div style="background: #e0e7ff; border-radius: 8px; padding: 15px; margin-top: 20px;">
         <p style="margin: 0; color: #3730a3; font-size: 14px;">
           <strong>📊 Action Required:</strong> This transaction has been logged in your system.
+          Review the order details in your admin dashboard for complete information.
+        </p>
+      </div>
+    </div>
+
+    <div class="footer">
+      <p>This is an automated notification from Bounce Party Club Transaction System</p>
+      <p style="font-size: 12px; color: #999;">Receipt generated at ${new Date().toLocaleString()}</p>
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+}
+
+/**
+ * Logs multiple transactions as a grouped receipt (e.g., deposit + tip)
+ * Returns the receipt group ID and all receipt numbers
+ */
+export async function logGroupedTransactions(
+  transactions: TransactionReceiptData[],
+  orderData: any,
+  customerData: any
+): Promise<{ groupId: string; receiptNumbers: string[] } | null> {
+  if (transactions.length === 0) {
+    return null;
+  }
+
+  try {
+    // Generate a single receipt group ID for all transactions
+    const receiptGroupId = crypto.randomUUID();
+
+    const receiptNumbers: string[] = [];
+
+    // Log all transactions with the same group ID
+    for (const transaction of transactions) {
+      const receiptNumber = await logTransaction({
+        ...transaction,
+        receiptGroupId,
+      });
+
+      if (receiptNumber) {
+        receiptNumbers.push(receiptNumber);
+      }
+    }
+
+    if (receiptNumbers.length === 0) {
+      console.error('[TransactionReceipt] No receipts were created for grouped transaction');
+      return null;
+    }
+
+    // Send a single grouped admin notification
+    await sendGroupedAdminNotification(
+      receiptGroupId,
+      receiptNumbers,
+      transactions,
+      orderData,
+      customerData
+    );
+
+    console.log(`[TransactionReceipt] Grouped transaction logged: ${receiptNumbers.length} receipts in group ${receiptGroupId}`);
+
+    return { groupId: receiptGroupId, receiptNumbers };
+  } catch (err) {
+    console.error('[TransactionReceipt] Exception logging grouped transaction:', err);
+    return null;
+  }
+}
+
+/**
+ * Sends a single admin notification for grouped receipts
+ */
+async function sendGroupedAdminNotification(
+  groupId: string,
+  receiptNumbers: string[],
+  transactions: TransactionReceiptData[],
+  orderData: any,
+  customerData: any
+): Promise<void> {
+  try {
+    // Get admin email from settings (key-value lookup)
+    const { data } = await supabase
+      .from('admin_settings')
+      .select('value')
+      .eq('key', 'admin_email')
+      .maybeSingle();
+
+    const adminEmail = data?.value;
+    if (!adminEmail) {
+      console.error('[TransactionReceipt] Admin email not configured');
+      return;
+    }
+
+    const totalAmount = transactions.reduce((sum, t) => sum + t.amountCents, 0);
+    const subject = `Grouped Transaction Receipt - ${receiptNumbers.length} Items - ${formatCurrency(totalAmount)}`;
+    const htmlBody = generateGroupedReceiptEmail(
+      groupId,
+      receiptNumbers,
+      transactions,
+      orderData,
+      customerData
+    );
+
+    // Send email via edge function
+    const { error } = await supabase.functions.invoke('send-email', {
+      body: {
+        to: adminEmail,
+        subject,
+        html: htmlBody,
+      },
+    });
+
+    if (error) {
+      console.error('[TransactionReceipt] Error sending grouped admin email:', error);
+      return;
+    }
+
+    // Mark all receipts as sent to admin
+    await supabase
+      .from('transaction_receipts')
+      .update({
+        receipt_sent_to_admin: true,
+        admin_notified_at: new Date().toISOString(),
+      })
+      .in('receipt_number', receiptNumbers);
+
+    console.log('[TransactionReceipt] Grouped admin receipt email sent');
+  } catch (err) {
+    console.error('[TransactionReceipt] Exception sending grouped admin email:', err);
+  }
+}
+
+/**
+ * Generates HTML email for grouped transaction receipt
+ */
+function generateGroupedReceiptEmail(
+  groupId: string,
+  receiptNumbers: string[],
+  transactions: TransactionReceiptData[],
+  orderData: any,
+  customerData: any
+): string {
+  const totalAmount = transactions.reduce((sum, t) => sum + t.amountCents, 0);
+  const orderNumber = formatOrderId(orderData.id);
+  const customerName = `${customerData.first_name} ${customerData.last_name}`;
+  const transactionDate = new Date().toLocaleString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+
+  const lineItemsHtml = transactions.map((t, index) => {
+    const typeLabel = {
+      deposit: 'Deposit',
+      balance: 'Balance Payment',
+      full_payment: 'Full Payment',
+      tip: 'Crew Tip',
+      refund: 'Refund',
+    }[t.transactionType] || t.transactionType;
+
+    return `
+      <div style="display: flex; justify-content: space-between; padding: 10px; background: ${index % 2 === 0 ? '#f9fafb' : 'white'};">
+        <div>
+          <strong>${typeLabel}</strong>
+          <div style="font-size: 12px; color: #666;">${receiptNumbers[index]}</div>
+        </div>
+        <div style="font-weight: bold; color: #10b981;">${formatCurrency(t.amountCents)}</div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+    .header h1 { margin: 0; font-size: 24px; }
+    .content { background: #f8f9fa; padding: 30px; border: 1px solid #e0e0e0; }
+    .receipt-box { background: white; border: 2px solid #667eea; border-radius: 8px; padding: 20px; margin: 20px 0; }
+    .group-id { font-size: 14px; color: #667eea; text-align: center; margin-bottom: 10px; }
+    .detail-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e0e0e0; }
+    .detail-row:last-child { border-bottom: none; }
+    .label { font-weight: 600; color: #555; }
+    .value { color: #333; text-align: right; }
+    .total-amount { font-size: 36px; font-weight: bold; color: #10b981; text-align: center; margin: 20px 0; padding: 15px; background: #f0fdf4; border-radius: 8px; }
+    .line-items { margin: 20px 0; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
+    .alert { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; }
+    .footer { text-align: center; color: #666; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>💳 Grouped Transaction Receipt</h1>
+      <p style="margin: 5px 0 0; opacity: 0.9;">Bounce Party Club - Admin Notification</p>
+    </div>
+
+    <div class="content">
+      <div class="receipt-box">
+        <div class="group-id">Group ID: ${groupId}</div>
+
+        <div class="alert">
+          <strong>⚡ ${transactions.length} Transaction${transactions.length > 1 ? 's' : ''} Processed</strong>
+        </div>
+
+        <div class="total-amount">
+          Total: ${formatCurrency(totalAmount)}
+        </div>
+
+        <div class="detail-row">
+          <span class="label">Order Number</span>
+          <span class="value">#${orderNumber}</span>
+        </div>
+
+        <div class="detail-row">
+          <span class="label">Customer</span>
+          <span class="value">${customerName}</span>
+        </div>
+
+        <div class="detail-row">
+          <span class="label">Customer Email</span>
+          <span class="value">${customerData.email}</span>
+        </div>
+
+        <div class="detail-row">
+          <span class="label">Transaction Date</span>
+          <span class="value">${transactionDate}</span>
+        </div>
+
+        <div style="margin-top: 20px;">
+          <div style="font-weight: 600; color: #555; margin-bottom: 10px;">Line Items:</div>
+          <div class="line-items">
+            ${lineItemsHtml}
+          </div>
+        </div>
+      </div>
+
+      <div style="background: #e0e7ff; border-radius: 8px; padding: 15px; margin-top: 20px;">
+        <p style="margin: 0; color: #3730a3; font-size: 14px;">
+          <strong>📊 Action Required:</strong> This grouped transaction has been logged in your system.
           Review the order details in your admin dashboard for complete information.
         </p>
       </div>

@@ -216,10 +216,12 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Get payment method details
+    // Get payment method details and Stripe fees
     let paymentMethod = null;
     let paymentBrand = null;
     let paymentLast4 = null;
+    let stripeFee = 0;
+    let stripeNet = chargeAmountCents;
 
     if (paymentIntent.payment_method) {
       const pmId = typeof paymentIntent.payment_method === "string"
@@ -244,7 +246,25 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Record payment with the full charge amount (including tip)
+    // Retrieve Stripe fees from the charge
+    if (paymentIntent.latest_charge) {
+      try {
+        const chargeId = typeof paymentIntent.latest_charge === "string"
+          ? paymentIntent.latest_charge
+          : paymentIntent.latest_charge.id;
+        const charge = await stripe.charges.retrieve(chargeId);
+        const balanceTx = charge.balance_transaction;
+
+        if (balanceTx && typeof balanceTx === 'object') {
+          stripeFee = balanceTx.fee || 0;
+          stripeNet = balanceTx.net || chargeAmountCents;
+        }
+      } catch (feeError) {
+        console.error("Failed to retrieve Stripe fee data:", feeError);
+      }
+    }
+
+    // Record payment with the full charge amount (including tip) and Stripe fees
     const { error: paymentError } = await supabaseClient.from("payments").insert({
       order_id: orderId,
       stripe_payment_intent_id: paymentIntent.id,
@@ -255,6 +275,9 @@ Deno.serve(async (req: Request) => {
       payment_method: paymentMethod,
       payment_brand: paymentBrand,
       payment_last4: paymentLast4,
+      stripe_fee_amount: stripeFee,
+      stripe_net_amount: stripeNet,
+      currency: 'usd',
     });
 
     if (paymentError) {
