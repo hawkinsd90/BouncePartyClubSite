@@ -93,11 +93,18 @@ export async function approveOrder(
       .eq('id', orderData.customer_id)
       .single();
 
-    // Calculate amounts to match what was actually charged in charge-deposit
-    // charge-deposit uses: customer_selected_payment_cents || deposit_due_cents
-    const depositAmountCents = orderData.customer_selected_payment_cents ?? orderData.deposit_due_cents;
+    // Use Stripe's actual charge amount as the source of truth for receipts and invoice
+    // This prevents drift between what was charged vs what we record in accounting
+    const stripeGrossCents = data.paymentDetails?.amountCents ?? null;
     const tipAmountCents = orderData.tip_cents ?? 0;
-    const paidAmountCents = depositAmountCents + tipAmountCents;
+    const depositAmountCents =
+      stripeGrossCents != null
+        ? Math.max(0, stripeGrossCents - tipAmountCents)
+        : (orderData.customer_selected_payment_cents ?? orderData.deposit_due_cents);
+    const paidAmountCents =
+      stripeGrossCents != null
+        ? stripeGrossCents
+        : (depositAmountCents + tipAmountCents);
 
     // Log deposit transaction and notify admin with grouped receipts
     if (customerData) {
