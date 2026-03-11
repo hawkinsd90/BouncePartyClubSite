@@ -6,7 +6,7 @@ import { PaymentSuccessState } from '../components/payment/PaymentSuccessState';
 
 export function PaymentComplete() {
   const [searchParams] = useSearchParams();
-  const orderId = searchParams.get('orderId');
+  const orderId = searchParams.get('order_id');
   const sessionId = searchParams.get('session_id');
 
   const { status, error, orderDetails, isAdminInvoice } = usePaymentCompletion(orderId, sessionId);
