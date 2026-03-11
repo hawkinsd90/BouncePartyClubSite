@@ -110,6 +110,7 @@ Deno.serve(async (req: Request) => {
       cancel_url: `${req.headers.get("origin")}/payment-canceled?order_id=${orderId}`,
       metadata: {
         order_id: orderId,
+        payment_type: "deposit",
         deposit_amount: depositCents.toString(),
         tip_cents: tipCents.toString(),
       },

@@ -114,6 +114,36 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
           deposit_due_cents: order.deposit_due_cents,
           customer_selected_payment_cents: order.customer_selected_payment_cents,
         });
+
+        // If webhook still hasn't processed, manually verify and update via edge function
+        if (order.status === 'draft' && order.tip_cents === 0 && sessionId) {
+          console.log('[PAYMENT-COMPLETE] Webhook failed to process, calling verify-payment...');
+          try {
+            const verifyResponse = await fetch(
+              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-payment`,
+              {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ sessionId, orderId }),
+              }
+            );
+
+            const verifyResult = await verifyResponse.json();
+            console.log('[PAYMENT-COMPLETE] Verify payment result:', verifyResult);
+
+            if (verifyResult.success) {
+              // Refetch order with updated data
+              order = await fetchOrderDetails();
+              console.log('[PAYMENT-COMPLETE] Order refetched after manual verification:', order);
+            }
+          } catch (verifyError) {
+            console.error('[PAYMENT-COMPLETE] Error verifying payment:', verifyError);
+          }
+        }
+
         setOrderDetails(order);
         await checkIfAdminInvoice();
 

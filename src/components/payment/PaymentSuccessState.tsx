@@ -58,7 +58,7 @@ export function PaymentSuccessState({ orderDetails, isAdminInvoice }: PaymentSuc
             ) : (
               <>
                 Thank you for choosing Bounce Party Club. Your booking request has been submitted and is now
-                pending admin review for final confirmation. Your deposit will be processed once your
+                pending admin review for final confirmation. Your deposit will only be charged once your
                 booking is approved.
               </>
             )}
