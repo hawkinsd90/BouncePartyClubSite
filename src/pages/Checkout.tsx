@@ -111,6 +111,7 @@ export function Checkout() {
       }
 
       const paymentCents = getPaymentAmountCents(paymentAmount, customAmount, priceBreakdown);
+      const tipCents = getTipAmountCents(tipAmount, customTip, priceBreakdown.total_cents);
 
       const orderId = await createOrderBeforePayment({
         contactData,
@@ -123,6 +124,7 @@ export function Checkout() {
         cardOnFileConsent,
         customerSelectedPaymentCents: paymentCents,
         customerSelectedPaymentType: paymentAmount,
+        tipCents,
       });
 
       const depositCents = paymentCents;

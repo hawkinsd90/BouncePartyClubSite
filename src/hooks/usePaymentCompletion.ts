@@ -71,8 +71,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
       setStatus('loading');
       console.log('[PAYMENT-COMPLETE] Processing payment for order:', orderId);
 
-      // Retrieve tip from Stripe session if available
-      let retrievedTipCents = 0;
+      // Retrieve tip from Stripe session if available (for display purposes only - tip already saved to order)
       if (sessionId) {
         try {
           const sessionResponse = await fetch(
@@ -89,9 +88,9 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
 
           if (sessionResponse.ok) {
             const sessionData = await sessionResponse.json();
-            retrievedTipCents = parseInt(sessionData.metadata?.tip_cents || '0', 10);
-            setSessionTipCents(retrievedTipCents);
-            console.log('[PAYMENT-COMPLETE] Retrieved tip from session:', retrievedTipCents);
+            const tipCents = parseInt(sessionData.metadata?.tip_cents || '0', 10);
+            setSessionTipCents(tipCents);
+            console.log('[PAYMENT-COMPLETE] Retrieved tip from session:', tipCents);
           }
         } catch (err) {
           console.error('[PAYMENT-COMPLETE] Error retrieving session metadata:', err);
@@ -149,7 +148,6 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
         // If webhook still hasn't processed after retries, manually update the order
         if (order.status === 'draft' && sessionId) {
           console.log('[PAYMENT-COMPLETE] Webhook failed to process, manually updating order status...');
-          console.log('[PAYMENT-COMPLETE] Will save tip amount:', retrievedTipCents);
 
           // Check if this is an admin invoice
           const { data: invoiceLink } = await supabase
@@ -162,18 +160,18 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
           const newStatus = isAdminInvoice ? 'confirmed' : 'pending_review';
 
           // Update order status (no charge yet, just card saved)
+          // Note: tip_cents is already saved when order was created, no need to update it here
           const { error: updateError } = await supabase
             .from('orders')
             .update({
               status: newStatus,
-              tip_cents: retrievedTipCents,
             })
             .eq('id', orderId!);
 
           if (updateError) {
             console.error('[PAYMENT-COMPLETE] Error manually updating order:', updateError);
           } else {
-            console.log(`[PAYMENT-COMPLETE] Successfully updated order to status: ${newStatus}, tip saved: ${retrievedTipCents}`);
+            console.log(`[PAYMENT-COMPLETE] Successfully updated order to status: ${newStatus}`);
             // Refetch order with updated data
             order = await fetchOrderDetails();
           }

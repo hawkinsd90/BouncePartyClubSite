@@ -19,6 +19,7 @@ interface OrderData {
   cardOnFileConsent: boolean;
   customerSelectedPaymentCents?: number;
   customerSelectedPaymentType?: 'deposit' | 'full' | 'custom';
+  tipCents?: number;
 }
 
 export async function createOrderBeforePayment(data: OrderData): Promise<string> {
@@ -33,6 +34,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     cardOnFileConsent,
     customerSelectedPaymentCents,
     customerSelectedPaymentType,
+    tipCents = 0,
   } = data;
 
   // Fetch the current pricing rules to check apply_taxes_by_default setting
@@ -182,7 +184,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       travel_fee_waive_reason: null,
       same_day_pickup_fee_waived: false,
       same_day_pickup_fee_waive_reason: null,
-      tip_cents: 0,
+      tip_cents: tipCents,
       deposit_due_cents: customerSelectedPaymentCents || priceBreakdown.deposit_due_cents,
       deposit_paid_cents: 0,
       balance_due_cents: applyTaxesByDefault
