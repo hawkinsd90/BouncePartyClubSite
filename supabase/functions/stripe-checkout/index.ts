@@ -22,7 +22,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { orderId, depositAmount, tipAmount = 0 } = await req.json();
+    const { orderId, depositCents, tipCents = 0, customerEmail, customerName } = await req.json();
 
     const ip = getIdentifier(req);
     const identifier = buildRateLimitKey(ip, orderId, 'checkout');
@@ -46,7 +46,7 @@ Deno.serve(async (req: Request) => {
       return createRateLimitResponse(rateLimitResult, corsHeaders);
     }
 
-    if (!orderId || !depositAmount) {
+    if (!orderId || !depositCents) {
       return new Response(
         JSON.stringify({ success: false, error: "Missing required fields" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -88,7 +88,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const totalAmount = depositAmount + tipAmount;
+    const totalAmount = depositCents + tipCents;
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -110,8 +110,8 @@ Deno.serve(async (req: Request) => {
       cancel_url: `${req.headers.get("origin")}/payment-canceled?order_id=${orderId}`,
       metadata: {
         order_id: orderId,
-        deposit_amount: depositAmount.toString(),
-        tip_amount: tipAmount.toString(),
+        deposit_amount: depositCents.toString(),
+        tip_amount: tipCents.toString(),
       },
     });
 
