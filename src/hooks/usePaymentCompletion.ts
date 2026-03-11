@@ -67,7 +67,8 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
       setStatus('loading');
       console.log('[PAYMENT-COMPLETE] Processing payment for order:', orderId);
 
-      await updateOrderViaWebhook();
+      // Wait a moment for the webhook to process (Stripe webhooks are usually very fast)
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       const order = await fetchOrderDetails();
       if (order) {
@@ -83,28 +84,6 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
       setError(err.message);
       setStatus('error');
     }
-  }
-
-  async function updateOrderViaWebhook() {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const response = await fetch(
-      `${supabaseUrl}/functions/v1/stripe-checkout?action=webhook&orderId=${orderId}&session_id=${encodeURIComponent(sessionId ?? '')}`,
-      {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[PAYMENT-COMPLETE] Edge function error:', errorText);
-      throw new Error('Failed to update order');
-    }
-
-    const result = await response.json();
-    console.log('[PAYMENT-COMPLETE] Edge function response:', result);
   }
 
   async function fetchOrderDetails(): Promise<OrderDetails | null> {
