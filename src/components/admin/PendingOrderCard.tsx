@@ -256,15 +256,6 @@ export const PendingOrderCard = forwardRef<PendingOrderCardRef, {
 
       <PaymentManagementSection order={order} payments={payments} />
 
-      {!isDraft && !order.stripe_payment_method_id && (
-        <div className="mb-4 p-4 bg-red-50 border-2 border-red-400 rounded-lg">
-          <p className="text-red-900 font-bold text-sm mb-1">⚠️ No payment method on file</p>
-          <p className="text-red-800 text-xs">
-            Customer needs to complete payment first before you can charge their deposit.
-          </p>
-        </div>
-      )}
-
       {isDraft ? (
         <div ref={actionButtonsRef} className="space-y-3">
           <PaymentLinkSection
@@ -300,15 +291,7 @@ export const PendingOrderCard = forwardRef<PendingOrderCardRef, {
       ) : (
         <div ref={actionButtonsRef} className="flex gap-3">
           <button
-            onClick={() => {
-              if (!order.stripe_customer_id || !order.stripe_payment_method_id) {
-                alert(
-                  'No payment method on file. Ask the customer to complete checkout first, or use "Force Approve" for cash payments.'
-                );
-                return;
-              }
-              setShowApprovalModal(true);
-            }}
+            onClick={() => setShowApprovalModal(true)}
             disabled={processing}
             className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
           >
