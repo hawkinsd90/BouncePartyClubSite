@@ -11,7 +11,7 @@ export function PaymentComplete() {
 
   console.log('[PAYMENT-COMPLETE-PAGE] Rendering with orderId:', orderId, 'sessionId:', sessionId);
 
-  const { status, error, orderDetails, isAdminInvoice } = usePaymentCompletion(orderId, sessionId);
+  const { status, error, orderDetails, isAdminInvoice, sessionTipCents } = usePaymentCompletion(orderId, sessionId);
 
   console.log('[PAYMENT-COMPLETE-PAGE] Status:', status, 'Error:', error, 'OrderDetails:', orderDetails);
 
@@ -26,5 +26,5 @@ export function PaymentComplete() {
   }
 
   console.log('[PAYMENT-COMPLETE-PAGE] Showing success state');
-  return <PaymentSuccessState orderDetails={orderDetails} isAdminInvoice={isAdminInvoice} />;
+  return <PaymentSuccessState orderDetails={orderDetails} isAdminInvoice={isAdminInvoice} sessionTipCents={sessionTipCents} />;
 }

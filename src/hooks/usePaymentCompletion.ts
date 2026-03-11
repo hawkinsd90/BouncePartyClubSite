@@ -51,6 +51,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
   const [error, setError] = useState<string | null>(null);
   const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
   const [isAdminInvoice, setIsAdminInvoice] = useState(false);
+  const [sessionTipCents, setSessionTipCents] = useState<number>(0);
 
   useEffect(() => {
     console.log('[PAYMENT-COMPLETE] useEffect triggered with orderId:', orderId, 'sessionId:', sessionId);
@@ -69,6 +70,32 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
     try {
       setStatus('loading');
       console.log('[PAYMENT-COMPLETE] Processing payment for order:', orderId);
+
+      // Retrieve tip from Stripe session if available
+      if (sessionId) {
+        try {
+          const sessionResponse = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-session-metadata`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ sessionId }),
+            }
+          );
+
+          if (sessionResponse.ok) {
+            const sessionData = await sessionResponse.json();
+            const tipCents = parseInt(sessionData.metadata?.tip_cents || '0', 10);
+            setSessionTipCents(tipCents);
+            console.log('[PAYMENT-COMPLETE] Retrieved tip from session:', tipCents);
+          }
+        } catch (err) {
+          console.error('[PAYMENT-COMPLETE] Error retrieving session metadata:', err);
+        }
+      }
 
       // Check if we've already processed this payment (prevent re-processing on refresh)
       const processedKey = `payment_processed_${orderId}`;
@@ -114,35 +141,6 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
           deposit_due_cents: order.deposit_due_cents,
           customer_selected_payment_cents: order.customer_selected_payment_cents,
         });
-
-        // If webhook still hasn't processed, manually verify and update via edge function
-        if (order.status === 'draft' && order.tip_cents === 0 && sessionId) {
-          console.log('[PAYMENT-COMPLETE] Webhook failed to process, calling verify-payment...');
-          try {
-            const verifyResponse = await fetch(
-              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-payment`,
-              {
-                method: 'POST',
-                headers: {
-                  Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ sessionId, orderId }),
-              }
-            );
-
-            const verifyResult = await verifyResponse.json();
-            console.log('[PAYMENT-COMPLETE] Verify payment result:', verifyResult);
-
-            if (verifyResult.success) {
-              // Refetch order with updated data
-              order = await fetchOrderDetails();
-              console.log('[PAYMENT-COMPLETE] Order refetched after manual verification:', order);
-            }
-          } catch (verifyError) {
-            console.error('[PAYMENT-COMPLETE] Error verifying payment:', verifyError);
-          }
-        }
 
         setOrderDetails(order);
         await checkIfAdminInvoice();
@@ -257,5 +255,6 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
     error,
     orderDetails,
     isAdminInvoice,
+    sessionTipCents,
   };
 }

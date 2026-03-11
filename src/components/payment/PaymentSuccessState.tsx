@@ -22,10 +22,14 @@ interface OrderDetails {
 interface PaymentSuccessStateProps {
   orderDetails: OrderDetails | null;
   isAdminInvoice: boolean;
+  sessionTipCents?: number;
 }
 
-export function PaymentSuccessState({ orderDetails, isAdminInvoice }: PaymentSuccessStateProps) {
+export function PaymentSuccessState({ orderDetails, isAdminInvoice, sessionTipCents = 0 }: PaymentSuccessStateProps) {
   const navigate = useNavigate();
+
+  // Use sessionTipCents if webhook hasn't processed yet, otherwise use orderDetails.tip_cents
+  const displayTipCents = orderDetails?.tip_cents || sessionTipCents;
 
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-4 py-8">
@@ -90,23 +94,23 @@ export function PaymentSuccessState({ orderDetails, isAdminInvoice }: PaymentSuc
                   ${((orderDetails.customer_selected_payment_cents || orderDetails.deposit_due_cents) / 100).toFixed(2)}
                 </p>
               </div>
-              {orderDetails.tip_cents > 0 && (
+              {displayTipCents > 0 && (
                 <div>
                   <p className="text-sm text-slate-600 mb-1">Crew Tip:</p>
                   <p className="font-semibold text-green-600">
-                    ${(orderDetails.tip_cents / 100).toFixed(2)}
+                    ${(displayTipCents / 100).toFixed(2)}
                   </p>
                 </div>
               )}
-              {orderDetails.tip_cents > 0 && (
+              {displayTipCents > 0 && (
                 <div className="col-span-2">
                   <p className="text-sm text-slate-600 mb-1">Total Payment (including tip):</p>
                   <p className="font-semibold text-green-600 text-lg">
-                    ${(((orderDetails.customer_selected_payment_cents || orderDetails.deposit_due_cents) + orderDetails.tip_cents) / 100).toFixed(2)}
+                    ${(((orderDetails.customer_selected_payment_cents || orderDetails.deposit_due_cents) + displayTipCents) / 100).toFixed(2)}
                   </p>
                 </div>
               )}
-              <div className={orderDetails.tip_cents > 0 ? 'col-span-2' : ''}>
+              <div className={displayTipCents > 0 ? 'col-span-2' : ''}>
                 <p className="text-sm text-slate-600 mb-1">Balance Due Day of Event:</p>
                 <p className="font-semibold text-slate-900">
                   ${(Math.max(0, (orderDetails.subtotal_cents + orderDetails.travel_fee_cents + orderDetails.surface_fee_cents + (orderDetails.same_day_pickup_fee_cents || 0) + orderDetails.tax_cents - (orderDetails.customer_selected_payment_cents || orderDetails.deposit_due_cents))) / 100).toFixed(2)}
