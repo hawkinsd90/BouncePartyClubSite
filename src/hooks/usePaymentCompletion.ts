@@ -149,6 +149,30 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
         if (order.status === 'draft' && sessionId) {
           console.log('[PAYMENT-COMPLETE] Webhook failed to process, manually updating order status...');
 
+          // First, save the payment method from the session
+          try {
+            const savePaymentMethodResponse = await fetch(
+              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/save-payment-method-from-session`,
+              {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ sessionId, orderId }),
+              }
+            );
+
+            if (savePaymentMethodResponse.ok) {
+              const result = await savePaymentMethodResponse.json();
+              console.log('[PAYMENT-COMPLETE] Payment method saved:', result.paymentMethodId);
+            } else {
+              console.error('[PAYMENT-COMPLETE] Failed to save payment method:', await savePaymentMethodResponse.text());
+            }
+          } catch (err) {
+            console.error('[PAYMENT-COMPLETE] Error saving payment method:', err);
+          }
+
           // Check if this is an admin invoice
           const { data: invoiceLink } = await supabase
             .from('invoice_links' as any)
