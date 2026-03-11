@@ -70,22 +70,58 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
       setStatus('loading');
       console.log('[PAYMENT-COMPLETE] Processing payment for order:', orderId);
 
-      // Wait a moment for the webhook to process (Stripe webhooks are usually very fast)
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Check if we've already processed this payment (prevent re-processing on refresh)
+      const processedKey = `payment_processed_${orderId}`;
+      const alreadyProcessed = SafeStorage.get(processedKey);
 
-      const order = await fetchOrderDetails();
+      if (alreadyProcessed) {
+        console.log('[PAYMENT-COMPLETE] Payment already processed, skipping notifications');
+      }
+
+      // Wait for webhook to process and retry a few times if order status hasn't updated
+      let order = null;
+      let retries = 0;
+      const maxRetries = 3;
+
+      while (retries < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, retries === 0 ? 2000 : 1000));
+
+        order = await fetchOrderDetails();
+
+        if (order) {
+          console.log('[PAYMENT-COMPLETE] Retry', retries, '- Order status:', order.status, 'tip_cents:', order.tip_cents);
+
+          // Check if webhook has processed (status changed from draft and tip_cents is set)
+          if (order.status !== 'draft' || order.tip_cents > 0) {
+            console.log('[PAYMENT-COMPLETE] Webhook has processed the payment');
+            break;
+          }
+        }
+
+        retries++;
+        if (retries < maxRetries) {
+          console.log('[PAYMENT-COMPLETE] Webhook may not have processed yet, retrying...');
+        }
+      }
+
       console.log('[PAYMENT-COMPLETE] Order fetch result:', order ? 'SUCCESS' : 'NULL');
 
       if (order) {
-        console.log('[PAYMENT-COMPLETE] Order details:', {
+        console.log('[PAYMENT-COMPLETE] Final order details:', {
           id: order.id,
+          status: order.status,
           tip_cents: order.tip_cents,
           deposit_due_cents: order.deposit_due_cents,
           customer_selected_payment_cents: order.customer_selected_payment_cents,
         });
         setOrderDetails(order);
         await checkIfAdminInvoice();
-        await sendNotificationsIfNeeded(order);
+
+        // Only send notifications if we haven't processed this payment before
+        if (!alreadyProcessed) {
+          await sendNotificationsIfNeeded(order);
+          SafeStorage.set(processedKey, 'true');
+        }
       } else {
         console.error('[PAYMENT-COMPLETE] Order is null, setting error state');
         setError('Unable to load order details');

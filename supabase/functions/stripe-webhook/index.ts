@@ -301,7 +301,14 @@ async function processWebhookEvent(
           const isAdminInvoice = !!invoiceLink;
           const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
 
-          await supabaseClient
+          console.log(`[WEBHOOK] Updating order ${orderId}:`, {
+            depositOnly,
+            tipCents,
+            newStatus,
+            isAdminInvoice,
+          });
+
+          const { error: updateError } = await supabaseClient
             .from("orders")
             .update({
               stripe_payment_status: "paid",
@@ -312,6 +319,12 @@ async function processWebhookEvent(
               status: newStatus,
             })
             .eq("id", orderId);
+
+          if (updateError) {
+            console.error(`[WEBHOOK] Error updating order ${orderId}:`, updateError);
+          } else {
+            console.log(`[WEBHOOK] Successfully updated order ${orderId} to status: ${newStatus}`);
+          }
 
           if (paymentIntentId) {
             await supabaseClient
