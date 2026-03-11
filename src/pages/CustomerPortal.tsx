@@ -53,12 +53,17 @@ export function CustomerPortal() {
   const isDraft = order.status === 'draft';
   const isActive = ['pending_review', 'confirmed', 'in_progress', 'completed'].includes(order.status);
 
+  // If accessed via /customer-portal/:orderId (not /invoice/:token), treat as active even if draft
+  // This handles the case where payment just completed but webhook hasn't updated status yet
+  const isDirectPortalAccess = !isInvoiceLink && orderId;
+  const shouldShowRegularPortal = isActive || (isDirectPortalAccess && isDraft);
+
   if (approvalSuccess) {
     return <ApprovalSuccessView orderId={order.id} />;
   }
 
-  if (!isActive && !needsApproval) {
-    if (isDraft) {
+  if (!shouldShowRegularPortal && !needsApproval) {
+    if (isDraft && isInvoiceLink) {
       return (
         <InvoiceAcceptanceView
           order={order}

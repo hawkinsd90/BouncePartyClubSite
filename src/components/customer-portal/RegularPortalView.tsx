@@ -176,9 +176,9 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-600 to-cyan-600 px-8 py-6 text-white">
-            <div className="flex justify-between items-start">
-              <div className="flex items-center gap-4">
+          <div className="bg-gradient-to-r from-blue-600 to-cyan-600 px-4 sm:px-8 py-6 text-white">
+            <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+              <div className="flex items-center gap-4 min-w-0 flex-1">
                 <button
                   onClick={() => navigate('/')}
                   className="hover:opacity-80 transition-opacity flex-shrink-0"
@@ -187,13 +187,13 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                   <img
                     src="/bounce%20party%20club%20logo.png"
                     alt="Bounce Party Club"
-                    className="h-16 w-16 object-contain"
+                    className="h-12 sm:h-16 w-12 sm:w-16 object-contain"
                   />
                 </button>
-                <div>
-                  <h1 className="text-3xl font-bold">Customer Portal</h1>
-                  <p className="mt-2">Order #{formatOrderId(order.id)}</p>
-                  <p className="text-sm opacity-90">
+                <div className="min-w-0">
+                  <h1 className="text-2xl sm:text-3xl font-bold">Customer Portal</h1>
+                  <p className="mt-1 sm:mt-2 text-sm sm:text-base">Order #{formatOrderId(order.id)}</p>
+                  <p className="text-xs sm:text-sm opacity-90">
                     Event Date: {format(new Date(order.event_date), 'MMMM d, yyyy')} at{' '}
                     {order.start_window}
                   </p>
@@ -202,7 +202,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
               {canCancel && (
                 <button
                   onClick={() => setShowCancelModal(true)}
-                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors text-sm"
+                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors text-sm whitespace-nowrap self-start sm:self-center flex-shrink-0"
                 >
                   Cancel Order
                 </button>

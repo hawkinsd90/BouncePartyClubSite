@@ -98,7 +98,15 @@ export function PaymentSuccessState({ orderDetails, isAdminInvoice }: PaymentSuc
                   </p>
                 </div>
               )}
-              <div>
+              {orderDetails.tip_cents > 0 && (
+                <div className="col-span-2">
+                  <p className="text-sm text-slate-600 mb-1">Total Payment (including tip):</p>
+                  <p className="font-semibold text-green-600 text-lg">
+                    ${(((orderDetails.customer_selected_payment_cents || orderDetails.deposit_due_cents) + orderDetails.tip_cents) / 100).toFixed(2)}
+                  </p>
+                </div>
+              )}
+              <div className={orderDetails.tip_cents > 0 ? 'col-span-2' : ''}>
                 <p className="text-sm text-slate-600 mb-1">Balance Due Day of Event:</p>
                 <p className="font-semibold text-slate-900">
                   ${(Math.max(0, (orderDetails.subtotal_cents + orderDetails.travel_fee_cents + orderDetails.surface_fee_cents + (orderDetails.same_day_pickup_fee_cents || 0) + orderDetails.tax_cents - (orderDetails.customer_selected_payment_cents || orderDetails.deposit_due_cents))) / 100).toFixed(2)}
