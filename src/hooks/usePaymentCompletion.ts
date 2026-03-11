@@ -72,7 +72,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
 
       // Check if we've already processed this payment (prevent re-processing on refresh)
       const processedKey = `payment_processed_${orderId}`;
-      const alreadyProcessed = SafeStorage.get(processedKey);
+      const alreadyProcessed = SafeStorage.getItem(processedKey);
 
       if (alreadyProcessed) {
         console.log('[PAYMENT-COMPLETE] Payment already processed, skipping notifications');
@@ -120,7 +120,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
         // Only send notifications if we haven't processed this payment before
         if (!alreadyProcessed) {
           await sendNotificationsIfNeeded(order);
-          SafeStorage.set(processedKey, 'true');
+          SafeStorage.setItem(processedKey, 'true');
         }
       } else {
         console.error('[PAYMENT-COMPLETE] Order is null, setting error state');
