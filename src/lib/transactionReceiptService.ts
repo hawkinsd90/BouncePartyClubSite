@@ -32,9 +32,24 @@ interface ReceiptEmailData {
 
 /**
  * Logs a financial transaction and creates a receipt record
+ * Handles duplicate charge_id gracefully by returning existing receipt
  */
 export async function logTransaction(data: TransactionReceiptData): Promise<string | null> {
   try {
+    // If stripe_charge_id exists, check for existing receipt first
+    if (data.stripeChargeId) {
+      const { data: existingReceipt } = await supabase
+        .from('transaction_receipts')
+        .select('receipt_number')
+        .eq('stripe_charge_id', data.stripeChargeId)
+        .maybeSingle();
+
+      if (existingReceipt) {
+        console.log('[TransactionReceipt] Receipt already exists for charge:', existingReceipt.receipt_number);
+        return existingReceipt.receipt_number;
+      }
+    }
+
     const { data: receipt, error } = await supabase
       .from('transaction_receipts')
       .insert({
@@ -54,6 +69,20 @@ export async function logTransaction(data: TransactionReceiptData): Promise<stri
       .single();
 
     if (error) {
+      // If unique constraint violation on stripe_charge_id, try to fetch existing receipt
+      if (error.code === '23505' && data.stripeChargeId) {
+        console.warn('[TransactionReceipt] Duplicate charge_id detected, fetching existing receipt');
+        const { data: existingReceipt } = await supabase
+          .from('transaction_receipts')
+          .select('receipt_number')
+          .eq('stripe_charge_id', data.stripeChargeId)
+          .maybeSingle();
+
+        if (existingReceipt) {
+          return existingReceipt.receipt_number;
+        }
+      }
+
       console.error('[TransactionReceipt] Error logging transaction:', error);
       return null;
     }
