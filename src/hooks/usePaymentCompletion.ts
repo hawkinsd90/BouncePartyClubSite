@@ -118,9 +118,9 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
         if (order) {
           console.log('[PAYMENT-COMPLETE] Retry', retries, '- Order status:', order.status, 'tip_cents:', order.tip_cents);
 
-          // Check if webhook has processed (status changed from draft and tip_cents is set)
-          if (order.status !== 'draft' || order.tip_cents > 0) {
-            console.log('[PAYMENT-COMPLETE] Webhook has processed the payment');
+          // Check if webhook has processed (status changed from draft)
+          if (order.status !== 'draft') {
+            console.log('[PAYMENT-COMPLETE] Webhook has processed - order status:', order.status);
             break;
           }
         }
@@ -156,13 +156,12 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
           const isAdminInvoice = !!invoiceLink;
           const newStatus = isAdminInvoice ? 'confirmed' : 'pending_review';
 
-          // Update order status
+          // Update order status (no charge yet, just card saved)
           const { error: updateError } = await supabase
             .from('orders')
             .update({
               status: newStatus,
               tip_cents: sessionTipCents,
-              stripe_payment_status: 'paid'
             })
             .eq('id', orderId!);
 

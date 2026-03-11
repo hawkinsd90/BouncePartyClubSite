@@ -88,24 +88,30 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const totalAmount = depositCents + tipCents;
+    // Create or retrieve Stripe customer
+    let customerId = order.stripe_customer_id;
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: customerEmail,
+        name: customerName,
+        metadata: {
+          order_id: orderId,
+        },
+      });
+      customerId = customer.id;
 
+      // Save customer ID to order
+      await supabaseClient
+        .from("orders")
+        .update({ stripe_customer_id: customerId })
+        .eq("id", orderId);
+    }
+
+    // Use setup mode to save card on file (no charge yet)
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
-      mode: "payment",
-      customer: order.stripe_customer_id || undefined,
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            product_data: {
-              name: `Deposit for Order #${orderId.substring(0, 8)}`,
-            },
-            unit_amount: totalAmount,
-          },
-          quantity: 1,
-        },
-      ],
+      mode: "setup",
+      customer: customerId,
       success_url: `${req.headers.get("origin")}/payment-complete?session_id={CHECKOUT_SESSION_ID}&order_id=${orderId}`,
       cancel_url: `${req.headers.get("origin")}/payment-canceled?order_id=${orderId}`,
       metadata: {

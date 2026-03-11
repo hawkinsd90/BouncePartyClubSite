@@ -510,6 +510,55 @@ async function processWebhookEvent(
         break;
       }
 
+      case "setup_intent.succeeded": {
+        const setupIntent = event.data.object as Stripe.SetupIntent;
+        const orderId = setupIntent.metadata?.order_id || null;
+
+        if (!orderId) {
+          console.warn("[WEBHOOK] No order_id in setup_intent metadata, skipping");
+          break;
+        }
+
+        console.log(`🔐 [WEBHOOK] SetupIntent succeeded for order ${orderId}`);
+
+        const paymentMethodId =
+          typeof setupIntent.payment_method === "string"
+            ? setupIntent.payment_method
+            : setupIntent.payment_method?.id || null;
+
+        const stripeCustomerId =
+          typeof setupIntent.customer === "string"
+            ? setupIntent.customer
+            : setupIntent.customer?.id || null;
+
+        // Check if this is an admin invoice
+        const { data: invoiceLink } = await supabaseClient
+          .from("invoice_links")
+          .select("id")
+          .eq("order_id", orderId)
+          .maybeSingle();
+
+        const isAdminInvoice = !!invoiceLink;
+        const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
+
+        // Update order with payment method and set to pending_review (or confirmed for admin invoices)
+        const { error: updateError } = await supabaseClient
+          .from("orders")
+          .update({
+            stripe_payment_method_id: paymentMethodId,
+            stripe_customer_id: stripeCustomerId,
+            status: newStatus,
+          })
+          .eq("id", orderId);
+
+        if (updateError) {
+          console.error(`[WEBHOOK] Error updating order ${orderId}:`, updateError);
+        } else {
+          console.log(`[WEBHOOK] Successfully updated order ${orderId} to status: ${newStatus}`);
+        }
+        break;
+      }
+
       default:
         console.log(`ℹ️ [WEBHOOK] Unhandled event type: ${event.type}`);
     }
