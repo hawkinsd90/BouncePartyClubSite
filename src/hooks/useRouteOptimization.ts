@@ -22,6 +22,8 @@ export function useRouteOptimization() {
         equipmentIds: task.equipmentIds,
         numInflatables: task.numInflatables,
         routeDateISO: task.date.toISOString().split('T')[0],
+        lat: (task as any).lat ?? (task as any).location?.lat ?? undefined,
+        lng: (task as any).lng ?? (task as any).location?.lng ?? undefined,
       }));
 
       const optimizedStops = await optimizeMorningRoute(routeStops);

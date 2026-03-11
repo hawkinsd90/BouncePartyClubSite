@@ -53,9 +53,6 @@ async function getDistanceMatrix(
     throw new Error('Google Maps API not loaded. Please check your API key configuration.');
   }
 
-  console.log('[Route Optimization] Loading Geometry library...');
-  await google.maps.importLibrary("geometry");
-
   console.log(`[Route Optimization] Calculating distance matrix (distances and durations) for ${origins.length} locations...`);
   if (departureTime) {
     console.log(`[Route Optimization] Using traffic-aware routing for ${departureTime.toLocaleString()}`);
@@ -140,6 +137,168 @@ function isEarlyEvent(eventStartTime?: string): boolean {
   if (!eventStartTime) return false;
   const minutes = parseTimeToMinutes(eventStartTime);
   return minutes < 9 * 60;
+}
+
+/**
+ * Debug helper: Logs a summary of all stops with equipment details
+ */
+function debugStopSummary(stops: MorningRouteStop[]): void {
+  console.log('[DEBUG] ========== STOP SUMMARY ==========');
+  for (const stop of stops) {
+    const equipIds = [...stop.equipmentIds].sort().join(', ') || '(none)';
+    console.log(`[DEBUG] Stop: ${stop.taskId}`);
+    console.log(`  - Type: ${stop.type}`);
+    console.log(`  - Address: ${stop.address}`);
+    console.log(`  - EquipmentIds: [${equipIds}]`);
+    console.log(`  - NumInflatables: ${stop.numInflatables ?? 0}`);
+    console.log(`  - EventStartTime: ${stop.eventStartTime ?? 'N/A'}`);
+  }
+  console.log('[DEBUG] ====================================');
+}
+
+/**
+ * Debug helper: Logs the dependency graph with reverse mappings
+ */
+function debugDependencyGraph(deps: Map<string, string[]>, stops: MorningRouteStop[]): void {
+  console.log('[DEBUG] ========== DEPENDENCY GRAPH ==========');
+
+  // Show drop-offs and their dependencies
+  console.log('[DEBUG] Drop-off dependencies:');
+  for (const stop of stops) {
+    if (stop.type === 'drop-off') {
+      const dependencies = deps.get(stop.taskId) || [];
+      if (dependencies.length > 0) {
+        console.log(`[DEBUG] DROP ${stop.taskId} depends on: [${dependencies.join(', ')}]`);
+      } else {
+        console.log(`[DEBUG] DROP ${stop.taskId} has NO dependencies`);
+      }
+    }
+  }
+
+  // Show reverse mapping per equipmentId
+  console.log('[DEBUG] Equipment ID mappings:');
+  const equipmentToPickup = new Map<string, string>();
+  const equipmentToDropoffs = new Map<string, string[]>();
+
+  for (const stop of stops) {
+    if (stop.type === 'pick-up') {
+      for (const equipId of stop.equipmentIds) {
+        equipmentToPickup.set(equipId, stop.taskId);
+      }
+    }
+  }
+
+  for (const stop of stops) {
+    if (stop.type === 'drop-off') {
+      for (const equipId of stop.equipmentIds) {
+        if (!equipmentToDropoffs.has(equipId)) {
+          equipmentToDropoffs.set(equipId, []);
+        }
+        equipmentToDropoffs.get(equipId)!.push(stop.taskId);
+      }
+    }
+  }
+
+  const allEquipIds = new Set([...equipmentToPickup.keys(), ...equipmentToDropoffs.keys()]);
+  for (const equipId of allEquipIds) {
+    const pickup = equipmentToPickup.get(equipId) || 'NONE';
+    const dropoffs = equipmentToDropoffs.get(equipId) || [];
+    console.log(`[DEBUG] EquipmentId "${equipId}":`);
+    console.log(`  - Pickup: ${pickup}`);
+    console.log(`  - Drop-offs: [${dropoffs.join(', ') || 'NONE'}]`);
+  }
+
+  console.log('[DEBUG] =========================================');
+}
+
+/**
+ * Validates equipment data integrity before route optimization
+ */
+function validateEquipmentData(stops: MorningRouteStop[]): { warnings: string[]; errors: string[] } {
+  const warnings: string[] = [];
+  const errors: string[] = [];
+
+  // Build pickup equipment mapping
+  const pickupEquipmentIds = new Set<string>();
+  const pickupsByEquipment = new Map<string, string[]>();
+
+  for (const stop of stops) {
+    if (stop.type === 'pick-up') {
+      for (const equipId of stop.equipmentIds) {
+        pickupEquipmentIds.add(equipId);
+        if (!pickupsByEquipment.has(equipId)) {
+          pickupsByEquipment.set(equipId, []);
+        }
+        pickupsByEquipment.get(equipId)!.push(stop.taskId);
+      }
+    }
+  }
+
+  // Check for duplicate pickups for same equipment
+  for (const [equipId, pickupTaskIds] of pickupsByEquipment.entries()) {
+    if (pickupTaskIds.length > 1) {
+      errors.push(
+        `equipmentId "${equipId}" appears in multiple pickups: ${pickupTaskIds.join(', ')} (ambiguous dependency)`
+      );
+    }
+  }
+
+  // Validate each stop
+  for (const stop of stops) {
+    // Check for missing equipment IDs
+    if (!stop.equipmentIds || stop.equipmentIds.length === 0) {
+      if (stop.type === 'drop-off' && (stop.numInflatables ?? 0) > 0) {
+        errors.push(
+          `Drop-off ${stop.taskId} has ${stop.numInflatables} inflatables but NO equipmentIds (cannot create dependencies)`
+        );
+      } else {
+        warnings.push(
+          `Stop ${stop.taskId} (${stop.type}) has empty/missing equipmentIds`
+        );
+      }
+    }
+
+    // Check drop-offs for orphaned equipment IDs
+    if (stop.type === 'drop-off') {
+      for (const equipId of stop.equipmentIds) {
+        if (!pickupEquipmentIds.has(equipId)) {
+          warnings.push(
+            `Drop-off ${stop.taskId} equipmentId "${equipId}" has no matching pickup in this route. Dependency cannot be enforced.`
+          );
+        }
+      }
+    }
+  }
+
+  return { warnings, errors };
+}
+
+/**
+ * Validates that the route respects all dependencies
+ */
+function validateRouteRespectsDependencies(route: OptimizedMorningStop[], dependencies: Map<string, string[]>): void {
+  const completed = new Set<string>();
+
+  for (let i = 0; i < route.length; i++) {
+    const stop = route[i];
+    const required = dependencies.get(stop.taskId) || [];
+
+    for (const requiredTaskId of required) {
+      if (!completed.has(requiredTaskId)) {
+        const requiredStop = route.find(s => s.taskId === requiredTaskId);
+        throw new Error(
+          `[Route Validation ERROR] Stop #${i + 1} (${stop.type} ${stop.taskId} at ${stop.address}) ` +
+          `requires dependency ${requiredTaskId} which has not been completed yet. ` +
+          `Required stop: ${requiredStop ? `${requiredStop.type} at ${requiredStop.address}` : 'NOT FOUND IN ROUTE'}. ` +
+          `This violates equipment pickup/drop-off constraints.`
+        );
+      }
+    }
+
+    completed.add(stop.taskId);
+  }
+
+  console.log('[Route Validation] ✓ All dependencies satisfied in route order');
 }
 
 function buildDependencyGraph(stops: MorningRouteStop[]): Map<string, string[]> {
@@ -682,8 +841,42 @@ export async function optimizeMorningRoute(stops: MorningRouteStop[]): Promise<O
   }
   console.log('[Route Optimization] Matrix index map created with', matrixIndexByTaskId.size, 'entries');
 
+  // Debug: Show all stops with equipment details
+  debugStopSummary(stops);
+
+  // Build dependency graph
   const dependencies = buildDependencyGraph(stops);
   console.log('[Route Optimization] Dependency graph built, dependencies:', dependencies.size);
+
+  // Debug: Show dependency graph details
+  debugDependencyGraph(dependencies, stops);
+
+  // Count and log drop-offs with no dependencies
+  const dropoffsWithNoDeps = stops
+    .filter(s => s.type === 'drop-off' && !dependencies.has(s.taskId))
+    .map(s => s.taskId);
+  console.log(`[Route Optimization] Drop-offs with NO dependencies: ${dropoffsWithNoDeps.length > 0 ? dropoffsWithNoDeps.join(', ') : '(none)'}`);
+
+  // Preflight validation: Check equipment data integrity
+  console.log('[Route Optimization] Running preflight equipment validation...');
+  const validation = validateEquipmentData(stops);
+
+  // Log all warnings
+  if (validation.warnings.length > 0) {
+    console.warn('[Route Optimization] Equipment validation WARNINGS:');
+    validation.warnings.forEach(w => console.warn(`  ⚠ ${w}`));
+  }
+
+  // Throw if there are errors
+  if (validation.errors.length > 0) {
+    console.error('[Route Optimization] Equipment validation ERRORS:');
+    validation.errors.forEach(e => console.error(`  ✖ ${e}`));
+    throw new Error(
+      'Equipment validation failed:\n' + validation.errors.join('\n')
+    );
+  }
+
+  console.log('[Route Optimization] ✓ Preflight validation passed');
 
   console.log('[Route Optimization] ========================================');
   console.log('[Route Optimization] Starting Enhanced Optimization Pipeline');
@@ -704,12 +897,20 @@ export async function optimizeMorningRoute(stops: MorningRouteStop[]): Promise<O
   console.log('[Route Optimization] Best greedy route score:', greedyScore.toFixed(2));
   console.log('[Route Optimization] Greedy route order:', greedyRoute.map(r => r.address).join(' → '));
 
+  // Post-route validation: Ensure greedy route respects dependencies
+  console.log('[Route Optimization] Validating greedy route dependencies...');
+  validateRouteRespectsDependencies(greedyRoute, dependencies);
+
   console.log('[Route Optimization] Step 3/3: 2-opt route optimization...');
   const optimizedRoute = twoOptOptimizeRoute(greedyRoute, distanceMatrix, dependencies, departureTime, matrixIndexByTaskId);
   const finalScore = evaluateRoute(optimizedRoute, distanceMatrix, departureTime, matrixIndexByTaskId);
   console.log('[Route Optimization] Final optimized score:', finalScore.toFixed(2));
   console.log('[Route Optimization] Improvement from greedy:', ((greedyScore - finalScore) / greedyScore * 100).toFixed(1) + '%');
   console.log('[Route Optimization] Final route order:', optimizedRoute.map((r, i) => `${i + 1}. ${r.address}`).join(' → '));
+
+  // Post-route validation: Ensure final route respects dependencies
+  console.log('[Route Optimization] Validating final route dependencies...');
+  validateRouteRespectsDependencies(optimizedRoute, dependencies);
 
   console.log('[Route Optimization] ========================================');
   console.log('[Route Optimization] Optimization Complete');
