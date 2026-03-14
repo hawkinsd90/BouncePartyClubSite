@@ -243,15 +243,15 @@ function validateEquipmentData(stops: MorningRouteStop[]): { warnings: string[];
     }
   }
 
-  // Build map of equipmentId -> list of drop-off taskIds that use it
+  // Build map of equipmentId -> list of "taskId@address" strings for drop-offs that use it
   const dropoffsByEquipment = new Map<string, string[]>();
   for (const stop of stops) {
-    if (stop.type === 'drop-off') {
+    if (stop.type === 'drop-off' && stop.equipmentIds && stop.equipmentIds.length > 0) {
       for (const equipId of stop.equipmentIds) {
         if (!dropoffsByEquipment.has(equipId)) {
           dropoffsByEquipment.set(equipId, []);
         }
-        dropoffsByEquipment.get(equipId)!.push(stop.taskId);
+        dropoffsByEquipment.get(equipId)!.push(`${stop.taskId}@${stop.address}`);
       }
     }
   }
@@ -273,15 +273,15 @@ function validateEquipmentData(stops: MorningRouteStop[]): { warnings: string[];
   }
 
   // Check for equipmentId shared by multiple drop-offs with no pickup providing it
-  for (const [equipId, dropoffTaskIds] of dropoffsByEquipment.entries()) {
-    if (dropoffTaskIds.length > 1) {
+  for (const [equipId, dropoffEntries] of dropoffsByEquipment.entries()) {
+    if (dropoffEntries.length > 1) {
       if (!pickupEquipmentIds.has(equipId)) {
         warnings.push(
-          `equipmentId "${equipId}" is used by multiple drop-offs in this route (${dropoffTaskIds.join(', ')}) but no pickup provides it. Verify inventory / double-booking.`
+          `equipmentId "${equipId}" is used by multiple drop-offs in this route but no pickup provides it. Verify inventory / double-booking. Drop-offs: ${dropoffEntries.join(', ')}`
         );
       } else {
         warnings.push(
-          `equipmentId "${equipId}" is used by multiple drop-offs in this route (${dropoffTaskIds.join(', ')}). A pickup provides it, but only one drop-off can receive it via same-day handoff. Verify intended use.`
+          `equipmentId "${equipId}" is used by multiple drop-offs in this route. A pickup provides it, but only one drop-off can receive it via same-day handoff. Verify intended use. Drop-offs: ${dropoffEntries.join(', ')}`
         );
       }
     }
