@@ -243,6 +243,19 @@ function validateEquipmentData(stops: MorningRouteStop[]): { warnings: string[];
     }
   }
 
+  // Build map of equipmentId -> list of drop-off taskIds that use it
+  const dropoffsByEquipment = new Map<string, string[]>();
+  for (const stop of stops) {
+    if (stop.type === 'drop-off') {
+      for (const equipId of stop.equipmentIds) {
+        if (!dropoffsByEquipment.has(equipId)) {
+          dropoffsByEquipment.set(equipId, []);
+        }
+        dropoffsByEquipment.get(equipId)!.push(stop.taskId);
+      }
+    }
+  }
+
   // Validate each stop
   for (const stop of stops) {
     // Check for missing equipment IDs
@@ -257,15 +270,19 @@ function validateEquipmentData(stops: MorningRouteStop[]): { warnings: string[];
         );
       }
     }
+  }
 
-    // Check drop-offs for orphaned equipment IDs
-    if (stop.type === 'drop-off') {
-      for (const equipId of stop.equipmentIds) {
-        if (!pickupEquipmentIds.has(equipId)) {
-          warnings.push(
-            `Drop-off ${stop.taskId} equipmentId "${equipId}" has no matching pickup in this route. Dependency cannot be enforced.`
-          );
-        }
+  // Check for equipmentId shared by multiple drop-offs with no pickup providing it
+  for (const [equipId, dropoffTaskIds] of dropoffsByEquipment.entries()) {
+    if (dropoffTaskIds.length > 1) {
+      if (!pickupEquipmentIds.has(equipId)) {
+        warnings.push(
+          `equipmentId "${equipId}" is used by multiple drop-offs in this route (${dropoffTaskIds.join(', ')}) but no pickup provides it. Verify inventory / double-booking.`
+        );
+      } else {
+        warnings.push(
+          `equipmentId "${equipId}" is used by multiple drop-offs in this route (${dropoffTaskIds.join(', ')}). A pickup provides it, but only one drop-off can receive it via same-day handoff. Verify intended use.`
+        );
       }
     }
   }
