@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { checkMultipleUnitsAvailability } from './availability';
 import { formatOrderId } from './utils';
+import { upsertCanonicalAddress } from './addressService';
 
 interface OrderData {
   contactData: {
@@ -127,8 +128,8 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     console.error('Error creating contact:', contactError);
   }
 
-  // 3. Create address
-  const eventAddressData = billingSameAsEvent
+  // 3. Create or reuse canonical address
+  const rawAddr = billingSameAsEvent
     ? billingAddress
     : {
         line1: quoteData.address_line1,
@@ -140,16 +141,16 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
         lng: quoteData.lng || null,
       };
 
-  const { data: address, error: addressError } = await supabase
-    .from('addresses')
-    .insert({
-      customer_id: customer.id,
-      ...eventAddressData,
-    })
-    .select()
-    .single();
-
-  if (addressError) throw addressError;
+  const address = await upsertCanonicalAddress({
+    customer_id: customer.id,
+    line1: rawAddr.line1,
+    line2: rawAddr.line2 || null,
+    city: rawAddr.city,
+    state: rawAddr.state,
+    zip: rawAddr.zip,
+    lat: rawAddr.lat ?? null,
+    lng: rawAddr.lng ?? null,
+  });
 
   // 4. Create order with 'draft' status (unpaid invoice)
   const { data: order, error: orderError } = await supabase

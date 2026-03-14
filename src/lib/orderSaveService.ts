@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { showToast } from './notifications';
+import { upsertCanonicalAddress } from './addressService';
 
 interface SaveOrderChangesParams {
   order: any;
@@ -130,15 +131,18 @@ export async function saveOrderChanges({
     editedOrder.address_zip !== (order.addresses?.zip || '');
 
   if (addressChanged) {
-    await supabase.from('addresses').update({
+    const canonical = await upsertCanonicalAddress({
+      customer_id: order.customer_id ?? null,
       line1: editedOrder.address_line1,
-      line2: editedOrder.address_line2,
+      line2: editedOrder.address_line2 ?? null,
       city: editedOrder.address_city,
       state: editedOrder.address_state,
       zip: editedOrder.address_zip,
       lat: editedOrder.address_lat ?? null,
       lng: editedOrder.address_lng ?? null,
-    }).eq('id', order.address_id);
+    });
+
+    changes.address_id = canonical.id;
 
     logs.push([
       'address',

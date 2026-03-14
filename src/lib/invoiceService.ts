@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import type { PriceBreakdown } from './pricing';
+import { upsertCanonicalAddress } from './addressService';
 
 interface CartItem {
   unit_id: string;
@@ -66,23 +67,16 @@ interface InvoiceData {
 }
 
 async function createAddress(eventDetails: EventDetails) {
-  const { data, error } = await supabase
-    .from('addresses')
-    .insert({
-      customer_id: null,
-      line1: eventDetails.address_line1,
-      line2: eventDetails.address_line2,
-      city: eventDetails.city,
-      state: eventDetails.state,
-      zip: eventDetails.zip,
-      lat: eventDetails.lat || null,
-      lng: eventDetails.lng || null,
-    })
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
+  return upsertCanonicalAddress({
+    customer_id: null,
+    line1: eventDetails.address_line1,
+    line2: eventDetails.address_line2 || null,
+    city: eventDetails.city,
+    state: eventDetails.state,
+    zip: eventDetails.zip,
+    lat: eventDetails.lat ?? null,
+    lng: eventDetails.lng ?? null,
+  });
 }
 
 async function createOrder(

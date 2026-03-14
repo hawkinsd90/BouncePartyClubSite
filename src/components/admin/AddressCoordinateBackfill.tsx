@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { ensureGoogleMapsLoaded } from '../../lib/googleMapsLoader';
 import { MapPin, Play, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 interface BackfillAddress {
@@ -21,12 +22,8 @@ function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
-  return new Promise((resolve) => {
-    if (!window.google?.maps?.Geocoder) {
-      resolve(null);
-      return;
-    }
+async function geocodeAddress(address: string): Promise<{ lat: number; lng: number }> {
+  return new Promise((resolve, reject) => {
     const geocoder = new google.maps.Geocoder();
     geocoder.geocode({ address, componentRestrictions: { country: 'us' } }, (results, status) => {
       if (status === 'OK' && results && results[0]?.geometry?.location) {
@@ -35,7 +32,8 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
           lng: results[0].geometry.location.lng(),
         });
       } else {
-        resolve(null);
+        console.warn(`Geocode failed for "${address}" — status: ${status}`);
+        reject(new Error(status || 'UNKNOWN_ERROR'));
       }
     });
   });
@@ -45,10 +43,18 @@ const BATCH_SIZE = 25;
 const DELAY_MS = 250;
 
 export function AddressCoordinateBackfill() {
+  const [mapsReady, setMapsReady] = useState(false);
+  const [mapsError, setMapsError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<BackfillResult[]>([]);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    ensureGoogleMapsLoaded()
+      .then(() => setMapsReady(true))
+      .catch(err => setMapsError(err.message || 'Failed to load Google Maps API'));
+  }, []);
 
   async function runBackfill() {
     setRunning(true);
@@ -80,22 +86,19 @@ export function AddressCoordinateBackfill() {
       try {
         const coords = await geocodeAddress(fullAddress);
 
-        if (coords) {
-          const { error: updateError } = await supabase
-            .from('addresses')
-            .update({ lat: coords.lat, lng: coords.lng })
-            .eq('id', addr.id);
+        const { error: updateError } = await supabase
+          .from('addresses')
+          .update({ lat: coords.lat, lng: coords.lng })
+          .eq('id', addr.id);
 
-          if (updateError) {
-            newResults.push({ id: addr.id, address: fullAddress, status: 'error', message: updateError.message });
-          } else {
-            newResults.push({ id: addr.id, address: fullAddress, status: 'success', message: `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}` });
-          }
+        if (updateError) {
+          newResults.push({ id: addr.id, address: fullAddress, status: 'error', message: updateError.message });
         } else {
-          newResults.push({ id: addr.id, address: fullAddress, status: 'error', message: 'Geocoder returned no results' });
+          newResults.push({ id: addr.id, address: fullAddress, status: 'success', message: `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}` });
         }
       } catch (err) {
-        newResults.push({ id: addr.id, address: fullAddress, status: 'error', message: String(err) });
+        const statusCode = err instanceof Error ? err.message : String(err);
+        newResults.push({ id: addr.id, address: fullAddress, status: 'error', message: statusCode });
       }
 
       setProgress({ current: i + 1, total: toProcess.length });
@@ -127,15 +130,22 @@ export function AddressCoordinateBackfill() {
         </div>
       </div>
 
-      {!window.google?.maps?.Geocoder && !running && (
-        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-          Google Maps API not loaded. Make sure the page has loaded the Maps API (visit the quote page first, or wait a moment and retry).
+      {mapsError && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+          Google Maps failed to load: {mapsError}
+        </div>
+      )}
+
+      {!mapsReady && !mapsError && (
+        <div className="mb-4 p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-600 flex items-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Loading Google Maps API...
         </div>
       )}
 
       <button
         onClick={runBackfill}
-        disabled={running}
+        disabled={running || !mapsReady}
         className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {running ? (
