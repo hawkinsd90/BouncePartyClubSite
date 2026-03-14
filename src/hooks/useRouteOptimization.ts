@@ -22,9 +22,12 @@ export function useRouteOptimization() {
         equipmentIds: task.equipmentIds,
         numInflatables: task.numInflatables,
         routeDateISO: task.date.toISOString().split('T')[0],
-        lat: (task as any).lat ?? (task as any).location?.lat ?? undefined,
-        lng: (task as any).lng ?? (task as any).location?.lng ?? undefined,
+        lat: task.lat,
+        lng: task.lng,
       }));
+
+      const stopsWithCoords = routeStops.filter(s => s.lat != null && s.lng != null).length;
+      console.log(`[useRouteOptimization] ${stopsWithCoords}/${routeStops.length} stops have lat/lng coords`);
 
       const optimizedStops = await optimizeMorningRoute(routeStops);
 

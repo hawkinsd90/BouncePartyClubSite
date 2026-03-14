@@ -25,6 +25,8 @@ export interface Task {
   balanceDue: number;
   pickupPreference?: string;
   surface?: string;
+  lat?: number;
+  lng?: number;
   payments?: Array<{
     id: string;
     amount_cents: number;
@@ -108,7 +110,7 @@ export function useCalendarTasks(currentMonth: Date) {
         .select(`
           *,
           customers (first_name, last_name, phone, email),
-          addresses (line1, city, state, zip),
+          addresses (line1, city, state, zip, lat, lng),
           payments (id, amount_cents, status, paid_at, type)
         `)
         .gte('event_date', format(queryStart, 'yyyy-MM-dd'))
@@ -147,6 +149,8 @@ export function useCalendarTasks(currentMonth: Date) {
         const address = addr
           ? `${addr.line1}, ${addr.city}, ${addr.state} ${addr.zip}`
           : 'No address';
+        const lat: number | undefined = addr?.lat != null ? Number(addr.lat) : undefined;
+        const lng: number | undefined = addr?.lng != null ? Number(addr.lng) : undefined;
 
         const orderItemsForOrder = orderItems?.filter(item => item.order_id === order.id) || [];
 
@@ -197,6 +201,8 @@ export function useCalendarTasks(currentMonth: Date) {
           balanceDue,
           pickupPreference: order.pickup_preference,
           surface: order.surface,
+          lat,
+          lng,
           payments: order.payments as any || [],
           taskStatus: dropOffStatus ? {
             id: dropOffStatus.id,
@@ -238,6 +244,8 @@ export function useCalendarTasks(currentMonth: Date) {
           balanceDue,
           pickupPreference: order.pickup_preference,
           surface: order.surface,
+          lat,
+          lng,
           payments: order.payments as any || [],
           taskStatus: pickUpStatus ? {
             id: pickUpStatus.id,
