@@ -1,6 +1,9 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase } from '../lib/supabase';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('CustomerProfile');
 
 interface Address {
   id: string;
@@ -78,7 +81,7 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
 
       if (customerError) {
-        console.error('[CustomerProfile] Error loading customer profile:', customerError);
+        log.error('Error loading customer profile', customerError);
         setLoading(false);
         return;
       }
@@ -112,7 +115,7 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
             }
           }
         } catch (backfillError) {
-          console.error('[CustomerProfile] Backfill error:', backfillError);
+          log.error('Backfill error', backfillError);
         }
 
         setLoading(false);
@@ -186,7 +189,7 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
         setInitialized(true);
       }
     } catch (err) {
-      console.error('[CustomerProfile] Error in loadProfileAndDefaults:', err);
+      log.error('Error in loadProfileAndDefaults', err);
     } finally {
       setLoading(false);
     }

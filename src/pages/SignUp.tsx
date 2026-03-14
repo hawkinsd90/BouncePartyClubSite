@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { UserPlus, Loader2, Eye, EyeOff, ArrowLeft } from 'lucide-react';
-import { notifySuccess, notifyError } from '../lib/notifications';
+import { notifySuccess, notifyError, notifyWarning } from '../lib/notifications';
 import { AddressAutocomplete } from '../components/order/AddressAutocomplete';
 import { useCustomerProfile } from '../contexts/CustomerProfileContext';
 
@@ -96,6 +96,8 @@ export function SignUp() {
     setLoading(true);
 
     try {
+      // Direct call (not AuthContext.signUp) because we need authData.user.id
+      // immediately to poll for the customer row. AuthContext.signUp returns void.
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -158,8 +160,10 @@ export function SignUp() {
           );
 
           if (!res.ok) {
-            const body = await res.json().catch(() => ({}));
-            console.warn('[SignUp] Address save failed:', body?.error);
+            notifyWarning(
+              'Your account was created, but we couldn\'t save your default address right now. You can add it later.',
+              { duration: 8000 }
+            );
           }
         }
       }

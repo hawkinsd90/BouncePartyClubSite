@@ -1,5 +1,5 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { lazy, Suspense } from 'react';
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
 import { AuthProvider } from './contexts/AuthContext';
 import { BusinessProvider } from './contexts/BusinessContext';
 import { CustomerProfileProvider } from './contexts/CustomerProfileContext';
@@ -7,6 +7,7 @@ import { ProtectedRoute } from './components/common/ProtectedRoute';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Layout } from './components/common/Layout';
 import { Home } from './pages/Home';
+import { useAuth } from './contexts/AuthContext';
 
 const Catalog = lazy(() => import('./pages/Catalog').then(m => ({ default: m.Catalog })));
 const UnitDetail = lazy(() => import('./pages/UnitDetail').then(m => ({ default: m.UnitDetail })));
@@ -33,6 +34,25 @@ const ResetPassword = lazy(() => import('./pages/ResetPassword').then(m => ({ de
 const Receipt = lazy(() => import('./pages/Receipt').then(m => ({ default: m.Receipt })));
 
 
+function OAuthRedirectHandler() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user) return;
+    if (location.pathname !== '/') return;
+
+    const params = new URLSearchParams(location.search);
+    const next = params.get('next');
+    if (next && next.startsWith('/') && !next.startsWith('//')) {
+      navigate(next, { replace: true });
+    }
+  }, [user, location.pathname, location.search]);
+
+  return null;
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -40,6 +60,7 @@ function App() {
         <BusinessProvider>
           <AuthProvider>
             <CustomerProfileProvider>
+        <OAuthRedirectHandler />
         <Suspense fallback={
           <div className="min-h-screen flex items-center justify-center bg-slate-50">
             <div className="text-center">

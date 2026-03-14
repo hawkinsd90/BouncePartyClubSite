@@ -12,8 +12,8 @@ interface AuthContextType {
   roles: string[];
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
-  signInWithApple: () => Promise<void>;
+  signInWithGoogle: (destinationPath?: string) => Promise<void>;
+  signInWithApple: (destinationPath?: string) => Promise<void>;
   signUp: (email: string, password: string, metadata?: any) => Promise<void>;
   signOut: () => Promise<void>;
   hasRole: (checkRole: string) => boolean;
@@ -95,18 +95,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
   };
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (destinationPath?: string) => {
+    const redirectTo = destinationPath
+      ? `${window.location.origin}/?next=${encodeURIComponent(destinationPath)}`
+      : `${window.location.origin}/`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/` },
+      options: { redirectTo },
     });
     if (error) throw error;
   };
 
-  const signInWithApple = async () => {
+  const signInWithApple = async (destinationPath?: string) => {
+    const redirectTo = destinationPath
+      ? `${window.location.origin}/?next=${encodeURIComponent(destinationPath)}`
+      : `${window.location.origin}/`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'apple',
-      options: { redirectTo: `${window.location.origin}/` },
+      options: { redirectTo },
     });
     if (error) throw error;
   };

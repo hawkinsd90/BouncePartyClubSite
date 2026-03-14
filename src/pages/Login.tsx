@@ -45,21 +45,13 @@ export function Login() {
 
   const handleGoogleSignIn = async () => {
     log.info('Google sign-in button clicked');
-    log.debug('Current location', window.location.href);
-
     setError('');
     setLoading(true);
 
     try {
-      log.info('Calling signInWithGoogle');
-      await signInWithGoogle();
-      log.info('signInWithGoogle completed, redirecting to Google');
+      await signInWithGoogle(from !== '/' ? from : undefined);
     } catch (err: any) {
-      log.error('Google sign-in failed', err, {
-        message: err.message,
-        status: err.status,
-        code: err.code
-      });
+      log.error('Google sign-in failed', err);
       setError(err.message || 'Failed to sign in with Google');
       setLoading(false);
     }
@@ -67,21 +59,13 @@ export function Login() {
 
   const handleAppleSignIn = async () => {
     log.info('Apple sign-in button clicked');
-    log.debug('Current location', window.location.href);
-
     setError('');
     setLoading(true);
 
     try {
-      log.info('Calling signInWithApple');
-      await signInWithApple();
-      log.info('signInWithApple completed, redirecting to Apple');
+      await signInWithApple(from !== '/' ? from : undefined);
     } catch (err: any) {
-      log.error('Apple sign-in failed', err, {
-        message: err.message,
-        status: err.status,
-        code: err.code
-      });
+      log.error('Apple sign-in failed', err);
       setError(err.message || 'Failed to sign in with Apple');
       setLoading(false);
     }
