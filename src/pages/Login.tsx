@@ -222,7 +222,7 @@ export function Login() {
             <div>
               <button
                 type="button"
-                onClick={() => navigate('/signup')}
+                onClick={() => navigate('/signup', { state: location.state })}
                 className="text-blue-600 hover:text-blue-700 font-medium text-sm sm:text-base"
               >
                 Don't have an account? Sign up

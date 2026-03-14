@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -58,14 +58,18 @@ const getEmptySessionData = (): SessionData => ({
   zip: '',
 });
 
+const MAX_RETRIES = 6;
+const RETRY_DELAY_MS = 800;
+
 export function CustomerProfileProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [sessionData, setSessionData] = useState<SessionData>(getEmptySessionData());
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const loadProfileAndDefaults = async (userId: string) => {
+  const loadProfileAndDefaults = async (userId: string, attempt = 0): Promise<void> => {
     try {
       const { data: customerData, error: customerError } = await supabase
         .from('customers')
@@ -74,12 +78,20 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
 
       if (customerError) {
-        console.error('Error loading customer profile:', customerError);
+        console.error('[CustomerProfile] Error loading customer profile:', customerError);
+        setLoading(false);
         return;
       }
 
       if (!customerData) {
-        console.log('No customer record found, attempting to backfill...');
+        if (attempt < MAX_RETRIES) {
+          retryTimerRef.current = setTimeout(
+            () => loadProfileAndDefaults(userId, attempt + 1),
+            RETRY_DELAY_MS
+          );
+          return;
+        }
+
         try {
           const { data: session } = await supabase.auth.getSession();
           if (session?.session?.access_token) {
@@ -88,31 +100,28 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
               {
                 method: 'POST',
                 headers: {
-                  'Authorization': `Bearer ${session.session.access_token}`,
+                  Authorization: `Bearer ${session.session.access_token}`,
                   'Content-Type': 'application/json',
                 },
               }
             );
 
             if (response.ok) {
-              const result = await response.json();
-              console.log('Customer backfill result:', result);
-
-              await loadProfileAndDefaults(userId);
+              await loadProfileAndDefaults(userId, 0);
               return;
             }
           }
         } catch (backfillError) {
-          console.error('Error backfilling customer:', backfillError);
+          console.error('[CustomerProfile] Backfill error:', backfillError);
         }
+
+        setLoading(false);
         return;
       }
 
-      // Parallelize address queries instead of sequential waterfall
       let defaultAddress: Address | null = null;
 
       const [addressResult, lastOrderResult] = await Promise.all([
-        // Fetch default address if ID exists
         customerData.default_address_id
           ? supabase
               .from('addresses')
@@ -120,7 +129,6 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
               .eq('id', customerData.default_address_id)
               .maybeSingle()
           : Promise.resolve({ data: null }),
-        // Fetch last order address as fallback
         supabase
           .from('orders')
           .select('address_id, addresses(*)')
@@ -130,7 +138,6 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
           .maybeSingle(),
       ]);
 
-      // Use default address if available
       if (addressResult.data) {
         defaultAddress = {
           id: addressResult.data.id,
@@ -140,9 +147,7 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
           state: addressResult.data.state,
           zip: addressResult.data.zip,
         };
-      }
-      // Fallback to last order address
-      else if (lastOrderResult.data?.addresses) {
+      } else if (lastOrderResult.data?.addresses) {
         defaultAddress = {
           id: lastOrderResult.data.addresses.id,
           line1: lastOrderResult.data.addresses.line1,
@@ -166,7 +171,7 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
       setProfile(profileData);
 
       if (!initialized) {
-        const newSessionData: SessionData = {
+        setSessionData({
           firstName: profileData.firstName,
           lastName: profileData.lastName,
           email: profileData.email,
@@ -177,12 +182,11 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
           city: profileData.defaultAddress?.city || '',
           state: profileData.defaultAddress?.state || '',
           zip: profileData.defaultAddress?.zip || '',
-        };
-        setSessionData(newSessionData);
+        });
         setInitialized(true);
       }
     } catch (err) {
-      console.error('Error in loadProfileAndDefaults:', err);
+      console.error('[CustomerProfile] Error in loadProfileAndDefaults:', err);
     } finally {
       setLoading(false);
     }
@@ -191,19 +195,31 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
   const refreshProfile = async () => {
     if (user) {
       setLoading(true);
-      await loadProfileAndDefaults(user.id);
+      setInitialized(false);
+      await loadProfileAndDefaults(user.id, 0);
     }
   };
 
   useEffect(() => {
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
+
     if (user) {
-      loadProfileAndDefaults(user.id);
+      loadProfileAndDefaults(user.id, 0);
     } else {
       setProfile(null);
       setSessionData(getEmptySessionData());
       setLoading(false);
       setInitialized(false);
     }
+
+    return () => {
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+      }
+    };
   }, [user]);
 
   const updateSessionData = (data: Partial<SessionData>) => {
@@ -212,7 +228,7 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
 
   const resetSessionData = () => {
     if (profile) {
-      const newSessionData: SessionData = {
+      setSessionData({
         firstName: profile.firstName,
         lastName: profile.lastName,
         email: profile.email,
@@ -223,8 +239,7 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
         city: profile.defaultAddress?.city || '',
         state: profile.defaultAddress?.state || '',
         zip: profile.defaultAddress?.zip || '',
-      };
-      setSessionData(newSessionData);
+      });
     } else {
       setSessionData(getEmptySessionData());
     }

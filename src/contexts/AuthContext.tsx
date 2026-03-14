@@ -1,5 +1,8 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('Auth');
 
 type UserRole = 'MASTER' | 'ADMIN' | 'CREW' | 'CUSTOMER' | null;
 
@@ -27,190 +30,102 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   async function loadUserRoles(userId: string) {
-    console.log('[Auth] Loading roles for user:', userId);
-
     try {
-      // Query the table directly instead of using RPC
       const { data, error } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', userId)
         .maybeSingle();
 
-      console.log('[Auth] Roles query result:', JSON.stringify({ data, error, userId }));
-
       if (!error && data?.role) {
         const userRole = data.role as string;
-        console.log('[Auth] Setting user role to:', userRole);
         setRoles([userRole]);
         setRole(userRole as UserRole);
-        console.log('[Auth] State updated - role:', userRole, 'roles:', [userRole]);
       } else {
-        console.warn('[Auth] No role found for user:', userId);
         setRoles([]);
         setRole(null);
       }
     } catch (err) {
-      console.error('[Auth] Exception loading roles:', err);
+      log.error('Exception loading roles', err);
       setRoles([]);
       setRole(null);
     }
   }
 
   useEffect(() => {
-    console.log('[Auth] AuthProvider mounted, checking session...');
-    console.log('[Auth] Current URL:', window.location.href);
-    console.log('[Auth] URL params:', window.location.search);
-    console.log('[Auth] URL hash:', window.location.hash);
-
     supabase.auth.getSession().then(async ({ data: { session }, error }) => {
-      console.log('[Auth] Initial session check result:', {
-        hasSession: !!session,
-        userId: session?.user?.id,
-        email: session?.user?.email,
-        error: error
-      });
-
       if (error) {
-        console.error('[Auth] Error in getSession:', error);
+        log.error('Error in getSession', error);
       }
 
       setUser(session?.user ?? null);
       setLoading(false);
 
-      // Load roles in background, don't block
       if (session?.user) {
-        console.log('[Auth] Session found, loading roles...');
         loadUserRoles(session.user.id);
-      } else {
-        console.log('[Auth] No session found');
       }
     }).catch(err => {
-      console.error('[Auth] Exception getting initial session:', err);
+      log.error('Exception getting initial session', err);
       setLoading(false);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      console.log('[Auth] ===== AUTH STATE CHANGE =====');
-      console.log('[Auth] Event:', _event);
-      console.log('[Auth] Session:', {
-        hasSession: !!session,
-        userId: session?.user?.id,
-        email: session?.user?.email,
-        provider: session?.user?.app_metadata?.provider
-      });
-      console.log('[Auth] Current URL:', window.location.href);
-      console.log('[Auth] ==============================');
-
       setUser(session?.user ?? null);
       setLoading(false);
 
-      // Clean up OAuth hash from URL after successful sign-in
       if (_event === 'SIGNED_IN' && window.location.hash) {
-        console.log('[Auth] Cleaning up OAuth hash from URL');
         window.history.replaceState(null, '', window.location.pathname);
       }
 
-      // Load roles in background, don't block
       if (session?.user) {
-        console.log('[Auth] User logged in, loading roles...');
         loadUserRoles(session.user.id);
       } else {
-        console.log('[Auth] User logged out, clearing roles');
         setRole(null);
         setRoles([]);
       }
     });
 
-    return () => {
-      console.log('[Auth] AuthProvider unmounting, cleaning up subscription');
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
   };
 
   const signInWithGoogle = async () => {
-    const redirectUrl = `${window.location.origin}/`;
-    console.log('[Auth] Starting Google sign-in...');
-    console.log('[Auth] Current URL:', window.location.href);
-    console.log('[Auth] Origin:', window.location.origin);
-    console.log('[Auth] Redirect URL:', redirectUrl);
-
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: {
-        redirectTo: redirectUrl,
-      },
+      options: { redirectTo: `${window.location.origin}/` },
     });
-
-    console.log('[Auth] signInWithOAuth response:', { data, error });
-
-    if (error) {
-      console.error('[Auth] Google sign-in error:', error);
-      throw error;
-    }
-
-    console.log('[Auth] Google sign-in initiated successfully, redirecting to:', data?.url);
+    if (error) throw error;
   };
 
   const signInWithApple = async () => {
-    const redirectUrl = `${window.location.origin}/`;
-    console.log('[Auth] Starting Apple sign-in...');
-    console.log('[Auth] Current URL:', window.location.href);
-    console.log('[Auth] Origin:', window.location.origin);
-    console.log('[Auth] Redirect URL:', redirectUrl);
-
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'apple',
-      options: {
-        redirectTo: redirectUrl,
-      },
+      options: { redirectTo: `${window.location.origin}/` },
     });
-
-    console.log('[Auth] signInWithOAuth response:', { data, error });
-
-    if (error) {
-      console.error('[Auth] Apple sign-in error:', error);
-      throw error;
-    }
-
-    console.log('[Auth] Apple sign-in initiated successfully, redirecting to:', data?.url);
+    if (error) throw error;
   };
 
   const signUp = async (email: string, password: string, metadata?: any) => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        data: metadata,
-      },
+      options: { data: metadata },
     });
     if (error) throw error;
   };
 
   const signOut = async () => {
-    console.log('[Auth] Signing out...');
     const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error('[Auth] Supabase sign out error:', error);
-      throw error;
-    }
-    console.log('[Auth] Sign out successful');
-    // State will be cleared by onAuthStateChange listener
+    if (error) throw error;
   };
 
-  const hasRole = (checkRole: string): boolean => {
-    return roles.includes(checkRole);
-  };
+  const hasRole = (checkRole: string): boolean => roles.includes(checkRole);
 
   const isAdmin = hasRole('ADMIN') || hasRole('MASTER');
   const isMaster = hasRole('MASTER');
@@ -228,7 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOut,
       hasRole,
       isAdmin,
-      isMaster
+      isMaster,
     }}>
       {children}
     </AuthContext.Provider>
