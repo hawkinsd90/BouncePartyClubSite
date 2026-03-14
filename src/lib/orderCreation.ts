@@ -130,8 +130,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
 
   // 3. Create or reuse canonical address
   const rawAddr = billingSameAsEvent
-    ? billingAddress
-    : {
+    ? {
         line1: quoteData.address_line1,
         line2: quoteData.address_line2 || null,
         city: quoteData.city,
@@ -139,7 +138,8 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
         zip: quoteData.zip,
         lat: quoteData.lat || null,
         lng: quoteData.lng || null,
-      };
+      }
+    : billingAddress;
 
   const address = await upsertCanonicalAddress({
     customer_id: customer.id,

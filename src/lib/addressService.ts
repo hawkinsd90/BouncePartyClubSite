@@ -48,23 +48,7 @@ export async function upsertCanonicalAddress(params: UpsertAddressParams): Promi
   const { customer_id, line1, line2, city, state, zip, lat, lng } = params;
   const key = buildAddressKey(line1, city, state, zip);
 
-  const { data: existing } = await supabase
-    .from('addresses')
-    .select('id, lat, lng')
-    .eq('address_key', key)
-    .maybeSingle();
-
-  if (existing) {
-    if ((existing.lat == null || existing.lng == null) && lat != null && lng != null) {
-      await supabase
-        .from('addresses')
-        .update({ lat, lng })
-        .eq('id', existing.id);
-    }
-    return { id: existing.id };
-  }
-
-  const { data: inserted, error } = await supabase
+  const { data: inserted, error: insertError } = await supabase
     .from('addresses')
     .insert({
       customer_id,
@@ -80,6 +64,34 @@ export async function upsertCanonicalAddress(params: UpsertAddressParams): Promi
     .select('id')
     .single();
 
-  if (error) throw error;
-  return { id: inserted.id };
+  if (!insertError) {
+    return { id: inserted.id };
+  }
+
+  const isUniqueViolation =
+    insertError.code === '23505' ||
+    (insertError.message ?? '').toLowerCase().includes('unique');
+
+  if (!isUniqueViolation) {
+    throw insertError;
+  }
+
+  const { data: existing, error: selectError } = await supabase
+    .from('addresses')
+    .select('id, lat, lng')
+    .eq('address_key', key)
+    .maybeSingle();
+
+  if (selectError || !existing) {
+    throw selectError ?? new Error('Address upsert race: could not find existing row after unique conflict');
+  }
+
+  if ((existing.lat == null || existing.lng == null) && lat != null && lng != null) {
+    await supabase
+      .from('addresses')
+      .update({ lat, lng })
+      .eq('id', existing.id);
+  }
+
+  return { id: existing.id };
 }
