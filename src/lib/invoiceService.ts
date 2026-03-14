@@ -20,6 +20,8 @@ interface EventDetails {
   city: string;
   state: string;
   zip: string;
+  lat?: number;
+  lng?: number;
   surface: string;
   generator_qty: number;
   pickup_preference: string;
@@ -73,8 +75,8 @@ async function createAddress(eventDetails: EventDetails) {
       city: eventDetails.city,
       state: eventDetails.state,
       zip: eventDetails.zip,
-      lat: null,
-      lng: null,
+      lat: eventDetails.lat || null,
+      lng: eventDetails.lng || null,
     })
     .select()
     .single();

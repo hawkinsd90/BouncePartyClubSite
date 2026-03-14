@@ -479,6 +479,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       address_city: result.city,
       address_state: result.state,
       address_zip: result.zip,
+      address_lat: result.lat || null,
+      address_lng: result.lng || null,
     }));
     setHasChanges(true);
   }, []);

@@ -136,6 +136,8 @@ export async function saveOrderChanges({
       city: editedOrder.address_city,
       state: editedOrder.address_state,
       zip: editedOrder.address_zip,
+      lat: editedOrder.address_lat ?? null,
+      lng: editedOrder.address_lng ?? null,
     }).eq('id', order.address_id);
 
     logs.push([

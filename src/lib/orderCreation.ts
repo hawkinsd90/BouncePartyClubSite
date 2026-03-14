@@ -136,6 +136,8 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
         city: quoteData.city,
         state: quoteData.state,
         zip: quoteData.zip,
+        lat: quoteData.lat || null,
+        lng: quoteData.lng || null,
       };
 
   const { data: address, error: addressError } = await supabase

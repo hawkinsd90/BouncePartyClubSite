@@ -15,6 +15,7 @@ import { MessageTemplatesTab } from '../components/admin/MessageTemplatesTab';
 import { BlackoutTab } from '../components/admin/BlackoutTab';
 import { ChangelogTab } from '../components/admin/ChangelogTab';
 import { BusinessBrandingTab } from '../components/admin/BusinessBrandingTab';
+import { AddressCoordinateBackfill } from '../components/admin/AddressCoordinateBackfill';
 import { InventorySection } from '../components/admin/InventorySection';
 import { PricingSection } from '../components/admin/PricingSection';
 import { PerformanceAnalytics } from '../components/admin/PerformanceAnalytics';
@@ -366,6 +367,13 @@ function AdminDashboard() {
       {activeTab === 'pricing' && pricingRules && <PricingSection pricingRules={pricingRules as any} />}
 
       {activeTab === 'branding' && <BusinessBrandingTab />}
+
+      {activeTab === 'tools' && (
+        <div className="space-y-6">
+          <h2 className="text-2xl font-bold text-slate-900">Admin Tools</h2>
+          <AddressCoordinateBackfill />
+        </div>
+      )}
 
       {activeTab === 'contacts' && <ContactsList />}
 
