@@ -117,6 +117,15 @@ export function SignUp() {
         throw new Error('Account creation failed — no user returned from auth.');
       }
 
+      // Supabase silently returns the existing user when email confirmation is
+      // disabled and the email is already registered. Detect this by checking
+      // whether the user was created more than 10 seconds ago.
+      const createdAt = new Date(authData.user.created_at).getTime();
+      const isExistingUser = Date.now() - createdAt > 10_000;
+      if (isExistingUser) {
+        throw new Error('An account with this email address already exists. Please sign in instead.');
+      }
+
       const userId = authData.user.id;
 
       const profileReady = await waitForCustomerProfile(userId);

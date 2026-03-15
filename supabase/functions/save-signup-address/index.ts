@@ -59,18 +59,24 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const addressKey = `${line1.trim().toLowerCase()}|${city.trim().toLowerCase()}|${state.trim().toUpperCase()}|${zip.trim().replace(/\s+/g, '')}`;
+
     const { data: address, error: addressError } = await supabase
       .from('addresses')
-      .insert({
-        customer_id: customer.id,
-        line1,
-        line2: line2 || null,
-        city,
-        state,
-        zip,
-        lat: lat || null,
-        lng: lng || null,
-      })
+      .upsert(
+        {
+          customer_id: customer.id,
+          line1,
+          line2: line2 || null,
+          city,
+          state,
+          zip,
+          lat: lat || null,
+          lng: lng || null,
+          address_key: addressKey,
+        },
+        { onConflict: 'address_key', ignoreDuplicates: false }
+      )
       .select('id')
       .single();
 
