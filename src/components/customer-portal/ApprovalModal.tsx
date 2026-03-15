@@ -186,10 +186,17 @@ export function ApprovalModal({
     (order.discount_cents || 0) +
     (order.tip_cents || 0);
 
-  const paymentMethodText = order.payment_method_last_four && order.payment_method_brand
-    ? `${order.payment_method_brand.charAt(0).toUpperCase() + order.payment_method_brand.slice(1)} •••• ${order.payment_method_last_four}`
-    : order.payment_method_last_four
-    ? `Card •••• ${order.payment_method_last_four}`
+  const lastFour = order.payment_method_last_four
+    || order.payments?.find((p: any) => p.payment_last4)?.payment_last4
+    || null;
+  const brand = order.payment_method_brand
+    || order.payments?.find((p: any) => p.payment_brand)?.payment_brand
+    || null;
+
+  const paymentMethodText = lastFour && brand
+    ? `${brand.charAt(0).toUpperCase() + brand.slice(1)} •••• ${lastFour}`
+    : lastFour
+    ? `Card •••• ${lastFour}`
     : null;
 
   const alreadyPaidDeposit = (order.deposit_paid_cents || 0) >= (order.deposit_due_cents || 0);
