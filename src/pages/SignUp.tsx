@@ -8,22 +8,39 @@ import { useCustomerProfile } from '../contexts/CustomerProfileContext';
 
 const MAX_PROFILE_WAIT_MS = 8000;
 const PROFILE_POLL_INTERVAL_MS = 500;
+const LOG = '[SignUp]';
 
 async function waitForCustomerProfile(userId: string): Promise<boolean> {
   const deadline = Date.now() + MAX_PROFILE_WAIT_MS;
+  let attempt = 0;
+
+  console.log(`${LOG} waitForCustomerProfile: starting poll for user ${userId}, timeout ${MAX_PROFILE_WAIT_MS}ms`);
 
   while (Date.now() < deadline) {
-    const { data } = await supabase
+    attempt++;
+    const remaining = deadline - Date.now();
+    console.log(`${LOG} waitForCustomerProfile: poll attempt ${attempt}, ${remaining}ms remaining`);
+
+    const { data, error } = await supabase
       .from('customers')
       .select('id')
       .eq('user_id', userId)
       .maybeSingle();
 
-    if (data?.id) return true;
+    if (error) {
+      console.warn(`${LOG} waitForCustomerProfile: query error on attempt ${attempt}:`, error.message);
+    }
 
+    if (data?.id) {
+      console.log(`${LOG} waitForCustomerProfile: customer row found on attempt ${attempt}, id=${data.id}`);
+      return true;
+    }
+
+    console.log(`${LOG} waitForCustomerProfile: not found yet, waiting ${PROFILE_POLL_INTERVAL_MS}ms...`);
     await new Promise(r => setTimeout(r, PROFILE_POLL_INTERVAL_MS));
   }
 
+  console.warn(`${LOG} waitForCustomerProfile: timed out after ${attempt} attempts for user ${userId}`);
   return false;
 }
 
@@ -92,13 +109,17 @@ export function SignUp() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    console.log(`${LOG} handleSubmit: form submitted for email=${formData.email}`);
+
+    if (!validateForm()) {
+      console.log(`${LOG} handleSubmit: validation failed, aborting`);
+      return;
+    }
 
     setLoading(true);
 
     try {
-      // Direct call (not AuthContext.signUp) because we need authData.user.id
-      // immediately to poll for the customer row. AuthContext.signUp returns void.
+      console.log(`${LOG} step 1/6: calling supabase.auth.signUp for ${formData.email}`);
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -112,18 +133,42 @@ export function SignUp() {
         },
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        console.error(`${LOG} step 1/6 FAILED: supabase.auth.signUp error:`, authError);
+        throw authError;
+      }
+
+      console.log(`${LOG} step 1/6 OK: auth.signUp returned`, {
+        userId: authData.user?.id,
+        email: authData.user?.email,
+        createdAt: authData.user?.created_at,
+        emailConfirmedAt: authData.user?.email_confirmed_at,
+        sessionPresent: !!authData.session,
+        identitiesCount: authData.user?.identities?.length ?? 0,
+      });
 
       if (!authData.user) {
         throw new Error('Account creation failed — no user returned from auth.');
       }
 
+      // Detect if email confirmation is required (no session returned = confirmation pending)
+      const emailConfirmationRequired = !authData.session;
+      if (emailConfirmationRequired) {
+        console.log(`${LOG} step 1/6: email confirmation is ENABLED — no session returned. User must confirm email before profile is created.`);
+        notifySuccess(
+          'Account created! Check your email for a confirmation link, then sign in.',
+          { duration: 10000 }
+        );
+        navigate('/login', { state: { from: { pathname: from } }, replace: true });
+        return;
+      }
+
       // Supabase silently returns the existing user when email confirmation is
-      // disabled and the email is already registered. Detect this by checking
-      // whether the user was created more than 10 seconds ago.
+      // disabled and the email is already registered. Detect by checking age.
       const createdAt = new Date(authData.user.created_at).getTime();
       const isExistingUser = Date.now() - createdAt > 10_000;
       if (isExistingUser) {
+        console.log(`${LOG} step 1/6: detected existing user (created ${Math.round((Date.now() - createdAt) / 1000)}s ago)`);
         setEmailAlreadyExists(true);
         setErrors(prev => ({ ...prev, email: 'An account with this email already exists.' }));
         setLoading(false);
@@ -131,10 +176,12 @@ export function SignUp() {
       }
 
       const userId = authData.user.id;
+      console.log(`${LOG} step 2/6: polling for customer profile, userId=${userId}`);
 
       const profileReady = await waitForCustomerProfile(userId);
 
       if (!profileReady) {
+        console.warn(`${LOG} step 2/6 TIMEOUT: customer profile not ready after ${MAX_PROFILE_WAIT_MS}ms. Redirecting to login.`);
         notifyError(
           'Your account was created, but we could not finish setting up your profile. Please sign in — your profile will load automatically.'
         );
@@ -142,14 +189,25 @@ export function SignUp() {
         return;
       }
 
+      console.log(`${LOG} step 2/6 OK: customer profile is ready`);
+
       if (formData.businessName) {
-        await supabase
+        console.log(`${LOG} step 3/6: saving business name "${formData.businessName}"`);
+        const { error: bizErr } = await supabase
           .from('customers')
           .update({ business_name: formData.businessName })
           .eq('user_id', userId);
+        if (bizErr) {
+          console.warn(`${LOG} step 3/6: business name save failed:`, bizErr.message);
+        } else {
+          console.log(`${LOG} step 3/6 OK: business name saved`);
+        }
+      } else {
+        console.log(`${LOG} step 3/6: skipped (no business name provided)`);
       }
 
       if (addressData?.line1 && addressData?.city && addressData?.state && addressData?.zip) {
+        console.log(`${LOG} step 4/6: saving default address`, addressData);
         const { data: session } = await supabase.auth.getSession();
         if (session?.session?.access_token) {
           const res = await fetch(
@@ -171,22 +229,32 @@ export function SignUp() {
               }),
             }
           );
-
           if (!res.ok) {
+            const body = await res.text().catch(() => '');
+            console.warn(`${LOG} step 4/6: address save failed (HTTP ${res.status}):`, body);
             notifyWarning(
               'Your account was created, but we couldn\'t save your default address right now. You can add it later.',
               { duration: 8000 }
             );
+          } else {
+            console.log(`${LOG} step 4/6 OK: default address saved`);
           }
+        } else {
+          console.warn(`${LOG} step 4/6: no access token available, skipping address save`);
         }
+      } else {
+        console.log(`${LOG} step 4/6: skipped (no address data provided)`);
       }
 
+      console.log(`${LOG} step 5/6: refreshing customer profile context`);
       await refreshProfile();
+      console.log(`${LOG} step 5/6 OK: profile refreshed`);
 
+      console.log(`${LOG} step 6/6: navigating to "${from}"`);
       notifySuccess('Account created! Welcome to Bounce Party Club.');
       navigate(from, { replace: true });
     } catch (err: any) {
-      console.error('[SignUp] Sign up error:', err);
+      console.error(`${LOG} handleSubmit UNHANDLED ERROR:`, err);
       const msg: string = err.message || '';
       if (msg.toLowerCase().includes('rate limit') || err.status === 429) {
         notifyError('Too many signup attempts. Please wait a few minutes and try again.');
