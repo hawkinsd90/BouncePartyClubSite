@@ -281,7 +281,7 @@ export function usePricing() {
         same_day_pickup_fee_cents: originalSameDayPickupFeeCents,
         generator_fee_cents: originalGeneratorFeeCents,
         generator_qty: eventDetails.generator_qty || 0,
-        tax_cents: originalTaxCents,
+        tax_cents: finalTaxCents,
         tip_cents: existingOrder?.tip_cents || 0,
         total_cents: finalTotalCents,
         deposit_due_cents: depositDueCents,
