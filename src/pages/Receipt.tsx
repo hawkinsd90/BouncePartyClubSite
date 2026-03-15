@@ -8,7 +8,7 @@ import { formatOrderId } from '../lib/utils';
 import { OrderSummary } from '../components/order/OrderSummary';
 import type { OrderSummaryDisplay } from '../lib/orderSummary';
 import { buildOrderSummaryDisplay } from '../lib/orderSummaryHelpers';
-import { calculateOrderTotal, formatTime } from '../lib/orderUtils';
+import { formatTime } from '../lib/orderUtils';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 
 export function Receipt() {
@@ -94,7 +94,7 @@ export function Receipt() {
         subtotal_cents: orderData.subtotal_cents || 0,
         tax_cents: orderData.tax_cents || 0,
         tip_cents: orderData.tip_cents || 0,
-        total_cents: orderData.total_cents || 0,
+        total_cents: orderData.total_cents || orderData.subtotal_cents || 0,
         deposit_due_cents: orderData.deposit_due_cents || 0,
         deposit_paid_cents: orderData.deposit_paid_cents || 0,
         balance_due_cents: orderData.balance_due_cents || 0,
@@ -323,10 +323,7 @@ export function Receipt() {
               <div className="flex justify-between pt-2 border-t border-slate-200 font-semibold text-lg">
                 <span className="text-slate-900">Remaining Balance:</span>
                 <span className="text-blue-700">
-                  {summary
-                    ? formatCurrency(summary.total - order.deposit_paid_cents - order.balance_paid_cents)
-                    : formatCurrency(calculateOrderTotal(order) - order.deposit_paid_cents - order.balance_paid_cents)
-                  }
+                  {formatCurrency(order.balance_due_cents || 0)}
                 </span>
               </div>
             </div>
