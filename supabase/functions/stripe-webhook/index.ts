@@ -181,6 +181,19 @@ async function processWebhookEvent(
 
           const tipCents = parseInt(session.metadata?.tip_cents || "0", 10);
 
+          // Retrieve brand + last4 so the approval modal can display them before any charge
+          let setupCardBrand: string | null = null;
+          let setupCardLast4: string | null = null;
+          if (actualPaymentMethodId) {
+            try {
+              const pm = await stripe.paymentMethods.retrieve(actualPaymentMethodId);
+              setupCardBrand = pm.card?.brand || null;
+              setupCardLast4 = pm.card?.last4 || null;
+            } catch (err) {
+              console.error(`[WEBHOOK] Failed to retrieve payment method ${actualPaymentMethodId}:`, err);
+            }
+          }
+
           // Check if this is an admin invoice
           const { data: invoiceLink } = await supabaseClient
             .from("invoice_links")
@@ -198,6 +211,8 @@ async function processWebhookEvent(
               stripe_customer_id: stripeCustomerId,
               tip_cents: tipCents,
               status: newStatus,
+              ...(setupCardBrand ? { payment_method_brand: setupCardBrand } : {}),
+              ...(setupCardLast4 ? { payment_method_last_four: setupCardLast4 } : {}),
             })
             .eq("id", orderId);
 

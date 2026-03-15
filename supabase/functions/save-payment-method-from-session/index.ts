@@ -86,11 +86,24 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Retrieve brand + last4 so the approval modal can display them before any charge
+    let cardBrand: string | null = null;
+    let cardLast4: string | null = null;
+    try {
+      const pm = await stripe.paymentMethods.retrieve(paymentMethodId);
+      cardBrand = pm.card?.brand || null;
+      cardLast4 = pm.card?.last4 || null;
+    } catch (err) {
+      console.error(`[SAVE-PM] Failed to retrieve payment method ${paymentMethodId}:`, err);
+    }
+
     // Save payment method to order
     const { error: updateError } = await supabaseClient
       .from("orders")
       .update({
         stripe_payment_method_id: paymentMethodId,
+        ...(cardBrand ? { payment_method_brand: cardBrand } : {}),
+        ...(cardLast4 ? { payment_method_last_four: cardLast4 } : {}),
       })
       .eq("id", orderId);
 

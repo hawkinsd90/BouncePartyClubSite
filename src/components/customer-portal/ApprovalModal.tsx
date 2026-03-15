@@ -27,8 +27,6 @@ export function ApprovalModal({
   const [confirmName, setConfirmName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [updatingCard, setUpdatingCard] = useState(false);
-  const [fetchedLast4, setFetchedLast4] = useState<string | null>(null);
-  const [fetchedBrand, setFetchedBrand] = useState<string | null>(null);
   const isMountedRef = useRef(true);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -38,19 +36,6 @@ export function ApprovalModal({
       isMountedRef.current = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (!isOpen || !order?.stripe_payment_method_id) return;
-    if (order.payment_method_last_four) return;
-
-    supabase.functions.invoke('get-payment-method', {
-      body: { paymentMethodId: order.stripe_payment_method_id },
-    }).then(({ data }) => {
-      if (!isMountedRef.current) return;
-      if (data?.last4) setFetchedLast4(data.last4);
-      if (data?.brand) setFetchedBrand(data.brand);
-    }).catch(() => {});
-  }, [isOpen, order?.stripe_payment_method_id, order?.payment_method_last_four]);
 
   // Handle mobile keyboard - keep input in view
   const handleInputFocus = () => {
@@ -203,11 +188,9 @@ export function ApprovalModal({
 
   const lastFour = order.payment_method_last_four
     || order.payments?.find((p: any) => p.payment_last4)?.payment_last4
-    || fetchedLast4
     || null;
   const brand = order.payment_method_brand
     || order.payments?.find((p: any) => p.payment_brand)?.payment_brand
-    || fetchedBrand
     || null;
 
   const paymentMethodText = lastFour && brand
