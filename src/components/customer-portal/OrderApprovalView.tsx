@@ -8,6 +8,7 @@ import { OrderSummaryDisplay } from '../../lib/orderSummary';
 import { ApprovalModal } from './ApprovalModal';
 import { RejectionModal } from './RejectionModal';
 import { PaymentAmountSelector } from '../shared/PaymentAmountSelector';
+import { TipSelector } from '../payment/TipSelector';
 
 interface OrderApprovalViewProps {
   order: any;
@@ -30,6 +31,8 @@ export function OrderApprovalView({
   const [keepOriginalPayment, setKeepOriginalPayment] = useState(true);
   const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
   const [customAmount, setCustomAmount] = useState('');
+  const [tipAmount, setTipAmount] = useState<string>('none');
+  const [customTipAmount, setCustomTipAmount] = useState('');
 
   const formatValue = (val: string, field: string) => {
     if (!val || val === 'null' || val === '') return '';
@@ -85,6 +88,9 @@ export function OrderApprovalView({
     customerRelevantFields.includes(c.field_changed)
   );
 
+  const tipCents = order.tip_cents || 0;
+
+  // Base total excludes tip — tip is tracked separately so balance due never subtracts it
   const currentTotalCents =
     order.subtotal_cents +
     (order.generator_fee_cents || 0) +
@@ -92,31 +98,46 @@ export function OrderApprovalView({
     order.surface_fee_cents +
     (order.same_day_pickup_fee_cents || 0) +
     order.tax_cents -
-    (order.discount_cents || 0) +
-    (order.tip_cents || 0);
+    (order.discount_cents || 0);
 
   const currentDepositCents = order.deposit_due_cents || 0;
-  const originalPaymentCents = (order.customer_selected_payment_cents || currentDepositCents) + (order.tip_cents || 0);
-  const originalMeetsMinimum = (order.customer_selected_payment_cents || currentDepositCents) >= currentDepositCents;
+
+  // The original payment the customer chose (excluding tip — tip is already stored on order)
+  const originalPaymentBaseCents = order.customer_selected_payment_cents || currentDepositCents;
+  const originalMeetsMinimum = originalPaymentBaseCents >= currentDepositCents;
+
+  // Tip for the new payment selection (when not keeping original)
+  let newTipCents = 0;
+  if (!keepOriginalPayment) {
+    if (tipAmount === '10') newTipCents = Math.round(currentTotalCents * 0.1);
+    else if (tipAmount === '15') newTipCents = Math.round(currentTotalCents * 0.15);
+    else if (tipAmount === '20') newTipCents = Math.round(currentTotalCents * 0.2);
+    else if (tipAmount === 'custom' && customTipAmount) newTipCents = Math.round(parseFloat(customTipAmount) * 100);
+  }
 
   // Initialize payment settings once when order loads
   useEffect(() => {
     const meetsMinimum = (order.customer_selected_payment_cents || 0) >= currentDepositCents;
     setKeepOriginalPayment(meetsMinimum);
     setPaymentAmount('deposit');
+    setTipAmount('none');
+    setCustomTipAmount('');
   }, [order.id]);
 
-  let selectedPaymentCents = 0;
-
+  // selectedPaymentBaseCents = what the customer pays now, EXCLUDING tip
+  let selectedPaymentBaseCents = 0;
   if (keepOriginalPayment) {
-    selectedPaymentCents = originalPaymentCents;
+    selectedPaymentBaseCents = originalPaymentBaseCents;
   } else if (paymentAmount === 'deposit') {
-    selectedPaymentCents = currentDepositCents;
+    selectedPaymentBaseCents = currentDepositCents;
   } else if (paymentAmount === 'full') {
-    selectedPaymentCents = currentTotalCents;
+    selectedPaymentBaseCents = currentTotalCents;
   } else if (paymentAmount === 'custom') {
-    selectedPaymentCents = dollarsToCents(customAmount);
+    selectedPaymentBaseCents = dollarsToCents(customAmount);
   }
+
+  // Total sent to ApprovalModal = base payment + tip
+  const selectedPaymentCents = selectedPaymentBaseCents + (keepOriginalPayment ? tipCents : newTipCents);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-50 py-4 md:py-12 px-3 sm:px-6 lg:px-8">
@@ -324,7 +345,7 @@ export function OrderApprovalView({
                     title="Complete Price Breakdown"
                     changelog={changelog}
                     className="p-3 md:p-4"
-                    customDepositCents={selectedPaymentCents}
+                    customDepositCents={selectedPaymentBaseCents}
                     taxWaived={order.tax_waived || false}
                     travelFeeWaived={order.travel_fee_waived || false}
                     surfaceFeeWaived={order.surface_fee_waived || false}
@@ -355,21 +376,21 @@ export function OrderApprovalView({
                       Keep original payment amount
                     </p>
                     <p className="text-lg md:text-xl font-bold text-green-700 mt-1">
-                      {formatCurrency(originalPaymentCents)}
+                      {formatCurrency(originalPaymentBaseCents + tipCents)}
                     </p>
                     {!originalMeetsMinimum && (
                       <p className="text-xs md:text-sm text-red-600 mt-1">
                         Original amount no longer meets minimum deposit of {formatCurrency(currentDepositCents)}
                       </p>
                     )}
-                    {originalMeetsMinimum && originalPaymentCents > currentTotalCents && (
+                    {originalMeetsMinimum && originalPaymentBaseCents > currentTotalCents && (
                       <p className="text-xs md:text-sm text-green-700 mt-1">
-                        Excess ${((originalPaymentCents - currentTotalCents) / 100).toFixed(2)} will be applied as tip
+                        Excess ${((originalPaymentBaseCents - currentTotalCents) / 100).toFixed(2)} will be applied as tip
                       </p>
                     )}
-                    {originalMeetsMinimum && originalPaymentCents < currentTotalCents && (
+                    {originalMeetsMinimum && originalPaymentBaseCents < currentTotalCents && (
                       <p className="text-xs md:text-sm text-slate-600 mt-1">
-                        Balance due day of event: {formatCurrency(currentTotalCents - originalPaymentCents)}
+                        Balance due day of event: {formatCurrency(currentTotalCents - originalPaymentBaseCents)}
                       </p>
                     )}
                   </div>
@@ -377,21 +398,35 @@ export function OrderApprovalView({
               </div>
 
               {!keepOriginalPayment && (
-                <div>
-                  <h4 className="text-sm md:text-base font-semibold text-slate-900 mb-3">
-                    Select New Payment Amount
-                  </h4>
-                  <PaymentAmountSelector
-                    depositCents={currentDepositCents}
-                    totalCents={currentTotalCents}
-                    paymentAmount={paymentAmount}
-                    customAmount={customAmount}
-                    onPaymentAmountChange={setPaymentAmount}
-                    onCustomAmountChange={setCustomAmount}
-                    showCard={false}
-                    showApprovalNote={false}
-                    icon="credit-card"
-                  />
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-sm md:text-base font-semibold text-slate-900 mb-3">
+                      Select New Payment Amount
+                    </h4>
+                    <PaymentAmountSelector
+                      depositCents={currentDepositCents}
+                      totalCents={currentTotalCents}
+                      paymentAmount={paymentAmount}
+                      customAmount={customAmount}
+                      onPaymentAmountChange={setPaymentAmount}
+                      onCustomAmountChange={setCustomAmount}
+                      showCard={false}
+                      showApprovalNote={false}
+                      icon="credit-card"
+                    />
+                  </div>
+                  <div>
+                    <h4 className="text-sm md:text-base font-semibold text-slate-900 mb-3">
+                      Add a Tip (Optional)
+                    </h4>
+                    <TipSelector
+                      totalCents={currentTotalCents}
+                      tipAmount={tipAmount}
+                      customTipAmount={customTipAmount}
+                      onTipAmountChange={setTipAmount}
+                      onCustomTipAmountChange={setCustomTipAmount}
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -442,6 +477,8 @@ export function OrderApprovalView({
             order={order}
             onSuccess={onApprovalSuccess}
             selectedPaymentCents={selectedPaymentCents}
+            selectedPaymentBaseCents={selectedPaymentBaseCents}
+            newTipCents={newTipCents}
             keepOriginalPayment={keepOriginalPayment}
           />
 

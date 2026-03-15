@@ -13,6 +13,8 @@ interface ApprovalModalProps {
   order: any;
   onSuccess: () => void;
   selectedPaymentCents: number;
+  selectedPaymentBaseCents: number;
+  newTipCents: number;
   keepOriginalPayment: boolean;
 }
 
@@ -22,6 +24,8 @@ export function ApprovalModal({
   order,
   onSuccess,
   selectedPaymentCents,
+  selectedPaymentBaseCents,
+  newTipCents,
   keepOriginalPayment
 }: ApprovalModalProps) {
   const [confirmName, setConfirmName] = useState('');
@@ -95,12 +99,18 @@ export function ApprovalModal({
       const selectedPaymentType = keepOriginalPayment ? 'keep-original' : 'modified';
 
       // First, update the customer's payment selection
+      // customer_selected_payment_cents stores base payment only (no tip)
+      const updatePayload: Record<string, unknown> = {
+        customer_selected_payment_cents: selectedPaymentBaseCents,
+        customer_selected_payment_type: selectedPaymentType,
+      };
+      // If customer picked a new tip amount (when not keeping original), save it
+      if (!keepOriginalPayment && newTipCents >= 0) {
+        updatePayload.tip_cents = newTipCents;
+      }
       const { error: updateError } = await supabase
         .from('orders')
-        .update({
-          customer_selected_payment_cents: selectedPaymentCents,
-          customer_selected_payment_type: selectedPaymentType,
-        })
+        .update(updatePayload)
         .eq('id', order.id);
 
       if (updateError) throw updateError;
@@ -183,8 +193,7 @@ export function ApprovalModal({
     order.surface_fee_cents +
     (order.same_day_pickup_fee_cents || 0) +
     order.tax_cents -
-    (order.discount_cents || 0) +
-    (order.tip_cents || 0);
+    (order.discount_cents || 0);
 
   const lastFour = order.payment_method_last_four
     || order.payments?.find((p: any) => p.payment_last4)?.payment_last4
@@ -272,9 +281,14 @@ export function ApprovalModal({
               <div>
                 <p className="text-sm font-medium text-slate-600">Payment Amount Selected</p>
                 <p className="text-2xl font-bold text-green-700">{formatCurrency(selectedPaymentCents)}</p>
-                {selectedPaymentCents < currentTotalCents && (
+                {selectedPaymentBaseCents < currentTotalCents && (
                   <p className="text-xs text-slate-600 mt-1">
-                    Balance due day of event: {formatCurrency(currentTotalCents - selectedPaymentCents)}
+                    Balance due day of event: {formatCurrency(currentTotalCents - selectedPaymentBaseCents)}
+                  </p>
+                )}
+                {(keepOriginalPayment ? (order.tip_cents || 0) : newTipCents) > 0 && (
+                  <p className="text-xs text-green-600 mt-0.5">
+                    Includes {formatCurrency(keepOriginalPayment ? (order.tip_cents || 0) : newTipCents)} crew tip
                   </p>
                 )}
               </div>
