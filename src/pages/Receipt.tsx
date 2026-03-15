@@ -6,7 +6,8 @@ import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../lib/pricing';
 import { formatOrderId } from '../lib/utils';
 import { OrderSummary } from '../components/order/OrderSummary';
-import { OrderSummaryDisplay } from '../lib/orderSummary';
+import type { OrderSummaryDisplay } from '../lib/orderSummary';
+import { buildOrderSummaryDisplay } from '../lib/orderSummaryHelpers';
 import { calculateOrderTotal, formatTime } from '../lib/orderUtils';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 
@@ -61,13 +62,46 @@ export function Receipt() {
         .select('*')
         .eq('order_id', orderId);
 
-      const { buildOrderSummary } = await import('../lib/orderSummary');
-      const summaryData = buildOrderSummary(
-        orderData,
-        orderItems || [],
-        discounts || [],
-        customFees || []
-      );
+      const summaryData = buildOrderSummaryDisplay({
+        items: (orderItems || []).map((item: any) => ({
+          name: item.units?.name || 'Unknown Unit',
+          mode: item.wet_or_dry === 'water' ? 'Water' : 'Dry',
+          price: item.unit_price_cents || 0,
+          qty: item.qty || 1,
+        })),
+        fees: {
+          travel_fee_cents: orderData.travel_fee_cents,
+          travel_total_miles: orderData.travel_total_miles,
+          travel_fee_display_name: orderData.travel_fee_display_name,
+          surface_fee_cents: orderData.surface_fee_cents,
+          same_day_pickup_fee_cents: orderData.same_day_pickup_fee_cents,
+          generator_fee_cents: orderData.generator_fee_cents,
+          generator_qty: orderData.generator_qty,
+          travel_fee_waived: orderData.travel_fee_waived,
+          surface_fee_waived: orderData.surface_fee_waived,
+          same_day_pickup_fee_waived: orderData.same_day_pickup_fee_waived,
+          generator_fee_waived: orderData.generator_fee_waived,
+        },
+        discounts: (discounts || []).map((d: any) => ({
+          name: d.name,
+          amount_cents: d.amount_cents,
+          percentage: d.percentage,
+        })),
+        customFees: (customFees || []).map((f: any) => ({
+          name: f.name,
+          amount_cents: f.amount_cents,
+        })),
+        subtotal_cents: orderData.subtotal_cents || 0,
+        tax_cents: orderData.tax_cents || 0,
+        tip_cents: orderData.tip_cents || 0,
+        total_cents: orderData.total_cents || 0,
+        deposit_due_cents: orderData.deposit_due_cents || 0,
+        deposit_paid_cents: orderData.deposit_paid_cents || 0,
+        balance_due_cents: orderData.balance_due_cents || 0,
+        event_date: orderData.event_date,
+        event_end_date: orderData.event_end_date,
+        pickup_preference: orderData.pickup_preference,
+      });
 
       setOrder(orderData);
       setPayment(paymentData);
