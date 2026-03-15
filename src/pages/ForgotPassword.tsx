@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Mail, Loader2, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { notifyError } from '../lib/notifications';
 
 export function ForgotPassword() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const location = useLocation();
+  const prefillEmail = (location.state as any)?.prefillEmail || '';
+  const [email, setEmail] = useState(prefillEmail);
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
 

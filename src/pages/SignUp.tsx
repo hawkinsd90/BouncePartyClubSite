@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { UserPlus, Loader2, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { UserPlus, Loader2, Eye, EyeOff, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { notifySuccess, notifyError, notifyWarning } from '../lib/notifications';
 import { AddressAutocomplete } from '../components/order/AddressAutocomplete';
 import { useCustomerProfile } from '../contexts/CustomerProfileContext';
@@ -37,6 +37,7 @@ export function SignUp() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [emailAlreadyExists, setEmailAlreadyExists] = useState(false);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -123,7 +124,10 @@ export function SignUp() {
       const createdAt = new Date(authData.user.created_at).getTime();
       const isExistingUser = Date.now() - createdAt > 10_000;
       if (isExistingUser) {
-        throw new Error('An account with this email address already exists. Please sign in instead.');
+        setEmailAlreadyExists(true);
+        setErrors(prev => ({ ...prev, email: 'An account with this email already exists.' }));
+        setLoading(false);
+        return;
       }
 
       const userId = authData.user.id;
@@ -205,6 +209,7 @@ export function SignUp() {
     }
 
     setFormData(prev => ({ ...prev, [field]: processed }));
+    if (field === 'email') setEmailAlreadyExists(false);
     if (errors[field]) {
       setErrors(prev => {
         const next = { ...prev };
@@ -304,11 +309,38 @@ export function SignUp() {
                 className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 ${errors.email ? 'border-red-300' : 'border-slate-300'} rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-base`}
                 placeholder="you@example.com"
               />
-              {errors.email && (
-                <p className="text-red-600 text-sm mt-1">{errors.email}</p>
-              )}
-              {!errors.email && formData.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email) && (
-                <p className="text-green-600 text-sm mt-1">Valid email address</p>
+              {emailAlreadyExists ? (
+                <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-semibold text-amber-900 mb-1">An account with this email already exists.</p>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      <button
+                        type="button"
+                        onClick={() => navigate('/login', { state: { from: { pathname: from }, prefillEmail: formData.email } })}
+                        className="inline-flex items-center px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors"
+                      >
+                        Sign in to your account
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/forgot-password', { state: { prefillEmail: formData.email } })}
+                        className="inline-flex items-center px-3 py-1.5 bg-white border border-amber-300 hover:bg-amber-50 text-amber-800 text-xs font-semibold rounded-lg transition-colors"
+                      >
+                        Forgot your password?
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {errors.email && (
+                    <p className="text-red-600 text-sm mt-1">{errors.email}</p>
+                  )}
+                  {!errors.email && formData.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email) && (
+                    <p className="text-green-600 text-sm mt-1">Valid email address</p>
+                  )}
+                </>
               )}
             </div>
 

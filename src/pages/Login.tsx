@@ -23,9 +23,11 @@ export function Login() {
   const [isIOS, setIsIOS] = useState(false);
 
   const from = (location.state as any)?.from?.pathname || '/';
+  const prefillEmail = (location.state as any)?.prefillEmail || '';
 
   useEffect(() => {
     setIsIOS(isIOSDevice());
+    if (prefillEmail) setEmail(prefillEmail);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
