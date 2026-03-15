@@ -187,7 +187,12 @@ export function SignUp() {
       navigate(from, { replace: true });
     } catch (err: any) {
       console.error('[SignUp] Sign up error:', err);
-      notifyError(err.message || 'Failed to create account. Please try again.');
+      const msg: string = err.message || '';
+      if (msg.toLowerCase().includes('rate limit') || err.status === 429) {
+        notifyError('Too many signup attempts. Please wait a few minutes and try again.');
+      } else {
+        notifyError(msg || 'Failed to create account. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
