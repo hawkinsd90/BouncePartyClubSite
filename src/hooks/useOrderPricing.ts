@@ -209,7 +209,7 @@ export function useOrderPricing() {
         same_day_pickup_fee_cents: originalSameDayPickupFeeCents,
         generator_fee_cents: originalGeneratorFeeCents,
         generator_qty: editedOrder.generator_qty || 0,
-        tax_cents: originalTaxCents,
+        tax_cents: taxWaived ? 0 : originalTaxCents,
         tip_cents: order.tip_cents || 0,
         total_cents: finalTotalCents,
         deposit_due_cents: customDepositCents !== null ? customDepositCents : priceBreakdown.deposit_due_cents,
