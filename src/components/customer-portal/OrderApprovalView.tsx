@@ -31,7 +31,7 @@ export function OrderApprovalView({
   const [keepOriginalPayment, setKeepOriginalPayment] = useState(true);
   const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
   const [customAmount, setCustomAmount] = useState('');
-  const [tipAmount, setTipAmount] = useState<string>('none');
+  const [tipAmount, setTipAmount] = useState<'none' | '10' | '15' | '20' | 'custom'>('none');
   const [customTipAmount, setCustomTipAmount] = useState('');
 
   const formatValue = (val: string, field: string) => {
@@ -425,6 +425,7 @@ export function OrderApprovalView({
                       customTipAmount={customTipAmount}
                       onTipAmountChange={setTipAmount}
                       onCustomTipAmountChange={setCustomTipAmount}
+                      formatCurrency={formatCurrency}
                     />
                   </div>
                 </div>
