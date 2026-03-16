@@ -65,6 +65,10 @@ Deno.serve(async (req: Request) => {
   }
 
   let body: EmailRequest | null = null;
+  let emailTo: string | undefined;
+  let emailSubject: string | undefined;
+  let emailHtml: string | undefined;
+  let emailText: string | undefined;
 
   try {
     body = await req.json();
@@ -82,10 +86,10 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    let emailTo = to;
-    let emailSubject = subject;
-    let emailHtml = html;
-    let emailText = text;
+    emailTo = to;
+    emailSubject = subject;
+    emailHtml = html;
+    emailText = text;
 
     // If templateName is provided, fetch and populate the template
     if (templateName && orderId) {
