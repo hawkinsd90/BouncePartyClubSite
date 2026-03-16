@@ -114,7 +114,6 @@ function buildSignupEmail(confirmUrl: string): string {
 <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
 <tr>
 <td style="background:#f97316;padding:32px 40px;text-align:center;">
-<img src="https://bouncepartyclub.com/bounce%20party%20club%20logo.png" alt="Bounce Party Club" style="height:72px;width:auto;display:block;margin:0 auto 12px;">
 <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;">Bounce Party Club</h1>
 <p style="margin:6px 0 0;color:#fed7aa;font-size:14px;">Southeast Michigan's #1 Inflatable Rental Company</p>
 </td>
@@ -164,7 +163,6 @@ function buildRecoveryEmail(confirmUrl: string): string {
 <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
 <tr>
 <td style="background:#f97316;padding:32px 40px;text-align:center;">
-<img src="https://bouncepartyclub.com/bounce%20party%20club%20logo.png" alt="Bounce Party Club" style="height:72px;width:auto;display:block;margin:0 auto 12px;">
 <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;">Bounce Party Club</h1>
 <p style="margin:6px 0 0;color:#fed7aa;font-size:14px;">Southeast Michigan's #1 Inflatable Rental Company</p>
 </td>
