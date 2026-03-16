@@ -1,5 +1,3 @@
-import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
@@ -12,6 +10,18 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const hookSecret = Deno.env.get('SEND_EMAIL_HOOK_SECRET');
+    if (hookSecret) {
+      const authHeader = req.headers.get('Authorization') ?? '';
+      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+      if (token !== hookSecret) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized: invalid or missing hook secret' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     const event = await req.json();
 
     const emailType: string = event?.email_action_type ?? '';
@@ -19,29 +29,19 @@ Deno.serve(async (req: Request) => {
     const confirmUrl: string = event?.email_data?.confirmation_url ?? '';
 
     if (!recipient) {
-      return new Response(JSON.stringify({ error: 'No recipient' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({ error: 'No recipient email in hook payload' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, serviceRoleKey);
-
-    const { data: settings } = await supabase
-      .from('admin_settings')
-      .select('value')
-      .eq('key', 'resend_api_key')
-      .maybeSingle();
-
-    const resendApiKey = settings?.value;
+    const resendApiKey = Deno.env.get('RESEND_API_KEY');
     if (!resendApiKey) {
-      console.error('[auth-email-hook] No Resend API key configured');
-      return new Response(JSON.stringify({ error: 'Email not configured' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      console.error('[auth-email-hook] RESEND_API_KEY secret not set');
+      return new Response(
+        JSON.stringify({ error: 'Email service not configured: RESEND_API_KEY missing' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     let subject = '';
@@ -49,7 +49,59 @@ Deno.serve(async (req: Request) => {
 
     if (emailType === 'signup' || emailType === 'email_change_new') {
       subject = 'Confirm your Bounce Party Club account';
-      html = `<!DOCTYPE html>
+      html = buildSignupEmail(confirmUrl);
+    } else if (emailType === 'recovery') {
+      subject = 'Reset your Bounce Party Club password';
+      html = buildRecoveryEmail(confirmUrl);
+    } else {
+      console.log('[auth-email-hook] Unhandled email type, skipping:', emailType);
+      return new Response(
+        JSON.stringify({ message: 'Unhandled email type, skipping', emailType }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const resendResponse = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Bounce Party Club <admin@bouncepartyclub.com>',
+        to: [recipient],
+        subject,
+        html,
+      }),
+    });
+
+    const resendData = await resendResponse.json();
+
+    if (!resendResponse.ok) {
+      console.error('[auth-email-hook] Resend error:', resendData);
+      return new Response(
+        JSON.stringify({ error: 'Failed to send email via Resend', details: resendData }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('[auth-email-hook] Email sent successfully:', { recipient, emailType, id: resendData.id });
+    return new Response(
+      JSON.stringify({ success: true, id: resendData.id }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (err) {
+    console.error('[auth-email-hook] Unexpected error:', err);
+    return new Response(
+      JSON.stringify({ error: 'Internal server error', details: String(err) }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
+
+function buildSignupEmail(confirmUrl: string): string {
+  return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
@@ -96,9 +148,10 @@ Deno.serve(async (req: Request) => {
 </table>
 </body>
 </html>`;
-    } else if (emailType === 'recovery') {
-      subject = 'Reset your Bounce Party Club password';
-      html = `<!DOCTYPE html>
+}
+
+function buildRecoveryEmail(confirmUrl: string): string {
+  return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
@@ -144,48 +197,4 @@ Deno.serve(async (req: Request) => {
 </table>
 </body>
 </html>`;
-    } else {
-      return new Response(JSON.stringify({ message: 'Unhandled email type, skipping' }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const resendResponse = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${resendApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: 'Bounce Party Club <admin@bouncepartyclub.com>',
-        to: [recipient],
-        subject,
-        html,
-      }),
-    });
-
-    const resendData = await resendResponse.json();
-
-    if (!resendResponse.ok) {
-      console.error('[auth-email-hook] Resend error:', resendData);
-      return new Response(JSON.stringify({ error: 'Failed to send email', details: resendData }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    console.log('[auth-email-hook] Email sent successfully to', recipient, 'type:', emailType);
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-
-  } catch (err) {
-    console.error('[auth-email-hook] Unexpected error:', err);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-});
+}
