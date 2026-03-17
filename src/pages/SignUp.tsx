@@ -214,15 +214,26 @@ export function SignUp() {
       const userId = authData.user.id;
       const emailConfirmationRequired = !authData.session;
 
+      const consentPayload = [
+        { type: 'terms_of_service', version: TERMS_VERSION, consented: consentTerms },
+        { type: 'privacy_policy', version: PRIVACY_VERSION, consented: consentPrivacy },
+        { type: 'marketing_email', version: '1.0', consented: consentMarketingEmail },
+        { type: 'marketing_sms', version: '1.0', consented: consentMarketingSms },
+      ];
+
       if (authData.session?.access_token) {
-        await recordConsent(authData.session.access_token, [
-          { type: 'terms_of_service', version: TERMS_VERSION, consented: consentTerms },
-          { type: 'privacy_policy', version: PRIVACY_VERSION, consented: consentPrivacy },
-          { type: 'marketing_email', version: '1.0', consented: consentMarketingEmail },
-          { type: 'marketing_sms', version: '1.0', consented: consentMarketingSms },
-        ]);
+        await recordConsent(authData.session.access_token, consentPayload);
       } else {
-        log.debug('recordConsent: no session token yet (email confirmation pending) — consent will be recorded on first login');
+        log.debug('recordConsent: no session yet (email confirmation pending) — storing in user metadata for drain on first login');
+        await supabase.auth.updateUser({
+          data: {
+            pending_consent: {
+              consents: consentPayload,
+              source: 'signup',
+              user_agent_hint: navigator.userAgent.slice(0, 200),
+            },
+          },
+        });
       }
 
       if (emailConfirmationRequired) {

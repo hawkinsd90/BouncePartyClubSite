@@ -26,6 +26,18 @@ const ALLOWED_CONSENT_TYPES = new Set([
   'marketing_sms',
 ]);
 
+function validateConsents(consents: ConsentEntry[]): string | null {
+  if (!Array.isArray(consents) || consents.length === 0) {
+    return 'consents must be a non-empty array';
+  }
+  for (const c of consents) {
+    if (!ALLOWED_CONSENT_TYPES.has(c.type)) return `Invalid consent_type: ${c.type}`;
+    if (typeof c.consented !== 'boolean') return `consented must be boolean for type: ${c.type}`;
+    if (!c.version || typeof c.version !== 'string') return `version is required for type: ${c.type}`;
+  }
+  return null;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -61,35 +73,79 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const body: RecordConsentBody = await req.json();
-    const { consents, source = 'signup', user_agent_hint } = body;
+    const url = new URL(req.url);
+    const action = url.searchParams.get('action');
 
-    if (!Array.isArray(consents) || consents.length === 0) {
+    if (action === 'drain-pending') {
+      const pending = user.user_metadata?.pending_consent;
+
+      if (!pending) {
+        return new Response(
+          JSON.stringify({ success: true, recorded: 0, skipped: 'no_pending_consent' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { consents, source, user_agent_hint } = pending as {
+        consents: ConsentEntry[];
+        source?: string;
+        user_agent_hint?: string;
+      };
+
+      const validationError = validateConsents(consents);
+      if (validationError) {
+        return new Response(
+          JSON.stringify({ success: false, error: `Invalid pending consent data: ${validationError}` }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { data: customer } = await serviceClient
+        .from('customers')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      const rows = consents.map((c: ConsentEntry) => ({
+        user_id: user.id,
+        customer_id: customer?.id ?? null,
+        consent_type: c.type,
+        consented: c.consented,
+        policy_version: c.version,
+        source: source ?? 'signup',
+        user_agent_hint: user_agent_hint ?? null,
+      }));
+
+      const { error: insertError } = await serviceClient
+        .from('user_consent_log')
+        .insert(rows);
+
+      if (insertError) {
+        return new Response(
+          JSON.stringify({ success: false, error: insertError.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      await serviceClient.auth.admin.updateUserById(user.id, {
+        user_metadata: { ...user.user_metadata, pending_consent: null },
+      });
+
       return new Response(
-        JSON.stringify({ success: false, error: 'consents must be a non-empty array' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: true, recorded: rows.length, customer_id: customer?.id ?? null }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    for (const c of consents) {
-      if (!ALLOWED_CONSENT_TYPES.has(c.type)) {
-        return new Response(
-          JSON.stringify({ success: false, error: `Invalid consent_type: ${c.type}` }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      if (typeof c.consented !== 'boolean') {
-        return new Response(
-          JSON.stringify({ success: false, error: `consented must be boolean for type: ${c.type}` }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      if (!c.version || typeof c.version !== 'string') {
-        return new Response(
-          JSON.stringify({ success: false, error: `version is required for type: ${c.type}` }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+    const body: RecordConsentBody = await req.json();
+    const { consents, source = 'signup', user_agent_hint } = body;
+
+    const validationError = validateConsents(consents);
+    if (validationError) {
+      return new Response(
+        JSON.stringify({ success: false, error: validationError }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const { data: customer } = await serviceClient

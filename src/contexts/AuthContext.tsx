@@ -79,6 +79,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         window.history.replaceState(null, '', window.location.pathname);
       }
 
+      if (_event === 'SIGNED_IN' && session?.access_token && session?.user?.user_metadata?.pending_consent) {
+        (async () => {
+          try {
+            const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-consent?action=drain-pending`;
+            const res = await fetch(url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({}),
+            });
+            const json = await res.json().catch(() => ({}));
+            log.debug('drain-pending consent result', json);
+          } catch (err: any) {
+            log.warn('drain-pending consent failed', err.message);
+          }
+        })();
+      }
+
       if (session?.user) {
         loadUserRoles(session.user.id);
       } else {
