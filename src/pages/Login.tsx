@@ -97,6 +97,10 @@ export function Login() {
         if (prev <= 1) {
           clearInterval(cooldownTimerRef.current!);
           cooldownTimerRef.current = null;
+          // Reset the failure counter so the user gets a fresh set of attempts
+          // after the cooldown expires, rather than triggering another cooldown
+          // immediately on the very next failure.
+          setFailedAttempts(0);
           return 0;
         }
         return prev - 1;

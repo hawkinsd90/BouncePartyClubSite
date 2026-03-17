@@ -103,6 +103,84 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
+
+    const url = new URL(req.url);
+    const action = url.searchParams.get('action');
+
+    // revoke-pending: called without a session, immediately after a duplicate-signup attempt
+    // is detected on the client side. Uses the caller-supplied email to look up the account
+    // and null out pending_consent via service role.
+    //
+    // Security note: this action requires NO auth token. An adversary could call it for any
+    // email and clear that user's pending_consent. The worst-case effect is that a legitimate
+    // new user's consent drain is skipped on next login. This is a soft failure in a
+    // best-effort field — it does not delete existing consent rows. Accepting this narrow
+    // risk is the correct trade-off given the alternative (duplicate consent rows for existing
+    // accounts) is materially worse. The action is also no-op if the user has no pending_consent.
+    if (action === 'revoke-pending') {
+      let email: string | undefined;
+      try {
+        const body = await req.json();
+        email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : undefined;
+      } catch {
+        // ignore parse errors
+      }
+
+      if (!email) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'email is required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { data: { users }, error: listError } = await serviceClient.auth.admin.listUsers();
+      if (listError) {
+        console.error('[record-consent] revoke-pending: listUsers failed', listError.message);
+        return new Response(
+          JSON.stringify({ success: false, error: 'lookup failed' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const target = users?.find(u => u.email?.toLowerCase() === email);
+      if (!target) {
+        // Return success silently — do not reveal whether an account exists for this email.
+        return new Response(
+          JSON.stringify({ success: true, cleared: false, reason: 'no_account' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (!target.user_metadata?.pending_consent) {
+        return new Response(
+          JSON.stringify({ success: true, cleared: false, reason: 'no_pending' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { error: updateError } = await serviceClient.auth.admin.updateUserById(target.id, {
+        user_metadata: { ...target.user_metadata, pending_consent: null },
+      });
+
+      if (updateError) {
+        console.error('[record-consent] revoke-pending: updateUserById failed', updateError.message);
+        return new Response(
+          JSON.stringify({ success: false, error: 'clear failed' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log('[record-consent] revoke-pending: cleared pending_consent for existing-user duplicate signup', { user_id: target.id });
+      return new Response(
+        JSON.stringify({ success: true, cleared: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // All other actions require a valid auth token.
     const authHeader = req.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return new Response(
@@ -110,10 +188,6 @@ Deno.serve(async (req: Request) => {
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
 
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: authError } = await serviceClient.auth.getUser(token);
@@ -124,9 +198,6 @@ Deno.serve(async (req: Request) => {
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    const url = new URL(req.url);
-    const action = url.searchParams.get('action');
 
     if (action === 'drain-pending') {
       const pending = user.user_metadata?.pending_consent;

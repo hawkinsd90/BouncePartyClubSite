@@ -208,10 +208,11 @@ export function SignUp() {
             // to account creation at the Auth layer. This is intentionally preferred over a
             // separate privileged metadata-write endpoint (e.g. save-pending-consent), which
             // would require unauthenticated write access and cannot prove caller ownership.
-            // Trade-off: existing-user classification happens after signUp returns, so
-            // pending_consent is technically written for the existing user's metadata on a
-            // duplicate signup attempt. That is safe: the data is only readable by the account
-            // owner, and the drain path is idempotent via the batch_id unique index.
+            // Trade-off: existing-user classification happens after signUp returns, so on a
+            // duplicate signup attempt pending_consent is temporarily written to the existing
+            // account's metadata. This is corrected immediately: the isExistingUser block below
+            // calls record-consent?action=revoke-pending to null out that metadata before returning.
+            // The batch_id unique index is a second line of defence if the revoke call fails.
             pending_consent: {
               batch_id: consentBatchId,
               consents: consentPayload,
@@ -244,6 +245,28 @@ export function SignUp() {
       if (isExistingUser) {
         const isConfirmed = !!authData.user.email_confirmed_at;
         log.debug('handleSubmit: existing user detected', { isConfirmed });
+
+        // Supabase merges options.data into raw_user_meta_data on duplicate signUp for
+        // unconfirmed accounts, so pending_consent from this attempt has been written to
+        // the existing account's metadata. Revoke it immediately via service-role so the
+        // drain path on the real user's next SIGNED_IN does not insert spurious consent rows.
+        // For confirmed accounts Supabase does NOT update metadata on duplicate signUp,
+        // but we fire the revoke anyway as a no-op safety net.
+        try {
+          const revokeUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-consent?action=revoke-pending`;
+          const revokeRes = await fetch(revokeUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: formData.email }),
+          });
+          const revokeJson = await revokeRes.json().catch(() => ({}));
+          log.debug('handleSubmit: revoke-pending result', revokeJson);
+        } catch (revokeErr: any) {
+          // Non-fatal — log and continue. The batch_id unique index is a second line of
+          // defence if the revoke fails (it prevents re-inserting rows for the same batch).
+          log.warn('handleSubmit: revoke-pending call failed (non-fatal)', revokeErr.message);
+        }
+
         if (isConfirmed) {
           setEmailAlreadyExists(true);
         } else {
