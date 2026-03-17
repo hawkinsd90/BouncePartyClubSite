@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Trash2, AlertCircle, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useCustomerProfile } from '../contexts/CustomerProfileContext';
 import { useQuoteCart } from '../hooks/useQuoteCart';
 import { useQuoteForm } from '../hooks/useQuoteForm';
 import { useQuotePricing } from '../hooks/useQuotePricing';
@@ -35,6 +36,7 @@ interface DebugInfo {
 export function Quote() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { sessionData } = useCustomerProfile();
   const [searchParams] = useSearchParams();
   const [showClearModal, setShowClearModal] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -93,7 +95,7 @@ export function Quote() {
 
   const { priceBreakdown, savePriceBreakdown } = useQuotePricing(cart, formData, pricingRules);
 
-  useQuotePrefill(user, formData, { setAddressInput, updateFormData });
+  useQuotePrefill(user, formData, { setAddressInput, updateFormData }, sessionData);
 
   useEffect(() => {
     if (cart.length > 0 && formData.event_date && formData.event_end_date) {

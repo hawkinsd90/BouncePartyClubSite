@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { UserPlus, Loader2, Eye, EyeOff, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { UserPlus, Loader2, Eye, EyeOff, ArrowLeft, AlertTriangle, Mail } from 'lucide-react';
 import { notifySuccess, notifyError } from '../lib/notifications';
 import { AddressAutocomplete } from '../components/order/AddressAutocomplete';
 import { useCustomerProfile } from '../contexts/CustomerProfileContext';
@@ -52,9 +52,11 @@ export function SignUp() {
   const from = (location.state as any)?.from?.pathname || '/';
 
   const [loading, setLoading] = useState(false);
+  const [resendingConfirmation, setResendingConfirmation] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [emailAlreadyExists, setEmailAlreadyExists] = useState(false);
+  const [emailUnconfirmed, setEmailUnconfirmed] = useState(false);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -173,14 +175,19 @@ export function SignUp() {
         return;
       }
 
-      // Supabase silently returns the existing user when email confirmation is
-      // disabled and the email is already registered. Detect by checking age.
+      // Supabase silently returns the existing user when the email is already registered.
+      // Detect by checking age. If unconfirmed, show resend path. If confirmed, show sign-in path.
       const createdAt = new Date(authData.user.created_at).getTime();
       const isExistingUser = Date.now() - createdAt > 10_000;
       if (isExistingUser) {
-        console.log(`${LOG} step 1/3: detected existing user (created ${Math.round((Date.now() - createdAt) / 1000)}s ago)`);
-        setEmailAlreadyExists(true);
-        setErrors(prev => ({ ...prev, email: 'An account with this email already exists.' }));
+        const isConfirmed = !!authData.user.email_confirmed_at;
+        console.log(`${LOG} step 1/3: detected existing user (confirmed=${isConfirmed}, created ${Math.round((Date.now() - createdAt) / 1000)}s ago)`);
+        if (isConfirmed) {
+          setEmailAlreadyExists(true);
+        } else {
+          setEmailUnconfirmed(true);
+        }
+        setErrors(prev => ({ ...prev, email: ' ' }));
         setLoading(false);
         return;
       }
@@ -236,13 +243,32 @@ export function SignUp() {
     }
 
     setFormData(prev => ({ ...prev, [field]: processed }));
-    if (field === 'email') setEmailAlreadyExists(false);
+    if (field === 'email') {
+      setEmailAlreadyExists(false);
+      setEmailUnconfirmed(false);
+    }
     if (errors[field]) {
       setErrors(prev => {
         const next = { ...prev };
         delete next[field];
         return next;
       });
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    setResendingConfirmation(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: formData.email,
+      });
+      if (error) throw error;
+      notifySuccess('Confirmation email resent. Check your inbox.', { duration: 8000 });
+    } catch (err: any) {
+      notifyError(err.message || 'Failed to resend confirmation email. Please try again.');
+    } finally {
+      setResendingConfirmation(false);
     }
   };
 
@@ -359,9 +385,32 @@ export function SignUp() {
                     </div>
                   </div>
                 </div>
+              ) : emailUnconfirmed ? (
+                <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3">
+                  <Mail className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-semibold text-blue-900 mb-1">Your account exists but email is not confirmed yet.</p>
+                    <p className="text-blue-700 mb-2">Check your inbox for the confirmation link, or resend it below.</p>
+                    <button
+                      type="button"
+                      onClick={handleResendConfirmation}
+                      disabled={resendingConfirmation}
+                      className="inline-flex items-center px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-xs font-semibold rounded-lg transition-colors"
+                    >
+                      {resendingConfirmation ? (
+                        <>
+                          <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        'Resend confirmation email'
+                      )}
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <>
-                  {errors.email && (
+                  {errors.email && errors.email.trim() && (
                     <p className="text-red-600 text-sm mt-1">{errors.email}</p>
                   )}
                   {!errors.email && formData.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email) && (
