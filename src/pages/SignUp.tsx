@@ -147,28 +147,36 @@ export function SignUp() {
         throw authError;
       }
 
-      console.log(`${LOG} step 1/3 OK: auth.signUp returned`, {
-        userId: authData.user?.id,
-        email: authData.user?.email,
-        createdAt: authData.user?.created_at,
-        emailConfirmedAt: authData.user?.email_confirmed_at,
-        sessionPresent: !!authData.session,
-        identitiesCount: authData.user?.identities?.length ?? 0,
-      });
-
       if (!authData.user) {
         throw new Error('Account creation failed — no user returned from auth.');
       }
 
-      // IMPORTANT: Check for existing user FIRST — before checking emailConfirmationRequired.
-      // Supabase silently returns the existing user when the email is already registered,
-      // and existing unconfirmed accounts also have no session, so checking !session first
-      // would swallow the resend-confirmation path with a generic "check your email" toast.
+      // Detect existing user BEFORE checking session.
+      // Primary signal: identities array is empty — Supabase omits identity entries for
+      // existing accounts when the email is already registered with confirmation enabled.
+      // Fallback signal: created_at older than 10s, guards against identities being
+      // undefined in edge cases or future SDK version differences.
+      const identities = authData.user.identities;
       const createdAt = new Date(authData.user.created_at).getTime();
-      const isExistingUser = Date.now() - createdAt > 10_000;
+      const ageMs = Date.now() - createdAt;
+      const isExistingByIdentities = Array.isArray(identities) && identities.length === 0;
+      const isExistingByAge = ageMs > 10_000;
+      const isExistingUser = isExistingByIdentities || isExistingByAge;
+
+      console.log(`${LOG} step 1/3: auth.signUp returned`, {
+        userId: authData.user.id,
+        sessionPresent: !!authData.session,
+        emailConfirmedAt: authData.user.email_confirmed_at,
+        identitiesCount: identities?.length ?? 'undefined',
+        ageSec: Math.round(ageMs / 1000),
+        isExistingByIdentities,
+        isExistingByAge,
+        isExistingUser,
+      });
+
       if (isExistingUser) {
         const isConfirmed = !!authData.user.email_confirmed_at;
-        console.log(`${LOG} step 1/3: detected existing user (confirmed=${isConfirmed}, created ${Math.round((Date.now() - createdAt) / 1000)}s ago)`);
+        console.log(`${LOG} step 1/3: existing user — confirmed=${isConfirmed}`);
         if (isConfirmed) {
           setEmailAlreadyExists(true);
         } else {

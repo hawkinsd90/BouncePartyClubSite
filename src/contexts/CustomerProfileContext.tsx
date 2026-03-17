@@ -173,9 +173,9 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
 
       setProfile(profileData);
 
-      if (!initialized) {
-        const resolvedAddress = profileData.defaultAddress;
+      const resolvedAddress = profileData.defaultAddress;
 
+      if (!initialized) {
         setSessionData({
           firstName: profileData.firstName,
           lastName: profileData.lastName,
@@ -189,6 +189,18 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
           zip: resolvedAddress?.zip || '',
         });
         setInitialized(true);
+      } else if (resolvedAddress?.line1) {
+        setSessionData(prev => {
+          if (prev.addressLine1) return prev;
+          return {
+            ...prev,
+            addressLine1: resolvedAddress.line1,
+            addressLine2: resolvedAddress.line2 || '',
+            city: resolvedAddress.city || '',
+            state: resolvedAddress.state || '',
+            zip: resolvedAddress.zip || '',
+          };
+        });
       }
     } catch (err) {
       log.error('Error in loadProfileAndDefaults', err);
