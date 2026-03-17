@@ -83,16 +83,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
         const json = await res.json().catch(() => ({}));
         log.debug('drainPendingConsent: drain result', json);
-
-        if (json.success) {
-          const { error: deleteError } = await supabase
-            .from('pending_signups_consent')
-            .delete()
-            .eq('user_id', userId);
-          if (deleteError) {
-            log.warn('drainPendingConsent: row delete failed (non-fatal)', deleteError.message);
-          }
-        }
+        // The edge function deletes the pending_signups_consent row server-side after
+        // a successful drain. No client-side delete is needed.
       } catch (err: any) {
         log.warn('drainPendingConsent: unexpected error', err.message);
       } finally {
