@@ -85,30 +85,69 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         window.history.replaceState(null, '', window.location.pathname);
       }
 
-      if (_event === 'SIGNED_IN' && session?.access_token && session?.user?.user_metadata?.pending_consent) {
+      if (_event === 'SIGNED_IN' && session?.access_token) {
         const userId = session.user.id;
-        if (!drainingUserIds.has(userId)) {
+
+        // Determine what pending consent, if any, needs to be drained.
+        // Primary source: localStorage key written by SignUp.tsx for the email-confirmation
+        // path. This is browser-scoped and cannot be overwritten by a duplicate-signup from
+        // another session, so it is safe to drain unconditionally when present.
+        // Fallback source: user_metadata.pending_consent — legacy path for accounts that
+        // signed up before this design was deployed. These are drained via the server-side
+        // drain-pending action which validates the payload before inserting rows.
+        const localStorageKey = `pending_consent:${userId}`;
+        let localPending: { batch_id: string; consents: any[]; source: string; user_agent_hint: string } | null = null;
+        try {
+          const raw = localStorage.getItem(localStorageKey);
+          if (raw) localPending = JSON.parse(raw);
+        } catch {
+          localPending = null;
+        }
+
+        const metadataPending = session.user?.user_metadata?.pending_consent;
+        const hasPending = !!localPending || !!metadataPending;
+
+        if (hasPending && !drainingUserIds.has(userId)) {
           drainingUserIds.add(userId);
           (async () => {
             try {
-              const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-consent?action=drain-pending`;
-              const res = await fetch(url, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${session.access_token}`,
-                },
-                body: JSON.stringify({}),
-              });
-              const json = await res.json().catch(() => ({}));
-              log.debug('drain-pending consent result', json);
+              if (localPending) {
+                // Direct record-consent call — no metadata lookup needed.
+                const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-consent`;
+                const res = await fetch(url, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`,
+                  },
+                  body: JSON.stringify(localPending),
+                });
+                const json = await res.json().catch(() => ({}));
+                log.debug('drain localStorage consent result', json);
+                if (json.success) {
+                  try { localStorage.removeItem(localStorageKey); } catch { /* ignore */ }
+                }
+              } else {
+                // Legacy metadata drain path.
+                const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-consent?action=drain-pending`;
+                const res = await fetch(url, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`,
+                  },
+                  body: JSON.stringify({}),
+                });
+                const json = await res.json().catch(() => ({}));
+                log.debug('drain-pending (legacy metadata) consent result', json);
+              }
             } catch (err: any) {
-              log.warn('drain-pending consent failed', err.message);
+              log.warn('drain consent failed', err.message);
             } finally {
               drainingUserIds.delete(userId);
             }
           })();
-        } else {
+        } else if (hasPending) {
           log.debug('drain-pending: already in flight for user, skipping duplicate fire', userId);
         }
       }

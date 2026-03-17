@@ -139,32 +139,16 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      const { batch_id, stamped_at, consents, source, user_agent_hint } = pending as {
+      // Legacy metadata drain path. New signups no longer write pending_consent into
+      // user_metadata; they use localStorage instead (see SignUp.tsx). This action exists
+      // only to drain pending_consent that may remain in metadata for accounts created
+      // before that design was deployed.
+      const { batch_id, consents, source, user_agent_hint } = pending as {
         batch_id?: string;
-        stamped_at?: string;
         consents: ConsentEntry[];
         source?: string;
         user_agent_hint?: string;
       };
-
-      // Staleness guard: pending_consent written by a duplicate-signup against an existing
-      // account will have a stamped_at that is substantially newer than user.created_at.
-      // Legitimate pending_consent is stamped at account-creation time, so the gap is < a
-      // few seconds. We reject anything stamped more than 120 s after account creation.
-      // This prevents a duplicate-signup from inserting consent rows into the real account
-      // when it later signs in — without requiring any unauthenticated revoke endpoint.
-      if (stamped_at) {
-        const accountCreatedMs = new Date(user.created_at).getTime();
-        const stampedMs = new Date(stamped_at).getTime();
-        const lagSeconds = (stampedMs - accountCreatedMs) / 1000;
-        if (lagSeconds > 120) {
-          console.warn('[record-consent] drain-pending: pending_consent stamped_at is', lagSeconds.toFixed(0), 's after account creation — rejecting as duplicate-signup artifact', { user_id: user.id, lagSeconds });
-          return new Response(
-            JSON.stringify({ success: true, inserted: 0, skipped: 0, rejected: true, reason: 'stale_pending_consent' }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-      }
 
       const validationError = validateConsents(consents);
       if (validationError) {
