@@ -91,6 +91,38 @@ async function recordConsent(
   }
 }
 
+async function savePendingConsent(
+  userId: string,
+  batchId: string,
+  consents: Array<{ type: string; version: string; consented: boolean }>
+): Promise<void> {
+  try {
+    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/save-pending-consent`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        batch_id: batchId,
+        consents,
+        source: 'signup',
+        user_agent_hint: navigator.userAgent.slice(0, 200),
+      }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json.success) {
+      log.warn('savePendingConsent: edge function returned error', json.error ?? res.status);
+    } else {
+      log.debug('savePendingConsent: pending_consent written to metadata', { written: json.written, already_present: json.already_present });
+    }
+  } catch (err: any) {
+    log.warn('savePendingConsent: network error', err.message);
+  }
+}
+
 export function SignUp() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -203,12 +235,6 @@ export function SignUp() {
             address_zip: addressData?.zip || null,
             address_lat: addressData?.lat || null,
             address_lng: addressData?.lng || null,
-            pending_consent: {
-              batch_id: consentBatchId,
-              consents: consentPayload,
-              source: 'signup',
-              user_agent_hint: navigator.userAgent.slice(0, 200),
-            },
           },
         },
       });
@@ -261,7 +287,8 @@ export function SignUp() {
           log.warn('recordConsent: write did not confirm persistence — leaving pending_consent in metadata for drain recovery on next SIGNED_IN');
         }
       } else {
-        log.debug('recordConsent: no session (email confirmation pending) — consent stored in user metadata at signUp; will drain on first confirmed SIGNED_IN');
+        log.debug('recordConsent: no session (email confirmation required) — writing pending_consent via server for drain on first SIGNED_IN');
+        await savePendingConsent(userId, consentBatchId, consentPayload);
       }
 
       if (emailConfirmationRequired) {

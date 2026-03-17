@@ -182,7 +182,7 @@ Deno.serve(async (req: Request) => {
 
       const pendingConsentCleared = !clearError;
       if (clearError) {
-        console.error('drain-pending: metadata clear failed for user', user.id, clearError.message);
+        console.log('[record-consent] drain-pending: metadata clear failed', { user_id: user.id, error: clearError.message });
       }
 
       return new Response(
