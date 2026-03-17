@@ -162,6 +162,13 @@ export function SignUp() {
     setLoading(true);
 
     try {
+      const consentPayload = [
+        { type: 'terms_of_service', version: TERMS_VERSION, consented: consentTerms },
+        { type: 'privacy_policy', version: PRIVACY_VERSION, consented: consentPrivacy },
+        { type: 'marketing_email', version: '1.0', consented: consentMarketingEmail },
+        { type: 'marketing_sms', version: '1.0', consented: consentMarketingSms },
+      ];
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -178,6 +185,11 @@ export function SignUp() {
             address_zip: addressData?.zip || null,
             address_lat: addressData?.lat || null,
             address_lng: addressData?.lng || null,
+            pending_consent: {
+              consents: consentPayload,
+              source: 'signup',
+              user_agent_hint: navigator.userAgent.slice(0, 200),
+            },
           },
         },
       });
@@ -214,26 +226,17 @@ export function SignUp() {
       const userId = authData.user.id;
       const emailConfirmationRequired = !authData.session;
 
-      const consentPayload = [
-        { type: 'terms_of_service', version: TERMS_VERSION, consented: consentTerms },
-        { type: 'privacy_policy', version: PRIVACY_VERSION, consented: consentPrivacy },
-        { type: 'marketing_email', version: '1.0', consented: consentMarketingEmail },
-        { type: 'marketing_sms', version: '1.0', consented: consentMarketingSms },
-      ];
-
       if (authData.session?.access_token) {
+        log.debug('recordConsent: session available — recording consent and clearing pending_consent from metadata');
         await recordConsent(authData.session.access_token, consentPayload);
-      } else {
-        log.debug('recordConsent: no session yet (email confirmation pending) — storing in user metadata for drain on first login');
-        await supabase.auth.updateUser({
-          data: {
-            pending_consent: {
-              consents: consentPayload,
-              source: 'signup',
-              user_agent_hint: navigator.userAgent.slice(0, 200),
-            },
-          },
+        const { error: clearError } = await supabase.auth.updateUser({
+          data: { pending_consent: null },
         });
+        if (clearError) {
+          log.warn('recordConsent: could not clear pending_consent from metadata', clearError.message);
+        }
+      } else {
+        log.debug('recordConsent: no session (email confirmation pending) — consent stored in user metadata at signUp; will drain on first confirmed SIGNED_IN');
       }
 
       if (emailConfirmationRequired) {
