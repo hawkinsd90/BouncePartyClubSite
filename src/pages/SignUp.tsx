@@ -204,17 +204,17 @@ export function SignUp() {
             address_zip: addressData?.zip || null,
             address_lat: addressData?.lat || null,
             address_lng: addressData?.lng || null,
-            // No pending_consent here. Storing consent in signUp options.data is unsafe
-            // because Supabase merges options.data into any existing account with the same
-            // email — including unconfirmed ones — before we can classify the result as a
-            // genuinely new account. A duplicate signup against an unconfirmed account would
-            // silently overwrite the real user's pending_consent with a new batch_id, causing
-            // fabricated consent rows to be inserted when the real user later signs in.
-            // Instead: if a session is returned (new user, confirmation not required) we call
-            // record-consent immediately with the live token. If no session (email confirmation
-            // required) we write consent to localStorage keyed by the new user's id; the drain
-            // in AuthContext reads from localStorage on SIGNED_IN, which is scoped to this
-            // browser and cannot be polluted by a duplicate-signup attempt in another session.
+            // pending_consent is attached atomically at signUp time so it is available
+            // immediately when the confirmation link is clicked and SIGNED_IN fires in
+            // AuthContext. This is preferred over a separate privileged metadata-write
+            // endpoint because it requires no additional authenticated call before we
+            // know whether the account is genuinely new.
+            pending_consent: {
+              batch_id: consentBatchId,
+              consents: consentPayload,
+              source: 'signup',
+              user_agent_hint: navigator.userAgent.slice(0, 200),
+            },
           },
         },
       });
@@ -236,8 +236,9 @@ export function SignUp() {
       const isExistingUser = isExistingByIdentities || isExistingByAge;
 
       // Existing-user responses must never trigger direct consent persistence.
-      // This early return prevents writing consent rows for accounts we did not just create,
-      // covering both the confirmed-existing and unconfirmed-existing-user cases.
+      // Supabase returns a user object for duplicate signups but the user was not just created
+      // by this submission. Returning early here prevents fabricated consent rows for accounts
+      // this form did not create, covering both confirmed and unconfirmed-existing cases.
       if (isExistingUser) {
         const isConfirmed = !!authData.user.email_confirmed_at;
         log.debug('handleSubmit: existing user detected', { isConfirmed });
@@ -256,37 +257,23 @@ export function SignUp() {
       const emailConfirmationRequired = !authData.session;
 
       if (authData.session?.access_token) {
+        // Session is available immediately (email confirmation not required).
+        // Attempt to persist consent directly using the live token.
+        // pending_consent is only cleared from metadata after confirmed persistence.
+        // If the write fails, pending_consent remains in metadata and AuthContext will
+        // drain it on the next authenticated session load or SIGNED_IN event.
         log.debug('recordConsent: session available — recording consent directly');
         const consentResult = await recordConsent(authData.session.access_token, consentBatchId, consentPayload);
-        if (!consentResult.success) {
-          log.warn('recordConsent: direct write failed — storing in localStorage for drain recovery on next SIGNED_IN');
-          try {
-            localStorage.setItem(
-              `pending_consent:${userId}`,
-              JSON.stringify({ batch_id: consentBatchId, consents: consentPayload, source: 'signup', user_agent_hint: navigator.userAgent.slice(0, 200) })
-            );
-          } catch {
-            log.warn('recordConsent: localStorage write also failed — consent may be lost');
-          }
-        } else {
+        if (consentResult.success && consentResult.safe_to_clear_pending) {
           log.debug('recordConsent: consent persisted directly', { inserted: consentResult.inserted, skipped: consentResult.skipped });
+        } else {
+          log.warn('recordConsent: direct write failed — pending_consent remains in metadata for drain recovery');
         }
       } else {
-        // No session = email confirmation required. We know this is a genuinely new account
-        // (isExistingUser check above already returned early for existing accounts). Store
-        // consent in localStorage keyed by the new user's id. AuthContext reads this key on
-        // the SIGNED_IN event that fires when the user confirms their email and signs in.
-        // localStorage is browser-scoped and cannot be overwritten by a duplicate-signup
-        // request from a different browser or session, closing the unconfirmed-account gap.
-        log.debug('recordConsent: no session (email confirmation required) — storing consent in localStorage for drain on SIGNED_IN', { userId });
-        try {
-          localStorage.setItem(
-            `pending_consent:${userId}`,
-            JSON.stringify({ batch_id: consentBatchId, consents: consentPayload, source: 'signup', user_agent_hint: navigator.userAgent.slice(0, 200) })
-          );
-        } catch {
-          log.warn('recordConsent: localStorage write failed — consent will not be auto-drained');
-        }
+        // No session — email confirmation is required. pending_consent was already attached
+        // to user_metadata at signUp time above. AuthContext will drain it on SIGNED_IN
+        // when the user clicks the confirmation link.
+        log.debug('recordConsent: no session (email confirmation required) — pending_consent in metadata for drain on SIGNED_IN', { userId });
       }
 
       if (emailConfirmationRequired) {

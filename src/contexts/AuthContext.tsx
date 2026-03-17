@@ -35,30 +35,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [roles, setRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Drains any pending consent for the signed-in session.
-  // Primary path: reads localStorage key `pending_consent:{userId}` written by SignUp.tsx.
-  //   On success, removes the key. On failure, leaves it for the next trigger.
-  // Legacy fallback: if no localStorage entry exists but user_metadata.pending_consent is
-  //   present (accounts created before the localStorage design), calls drain-pending instead.
-  // The drainingUserIds guard prevents two concurrent drain attempts in the same tab.
-  // The real cross-tab / retry idempotency guarantee is the unique index on
-  // (user_id, consent_batch_id, consent_type) in user_consent_log.
+  // Drains pending_consent from user_metadata for the signed-in session.
+  // pending_consent is attached at signUp time so it is available the moment SIGNED_IN
+  // fires (confirmation-required path) or on the initial session load (immediate-session
+  // path where the direct write in SignUp.tsx failed transiently).
+  // drainingUserIds is an in-tab duplicate-fire guard only. The real cross-tab and retry
+  // idempotency guarantee is the unique index on (user_id, consent_batch_id, consent_type)
+  // in user_consent_log.
   function drainPendingConsent(session: NonNullable<Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']>) {
     const userId = session.user.id;
 
-    let localPending: { batch_id: string; consents: any[]; source: string; user_agent_hint: string } | null = null;
-    const localStorageKey = `pending_consent:${userId}`;
-    try {
-      const raw = localStorage.getItem(localStorageKey);
-      if (raw) localPending = JSON.parse(raw);
-    } catch {
-      localPending = null;
-    }
-
-    const metadataPending = session.user?.user_metadata?.pending_consent;
-    const hasPending = !!localPending || !!metadataPending;
-
-    if (!hasPending) return;
+    if (!session.user?.user_metadata?.pending_consent) return;
 
     if (drainingUserIds.has(userId)) {
       log.debug('drainPendingConsent: already in flight for user, skipping', userId);
@@ -69,34 +56,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     (async () => {
       try {
-        if (localPending) {
-          const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-consent`;
-          const res = await fetch(url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify(localPending),
-          });
-          const json = await res.json().catch(() => ({}));
-          log.debug('drainPendingConsent: localStorage drain result', json);
-          if (json.success) {
-            try { localStorage.removeItem(localStorageKey); } catch { /* ignore */ }
-          }
-        } else {
-          const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-consent?action=drain-pending`;
-          const res = await fetch(url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({}),
-          });
-          const json = await res.json().catch(() => ({}));
-          log.debug('drainPendingConsent: legacy metadata drain result', json);
-        }
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-consent?action=drain-pending`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({}),
+        });
+        const json = await res.json().catch(() => ({}));
+        log.debug('drainPendingConsent: drain result', json);
       } catch (err: any) {
         log.warn('drainPendingConsent: request failed', err.message);
       } finally {

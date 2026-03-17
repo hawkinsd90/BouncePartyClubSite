@@ -139,10 +139,11 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      // Legacy metadata drain path. New signups no longer write pending_consent into
-      // user_metadata; they use localStorage instead (see SignUp.tsx). This action exists
-      // only to drain pending_consent that may remain in metadata for accounts created
-      // before that design was deployed.
+      // Metadata drain path. pending_consent is attached to user_metadata at signUp time
+      // so it survives the email-confirmation gap and is available the moment SIGNED_IN
+      // fires. AuthContext calls this action on initial session load and on SIGNED_IN.
+      // If the direct write in SignUp.tsx already succeeded, pending_consent will be null
+      // and this returns already_drained without touching user_consent_log.
       const { batch_id, consents, source, user_agent_hint } = pending as {
         batch_id?: string;
         consents: ConsentEntry[];
