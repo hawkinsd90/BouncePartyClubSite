@@ -204,6 +204,14 @@ export function SignUp() {
             address_zip: addressData?.zip || null,
             address_lat: addressData?.lat || null,
             address_lng: addressData?.lng || null,
+            // pending_consent is stored atomically inside the signUp call so it is bound
+            // to account creation at the Auth layer. This is intentionally preferred over a
+            // separate privileged metadata-write endpoint (e.g. save-pending-consent), which
+            // would require unauthenticated write access and cannot prove caller ownership.
+            // Trade-off: existing-user classification happens after signUp returns, so
+            // pending_consent is technically written for the existing user's metadata on a
+            // duplicate signup attempt. That is safe: the data is only readable by the account
+            // owner, and the drain path is idempotent via the batch_id unique index.
             pending_consent: {
               batch_id: consentBatchId,
               consents: consentPayload,
@@ -230,6 +238,9 @@ export function SignUp() {
       const isExistingByAge = ageMs > 10_000;
       const isExistingUser = isExistingByIdentities || isExistingByAge;
 
+      // Existing-user responses must never trigger direct consent persistence.
+      // This early return prevents writing consent rows for accounts we did not just create,
+      // covering both the confirmed-existing and unconfirmed-existing-user cases.
       if (isExistingUser) {
         const isConfirmed = !!authData.user.email_confirmed_at;
         log.debug('handleSubmit: existing user detected', { isConfirmed });
@@ -249,6 +260,10 @@ export function SignUp() {
       if (authData.session?.access_token) {
         log.debug('recordConsent: session available — recording consent directly');
         const consentResult = await recordConsent(authData.session.access_token, consentBatchId, consentPayload);
+        // pending_consent is only cleared after the edge function confirms row persistence
+        // (safe_to_clear_pending === true). If the write fails or returns false, the metadata
+        // is intentionally preserved so the drain path in onAuthStateChange can recover it
+        // on the next SIGNED_IN event.
         if (consentResult.safe_to_clear_pending) {
           const { error: clearError } = await supabase.auth.updateUser({
             data: { pending_consent: null },

@@ -4,6 +4,10 @@ import { createLogger } from '../lib/logger';
 
 const log = createLogger('Auth');
 
+// In-tab guard that prevents a second drain call if onAuthStateChange fires twice
+// rapidly (e.g., token refresh + SIGNED_IN in the same tab). This is a UX guard only —
+// the real cross-tab and retry idempotency guarantee is the unique index on
+// (user_id, consent_batch_id, consent_type) in user_consent_log.
 const drainingUserIds = new Set<string>();
 
 type UserRole = 'MASTER' | 'ADMIN' | 'CREW' | 'CUSTOMER' | null;

@@ -63,6 +63,11 @@ async function upsertConsentRows(
   let inserted = 0;
   let skipped = 0;
 
+  // The unique index uq_user_consent_log_batch_type (user_id, consent_batch_id, consent_type)
+  // makes consent writes idempotent when a batch_id is present. If the drain function is called
+  // more than once for the same signup event (two tabs, retry, token refresh), the second
+  // pass produces constraint violations that are caught here and counted as skipped rather
+  // than treated as errors — duplicate drain calls are expected and safe.
   for (const row of rows) {
     const { error } = await serviceClient
       .from('user_consent_log')

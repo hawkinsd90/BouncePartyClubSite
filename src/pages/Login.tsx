@@ -1,15 +1,54 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Lock, Loader2, Eye, EyeOff, X } from 'lucide-react';
-import { notifySuccess } from '../lib/notifications';
+import { supabase } from '../lib/supabase';
+import { Lock, Loader2, Eye, EyeOff, X, Mail, AlertTriangle, Clock } from 'lucide-react';
+import { notifySuccess, notifyError } from '../lib/notifications';
 import { createLogger } from '../lib/logger';
 
 const log = createLogger('Login');
 
+// UX-only cooldown — not a security boundary. Backend rate limiting handles real enforcement.
+const FAILED_ATTEMPT_THRESHOLD = 3;
+const COOLDOWN_SECONDS = 30;
+
 function isIOSDevice() {
   return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
 }
+
+// Map raw Supabase/auth error messages to clear user-facing strings.
+// Supabase does not return typed error codes for most auth errors, so we match on message text.
+type AuthErrorKind = 'invalid_credentials' | 'email_not_confirmed' | 'rate_limited' | 'generic';
+
+function classifyAuthError(msg: string): AuthErrorKind {
+  const lower = msg.toLowerCase();
+  if (
+    lower.includes('email not confirmed') ||
+    lower.includes('email_not_confirmed') ||
+    lower.includes('not confirmed')
+  ) return 'email_not_confirmed';
+  if (
+    lower.includes('rate limit') ||
+    lower.includes('too many') ||
+    lower.includes('429')
+  ) return 'rate_limited';
+  if (
+    lower.includes('invalid login') ||
+    lower.includes('invalid credentials') ||
+    lower.includes('invalid email or password') ||
+    lower.includes('wrong password') ||
+    lower.includes('user not found') ||
+    lower.includes('no user found')
+  ) return 'invalid_credentials';
+  return 'generic';
+}
+
+const ERROR_MESSAGES: Record<AuthErrorKind, string> = {
+  invalid_credentials: 'Incorrect email or password. Please try again.',
+  email_not_confirmed: '', // handled by dedicated UI block below
+  rate_limited: 'Too many sign-in attempts. Please wait a few minutes and try again.',
+  generic: 'Sign-in failed. Please check your credentials and try again.',
+};
 
 export function Login() {
   const navigate = useNavigate();
@@ -19,8 +58,21 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const [isIOS, setIsIOS] = useState(false);
+
+  // Inline error string for generic/credential/rate-limit failures
+  const [error, setError] = useState('');
+  // Dedicated state for unconfirmed-email case — triggers its own UI block
+  const [emailNotConfirmed, setEmailNotConfirmed] = useState(false);
+
+  // Resend confirmation
+  const [resending, setResending] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
+
+  // UX-only cooldown after repeated failures in the same browser session
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [cooldownSecondsLeft, setCooldownSecondsLeft] = useState(0);
+  const cooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const from = (location.state as any)?.from?.pathname || '/';
   const prefillEmail = (location.state as any)?.prefillEmail || '';
@@ -30,26 +82,95 @@ export function Login() {
     if (prefillEmail) setEmail(prefillEmail);
   }, []);
 
+  // Clean up cooldown timer on unmount
+  useEffect(() => {
+    return () => {
+      if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
+    };
+  }, []);
+
+  const startCooldown = () => {
+    setCooldownSecondsLeft(COOLDOWN_SECONDS);
+    if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
+    cooldownTimerRef.current = setInterval(() => {
+      setCooldownSecondsLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(cooldownTimerRef.current!);
+          cooldownTimerRef.current = null;
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const isCoolingDown = cooldownSecondsLeft > 0;
+
+  const clearAuthState = () => {
+    setError('');
+    setEmailNotConfirmed(false);
+    setResendSuccess(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    if (isCoolingDown) return;
+
+    clearAuthState();
     setLoading(true);
 
     try {
       await signIn(email, password);
+      // Reset failure counter on success
+      setFailedAttempts(0);
       navigate(from, { replace: true });
     } catch (err: any) {
-      setError(err.message || 'Failed to sign in');
+      const msg: string = err.message || '';
+      const kind = classifyAuthError(msg);
+      log.warn('Login failed', { kind, raw: msg });
+
+      const nextAttempts = failedAttempts + 1;
+      setFailedAttempts(nextAttempts);
+
+      if (kind === 'email_not_confirmed') {
+        setEmailNotConfirmed(true);
+      } else if (kind === 'rate_limited') {
+        // Platform is rate-limiting — always start cooldown regardless of local count
+        setError(ERROR_MESSAGES.rate_limited);
+        startCooldown();
+      } else {
+        setError(ERROR_MESSAGES[kind]);
+        // After threshold consecutive failures, impose a local UX cooldown
+        if (nextAttempts >= FAILED_ATTEMPT_THRESHOLD && !isCoolingDown) {
+          startCooldown();
+        }
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  const handleResendConfirmation = async () => {
+    if (!email) return;
+    setResending(true);
+    setResendSuccess(false);
+    try {
+      const { error } = await supabase.auth.resend({ type: 'signup', email });
+      if (error) throw error;
+      setResendSuccess(true);
+      notifySuccess('Confirmation email resent. Check your inbox.', { duration: 8000 });
+    } catch (err: any) {
+      log.warn('Resend confirmation failed', err.message);
+      notifyError(err.message || 'Failed to resend confirmation email. Please try again.');
+    } finally {
+      setResending(false);
+    }
+  };
+
   const handleGoogleSignIn = async () => {
     log.info('Google sign-in button clicked');
-    setError('');
+    clearAuthState();
     setLoading(true);
-
     try {
       await signInWithGoogle(from !== '/' ? from : undefined);
     } catch (err: any) {
@@ -61,9 +182,8 @@ export function Login() {
 
   const handleAppleSignIn = async () => {
     log.info('Apple sign-in button clicked');
-    setError('');
+    clearAuthState();
     setLoading(true);
-
     try {
       await signInWithApple(from !== '/' ? from : undefined);
     } catch (err: any) {
@@ -72,6 +192,8 @@ export function Login() {
       setLoading(false);
     }
   };
+
+  const submitDisabled = loading || isCoolingDown;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 flex items-center justify-center py-4 sm:py-12 px-4 sm:px-6 lg:px-8">
@@ -98,9 +220,57 @@ export function Login() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+            {/* Generic inline error banner */}
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-2.5 sm:p-3">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2.5">
+                <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-red-800">{error}</p>
+              </div>
+            )}
+
+            {/* Cooldown banner */}
+            {isCoolingDown && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2.5">
+                <Clock className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-amber-800">
+                  Please wait <span className="font-semibold">{cooldownSecondsLeft}s</span> before trying again.
+                </p>
+              </div>
+            )}
+
+            {/* Unconfirmed email block */}
+            {emailNotConfirmed && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3">
+                <Mail className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                <div className="text-sm flex-1">
+                  <p className="font-semibold text-blue-900 mb-1">
+                    Your email address is not confirmed yet.
+                  </p>
+                  <p className="text-blue-700 mb-3">
+                    Check your inbox for the confirmation link we sent when you signed up, then come back here to sign in.
+                  </p>
+                  {resendSuccess ? (
+                    <p className="text-green-700 font-medium text-xs">
+                      Confirmation email sent — check your inbox.
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleResendConfirmation}
+                      disabled={resending || !email}
+                      className="inline-flex items-center px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-xs font-semibold rounded-lg transition-colors"
+                    >
+                      {resending ? (
+                        <>
+                          <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        'Resend confirmation email'
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -112,7 +282,10 @@ export function Login() {
                 type="email"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  clearAuthState();
+                }}
                 className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base transition-all"
                 placeholder="you@example.com"
               />
@@ -124,10 +297,13 @@ export function Login() {
               </label>
               <div className="relative">
                 <input
-                  type={showPassword ? "text" : "password"}
+                  type={showPassword ? 'text' : 'password'}
                   required
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (error) setError('');
+                  }}
                   className="w-full px-3 sm:px-4 py-2.5 sm:py-3 pr-12 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base transition-all"
                   placeholder="••••••••"
                 />
@@ -148,14 +324,16 @@ export function Login() {
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-slate-400 disabled:to-slate-500 text-white font-bold py-3 sm:py-4 px-4 rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:scale-[1.02] flex items-center justify-center text-base min-h-[48px]"
+              disabled={submitDisabled}
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-slate-400 disabled:to-slate-500 disabled:cursor-not-allowed text-white font-bold py-3 sm:py-4 px-4 rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none flex items-center justify-center text-base min-h-[48px]"
             >
               {loading ? (
                 <>
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                   Signing in...
                 </>
+              ) : isCoolingDown ? (
+                `Wait ${cooldownSecondsLeft}s`
               ) : (
                 'Sign In'
               )}
