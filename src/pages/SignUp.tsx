@@ -47,23 +47,31 @@ async function waitForCustomerProfile(userId: string): Promise<boolean> {
 }
 
 async function recordConsent(
-  userId: string,
+  accessToken: string,
   consents: Array<{ type: string; version: string; consented: boolean }>
 ): Promise<void> {
-  const rows = consents.map(c => ({
-    user_id: userId,
-    consent_type: c.type,
-    consented: c.consented,
-    policy_version: c.version,
-    source: 'signup',
-    user_agent_hint: navigator.userAgent.slice(0, 200),
-  }));
-
-  const { error } = await supabase.from('user_consent_log').insert(rows);
-  if (error) {
-    log.warn('recordConsent: failed to write consent log', error.message);
-  } else {
-    log.debug('recordConsent: wrote consent records', { count: rows.length });
+  try {
+    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-consent`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        consents,
+        source: 'signup',
+        user_agent_hint: navigator.userAgent.slice(0, 200),
+      }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json.success) {
+      log.warn('recordConsent: edge function returned error', json.error ?? res.status);
+    } else {
+      log.debug('recordConsent: consent recorded server-side', { recorded: json.recorded });
+    }
+  } catch (err: any) {
+    log.warn('recordConsent: network error', err.message);
   }
 }
 
@@ -204,15 +212,19 @@ export function SignUp() {
       }
 
       const userId = authData.user.id;
-
-      await recordConsent(userId, [
-        { type: 'terms_of_service', version: TERMS_VERSION, consented: consentTerms },
-        { type: 'privacy_policy', version: PRIVACY_VERSION, consented: consentPrivacy },
-        { type: 'marketing_email', version: '1.0', consented: consentMarketingEmail },
-        { type: 'marketing_sms', version: '1.0', consented: consentMarketingSms },
-      ]);
-
       const emailConfirmationRequired = !authData.session;
+
+      if (authData.session?.access_token) {
+        await recordConsent(authData.session.access_token, [
+          { type: 'terms_of_service', version: TERMS_VERSION, consented: consentTerms },
+          { type: 'privacy_policy', version: PRIVACY_VERSION, consented: consentPrivacy },
+          { type: 'marketing_email', version: '1.0', consented: consentMarketingEmail },
+          { type: 'marketing_sms', version: '1.0', consented: consentMarketingSms },
+        ]);
+      } else {
+        log.debug('recordConsent: no session token yet (email confirmation pending) — consent will be recorded on first login');
+      }
+
       if (emailConfirmationRequired) {
         log.debug('handleSubmit: email confirmation required — navigating to login');
         notifySuccess(
