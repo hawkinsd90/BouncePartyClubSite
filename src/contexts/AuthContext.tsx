@@ -35,6 +35,76 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [roles, setRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Drains any pending consent for the signed-in session.
+  // Primary path: reads localStorage key `pending_consent:{userId}` written by SignUp.tsx.
+  //   On success, removes the key. On failure, leaves it for the next trigger.
+  // Legacy fallback: if no localStorage entry exists but user_metadata.pending_consent is
+  //   present (accounts created before the localStorage design), calls drain-pending instead.
+  // The drainingUserIds guard prevents two concurrent drain attempts in the same tab.
+  // The real cross-tab / retry idempotency guarantee is the unique index on
+  // (user_id, consent_batch_id, consent_type) in user_consent_log.
+  function drainPendingConsent(session: NonNullable<Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']>) {
+    const userId = session.user.id;
+
+    let localPending: { batch_id: string; consents: any[]; source: string; user_agent_hint: string } | null = null;
+    const localStorageKey = `pending_consent:${userId}`;
+    try {
+      const raw = localStorage.getItem(localStorageKey);
+      if (raw) localPending = JSON.parse(raw);
+    } catch {
+      localPending = null;
+    }
+
+    const metadataPending = session.user?.user_metadata?.pending_consent;
+    const hasPending = !!localPending || !!metadataPending;
+
+    if (!hasPending) return;
+
+    if (drainingUserIds.has(userId)) {
+      log.debug('drainPendingConsent: already in flight for user, skipping', userId);
+      return;
+    }
+
+    drainingUserIds.add(userId);
+
+    (async () => {
+      try {
+        if (localPending) {
+          const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-consent`;
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify(localPending),
+          });
+          const json = await res.json().catch(() => ({}));
+          log.debug('drainPendingConsent: localStorage drain result', json);
+          if (json.success) {
+            try { localStorage.removeItem(localStorageKey); } catch { /* ignore */ }
+          }
+        } else {
+          const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-consent?action=drain-pending`;
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({}),
+          });
+          const json = await res.json().catch(() => ({}));
+          log.debug('drainPendingConsent: legacy metadata drain result', json);
+        }
+      } catch (err: any) {
+        log.warn('drainPendingConsent: request failed', err.message);
+      } finally {
+        drainingUserIds.delete(userId);
+      }
+    })();
+  }
+
   async function loadUserRoles(userId: string) {
     try {
       const { data, error } = await supabase
@@ -69,6 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (session?.user) {
         loadUserRoles(session.user.id);
+        drainPendingConsent(session);
       }
     }).catch(err => {
       log.error('Exception getting initial session', err);
@@ -86,70 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (_event === 'SIGNED_IN' && session?.access_token) {
-        const userId = session.user.id;
-
-        // Determine what pending consent, if any, needs to be drained.
-        // Primary source: localStorage key written by SignUp.tsx for the email-confirmation
-        // path. This is browser-scoped and cannot be overwritten by a duplicate-signup from
-        // another session, so it is safe to drain unconditionally when present.
-        // Fallback source: user_metadata.pending_consent — legacy path for accounts that
-        // signed up before this design was deployed. These are drained via the server-side
-        // drain-pending action which validates the payload before inserting rows.
-        const localStorageKey = `pending_consent:${userId}`;
-        let localPending: { batch_id: string; consents: any[]; source: string; user_agent_hint: string } | null = null;
-        try {
-          const raw = localStorage.getItem(localStorageKey);
-          if (raw) localPending = JSON.parse(raw);
-        } catch {
-          localPending = null;
-        }
-
-        const metadataPending = session.user?.user_metadata?.pending_consent;
-        const hasPending = !!localPending || !!metadataPending;
-
-        if (hasPending && !drainingUserIds.has(userId)) {
-          drainingUserIds.add(userId);
-          (async () => {
-            try {
-              if (localPending) {
-                // Direct record-consent call — no metadata lookup needed.
-                const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-consent`;
-                const res = await fetch(url, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.access_token}`,
-                  },
-                  body: JSON.stringify(localPending),
-                });
-                const json = await res.json().catch(() => ({}));
-                log.debug('drain localStorage consent result', json);
-                if (json.success) {
-                  try { localStorage.removeItem(localStorageKey); } catch { /* ignore */ }
-                }
-              } else {
-                // Legacy metadata drain path.
-                const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-consent?action=drain-pending`;
-                const res = await fetch(url, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.access_token}`,
-                  },
-                  body: JSON.stringify({}),
-                });
-                const json = await res.json().catch(() => ({}));
-                log.debug('drain-pending (legacy metadata) consent result', json);
-              }
-            } catch (err: any) {
-              log.warn('drain consent failed', err.message);
-            } finally {
-              drainingUserIds.delete(userId);
-            }
-          })();
-        } else if (hasPending) {
-          log.debug('drain-pending: already in flight for user, skipping duplicate fire', userId);
-        }
+        drainPendingConsent(session);
       }
 
       if (session?.user) {
