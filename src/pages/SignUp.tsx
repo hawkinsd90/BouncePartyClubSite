@@ -205,16 +205,23 @@ export function SignUp() {
             address_lat: addressData?.lat || null,
             address_lng: addressData?.lng || null,
             // pending_consent is stored atomically inside the signUp call so it is bound
-            // to account creation at the Auth layer. This is intentionally preferred over a
-            // separate privileged metadata-write endpoint (e.g. save-pending-consent), which
-            // would require unauthenticated write access and cannot prove caller ownership.
-            // Trade-off: existing-user classification happens after signUp returns, so on a
-            // duplicate signup attempt Supabase may merge pending_consent into the existing
-            // account's metadata. The isExistingUser block below exits early without draining
-            // consent, preventing direct row insertion. The batch_id unique index prevents
-            // re-insertion if the same batch_id has already been drained from a prior signup.
+            // to account creation at the Auth layer. This is preferred over a separate
+            // privileged metadata-write endpoint (e.g. save-pending-consent), which would
+            // require unauthenticated write access and cannot prove caller ownership.
+            // Trade-off: on a duplicate-signup attempt Supabase merges options.data into the
+            // existing account's metadata, replacing any pending_consent already there. The
+            // isExistingUser block below exits early so no direct row insertion happens in
+            // this request. The drain-pending guard in record-consent compares stamped_at
+            // (below) to user.created_at and rejects any pending_consent that was stamped
+            // more than 120 s after account creation, preventing consent rows from being
+            // inserted when Alice's real account later signs in after a duplicate-signup.
+            // stamped_at records when this pending_consent was attached. The drain-pending
+            // action compares this against user.created_at: if the gap is > 120 s, the metadata
+            // was written by a later duplicate-signup attempt (not the original account creation)
+            // and the drain will refuse to insert rows for it.
             pending_consent: {
               batch_id: consentBatchId,
+              stamped_at: new Date().toISOString(),
               consents: consentPayload,
               source: 'signup',
               user_agent_hint: navigator.userAgent.slice(0, 200),
