@@ -160,23 +160,10 @@ export function SignUp() {
         throw new Error('Account creation failed — no user returned from auth.');
       }
 
-      // Address and profile data are now stored in raw_user_meta_data and will
-      // be provisioned server-side by the auth trigger when the user is confirmed.
-
-      // Detect if email confirmation is required (no session returned = confirmation pending)
-      const emailConfirmationRequired = !authData.session;
-      if (emailConfirmationRequired) {
-        console.log(`${LOG} step 1/3: email confirmation required — profile will be provisioned on confirmation`);
-        notifySuccess(
-          'Account created! Check your email for a confirmation link, then sign in.',
-          { duration: 10000 }
-        );
-        navigate('/login', { state: { from: { pathname: from } }, replace: true });
-        return;
-      }
-
-      // Supabase silently returns the existing user when the email is already registered.
-      // Detect by checking age. If unconfirmed, show resend path. If confirmed, show sign-in path.
+      // IMPORTANT: Check for existing user FIRST — before checking emailConfirmationRequired.
+      // Supabase silently returns the existing user when the email is already registered,
+      // and existing unconfirmed accounts also have no session, so checking !session first
+      // would swallow the resend-confirmation path with a generic "check your email" toast.
       const createdAt = new Date(authData.user.created_at).getTime();
       const isExistingUser = Date.now() - createdAt > 10_000;
       if (isExistingUser) {
@@ -189,6 +176,21 @@ export function SignUp() {
         }
         setErrors(prev => ({ ...prev, email: ' ' }));
         setLoading(false);
+        return;
+      }
+
+      // Address and profile data are now stored in raw_user_meta_data and will
+      // be provisioned server-side by the auth trigger when the user is confirmed.
+
+      // Truly new signup: detect if email confirmation is required (no session = confirmation pending).
+      const emailConfirmationRequired = !authData.session;
+      if (emailConfirmationRequired) {
+        console.log(`${LOG} step 1/3: email confirmation required — profile will be provisioned on confirmation`);
+        notifySuccess(
+          'Account created! Check your email for a confirmation link, then sign in.',
+          { duration: 10000 }
+        );
+        navigate('/login', { state: { from: { pathname: from } }, replace: true });
         return;
       }
 

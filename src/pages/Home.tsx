@@ -47,6 +47,7 @@ export function Home() {
       setAddressInput(formattedAddress);
       setAddressData({
         formatted_address: formattedAddress,
+        street: sessionData.addressLine1,
         line1: sessionData.addressLine1,
         line2: sessionData.addressLine2,
         city: sessionData.city,
