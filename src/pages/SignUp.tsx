@@ -155,6 +155,24 @@ export function SignUp() {
       const emailConfirmationRequired = !authData.session;
       if (emailConfirmationRequired) {
         console.log(`${LOG} step 1/6: email confirmation is ENABLED — no session returned. User must confirm email before profile is created.`);
+
+        if (addressData?.line1 && addressData?.city && addressData?.state && addressData?.zip) {
+          try {
+            localStorage.setItem('bpc_pending_signup_address', JSON.stringify({
+              line1: addressData.line1,
+              line2: addressData.line2 || null,
+              city: addressData.city,
+              state: addressData.state,
+              zip: addressData.zip,
+              lat: addressData.lat || null,
+              lng: addressData.lng || null,
+            }));
+            console.log(`${LOG} step 1/6: pending address saved to localStorage for post-confirmation pickup`);
+          } catch (e) {
+            console.warn(`${LOG} step 1/6: failed to save pending address to localStorage`, e);
+          }
+        }
+
         notifySuccess(
           'Account created! Check your email for a confirmation link, then sign in.',
           { duration: 10000 }
