@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { UserPlus, Loader2, Eye, EyeOff, ArrowLeft, AlertTriangle } from 'lucide-react';
-import { notifySuccess, notifyError, notifyWarning } from '../lib/notifications';
+import { notifySuccess, notifyError } from '../lib/notifications';
 import { AddressAutocomplete } from '../components/order/AddressAutocomplete';
 import { useCustomerProfile } from '../contexts/CustomerProfileContext';
 
@@ -119,7 +119,7 @@ export function SignUp() {
     setLoading(true);
 
     try {
-      console.log(`${LOG} step 1/6: calling supabase.auth.signUp for ${formData.email}`);
+      console.log(`${LOG} step 1/3: calling supabase.auth.signUp for ${formData.email}`);
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -129,16 +129,23 @@ export function SignUp() {
             last_name: formData.lastName,
             phone: formData.phone,
             business_name: formData.businessName || null,
+            address_line1: addressData?.line1 || null,
+            address_line2: addressData?.line2 || null,
+            address_city: addressData?.city || null,
+            address_state: addressData?.state || null,
+            address_zip: addressData?.zip || null,
+            address_lat: addressData?.lat || null,
+            address_lng: addressData?.lng || null,
           },
         },
       });
 
       if (authError) {
-        console.error(`${LOG} step 1/6 FAILED: supabase.auth.signUp error:`, authError);
+        console.error(`${LOG} step 1/3 FAILED: supabase.auth.signUp error:`, authError);
         throw authError;
       }
 
-      console.log(`${LOG} step 1/6 OK: auth.signUp returned`, {
+      console.log(`${LOG} step 1/3 OK: auth.signUp returned`, {
         userId: authData.user?.id,
         email: authData.user?.email,
         createdAt: authData.user?.created_at,
@@ -151,44 +158,13 @@ export function SignUp() {
         throw new Error('Account creation failed — no user returned from auth.');
       }
 
+      // Address and profile data are now stored in raw_user_meta_data and will
+      // be provisioned server-side by the auth trigger when the user is confirmed.
+
       // Detect if email confirmation is required (no session returned = confirmation pending)
       const emailConfirmationRequired = !authData.session;
       if (emailConfirmationRequired) {
-        console.log(`${LOG} step 1/6: email confirmation is ENABLED — no session returned. Saving data pre-confirmation.`);
-
-        if (addressData?.line1 && addressData?.city && addressData?.state && addressData?.zip) {
-          console.log(`${LOG} step 1/6: saving address for user ${authData.user.id} pre-confirmation`);
-          try {
-            const res = await fetch(
-              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/save-signup-address`,
-              {
-                method: 'POST',
-                headers: {
-                  Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  user_id: authData.user.id,
-                  line1: addressData.line1,
-                  line2: addressData.line2 || null,
-                  city: addressData.city,
-                  state: addressData.state,
-                  zip: addressData.zip,
-                  lat: addressData.lat || null,
-                  lng: addressData.lng || null,
-                }),
-              }
-            );
-            if (res.ok) {
-              console.log(`${LOG} step 1/6 OK: address saved pre-confirmation`);
-            } else {
-              console.warn(`${LOG} step 1/6: address save failed (HTTP ${res.status})`);
-            }
-          } catch (e) {
-            console.warn(`${LOG} step 1/6: failed to save address pre-confirmation`, e);
-          }
-        }
-
+        console.log(`${LOG} step 1/3: email confirmation required — profile will be provisioned on confirmation`);
         notifySuccess(
           'Account created! Check your email for a confirmation link, then sign in.',
           { duration: 10000 }
@@ -202,7 +178,7 @@ export function SignUp() {
       const createdAt = new Date(authData.user.created_at).getTime();
       const isExistingUser = Date.now() - createdAt > 10_000;
       if (isExistingUser) {
-        console.log(`${LOG} step 1/6: detected existing user (created ${Math.round((Date.now() - createdAt) / 1000)}s ago)`);
+        console.log(`${LOG} step 1/3: detected existing user (created ${Math.round((Date.now() - createdAt) / 1000)}s ago)`);
         setEmailAlreadyExists(true);
         setErrors(prev => ({ ...prev, email: 'An account with this email already exists.' }));
         setLoading(false);
@@ -210,12 +186,12 @@ export function SignUp() {
       }
 
       const userId = authData.user.id;
-      console.log(`${LOG} step 2/6: polling for customer profile, userId=${userId}`);
+      console.log(`${LOG} step 2/3: polling for customer profile, userId=${userId}`);
 
       const profileReady = await waitForCustomerProfile(userId);
 
       if (!profileReady) {
-        console.warn(`${LOG} step 2/6 TIMEOUT: customer profile not ready after ${MAX_PROFILE_WAIT_MS}ms. Redirecting to login.`);
+        console.warn(`${LOG} step 2/3 TIMEOUT: customer profile not ready after ${MAX_PROFILE_WAIT_MS}ms. Redirecting to login.`);
         notifyError(
           'Your account was created, but we could not finish setting up your profile. Please sign in — your profile will load automatically.'
         );
@@ -223,68 +199,12 @@ export function SignUp() {
         return;
       }
 
-      console.log(`${LOG} step 2/6 OK: customer profile is ready`);
+      console.log(`${LOG} step 2/3 OK: customer profile is ready`);
 
-      if (formData.businessName) {
-        console.log(`${LOG} step 3/6: saving business name "${formData.businessName}"`);
-        const { error: bizErr } = await supabase
-          .from('customers')
-          .update({ business_name: formData.businessName })
-          .eq('user_id', userId);
-        if (bizErr) {
-          console.warn(`${LOG} step 3/6: business name save failed:`, bizErr.message);
-        } else {
-          console.log(`${LOG} step 3/6 OK: business name saved`);
-        }
-      } else {
-        console.log(`${LOG} step 3/6: skipped (no business name provided)`);
-      }
-
-      if (addressData?.line1 && addressData?.city && addressData?.state && addressData?.zip) {
-        console.log(`${LOG} step 4/6: saving default address`, addressData);
-        const { data: session } = await supabase.auth.getSession();
-        if (session?.session?.access_token) {
-          const res = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/save-signup-address`,
-            {
-              method: 'POST',
-              headers: {
-                Authorization: `Bearer ${session.session.access_token}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                line1: addressData.line1,
-                line2: addressData.line2 || null,
-                city: addressData.city,
-                state: addressData.state,
-                zip: addressData.zip,
-                lat: addressData.lat || null,
-                lng: addressData.lng || null,
-              }),
-            }
-          );
-          if (!res.ok) {
-            const body = await res.text().catch(() => '');
-            console.warn(`${LOG} step 4/6: address save failed (HTTP ${res.status}):`, body);
-            notifyWarning(
-              'Your account was created, but we couldn\'t save your default address right now. You can add it later.',
-              { duration: 8000 }
-            );
-          } else {
-            console.log(`${LOG} step 4/6 OK: default address saved`);
-          }
-        } else {
-          console.warn(`${LOG} step 4/6: no access token available, skipping address save`);
-        }
-      } else {
-        console.log(`${LOG} step 4/6: skipped (no address data provided)`);
-      }
-
-      console.log(`${LOG} step 5/6: refreshing customer profile context`);
+      console.log(`${LOG} step 3/3: refreshing customer profile context`);
       await refreshProfile();
-      console.log(`${LOG} step 5/6 OK: profile refreshed`);
+      console.log(`${LOG} step 3/3 OK: profile refreshed`);
 
-      console.log(`${LOG} step 6/6: navigating to "${from}"`);
       notifySuccess('Account created! Welcome to Bounce Party Club.');
       navigate(from, { replace: true });
     } catch (err: any) {

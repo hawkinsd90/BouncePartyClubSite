@@ -174,49 +174,7 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
       setProfile(profileData);
 
       if (!initialized) {
-        let resolvedAddress = profileData.defaultAddress;
-
-        const pendingAddressRaw = localStorage.getItem('bpc_pending_signup_address');
-        if (pendingAddressRaw && !resolvedAddress) {
-          try {
-            const pending = JSON.parse(pendingAddressRaw);
-            if (pending?.line1 && pending?.city && pending?.state && pending?.zip) {
-              log.info('Found pending signup address, saving via edge function');
-              const { data: session } = await supabase.auth.getSession();
-              if (session?.session?.access_token) {
-                const res = await fetch(
-                  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/save-signup-address`,
-                  {
-                    method: 'POST',
-                    headers: {
-                      Authorization: `Bearer ${session.session.access_token}`,
-                      'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(pending),
-                  }
-                );
-                if (res.ok) {
-                  log.info('Pending signup address saved successfully');
-                  localStorage.removeItem('bpc_pending_signup_address');
-                  resolvedAddress = {
-                    id: '',
-                    line1: pending.line1,
-                    line2: pending.line2,
-                    city: pending.city,
-                    state: pending.state,
-                    zip: pending.zip,
-                  };
-                } else {
-                  log.warn('Failed to save pending signup address', await res.text().catch(() => ''));
-                }
-              }
-            }
-          } catch (e) {
-            log.warn('Error processing pending signup address', e);
-          }
-        } else if (pendingAddressRaw && resolvedAddress) {
-          localStorage.removeItem('bpc_pending_signup_address');
-        }
+        const resolvedAddress = profileData.defaultAddress;
 
         setSessionData({
           firstName: profileData.firstName,
