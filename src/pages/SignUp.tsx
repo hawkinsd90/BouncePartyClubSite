@@ -1,25 +1,28 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { UserPlus, Loader2, Eye, EyeOff, ArrowLeft, AlertTriangle, Mail } from 'lucide-react';
+import { UserPlus, Loader2, Eye, EyeOff, ArrowLeft, AlertTriangle, Mail, Shield, CheckCircle2 } from 'lucide-react';
 import { notifySuccess, notifyError } from '../lib/notifications';
 import { AddressAutocomplete } from '../components/order/AddressAutocomplete';
 import { useCustomerProfile } from '../contexts/CustomerProfileContext';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('SignUp');
 
 const MAX_PROFILE_WAIT_MS = 8000;
 const PROFILE_POLL_INTERVAL_MS = 500;
-const LOG = '[SignUp]';
+
+const TERMS_VERSION = '1.0';
+const PRIVACY_VERSION = '1.0';
 
 async function waitForCustomerProfile(userId: string): Promise<boolean> {
   const deadline = Date.now() + MAX_PROFILE_WAIT_MS;
   let attempt = 0;
 
-  console.log(`${LOG} waitForCustomerProfile: starting poll for user ${userId}, timeout ${MAX_PROFILE_WAIT_MS}ms`);
+  log.debug(`waitForCustomerProfile: starting poll for user ${userId}`);
 
   while (Date.now() < deadline) {
     attempt++;
-    const remaining = deadline - Date.now();
-    console.log(`${LOG} waitForCustomerProfile: poll attempt ${attempt}, ${remaining}ms remaining`);
 
     const { data, error } = await supabase
       .from('customers')
@@ -28,20 +31,40 @@ async function waitForCustomerProfile(userId: string): Promise<boolean> {
       .maybeSingle();
 
     if (error) {
-      console.warn(`${LOG} waitForCustomerProfile: query error on attempt ${attempt}:`, error.message);
+      log.warn(`waitForCustomerProfile: query error on attempt ${attempt}`, error.message);
     }
 
     if (data?.id) {
-      console.log(`${LOG} waitForCustomerProfile: customer row found on attempt ${attempt}, id=${data.id}`);
+      log.debug(`waitForCustomerProfile: customer row found on attempt ${attempt}`);
       return true;
     }
 
-    console.log(`${LOG} waitForCustomerProfile: not found yet, waiting ${PROFILE_POLL_INTERVAL_MS}ms...`);
     await new Promise(r => setTimeout(r, PROFILE_POLL_INTERVAL_MS));
   }
 
-  console.warn(`${LOG} waitForCustomerProfile: timed out after ${attempt} attempts for user ${userId}`);
+  log.warn(`waitForCustomerProfile: timed out after ${attempt} attempts for user ${userId}`);
   return false;
+}
+
+async function recordConsent(
+  userId: string,
+  consents: Array<{ type: string; version: string; consented: boolean }>
+): Promise<void> {
+  const rows = consents.map(c => ({
+    user_id: userId,
+    consent_type: c.type,
+    consented: c.consented,
+    policy_version: c.version,
+    source: 'signup',
+    user_agent_hint: navigator.userAgent.slice(0, 200),
+  }));
+
+  const { error } = await supabase.from('user_consent_log').insert(rows);
+  if (error) {
+    log.warn('recordConsent: failed to write consent log', error.message);
+  } else {
+    log.debug('recordConsent: wrote consent records', { count: rows.length });
+  }
 }
 
 export function SignUp() {
@@ -69,6 +92,11 @@ export function SignUp() {
   const [addressData, setAddressData] = useState<any>(null);
   const [addressInput, setAddressInput] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const [consentTerms, setConsentTerms] = useState(false);
+  const [consentPrivacy, setConsentPrivacy] = useState(false);
+  const [consentMarketingEmail, setConsentMarketingEmail] = useState(false);
+  const [consentMarketingSms, setConsentMarketingSms] = useState(false);
 
   useEffect(() => {
     if (formData.password && formData.confirmPassword) {
@@ -104,6 +132,12 @@ export function SignUp() {
     if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Passwords do not match';
     }
+    if (!consentTerms) {
+      newErrors.consentTerms = 'You must agree to the Terms of Service to create an account';
+    }
+    if (!consentPrivacy) {
+      newErrors.consentPrivacy = 'You must agree to the Privacy Policy to create an account';
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -111,17 +145,15 @@ export function SignUp() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log(`${LOG} handleSubmit: form submitted for email=${formData.email}`);
+    log.debug('handleSubmit: form submitted');
 
     if (!validateForm()) {
-      console.log(`${LOG} handleSubmit: validation failed, aborting`);
       return;
     }
 
     setLoading(true);
 
     try {
-      console.log(`${LOG} step 1/3: calling supabase.auth.signUp for ${formData.email}`);
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -143,7 +175,7 @@ export function SignUp() {
       });
 
       if (authError) {
-        console.error(`${LOG} step 1/3 FAILED: supabase.auth.signUp error:`, authError);
+        log.error('supabase.auth.signUp error', authError);
         throw authError;
       }
 
@@ -151,11 +183,6 @@ export function SignUp() {
         throw new Error('Account creation failed — no user returned from auth.');
       }
 
-      // Detect existing user BEFORE checking session.
-      // Primary signal: identities array is empty — Supabase omits identity entries for
-      // existing accounts when the email is already registered with confirmation enabled.
-      // Fallback signal: created_at older than 10s, guards against identities being
-      // undefined in edge cases or future SDK version differences.
       const identities = authData.user.identities;
       const createdAt = new Date(authData.user.created_at).getTime();
       const ageMs = Date.now() - createdAt;
@@ -163,20 +190,9 @@ export function SignUp() {
       const isExistingByAge = ageMs > 10_000;
       const isExistingUser = isExistingByIdentities || isExistingByAge;
 
-      console.log(`${LOG} step 1/3: auth.signUp returned`, {
-        userId: authData.user.id,
-        sessionPresent: !!authData.session,
-        emailConfirmedAt: authData.user.email_confirmed_at,
-        identitiesCount: identities?.length ?? 'undefined',
-        ageSec: Math.round(ageMs / 1000),
-        isExistingByIdentities,
-        isExistingByAge,
-        isExistingUser,
-      });
-
       if (isExistingUser) {
         const isConfirmed = !!authData.user.email_confirmed_at;
-        console.log(`${LOG} step 1/3: existing user — confirmed=${isConfirmed}`);
+        log.debug('handleSubmit: existing user detected', { isConfirmed });
         if (isConfirmed) {
           setEmailAlreadyExists(true);
         } else {
@@ -187,13 +203,18 @@ export function SignUp() {
         return;
       }
 
-      // Address and profile data are now stored in raw_user_meta_data and will
-      // be provisioned server-side by the auth trigger when the user is confirmed.
+      const userId = authData.user.id;
 
-      // Truly new signup: detect if email confirmation is required (no session = confirmation pending).
+      await recordConsent(userId, [
+        { type: 'terms_of_service', version: TERMS_VERSION, consented: consentTerms },
+        { type: 'privacy_policy', version: PRIVACY_VERSION, consented: consentPrivacy },
+        { type: 'marketing_email', version: '1.0', consented: consentMarketingEmail },
+        { type: 'marketing_sms', version: '1.0', consented: consentMarketingSms },
+      ]);
+
       const emailConfirmationRequired = !authData.session;
       if (emailConfirmationRequired) {
-        console.log(`${LOG} step 1/3: email confirmation required — profile will be provisioned on confirmation`);
+        log.debug('handleSubmit: email confirmation required — navigating to login');
         notifySuccess(
           'Account created! Check your email for a confirmation link, then sign in.',
           { duration: 10000 }
@@ -202,13 +223,11 @@ export function SignUp() {
         return;
       }
 
-      const userId = authData.user.id;
-      console.log(`${LOG} step 2/3: polling for customer profile, userId=${userId}`);
-
+      log.debug('handleSubmit: polling for customer profile');
       const profileReady = await waitForCustomerProfile(userId);
 
       if (!profileReady) {
-        console.warn(`${LOG} step 2/3 TIMEOUT: customer profile not ready after ${MAX_PROFILE_WAIT_MS}ms. Redirecting to login.`);
+        log.warn('handleSubmit: customer profile not ready after timeout. Redirecting to login.');
         notifyError(
           'Your account was created, but we could not finish setting up your profile. Please sign in — your profile will load automatically.'
         );
@@ -216,16 +235,13 @@ export function SignUp() {
         return;
       }
 
-      console.log(`${LOG} step 2/3 OK: customer profile is ready`);
-
-      console.log(`${LOG} step 3/3: refreshing customer profile context`);
+      log.debug('handleSubmit: refreshing customer profile context');
       await refreshProfile();
-      console.log(`${LOG} step 3/3 OK: profile refreshed`);
 
       notifySuccess('Account created! Welcome to Bounce Party Club.');
       navigate(from, { replace: true });
     } catch (err: any) {
-      console.error(`${LOG} handleSubmit UNHANDLED ERROR:`, err);
+      log.error('handleSubmit unhandled error', err);
       const msg: string = err.message || '';
       if (msg.toLowerCase().includes('rate limit') || err.status === 429) {
         notifyError('Too many signup attempts. Please wait a few minutes and try again.');
@@ -570,6 +586,127 @@ export function SignUp() {
                   )}
                 </div>
               </div>
+            </div>
+
+            <div className="border-t border-slate-200 pt-4 sm:pt-6 space-y-4">
+              <div className="flex items-start gap-2">
+                <Shield className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
+                <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">
+                  Terms &amp; Privacy
+                </h3>
+              </div>
+
+              <div className="space-y-3">
+                <label className={`flex items-start gap-3 cursor-pointer p-3 rounded-xl border-2 transition-colors ${consentTerms ? 'border-blue-300 bg-blue-50' : errors.consentTerms ? 'border-red-300 bg-red-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                  <div className="flex-shrink-0 mt-0.5">
+                    <input
+                      type="checkbox"
+                      checked={consentTerms}
+                      onChange={e => {
+                        setConsentTerms(e.target.checked);
+                        if (e.target.checked) {
+                          setErrors(prev => { const n = { ...prev }; delete n.consentTerms; return n; });
+                        }
+                      }}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </div>
+                  <span className="text-sm text-slate-700 leading-snug">
+                    I agree to the{' '}
+                    <a
+                      href="/terms"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-700 font-medium underline"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      Terms of Service
+                    </a>
+                    {' '}
+                    <span className="text-red-500 font-semibold">*</span>
+                    <span className="text-xs text-slate-500 block mt-0.5">Required to create an account</span>
+                  </span>
+                  {consentTerms && <CheckCircle2 className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5 ml-auto" />}
+                </label>
+                {errors.consentTerms && (
+                  <p className="text-red-600 text-xs mt-1 ml-1">{errors.consentTerms}</p>
+                )}
+
+                <label className={`flex items-start gap-3 cursor-pointer p-3 rounded-xl border-2 transition-colors ${consentPrivacy ? 'border-blue-300 bg-blue-50' : errors.consentPrivacy ? 'border-red-300 bg-red-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                  <div className="flex-shrink-0 mt-0.5">
+                    <input
+                      type="checkbox"
+                      checked={consentPrivacy}
+                      onChange={e => {
+                        setConsentPrivacy(e.target.checked);
+                        if (e.target.checked) {
+                          setErrors(prev => { const n = { ...prev }; delete n.consentPrivacy; return n; });
+                        }
+                      }}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </div>
+                  <span className="text-sm text-slate-700 leading-snug">
+                    I have read and agree to the{' '}
+                    <a
+                      href="/privacy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-700 font-medium underline"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      Privacy Policy
+                    </a>
+                    {' '}
+                    <span className="text-red-500 font-semibold">*</span>
+                    <span className="text-xs text-slate-500 block mt-0.5">Required to create an account</span>
+                  </span>
+                  {consentPrivacy && <CheckCircle2 className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5 ml-auto" />}
+                </label>
+                {errors.consentPrivacy && (
+                  <p className="text-red-600 text-xs mt-1 ml-1">{errors.consentPrivacy}</p>
+                )}
+              </div>
+
+              <div className="border-t border-dashed border-slate-200 pt-3 space-y-3">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  Optional — Marketing &amp; Promotions
+                </p>
+
+                <label className={`flex items-start gap-3 cursor-pointer p-3 rounded-xl border-2 transition-colors ${consentMarketingEmail ? 'border-slate-300 bg-slate-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                  <div className="flex-shrink-0 mt-0.5">
+                    <input
+                      type="checkbox"
+                      checked={consentMarketingEmail}
+                      onChange={e => setConsentMarketingEmail(e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </div>
+                  <span className="text-sm text-slate-600 leading-snug">
+                    Send me email promotions, seasonal offers, and Bounce Party Club news
+                    <span className="text-xs text-slate-400 block mt-0.5">Optional — you can unsubscribe anytime</span>
+                  </span>
+                </label>
+
+                <label className={`flex items-start gap-3 cursor-pointer p-3 rounded-xl border-2 transition-colors ${consentMarketingSms ? 'border-slate-300 bg-slate-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                  <div className="flex-shrink-0 mt-0.5">
+                    <input
+                      type="checkbox"
+                      checked={consentMarketingSms}
+                      onChange={e => setConsentMarketingSms(e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </div>
+                  <span className="text-sm text-slate-600 leading-snug">
+                    Send me SMS text promotions and special offers
+                    <span className="text-xs text-slate-400 block mt-0.5">Optional — standard message rates apply. Reply STOP to opt out anytime</span>
+                  </span>
+                </label>
+              </div>
+
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Booking confirmations, order updates, and service notifications are separate from promotional messages and are not affected by these preferences.
+              </p>
             </div>
 
             <button
