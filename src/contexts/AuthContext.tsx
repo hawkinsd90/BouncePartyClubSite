@@ -4,6 +4,8 @@ import { createLogger } from '../lib/logger';
 
 const log = createLogger('Auth');
 
+const drainingUserIds = new Set<string>();
+
 type UserRole = 'MASTER' | 'ADMIN' | 'CREW' | 'CUSTOMER' | null;
 
 interface AuthContextType {
@@ -80,23 +82,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (_event === 'SIGNED_IN' && session?.access_token && session?.user?.user_metadata?.pending_consent) {
-        (async () => {
-          try {
-            const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-consent?action=drain-pending`;
-            const res = await fetch(url, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session.access_token}`,
-              },
-              body: JSON.stringify({}),
-            });
-            const json = await res.json().catch(() => ({}));
-            log.debug('drain-pending consent result', json);
-          } catch (err: any) {
-            log.warn('drain-pending consent failed', err.message);
-          }
-        })();
+        const userId = session.user.id;
+        if (!drainingUserIds.has(userId)) {
+          drainingUserIds.add(userId);
+          (async () => {
+            try {
+              const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-consent?action=drain-pending`;
+              const res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify({}),
+              });
+              const json = await res.json().catch(() => ({}));
+              log.debug('drain-pending consent result', json);
+            } catch (err: any) {
+              log.warn('drain-pending consent failed', err.message);
+            } finally {
+              drainingUserIds.delete(userId);
+            }
+          })();
+        } else {
+          log.debug('drain-pending: already in flight for user, skipping duplicate fire', userId);
+        }
       }
 
       if (session?.user) {

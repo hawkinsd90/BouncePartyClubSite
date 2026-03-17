@@ -48,6 +48,7 @@ async function waitForCustomerProfile(userId: string): Promise<boolean> {
 
 async function recordConsent(
   accessToken: string,
+  batchId: string,
   consents: Array<{ type: string; version: string; consented: boolean }>
 ): Promise<void> {
   try {
@@ -59,6 +60,7 @@ async function recordConsent(
         'Authorization': `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
+        batch_id: batchId,
         consents,
         source: 'signup',
         user_agent_hint: navigator.userAgent.slice(0, 200),
@@ -68,7 +70,7 @@ async function recordConsent(
     if (!res.ok || !json.success) {
       log.warn('recordConsent: edge function returned error', json.error ?? res.status);
     } else {
-      log.debug('recordConsent: consent recorded server-side', { recorded: json.recorded });
+      log.debug('recordConsent: consent recorded server-side', { inserted: json.inserted, skipped: json.skipped });
     }
   } catch (err: any) {
     log.warn('recordConsent: network error', err.message);
@@ -162,6 +164,8 @@ export function SignUp() {
     setLoading(true);
 
     try {
+      const consentBatchId = crypto.randomUUID();
+
       const consentPayload = [
         { type: 'terms_of_service', version: TERMS_VERSION, consented: consentTerms },
         { type: 'privacy_policy', version: PRIVACY_VERSION, consented: consentPrivacy },
@@ -186,6 +190,7 @@ export function SignUp() {
             address_lat: addressData?.lat || null,
             address_lng: addressData?.lng || null,
             pending_consent: {
+              batch_id: consentBatchId,
               consents: consentPayload,
               source: 'signup',
               user_agent_hint: navigator.userAgent.slice(0, 200),
@@ -228,7 +233,7 @@ export function SignUp() {
 
       if (authData.session?.access_token) {
         log.debug('recordConsent: session available — recording consent and clearing pending_consent from metadata');
-        await recordConsent(authData.session.access_token, consentPayload);
+        await recordConsent(authData.session.access_token, consentBatchId, consentPayload);
         const { error: clearError } = await supabase.auth.updateUser({
           data: { pending_consent: null },
         });

@@ -14,6 +14,7 @@ interface ConsentEntry {
 }
 
 interface RecordConsentBody {
+  batch_id?: string;
   consents: ConsentEntry[];
   source?: string;
   user_agent_hint?: string;
@@ -36,6 +37,52 @@ function validateConsents(consents: ConsentEntry[]): string | null {
     if (!c.version || typeof c.version !== 'string') return `version is required for type: ${c.type}`;
   }
   return null;
+}
+
+function isValidUuidFormat(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+interface InsertResult {
+  inserted: number;
+  skipped: number;
+}
+
+async function upsertConsentRows(
+  serviceClient: ReturnType<typeof createClient>,
+  rows: Record<string, unknown>[],
+  hasBatchId: boolean
+): Promise<{ result: InsertResult; error: string | null }> {
+  if (!hasBatchId) {
+    const { error } = await serviceClient.from('user_consent_log').insert(rows);
+    if (error) return { result: { inserted: 0, skipped: 0 }, error: error.message };
+    return { result: { inserted: rows.length, skipped: 0 }, error: null };
+  }
+
+  let inserted = 0;
+  let skipped = 0;
+
+  for (const row of rows) {
+    const { error } = await serviceClient
+      .from('user_consent_log')
+      .insert(row)
+      .select();
+
+    if (!error) {
+      inserted++;
+    } else if (
+      error.code === '23505' ||
+      error.message?.includes('duplicate') ||
+      error.message?.includes('unique')
+    ) {
+      skipped++;
+    } else {
+      return { result: { inserted, skipped }, error: error.message };
+    }
+  }
+
+  return { result: { inserted, skipped }, error: null };
 }
 
 Deno.serve(async (req: Request) => {
@@ -81,12 +128,13 @@ Deno.serve(async (req: Request) => {
 
       if (!pending) {
         return new Response(
-          JSON.stringify({ success: true, recorded: 0, skipped: 'no_pending_consent' }),
+          JSON.stringify({ success: true, inserted: 0, skipped: 0, already_drained: true }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      const { consents, source, user_agent_hint } = pending as {
+      const { batch_id, consents, source, user_agent_hint } = pending as {
+        batch_id?: string;
         consents: ConsentEntry[];
         source?: string;
         user_agent_hint?: string;
@@ -100,6 +148,8 @@ Deno.serve(async (req: Request) => {
         );
       }
 
+      const hasBatchId = isValidUuidFormat(batch_id);
+
       const { data: customer } = await serviceClient
         .from('customers')
         .select('id')
@@ -109,6 +159,7 @@ Deno.serve(async (req: Request) => {
       const rows = consents.map((c: ConsentEntry) => ({
         user_id: user.id,
         customer_id: customer?.id ?? null,
+        consent_batch_id: hasBatchId ? batch_id : null,
         consent_type: c.type,
         consented: c.consented,
         policy_version: c.version,
@@ -116,13 +167,11 @@ Deno.serve(async (req: Request) => {
         user_agent_hint: user_agent_hint ?? null,
       }));
 
-      const { error: insertError } = await serviceClient
-        .from('user_consent_log')
-        .insert(rows);
+      const { result, error: insertError } = await upsertConsentRows(serviceClient, rows, hasBatchId);
 
       if (insertError) {
         return new Response(
-          JSON.stringify({ success: false, error: insertError.message }),
+          JSON.stringify({ success: false, error: insertError }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -132,13 +181,19 @@ Deno.serve(async (req: Request) => {
       });
 
       return new Response(
-        JSON.stringify({ success: true, recorded: rows.length, customer_id: customer?.id ?? null }),
+        JSON.stringify({
+          success: true,
+          inserted: result.inserted,
+          skipped: result.skipped,
+          customer_id: customer?.id ?? null,
+          pending_consent_cleared: true,
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const body: RecordConsentBody = await req.json();
-    const { consents, source = 'signup', user_agent_hint } = body;
+    const { batch_id, consents, source = 'signup', user_agent_hint } = body;
 
     const validationError = validateConsents(consents);
     if (validationError) {
@@ -147,6 +202,8 @@ Deno.serve(async (req: Request) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const hasBatchId = isValidUuidFormat(batch_id);
 
     const { data: customer } = await serviceClient
       .from('customers')
@@ -157,6 +214,7 @@ Deno.serve(async (req: Request) => {
     const rows = consents.map(c => ({
       user_id: user.id,
       customer_id: customer?.id ?? null,
+      consent_batch_id: hasBatchId ? batch_id : null,
       consent_type: c.type,
       consented: c.consented,
       policy_version: c.version,
@@ -164,19 +222,22 @@ Deno.serve(async (req: Request) => {
       user_agent_hint: user_agent_hint ?? null,
     }));
 
-    const { error: insertError } = await serviceClient
-      .from('user_consent_log')
-      .insert(rows);
+    const { result, error: insertError } = await upsertConsentRows(serviceClient, rows, hasBatchId);
 
     if (insertError) {
       return new Response(
-        JSON.stringify({ success: false, error: insertError.message }),
+        JSON.stringify({ success: false, error: insertError }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     return new Response(
-      JSON.stringify({ success: true, recorded: rows.length, customer_id: customer?.id ?? null }),
+      JSON.stringify({
+        success: true,
+        inserted: result.inserted,
+        skipped: result.skipped,
+        customer_id: customer?.id ?? null,
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
