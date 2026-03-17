@@ -188,6 +188,13 @@ export function SignUp() {
         { type: 'marketing_sms', version: '1.0', consented: consentMarketingSms },
       ];
 
+      // pending_consent is intentionally NOT included in options.data here.
+      // signUp() is called before we can safely classify the response as a genuinely
+      // new account. If this email belongs to an existing unconfirmed account, Supabase
+      // silently merges options.data into that account's metadata — which would overwrite
+      // the real user's pending_consent with consent data from this submission.
+      // Consent is written only after isExistingUser classification confirms the account
+      // is new (see below).
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -204,17 +211,6 @@ export function SignUp() {
             address_zip: addressData?.zip || null,
             address_lat: addressData?.lat || null,
             address_lng: addressData?.lng || null,
-            // pending_consent is attached atomically at signUp time so it is available
-            // immediately when the confirmation link is clicked and SIGNED_IN fires in
-            // AuthContext. This is preferred over a separate privileged metadata-write
-            // endpoint because it requires no additional authenticated call before we
-            // know whether the account is genuinely new.
-            pending_consent: {
-              batch_id: consentBatchId,
-              consents: consentPayload,
-              source: 'signup',
-              user_agent_hint: navigator.userAgent.slice(0, 200),
-            },
           },
         },
       });
@@ -256,24 +252,46 @@ export function SignUp() {
       const userId = authData.user.id;
       const emailConfirmationRequired = !authData.session;
 
+      // Write consent to the pending_signups_consent table NOW — after new-user
+      // classification has confirmed this is a genuine new account. This is the only
+      // point where we can safely write without risking overwriting an existing
+      // unconfirmed user's consent data.
+      // The anon-key RLS policy on this table enforces a 60-second recency window
+      // so writes for arbitrary user IDs are rejected server-side.
+      const { error: pendingInsertError } = await supabase
+        .from('pending_signups_consent')
+        .insert({
+          user_id: userId,
+          batch_id: consentBatchId,
+          consents: consentPayload,
+          source: 'signup',
+          user_agent_hint: navigator.userAgent.slice(0, 200),
+        });
+
+      if (pendingInsertError) {
+        log.warn('recordConsent: pending_signups_consent insert failed', pendingInsertError.message);
+      } else {
+        log.debug('recordConsent: pending consent row inserted', { userId });
+      }
+
       if (authData.session?.access_token) {
-        // Session is available immediately (email confirmation not required).
-        // Attempt to persist consent directly using the live token.
-        // pending_consent is only cleared from metadata after confirmed persistence.
-        // If the write fails, pending_consent remains in metadata and AuthContext will
-        // drain it on the next authenticated session load or SIGNED_IN event.
+        // Immediate session — persist consent directly using the live token.
+        // No pending store is needed: if this write succeeds, consent is durable.
+        // If it fails, the pending_signups_consent row written above is the recovery path.
         log.debug('recordConsent: session available — recording consent directly');
         const consentResult = await recordConsent(authData.session.access_token, consentBatchId, consentPayload);
         if (consentResult.success && consentResult.safe_to_clear_pending) {
           log.debug('recordConsent: consent persisted directly', { inserted: consentResult.inserted, skipped: consentResult.skipped });
+          // Direct write succeeded — remove the pending row so drain is a no-op.
+          await supabase.from('pending_signups_consent').delete().eq('user_id', userId);
         } else {
-          log.warn('recordConsent: direct write failed — pending_consent remains in metadata for drain recovery');
+          log.warn('recordConsent: direct write failed — pending_signups_consent row retained for drain recovery on next SIGNED_IN');
         }
       } else {
-        // No session — email confirmation is required. pending_consent was already attached
-        // to user_metadata at signUp time above. AuthContext will drain it on SIGNED_IN
-        // when the user clicks the confirmation link.
-        log.debug('recordConsent: no session (email confirmation required) — pending_consent in metadata for drain on SIGNED_IN', { userId });
+        // No session — email confirmation is required. The pending_signups_consent row
+        // written above is the durable store. AuthContext reads and drains it when
+        // SIGNED_IN fires after the user clicks the confirmation link.
+        log.debug('recordConsent: confirmation required — consent stored in pending_signups_consent for drain on SIGNED_IN', { userId });
       }
 
       if (emailConfirmationRequired) {

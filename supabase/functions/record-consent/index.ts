@@ -49,6 +49,10 @@ interface InsertResult {
   skipped: number;
 }
 
+// consent_batch_id + unique index (user_id, consent_batch_id, consent_type) make writes
+// idempotent when a batch_id is present. Duplicate drain calls — from two tabs racing,
+// a token refresh, or a retry — produce constraint violations that are counted as skipped
+// rather than treated as errors. Duplicate drains are expected and safe.
 async function upsertConsentRows(
   serviceClient: ReturnType<typeof createClient>,
   rows: Record<string, unknown>[],
@@ -63,11 +67,6 @@ async function upsertConsentRows(
   let inserted = 0;
   let skipped = 0;
 
-  // The unique index uq_user_consent_log_batch_type (user_id, consent_batch_id, consent_type)
-  // makes consent writes idempotent when a batch_id is present. If the drain function is called
-  // more than once for the same signup event (two tabs, retry, token refresh), the second
-  // pass produces constraint violations that are caught here and counted as skipped rather
-  // than treated as errors — duplicate drain calls are expected and safe.
   for (const row of rows) {
     const { error } = await serviceClient
       .from('user_consent_log')
@@ -130,7 +129,22 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === 'drain-pending') {
-      const pending = user.user_metadata?.pending_consent;
+      // Read from pending_signups_consent, which is written by SignUp.tsx only AFTER
+      // new-vs-existing user classification confirms the account is genuinely new.
+      // This means the row can never contain consent data from a duplicate signup
+      // against an existing unconfirmed account.
+      const { data: pending, error: fetchError } = await serviceClient
+        .from('pending_signups_consent')
+        .select('batch_id, consents, source, user_agent_hint')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (fetchError) {
+        return new Response(
+          JSON.stringify({ success: false, error: `Failed to read pending consent: ${fetchError.message}` }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
       if (!pending) {
         return new Response(
@@ -139,11 +153,6 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      // Metadata drain path. pending_consent is attached to user_metadata at signUp time
-      // so it survives the email-confirmation gap and is available the moment SIGNED_IN
-      // fires. AuthContext calls this action on initial session load and on SIGNED_IN.
-      // If the direct write in SignUp.tsx already succeeded, pending_consent will be null
-      // and this returns already_drained without touching user_consent_log.
       const { batch_id, consents, source, user_agent_hint } = pending as {
         batch_id?: string;
         consents: ConsentEntry[];
@@ -182,18 +191,22 @@ Deno.serve(async (req: Request) => {
 
       if (insertError) {
         return new Response(
-          JSON.stringify({ success: false, error: insertError, safe_to_clear_pending: false }),
+          JSON.stringify({ success: false, error: insertError }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      const { error: clearError } = await serviceClient.auth.admin.updateUserById(user.id, {
-        user_metadata: { ...user.user_metadata, pending_consent: null },
-      });
+      // Delete the pending row now that consent is durably written.
+      // AuthContext also attempts a client-side delete; this server-side delete is the
+      // authoritative cleanup. If it fails, the row is left for the next drain attempt
+      // which is idempotent due to the batch_id unique index.
+      const { error: deleteError } = await serviceClient
+        .from('pending_signups_consent')
+        .delete()
+        .eq('user_id', user.id);
 
-      const pendingConsentCleared = !clearError;
-      if (clearError) {
-        console.log('[record-consent] drain-pending: metadata clear failed', { user_id: user.id, error: clearError.message });
+      if (deleteError) {
+        console.log('[record-consent] drain-pending: row delete failed (non-fatal)', { user_id: user.id, error: deleteError.message });
       }
 
       return new Response(
@@ -201,8 +214,6 @@ Deno.serve(async (req: Request) => {
           success: true,
           inserted: result.inserted,
           skipped: result.skipped,
-          safe_to_clear_pending: true,
-          pending_consent_cleared: pendingConsentCleared,
           customer_id: customer?.id ?? null,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

@@ -35,17 +35,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [roles, setRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Drains pending_consent from user_metadata for the signed-in session.
-  // pending_consent is attached at signUp time so it is available the moment SIGNED_IN
-  // fires (confirmation-required path) or on the initial session load (immediate-session
-  // path where the direct write in SignUp.tsx failed transiently).
+  // Drains any pending consent row from pending_signups_consent for the signed-in user.
+  // The row is written by SignUp.tsx only after new-vs-existing classification confirms
+  // the account is genuinely new, so it is never contaminated by duplicate-signup writes.
+  // This fires on initial session load (recovery for transient direct-write failures) and
+  // on SIGNED_IN (primary path for email-confirmation-required signups).
   // drainingUserIds is an in-tab duplicate-fire guard only. The real cross-tab and retry
   // idempotency guarantee is the unique index on (user_id, consent_batch_id, consent_type)
   // in user_consent_log.
   function drainPendingConsent(session: NonNullable<Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']>) {
     const userId = session.user.id;
-
-    if (!session.user?.user_metadata?.pending_consent) return;
 
     if (drainingUserIds.has(userId)) {
       log.debug('drainPendingConsent: already in flight for user, skipping', userId);
@@ -56,6 +55,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     (async () => {
       try {
+        const { data: pending, error: fetchError } = await supabase
+          .from('pending_signups_consent')
+          .select('batch_id, consents, source, user_agent_hint')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (fetchError) {
+          log.warn('drainPendingConsent: fetch failed', fetchError.message);
+          return;
+        }
+
+        if (!pending) {
+          return;
+        }
+
+        log.debug('drainPendingConsent: found pending consent row, draining', { userId });
+
         const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-consent?action=drain-pending`;
         const res = await fetch(url, {
           method: 'POST',
@@ -67,8 +83,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
         const json = await res.json().catch(() => ({}));
         log.debug('drainPendingConsent: drain result', json);
+
+        if (json.success) {
+          const { error: deleteError } = await supabase
+            .from('pending_signups_consent')
+            .delete()
+            .eq('user_id', userId);
+          if (deleteError) {
+            log.warn('drainPendingConsent: row delete failed (non-fatal)', deleteError.message);
+          }
+        }
       } catch (err: any) {
-        log.warn('drainPendingConsent: request failed', err.message);
+        log.warn('drainPendingConsent: unexpected error', err.message);
       } finally {
         drainingUserIds.delete(userId);
       }
