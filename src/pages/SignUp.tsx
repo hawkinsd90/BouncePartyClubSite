@@ -46,11 +46,18 @@ async function waitForCustomerProfile(userId: string): Promise<boolean> {
   return false;
 }
 
+interface ConsentResult {
+  success: boolean;
+  inserted: number;
+  skipped: number;
+  safe_to_clear_pending: boolean;
+}
+
 async function recordConsent(
   accessToken: string,
   batchId: string,
   consents: Array<{ type: string; version: string; consented: boolean }>
-): Promise<void> {
+): Promise<ConsentResult> {
   try {
     const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-consent`;
     const res = await fetch(url, {
@@ -69,11 +76,18 @@ async function recordConsent(
     const json = await res.json().catch(() => ({}));
     if (!res.ok || !json.success) {
       log.warn('recordConsent: edge function returned error', json.error ?? res.status);
-    } else {
-      log.debug('recordConsent: consent recorded server-side', { inserted: json.inserted, skipped: json.skipped });
+      return { success: false, inserted: 0, skipped: 0, safe_to_clear_pending: false };
     }
+    log.debug('recordConsent: consent recorded server-side', { inserted: json.inserted, skipped: json.skipped });
+    return {
+      success: true,
+      inserted: json.inserted ?? 0,
+      skipped: json.skipped ?? 0,
+      safe_to_clear_pending: json.safe_to_clear_pending === true,
+    };
   } catch (err: any) {
     log.warn('recordConsent: network error', err.message);
+    return { success: false, inserted: 0, skipped: 0, safe_to_clear_pending: false };
   }
 }
 
@@ -232,13 +246,19 @@ export function SignUp() {
       const emailConfirmationRequired = !authData.session;
 
       if (authData.session?.access_token) {
-        log.debug('recordConsent: session available — recording consent and clearing pending_consent from metadata');
-        await recordConsent(authData.session.access_token, consentBatchId, consentPayload);
-        const { error: clearError } = await supabase.auth.updateUser({
-          data: { pending_consent: null },
-        });
-        if (clearError) {
-          log.warn('recordConsent: could not clear pending_consent from metadata', clearError.message);
+        log.debug('recordConsent: session available — recording consent directly');
+        const consentResult = await recordConsent(authData.session.access_token, consentBatchId, consentPayload);
+        if (consentResult.safe_to_clear_pending) {
+          const { error: clearError } = await supabase.auth.updateUser({
+            data: { pending_consent: null },
+          });
+          if (clearError) {
+            log.warn('recordConsent: rows persisted but metadata clear failed — drain path will handle it on next SIGNED_IN', clearError.message);
+          } else {
+            log.debug('recordConsent: consent persisted and pending_consent cleared from metadata', { inserted: consentResult.inserted, skipped: consentResult.skipped });
+          }
+        } else {
+          log.warn('recordConsent: write did not confirm persistence — leaving pending_consent in metadata for drain recovery on next SIGNED_IN');
         }
       } else {
         log.debug('recordConsent: no session (email confirmation pending) — consent stored in user metadata at signUp; will drain on first confirmed SIGNED_IN');

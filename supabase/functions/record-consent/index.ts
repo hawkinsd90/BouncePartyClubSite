@@ -171,22 +171,28 @@ Deno.serve(async (req: Request) => {
 
       if (insertError) {
         return new Response(
-          JSON.stringify({ success: false, error: insertError }),
+          JSON.stringify({ success: false, error: insertError, safe_to_clear_pending: false }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      await serviceClient.auth.admin.updateUserById(user.id, {
+      const { error: clearError } = await serviceClient.auth.admin.updateUserById(user.id, {
         user_metadata: { ...user.user_metadata, pending_consent: null },
       });
+
+      const pendingConsentCleared = !clearError;
+      if (clearError) {
+        console.error('drain-pending: metadata clear failed for user', user.id, clearError.message);
+      }
 
       return new Response(
         JSON.stringify({
           success: true,
           inserted: result.inserted,
           skipped: result.skipped,
+          safe_to_clear_pending: true,
+          pending_consent_cleared: pendingConsentCleared,
           customer_id: customer?.id ?? null,
-          pending_consent_cleared: true,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -226,7 +232,7 @@ Deno.serve(async (req: Request) => {
 
     if (insertError) {
       return new Response(
-        JSON.stringify({ success: false, error: insertError }),
+        JSON.stringify({ success: false, error: insertError, safe_to_clear_pending: false }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -236,6 +242,7 @@ Deno.serve(async (req: Request) => {
         success: true,
         inserted: result.inserted,
         skipped: result.skipped,
+        safe_to_clear_pending: true,
         customer_id: customer?.id ?? null,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
