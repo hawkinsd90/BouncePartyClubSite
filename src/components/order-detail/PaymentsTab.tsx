@@ -9,20 +9,23 @@ interface PaymentsTabProps {
   customerName: string;
   payments: any[];
   order?: any;
+  customFees?: { id: string; amount_cents: number; name?: string }[];
   onPaymentsUpdate: () => void;
 }
 
-export function PaymentsTab({ orderId, customerName, payments, order, onPaymentsUpdate }: PaymentsTabProps) {
+export function PaymentsTab({ orderId, customerName, payments, order, customFees = [], onPaymentsUpdate }: PaymentsTabProps) {
   const succeededPayments = payments.filter(p => p.status === 'succeeded');
   const totalCapturedCents = succeededPayments.reduce((sum, p) => sum + p.amount_cents, 0);
 
+  const customFeesCents = customFees.reduce((sum, f) => sum + (f.amount_cents || 0), 0);
   const orderTotalCents = order
     ? (order.subtotal_cents || 0) +
       (order.generator_fee_cents || 0) +
       (order.travel_fee_cents || 0) +
       (order.surface_fee_cents || 0) +
       (order.same_day_pickup_fee_cents || 0) +
-      (order.tax_cents || 0) -
+      (order.tax_cents || 0) +
+      customFeesCents -
       (order.discount_cents || 0)
     : 0;
 

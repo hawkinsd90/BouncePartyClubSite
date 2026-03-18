@@ -7,6 +7,7 @@ export function usePendingOrderData(orderId: string) {
   const [payments, setPayments] = useState<any[]>([]);
   const [contact, setContact] = useState<any>(null);
   const [orderSummary, setOrderSummary] = useState<any>(null);
+  const [customFees, setCustomFees] = useState<any[]>([]);
   const loadingSummaryRef = useRef(false);
 
   async function loadSmsConversations() {
@@ -36,6 +37,14 @@ export function usePendingOrderData(orderId: string) {
     if (data) setPayments(data);
   }
 
+  async function loadCustomFees() {
+    const { data } = await supabase
+      .from('order_custom_fees')
+      .select('id, amount_cents, name')
+      .eq('order_id', orderId);
+    if (data) setCustomFees(data);
+  }
+
   async function loadSummary() {
     if (loadingSummaryRef.current) {
       return;
@@ -59,9 +68,11 @@ export function usePendingOrderData(orderId: string) {
     payments,
     contact,
     orderSummary,
+    customFees,
     loadSmsConversations,
     loadContact,
     loadPayments,
     loadSummary,
+    loadCustomFees,
   };
 }

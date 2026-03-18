@@ -52,10 +52,12 @@ export const PendingOrderCard = forwardRef<PendingOrderCardRef, {
     payments,
     contact,
     orderSummary,
+    customFees,
     loadSmsConversations,
     loadContact,
     loadPayments,
     loadSummary,
+    loadCustomFees,
   } = usePendingOrderData(order.id);
 
   const { sendingSms, sendSms } = useSmsHandling(order.id, order.customers?.phone);
@@ -72,6 +74,7 @@ export const PendingOrderCard = forwardRef<PendingOrderCardRef, {
     loadPayments();
     loadContact(order.customers?.email);
     loadSummary();
+    loadCustomFees();
   }, [order.id]);
 
   useEffect(() => {
@@ -254,7 +257,7 @@ export const PendingOrderCard = forwardRef<PendingOrderCardRef, {
         isSending={sendingSms}
       />
 
-      <PaymentManagementSection order={order} payments={payments} />
+      <PaymentManagementSection order={order} payments={payments} customFees={customFees} />
 
       {isDraft ? (
         <div ref={actionButtonsRef} className="space-y-3">

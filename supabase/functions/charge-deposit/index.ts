@@ -362,7 +362,8 @@ Deno.serve(async (req: Request) => {
           *,
           customers(first_name, last_name, email),
           order_items(qty, wet_or_dry, unit_price_cents, units(name)),
-          addresses(line1, city, state, zip)
+          addresses(line1, city, state, zip),
+          order_custom_fees(id, name, amount_cents)
         `)
         .eq("id", orderId)
         .maybeSingle();
@@ -410,15 +411,22 @@ Deno.serve(async (req: Request) => {
         const discount = fullOrder.discount_cents || 0;
         const tax = fullOrder.tax_cents || 0;
         const tip = fullOrder.tip_cents || 0;
-        const total = subtotal + travelFee + surfaceFee + sameDayFee + generatorFee + tax - discount;
+        const emailCustomFees: Array<{ id: string; name: string; amount_cents: number }> = fullOrder.order_custom_fees || [];
+        const customFeesCentsEmail = emailCustomFees.reduce((sum: number, f: { amount_cents: number }) => sum + (f.amount_cents || 0), 0);
+        const total = subtotal + travelFee + surfaceFee + sameDayFee + generatorFee + customFeesCentsEmail + tax - discount;
         const depositPaid = paymentAmountCents;
         const balanceRemaining = Math.max(0, total - depositPaid);
+
+        const customFeeRowsHtml = emailCustomFees.map((f: { name: string; amount_cents: number }) =>
+          f.amount_cents > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">${f.name || "Custom Fee"}</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(f.amount_cents)}</td></tr>` : ""
+        ).join("");
 
         const feeRowsHtml = [
           travelFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Travel Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(travelFee)}</td></tr>` : "",
           surfaceFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Surface Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(surfaceFee)}</td></tr>` : "",
           sameDayFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Same Day Pickup</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(sameDayFee)}</td></tr>` : "",
           generatorFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Generator Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(generatorFee)}</td></tr>` : "",
+          customFeeRowsHtml,
           discount > 0 ? `<tr><td style="padding:4px 0;color:#059669;font-size:14px;">Discount</td><td style="padding:4px 0;text-align:right;color:#059669;font-size:14px;">-${fmt(discount)}</td></tr>` : "",
           tax > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Tax</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(tax)}</td></tr>` : "",
           tip > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Tip</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(tip)}</td></tr>` : "",

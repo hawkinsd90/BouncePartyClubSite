@@ -11,24 +11,33 @@ interface Payment {
   created_at: string;
 }
 
+interface CustomFee {
+  id: string;
+  amount_cents: number;
+  name?: string;
+}
+
 interface PaymentManagementSectionProps {
   order: any;
   payments: Payment[];
+  customFees?: CustomFee[];
 }
 
-export function PaymentManagementSection({ order, payments }: PaymentManagementSectionProps) {
+export function PaymentManagementSection({ order, payments, customFees = [] }: PaymentManagementSectionProps) {
   const hasPaymentMethod = order.stripe_customer_id && order.stripe_payment_method_id;
 
   const succeededPayments = payments.filter(p => p.status === 'succeeded');
   const totalCapturedCents = succeededPayments.reduce((sum, p) => sum + p.amount_cents, 0);
 
+  const customFeesCents = customFees.reduce((sum, f) => sum + (f.amount_cents || 0), 0);
   const orderTotalCents =
     (order.subtotal_cents || 0) +
     (order.generator_fee_cents || 0) +
     (order.travel_fee_cents || 0) +
     (order.surface_fee_cents || 0) +
     (order.same_day_pickup_fee_cents || 0) +
-    (order.tax_cents || 0) -
+    (order.tax_cents || 0) +
+    customFeesCents -
     (order.discount_cents || 0);
 
   const tipCents = order.tip_cents || 0;

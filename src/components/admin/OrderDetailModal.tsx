@@ -669,6 +669,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               customerName={`${order.customers?.first_name} ${order.customers?.last_name}`}
               payments={payments}
               order={order}
+              customFees={customFees}
               onPaymentsUpdate={() => {
                 reloadOrderData();
                 onUpdate();
