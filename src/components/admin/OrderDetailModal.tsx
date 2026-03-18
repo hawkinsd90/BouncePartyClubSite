@@ -70,6 +70,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [pendingStatus, setPendingStatus] = useState('');
   const [adminSettings, setAdminSettings] = useState<any>(null);
   const [adminOverrideApproval, setAdminOverrideApproval] = useState(false);
+  const [depositCatchupMode, setDepositCatchupMode] = useState<'require' | 'waive'>('require');
   const [availabilityIssues, setAvailabilityIssues] = useState<any[]>([]);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [customDepositCents, setCustomDepositCents] = useState<number | null>(null);
@@ -370,8 +371,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         order_id: order.id,
         user_id: user?.id || null,
         field_changed: field,
-        old_value: oldValue ? String(oldValue) : null,
-        new_value: newValue ? String(newValue) : null,
+        old_value: oldValue !== null && oldValue !== undefined ? String(oldValue) : null,
+        new_value: newValue !== null && newValue !== undefined ? String(newValue) : null,
         change_type: action === 'update' ? 'edit' : action === 'add' ? 'add' : 'remove',
       });
     } catch (error) {
@@ -431,6 +432,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         adminMessage,
         adminOverrideApproval,
         availabilityIssues,
+        depositCatchupMode,
         taxWaived,
         taxWaiveReason,
         travelFeeWaived,
@@ -650,6 +652,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 setGeneratorFeeWaiveReason(reason);
                 setHasChanges(true);
               }}
+              depositCatchupMode={depositCatchupMode}
+              onDepositCatchupModeChange={setDepositCatchupMode}
               onStatusChange={initiateStatusChange}
               onMarkChanges={() => setHasChanges(true)}
             />

@@ -23,6 +23,7 @@ interface SaveOrderChangesParams {
   surfaceFeeWaiveReason?: string;
   generatorFeeWaived?: boolean;
   generatorFeeWaiveReason?: string;
+  depositCatchupMode?: 'require' | 'waive';
   logChangeFn: (field: string, oldValue: any, newValue: any, action?: 'update' | 'add' | 'remove') => Promise<void>;
   sendNotificationsFn: () => Promise<void>;
   onComplete: () => void;
@@ -49,6 +50,7 @@ export async function saveOrderChanges({
   surfaceFeeWaiveReason,
   generatorFeeWaived,
   generatorFeeWaiveReason,
+  depositCatchupMode,
   logChangeFn,
   sendNotificationsFn,
   onComplete,
@@ -167,7 +169,25 @@ export async function saveOrderChanges({
 
     const finalDepositCents = customDepositCents !== null ? customDepositCents : calculatedPricing.deposit_due_cents;
     changes.deposit_due_cents = finalDepositCents;
-    changes.balance_due_cents = calculatedPricing.total_cents - finalDepositCents;
+
+    // Deposit catch-up for confirmed orders that already have payments captured
+    const depositAlreadyCapturedCents = order.deposit_paid_cents || 0;
+    const isConfirmedWithPayment = (order.status === 'confirmed' || order.status === 'in_progress') && depositAlreadyCapturedCents > 0;
+    const depositDifferenceCents = Math.max(0, finalDepositCents - depositAlreadyCapturedCents);
+
+    if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'require') {
+      // Require additional deposit: new balance = total - already captured - difference required now
+      // The difference is a separate charge; once paid: total - (captured + difference) = total - newDeposit
+      changes.balance_due_cents = Math.max(0, calculatedPricing.total_cents - finalDepositCents);
+      changes.deposit_catchup_cents = depositDifferenceCents;
+      logs.push(['deposit_catchup', 0, depositDifferenceCents]);
+    } else if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'waive') {
+      // Waive: roll difference into balance. Balance = total - already captured
+      changes.balance_due_cents = Math.max(0, calculatedPricing.total_cents - depositAlreadyCapturedCents);
+      changes.deposit_catchup_cents = 0;
+    } else {
+      changes.balance_due_cents = Math.max(0, calculatedPricing.total_cents - finalDepositCents);
+    }
 
     // Log pricing changes
     if (calculatedPricing.subtotal_cents !== order.subtotal_cents) {

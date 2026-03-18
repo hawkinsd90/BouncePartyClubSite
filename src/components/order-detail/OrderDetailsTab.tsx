@@ -1,4 +1,4 @@
-import { Edit2, AlertTriangle, CheckCircle } from 'lucide-react';
+import { CreditCard as Edit2, AlertTriangle, CheckCircle } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { OrderSummary } from '../order/OrderSummary';
 import { EventDetailsEditor } from './EventDetailsEditor';
@@ -38,6 +38,8 @@ interface OrderDetailsTabProps {
   surfaceFeeWaiveReason?: string;
   generatorFeeWaived: boolean;
   generatorFeeWaiveReason?: string;
+  depositCatchupMode: 'require' | 'waive';
+  onDepositCatchupModeChange: (mode: 'require' | 'waive') => void;
   onOrderChange: (updates: any) => void;
   onAddressSelect: (result: any) => void;
   onRemoveItem: (item: any) => void;
@@ -84,6 +86,8 @@ export function OrderDetailsTab({
   surfaceFeeWaiveReason,
   generatorFeeWaived,
   generatorFeeWaiveReason,
+  depositCatchupMode,
+  onDepositCatchupModeChange,
   onOrderChange,
   onAddressSelect,
   onRemoveItem,
@@ -102,6 +106,11 @@ export function OrderDetailsTab({
   onStatusChange,
   onMarkChanges,
 }: OrderDetailsTabProps) {
+  const depositAlreadyCapturedCents = order.deposit_paid_cents || 0;
+  const isConfirmedWithPayment = (order.status === 'confirmed' || order.status === 'in_progress') && depositAlreadyCapturedCents > 0;
+  const newDepositDueCents = customDepositCents !== null ? customDepositCents : (calculatedPricing?.deposit_due_cents ?? order.deposit_due_cents ?? 0);
+  const depositDifferenceCents = Math.max(0, newDepositDueCents - depositAlreadyCapturedCents);
+  const showCatchupPanel = isConfirmedWithPayment && hasChanges && depositDifferenceCents > 0;
   return (
     <div className="space-y-6">
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
@@ -184,6 +193,51 @@ export function OrderDetailsTab({
           </div>
         );
       })()}
+
+      {showCatchupPanel && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="w-4 h-4 text-blue-700" />
+            <h3 className="font-semibold text-blue-900">Deposit Increase — Customer Already Paid</h3>
+          </div>
+          <p className="text-sm text-blue-800 mb-3">
+            The new minimum deposit ({formatCurrency(newDepositDueCents)}) exceeds the amount already captured ({formatCurrency(depositAlreadyCapturedCents)}).
+            Difference: <strong>{formatCurrency(depositDifferenceCents)}</strong>.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button
+              onClick={() => onDepositCatchupModeChange('require')}
+              className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                depositCatchupMode === 'require'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-blue-800 border-blue-300 hover:bg-blue-50'
+              }`}
+            >
+              Require difference now ({formatCurrency(depositDifferenceCents)})
+            </button>
+            <button
+              onClick={() => onDepositCatchupModeChange('waive')}
+              className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                depositCatchupMode === 'waive'
+                  ? 'bg-slate-600 text-white border-slate-600'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              Waive difference (roll into balance)
+            </button>
+          </div>
+          {depositCatchupMode === 'require' && (
+            <p className="text-xs text-blue-700 mt-2">
+              Customer will be asked to pay {formatCurrency(depositDifferenceCents)} now. Remaining balance adjusted accordingly.
+            </p>
+          )}
+          {depositCatchupMode === 'waive' && (
+            <p className="text-xs text-slate-600 mt-2">
+              No additional deposit required now. The full difference rolls into the remaining balance due.
+            </p>
+          )}
+        </div>
+      )}
 
       {!checkingAvailability && availabilityIssues.length === 0 && stagedItems.filter(i => !i.is_deleted).length > 0 && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4">

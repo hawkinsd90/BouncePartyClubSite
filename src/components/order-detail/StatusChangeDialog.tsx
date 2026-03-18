@@ -101,12 +101,13 @@ export function StatusChangeDialog({
 
       // Add changelog entry
       const userId = (await supabase.auth.getUser()).data.user?.id || null;
+      const reasonSuffix = statusChangeReason.trim() ? ` (Reason: ${statusChangeReason.trim()})` : '';
       const { error: changelogError } = await supabase.from('order_changelog').insert({
         order_id: orderId,
         change_type: 'status_change',
         field_changed: 'status',
-        old_value: null,
-        new_value: pendingStatus,
+        old_value: currentStatus,
+        new_value: `${pendingStatus}${reasonSuffix}`,
         user_id: userId,
       });
 
