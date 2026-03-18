@@ -177,12 +177,14 @@ export function ItemsEditor({
                   )}
                 </p>
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => onAddItem(unit, 'dry')}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 px-3 rounded transition-colors"
-                  >
-                    Dry {formatCurrency(unit.price_dry_cents || 0)}
-                  </button>
+                  {!(unit.types || []).includes('Water Slide') || (unit.types || []).includes('Combo') ? (
+                    <button
+                      onClick={() => onAddItem(unit, 'dry')}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 px-3 rounded transition-colors"
+                    >
+                      Dry {formatCurrency(unit.price_dry_cents || 0)}
+                    </button>
+                  ) : null}
                   {(unit.price_water_cents || 0) > 0 && (
                     <button
                       onClick={() => onAddItem(unit, 'water')}
