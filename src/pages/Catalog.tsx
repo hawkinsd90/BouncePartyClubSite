@@ -305,9 +305,14 @@ export function Catalog() {
                     <h3 className="text-xl sm:text-2xl font-bold text-slate-900 group-hover:text-blue-600 transition-colors leading-tight">
                       {unit.name}
                     </h3>
-                    {((unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide')) && (
+                    {(unit.types || []).includes('Combo') && (
                       <span className="bg-gradient-to-r from-cyan-100 to-cyan-50 text-cyan-800 text-xs font-bold px-2.5 py-1.5 rounded-lg border border-cyan-200">
                         WET/DRY
+                      </span>
+                    )}
+                    {(unit.types || []).includes('Water Slide') && !(unit.types || []).includes('Combo') && (
+                      <span className="bg-gradient-to-r from-blue-100 to-blue-50 text-blue-800 text-xs font-bold px-2.5 py-1.5 rounded-lg border border-blue-200">
+                        WET
                       </span>
                     )}
                   </div>
@@ -329,10 +334,16 @@ export function Catalog() {
                       <Zap className="w-4 h-4 mr-2 text-blue-600" />
                       <span className="font-semibold">{unit.footprint_sqft} sq ft</span>
                     </div>
-                    {((unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide')) && (
+                    {(unit.types || []).includes('Combo') && (
                       <div className="flex items-center text-slate-700">
                         <Droplets className="w-4 h-4 mr-2 text-blue-600" />
                         <span className="font-semibold">Wet/Dry</span>
+                      </div>
+                    )}
+                    {(unit.types || []).includes('Water Slide') && !(unit.types || []).includes('Combo') && (
+                      <div className="flex items-center text-slate-700">
+                        <Droplets className="w-4 h-4 mr-2 text-blue-600" />
+                        <span className="font-semibold">Wet Only</span>
                       </div>
                     )}
                   </div>

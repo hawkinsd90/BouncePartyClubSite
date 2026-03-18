@@ -337,18 +337,30 @@ Deno.serve(async (req: Request) => {
       // Don't fail the whole request since charge succeeded, just log it
     }
 
-    // Send receipt email
+    // Send booking confirmation email to customer
     try {
       await supabaseClient.functions.invoke("send-email", {
         body: {
           orderId: orderId,
-          emailType: "payment_receipt",
-          paymentId: paymentIntent.id,
+          templateName: "booking_confirmation_customer",
         },
       });
+      console.log("[charge-deposit] Booking confirmation email sent");
+    } catch (emailError) {
+      console.error("Failed to send booking confirmation email:", emailError);
+    }
+
+    // Send payment receipt email to customer
+    try {
+      await supabaseClient.functions.invoke("send-email", {
+        body: {
+          orderId: orderId,
+          templateName: "payment_receipt",
+        },
+      });
+      console.log("[charge-deposit] Payment receipt email sent");
     } catch (emailError) {
       console.error("Failed to send receipt email:", emailError);
-      // Don't fail the request if email fails
     }
 
     return new Response(

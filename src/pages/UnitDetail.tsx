@@ -72,7 +72,12 @@ export function UnitDetail() {
 
       if (mediaError) throw mediaError;
 
-      setUnit({ ...unitData, media: (mediaData || []) as any } as any);
+      const loadedUnit = { ...unitData, media: (mediaData || []) as any } as any;
+      setUnit(loadedUnit);
+      // Auto-select water mode for water slide units
+      if ((loadedUnit.types || []).includes('Water Slide') && !(loadedUnit.types || []).includes('Combo')) {
+        setWetOrDry('water');
+      }
     } catch (error) {
       console.error('Error loading unit:', error);
     } finally {
@@ -110,8 +115,8 @@ export function UnitDetail() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16">
           <div>
-            {/* Mode selector for combo units */}
-            {((unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide')) && (
+            {/* Mode selector — only for combo units (water slides are always wet) */}
+            {(unit.types || []).includes('Combo') && (
               <div className="mb-6">
                 <h3 className="text-lg font-bold text-slate-900 mb-3">Select Mode</h3>
                 <div className="grid grid-cols-2 gap-4">
@@ -148,6 +153,13 @@ export function UnitDetail() {
                     </span>
                   </button>
                 </div>
+              </div>
+            )}
+            {/* Water slide badge — always wet */}
+            {(unit.types || []).includes('Water Slide') && !(unit.types || []).includes('Combo') && (
+              <div className="mb-6 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+                <Droplets className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                <span className="text-blue-800 font-semibold text-sm">Water Slide — always used in wet mode</span>
               </div>
             )}
 
