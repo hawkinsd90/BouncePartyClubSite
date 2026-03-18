@@ -120,8 +120,30 @@ export function OrderApprovalView({
     const meetsMinimum = (order.customer_selected_payment_cents || 0) >= currentDepositCents;
     setKeepOriginalPayment(meetsMinimum);
     setPaymentAmount('deposit');
-    setTipAmount('none');
-    setCustomTipAmount('');
+
+    // Pre-fill tip from original payment if the customer previously selected a tip
+    const originalTipCents = order.tip_cents || 0;
+    if (originalTipCents > 0) {
+      const tenPct = Math.round(currentTotalCents * 0.1);
+      const fifteenPct = Math.round(currentTotalCents * 0.15);
+      const twentyPct = Math.round(currentTotalCents * 0.2);
+      if (originalTipCents === tenPct) {
+        setTipAmount('10');
+        setCustomTipAmount('');
+      } else if (originalTipCents === fifteenPct) {
+        setTipAmount('15');
+        setCustomTipAmount('');
+      } else if (originalTipCents === twentyPct) {
+        setTipAmount('20');
+        setCustomTipAmount('');
+      } else {
+        setTipAmount('custom');
+        setCustomTipAmount((originalTipCents / 100).toFixed(2));
+      }
+    } else {
+      setTipAmount('none');
+      setCustomTipAmount('');
+    }
   }, [order.id]);
 
   // selectedPaymentBaseCents = what the customer pays now, EXCLUDING tip

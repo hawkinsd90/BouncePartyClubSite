@@ -368,12 +368,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       const user = (await supabase.auth.getUser()).data.user;
       await supabase.from('order_changelog').insert({
         order_id: order.id,
-        changed_by: user?.id || null,
-        field_name: field,
+        user_id: user?.id || null,
+        field_changed: field,
         old_value: oldValue ? String(oldValue) : null,
         new_value: newValue ? String(newValue) : null,
         change_type: action === 'update' ? 'edit' : action === 'add' ? 'add' : 'remove',
-        notes: null,
       });
     } catch (error) {
       console.error('Error logging change:', error);

@@ -3,10 +3,9 @@ import { format } from 'date-fns';
 interface ChangelogEntry {
   id: string;
   change_type: string;
-  field_name: string;
+  field_changed: string;
   old_value: string | null;
   new_value: string | null;
-  reason: string | null;
   created_at: string;
   users?: {
     email: string;
@@ -31,6 +30,7 @@ export function OrderChangelogTab({ changelog }: OrderChangelogTabProps) {
                 <p className="font-medium text-sm">
                   {change.change_type === 'status_change' ? 'Status Change' :
                    change.change_type === 'field_update' ? 'Field Update' :
+                   change.change_type === 'customer_approval' ? 'Customer Approval' :
                    change.change_type}
                 </p>
                 <span className="text-xs text-slate-500">
@@ -38,9 +38,9 @@ export function OrderChangelogTab({ changelog }: OrderChangelogTabProps) {
                 </span>
               </div>
 
-              {change.field_name && (
+              {change.field_changed && (
                 <p className="text-sm text-slate-700 mb-1">
-                  <span className="font-medium">Field:</span> {change.field_name}
+                  <span className="font-medium">Field:</span> {change.field_changed}
                 </p>
               )}
 
@@ -53,12 +53,6 @@ export function OrderChangelogTab({ changelog }: OrderChangelogTabProps) {
               {change.new_value && (
                 <p className="text-sm text-slate-600">
                   <span className="font-medium">To:</span> {change.new_value}
-                </p>
-              )}
-
-              {change.reason && (
-                <p className="text-sm text-slate-600 mt-2 italic">
-                  Reason: {change.reason}
                 </p>
               )}
 

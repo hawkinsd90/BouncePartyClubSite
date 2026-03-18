@@ -8,12 +8,12 @@ import { formatOrderId } from '../../lib/utils';
 interface OrderChange {
   id: string;
   order_id: string;
-  field_name: string | null;
+  field_changed: string | null;
   old_value: string | null;
   new_value: string | null;
   change_type: string;
   created_at: string;
-  changed_by: string | null;
+  user_id: string | null;
 }
 
 interface GroupedOrderChange {
@@ -24,7 +24,7 @@ interface GroupedOrderChange {
   latest_user_email: string;
   changes: Array<{
     id: string;
-    field_name: string;
+    field_changed: string;
     old_value: string | null;
     new_value: string | null;
     change_type: string;
@@ -83,7 +83,7 @@ export function ChangelogTab() {
       // Collect all unique user IDs
       const userIds = new Set<string>();
       (orderChanges || []).forEach((change: any) => {
-        if (change.changed_by) userIds.add(change.changed_by);
+        if (change.user_id) userIds.add(change.user_id);
       });
       (settingChanges || []).forEach((change: any) => {
         if (change.changed_by) userIds.add(change.changed_by);
@@ -152,8 +152,8 @@ export function ChangelogTab() {
         );
 
         const latestChange = group.changes[0];
-        const latestUserEmail = latestChange.changed_by
-          ? userInfo[latestChange.changed_by]?.email || 'Unknown User'
+        const latestUserEmail = latestChange.user_id
+          ? userInfo[latestChange.user_id]?.email || 'Unknown User'
           : 'System';
 
         grouped.push({
@@ -164,13 +164,13 @@ export function ChangelogTab() {
           latest_user_email: latestUserEmail,
           changes: group.changes.map(change => ({
             id: change.id,
-            field_name: change.field_name || 'Order modified',
+            field_changed: change.field_changed || 'Order modified',
             old_value: change.old_value,
             new_value: change.new_value,
             change_type: change.change_type,
             timestamp: change.created_at,
-            user_email: change.changed_by
-              ? userInfo[change.changed_by]?.email || 'Unknown User'
+            user_email: change.user_id
+              ? userInfo[change.user_id]?.email || 'Unknown User'
               : 'System'
           }))
         });
@@ -411,7 +411,7 @@ export function ChangelogTab() {
                         >
                           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 sm:gap-2 mb-2">
                             <div className="min-w-0">
-                              <h4 className="font-medium text-slate-900 text-sm">{change.field_name}</h4>
+                              <h4 className="font-medium text-slate-900 text-sm">{change.field_changed}</h4>
                               <p className="text-xs text-slate-500">
                                 {change.change_type} • {new Date(change.timestamp).toLocaleString('en-US', {
                                   month: 'short',

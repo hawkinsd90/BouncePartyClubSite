@@ -104,11 +104,10 @@ export function StatusChangeDialog({
       const { error: changelogError } = await supabase.from('order_changelog').insert({
         order_id: orderId,
         change_type: 'status_change',
-        field_name: 'status',
+        field_changed: 'status',
         old_value: null,
         new_value: pendingStatus,
-        changed_by: userId,
-        notes: statusChangeReason,
+        user_id: userId,
       });
 
       if (changelogError) throw changelogError;

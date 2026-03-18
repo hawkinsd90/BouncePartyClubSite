@@ -118,18 +118,20 @@ export function ApprovalModal({
       // Log the approval
       const { error: logError } = await supabase.from('order_changelog').insert({
         order_id: order.id,
-        changed_by: null,
+        user_id: null,
         change_type: 'customer_approval',
-        field_name: 'customer_approval',
+        field_changed: 'status',
         old_value: 'awaiting_customer_approval',
         new_value: 'approved',
-        notes: `Customer approved order changes via portal. Payment: ${formatCurrency(selectedPaymentCents)}`,
       });
 
       if (logError) console.error('Error logging approval:', logError);
 
       // Check if customer already paid the initial deposit
-      const alreadyPaidDeposit = (order.deposit_paid_cents || 0) >= (order.deposit_due_cents || 0);
+      // Use stripe_payment_status as the source of truth — deposit_paid_cents can be stale after admin edits
+      const alreadyPaidDeposit =
+        order.stripe_payment_status === 'paid' ||
+        (order.deposit_paid_cents || 0) > 0;
 
       if (alreadyPaidDeposit) {
         // Customer already paid initial deposit - just update status to confirmed
@@ -208,7 +210,9 @@ export function ApprovalModal({
     ? `Card •••• ${lastFour}`
     : null;
 
-  const alreadyPaidDeposit = (order.deposit_paid_cents || 0) >= (order.deposit_due_cents || 0);
+  const alreadyPaidDeposit =
+    order.stripe_payment_status === 'paid' ||
+    (order.deposit_paid_cents || 0) > 0;
 
   if (!isOpen) return null;
 
