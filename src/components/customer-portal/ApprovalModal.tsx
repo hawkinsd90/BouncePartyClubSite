@@ -16,6 +16,7 @@ interface ApprovalModalProps {
   selectedPaymentBaseCents: number;
   newTipCents: number;
   keepOriginalPayment: boolean;
+  paymentAmount: 'deposit' | 'full' | 'custom';
 }
 
 export function ApprovalModal({
@@ -26,7 +27,8 @@ export function ApprovalModal({
   selectedPaymentCents,
   selectedPaymentBaseCents,
   newTipCents,
-  keepOriginalPayment
+  keepOriginalPayment,
+  paymentAmount,
 }: ApprovalModalProps) {
   const [confirmName, setConfirmName] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -96,24 +98,12 @@ export function ApprovalModal({
 
     setSubmitting(true);
     try {
-      const selectedPaymentType = keepOriginalPayment ? 'keep-original' : 'modified';
-
-      // First, update the customer's payment selection
-      // customer_selected_payment_cents stores base payment only (no tip)
-      const updatePayload: Record<string, unknown> = {
-        customer_selected_payment_cents: selectedPaymentBaseCents,
-        customer_selected_payment_type: selectedPaymentType,
-      };
-      // If customer picked a new tip amount (when not keeping original), save it
-      if (!keepOriginalPayment && newTipCents >= 0) {
-        updatePayload.tip_cents = newTipCents;
-      }
-      const { error: updateError } = await supabase
-        .from('orders')
-        .update(updatePayload)
-        .eq('id', order.id);
-
-      if (updateError) throw updateError;
+      // Resolve the canonical payment type to store.
+      // keepOriginalPayment means the customer chose to stick with their original
+      // selection - preserve the original stored type so a future reload can reconstruct it.
+      const resolvedPaymentType: string = keepOriginalPayment
+        ? (order.customer_selected_payment_type || 'deposit')
+        : paymentAmount;
 
       // Check if customer already paid the initial deposit
       // Use stripe_payment_status as the source of truth — deposit_paid_cents can be stale after admin edits
@@ -122,11 +112,19 @@ export function ApprovalModal({
         (order.deposit_paid_cents || 0) > 0;
 
       if (alreadyPaidDeposit) {
-        // Customer already paid initial deposit - just update status to confirmed
-        // Any price increases (from added items) will be added to the final balance due
+        // Already paid - persist payment selection then confirm.
+        // No charge attempt here so no dirty-write risk.
+        const updatePayload: Record<string, unknown> = {
+          customer_selected_payment_cents: selectedPaymentBaseCents,
+          customer_selected_payment_type: resolvedPaymentType,
+          status: 'confirmed',
+        };
+        if (!keepOriginalPayment && newTipCents >= 0) {
+          updatePayload.tip_cents = newTipCents;
+        }
         const { error: statusError } = await supabase
           .from('orders')
-          .update({ status: 'confirmed' })
+          .update(updatePayload)
           .eq('id', order.id);
 
         if (statusError) {
@@ -135,23 +133,47 @@ export function ApprovalModal({
 
         showToast('Order approved successfully! Any changes will be added to your final balance.', 'success');
       } else {
-        // Customer hasn't paid initial deposit yet - charge the deposit
+        // Customer hasn't paid initial deposit yet.
+        // Write payment selection fields BEFORE charge so charge-deposit can read
+        // customer_selected_payment_cents. If charge fails we roll back these fields.
+        const preChargePayload: Record<string, unknown> = {
+          customer_selected_payment_cents: selectedPaymentBaseCents,
+          customer_selected_payment_type: resolvedPaymentType,
+        };
+        if (!keepOriginalPayment && newTipCents >= 0) {
+          preChargePayload.tip_cents = newTipCents;
+        }
+        const { error: preWriteError } = await supabase
+          .from('orders')
+          .update(preChargePayload)
+          .eq('id', order.id);
+
+        if (preWriteError) throw preWriteError;
+
+        // Attempt the charge
         const { data: chargeData, error: chargeError } = await supabase.functions.invoke('charge-deposit', {
           body: { orderId: order.id }
         });
 
-        if (chargeError) {
-          console.error('Charge deposit error:', chargeError);
-          throw new Error(chargeError.message || 'Failed to process payment');
-        }
+        if (chargeError || !chargeData?.success) {
+          // Charge failed - roll back the payment selection fields to their prior values
+          // so the order is not left in a misleading partially-updated state.
+          await supabase
+            .from('orders')
+            .update({
+              customer_selected_payment_cents: order.customer_selected_payment_cents ?? null,
+              customer_selected_payment_type: order.customer_selected_payment_type ?? null,
+              tip_cents: order.tip_cents ?? 0,
+            })
+            .eq('id', order.id);
 
-        if (!chargeData?.success) {
           if (chargeData?.needsNewCard) {
             showToast('Your payment method is no longer valid. Please update your card and try again.', 'error');
             if (isMountedRef.current) setSubmitting(false);
             return;
           }
-          throw new Error(chargeData?.error || 'Payment processing failed');
+          const errMsg = chargeError?.message || chargeData?.error || 'Payment processing failed';
+          throw new Error(errMsg);
         }
 
         showToast('Order approved and payment processed successfully!', 'success');

@@ -139,7 +139,7 @@ async function createOrder(
       generator_fee_waived: generatorFeeWaived,
       generator_fee_waive_reason: generatorFeeWaiveReason,
       deposit_due_cents: depositRequired,
-      balance_due_cents: totalCents - depositRequired,
+      balance_due_cents: Math.max(0, totalCents - depositRequired),
       custom_deposit_cents: customDepositCents,
       tip_cents: 0,
       total_cents: totalCents,

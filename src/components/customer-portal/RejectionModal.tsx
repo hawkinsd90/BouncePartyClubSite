@@ -35,9 +35,14 @@ export function RejectionModal({ isOpen, onClose, order, onSuccess }: RejectionM
 
     setSubmitting(true);
     try {
+      const cancellationReason = reason.trim() || null;
+
       const { error: updateError } = await supabase
         .from('orders')
-        .update({ status: 'cancelled' })
+        .update({
+          status: 'cancelled',
+          cancellation_reason: cancellationReason,
+        })
         .eq('id', order.id);
 
       if (updateError) throw updateError;
@@ -48,7 +53,7 @@ export function RejectionModal({ isOpen, onClose, order, onSuccess }: RejectionM
         change_type: 'status_change',
         field_changed: 'status',
         old_value: order.status,
-        new_value: 'cancelled',
+        new_value: cancellationReason ? `cancelled - ${cancellationReason}` : 'cancelled',
       });
 
       if (logError) console.error('Error logging rejection:', logError);

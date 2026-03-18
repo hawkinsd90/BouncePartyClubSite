@@ -34,6 +34,24 @@ export function PaymentManagementSection({ order, payments }: PaymentManagementS
   const tipCents = order.tip_cents || 0;
   const remainingAfterCapturedCents = Math.max(0, orderTotalCents - totalCapturedCents);
 
+  // Derive deposit and balance breakdown from the payments ledger.
+  // Payments with type='deposit' are base deposit; 'balance' are balance payments.
+  // Tip is charged on top of deposit but tracked separately in tip_cents.
+  // Fall back to stored order columns only when no ledger data exists.
+  const ledgerDepositCents = succeededPayments
+    .filter(p => p.payment_type === 'deposit' || p.type === 'deposit')
+    .reduce((sum, p) => sum + p.amount_cents, 0);
+  const ledgerBalanceCents = succeededPayments
+    .filter(p => p.payment_type === 'balance' || p.type === 'balance')
+    .reduce((sum, p) => sum + p.amount_cents, 0);
+  const hasLedgerData = succeededPayments.length > 0;
+  const displayDepositCents = hasLedgerData
+    ? Math.max(0, ledgerDepositCents - tipCents)
+    : (order.deposit_paid_cents || 0);
+  const displayBalanceCents = hasLedgerData
+    ? ledgerBalanceCents
+    : (order.balance_paid_cents || 0);
+
   return (
     <div className="mb-4 p-4 bg-white rounded-lg border border-slate-200">
       <h4 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
@@ -47,8 +65,8 @@ export function PaymentManagementSection({ order, payments }: PaymentManagementS
             {formatCurrency(totalCapturedCents)}
           </div>
           <div className="text-xs text-green-700 mt-1 space-y-0.5">
-            <div>Deposit: {formatCurrency(order.deposit_paid_cents || 0)}</div>
-            <div>Balance: {formatCurrency(order.balance_paid_cents || 0)}</div>
+            <div>Deposit: {formatCurrency(displayDepositCents)}</div>
+            <div>Balance: {formatCurrency(displayBalanceCents)}</div>
             {tipCents > 0 && (
               <div className="pt-1 border-t border-green-300">
                 Tip: {formatCurrency(tipCents)}

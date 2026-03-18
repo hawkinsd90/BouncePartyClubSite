@@ -28,6 +28,22 @@ export function PaymentsTab({ orderId, customerName, payments, order, onPayments
 
   const remainingAfterCapturedCents = order ? Math.max(0, orderTotalCents - totalCapturedCents) : 0;
   const tipCents = order?.tip_cents || 0;
+
+  // Derive deposit and balance from payments ledger for accurate breakdown.
+  // Fall back to stored order columns only when no ledger payments exist.
+  const ledgerDepositCents = succeededPayments
+    .filter(p => p.type === 'deposit')
+    .reduce((sum, p) => sum + p.amount_cents, 0);
+  const ledgerBalanceCents = succeededPayments
+    .filter(p => p.type === 'balance')
+    .reduce((sum, p) => sum + p.amount_cents, 0);
+  const hasLedgerData = succeededPayments.length > 0;
+  const displayDepositCents = hasLedgerData
+    ? Math.max(0, ledgerDepositCents - tipCents)
+    : (order?.deposit_paid_cents || 0);
+  const displayBalanceCents = hasLedgerData
+    ? ledgerBalanceCents
+    : (order?.balance_paid_cents || 0);
   const [showRefundForm, setShowRefundForm] = useState(false);
   const [refundAmount, setRefundAmount] = useState('');
   const [refundReason, setRefundReason] = useState('');
@@ -102,8 +118,8 @@ export function PaymentsTab({ orderId, customerName, payments, order, onPayments
               {formatCurrency(totalCapturedCents)}
             </div>
             <div className="text-xs text-green-700 mt-1 space-y-0.5">
-              <div>Deposit: {formatCurrency(order.deposit_paid_cents || 0)}</div>
-              <div>Balance: {formatCurrency(order.balance_paid_cents || 0)}</div>
+              <div>Deposit: {formatCurrency(displayDepositCents)}</div>
+              <div>Balance: {formatCurrency(displayBalanceCents)}</div>
               {tipCents > 0 && (
                 <div className="pt-1 border-t border-green-300">
                   Tip: {formatCurrency(tipCents)}

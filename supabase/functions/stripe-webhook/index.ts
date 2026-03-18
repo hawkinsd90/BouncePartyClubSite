@@ -465,7 +465,19 @@ async function processWebhookEvent(
               })
               .eq("id", orderId);
           } else if (paymentType === "deposit") {
-            // Handle deposit payment
+            // Handle deposit payment.
+            // amountReceived is the FULL charged amount (base + tip).
+            // deposit_paid_cents must store BASE ONLY, never tip.
+            // Fetch the order to read tip_cents before writing.
+            const { data: depositOrder } = await supabaseClient
+              .from("orders")
+              .select("tip_cents")
+              .eq("id", orderId)
+              .maybeSingle();
+
+            const storedTipCents = depositOrder?.tip_cents || 0;
+            const depositOnlyFromPI = Math.max(0, amountReceived - storedTipCents);
+
             const { data: invoiceLink } = await supabaseClient
               .from("invoice_links")
               .select("id")
@@ -481,7 +493,7 @@ async function processWebhookEvent(
                 stripe_payment_status: "paid",
                 stripe_payment_method_id: paymentMethodId,
                 stripe_customer_id: stripeCustomerId,
-                deposit_paid_cents: amountReceived,
+                deposit_paid_cents: depositOnlyFromPI,
                 status: newStatus,
               })
               .eq("id", orderId);

@@ -48,12 +48,18 @@ export function OrderApprovalView({
   const originalMeetsMinimum = originalPaymentCents >= currentDepositCents;
   const hadOriginalPaymentSelection = originalPaymentCents > 0;
 
-  const newlyAddedItemNames = new Set(
+  // Build a set of "name|mode" keys for items added in this changelog cycle.
+  // Including the mode avoids mislabeling wet vs dry variants of the same unit name.
+  // Changelog new_value format from orderSaveService: "Unit Name (dry)" or "Unit Name (water)"
+  const newlyAddedItemKeys = new Set(
     (changelog || [])
       .filter((c: any) => c.field_changed === 'order_items' && (!c.old_value || c.old_value === ''))
       .map((c: any) => {
-        const val: string = c.new_value || '';
-        return val.replace(/\s*\([^)]*\)\s*$/, '').trim().toLowerCase();
+        const val: string = (c.new_value || '').trim().toLowerCase();
+        const modeMatch = val.match(/\(([^)]+)\)\s*$/);
+        const mode = modeMatch ? modeMatch[1].trim() : '';
+        const name = val.replace(/\s*\([^)]*\)\s*$/, '').trim();
+        return `${name}|${mode}`;
       })
   );
 
@@ -165,7 +171,9 @@ export function OrderApprovalView({
                 </h3>
                 <div className="space-y-2">
                   {orderSummary.items.map((item: any, i: number) => {
-                    const isNew = newlyAddedItemNames.has(item.name.toLowerCase());
+                    const itemMode = (item.mode || '').toLowerCase();
+                    const itemKey = `${item.name.toLowerCase()}|${itemMode}`;
+                    const isNew = newlyAddedItemKeys.has(itemKey);
                     return (
                       <div key={i} className="flex justify-between text-sm">
                         <span className="text-slate-700 flex items-center gap-2">
@@ -450,6 +458,7 @@ export function OrderApprovalView({
         selectedPaymentBaseCents={selectedPaymentBaseCents}
         newTipCents={newTipCents}
         keepOriginalPayment={keepOriginalPayment}
+        paymentAmount={paymentAmount}
       />
 
       <RejectionModal

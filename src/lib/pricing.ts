@@ -160,7 +160,7 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
 
   const deposit_due_cents = total_units * (rules.deposit_per_unit_cents || 5000);
 
-  const balance_due_cents = total_cents - deposit_due_cents;
+  const balance_due_cents = Math.max(0, total_cents - deposit_due_cents);
 
   // Build display-friendly travel fee name showing TOTAL miles driven
   let travel_fee_display_name = 'Travel Fee';
