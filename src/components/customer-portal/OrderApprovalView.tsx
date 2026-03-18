@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { CheckCircle, XCircle, MapPin, Calendar, Package } from 'lucide-react';
+import { CheckCircle, XCircle, Phone, MapPin, Calendar, Package } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
-import { TipSelector, calculateTipCents } from '../payment/TipSelector';
+import { calculateTipCents } from '../payment/TipSelector';
 import { ApprovalModal } from './ApprovalModal';
 import { RejectionModal } from './RejectionModal';
+import { useBusinessSettings } from '../../contexts/BusinessContext';
 
 interface OrderApprovalViewProps {
   order: any;
@@ -17,16 +18,16 @@ interface OrderApprovalViewProps {
 
 export function OrderApprovalView({
   order,
-  changelog,
   orderSummary,
   onApprovalSuccess,
   onRejectionSuccess,
 }: OrderApprovalViewProps) {
+  const business = useBusinessSettings();
+  const [keepOriginalPayment, setKeepOriginalPayment] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
   const [customPaymentAmount, setCustomPaymentAmount] = useState('');
-  const [tipAmount, setTipAmount] = useState<'none' | '10' | '15' | '20' | 'custom'>('none');
-  const [customTipAmount, setCustomTipAmount] = useState('');
-  const [keepOriginalPayment, setKeepOriginalPayment] = useState(false);
+  const [tipAmount] = useState<'none' | '10' | '15' | '20' | 'custom'>('none');
+  const [customTipAmount] = useState('');
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [showRejectionModal, setShowRejectionModal] = useState(false);
 
@@ -40,41 +41,18 @@ export function OrderApprovalView({
     (order.discount_cents || 0);
 
   const currentDepositCents = order.deposit_due_cents || 0;
+  const originalPaymentCents = order.customer_selected_payment_cents || 0;
+  const originalMeetsMinimum = originalPaymentCents >= currentDepositCents;
 
   useEffect(() => {
-    const meetsMinimum = (order.customer_selected_payment_cents || 0) >= currentDepositCents;
-    setKeepOriginalPayment(meetsMinimum);
+    setKeepOriginalPayment(originalMeetsMinimum);
     setPaymentAmount('deposit');
-
-    const originalTipCents = order.tip_cents || 0;
-    if (originalTipCents > 0) {
-      const tenPct = Math.round(currentTotalCents * 0.1);
-      const fifteenPct = Math.round(currentTotalCents * 0.15);
-      const twentyPct = Math.round(currentTotalCents * 0.2);
-
-      if (originalTipCents === tenPct) {
-        setTipAmount('10');
-        setCustomTipAmount('');
-      } else if (originalTipCents === fifteenPct) {
-        setTipAmount('15');
-        setCustomTipAmount('');
-      } else if (originalTipCents === twentyPct) {
-        setTipAmount('20');
-        setCustomTipAmount('');
-      } else {
-        setTipAmount('custom');
-        setCustomTipAmount((originalTipCents / 100).toFixed(2));
-      }
-    } else {
-      setTipAmount('none');
-      setCustomTipAmount('');
-    }
-  }, [order.id, currentDepositCents, currentTotalCents, order.customer_selected_payment_cents, order.tip_cents]);
+  }, [order.id, originalMeetsMinimum]);
 
   const newTipCents = calculateTipCents(tipAmount, customTipAmount, currentTotalCents);
 
   const selectedPaymentBaseCents = (() => {
-    if (keepOriginalPayment) return order.customer_selected_payment_cents || currentDepositCents;
+    if (keepOriginalPayment) return originalPaymentCents || currentDepositCents;
     if (paymentAmount === 'deposit') return currentDepositCents;
     if (paymentAmount === 'full') return currentTotalCents;
     if (paymentAmount === 'custom' && customPaymentAmount) {
@@ -84,10 +62,6 @@ export function OrderApprovalView({
   })();
 
   const selectedPaymentCents = selectedPaymentBaseCents + newTipCents;
-
-  const recentChanges = changelog
-    .filter((c) => c.change_type === 'edit' || c.change_type === 'add' || c.change_type === 'remove')
-    .slice(0, 10);
 
   const alreadyPaidDeposit =
     order.stripe_payment_status === 'paid' ||
@@ -226,37 +200,27 @@ export function OrderApprovalView({
               </div>
             </div>
 
-            {recentChanges.length > 0 && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="font-semibold text-blue-900 mb-2">What Changed</h3>
-                <ul className="space-y-1">
-                  {recentChanges.map((change: any, i: number) => (
-                    <li key={i} className="text-sm text-blue-800">
-                      <span className="font-medium capitalize">
-                        {(change.field_changed || '').replace(/_/g, ' ')}
-                      </span>
-
-                      {change.old_value && change.new_value && (
-                        <span> changed from {change.old_value} to {change.new_value}</span>
-                      )}
-
-                      {!change.old_value && change.new_value && (
-                        <span>: {change.new_value} added</span>
-                      )}
-
-                      {change.old_value && !change.new_value && (
-                        <span>: {change.old_value} removed</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
             {!alreadyPaidDeposit && (
-              <>
-                <div>
-                  <h3 className="font-semibold text-slate-900 mb-3">Payment Amount</h3>
+              <div>
+                <h3 className="font-semibold text-slate-900 mb-3">Payment Amount</h3>
+
+                {originalMeetsMinimum && (
+                  <label className="flex items-center gap-3 p-4 border-2 border-blue-200 bg-blue-50 rounded-lg cursor-pointer mb-3">
+                    <input
+                      type="checkbox"
+                      checked={keepOriginalPayment}
+                      onChange={(e) => setKeepOriginalPayment(e.target.checked)}
+                      className="w-4 h-4 text-blue-600 rounded"
+                    />
+                    <div>
+                      <span className="font-semibold text-slate-900">Keep original payment amount</span>
+                      <span className="text-blue-700 font-bold ml-2">{formatCurrency(originalPaymentCents)}</span>
+                      <p className="text-xs text-slate-500 mt-0.5">Use the amount you originally selected</p>
+                    </div>
+                  </label>
+                )}
+
+                {!keepOriginalPayment && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <label
                       className={`flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
@@ -337,20 +301,8 @@ export function OrderApprovalView({
                       )}
                     </label>
                   </div>
-                </div>
-
-                <div>
-                  <h3 className="font-semibold text-slate-900 mb-3">Add a Tip for the Crew</h3>
-                  <TipSelector
-                    totalCents={currentTotalCents}
-                    tipAmount={tipAmount}
-                    customTipAmount={customTipAmount}
-                    onTipAmountChange={setTipAmount}
-                    onCustomTipAmountChange={setCustomTipAmount}
-                    formatCurrency={formatCurrency}
-                  />
-                </div>
-              </>
+                )}
+              </div>
             )}
 
             {alreadyPaidDeposit && (
@@ -364,24 +316,6 @@ export function OrderApprovalView({
               </div>
             )}
 
-            <div className="flex flex-col sm:flex-row gap-3 pt-2">
-              <button
-                onClick={() => setShowRejectionModal(true)}
-                className="flex-1 flex items-center justify-center gap-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-semibold py-3 px-4 rounded-lg transition-colors"
-              >
-                <XCircle className="w-5 h-5" />
-                Reject Changes
-              </button>
-
-              <button
-                onClick={() => setShowApprovalModal(true)}
-                className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-colors"
-              >
-                <CheckCircle className="w-5 h-5" />
-                Approve Changes
-              </button>
-            </div>
-
             {order.admin_message && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-xs font-semibold text-blue-700 mb-1">
@@ -390,6 +324,32 @@ export function OrderApprovalView({
                 <p className="text-sm text-blue-900">{order.admin_message}</p>
               </div>
             )}
+
+            <div className="flex flex-col gap-3 pt-2">
+              <button
+                onClick={() => setShowApprovalModal(true)}
+                className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-colors"
+              >
+                <CheckCircle className="w-5 h-5" />
+                Approve Changes
+              </button>
+
+              <a
+                href={`tel:${(business?.business_phone || '').replace(/\D/g, '')}`}
+                className="flex items-center justify-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold py-3 px-4 rounded-lg transition-colors"
+              >
+                <Phone className="w-5 h-5" />
+                Call to Discuss{business?.business_phone ? ` (${business.business_phone})` : ''}
+              </a>
+
+              <button
+                onClick={() => setShowRejectionModal(true)}
+                className="flex items-center justify-center gap-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-semibold py-3 px-4 rounded-lg transition-colors"
+              >
+                <XCircle className="w-5 h-5" />
+                Reject Changes &amp; Cancel Order
+              </button>
+            </div>
           </div>
         </div>
       </div>
