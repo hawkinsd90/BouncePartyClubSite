@@ -18,6 +18,7 @@ interface OrderApprovalViewProps {
 
 export function OrderApprovalView({
   order,
+  changelog,
   orderSummary,
   onApprovalSuccess,
   onRejectionSuccess,
@@ -43,6 +44,16 @@ export function OrderApprovalView({
   const currentDepositCents = order.deposit_due_cents || 0;
   const originalPaymentCents = order.customer_selected_payment_cents || 0;
   const originalMeetsMinimum = originalPaymentCents >= currentDepositCents;
+  const hadOriginalPaymentSelection = originalPaymentCents > 0;
+
+  const newlyAddedItemNames = new Set(
+    (changelog || [])
+      .filter((c: any) => c.field_changed === 'order_items' && (!c.old_value || c.old_value === ''))
+      .map((c: any) => {
+        const val: string = c.new_value || '';
+        return val.replace(/\s*\([^)]*\)\s*$/, '').trim().toLowerCase();
+      })
+  );
 
   useEffect(() => {
     setKeepOriginalPayment(originalMeetsMinimum);
@@ -124,16 +135,24 @@ export function OrderApprovalView({
                   Items
                 </h3>
                 <div className="space-y-2">
-                  {orderSummary.items.map((item: any, i: number) => (
-                    <div key={i} className="flex justify-between text-sm">
-                      <span className="text-slate-700">
-                        {item.name} ({item.mode}) &times; {item.qty}
-                      </span>
-                      <span className="font-medium text-slate-900">
-                        {formatCurrency(item.lineTotal)}
-                      </span>
-                    </div>
-                  ))}
+                  {orderSummary.items.map((item: any, i: number) => {
+                    const isNew = newlyAddedItemNames.has(item.name.toLowerCase());
+                    return (
+                      <div key={i} className="flex justify-between text-sm">
+                        <span className="text-slate-700 flex items-center gap-2">
+                          {item.name} ({item.mode}) &times; {item.qty}
+                          {isNew && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700 border border-green-300">
+                              New
+                            </span>
+                          )}
+                        </span>
+                        <span className="font-medium text-slate-900">
+                          {formatCurrency(item.lineTotal)}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -204,7 +223,7 @@ export function OrderApprovalView({
               <div>
                 <h3 className="font-semibold text-slate-900 mb-3">Payment Amount</h3>
 
-                {originalMeetsMinimum && (
+                {hadOriginalPaymentSelection && (
                   <label className="flex items-center gap-3 p-4 border-2 border-blue-200 bg-blue-50 rounded-lg cursor-pointer mb-3">
                     <input
                       type="checkbox"
@@ -215,7 +234,14 @@ export function OrderApprovalView({
                     <div>
                       <span className="font-semibold text-slate-900">Keep original payment amount</span>
                       <span className="text-blue-700 font-bold ml-2">{formatCurrency(originalPaymentCents)}</span>
-                      <p className="text-xs text-slate-500 mt-0.5">Use the amount you originally selected</p>
+                      {!originalMeetsMinimum && (
+                        <p className="text-xs text-amber-600 mt-0.5">
+                          Note: deposit increased to {formatCurrency(currentDepositCents)} — a difference of {formatCurrency(currentDepositCents - originalPaymentCents)} more will be due
+                        </p>
+                      )}
+                      {originalMeetsMinimum && (
+                        <p className="text-xs text-slate-500 mt-0.5">Use the amount you originally selected</p>
+                      )}
                     </div>
                   </label>
                 )}
