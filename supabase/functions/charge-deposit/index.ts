@@ -349,15 +349,176 @@ Deno.serve(async (req: Request) => {
       // Don't fail the whole request since charge succeeded, just log it
     }
 
-    // Send single combined booking confirmation + receipt email to customer
+    // Build and send rich booking confirmation + receipt email
     try {
-      await supabaseClient.functions.invoke("send-email", {
-        body: {
-          orderId: orderId,
-          templateName: "booking_confirmation_customer",
-        },
-      });
-      console.log("[charge-deposit] Booking confirmation email sent");
+      const { data: fullOrder } = await supabaseClient
+        .from("orders")
+        .select(`
+          *,
+          customers(first_name, last_name, email),
+          order_items(qty, wet_or_dry, unit_price_cents, units(name)),
+          addresses(line1, city, state, zip)
+        `)
+        .eq("id", orderId)
+        .maybeSingle();
+
+      if (fullOrder && fullOrder.customers?.email) {
+        const { data: businessSettings } = await supabaseClient
+          .from("admin_settings")
+          .select("key, value")
+          .in("key", ["business_name", "business_phone", "business_email", "logo_url"]);
+
+        const biz: Record<string, string> = {};
+        businessSettings?.forEach((s: { key: string; value: string | null }) => {
+          if (s.value) biz[s.key] = s.value;
+        });
+
+        const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+        const firstName = fullOrder.customers.first_name || "";
+        const addr = fullOrder.addresses;
+        const addressStr = addr ? `${addr.line1}, ${addr.city}, ${addr.state}` : (fullOrder.event_address_line1 || "");
+
+        const eventDate = fullOrder.event_date
+          ? new Date(fullOrder.event_date + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
+          : "";
+        const timeWindow = `${fullOrder.start_window || ""} - ${fullOrder.end_window || ""}`;
+
+        const shortId = orderId.replace(/-/g, "").toUpperCase().slice(0, 8);
+        const portalUrl = `${Deno.env.get("SUPABASE_URL")?.replace("supabase.co", "bouncepartyclub.com").replace(/\/.*$/, "") || "https://bouncepartyclub.com"}/customer-portal/${orderId}`;
+
+        const itemsHtml = (fullOrder.order_items || []).map((item: { qty: number; units: { name: string }; wet_or_dry: string; unit_price_cents: number }) =>
+          `<tr>
+            <td style="padding:8px 0;border-bottom:1px solid #e5e7eb;color:#374151;">
+              ${item.qty}x ${item.units?.name || ""} (${item.wet_or_dry === "water" ? "Wet" : "Dry"})
+            </td>
+            <td style="padding:8px 0;border-bottom:1px solid #e5e7eb;text-align:right;color:#374151;">
+              ${fmt(item.unit_price_cents * item.qty)}
+            </td>
+          </tr>`
+        ).join("");
+
+        const subtotal = fullOrder.subtotal_cents || 0;
+        const travelFee = fullOrder.travel_fee_cents || 0;
+        const surfaceFee = fullOrder.surface_fee_cents || 0;
+        const sameDayFee = fullOrder.same_day_pickup_fee_cents || 0;
+        const tax = fullOrder.tax_cents || 0;
+        const tip = fullOrder.tip_cents || 0;
+        const total = subtotal + travelFee + surfaceFee + sameDayFee + tax;
+        const depositPaid = paymentAmountCents;
+        const balanceRemaining = Math.max(0, total - depositPaid);
+
+        const feeRowsHtml = [
+          travelFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Travel Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(travelFee)}</td></tr>` : "",
+          surfaceFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Surface Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(surfaceFee)}</td></tr>` : "",
+          sameDayFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Same Day Pickup</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(sameDayFee)}</td></tr>` : "",
+          tax > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Tax</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(tax)}</td></tr>` : "",
+          tip > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Tip</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(tip)}</td></tr>` : "",
+        ].join("");
+
+        const paymentMethodStr = paymentBrand && paymentLast4
+          ? `${paymentBrand} •••• ${paymentLast4}`
+          : paymentMethod || "Card";
+
+        const paymentDate = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+
+        const emailHtml = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Arial,sans-serif;background-color:#f5f5f5;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5;padding:20px;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;border:1px solid #d1fae5;">
+  <tr>
+    <td align="center" style="padding:24px 40px 16px;border-bottom:2px solid #d1fae5;">
+      ${biz.logo_url ? `<img src="${biz.logo_url}" alt="${biz.business_name || "Bounce Party Club"}" style="height:60px;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto;">` : ""}
+      <h1 style="margin:0;color:#059669;font-size:26px;font-weight:bold;">Booking Confirmed!</h1>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:28px 40px 8px;">
+      <p style="margin:0 0 6px;color:#374151;font-size:15px;">Hi ${firstName},</p>
+      <p style="margin:0 0 20px;color:#374151;font-size:15px;">Great news! Your booking is confirmed and your deposit has been processed.</p>
+
+      <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;margin-bottom:24px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 10px;font-weight:bold;color:#065f46;font-size:15px;">Event Details</p>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr><td style="padding:3px 0;color:#6b7280;font-size:14px;width:40%;">Order #:</td><td style="padding:3px 0;color:#111827;font-size:14px;font-weight:600;text-align:right;">${shortId}</td></tr>
+            <tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Date:</td><td style="padding:3px 0;color:#111827;font-size:14px;text-align:right;">${eventDate}</td></tr>
+            <tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Time:</td><td style="padding:3px 0;color:#111827;font-size:14px;text-align:right;">${timeWindow}</td></tr>
+            <tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Location:</td><td style="padding:3px 0;color:#111827;font-size:14px;text-align:right;">${addressStr}</td></tr>
+            ${fullOrder.location_type ? `<tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Location Type:</td><td style="padding:3px 0;color:#111827;font-size:14px;text-align:right;">${fullOrder.location_type}</td></tr>` : ""}
+            ${fullOrder.surface ? `<tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Surface:</td><td style="padding:3px 0;color:#111827;font-size:14px;text-align:right;">${fullOrder.surface}</td></tr>` : ""}
+            ${fullOrder.special_details ? `<tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Special Details:</td><td style="padding:3px 0;color:#111827;font-size:14px;font-weight:600;text-align:right;">${fullOrder.special_details}</td></tr>` : ""}
+          </table>
+        </td></tr>
+      </table>
+
+      <p style="margin:0 0 10px;font-weight:bold;color:#111827;font-size:15px;">Order Items</p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+        ${itemsHtml}
+      </table>
+
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+        <tr><td colspan="2" style="padding:0 0 8px;font-weight:bold;color:#111827;font-size:15px;">Payment Summary</td></tr>
+        <tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Subtotal:</td><td style="padding:4px 0;text-align:right;color:#374151;font-size:14px;">${fmt(subtotal)}</td></tr>
+        ${feeRowsHtml}
+        <tr style="border-top:2px solid #e5e7eb;"><td style="padding:10px 0 4px;font-weight:bold;color:#111827;">Total:</td><td style="padding:10px 0 4px;text-align:right;font-weight:bold;color:#111827;">${fmt(total)}</td></tr>
+        ${tip > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Tip:</td><td style="padding:4px 0;text-align:right;color:#059669;font-size:14px;">${fmt(tip)}</td></tr>` : ""}
+        <tr><td style="padding:4px 0;color:#059669;font-size:14px;font-weight:600;">Deposit Paid:</td><td style="padding:4px 0;text-align:right;color:#059669;font-size:14px;font-weight:600;">${fmt(depositPaid)}</td></tr>
+        <tr><td style="padding:4px 0;color:#374151;font-weight:600;">Balance Due:</td><td style="padding:4px 0;text-align:right;color:#374151;font-weight:600;">${fmt(balanceRemaining)}</td></tr>
+      </table>
+
+      <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;margin-bottom:24px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 10px;font-weight:bold;color:#065f46;font-size:15px;">Payment Receipt</p>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Payment Method:</td><td style="padding:3px 0;color:#111827;font-size:14px;text-align:right;">${paymentMethodStr}</td></tr>
+            <tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Amount Paid:</td><td style="padding:3px 0;color:#111827;font-size:14px;font-weight:600;text-align:right;">${fmt(chargeAmountCents)}</td></tr>
+            <tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Payment Date:</td><td style="padding:3px 0;color:#111827;font-size:14px;text-align:right;">${paymentDate}</td></tr>
+            <tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Transaction ID:</td><td style="padding:3px 0;color:#111827;font-size:14px;text-align:right;">${shortId}</td></tr>
+          </table>
+        </td></tr>
+      </table>
+
+      <div style="text-align:center;margin-bottom:24px;">
+        <a href="${portalUrl}" style="display:inline-block;background-color:#2563eb;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:12px 32px;border-radius:6px;">Track Your Order</a>
+      </div>
+
+      <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;margin-bottom:24px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 8px;font-weight:bold;color:#1e40af;font-size:14px;">What's Next?</p>
+          <ul style="margin:0;padding-left:18px;color:#374151;font-size:14px;line-height:1.7;">
+            <li>We will contact you closer to your event date to confirm details</li>
+            <li>The remaining balance is due on or before your event date</li>
+            <li>Reply to this email or call us at ${biz.business_phone || "(313) 889-3860"} with questions</li>
+          </ul>
+        </td></tr>
+      </table>
+
+      <p style="margin:0 0 28px;color:#6b7280;font-size:14px;text-align:center;">Thank you for choosing ${biz.business_name || "Bounce Party Club"}!</p>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:16px 40px;background-color:#f9fafb;border-top:1px solid #e5e7eb;border-radius:0 0 8px 8px;text-align:center;">
+      <p style="margin:0;color:#6b7280;font-size:13px;">${biz.business_name || "Bounce Party Club"} | ${biz.business_phone || "(313) 889-3860"}</p>
+    </td>
+  </tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+
+        await supabaseClient.functions.invoke("send-email", {
+          body: {
+            to: fullOrder.customers.email,
+            subject: `Booking Confirmed - Receipt for Order #${shortId}`,
+            html: emailHtml,
+          },
+        });
+        console.log("[charge-deposit] Rich booking confirmation email sent");
+      }
     } catch (emailError) {
       console.error("Failed to send booking confirmation email:", emailError);
     }
