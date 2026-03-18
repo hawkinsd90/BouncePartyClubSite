@@ -158,6 +158,11 @@ export function ApprovalModal({
         }
 
         if (!chargeData?.success) {
+          if (chargeData?.needsNewCard) {
+            showToast('Your payment method is no longer valid. Please update your card and try again.', 'error');
+            if (isMountedRef.current) setSubmitting(false);
+            return;
+          }
           throw new Error(chargeData?.error || 'Payment processing failed');
         }
 
