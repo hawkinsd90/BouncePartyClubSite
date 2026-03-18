@@ -51,6 +51,7 @@ export function OrderApprovalView({
       const tenPct = Math.round(currentTotalCents * 0.1);
       const fifteenPct = Math.round(currentTotalCents * 0.15);
       const twentyPct = Math.round(currentTotalCents * 0.2);
+
       if (originalTipCents === tenPct) {
         setTipAmount('10');
         setCustomTipAmount('');
@@ -68,7 +69,7 @@ export function OrderApprovalView({
       setTipAmount('none');
       setCustomTipAmount('');
     }
-  }, [order.id]);
+  }, [order.id, currentDepositCents, currentTotalCents, order.customer_selected_payment_cents, order.tip_cents]);
 
   const newTipCents = calculateTipCents(tipAmount, customTipAmount, currentTotalCents);
 
@@ -85,7 +86,7 @@ export function OrderApprovalView({
   const selectedPaymentCents = selectedPaymentBaseCents + newTipCents;
 
   const recentChanges = changelog
-    .filter(c => c.change_type === 'edit' || c.change_type === 'add' || c.change_type === 'remove')
+    .filter((c) => c.change_type === 'edit' || c.change_type === 'add' || c.change_type === 'remove')
     .slice(0, 10);
 
   const alreadyPaidDeposit =
@@ -105,9 +106,7 @@ export function OrderApprovalView({
               />
               <div>
                 <h1 className="text-2xl font-bold">Order Changes Require Approval</h1>
-                <p className="text-sm opacity-90 mt-1">
-                  Order #{formatOrderId(order.id)}
-                </p>
+                <p className="text-sm opacity-90 mt-1">Order #{formatOrderId(order.id)}</p>
               </div>
             </div>
           </div>
@@ -132,6 +131,7 @@ export function OrderApprovalView({
                       : 'No date'}
                   </span>
                 </div>
+
                 {order.addresses && (
                   <div className="flex items-start gap-2">
                     <MapPin className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />
@@ -171,46 +171,54 @@ export function OrderApprovalView({
                   <span className="text-slate-600">Subtotal</span>
                   <span className="font-medium">{formatCurrency(order.subtotal_cents || 0)}</span>
                 </div>
+
                 {(order.travel_fee_cents || 0) > 0 && (
                   <div className="flex justify-between">
                     <span className="text-slate-600">Travel Fee</span>
                     <span className="font-medium">{formatCurrency(order.travel_fee_cents)}</span>
                   </div>
                 )}
+
                 {(order.surface_fee_cents || 0) > 0 && (
                   <div className="flex justify-between">
                     <span className="text-slate-600">Surface Fee</span>
                     <span className="font-medium">{formatCurrency(order.surface_fee_cents)}</span>
                   </div>
                 )}
+
                 {(order.generator_fee_cents || 0) > 0 && (
                   <div className="flex justify-between">
                     <span className="text-slate-600">Generator Fee</span>
                     <span className="font-medium">{formatCurrency(order.generator_fee_cents)}</span>
                   </div>
                 )}
+
                 {(order.same_day_pickup_fee_cents || 0) > 0 && (
                   <div className="flex justify-between">
                     <span className="text-slate-600">Same Day Pickup</span>
                     <span className="font-medium">{formatCurrency(order.same_day_pickup_fee_cents)}</span>
                   </div>
                 )}
+
                 {(order.tax_cents || 0) > 0 && (
                   <div className="flex justify-between">
                     <span className="text-slate-600">Tax</span>
                     <span className="font-medium">{formatCurrency(order.tax_cents)}</span>
                   </div>
                 )}
+
                 {(order.discount_cents || 0) > 0 && (
                   <div className="flex justify-between text-green-700">
                     <span>Discount</span>
                     <span className="font-medium">-{formatCurrency(order.discount_cents)}</span>
                   </div>
                 )}
+
                 <div className="flex justify-between pt-2 border-t border-slate-300 font-semibold">
                   <span>Total</span>
                   <span className="text-lg">{formatCurrency(currentTotalCents)}</span>
                 </div>
+
                 <div className="flex justify-between text-blue-700">
                   <span>Minimum Deposit</span>
                   <span className="font-medium">{formatCurrency(currentDepositCents)}</span>
@@ -224,13 +232,18 @@ export function OrderApprovalView({
                 <ul className="space-y-1">
                   {recentChanges.map((change: any, i: number) => (
                     <li key={i} className="text-sm text-blue-800">
-                      <span className="font-medium capitalize">{(change.field_changed || '').replace(/_/g, ' ')}</span>
+                      <span className="font-medium capitalize">
+                        {(change.field_changed || '').replace(/_/g, ' ')}
+                      </span>
+
                       {change.old_value && change.new_value && (
                         <span> changed from {change.old_value} to {change.new_value}</span>
                       )}
+
                       {!change.old_value && change.new_value && (
                         <span>: {change.new_value} added</span>
                       )}
+
                       {change.old_value && !change.new_value && (
                         <span>: {change.old_value} removed</span>
                       )}
@@ -245,9 +258,13 @@ export function OrderApprovalView({
                 <div>
                   <h3 className="font-semibold text-slate-900 mb-3">Payment Amount</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <label className={`flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                      paymentAmount === 'deposit' ? 'border-blue-600 bg-blue-50' : 'border-slate-300 hover:border-blue-400'
-                    }`}>
+                    <label
+                      className={`flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                        paymentAmount === 'deposit'
+                          ? 'border-blue-600 bg-blue-50'
+                          : 'border-slate-300 hover:border-blue-400'
+                      }`}
+                    >
                       <input
                         type="radio"
                         name="paymentAmount"
@@ -257,13 +274,19 @@ export function OrderApprovalView({
                         className="sr-only"
                       />
                       <span className="font-semibold text-slate-900">Minimum Deposit</span>
-                      <span className="text-lg font-bold text-blue-600 mt-1">{formatCurrency(currentDepositCents)}</span>
+                      <span className="text-lg font-bold text-blue-600 mt-1">
+                        {formatCurrency(currentDepositCents)}
+                      </span>
                       <span className="text-xs text-slate-600 mt-1">Pay balance at event</span>
                     </label>
 
-                    <label className={`flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                      paymentAmount === 'full' ? 'border-green-600 bg-green-50' : 'border-slate-300 hover:border-green-400'
-                    }`}>
+                    <label
+                      className={`flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                        paymentAmount === 'full'
+                          ? 'border-green-600 bg-green-50'
+                          : 'border-slate-300 hover:border-green-400'
+                      }`}
+                    >
                       <input
                         type="radio"
                         name="paymentAmount"
@@ -273,13 +296,19 @@ export function OrderApprovalView({
                         className="sr-only"
                       />
                       <span className="font-semibold text-slate-900">Full Payment</span>
-                      <span className="text-lg font-bold text-green-600 mt-1">{formatCurrency(currentTotalCents)}</span>
+                      <span className="text-lg font-bold text-green-600 mt-1">
+                        {formatCurrency(currentTotalCents)}
+                      </span>
                       <span className="text-xs text-slate-600 mt-1">Nothing due at event</span>
                     </label>
 
-                    <label className={`flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all sm:col-span-2 ${
-                      paymentAmount === 'custom' ? 'border-teal-600 bg-teal-50' : 'border-slate-300 hover:border-teal-400'
-                    }`}>
+                    <label
+                      className={`flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all sm:col-span-2 ${
+                        paymentAmount === 'custom'
+                          ? 'border-teal-600 bg-teal-50'
+                          : 'border-slate-300 hover:border-teal-400'
+                      }`}
+                    >
                       <input
                         type="radio"
                         name="paymentAmount"
@@ -289,6 +318,7 @@ export function OrderApprovalView({
                         className="sr-only"
                       />
                       <span className="font-semibold text-slate-900">Custom Amount</span>
+
                       {paymentAmount === 'custom' && (
                         <div className="mt-2 relative">
                           <span className="absolute left-3 top-2.5 text-slate-600">$</span>
@@ -342,6 +372,7 @@ export function OrderApprovalView({
                 <XCircle className="w-5 h-5" />
                 Reject Changes
               </button>
+
               <button
                 onClick={() => setShowApprovalModal(true)}
                 className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-colors"
@@ -353,7 +384,9 @@ export function OrderApprovalView({
 
             {order.admin_message && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-xs font-semibold text-blue-700 mb-1">Message from Bounce Party Club</p>
+                <p className="text-xs font-semibold text-blue-700 mb-1">
+                  Message from Bounce Party Club
+                </p>
                 <p className="text-sm text-blue-900">{order.admin_message}</p>
               </div>
             )}
