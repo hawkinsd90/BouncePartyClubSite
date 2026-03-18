@@ -115,18 +115,6 @@ export function ApprovalModal({
 
       if (updateError) throw updateError;
 
-      // Log the approval
-      const { error: logError } = await supabase.from('order_changelog').insert({
-        order_id: order.id,
-        user_id: null,
-        change_type: 'customer_approval',
-        field_changed: 'status',
-        old_value: 'awaiting_customer_approval',
-        new_value: 'approved',
-      });
-
-      if (logError) console.error('Error logging approval:', logError);
-
       // Check if customer already paid the initial deposit
       // Use stripe_payment_status as the source of truth — deposit_paid_cents can be stale after admin edits
       const alreadyPaidDeposit =

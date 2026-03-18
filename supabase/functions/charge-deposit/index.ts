@@ -230,6 +230,16 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Log the customer approval to changelog (service role bypasses RLS)
+    await supabaseClient.from("order_changelog").insert({
+      order_id: orderId,
+      user_id: null,
+      change_type: "customer_approval",
+      field_changed: "status",
+      old_value: "awaiting_customer_approval",
+      new_value: "confirmed",
+    });
+
     // Update order as paid & confirmed
     // IMPORTANT: deposit_paid_cents should NOT include tip
     const { error: updateError } = await supabaseClient
