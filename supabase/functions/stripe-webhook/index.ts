@@ -468,15 +468,16 @@ async function processWebhookEvent(
             // Handle deposit payment.
             // amountReceived is the FULL charged amount (base + tip).
             // deposit_paid_cents must store BASE ONLY, never tip.
-            // Fetch the order to read tip_cents before writing.
+            // checkout.session.completed fires before payment_intent.succeeded and
+            // already writes deposit_paid_cents using tip_cents from session metadata
+            // (the authoritative source). If it already did so, skip the deposit
+            // amount write to avoid a race condition where tip_cents may not yet be
+            // persisted on the order row when this handler runs.
             const { data: depositOrder } = await supabaseClient
               .from("orders")
-              .select("tip_cents")
+              .select("tip_cents, deposit_paid_cents, stripe_payment_status")
               .eq("id", orderId)
               .maybeSingle();
-
-            const storedTipCents = depositOrder?.tip_cents || 0;
-            const depositOnlyFromPI = Math.max(0, amountReceived - storedTipCents);
 
             const { data: invoiceLink } = await supabaseClient
               .from("invoice_links")
@@ -487,16 +488,36 @@ async function processWebhookEvent(
             const isAdminInvoice = !!invoiceLink;
             const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
 
-            await supabaseClient
-              .from("orders")
-              .update({
-                stripe_payment_status: "paid",
-                stripe_payment_method_id: paymentMethodId,
-                stripe_customer_id: stripeCustomerId,
-                deposit_paid_cents: depositOnlyFromPI,
-                status: newStatus,
-              })
-              .eq("id", orderId);
+            const alreadyRecordedByCheckout =
+              depositOrder?.stripe_payment_status === "paid" &&
+              (depositOrder?.deposit_paid_cents || 0) > 0;
+
+            if (!alreadyRecordedByCheckout) {
+              const storedTipCents = depositOrder?.tip_cents || 0;
+              const depositOnlyFromPI = Math.max(0, amountReceived - storedTipCents);
+
+              await supabaseClient
+                .from("orders")
+                .update({
+                  stripe_payment_status: "paid",
+                  stripe_payment_method_id: paymentMethodId,
+                  stripe_customer_id: stripeCustomerId,
+                  deposit_paid_cents: depositOnlyFromPI,
+                  status: newStatus,
+                })
+                .eq("id", orderId);
+            } else {
+              // checkout.session.completed already wrote deposit_paid_cents correctly;
+              // only update payment method fields and status.
+              await supabaseClient
+                .from("orders")
+                .update({
+                  stripe_payment_method_id: paymentMethodId,
+                  stripe_customer_id: stripeCustomerId,
+                  status: newStatus,
+                })
+                .eq("id", orderId);
+            }
           }
         }
         break;

@@ -83,7 +83,7 @@ Deno.serve(async (req: Request) => {
     const { data: order, error: orderError } = await supabaseClient
       .from("orders")
       .select(
-        "id, stripe_customer_id, stripe_payment_method_id, deposit_due_cents, tip_cents, deposit_paid_cents, status, customer_selected_payment_cents, subtotal_cents, travel_fee_cents, surface_fee_cents, same_day_pickup_fee_cents, generator_fee_cents, tax_cents, discount_cents"
+        "id, stripe_customer_id, stripe_payment_method_id, deposit_due_cents, tip_cents, deposit_paid_cents, status, customer_selected_payment_cents, subtotal_cents, travel_fee_cents, surface_fee_cents, same_day_pickup_fee_cents, generator_fee_cents, tax_cents, discount_cents, order_custom_fees(amount_cents)"
       )
       .eq("id", orderId)
       .maybeSingle();
@@ -241,16 +241,18 @@ Deno.serve(async (req: Request) => {
     });
 
     // Recalculate balance_due_cents based on current order totals minus what was just paid.
-    // tip and discount are both excluded from the base order total:
-    //   - tip is tracked separately in tip_cents
-    //   - discount reduces the total the customer owes
+    // tip is tracked separately in tip_cents and is NOT part of the base order total.
+    // custom fees (order_custom_fees rows) are included in the base total.
+    const customFeesCents = ((order.order_custom_fees as Array<{ amount_cents: number }>) || [])
+      .reduce((sum: number, f: { amount_cents: number }) => sum + (f.amount_cents || 0), 0);
     const orderTotal =
       (order.subtotal_cents || 0) +
       (order.travel_fee_cents || 0) +
       (order.surface_fee_cents || 0) +
       (order.same_day_pickup_fee_cents || 0) +
       (order.generator_fee_cents || 0) +
-      (order.tax_cents || 0) -
+      (order.tax_cents || 0) +
+      customFeesCents -
       (order.discount_cents || 0);
     const newBalanceDue = Math.max(0, orderTotal - paymentAmountCents);
 
@@ -404,9 +406,11 @@ Deno.serve(async (req: Request) => {
         const travelFee = fullOrder.travel_fee_cents || 0;
         const surfaceFee = fullOrder.surface_fee_cents || 0;
         const sameDayFee = fullOrder.same_day_pickup_fee_cents || 0;
+        const generatorFee = fullOrder.generator_fee_cents || 0;
+        const discount = fullOrder.discount_cents || 0;
         const tax = fullOrder.tax_cents || 0;
         const tip = fullOrder.tip_cents || 0;
-        const total = subtotal + travelFee + surfaceFee + sameDayFee + tax;
+        const total = subtotal + travelFee + surfaceFee + sameDayFee + generatorFee + tax - discount;
         const depositPaid = paymentAmountCents;
         const balanceRemaining = Math.max(0, total - depositPaid);
 
@@ -414,6 +418,8 @@ Deno.serve(async (req: Request) => {
           travelFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Travel Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(travelFee)}</td></tr>` : "",
           surfaceFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Surface Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(surfaceFee)}</td></tr>` : "",
           sameDayFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Same Day Pickup</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(sameDayFee)}</td></tr>` : "",
+          generatorFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Generator Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(generatorFee)}</td></tr>` : "",
+          discount > 0 ? `<tr><td style="padding:4px 0;color:#059669;font-size:14px;">Discount</td><td style="padding:4px 0;text-align:right;color:#059669;font-size:14px;">-${fmt(discount)}</td></tr>` : "",
           tax > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Tax</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(tax)}</td></tr>` : "",
           tip > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Tip</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(tip)}</td></tr>` : "",
         ].join("");
