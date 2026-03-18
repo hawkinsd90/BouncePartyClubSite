@@ -169,7 +169,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     if (orderItems.length > 0) {
       loadCurrentSummary();
     }
-  }, [orderItems, order]);
+  }, [orderItems, order, discounts, customFees]);
 
   useEffect(() => {
     loadOrderDetails();
