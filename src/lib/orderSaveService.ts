@@ -212,9 +212,8 @@ export async function saveOrderChanges({
       logs.push(['deposit_due', order.deposit_due_cents, finalDepositCents]);
     }
 
-    const newBalanceDue = calculatedPricing.total_cents - finalDepositCents;
-    if (newBalanceDue !== order.balance_due_cents) {
-      logs.push(['balance_due', order.balance_due_cents, newBalanceDue]);
+    if (changes.balance_due_cents !== order.balance_due_cents) {
+      logs.push(['balance_due', order.balance_due_cents, changes.balance_due_cents]);
     }
 
     const newTotal = calculatedPricing.total_cents;

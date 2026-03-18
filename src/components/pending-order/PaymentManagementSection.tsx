@@ -71,10 +71,15 @@ export function PaymentManagementSection({ order, payments }: PaymentManagementS
           </div>
 
           <div className="bg-slate-50 border border-slate-200 rounded p-3">
-            <div className="text-xs text-slate-700 mb-1">Full Amount Due (before approval)</div>
+            <div className="text-xs text-slate-700 mb-1">Full Order Balance (before approval)</div>
             <div className="text-lg font-bold text-slate-900">
-              {formatCurrency(orderTotalCents + tipCents)}
+              {formatCurrency(orderTotalCents)}
             </div>
+            {tipCents > 0 && (
+              <div className="text-xs text-slate-500 mt-1">
+                + Tip: {formatCurrency(tipCents)} (charged separately)
+              </div>
+            )}
             <div className="text-xs text-slate-500 mt-1">
               Projected balance after approval: {formatCurrency(Math.max(0, orderTotalCents - selectedPaymentBaseCents))}
             </div>
