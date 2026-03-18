@@ -144,7 +144,17 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         generator_qty: order.generator_qty || 0,
         tax_cents: order.tax_cents || 0,
         tip_cents: order.tip_cents || 0,
-        total_cents: order.subtotal_cents + (order.generator_fee_cents || 0) + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents,
+        total_cents: (() => {
+          const subtotal = order.subtotal_cents || 0;
+          const fees = (order.travel_fee_cents || 0) + (order.surface_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.generator_fee_cents || 0);
+          const totalCustomFees = customFees.filter(f => !f.is_new).reduce((sum: number, f: any) => sum + (f.amount_cents || 0), 0);
+          const totalDiscounts = discounts.filter(d => !d.is_new).reduce((sum: number, d: any) => {
+            if (d.percentage) return sum + Math.round(subtotal * (d.percentage / 100));
+            return sum + (d.amount_cents || 0);
+          }, 0);
+          const tax = order.tax_cents || 0;
+          return subtotal + fees + totalCustomFees - totalDiscounts + tax;
+        })(),
         deposit_due_cents: order.deposit_due_cents,
         deposit_paid_cents: order.deposit_paid_cents || 0,
         balance_due_cents: order.balance_due_cents,
