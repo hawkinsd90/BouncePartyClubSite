@@ -43,6 +43,8 @@ export function OrderApprovalView({
 
   const currentDepositCents = order.deposit_due_cents || 0;
   const originalPaymentCents = order.customer_selected_payment_cents || 0;
+  const originalTipCentsStored = order.tip_cents || 0;
+  const originalPaymentWithTipCents = originalPaymentCents + originalTipCentsStored;
   const originalMeetsMinimum = originalPaymentCents >= currentDepositCents;
   const hadOriginalPaymentSelection = originalPaymentCents > 0;
 
@@ -262,13 +264,18 @@ export function OrderApprovalView({
                     />
                     <div>
                       <span className="font-semibold text-slate-900">Keep original payment amount</span>
-                      <span className="text-blue-700 font-bold ml-2">{formatCurrency(originalPaymentCents)}</span>
+                      <span className="text-blue-700 font-bold ml-2">{formatCurrency(originalPaymentWithTipCents)}</span>
+                      {originalTipCentsStored > 0 && (
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {formatCurrency(originalPaymentCents)} + {formatCurrency(originalTipCentsStored)} tip
+                        </p>
+                      )}
                       {!originalMeetsMinimum && (
                         <p className="text-xs text-red-600 font-medium mt-0.5">
                           Your original amount is below the new minimum deposit of {formatCurrency(currentDepositCents)}. Please uncheck to select a new payment amount.
                         </p>
                       )}
-                      {originalMeetsMinimum && (
+                      {originalMeetsMinimum && !originalTipCentsStored && (
                         <p className="text-xs text-slate-500 mt-0.5">Use the amount you originally selected</p>
                       )}
                     </div>
