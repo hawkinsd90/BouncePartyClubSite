@@ -19,7 +19,7 @@ export const RATE_LIMIT_CONFIGS: Record<string, RateLimitConfig> = {
   'stripe-charge': { maxRequests: 3, windowSeconds: 60 },
   'stripe-refund': { maxRequests: 2, windowSeconds: 60 },
   'customer-balance-payment': { maxRequests: 5, windowSeconds: 60 },
-  'charge-deposit': { maxRequests: 3, windowSeconds: 60 },
+  'charge-deposit': { maxRequests: 10, windowSeconds: 60 },
   'customer-cancel-order': { maxRequests: 3, windowSeconds: 300 },
   'save-signature': { maxRequests: 5, windowSeconds: 60 },
   'send-invoice': { maxRequests: 10, windowSeconds: 60 },

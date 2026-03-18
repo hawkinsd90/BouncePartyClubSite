@@ -15,6 +15,13 @@ export function CustomerPortal() {
   const [searchParams] = useSearchParams();
   const isInvoiceLink = location.pathname.startsWith('/invoice/');
   const cardJustUpdated = searchParams.get('card_updated') === 'true';
+  const restoredPaymentState = cardJustUpdated ? {
+    paymentAmount: (searchParams.get('pa') || 'deposit') as 'deposit' | 'full' | 'custom',
+    customPaymentAmount: searchParams.get('cpa') || '',
+    newTipCents: searchParams.get('tip') ? parseInt(searchParams.get('tip')!) : undefined,
+    keepOriginalPayment: searchParams.get('kop') !== '0',
+    selectedPaymentBaseCents: searchParams.get('spb') ? parseInt(searchParams.get('spb')!) : undefined,
+  } : undefined;
   const [approvalSuccess, setApprovalSuccess] = useState(false);
 
   const { data, loading, loadOrder } = useOrderData();
@@ -88,6 +95,7 @@ export function CustomerPortal() {
         changelog={changelog}
         orderSummary={orderSummary}
         autoOpenApprovalModal={cardJustUpdated}
+        restoredPaymentState={restoredPaymentState}
         onApprovalSuccess={() => {
           setApprovalSuccess(true);
         }}

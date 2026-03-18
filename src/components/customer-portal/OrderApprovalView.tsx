@@ -8,11 +8,20 @@ import { ApprovalModal } from './ApprovalModal';
 import { RejectionModal } from './RejectionModal';
 import { useBusinessSettings } from '../../contexts/BusinessContext';
 
+interface RestoredPaymentState {
+  paymentAmount: 'deposit' | 'full' | 'custom';
+  customPaymentAmount: string;
+  newTipCents?: number;
+  keepOriginalPayment: boolean;
+  selectedPaymentBaseCents?: number;
+}
+
 interface OrderApprovalViewProps {
   order: any;
   changelog: any[];
   orderSummary: any;
   autoOpenApprovalModal?: boolean;
+  restoredPaymentState?: RestoredPaymentState;
   onApprovalSuccess: () => void;
   onRejectionSuccess: () => void;
 }
@@ -22,6 +31,7 @@ export function OrderApprovalView({
   changelog,
   orderSummary,
   autoOpenApprovalModal = false,
+  restoredPaymentState,
   onApprovalSuccess,
   onRejectionSuccess,
 }: OrderApprovalViewProps) {
@@ -66,7 +76,16 @@ export function OrderApprovalView({
   );
 
   useEffect(() => {
-    if (autoOpenApprovalModal) {
+    if (autoOpenApprovalModal && restoredPaymentState) {
+      setPaymentAmount(restoredPaymentState.paymentAmount);
+      setCustomPaymentAmount(restoredPaymentState.customPaymentAmount || '');
+      setKeepOriginalPayment(restoredPaymentState.keepOriginalPayment);
+      if (restoredPaymentState.newTipCents !== undefined && restoredPaymentState.newTipCents > 0) {
+        setTipAmount('custom');
+        setCustomTipAmount((restoredPaymentState.newTipCents / 100).toFixed(2));
+      }
+      setShowApprovalModal(true);
+    } else if (autoOpenApprovalModal) {
       setShowApprovalModal(true);
     }
   }, [autoOpenApprovalModal]);
@@ -467,6 +486,7 @@ export function OrderApprovalView({
         newTipCents={newTipCents}
         keepOriginalPayment={keepOriginalPayment}
         paymentAmount={paymentAmount}
+        customPaymentAmount={customPaymentAmount}
       />
 
       <RejectionModal

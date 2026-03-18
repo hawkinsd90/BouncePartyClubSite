@@ -16,6 +16,7 @@ interface ApprovalModalProps {
   newTipCents: number;
   keepOriginalPayment: boolean;
   paymentAmount: 'deposit' | 'full' | 'custom';
+  customPaymentAmount?: string;
 }
 
 export function ApprovalModal({
@@ -28,6 +29,7 @@ export function ApprovalModal({
   newTipCents,
   keepOriginalPayment,
   paymentAmount,
+  customPaymentAmount = '',
 }: ApprovalModalProps) {
   const [confirmName, setConfirmName] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -59,6 +61,13 @@ export function ApprovalModal({
           body: {
             orderId: order.id,
             setupMode: true,
+            paymentState: {
+              paymentAmount,
+              customPaymentAmount,
+              newTipCents,
+              keepOriginalPayment,
+              selectedPaymentBaseCents,
+            },
           },
         }
       );
