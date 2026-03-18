@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { CreditCard, CreditCard as Edit2, MapPin, Calendar } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
-import { loadStripe } from '@stripe/stripe-js';
 import { formatOrderId } from '../../lib/utils';
 import { format } from 'date-fns';
 import { formatCurrency } from '../../lib/pricing';
@@ -54,32 +53,21 @@ export function ApprovalModal({
   async function handleUpdateCard() {
     setUpdatingCard(true);
     try {
-      const { data: keyData } = await supabase.functions.invoke('get-stripe-publishable-key');
-      if (!keyData?.publishableKey) throw new Error('Failed to get Stripe key');
-
-      const stripe = await loadStripe(keyData.publishableKey);
-      if (!stripe) throw new Error('Failed to load Stripe');
-
       const { data: sessionData, error: sessionError } = await supabase.functions.invoke(
         'stripe-checkout',
         {
           body: {
             orderId: order.id,
-            amount: 0,
             setupMode: true,
           },
         }
       );
 
-      if (sessionError || !sessionData?.sessionId) {
+      if (sessionError || !sessionData?.url) {
         throw new Error(sessionError?.message || 'Failed to create checkout session');
       }
 
-      const { error: stripeError } = await stripe.redirectToCheckout({
-        sessionId: sessionData.sessionId,
-      });
-
-      if (stripeError) throw stripeError;
+      window.location.href = sessionData.url;
     } catch (error: any) {
       console.error('Error updating card:', error);
       showToast('Failed to update payment method. Please try again.', 'error');

@@ -22,7 +22,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { orderId, depositCents, tipCents = 0, customerEmail, customerName } = await req.json();
+    const { orderId, depositCents, tipCents = 0, customerEmail, customerName, setupMode = false } = await req.json();
 
     const ip = getIdentifier(req);
     const identifier = buildRateLimitKey(ip, orderId, 'checkout');
@@ -46,7 +46,7 @@ Deno.serve(async (req: Request) => {
       return createRateLimitResponse(rateLimitResult, corsHeaders);
     }
 
-    if (!orderId || !depositCents) {
+    if (!orderId || (!depositCents && !setupMode)) {
       return new Response(
         JSON.stringify({ success: false, error: "Missing required fields" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -116,14 +116,14 @@ Deno.serve(async (req: Request) => {
       cancel_url: `${req.headers.get("origin")}/payment-canceled?order_id=${orderId}`,
       metadata: {
         order_id: orderId,
-        payment_type: "deposit",
-        deposit_amount: depositCents.toString(),
+        payment_type: setupMode ? "card_update" : "deposit",
+        deposit_amount: depositCents ? depositCents.toString() : "0",
         tip_cents: tipCents.toString(),
       },
     });
 
     return new Response(
-      JSON.stringify({ url: session.url }),
+      JSON.stringify({ url: session.url, sessionId: session.id }),
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
