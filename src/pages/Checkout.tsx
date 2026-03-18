@@ -47,7 +47,6 @@ export function Checkout() {
   const [customAmount, setCustomAmount] = useState('');
 
   const handleViewInvoice = () => {
-    // Store the invoice data in sessionStorage for the new tab to read
     const invoiceData = {
       quoteData,
       priceBreakdown,
@@ -55,13 +54,7 @@ export function Checkout() {
       contactData,
     };
     sessionStorage.setItem('invoice-preview-data', JSON.stringify(invoiceData));
-
-    // Store where to return when user clicks Back
-    const returnTo = window.location.pathname + window.location.search + window.location.hash;
-    sessionStorage.setItem('invoice-preview-return-to', returnTo);
-
-    // Same tab navigation (no new tab)
-    navigate('/invoice-preview');
+    window.open('/invoice-preview', '_blank');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
