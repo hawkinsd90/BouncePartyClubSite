@@ -3,7 +3,6 @@ import { format } from 'date-fns';
 import { CheckCircle, XCircle, Phone, MapPin, Calendar, Package } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
-import { calculateTipCents } from '../payment/TipSelector';
 import { ApprovalModal } from './ApprovalModal';
 import { RejectionModal } from './RejectionModal';
 import { useBusinessSettings } from '../../contexts/BusinessContext';
@@ -24,11 +23,9 @@ export function OrderApprovalView({
   onRejectionSuccess,
 }: OrderApprovalViewProps) {
   const business = useBusinessSettings();
-  const [keepOriginalPayment, setKeepOriginalPayment] = useState(false);
+  const [keepOriginalPayment, setKeepOriginalPayment] = useState(true);
   const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
   const [customPaymentAmount, setCustomPaymentAmount] = useState('');
-  const [tipAmount] = useState<'none' | '10' | '15' | '20' | 'custom'>('none');
-  const [customTipAmount] = useState('');
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [showRejectionModal, setShowRejectionModal] = useState(false);
 
@@ -56,11 +53,17 @@ export function OrderApprovalView({
   );
 
   useEffect(() => {
-    setKeepOriginalPayment(originalMeetsMinimum);
-    setPaymentAmount('deposit');
-  }, [order.id, originalMeetsMinimum]);
-
-  const newTipCents = calculateTipCents(tipAmount, customTipAmount, currentTotalCents);
+    setKeepOriginalPayment(hadOriginalPaymentSelection);
+    const storedType = order.customer_selected_payment_type;
+    if (storedType === 'full') {
+      setPaymentAmount('full');
+    } else if (storedType === 'custom') {
+      setPaymentAmount('custom');
+      setCustomPaymentAmount((originalPaymentCents / 100).toFixed(2));
+    } else {
+      setPaymentAmount('deposit');
+    }
+  }, [order.id]);
 
   const selectedPaymentBaseCents = (() => {
     if (keepOriginalPayment) return originalPaymentCents || currentDepositCents;
@@ -72,7 +75,16 @@ export function OrderApprovalView({
     return currentDepositCents;
   })();
 
-  const selectedPaymentCents = selectedPaymentBaseCents + newTipCents;
+  const isApproveDisabled = (() => {
+    if (keepOriginalPayment && !originalMeetsMinimum) return true;
+    if (!keepOriginalPayment) {
+      if (paymentAmount === 'custom') {
+        const amt = Math.round(parseFloat(customPaymentAmount || '0') * 100);
+        return amt < currentDepositCents;
+      }
+    }
+    return false;
+  })();
 
   const alreadyPaidDeposit =
     order.stripe_payment_status === 'paid' ||
@@ -224,19 +236,21 @@ export function OrderApprovalView({
                 <h3 className="font-semibold text-slate-900 mb-3">Payment Amount</h3>
 
                 {hadOriginalPaymentSelection && (
-                  <label className="flex items-center gap-3 p-4 border-2 border-blue-200 bg-blue-50 rounded-lg cursor-pointer mb-3">
+                  <label className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer mb-3 ${
+                    keepOriginalPayment ? 'border-blue-400 bg-blue-50' : 'border-slate-200 bg-white'
+                  }`}>
                     <input
                       type="checkbox"
                       checked={keepOriginalPayment}
                       onChange={(e) => setKeepOriginalPayment(e.target.checked)}
-                      className="w-4 h-4 text-blue-600 rounded"
+                      className="w-4 h-4 text-blue-600 rounded flex-shrink-0"
                     />
                     <div>
                       <span className="font-semibold text-slate-900">Keep original payment amount</span>
                       <span className="text-blue-700 font-bold ml-2">{formatCurrency(originalPaymentCents)}</span>
                       {!originalMeetsMinimum && (
-                        <p className="text-xs text-amber-600 mt-0.5">
-                          Note: deposit increased to {formatCurrency(currentDepositCents)} — a difference of {formatCurrency(currentDepositCents - originalPaymentCents)} more will be due
+                        <p className="text-xs text-red-600 font-medium mt-0.5">
+                          Your original amount is below the new minimum deposit of {formatCurrency(currentDepositCents)}. Please uncheck to select a new payment amount.
                         </p>
                       )}
                       {originalMeetsMinimum && (
@@ -354,11 +368,22 @@ export function OrderApprovalView({
             <div className="flex flex-col gap-3 pt-2">
               <button
                 onClick={() => setShowApprovalModal(true)}
-                className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-colors"
+                disabled={isApproveDisabled}
+                className={`flex items-center justify-center gap-2 font-bold py-3 px-4 rounded-lg transition-colors ${
+                  isApproveDisabled
+                    ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700 text-white'
+                }`}
               >
                 <CheckCircle className="w-5 h-5" />
                 Approve Changes
               </button>
+
+              {isApproveDisabled && keepOriginalPayment && !originalMeetsMinimum && (
+                <p className="text-xs text-red-600 text-center -mt-1">
+                  Uncheck "Keep original payment amount" to select a valid payment option before approving.
+                </p>
+              )}
 
               <a
                 href={`tel:${(business?.business_phone || '').replace(/\D/g, '')}`}
@@ -385,9 +410,9 @@ export function OrderApprovalView({
         onClose={() => setShowApprovalModal(false)}
         order={order}
         onSuccess={onApprovalSuccess}
-        selectedPaymentCents={selectedPaymentCents}
+        selectedPaymentCents={selectedPaymentBaseCents}
         selectedPaymentBaseCents={selectedPaymentBaseCents}
-        newTipCents={newTipCents}
+        newTipCents={0}
         keepOriginalPayment={keepOriginalPayment}
       />
 
