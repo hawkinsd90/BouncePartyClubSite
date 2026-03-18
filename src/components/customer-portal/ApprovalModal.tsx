@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { CreditCard, CreditCard as Edit2, MapPin, Calendar } from 'lucide-react';
+import { CreditCard, CreditCard as Edit2, MapPin, Calendar, AlertTriangle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
 import { formatOrderId } from '../../lib/utils';
@@ -34,6 +34,8 @@ export function ApprovalModal({
   const [confirmName, setConfirmName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [updatingCard, setUpdatingCard] = useState(false);
+  const [cardDeclined, setCardDeclined] = useState(false);
+  const [declineMessage, setDeclineMessage] = useState('');
   const isMountedRef = useRef(true);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -164,13 +166,13 @@ export function ApprovalModal({
             })
             .eq('id', order.id);
 
-          if (chargeData?.needsNewCard) {
-            showToast('Your payment method is no longer valid. Please update your card and try again.', 'error');
-            if (isMountedRef.current) setSubmitting(false);
-            return;
+          const errMsg = chargeError?.message || chargeData?.error || 'Your card was declined. Please update your payment information and try again.';
+          if (isMountedRef.current) {
+            setDeclineMessage(errMsg);
+            setCardDeclined(true);
+            setSubmitting(false);
           }
-          const errMsg = chargeError?.message || chargeData?.error || 'Payment processing failed';
-          throw new Error(errMsg);
+          return;
         }
 
         showToast('Order approved and payment processed successfully!', 'success');
@@ -310,6 +312,26 @@ export function ApprovalModal({
               </div>
             </div>
           </div>
+
+          {cardDeclined && (
+            <div className="mb-3 p-3 bg-red-50 border border-red-300 rounded-lg">
+              <div className="flex items-start gap-2 mb-2">
+                <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-red-800">Payment Declined</p>
+                  <p className="text-xs text-red-700 mt-0.5">{declineMessage}</p>
+                </div>
+              </div>
+              <button
+                onClick={handleUpdateCard}
+                disabled={updatingCard}
+                className="w-full mt-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-semibold text-sm py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <CreditCard className="w-4 h-4" />
+                {updatingCard ? 'Loading...' : 'Update Payment Method'}
+              </button>
+            </div>
+          )}
 
           <div className="mb-4">
             <label className="block text-xs font-medium text-slate-700 mb-1.5">

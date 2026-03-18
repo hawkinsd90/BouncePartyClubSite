@@ -76,21 +76,23 @@ export function OrderApprovalView({
   );
 
   useEffect(() => {
-    if (autoOpenApprovalModal && restoredPaymentState) {
+    if (restoredPaymentState) {
       setPaymentAmount(restoredPaymentState.paymentAmount);
       setCustomPaymentAmount(restoredPaymentState.customPaymentAmount || '');
       setKeepOriginalPayment(restoredPaymentState.keepOriginalPayment);
       if (restoredPaymentState.newTipCents !== undefined && restoredPaymentState.newTipCents > 0) {
         setTipAmount('custom');
         setCustomTipAmount((restoredPaymentState.newTipCents / 100).toFixed(2));
+      } else {
+        setTipAmount('none');
+        setCustomTipAmount('');
       }
-      setShowApprovalModal(true);
-    } else if (autoOpenApprovalModal) {
-      setShowApprovalModal(true);
+      if (autoOpenApprovalModal) {
+        setShowApprovalModal(true);
+      }
+      return;
     }
-  }, [autoOpenApprovalModal]);
 
-  useEffect(() => {
     setKeepOriginalPayment(hadOriginalPaymentSelection);
     const storedType = order.customer_selected_payment_type;
     if (storedType === 'full') {
@@ -109,7 +111,11 @@ export function OrderApprovalView({
       setTipAmount('none');
       setCustomTipAmount('');
     }
-  }, [order.id]);
+
+    if (autoOpenApprovalModal) {
+      setShowApprovalModal(true);
+    }
+  }, [order.id, autoOpenApprovalModal]);
 
   const newTipCents = calculateTipCents(tipAmount, customTipAmount, currentTotalCents);
 

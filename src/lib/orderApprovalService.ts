@@ -74,7 +74,37 @@ export async function approveOrder(
 
     if (!response.ok || !data.success) {
       console.error('Charge deposit failed:', data);
-      throw new Error(data.error || 'Failed to charge card');
+      // Send decline notification to customer
+      try {
+        const { data: fullOrder } = await supabase
+          .from('orders')
+          .select('*, customers(*), addresses(*)')
+          .eq('id', orderId)
+          .single();
+
+        if (fullOrder?.customers?.email) {
+          const portalUrl = `${window.location.origin}/customer-portal/${orderId}`;
+          const declineEmailHtml = generateCardDeclinedEmail(fullOrder, portalUrl);
+          await sendEmail({
+            to: fullOrder.customers.email,
+            subject: `Action Required: Payment Declined for Order #${formatOrderId(orderId)}`,
+            html: declineEmailHtml,
+          });
+        }
+
+        if (fullOrder?.customers?.first_name) {
+          const declineSms = `Bounce Party Club: Hi ${fullOrder.customers.first_name}, your card was declined for Order #${formatOrderId(orderId)}. Your booking could not be confirmed. Please update your payment method at: ${window.location.origin}/customer-portal/${orderId}`;
+          try {
+            await sendSms(declineSms);
+          } catch (_smsErr) {
+            console.error('Failed to send decline SMS');
+          }
+        }
+      } catch (notifyErr) {
+        console.error('Failed to send decline notifications:', notifyErr);
+      }
+
+      throw new Error(data.error || 'Failed to charge card. Customer has been notified via email and SMS.');
     }
 
     console.log('Deposit charged successfully:', data);
@@ -289,6 +319,43 @@ export async function rejectOrder(
     console.error('Error rejecting order:', error);
     return { success: false, error: error.message || 'Failed to reject order' };
   }
+}
+
+function generateCardDeclinedEmail(order: any, portalUrl: string): string {
+  const firstName = order.customers?.first_name || 'Customer';
+  const shortId = order.id.replace(/-/g, '').toUpperCase().slice(0, 8);
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Arial,sans-serif;background-color:#f5f5f5;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5;padding:20px;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;border:1px solid #fecaca;">
+  <tr>
+    <td align="center" style="padding:24px 40px 16px;border-bottom:2px solid #fecaca;background-color:#fef2f2;border-radius:8px 8px 0 0;">
+      <h1 style="margin:0;color:#dc2626;font-size:24px;font-weight:bold;">Payment Declined</h1>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:28px 40px;">
+      <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi ${firstName},</p>
+      <p style="margin:0 0 16px;color:#374151;font-size:15px;">
+        We were unable to process your payment for Order <strong>#${shortId}</strong>. Your card was declined and your booking could not be confirmed.
+      </p>
+      <p style="margin:0 0 24px;color:#374151;font-size:15px;">
+        To save your booking, please visit your customer portal to update your payment method and try again.
+      </p>
+      <div style="text-align:center;margin-bottom:24px;">
+        <a href="${portalUrl}" style="display:inline-block;background-color:#2563eb;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:14px 36px;border-radius:6px;">Update Payment Method</a>
+      </div>
+      <p style="margin:0;color:#6b7280;font-size:13px;text-align:center;">If you have questions, please call us at (313) 889-3860.</p>
+    </td>
+  </tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
 }
 
 async function sendConfirmationEmail(orderWithItems: any, totalCents: number) {

@@ -15,6 +15,8 @@ import { LotPicturesDisplay } from '../pending-order/LotPicturesDisplay';
 import { ApprovalModal } from '../pending-order/ApprovalModal';
 import { RejectionModal } from '../pending-order/RejectionModal';
 import { PaymentLinkSection } from '../pending-order/PaymentLinkSection';
+import { AlertTriangle } from 'lucide-react';
+import { formatCurrency } from '../../lib/pricing';
 
 export interface PendingOrderCardRef {
   card: HTMLElement;
@@ -53,11 +55,13 @@ export const PendingOrderCard = forwardRef<PendingOrderCardRef, {
     contact,
     orderSummary,
     customFees,
+    customerDamageRecords,
     loadSmsConversations,
     loadContact,
     loadPayments,
     loadSummary,
     loadCustomFees,
+    loadCustomerDamageHistory,
   } = usePendingOrderData(order.id);
 
   const { sendingSms, sendSms } = useSmsHandling(order.id, order.customers?.phone);
@@ -75,6 +79,9 @@ export const PendingOrderCard = forwardRef<PendingOrderCardRef, {
     loadContact(order.customers?.email);
     loadSummary();
     loadCustomFees();
+    if (order.customer_id) {
+      loadCustomerDamageHistory(order.customer_id);
+    }
   }, [order.id]);
 
   useEffect(() => {
@@ -199,6 +206,31 @@ export const PendingOrderCard = forwardRef<PendingOrderCardRef, {
         customerDisplayName={getCustomerDisplayName()}
         onEditClick={() => setShowEditModal(true)}
       />
+
+      {customerDamageRecords.length > 0 && (() => {
+        const failedDamage = customerDamageRecords.filter(r => r.status === 'failed');
+        const successDamage = customerDamageRecords.filter(r => r.status === 'succeeded');
+        const totalFailed = failedDamage.reduce((s, r) => s + r.amount_cents, 0);
+        const totalSucceeded = successDamage.reduce((s, r) => s + r.amount_cents, 0);
+        return (
+          <div className="mb-3 p-3 bg-amber-50 border border-amber-400 rounded-lg flex items-start gap-2">
+            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-amber-900">Damage Fee History</p>
+              {failedDamage.length > 0 && (
+                <p className="text-xs text-red-700 font-semibold mt-0.5">
+                  Unpaid damage fees: {formatCurrency(totalFailed)} — card was declined on {failedDamage.length} previous charge{failedDamage.length > 1 ? 's' : ''}. Confirm payment method before approving.
+                </p>
+              )}
+              {successDamage.length > 0 && (
+                <p className="text-xs text-amber-800 mt-0.5">
+                  Previously charged for damages: {formatCurrency(totalSucceeded)} across {successDamage.length} order{successDamage.length > 1 ? 's' : ''}.
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       <StreetViewImages
         address={order.addresses}

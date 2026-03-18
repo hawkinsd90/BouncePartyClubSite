@@ -2,12 +2,20 @@ import { useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { loadOrderSummary, formatOrderSummary } from '../lib/orderSummary';
 
+export interface DamageRecord {
+  orderId: string;
+  amount_cents: number;
+  status: string;
+  created_at: string;
+}
+
 export function usePendingOrderData(orderId: string) {
   const [smsConversations, setSmsConversations] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [contact, setContact] = useState<any>(null);
   const [orderSummary, setOrderSummary] = useState<any>(null);
   const [customFees, setCustomFees] = useState<any[]>([]);
+  const [customerDamageRecords, setCustomerDamageRecords] = useState<DamageRecord[]>([]);
   const loadingSummaryRef = useRef(false);
 
   async function loadSmsConversations() {
@@ -45,6 +53,34 @@ export function usePendingOrderData(orderId: string) {
     if (data) setCustomFees(data);
   }
 
+  async function loadCustomerDamageHistory(customerId: string) {
+    const { data: customerOrders } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('customer_id', customerId)
+      .neq('id', orderId);
+
+    if (!customerOrders?.length) return;
+
+    const orderIds = customerOrders.map((o: any) => o.id);
+    const { data: damagePayments } = await supabase
+      .from('payments')
+      .select('order_id, amount_cents, status, created_at')
+      .in('order_id', orderIds)
+      .eq('type', 'damage');
+
+    if (damagePayments?.length) {
+      setCustomerDamageRecords(
+        damagePayments.map((p: any) => ({
+          orderId: p.order_id,
+          amount_cents: p.amount_cents,
+          status: p.status,
+          created_at: p.created_at,
+        }))
+      );
+    }
+  }
+
   async function loadSummary() {
     if (loadingSummaryRef.current) {
       return;
@@ -69,10 +105,12 @@ export function usePendingOrderData(orderId: string) {
     contact,
     orderSummary,
     customFees,
+    customerDamageRecords,
     loadSmsConversations,
     loadContact,
     loadPayments,
     loadSummary,
     loadCustomFees,
+    loadCustomerDamageHistory,
   };
 }
