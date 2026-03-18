@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { CheckCircle, XCircle, Phone, MapPin, Calendar, Package } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
+import { TipSelector, calculateTipCents } from '../payment/TipSelector';
 import { ApprovalModal } from './ApprovalModal';
 import { RejectionModal } from './RejectionModal';
 import { useBusinessSettings } from '../../contexts/BusinessContext';
@@ -26,6 +27,8 @@ export function OrderApprovalView({
   const [keepOriginalPayment, setKeepOriginalPayment] = useState(true);
   const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
   const [customPaymentAmount, setCustomPaymentAmount] = useState('');
+  const [tipAmount, setTipAmount] = useState<'none' | '10' | '15' | '20' | 'custom'>('none');
+  const [customTipAmount, setCustomTipAmount] = useState('');
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [showRejectionModal, setShowRejectionModal] = useState(false);
 
@@ -65,6 +68,8 @@ export function OrderApprovalView({
     }
   }, [order.id]);
 
+  const newTipCents = calculateTipCents(tipAmount, customTipAmount, currentTotalCents);
+
   const selectedPaymentBaseCents = (() => {
     if (keepOriginalPayment) return originalPaymentCents || currentDepositCents;
     if (paymentAmount === 'deposit') return currentDepositCents;
@@ -74,6 +79,8 @@ export function OrderApprovalView({
     }
     return currentDepositCents;
   })();
+
+  const selectedPaymentCents = selectedPaymentBaseCents + newTipCents;
 
   const isApproveDisabled = (() => {
     if (keepOriginalPayment && !originalMeetsMinimum) return true;
@@ -345,6 +352,20 @@ export function OrderApprovalView({
               </div>
             )}
 
+            {!alreadyPaidDeposit && (
+              <div>
+                <h3 className="font-semibold text-slate-900 mb-3">Add a Tip</h3>
+                <TipSelector
+                  totalCents={currentTotalCents}
+                  tipAmount={tipAmount}
+                  customTipAmount={customTipAmount}
+                  onTipAmountChange={setTipAmount}
+                  onCustomTipAmountChange={setCustomTipAmount}
+                  formatCurrency={formatCurrency}
+                />
+              </div>
+            )}
+
             {alreadyPaidDeposit && (
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                 <p className="text-green-900 font-medium">
@@ -410,9 +431,9 @@ export function OrderApprovalView({
         onClose={() => setShowApprovalModal(false)}
         order={order}
         onSuccess={onApprovalSuccess}
-        selectedPaymentCents={selectedPaymentBaseCents}
+        selectedPaymentCents={selectedPaymentCents}
         selectedPaymentBaseCents={selectedPaymentBaseCents}
-        newTipCents={0}
+        newTipCents={newTipCents}
         keepOriginalPayment={keepOriginalPayment}
       />
 
