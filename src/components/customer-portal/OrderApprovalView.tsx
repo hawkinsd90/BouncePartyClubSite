@@ -66,6 +66,14 @@ export function OrderApprovalView({
     } else {
       setPaymentAmount('deposit');
     }
+    const originalTipCents = order.tip_cents || 0;
+    if (originalTipCents > 0) {
+      setTipAmount('custom');
+      setCustomTipAmount((originalTipCents / 100).toFixed(2));
+    } else {
+      setTipAmount('none');
+      setCustomTipAmount('');
+    }
   }, [order.id]);
 
   const newTipCents = calculateTipCents(tipAmount, customTipAmount, currentTotalCents);
@@ -349,20 +357,20 @@ export function OrderApprovalView({
                     </label>
                   </div>
                 )}
-              </div>
-            )}
 
-            {!alreadyPaidDeposit && (
-              <div>
-                <h3 className="font-semibold text-slate-900 mb-3">Add a Tip</h3>
-                <TipSelector
-                  totalCents={currentTotalCents}
-                  tipAmount={tipAmount}
-                  customTipAmount={customTipAmount}
-                  onTipAmountChange={setTipAmount}
-                  onCustomTipAmountChange={setCustomTipAmount}
-                  formatCurrency={formatCurrency}
-                />
+                {!keepOriginalPayment && (
+                  <div className="mt-4">
+                    <h3 className="font-semibold text-slate-900 mb-3">Add a Tip</h3>
+                    <TipSelector
+                      totalCents={currentTotalCents}
+                      tipAmount={tipAmount}
+                      customTipAmount={customTipAmount}
+                      onTipAmountChange={setTipAmount}
+                      onCustomTipAmountChange={setCustomTipAmount}
+                      formatCurrency={formatCurrency}
+                    />
+                  </div>
+                )}
               </div>
             )}
 
