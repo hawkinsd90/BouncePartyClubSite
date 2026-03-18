@@ -95,7 +95,40 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    if (!order.stripe_customer_id || !order.stripe_payment_method_id) {
+    if (!order.stripe_customer_id) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "No payment method on file for this order",
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // If order doesn't have a payment method ID, try to find one from the Stripe customer
+    let resolvedPaymentMethodId = order.stripe_payment_method_id;
+    if (!resolvedPaymentMethodId) {
+      try {
+        const paymentMethods = await stripe.paymentMethods.list({
+          customer: order.stripe_customer_id,
+          type: "card",
+          limit: 1,
+        });
+        if (paymentMethods.data.length > 0) {
+          resolvedPaymentMethodId = paymentMethods.data[0].id;
+          // Save it back to the order for future use
+          await supabaseClient
+            .from("orders")
+            .update({ stripe_payment_method_id: resolvedPaymentMethodId })
+            .eq("id", orderId);
+          console.log(`[charge-deposit] Resolved missing payment method from Stripe customer: ${resolvedPaymentMethodId}`);
+        }
+      } catch (pmLookupError) {
+        console.error("[charge-deposit] Failed to look up payment methods:", pmLookupError);
+      }
+    }
+
+    if (!resolvedPaymentMethodId) {
       return new Response(
         JSON.stringify({
           success: false,
@@ -145,7 +178,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const validation = await validatePaymentMethod(order.stripe_payment_method_id, stripe);
+    const validation = await validatePaymentMethod(resolvedPaymentMethodId, stripe);
 
     if (!validation.valid) {
       return new Response(
@@ -178,7 +211,7 @@ Deno.serve(async (req: Request) => {
       amount: chargeAmountCents,
       currency: "usd",
       customer: order.stripe_customer_id,
-      payment_method: order.stripe_payment_method_id,
+      payment_method: resolvedPaymentMethodId,
       off_session: true,
       confirm: true,
       metadata: {
