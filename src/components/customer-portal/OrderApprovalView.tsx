@@ -12,6 +12,7 @@ interface OrderApprovalViewProps {
   order: any;
   changelog: any[];
   orderSummary: any;
+  autoOpenApprovalModal?: boolean;
   onApprovalSuccess: () => void;
   onRejectionSuccess: () => void;
 }
@@ -20,6 +21,7 @@ export function OrderApprovalView({
   order,
   changelog,
   orderSummary,
+  autoOpenApprovalModal = false,
   onApprovalSuccess,
   onRejectionSuccess,
 }: OrderApprovalViewProps) {
@@ -62,6 +64,12 @@ export function OrderApprovalView({
         return `${name}|${mode}`;
       })
   );
+
+  useEffect(() => {
+    if (autoOpenApprovalModal) {
+      setShowApprovalModal(true);
+    }
+  }, [autoOpenApprovalModal]);
 
   useEffect(() => {
     setKeepOriginalPayment(hadOriginalPaymentSelection);

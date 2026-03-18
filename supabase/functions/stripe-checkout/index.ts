@@ -108,12 +108,20 @@ Deno.serve(async (req: Request) => {
     }
 
     // Use setup mode to save card on file (no charge yet)
+    // If setupMode (card update), redirect back to customer portal with approval modal trigger
+    const successUrl = setupMode
+      ? `${req.headers.get("origin")}/customer-portal/${orderId}?card_updated=true`
+      : `${req.headers.get("origin")}/payment-complete?session_id={CHECKOUT_SESSION_ID}&order_id=${orderId}`;
+    const cancelUrl = setupMode
+      ? `${req.headers.get("origin")}/customer-portal/${orderId}?card_update_canceled=true`
+      : `${req.headers.get("origin")}/payment-canceled?order_id=${orderId}`;
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       mode: "setup",
       customer: customerId,
-      success_url: `${req.headers.get("origin")}/payment-complete?session_id={CHECKOUT_SESSION_ID}&order_id=${orderId}`,
-      cancel_url: `${req.headers.get("origin")}/payment-canceled?order_id=${orderId}`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
       metadata: {
         order_id: orderId,
         payment_type: setupMode ? "card_update" : "deposit",

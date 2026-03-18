@@ -335,7 +335,7 @@ export function ApprovalModal({
               disabled={!confirmName.trim() || submitting}
               className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed text-white font-bold py-2.5 px-4 rounded-lg transition-colors text-sm"
             >
-              {submitting ? 'Processing...' : 'Confirm Approval'}
+              {submitting ? 'Processing...' : 'Confirm & Pay'}
             </button>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useLocation } from 'react-router-dom';
+import { useParams, useLocation, useSearchParams } from 'react-router-dom';
 import { AlertCircle } from 'lucide-react';
 import { useOrderData } from '../hooks/useOrderData';
 import { InvoiceAcceptanceView } from '../components/customer-portal/InvoiceAcceptanceView';
@@ -12,7 +12,9 @@ import { LoadingSpinner } from '../components/common/LoadingSpinner';
 export function CustomerPortal() {
   const { orderId, token } = useParams();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const isInvoiceLink = location.pathname.startsWith('/invoice/');
+  const cardJustUpdated = searchParams.get('card_updated') === 'true';
   const [approvalSuccess, setApprovalSuccess] = useState(false);
 
   const { data, loading, loadOrder } = useOrderData();
@@ -85,6 +87,7 @@ export function CustomerPortal() {
         order={order}
         changelog={changelog}
         orderSummary={orderSummary}
+        autoOpenApprovalModal={cardJustUpdated}
         onApprovalSuccess={() => {
           setApprovalSuccess(true);
         }}
