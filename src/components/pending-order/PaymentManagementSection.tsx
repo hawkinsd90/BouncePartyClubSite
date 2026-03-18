@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { CreditCard } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 
 interface Payment {
@@ -39,16 +40,17 @@ export function PaymentManagementSection({ order, payments }: PaymentManagementS
   const selectedPaymentBaseCents = order.customer_selected_payment_cents || order.deposit_due_cents || 0;
   const selectedPaymentTotalCents = selectedPaymentBaseCents + tipCents;
 
-  // Pre-charge: nothing captured yet, order is pending_review or awaiting_customer_approval
-  const isPreCharge = !hasCapture;
+  // Pre-charge: nothing captured yet AND order is still in a pre-approval state
+  const PRE_APPROVAL_STATUSES = new Set(['pending_review', 'awaiting_customer_approval']);
+  const isPreCharge = !hasCapture && PRE_APPROVAL_STATUSES.has(order.status);
 
   // Post-charge balance: total not yet paid
   const remainingAfterCapturedCents = Math.max(0, orderTotalCents - totalCapturedCents);
 
   return (
     <div className="mb-4 p-4 bg-white rounded-lg border border-slate-200">
-      <h4 className="text-sm font-semibold text-slate-700 mb-3 flex items-center">
-        <span className="mr-2">💳</span> Payment Management
+      <h4 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+        <CreditCard className="w-4 h-4 text-slate-500" /> Payment Management
       </h4>
 
       {isPreCharge ? (
