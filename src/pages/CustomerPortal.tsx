@@ -6,6 +6,7 @@ import { useOrderData } from '../hooks/useOrderData';
 import { InvoiceAcceptanceView } from '../components/customer-portal/InvoiceAcceptanceView';
 import { OrderApprovalView } from '../components/customer-portal/OrderApprovalView';
 import { ApprovalSuccessView } from '../components/customer-portal/ApprovalSuccessView';
+import { InvoicePaymentSuccessView } from '../components/customer-portal/InvoicePaymentSuccessView';
 import { OrderStatusView } from '../components/customer-portal/OrderStatusView';
 import { RegularPortalView } from '../components/customer-portal/RegularPortalView';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
@@ -33,6 +34,7 @@ export function CustomerPortal() {
   } : undefined;
 
   const [approvalSuccess, setApprovalSuccess] = useState(false);
+  const [invoicePaymentSuccess, setInvoicePaymentSuccess] = useState(false);
   const [invoiceProcessing, setInvoiceProcessing] = useState(false);
 
   const { data, loading, loadOrder } = useOrderData();
@@ -63,7 +65,7 @@ export function CustomerPortal() {
             return;
           }
 
-          setApprovalSuccess(true);
+          setInvoicePaymentSuccess(true);
         } catch (err: any) {
           console.error('[CustomerPortal] invoice approval error:', err);
           showToast('Something went wrong. Please contact us.', 'error');
@@ -125,6 +127,10 @@ export function CustomerPortal() {
   const isActive = ['pending_review', 'confirmed', 'in_progress', 'completed'].includes(order.status);
 
   const shouldShowRegularPortal = isActive;
+
+  if (invoicePaymentSuccess) {
+    return <InvoicePaymentSuccessView orderId={order.id} />;
+  }
 
   if (approvalSuccess) {
     return <ApprovalSuccessView orderId={order.id} />;
