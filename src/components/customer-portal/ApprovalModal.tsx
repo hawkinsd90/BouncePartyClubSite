@@ -1,12 +1,188 @@
-on',
+import { useState, useEffect, useRef } from 'react';
+import {
+  CreditCard,
+  CreditCard as Edit2,
+  MapPin,
+  Calendar,
+  AlertTriangle,
+} from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import { showToast } from '../../lib/notifications';
+import { formatOrderId } from '../../lib/utils';
+import { format } from 'date-fns';
+import { formatCurrency } from '../../lib/pricing';
+
+interface ApprovalModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  order: any;
+  onSuccess: () => void;
+  selectedPaymentCents: number;
+  selectedPaymentBaseCents: number;
+  newTipCents: number;
+  keepOriginalPayment: boolean;
+  paymentAmount: 'deposit' | 'full' | 'custom';
+  customPaymentAmount?: string;
+}
+
+export function ApprovalModal({
+  isOpen,
+  onClose,
+  order,
+  onSuccess,
+  selectedPaymentCents,
+  selectedPaymentBaseCents,
+  newTipCents,
+  keepOriginalPayment,
+  paymentAmount,
+  customPaymentAmount = '',
+}: ApprovalModalProps) {
+  const [confirmName, setConfirmName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [updatingCard, setUpdatingCard] = useState(false);
+  const [cardDeclined, setCardDeclined] = useState(false);
+  const [declineMessage, setDeclineMessage] = useState('');
+  const isMountedRef = useRef(true);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // Handle mobile keyboard - keep input in view
+  const handleInputFocus = () => {
+    // Delay to ensure keyboard is shown
+    setTimeout(() => {
+      inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+  };
+
+  async function handleUpdateCard() {
+    setUpdatingCard(true);
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.functions.invoke(
+        'stripe-checkout',
+        {
+          body: {
+            orderId: order.id,
+            setupMode: true,
+            paymentState: {
+              paymentAmount,
+              customPaymentAmount,
+              newTipCents,
+              keepOriginalPayment,
+              selectedPaymentBaseCents,
+            },
+          },
+        }
+      );
+
+      if (sessionError || !sessionData?.url) {
+        throw new Error(sessionError?.message || 'Failed to create checkout session');
+      }
+
+      window.location.href = sessionData.url;
+    } catch (error: any) {
+      console.error('Error updating card:', error);
+      showToast('Failed to update payment method. Please try again.', 'error');
+      setUpdatingCard(false);
+    }
+  }
+
+  async function handleConfirm() {
+    const expectedName = `${order.customers?.first_name || ''} ${order.customers?.last_name || ''}`
+      .trim()
+      .toLowerCase();
+    const enteredName = confirmName.trim().toLowerCase();
+
+    if (enteredName !== expectedName) {
+      showToast('Name does not match. Please enter your full name exactly as shown.', 'error');
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      // Resolve the canonical payment type to store.
+      // keepOriginalPayment means the customer chose to stick with their original
+      // selection - preserve the original stored type so a future reload can reconstruct it.
+      const resolvedPaymentType: string = keepOriginalPayment
+        ? (order.customer_selected_payment_type || 'deposit')
+        : paymentAmount;
+
+      // Check if customer already paid the initial deposit
+      // Use stripe_payment_status as the source of truth — deposit_paid_cents can be stale after admin edits
+      const alreadyPaidDeposit =
+        order.stripe_payment_status === 'paid' ||
+        (order.deposit_paid_cents || 0) > 0;
+
+      if (alreadyPaidDeposit) {
+        // Already paid - persist payment selection then confirm.
+        // No charge attempt here so no dirty-write risk.
+        const updatePayload: Record<string, unknown> = {
+          customer_selected_payment_cents: selectedPaymentBaseCents,
+          customer_selected_payment_type: resolvedPaymentType,
+          status: 'confirmed',
+        };
+
+        if (!keepOriginalPayment && newTipCents >= 0) {
+          updatePayload.tip_cents = newTipCents;
+        }
+
+        const { error: statusError } = await supabase
+          .from('orders')
+          .update(updatePayload)
+          .eq('id', order.id);
+
+        if (statusError) {
+          throw new Error(statusError.message || 'Failed to update order status');
+        }
+
+        showToast(
+          'Order approved successfully! Any changes will be added to your final balance.',
+          'success'
+        );
+      } else {
+        // Customer hasn't paid initial deposit yet.
+        // Write payment selection fields BEFORE charge so charge-deposit can read
+        // customer_selected_payment_cents. If charge fails we roll back these fields.
+        const preChargePayload: Record<string, unknown> = {
+          customer_selected_payment_cents: selectedPaymentBaseCents,
+          customer_selected_payment_type: resolvedPaymentType,
+        };
+
+        if (!keepOriginalPayment && newTipCents >= 0) {
+          preChargePayload.tip_cents = newTipCents;
+        }
+
+        const { error: preWriteError } = await supabase
+          .from('orders')
+          .update(preChargePayload)
+          .eq('id', order.id);
+
+        if (preWriteError) throw preWriteError;
+
+        // Attempt the charge via direct fetch (avoids supabase client auth issues on anon sessions)
+        const chargeResponse = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/charge-deposit`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json',
             },
             body: JSON.stringify({ orderId: order.id }),
           }
         );
+
         const chargeData = await chargeResponse.json();
-        const chargeError = (!chargeResponse.ok || !chargeData?.success)
-          ? { message: chargeData?.error || 'Charge failed' }
-          : null;
+        const chargeError =
+          !chargeResponse.ok || !chargeData?.success
+            ? { message: chargeData?.error || 'Charge failed' }
+            : null;
 
         if (chargeError) {
           // Charge failed - roll back the payment selection fields to their prior values
@@ -20,7 +196,11 @@ on',
             })
             .eq('id', order.id);
 
-          const errMsg = chargeError?.message || chargeData?.error || 'Your card was declined. Please update your payment information and try again.';
+          const errMsg =
+            chargeError?.message ||
+            chargeData?.error ||
+            'Your card was declined. Please update your payment information and try again.';
+
           if (isMountedRef.current) {
             setDeclineMessage(errMsg);
             setCardDeclined(true);
@@ -42,6 +222,7 @@ on',
     } catch (error: any) {
       console.error('Error approving order:', error);
       showToast(error.message || 'Failed to approve order. Please try again.', 'error');
+
       if (isMountedRef.current) {
         setSubmitting(false);
       }
@@ -49,9 +230,11 @@ on',
   }
 
   const customerName = `${order.customers?.first_name || ''} ${order.customers?.last_name || ''}`.trim();
+
   const address = order.addresses
     ? `${order.addresses.line1}, ${order.addresses.city}, ${order.addresses.state} ${order.addresses.zip}`
     : 'No address';
+
   const eventDate = order.event_date
     ? format(new Date(order.event_date + 'T12:00:00'), 'EEEE, MMMM d, yyyy')
     : 'No date';
@@ -65,18 +248,21 @@ on',
     order.tax_cents -
     (order.discount_cents || 0);
 
-  const lastFour = order.payment_method_last_four
-    || order.payments?.find((p: any) => p.payment_last4)?.payment_last4
-    || null;
-  const brand = order.payment_method_brand
-    || order.payments?.find((p: any) => p.payment_brand)?.payment_brand
-    || null;
+  const lastFour =
+    order.payment_method_last_four ||
+    order.payments?.find((p: any) => p.payment_last4)?.payment_last4 ||
+    null;
+
+  const brand =
+    order.payment_method_brand ||
+    order.payments?.find((p: any) => p.payment_brand)?.payment_brand ||
+    null;
 
   const paymentMethodText = lastFour && brand
     ? `${brand.charAt(0).toUpperCase() + brand.slice(1)} •••• ${lastFour}`
     : lastFour
-    ? `Card •••• ${lastFour}`
-    : null;
+      ? `Card •••• ${lastFour}`
+      : null;
 
   const alreadyPaidDeposit =
     order.stripe_payment_status === 'paid' ||
@@ -88,7 +274,9 @@ on',
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
         <div className="p-4 md:p-5">
-          <h3 className="text-lg md:text-xl font-bold text-green-900 mb-2">Approve Order Changes</h3>
+          <h3 className="text-lg md:text-xl font-bold text-green-900 mb-2">
+            Approve Order Changes
+          </h3>
           <p className="text-xs md:text-sm text-slate-600 mb-3">
             Review and confirm the updated order details below.
           </p>
@@ -97,25 +285,32 @@ on',
             <div className="grid grid-cols-2 gap-x-3 gap-y-2 mb-2">
               <div>
                 <p className="text-xs text-slate-500">Order #</p>
-                <p className="font-mono text-sm font-semibold text-slate-900">{formatOrderId(order.id)}</p>
+                <p className="font-mono text-sm font-semibold text-slate-900">
+                  {formatOrderId(order.id)}
+                </p>
               </div>
               <div className="text-right">
                 <p className="text-xs text-slate-500">
                   {alreadyPaidDeposit ? 'Total Amount' : 'Charging Now'}
                 </p>
-                <p className="text-lg font-bold text-green-700">{formatCurrency(selectedPaymentCents)}</p>
+                <p className="text-lg font-bold text-green-700">
+                  {formatCurrency(selectedPaymentCents)}
+                </p>
               </div>
             </div>
+
             <div className="mb-2">
               <p className="text-xs text-slate-500">Customer</p>
               <p className="text-sm font-medium text-slate-900">{customerName}</p>
             </div>
+
             <div className="flex items-start gap-1.5 mb-2">
               <MapPin className="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-slate-900 break-words">{address}</p>
               </div>
             </div>
+
             <div className="flex items-start gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0" />
               <p className="text-xs text-slate-900">{eventDate}</p>
@@ -128,14 +323,19 @@ on',
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   <CreditCard className="w-4 h-4 text-blue-600 flex-shrink-0" />
                   <div className="min-w-0">
-                    <p className="text-xs font-medium text-slate-900">Payment Method on File</p>
+                    <p className="text-xs font-medium text-slate-900">
+                      Payment Method on File
+                    </p>
                     {paymentMethodText ? (
-                      <p className="text-xs text-slate-700 font-medium">{paymentMethodText}</p>
+                      <p className="text-xs text-slate-700 font-medium">
+                        {paymentMethodText}
+                      </p>
                     ) : (
                       <p className="text-xs text-slate-600">Card saved for payment</p>
                     )}
                   </div>
                 </div>
+
                 <button
                   onClick={handleUpdateCard}
                   disabled={updatingCard}
@@ -152,15 +352,24 @@ on',
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-slate-600">Payment Amount Selected</p>
-                <p className="text-2xl font-bold text-green-700">{formatCurrency(selectedPaymentCents)}</p>
+                <p className="text-2xl font-bold text-green-700">
+                  {formatCurrency(selectedPaymentCents)}
+                </p>
+
                 {selectedPaymentBaseCents < currentTotalCents && (
                   <p className="text-xs text-slate-600 mt-1">
-                    Balance due day of event: {formatCurrency(currentTotalCents - selectedPaymentBaseCents)}
+                    Balance due day of event:{' '}
+                    {formatCurrency(currentTotalCents - selectedPaymentBaseCents)}
                   </p>
                 )}
+
                 {(keepOriginalPayment ? (order.tip_cents || 0) : newTipCents) > 0 && (
                   <p className="text-xs text-green-600 mt-0.5">
-                    Includes {formatCurrency(keepOriginalPayment ? (order.tip_cents || 0) : newTipCents)} crew tip
+                    Includes{' '}
+                    {formatCurrency(
+                      keepOriginalPayment ? (order.tip_cents || 0) : newTipCents
+                    )}{' '}
+                    crew tip
                   </p>
                 )}
               </div>
@@ -176,6 +385,7 @@ on',
                   <p className="text-xs text-red-700 mt-0.5">{declineMessage}</p>
                 </div>
               </div>
+
               <button
                 onClick={handleUpdateCard}
                 disabled={updatingCard}
@@ -191,6 +401,7 @@ on',
             <label className="block text-xs font-medium text-slate-700 mb-1.5">
               To confirm, enter your full name: <span className="text-red-600">*</span>
             </label>
+
             <input
               ref={inputRef}
               type="text"
@@ -200,8 +411,10 @@ on',
               placeholder={`${order.customers?.first_name || 'Unknown'} ${order.customers?.last_name || ''}`}
               className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
             />
+
             <p className="text-xs text-slate-500 mt-1">
-              Must match: {order.customers?.first_name || 'Unknown'} {order.customers?.last_name || ''}
+              Must match: {order.customers?.first_name || 'Unknown'}{' '}
+              {order.customers?.last_name || ''}
             </p>
           </div>
 
@@ -215,6 +428,7 @@ on',
             >
               Cancel
             </button>
+
             <button
               onClick={handleConfirm}
               disabled={!confirmName.trim() || submitting}
