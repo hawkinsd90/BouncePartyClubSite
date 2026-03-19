@@ -1,11 +1,9 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/pricing';
 import { Loader2, CreditCard, CheckCircle, AlertCircle, Shield } from 'lucide-react';
 import { OrderSummaryDisplay } from '../../lib/orderSummary';
 import { SimpleInvoiceDisplay } from '../shared/SimpleInvoiceDisplay';
-import { RentalTerms } from '../waiver/RentalTerms';
 import { TipSelector } from '../payment/TipSelector';
 import { PaymentAmountSelector } from './PaymentAmountSelector';
 import { CustomerInfoForm } from './CustomerInfoForm';
@@ -47,7 +45,6 @@ export function InvoiceAcceptanceView({
   const [customTipAmount, setCustomTipAmount] = useState('');
   const [showCancelModal, setShowCancelModal] = useState(false);
 
-  const navigate = useNavigate();
   const needsCustomerInfo = invoiceLink && !invoiceLink.customer_filled;
 
   const totalCents = order.deposit_due_cents + order.balance_due_cents;
@@ -240,7 +237,7 @@ export function InvoiceAcceptanceView({
     sessionStorage.setItem('invoice-preview-data', JSON.stringify(invoiceData));
     sessionStorage.setItem('invoice-preview-return-to', `/customer-portal/${order.id}`);
 
-    navigate('/invoice-preview');
+    window.open('/invoice-preview', '_blank');
   };
 
 
@@ -294,10 +291,6 @@ export function InvoiceAcceptanceView({
           {needsCustomerInfo && (
             <CustomerInfoForm customerInfo={customerInfo} onChange={setCustomerInfo} />
           )}
-
-          <div className="mb-8">
-            <RentalTerms />
-          </div>
 
           <div className="mb-8 space-y-4">
             {order.pickup_preference === 'next_day' && (
