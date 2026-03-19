@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useLocation, useSearchParams } from 'react-router-dom';
 import { AlertCircle } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import { useOrderData } from '../hooks/useOrderData';
 import { InvoiceAcceptanceView } from '../components/customer-portal/InvoiceAcceptanceView';
 import { OrderApprovalView } from '../components/customer-portal/OrderApprovalView';
@@ -15,6 +16,7 @@ export function CustomerPortal() {
   const [searchParams] = useSearchParams();
   const isInvoiceLink = location.pathname.startsWith('/invoice/');
   const cardJustUpdated = searchParams.get('card_updated') === 'true';
+  const returnSessionId = searchParams.get('session_id') || null;
   const restoredPaymentState = cardJustUpdated ? {
     paymentAmount: (searchParams.get('pa') || 'deposit') as 'deposit' | 'full' | 'custom',
     customPaymentAmount: searchParams.get('cpa') || '',
@@ -27,14 +29,18 @@ export function CustomerPortal() {
   const { data, loading, loadOrder } = useOrderData();
 
   useEffect(() => {
-    if (cardJustUpdated) {
-      // When returning from Stripe card update, wait briefly for the webhook to save
-      // the new payment method before loading the order, then do a second pass.
-      loadOrder(orderId, token, isInvoiceLink).then(() => {
-        setTimeout(() => {
-          loadOrder(orderId, token, isInvoiceLink);
-        }, 2500);
-      });
+    if (cardJustUpdated && returnSessionId && orderId) {
+      // Deterministic sequence: persist card -> reload order -> modal auto-opens
+      (async () => {
+        try {
+          await supabase.functions.invoke('save-payment-method-from-session', {
+            body: { sessionId: returnSessionId, orderId },
+          });
+        } catch (err) {
+          console.error('[CustomerPortal] save-payment-method-from-session failed (non-fatal):', err);
+        }
+        await loadOrder(orderId, token, isInvoiceLink);
+      })();
     } else {
       loadOrder(orderId, token, isInvoiceLink);
     }
