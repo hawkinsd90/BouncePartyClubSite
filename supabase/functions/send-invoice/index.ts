@@ -61,7 +61,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const invoiceUrl = `${req.headers.get('origin')}/invoice/${invoiceLink.link_token}`;
+    const invoiceUrl = `${req.headers.get('origin')}/customer-portal/${order.id}?invoice_token=${invoiceLink.link_token}`;
 
     // Update order with invoice sent timestamp
     await supabase
@@ -89,7 +89,7 @@ Deno.serve(async (req: Request) => {
                 <h2>Invoice Ready for Review</h2>
                 <p>Hi ${customerName || 'there'},</p>
                 <p>Your invoice is ready for review and acceptance.</p>
-                <p><strong>Total Amount:</strong> $${((order.total_cents || 0) / 100).toFixed(2)}</p>
+                <p><strong>Total Amount:</strong> $${(((order.subtotal_cents || 0) + (order.travel_fee_cents || 0) + (order.surface_fee_cents || 0) + (order.generator_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.tax_cents || 0)) / 100).toFixed(2)}</p>
                 <p><strong>Deposit Due:</strong> $${(depositCents / 100).toFixed(2)}</p>
                 <p><a href="${invoiceUrl}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:white;text-decoration:none;border-radius:8px;margin:16px 0;">View & Accept Invoice</a></p>
                 <p>This link will expire in 7 days.</p>

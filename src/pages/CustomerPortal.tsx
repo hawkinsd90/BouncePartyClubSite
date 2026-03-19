@@ -9,14 +9,21 @@ import { ApprovalSuccessView } from '../components/customer-portal/ApprovalSucce
 import { OrderStatusView } from '../components/customer-portal/OrderStatusView';
 import { RegularPortalView } from '../components/customer-portal/RegularPortalView';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
+import { approveOrder } from '../lib/orderApprovalService';
+import { showToast } from '../lib/notifications';
 
 export function CustomerPortal() {
   const { orderId, token } = useParams();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+
   const isInvoiceLink = location.pathname.startsWith('/invoice/');
+  const invoiceToken = searchParams.get('invoice_token') || (isInvoiceLink ? token : null);
+
   const cardJustUpdated = searchParams.get('card_updated') === 'true';
+  const invoiceCardSaved = searchParams.get('invoice_card_saved') === 'true';
   const returnSessionId = searchParams.get('session_id') || null;
+
   const restoredPaymentState = cardJustUpdated ? {
     paymentAmount: (searchParams.get('pa') || 'deposit') as 'deposit' | 'full' | 'custom',
     customPaymentAmount: searchParams.get('cpa') || '',
@@ -24,13 +31,51 @@ export function CustomerPortal() {
     keepOriginalPayment: searchParams.get('kop') !== '0',
     selectedPaymentBaseCents: searchParams.get('spb') ? parseInt(searchParams.get('spb')!) : undefined,
   } : undefined;
+
   const [approvalSuccess, setApprovalSuccess] = useState(false);
+  const [invoiceProcessing, setInvoiceProcessing] = useState(false);
 
   const { data, loading, loadOrder } = useOrderData();
 
+  const resolvedOrderId = orderId || (data?.order?.id);
+
   useEffect(() => {
-    if (cardJustUpdated && returnSessionId && orderId) {
-      // Deterministic sequence: persist card -> reload order -> modal auto-opens
+    const effectiveIsInvoiceLink = isInvoiceLink || !!invoiceToken;
+
+    if (invoiceCardSaved && returnSessionId && orderId) {
+      // Invoice flow: card was just saved via Stripe setup mode — save PM then charge + approve
+      setInvoiceProcessing(true);
+      (async () => {
+        try {
+          const { data: pmData, error: pmError } = await supabase.functions.invoke('save-payment-method-from-session', {
+            body: { sessionId: returnSessionId, orderId },
+          });
+          if (pmError || !pmData?.success) {
+            console.error('[CustomerPortal] invoice save-pm failed:', pmError ?? pmData?.error);
+            showToast('Failed to save payment method. Please try again.', 'error');
+            setInvoiceProcessing(false);
+            await loadOrder(orderId, invoiceToken ?? undefined, effectiveIsInvoiceLink);
+            return;
+          }
+
+          const result = await approveOrder(orderId, async () => false);
+          if (!result.success) {
+            showToast(result.error || 'Payment failed. Please try again.', 'error');
+            setInvoiceProcessing(false);
+            await loadOrder(orderId, invoiceToken ?? undefined, effectiveIsInvoiceLink);
+            return;
+          }
+
+          setApprovalSuccess(true);
+        } catch (err: any) {
+          console.error('[CustomerPortal] invoice approval error:', err);
+          showToast('Something went wrong. Please contact us.', 'error');
+          setInvoiceProcessing(false);
+          await loadOrder(orderId, invoiceToken ?? undefined, effectiveIsInvoiceLink);
+        }
+      })();
+    } else if (cardJustUpdated && returnSessionId && orderId) {
+      // Regular card-update flow for approval modal
       (async () => {
         try {
           const { data: pmData, error: pmError } = await supabase.functions.invoke('save-payment-method-from-session', {
@@ -44,18 +89,19 @@ export function CustomerPortal() {
         } catch (err) {
           console.error('[CustomerPortal] save-payment-method-from-session threw unexpectedly:', err);
         }
-        await loadOrder(orderId, token, isInvoiceLink);
+        await loadOrder(orderId, invoiceToken ?? undefined, effectiveIsInvoiceLink);
       })();
     } else {
-      loadOrder(orderId, token, isInvoiceLink);
+      loadOrder(orderId, invoiceToken ?? undefined, effectiveIsInvoiceLink);
     }
   }, [orderId, token, isInvoiceLink, loadOrder]);
 
   const handleReload = async () => {
-    await loadOrder(orderId, token, isInvoiceLink);
+    const effectiveIsInvoiceLink = isInvoiceLink || !!invoiceToken;
+    await loadOrder(orderId, invoiceToken ?? undefined, effectiveIsInvoiceLink);
   };
 
-  if (loading) {
+  if (loading || invoiceProcessing) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 flex items-center justify-center">
         <LoadingSpinner />
@@ -83,9 +129,8 @@ export function CustomerPortal() {
   const isDraft = order.status === 'draft';
   const isActive = ['pending_review', 'confirmed', 'in_progress', 'completed'].includes(order.status);
 
-  // If accessed via /customer-portal/:orderId (not /invoice/:token), treat as active even if draft
-  // This handles the case where payment just completed but webhook hasn't updated status yet
-  const isDirectPortalAccess = !isInvoiceLink && orderId;
+  const effectiveIsInvoiceLink = isInvoiceLink || !!invoiceToken;
+  const isDirectPortalAccess = !effectiveIsInvoiceLink && orderId;
   const shouldShowRegularPortal = isActive || (isDirectPortalAccess && isDraft);
 
   if (approvalSuccess) {
@@ -93,7 +138,7 @@ export function CustomerPortal() {
   }
 
   if (!shouldShowRegularPortal && !needsApproval) {
-    if (isDraft && isInvoiceLink) {
+    if (isDraft && effectiveIsInvoiceLink) {
       return (
         <InvoiceAcceptanceView
           order={order}
@@ -128,7 +173,7 @@ export function CustomerPortal() {
   return (
     <RegularPortalView
       order={order}
-      orderId={orderId!}
+      orderId={resolvedOrderId ?? orderId!}
       orderItems={orderItems}
       orderSummary={orderSummary}
       onReload={handleReload}

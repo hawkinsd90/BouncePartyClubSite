@@ -50,6 +50,27 @@ export function InvoiceAcceptanceView({
   const navigate = useNavigate();
   const needsCustomerInfo = invoiceLink && !invoiceLink.customer_filled;
 
+  const totalCents = order.deposit_due_cents + order.balance_due_cents;
+
+  function getActualPaymentCents(): number {
+    if (paymentAmount === 'deposit') return order.deposit_due_cents;
+    if (paymentAmount === 'full') return totalCents;
+    if (paymentAmount === 'custom' && customPaymentAmount) {
+      return Math.round(parseFloat(customPaymentAmount) * 100);
+    }
+    return 0;
+  }
+
+  function getTipCents(): number {
+    if (tipAmount === '10') return Math.round(totalCents * 0.1);
+    if (tipAmount === '15') return Math.round(totalCents * 0.15);
+    if (tipAmount === '20') return Math.round(totalCents * 0.2);
+    if (tipAmount === 'custom' && customTipAmount) return Math.round(parseFloat(customTipAmount) * 100);
+    return 0;
+  }
+
+  const calculateTotalPayment = () => getActualPaymentCents() + getTipCents();
+
   async function handleAcceptInvoice() {
     if (!cardOnFileConsent || !smsConsent) {
       showToast('Please accept both authorization and consent terms', 'error');
@@ -69,6 +90,23 @@ export function InvoiceAcceptanceView({
 
     if (order.pickup_preference === 'next_day' && !overnightResponsibilityAccepted) {
       showToast('Please accept the overnight responsibility agreement', 'error');
+      return;
+    }
+
+    const actualPaymentCents = getActualPaymentCents();
+
+    if (paymentAmount === 'custom' && customPaymentAmount) {
+      if (actualPaymentCents < order.deposit_due_cents) {
+        showToast(
+          `Payment amount must be at least ${formatCurrency(order.deposit_due_cents)}`,
+          'error'
+        );
+        return;
+      }
+    }
+
+    if (actualPaymentCents === 0 && paymentAmount !== 'deposit') {
+      showToast('Please select a payment amount', 'error');
       return;
     }
 
@@ -112,56 +150,22 @@ export function InvoiceAcceptanceView({
           .eq('id', order.id);
       }
 
-      let actualPaymentCents = 0;
-      const totalCents = order.deposit_due_cents + order.balance_due_cents;
-
-      if (paymentAmount === 'deposit') {
-        actualPaymentCents = order.deposit_due_cents;
-      } else if (paymentAmount === 'full') {
-        actualPaymentCents = totalCents;
-      } else if (paymentAmount === 'custom' && customPaymentAmount) {
-        actualPaymentCents = Math.round(parseFloat(customPaymentAmount) * 100);
-        if (actualPaymentCents < order.deposit_due_cents) {
-          showToast(
-            `Payment amount must be at least ${formatCurrency(order.deposit_due_cents)}`,
-            'error'
-          );
-          setProcessing(false);
-          return;
-        }
-      } else {
-        showToast('Please select a payment amount', 'error');
-        setProcessing(false);
-        return;
-      }
-
-      let tipCents = 0;
-      if (tipAmount === '10') {
-        tipCents = Math.round(totalCents * 0.1);
-      } else if (tipAmount === '15') {
-        tipCents = Math.round(totalCents * 0.15);
-      } else if (tipAmount === '20') {
-        tipCents = Math.round(totalCents * 0.2);
-      } else if (tipAmount === 'custom' && customTipAmount) {
-        tipCents = Math.round(parseFloat(customTipAmount) * 100);
-      }
+      const tipCents = getTipCents();
 
       if (tipCents > 0) {
         await supabase.from('orders').update({ tip_cents: tipCents }).eq('id', order.id);
       }
 
-      if (actualPaymentCents === 0) {
-        await supabase
-          .from('orders')
-          .update({
-            status: 'awaiting_customer_approval',
-          })
-          .eq('id', order.id);
+      // Store the chosen payment amount so charge-deposit uses it
+      await supabase
+        .from('orders')
+        .update({ customer_selected_payment_cents: actualPaymentCents })
+        .eq('id', order.id);
 
-        showToast('Invoice accepted! You will receive a confirmation shortly.', 'success');
-        window.location.reload();
-        return;
-      }
+      const effectiveEmail = customerInfo.email || order.customers?.email;
+      const effectiveName = customerInfo.first_name
+        ? `${customerInfo.first_name} ${customerInfo.last_name}`
+        : `${order.customers?.first_name} ${order.customers?.last_name}`;
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`,
@@ -173,13 +177,16 @@ export function InvoiceAcceptanceView({
           },
           body: JSON.stringify({
             orderId: order.id,
-            depositCents: actualPaymentCents,
-            tipCents: tipCents,
-            customerEmail: customerInfo.email || order.customers?.email,
-            customerName: customerInfo.first_name
-              ? `${customerInfo.first_name} ${customerInfo.last_name}`
-              : `${order.customers?.first_name} ${order.customers?.last_name}`,
+            setupMode: true,
+            invoiceMode: true,
+            customerEmail: effectiveEmail,
+            customerName: effectiveName,
             origin: window.location.origin,
+            paymentState: {
+              paymentAmount,
+              customPaymentAmount,
+              newTipCents: tipCents,
+            },
           }),
         }
       );
@@ -197,32 +204,6 @@ export function InvoiceAcceptanceView({
       setProcessing(false);
     }
   }
-
-  const calculateTotalPayment = () => {
-    let paymentCents = 0;
-    const totalCents = order.deposit_due_cents + order.balance_due_cents;
-
-    if (paymentAmount === 'deposit') {
-      paymentCents = order.deposit_due_cents;
-    } else if (paymentAmount === 'full') {
-      paymentCents = totalCents;
-    } else if (paymentAmount === 'custom' && customPaymentAmount) {
-      paymentCents = Math.round(parseFloat(customPaymentAmount) * 100);
-    }
-
-    let tipCents = 0;
-    if (tipAmount === '10') {
-      tipCents = Math.round(totalCents * 0.1);
-    } else if (tipAmount === '15') {
-      tipCents = Math.round(totalCents * 0.15);
-    } else if (tipAmount === '20') {
-      tipCents = Math.round(totalCents * 0.2);
-    } else if (tipAmount === 'custom' && customTipAmount) {
-      tipCents = Math.round(parseFloat(customTipAmount) * 100);
-    }
-
-    return paymentCents + tipCents;
-  };
 
   const handlePrintInvoice = () => {
     const invoiceData = {
@@ -302,7 +283,7 @@ export function InvoiceAcceptanceView({
           />
 
           <TipSelector
-            totalCents={order.deposit_due_cents + order.balance_due_cents}
+            totalCents={totalCents}
             tipAmount={tipAmount}
             customTipAmount={customTipAmount}
             onTipAmountChange={setTipAmount}
@@ -338,7 +319,7 @@ export function InvoiceAcceptanceView({
                     required
                   />
                   <span className="ml-3 text-sm text-slate-700">
-                    ⚠️ I understand the inflatable will remain on my property overnight and I am
+                    I understand the inflatable will remain on my property overnight and I am
                     legally responsible for its safety and security until pickup the next
                     morning. *
                   </span>
