@@ -79,11 +79,10 @@ Deno.serve(async (req: Request) => {
       apiVersion: "2024-10-28.acacia",
     });
 
-    // Load the order — flat columns only, no embedded relationships to avoid PostgREST join failures
     const { data: order, error: orderError } = await supabaseClient
       .from("orders")
       .select(
-        "id, stripe_customer_id, stripe_payment_method_id, deposit_due_cents, tip_cents, deposit_paid_cents, status, customer_selected_payment_cents, subtotal_cents, travel_fee_cents, surface_fee_cents, same_day_pickup_fee_cents, generator_fee_cents, tax_cents, discount_cents"
+        "id, stripe_customer_id, stripe_payment_method_id, deposit_due_cents, tip_cents, deposit_paid_cents, status, customer_selected_payment_cents, subtotal_cents, travel_fee_cents, surface_fee_cents, same_day_pickup_fee_cents, generator_fee_cents, tax_cents, discount_cents, order_custom_fees(id, name, amount_cents)"
       )
       .eq("id", orderId)
       .maybeSingle();
@@ -103,13 +102,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Separate query for custom fees — isolated so it can't mask the order lookup
-    const { data: customFeesRows } = await supabaseClient
-      .from("order_custom_fees")
-      .select("amount_cents")
-      .eq("order_id", orderId);
-
-    const customFeesCents = (customFeesRows || [])
+    const customFeesCents = ((order.order_custom_fees as Array<{ amount_cents: number }>) || [])
       .reduce((sum: number, f: { amount_cents: number }) => sum + (f.amount_cents || 0), 0);
 
     if (!order.stripe_customer_id) {
