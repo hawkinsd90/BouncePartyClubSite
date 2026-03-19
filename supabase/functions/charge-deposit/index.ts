@@ -432,7 +432,7 @@ Deno.serve(async (req: Request) => {
         const timeWindow = `${fullOrder.start_window || ""} - ${fullOrder.end_window || ""}`;
 
         const shortId = orderId.replace(/-/g, "").toUpperCase().slice(0, 8);
-        const portalUrl = `${Deno.env.get("SUPABASE_URL")?.replace("supabase.co", "bouncepartyclub.com").replace(/\/.*$/, "") || "https://bouncepartyclub.com"}/customer-portal/${orderId}`;
+        const portalUrl = `https://bouncepartyclub.com/customer-portal/${orderId}`;
 
         const itemsHtml = (fullOrder.order_items || []).map((item: { qty: number; units: { name: string }; wet_or_dry: string; unit_price_cents: number }) =>
           `<tr>

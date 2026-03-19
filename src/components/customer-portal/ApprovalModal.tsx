@@ -37,26 +37,17 @@ export function ApprovalModal({
   paymentAmount,
   customPaymentAmount = '',
 }: ApprovalModalProps) {
-  const [confirmName, setConfirmName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [updatingCard, setUpdatingCard] = useState(false);
   const [cardDeclined, setCardDeclined] = useState(false);
   const [declineMessage, setDeclineMessage] = useState('');
   const isMountedRef = useRef(true);
-  const inputRef = useRef<HTMLInputElement>(null);
-
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
     };
   }, []);
-
-  const handleInputFocus = () => {
-    setTimeout(() => {
-      inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 300);
-  };
 
   async function handleUpdateCard() {
     setUpdatingCard(true);
@@ -91,16 +82,6 @@ export function ApprovalModal({
   }
 
   async function handleConfirm() {
-    const expectedName = `${order.customers?.first_name || ''} ${order.customers?.last_name || ''}`
-      .trim()
-      .toLowerCase();
-    const enteredName = confirmName.trim().toLowerCase();
-
-    if (enteredName !== expectedName) {
-      showToast('Name does not match. Please enter your full name exactly as shown.', 'error');
-      return;
-    }
-
     setSubmitting(true);
 
     try {
@@ -378,33 +359,9 @@ export function ApprovalModal({
             </div>
           )}
 
-          <div className="mb-4">
-            <label className="block text-xs font-medium text-slate-700 mb-1.5">
-              To confirm, enter your full name: <span className="text-red-600">*</span>
-            </label>
-
-            <input
-              ref={inputRef}
-              type="text"
-              value={confirmName}
-              onChange={(e) => setConfirmName(e.target.value)}
-              onFocus={handleInputFocus}
-              placeholder={`${order.customers?.first_name || 'Unknown'} ${order.customers?.last_name || ''}`}
-              className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
-            />
-
-            <p className="text-xs text-slate-500 mt-1">
-              Must match: {order.customers?.first_name || 'Unknown'}{' '}
-              {order.customers?.last_name || ''}
-            </p>
-          </div>
-
           <div className="flex flex-col sm:flex-row gap-2">
             <button
-              onClick={() => {
-                setConfirmName('');
-                onClose();
-              }}
+              onClick={onClose}
               className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold py-2.5 px-4 rounded-lg transition-colors text-sm"
             >
               Cancel
@@ -412,7 +369,7 @@ export function ApprovalModal({
 
             <button
               onClick={handleConfirm}
-              disabled={!confirmName.trim() || submitting}
+              disabled={submitting}
               className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed text-white font-bold py-2.5 px-4 rounded-lg transition-colors text-sm"
             >
               {submitting ? 'Processing...' : 'Confirm & Pay'}
