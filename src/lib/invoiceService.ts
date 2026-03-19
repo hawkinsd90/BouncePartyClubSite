@@ -142,7 +142,6 @@ async function createOrder(
       balance_due_cents: Math.max(0, totalCents - depositRequired),
       custom_deposit_cents: customDepositCents,
       tip_cents: 0,
-      total_cents: totalCents,
       deposit_paid_cents: 0,
       booking_confirmation_sent: false,
       cancellation_reason: null,
