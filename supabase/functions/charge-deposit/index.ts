@@ -79,21 +79,38 @@ Deno.serve(async (req: Request) => {
       apiVersion: "2024-10-28.acacia",
     });
 
-    // Load the order
+    // Load the order — flat columns only, no embedded relationships to avoid PostgREST join failures
     const { data: order, error: orderError } = await supabaseClient
       .from("orders")
       .select(
-        "id, stripe_customer_id, stripe_payment_method_id, deposit_due_cents, tip_cents, deposit_paid_cents, status, customer_selected_payment_cents, subtotal_cents, travel_fee_cents, surface_fee_cents, same_day_pickup_fee_cents, generator_fee_cents, tax_cents, discount_cents, order_custom_fees(amount_cents)"
+        "id, stripe_customer_id, stripe_payment_method_id, deposit_due_cents, tip_cents, deposit_paid_cents, status, customer_selected_payment_cents, subtotal_cents, travel_fee_cents, surface_fee_cents, same_day_pickup_fee_cents, generator_fee_cents, tax_cents, discount_cents"
       )
       .eq("id", orderId)
       .maybeSingle();
 
-    if (orderError || !order) {
+    if (orderError) {
+      console.error("[charge-deposit] Order query error:", orderError);
+      return new Response(
+        JSON.stringify({ success: false, error: `Order query failed: ${orderError.message}` }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!order) {
       return new Response(
         JSON.stringify({ success: false, error: "Order not found" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Separate query for custom fees — isolated so it can't mask the order lookup
+    const { data: customFeesRows } = await supabaseClient
+      .from("order_custom_fees")
+      .select("amount_cents")
+      .eq("order_id", orderId);
+
+    const customFeesCents = (customFeesRows || [])
+      .reduce((sum: number, f: { amount_cents: number }) => sum + (f.amount_cents || 0), 0);
 
     if (!order.stripe_customer_id) {
       return new Response(
@@ -242,9 +259,7 @@ Deno.serve(async (req: Request) => {
 
     // Recalculate balance_due_cents based on current order totals minus what was just paid.
     // tip is tracked separately in tip_cents and is NOT part of the base order total.
-    // custom fees (order_custom_fees rows) are included in the base total.
-    const customFeesCents = ((order.order_custom_fees as Array<{ amount_cents: number }>) || [])
-      .reduce((sum: number, f: { amount_cents: number }) => sum + (f.amount_cents || 0), 0);
+    // customFeesCents was fetched in the separate query above.
     const orderTotal =
       (order.subtotal_cents || 0) +
       (order.travel_fee_cents || 0) +
