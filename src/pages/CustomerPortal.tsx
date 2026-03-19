@@ -27,7 +27,17 @@ export function CustomerPortal() {
   const { data, loading, loadOrder } = useOrderData();
 
   useEffect(() => {
-    loadOrder(orderId, token, isInvoiceLink);
+    if (cardJustUpdated) {
+      // When returning from Stripe card update, wait briefly for the webhook to save
+      // the new payment method before loading the order, then do a second pass.
+      loadOrder(orderId, token, isInvoiceLink).then(() => {
+        setTimeout(() => {
+          loadOrder(orderId, token, isInvoiceLink);
+        }, 2500);
+      });
+    } else {
+      loadOrder(orderId, token, isInvoiceLink);
+    }
   }, [orderId, token, isInvoiceLink, loadOrder]);
 
   const handleReload = async () => {

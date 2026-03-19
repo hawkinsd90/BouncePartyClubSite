@@ -149,12 +149,24 @@ export function ApprovalModal({
 
         if (preWriteError) throw preWriteError;
 
-        // Attempt the charge
-        const { data: chargeData, error: chargeError } = await supabase.functions.invoke('charge-deposit', {
-          body: { orderId: order.id }
-        });
+        // Attempt the charge via direct fetch (avoids supabase client auth issues on anon sessions)
+        const chargeResponse = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/charge-deposit`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ orderId: order.id }),
+          }
+        );
+        const chargeData = await chargeResponse.json();
+        const chargeError = (!chargeResponse.ok || !chargeData?.success)
+          ? { message: chargeData?.error || 'Charge failed' }
+          : null;
 
-        if (chargeError || !chargeData?.success) {
+        if (chargeError) {
           // Charge failed - roll back the payment selection fields to their prior values
           // so the order is not left in a misleading partially-updated state.
           await supabase
