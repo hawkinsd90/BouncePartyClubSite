@@ -188,21 +188,26 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // If already paid, just update status to confirmed (avoid double charge)
+    // If already paid, persist the latest payment selection and confirm (avoid double charge)
     if (order.deposit_paid_cents && order.deposit_paid_cents >= paymentAmountCents) {
-      if (order.status !== 'confirmed') {
-        const { error: updateError } = await supabaseClient
-          .from("orders")
-          .update({ status: "confirmed" })
-          .eq("id", orderId);
+      const alreadyPaidUpdate: Record<string, unknown> = {
+        status: "confirmed",
+        customer_selected_payment_cents: paymentAmountCents,
+        customer_selected_payment_type: persistedPaymentType,
+        tip_cents: tipCents,
+      };
 
-        if (updateError) {
-          console.error("Failed to update order status:", updateError);
-          return new Response(
-            JSON.stringify({ success: false, error: `Failed to update order: ${updateError.message}` }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
+      const { error: updateError } = await supabaseClient
+        .from("orders")
+        .update(alreadyPaidUpdate)
+        .eq("id", orderId);
+
+      if (updateError) {
+        console.error("Failed to update order status:", updateError);
+        return new Response(
+          JSON.stringify({ success: false, error: `Failed to update order: ${updateError.message}` }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
       return new Response(

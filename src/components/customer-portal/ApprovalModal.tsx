@@ -192,6 +192,9 @@ export function ApprovalModal({
         }
       }
 
+      if (isMountedRef.current) {
+        setSubmitting(false);
+      }
       onClose();
 
       setTimeout(() => {
