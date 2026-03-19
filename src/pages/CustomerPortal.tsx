@@ -33,11 +33,16 @@ export function CustomerPortal() {
       // Deterministic sequence: persist card -> reload order -> modal auto-opens
       (async () => {
         try {
-          await supabase.functions.invoke('save-payment-method-from-session', {
+          const { data: pmData, error: pmError } = await supabase.functions.invoke('save-payment-method-from-session', {
             body: { sessionId: returnSessionId, orderId },
           });
+          if (pmError) {
+            console.error('[CustomerPortal] save-payment-method-from-session invocation error:', pmError);
+          } else if (!pmData?.success) {
+            console.error('[CustomerPortal] save-payment-method-from-session returned failure:', pmData?.error ?? 'unknown');
+          }
         } catch (err) {
-          console.error('[CustomerPortal] save-payment-method-from-session failed (non-fatal):', err);
+          console.error('[CustomerPortal] save-payment-method-from-session threw unexpectedly:', err);
         }
         await loadOrder(orderId, token, isInvoiceLink);
       })();
