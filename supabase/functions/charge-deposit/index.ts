@@ -11,7 +11,6 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req: Request) => {
-  // Handle preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: corsHeaders });
   }
@@ -24,8 +23,13 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // Parse body early for rate limiting
-    const { orderId } = await req.json();
+    const body = await req.json();
+    const {
+      orderId,
+      paymentAmountCents: requestPaymentAmountCents,
+      tipCents: requestTipCents,
+      selectedPaymentType: requestSelectedPaymentType,
+    } = body;
 
     const ip = getIdentifier(req);
     const identifier = buildRateLimitKey(ip, orderId, 'deposit');
@@ -61,7 +65,6 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    // Get Stripe secret key
     const { data: stripeKeyData, error: keyError } = await supabaseClient
       .from("admin_settings")
       .select("value")
@@ -79,10 +82,11 @@ Deno.serve(async (req: Request) => {
       apiVersion: "2024-10-28.acacia",
     });
 
+    // Scalar-only fetch — no nested joins in the critical path
     const { data: order, error: orderError } = await supabaseClient
       .from("orders")
       .select(
-        "id, stripe_customer_id, stripe_payment_method_id, deposit_due_cents, tip_cents, deposit_paid_cents, status, customer_selected_payment_cents, subtotal_cents, travel_fee_cents, surface_fee_cents, same_day_pickup_fee_cents, generator_fee_cents, tax_cents, discount_cents, order_custom_fees(id, name, amount_cents)"
+        "id, stripe_customer_id, stripe_payment_method_id, deposit_due_cents, tip_cents, deposit_paid_cents, status, customer_selected_payment_cents, customer_selected_payment_type, subtotal_cents, travel_fee_cents, surface_fee_cents, same_day_pickup_fee_cents, generator_fee_cents, tax_cents, discount_cents"
       )
       .eq("id", orderId)
       .maybeSingle();
@@ -102,8 +106,20 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const customFeesCents = ((order.order_custom_fees as Array<{ amount_cents: number }>) || [])
-      .reduce((sum: number, f: { amount_cents: number }) => sum + (f.amount_cents || 0), 0);
+    // Fetch custom fees in a separate guarded query (non-fatal)
+    let customFeesCents = 0;
+    try {
+      const { data: customFees } = await supabaseClient
+        .from("order_custom_fees")
+        .select("amount_cents")
+        .eq("order_id", orderId);
+      customFeesCents = (customFees || []).reduce(
+        (sum: number, f: { amount_cents: number }) => sum + (f.amount_cents || 0),
+        0
+      );
+    } catch (feeQueryErr) {
+      console.error("[charge-deposit] Custom fees query failed (non-fatal):", feeQueryErr);
+    }
 
     if (!order.stripe_customer_id) {
       return new Response(
@@ -115,7 +131,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // If order doesn't have a payment method ID, try to find one from the Stripe customer
     let resolvedPaymentMethodId = order.stripe_payment_method_id;
     if (!resolvedPaymentMethodId) {
       try {
@@ -126,7 +141,6 @@ Deno.serve(async (req: Request) => {
         });
         if (paymentMethods.data.length > 0) {
           resolvedPaymentMethodId = paymentMethods.data[0].id;
-          // Save it back to the order for future use
           await supabaseClient
             .from("orders")
             .update({ stripe_payment_method_id: resolvedPaymentMethodId })
@@ -148,8 +162,21 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Use customer_selected_payment_cents if available (for approval flow), otherwise deposit_due_cents
-    const paymentAmountCents = order.customer_selected_payment_cents || order.deposit_due_cents;
+    // Use request values as source of truth; fall back to DB values
+    const paymentAmountCents =
+      typeof requestPaymentAmountCents === "number" && requestPaymentAmountCents > 0
+        ? requestPaymentAmountCents
+        : (order.customer_selected_payment_cents || order.deposit_due_cents);
+
+    const tipCents =
+      typeof requestTipCents === "number"
+        ? requestTipCents
+        : (order.tip_cents ?? 0);
+
+    const persistedPaymentType =
+      typeof requestSelectedPaymentType === "string" && requestSelectedPaymentType
+        ? requestSelectedPaymentType
+        : (order.customer_selected_payment_type || "deposit");
 
     if (!paymentAmountCents || paymentAmountCents <= 0) {
       return new Response(
@@ -163,7 +190,6 @@ Deno.serve(async (req: Request) => {
 
     // If already paid, just update status to confirmed (avoid double charge)
     if (order.deposit_paid_cents && order.deposit_paid_cents >= paymentAmountCents) {
-      // Still need to update status if it's not confirmed yet
       if (order.status !== 'confirmed') {
         const { error: updateError } = await supabaseClient
           .from("orders")
@@ -180,10 +206,7 @@ Deno.serve(async (req: Request) => {
       }
 
       return new Response(
-        JSON.stringify({
-          success: true,
-          alreadyCharged: true,
-        }),
+        JSON.stringify({ success: true, alreadyCharged: true }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -215,7 +238,7 @@ Deno.serve(async (req: Request) => {
 
     // Charge the payment amount + tip
     // IMPORTANT: Tip is ONLY added to the charge amount, NOT to deposit_paid_cents
-    const chargeAmountCents = paymentAmountCents + (order.tip_cents ?? 0);
+    const chargeAmountCents = paymentAmountCents + tipCents;
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount: chargeAmountCents,
@@ -240,19 +263,23 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Log the customer approval to changelog (service role bypasses RLS)
-    await supabaseClient.from("order_changelog").insert({
-      order_id: orderId,
-      user_id: null,
-      change_type: "customer_approval",
-      field_changed: "status",
-      old_value: "awaiting_customer_approval",
-      new_value: "confirmed",
-    });
+    // ---- Stripe charge succeeded — all failures below must NOT return decline UI ----
 
-    // Recalculate balance_due_cents based on current order totals minus what was just paid.
-    // tip is tracked separately in tip_cents and is NOT part of the base order total.
-    // customFeesCents was fetched in the separate query above.
+    // Changelog insert is non-fatal
+    try {
+      await supabaseClient.from("order_changelog").insert({
+        order_id: orderId,
+        user_id: null,
+        change_type: "customer_approval",
+        field_changed: "status",
+        old_value: "awaiting_customer_approval",
+        new_value: "confirmed",
+      });
+    } catch (changelogErr) {
+      console.error("[charge-deposit] Failed to insert changelog (non-fatal):", changelogErr);
+    }
+
+    // Recalculate balance_due_cents
     const orderTotal =
       (order.subtotal_cents || 0) +
       (order.travel_fee_cents || 0) +
@@ -264,7 +291,7 @@ Deno.serve(async (req: Request) => {
       (order.discount_cents || 0);
     const newBalanceDue = Math.max(0, orderTotal - paymentAmountCents);
 
-    // Update order as paid & confirmed
+    // Update order as paid & confirmed — persist payment selection post-charge
     // IMPORTANT: deposit_paid_cents should NOT include tip
     const { error: updateError } = await supabaseClient
       .from("orders")
@@ -273,14 +300,22 @@ Deno.serve(async (req: Request) => {
         deposit_paid_cents: paymentAmountCents,
         stripe_payment_status: "paid",
         balance_due_cents: newBalanceDue,
+        tip_cents: tipCents,
+        customer_selected_payment_cents: paymentAmountCents,
+        customer_selected_payment_type: persistedPaymentType,
       })
       .eq("id", orderId);
 
     if (updateError) {
-      console.error("Failed to update order status:", updateError);
+      // Stripe already charged — signal partial success so frontend does NOT show decline UI
+      console.error("[charge-deposit] Post-charge order update failed:", updateError);
       return new Response(
-        JSON.stringify({ success: false, error: `Failed to update order: ${updateError.message}` }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({
+          success: false,
+          chargeSucceeded: true,
+          error: "Payment was processed but order update failed. Please contact support.",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -314,25 +349,21 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Retrieve Stripe fees from the charge (with balance_transaction expansion)
     if (paymentIntent.latest_charge) {
       try {
         const chargeId = typeof paymentIntent.latest_charge === "string"
           ? paymentIntent.latest_charge
           : paymentIntent.latest_charge.id;
 
-        // IMPORTANT: Expand balance_transaction to get fee/net as object
         const charge = await stripe.charges.retrieve(chargeId, {
           expand: ['balance_transaction']
         });
 
         const balanceTx = charge.balance_transaction;
 
-        // After expansion, balance_transaction should be an object
         if (balanceTx && typeof balanceTx === 'object') {
           stripeFee = balanceTx.fee || 0;
           stripeNet = balanceTx.net || chargeAmountCents;
-          console.log(`[Fees] Stripe fee: ${stripeFee}, Net: ${stripeNet}, Currency: ${charge.currency}`);
         } else {
           console.warn('[Fees] balance_transaction not expanded, fees will be 0');
         }
@@ -341,25 +372,24 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Record payment with the full charge amount (including tip) and Stripe fees
-    const { error: paymentError } = await supabaseClient.from("payments").insert({
-      order_id: orderId,
-      stripe_payment_intent_id: paymentIntent.id,
-      amount_cents: chargeAmountCents,
-      type: "deposit",
-      status: "succeeded",
-      paid_at: new Date().toISOString(),
-      payment_method: paymentMethod,
-      payment_brand: paymentBrand,
-      payment_last4: paymentLast4,
-      stripe_fee_amount: stripeFee,
-      stripe_net_amount: stripeNet,
-      currency: 'usd',
-    });
-
-    if (paymentError) {
-      console.error("Failed to record payment:", paymentError);
-      // Don't fail the whole request since charge succeeded, just log it
+    // Record payment — non-fatal (charge already succeeded)
+    try {
+      await supabaseClient.from("payments").insert({
+        order_id: orderId,
+        stripe_payment_intent_id: paymentIntent.id,
+        amount_cents: chargeAmountCents,
+        type: "deposit",
+        status: "succeeded",
+        paid_at: new Date().toISOString(),
+        payment_method: paymentMethod,
+        payment_brand: paymentBrand,
+        payment_last4: paymentLast4,
+        stripe_fee_amount: stripeFee,
+        stripe_net_amount: stripeNet,
+        currency: 'usd',
+      });
+    } catch (paymentError) {
+      console.error("Failed to record payment (non-fatal):", paymentError);
     }
 
     // Build and send rich booking confirmation + receipt email

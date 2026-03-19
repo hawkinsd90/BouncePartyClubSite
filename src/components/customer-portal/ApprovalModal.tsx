@@ -52,9 +52,7 @@ export function ApprovalModal({
     };
   }, []);
 
-  // Handle mobile keyboard - keep input in view
   const handleInputFocus = () => {
-    // Delay to ensure keyboard is shown
     setTimeout(() => {
       inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 300);
@@ -106,22 +104,16 @@ export function ApprovalModal({
     setSubmitting(true);
 
     try {
-      // Resolve the canonical payment type to store.
-      // keepOriginalPayment means the customer chose to stick with their original
-      // selection - preserve the original stored type so a future reload can reconstruct it.
       const resolvedPaymentType: string = keepOriginalPayment
         ? (order.customer_selected_payment_type || 'deposit')
         : paymentAmount;
 
-      // Check if customer already paid the initial deposit
-      // Use stripe_payment_status as the source of truth — deposit_paid_cents can be stale after admin edits
       const alreadyPaidDeposit =
         order.stripe_payment_status === 'paid' ||
         (order.deposit_paid_cents || 0) > 0;
 
       if (alreadyPaidDeposit) {
-        // Already paid - persist payment selection then confirm.
-        // No charge attempt here so no dirty-write risk.
+        // Already paid — persist payment selection and confirm without charging
         const updatePayload: Record<string, unknown> = {
           customer_selected_payment_cents: selectedPaymentBaseCents,
           customer_selected_payment_type: resolvedPaymentType,
@@ -146,58 +138,38 @@ export function ApprovalModal({
           'success'
         );
       } else {
-        // Customer hasn't paid initial deposit yet.
-        // Write payment selection fields BEFORE charge so charge-deposit can read
-        // customer_selected_payment_cents. If charge fails we roll back these fields.
-        const preChargePayload: Record<string, unknown> = {
-          customer_selected_payment_cents: selectedPaymentBaseCents,
-          customer_selected_payment_type: resolvedPaymentType,
-        };
+        // Customer hasn't paid yet — send all charge params in the request body.
+        // charge-deposit uses these as source of truth; no pre-charge DB write needed.
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-        if (!keepOriginalPayment && newTipCents >= 0) {
-          preChargePayload.tip_cents = newTipCents;
-        }
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData?.session?.access_token;
 
-        const { error: preWriteError } = await supabase
-          .from('orders')
-          .update(preChargePayload)
-          .eq('id', order.id);
-
-        if (preWriteError) throw preWriteError;
-
-        // Attempt the charge via direct fetch (avoids supabase client auth issues on anon sessions)
         const chargeResponse = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/charge-deposit`,
+          `${supabaseUrl}/functions/v1/charge-deposit`,
           {
             method: 'POST',
             headers: {
-              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
               'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken || anonKey}`,
+              'Apikey': anonKey,
             },
-            body: JSON.stringify({ orderId: order.id }),
+            body: JSON.stringify({
+              orderId: order.id,
+              paymentAmountCents: selectedPaymentBaseCents,
+              tipCents: keepOriginalPayment ? (order.tip_cents || 0) : newTipCents,
+              selectedPaymentType: resolvedPaymentType,
+            }),
           }
         );
 
         const chargeData = await chargeResponse.json();
-        const chargeError =
-          !chargeResponse.ok || !chargeData?.success
-            ? { message: chargeData?.error || 'Charge failed' }
-            : null;
 
-        if (chargeError) {
-          // Charge failed - roll back the payment selection fields to their prior values
-          // so the order is not left in a misleading partially-updated state.
-          await supabase
-            .from('orders')
-            .update({
-              customer_selected_payment_cents: order.customer_selected_payment_cents ?? null,
-              customer_selected_payment_type: order.customer_selected_payment_type ?? null,
-              tip_cents: order.tip_cents ?? 0,
-            })
-            .eq('id', order.id);
-
+        // chargeSucceeded means Stripe charged but a post-charge DB step failed.
+        // Do NOT show the decline UI — the customer was charged successfully.
+        if (!chargeData?.success && !chargeData?.chargeSucceeded) {
           const errMsg =
-            chargeError?.message ||
             chargeData?.error ||
             'Your card was declined. Please update your payment information and try again.';
 
@@ -209,13 +181,19 @@ export function ApprovalModal({
           return;
         }
 
-        showToast('Order approved and payment processed successfully!', 'success');
+        if (chargeData?.chargeSucceeded && !chargeData?.success) {
+          // Payment processed but order update had a DB issue — inform customer
+          showToast(
+            'Payment processed successfully! If your order status does not update shortly, please contact us.',
+            'success'
+          );
+        } else {
+          showToast('Order approved and payment processed successfully!', 'success');
+        }
       }
 
-      // Close modal first
       onClose();
 
-      // Then call onSuccess after a brief delay to ensure modal is fully unmounted
       setTimeout(() => {
         onSuccess();
       }, 100);
