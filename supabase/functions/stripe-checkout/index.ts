@@ -120,8 +120,7 @@ Deno.serve(async (req: Request) => {
         if (typeof paymentState.keepOriginalPayment === 'boolean') params.set('kop', paymentState.keepOriginalPayment ? '1' : '0');
         if (typeof paymentState.selectedPaymentBaseCents === 'number') params.set('spb', String(paymentState.selectedPaymentBaseCents));
       }
-      params.set('session_id', '{CHECKOUT_SESSION_ID}');
-      successUrl = `${req.headers.get("origin")}/customer-portal/${orderId}?${params.toString()}`;
+      successUrl = `${req.headers.get("origin")}/customer-portal/${orderId}?${params.toString()}&session_id={CHECKOUT_SESSION_ID}`;
     } else {
       successUrl = `${req.headers.get("origin")}/payment-complete?session_id={CHECKOUT_SESSION_ID}&order_id=${orderId}`;
     }
