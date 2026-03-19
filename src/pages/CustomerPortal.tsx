@@ -18,7 +18,7 @@ export function CustomerPortal() {
   const [searchParams] = useSearchParams();
 
   const isInvoiceLink = location.pathname.startsWith('/invoice/');
-  const invoiceToken = searchParams.get('invoice_token') || (isInvoiceLink ? token : null);
+  const invoiceToken = isInvoiceLink ? token : null;
 
   const cardJustUpdated = searchParams.get('card_updated') === 'true';
   const invoiceCardSaved = searchParams.get('invoice_card_saved') === 'true';
@@ -40,10 +40,7 @@ export function CustomerPortal() {
   const resolvedOrderId = orderId || (data?.order?.id);
 
   useEffect(() => {
-    const effectiveIsInvoiceLink = isInvoiceLink || !!invoiceToken;
-
     if (invoiceCardSaved && returnSessionId && orderId) {
-      // Invoice flow: card was just saved via Stripe setup mode — save PM then charge + approve
       setInvoiceProcessing(true);
       (async () => {
         try {
@@ -54,7 +51,7 @@ export function CustomerPortal() {
             console.error('[CustomerPortal] invoice save-pm failed:', pmError ?? pmData?.error);
             showToast('Failed to save payment method. Please try again.', 'error');
             setInvoiceProcessing(false);
-            await loadOrder(orderId, invoiceToken ?? undefined, effectiveIsInvoiceLink);
+            await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
             return;
           }
 
@@ -62,7 +59,7 @@ export function CustomerPortal() {
           if (!result.success) {
             showToast(result.error || 'Payment failed. Please try again.', 'error');
             setInvoiceProcessing(false);
-            await loadOrder(orderId, invoiceToken ?? undefined, effectiveIsInvoiceLink);
+            await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
             return;
           }
 
@@ -71,11 +68,10 @@ export function CustomerPortal() {
           console.error('[CustomerPortal] invoice approval error:', err);
           showToast('Something went wrong. Please contact us.', 'error');
           setInvoiceProcessing(false);
-          await loadOrder(orderId, invoiceToken ?? undefined, effectiveIsInvoiceLink);
+          await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
         }
       })();
     } else if (cardJustUpdated && returnSessionId && orderId) {
-      // Regular card-update flow for approval modal
       (async () => {
         try {
           const { data: pmData, error: pmError } = await supabase.functions.invoke('save-payment-method-from-session', {
@@ -89,16 +85,15 @@ export function CustomerPortal() {
         } catch (err) {
           console.error('[CustomerPortal] save-payment-method-from-session threw unexpectedly:', err);
         }
-        await loadOrder(orderId, invoiceToken ?? undefined, effectiveIsInvoiceLink);
+        await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
       })();
     } else {
-      loadOrder(orderId, invoiceToken ?? undefined, effectiveIsInvoiceLink);
+      loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
     }
   }, [orderId, token, isInvoiceLink, loadOrder]);
 
   const handleReload = async () => {
-    const effectiveIsInvoiceLink = isInvoiceLink || !!invoiceToken;
-    await loadOrder(orderId, invoiceToken ?? undefined, effectiveIsInvoiceLink);
+    await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
   };
 
   if (loading || invoiceProcessing) {
@@ -129,16 +124,14 @@ export function CustomerPortal() {
   const isDraft = order.status === 'draft';
   const isActive = ['pending_review', 'confirmed', 'in_progress', 'completed'].includes(order.status);
 
-  const effectiveIsInvoiceLink = isInvoiceLink || !!invoiceToken;
-  const isDirectPortalAccess = !effectiveIsInvoiceLink && orderId;
-  const shouldShowRegularPortal = isActive || (isDirectPortalAccess && isDraft);
+  const shouldShowRegularPortal = isActive;
 
   if (approvalSuccess) {
     return <ApprovalSuccessView orderId={order.id} />;
   }
 
   if (!shouldShowRegularPortal && !needsApproval) {
-    if (isDraft && effectiveIsInvoiceLink) {
+    if (isDraft) {
       return (
         <InvoiceAcceptanceView
           order={order}

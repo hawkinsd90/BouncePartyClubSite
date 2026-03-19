@@ -61,7 +61,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const invoiceUrl = `${req.headers.get('origin')}/customer-portal/${order.id}?invoice_token=${invoiceLink.link_token}`;
+    const invoiceUrl = `${req.headers.get('origin')}/customer-portal/${order.id}`;
 
     // Update order with invoice sent timestamp
     await supabase
