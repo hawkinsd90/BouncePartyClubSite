@@ -282,6 +282,65 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Server-side availability check before charging — last line of defense
+    try {
+      const { data: orderItemRows } = await supabaseClient
+        .from("order_items")
+        .select("unit_id")
+        .eq("order_id", orderId);
+
+      if (orderItemRows && orderItemRows.length > 0) {
+        const BLOCKED_STATUSES = [
+          "pending_review",
+          "awaiting_customer_approval",
+          "approved",
+          "confirmed",
+          "in_progress",
+          "completed",
+        ];
+
+        for (const item of orderItemRows as { unit_id: string }[]) {
+          const { data: conflicts } = await supabaseClient
+            .from("order_items")
+            .select("order_id, orders!inner(id, event_date, event_end_date, status)")
+            .eq("unit_id", item.unit_id)
+            .neq("order_id", orderId)
+            .in("orders.status", BLOCKED_STATUSES);
+
+          const eventStart = new Date(order.event_date ?? "");
+          const eventEnd = new Date(order.event_end_date ?? order.event_date ?? "");
+
+          const hasConflict = (conflicts ?? []).some((c: any) => {
+            const o = c.orders;
+            if (!o) return false;
+            const oStart = new Date(o.event_date);
+            const oEnd = new Date(o.event_end_date ?? o.event_date);
+            return (
+              (eventStart >= oStart && eventStart <= oEnd) ||
+              (eventEnd >= oStart && eventEnd <= oEnd) ||
+              (eventStart <= oStart && eventEnd >= oEnd)
+            );
+          });
+
+          if (hasConflict) {
+            return new Response(
+              JSON.stringify({
+                success: false,
+                error:
+                  "One or more items in this order are no longer available for the event date. Please contact support to reschedule.",
+              }),
+              {
+                status: 409,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              }
+            );
+          }
+        }
+      }
+    } catch (availabilityErr) {
+      console.error("[charge-deposit] Availability check error (non-fatal, proceeding):", availabilityErr);
+    }
+
     const validation = await validatePaymentMethod(resolvedPaymentMethodId, stripe);
 
     if (!validation.valid) {

@@ -9,6 +9,7 @@ import { PaymentAmountSelector } from './PaymentAmountSelector';
 import { CustomerInfoForm } from './CustomerInfoForm';
 import { CancelOrderModal } from './CancelOrderModal';
 import { showToast } from '../../lib/notifications';
+import { checkMultipleUnitsAvailability } from '../../lib/availability';
 
 
 interface InvoiceAcceptanceViewProps {
@@ -148,6 +149,31 @@ export function InvoiceAcceptanceView({
       }
 
       const tipCents = getTipCents();
+
+      // Check unit availability before proceeding to Stripe
+      const { data: orderItems } = await supabase
+        .from('order_items')
+        .select('unit_id')
+        .eq('order_id', order.id);
+
+      if (orderItems && orderItems.length > 0) {
+        const availabilityChecks = orderItems.map((item: any) => ({
+          unitId: item.unit_id,
+          eventStartDate: order.event_date,
+          eventEndDate: order.event_end_date || order.event_date,
+          excludeOrderId: order.id,
+        }));
+        const results = await checkMultipleUnitsAvailability(availabilityChecks);
+        const unavailable = results.filter((r) => !r.isAvailable);
+        if (unavailable.length > 0) {
+          showToast(
+            'Sorry, one or more items in your order are no longer available for your event date. Please contact us to reschedule.',
+            'error'
+          );
+          setProcessing(false);
+          return;
+        }
+      }
 
       if (tipCents > 0) {
         await supabase.from('orders').update({ tip_cents: tipCents }).eq('id', order.id);
