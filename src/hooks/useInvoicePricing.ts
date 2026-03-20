@@ -39,7 +39,8 @@ export function useInvoicePricing(
   eventDetails: EventDetails,
   pricingRules: PricingRules | null,
   discounts: Discount[],
-  customFees: CustomFee[]
+  customFees: CustomFee[],
+  taxWaived: boolean = false
 ) {
   const [priceBreakdown, setPriceBreakdown] = useState<PriceBreakdown | null>(null);
 
@@ -143,7 +144,17 @@ export function useInvoicePricing(
     [actualSubtotal, automaticFees, discountTotal, customFeesTotal]
   );
 
-  const taxCents = useMemo(() => Math.round(taxableAmount * 0.06), [taxableAmount]);
+  const applyTaxesByDefault = pricingRules?.apply_taxes_by_default ?? true;
+
+  const calculatedTaxCents = useMemo(() => Math.round(taxableAmount * 0.06), [taxableAmount]);
+
+  const taxCents = useMemo(() => {
+    if (applyTaxesByDefault) {
+      return taxWaived ? 0 : calculatedTaxCents;
+    } else {
+      return taxWaived ? calculatedTaxCents : 0;
+    }
+  }, [applyTaxesByDefault, taxWaived, calculatedTaxCents]);
 
   const totalCents = useMemo(
     () => actualSubtotal + automaticFees - discountTotal + customFeesTotal + taxCents,

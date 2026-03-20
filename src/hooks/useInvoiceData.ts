@@ -44,6 +44,7 @@ export function useInvoiceData() {
           same_day_pickup_fee_cents: rulesRes.data.same_day_pickup_fee_cents,
           generator_fee_single_cents: rulesRes.data.generator_fee_single_cents,
           generator_fee_multiple_cents: rulesRes.data.generator_fee_multiple_cents,
+          apply_taxes_by_default: rulesRes.data.apply_taxes_by_default,
         });
       }
     } finally {
