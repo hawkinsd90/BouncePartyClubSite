@@ -373,7 +373,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
 
             {activeTab === 'details' && (
               <div className="space-y-6">
-                {totalPaid === 0 && (
+                {totalPaid === 0 && order.status === 'pending_review' && (
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                     <p className="text-amber-800 font-medium">Order Pending Approval</p>
                     <p className="text-sm text-amber-700 mt-1">
