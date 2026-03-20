@@ -242,6 +242,11 @@ export function InvoiceAcceptanceView({
 
         let notificationsSent = false;
 
+        const smsMessage = generateConfirmationSmsMessage(
+          { ...order, id: order.id },
+          firstName
+        );
+
         if (email) {
           try {
             const confirmationEmail = generateConfirmationReceiptEmail({
@@ -258,11 +263,6 @@ export function InvoiceAcceptanceView({
               order_items: [],
             });
 
-            const smsMessage = generateConfirmationSmsMessage(
-              { ...order, id: order.id },
-              firstName
-            );
-
             await sendNotificationToCustomer({
               email,
               phone,
@@ -274,6 +274,20 @@ export function InvoiceAcceptanceView({
             notificationsSent = true;
           } catch (notifError) {
             console.error('Error sending confirmation notifications:', notifError);
+          }
+        } else if (phone) {
+          try {
+            await sendNotificationToCustomer({
+              email: '',
+              phone,
+              emailSubject: '',
+              emailHtml: '',
+              smsMessage,
+              orderId: order.id,
+            });
+            notificationsSent = true;
+          } catch (notifError) {
+            console.error('Error sending SMS confirmation:', notifError);
           }
         }
 
@@ -299,10 +313,17 @@ export function InvoiceAcceptanceView({
       }
 
       // Store the chosen payment amount so charge-deposit uses it
-      await supabase
+      const { error: paymentAmountError } = await supabase
         .from('orders')
         .update({ customer_selected_payment_cents: actualPaymentCents })
         .eq('id', order.id);
+
+      if (paymentAmountError) {
+        console.error('Failed to save payment selection:', paymentAmountError);
+        showToast('Failed to save payment selection. Please try again.', 'error');
+        setProcessing(false);
+        return;
+      }
 
       const effectiveEmail = customerInfo.email || order.customers?.email;
       const effectiveName = customerInfo.first_name

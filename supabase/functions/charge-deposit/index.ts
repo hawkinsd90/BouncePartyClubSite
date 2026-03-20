@@ -368,7 +368,17 @@ Deno.serve(async (req: Request) => {
         }
       }
     } catch (availabilityErr) {
-      console.error("[charge-deposit] Availability check error (non-fatal, proceeding):", availabilityErr);
+      console.error("[charge-deposit] Availability check error:", availabilityErr);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Unable to verify item availability. Please try again or contact support.",
+        }),
+        {
+          status: 503,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     const validation = await validatePaymentMethod(resolvedPaymentMethodId, stripe);
@@ -636,7 +646,7 @@ Deno.serve(async (req: Request) => {
         const surfaceFee = fullOrder.surface_fee_cents || 0;
         const sameDayFee = fullOrder.same_day_pickup_fee_cents || 0;
         const generatorFee = fullOrder.generator_fee_cents || 0;
-        const discount = fullOrder.discount_cents || 0;
+        const discount = discountCents;
         const tax = fullOrder.tax_cents || 0;
         const tip = fullOrder.tip_cents || 0;
 
