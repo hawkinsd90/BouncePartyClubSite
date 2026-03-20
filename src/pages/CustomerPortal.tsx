@@ -63,6 +63,7 @@ export function CustomerPortal() {
             return;
           }
 
+          setInvoiceProcessing(false);
           setApprovalSuccess(true);
         } catch (err: any) {
           console.error('[CustomerPortal] invoice approval error:', err);
