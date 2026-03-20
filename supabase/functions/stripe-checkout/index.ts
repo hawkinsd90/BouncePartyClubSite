@@ -114,9 +114,9 @@ Deno.serve(async (req: Request) => {
     if (setupMode) {
       let params: URLSearchParams;
       if (invoiceMode) {
-        params = new URLSearchParams({ invoice_card_saved: 'true', session_id: '{CHECKOUT_SESSION_ID}' });
+        successUrl = `${req.headers.get("origin")}/customer-portal/${orderId}?invoice_card_saved=true&session_id={CHECKOUT_SESSION_ID}`;
       } else {
-        params = new URLSearchParams({ card_updated: 'true', session_id: '{CHECKOUT_SESSION_ID}' });
+        params = new URLSearchParams({ card_updated: 'true' });
         if (paymentState) {
           if (paymentState.paymentAmount) params.set('pa', paymentState.paymentAmount);
           if (paymentState.customPaymentAmount) params.set('cpa', paymentState.customPaymentAmount);
@@ -124,8 +124,8 @@ Deno.serve(async (req: Request) => {
           if (typeof paymentState.keepOriginalPayment === 'boolean') params.set('kop', paymentState.keepOriginalPayment ? '1' : '0');
           if (typeof paymentState.selectedPaymentBaseCents === 'number') params.set('spb', String(paymentState.selectedPaymentBaseCents));
         }
+        successUrl = `${req.headers.get("origin")}/customer-portal/${orderId}?${params.toString()}&session_id={CHECKOUT_SESSION_ID}`;
       }
-      successUrl = `${req.headers.get("origin")}/customer-portal/${orderId}?${params.toString()}`;
     } else {
       successUrl = `${req.headers.get("origin")}/payment-complete?session_id={CHECKOUT_SESSION_ID}&order_id=${orderId}`;
     }
