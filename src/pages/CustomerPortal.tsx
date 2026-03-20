@@ -143,6 +143,7 @@ export function CustomerPortal() {
           invoiceLink={invoiceLink}
           orderSummary={orderSummary}
           onReload={handleReload}
+          onApprovalSuccess={() => setApprovalSuccess(true)}
         />
       );
     }

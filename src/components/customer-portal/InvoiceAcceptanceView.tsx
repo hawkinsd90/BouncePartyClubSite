@@ -23,6 +23,7 @@ interface InvoiceAcceptanceViewProps {
   invoiceLink: any | null;
   orderSummary: OrderSummaryDisplay | null;
   onReload: () => void;
+  onApprovalSuccess?: () => void;
 }
 
 export function InvoiceAcceptanceView({
@@ -31,6 +32,7 @@ export function InvoiceAcceptanceView({
   invoiceLink,
   orderSummary,
   onReload,
+  onApprovalSuccess,
 }: InvoiceAcceptanceViewProps) {
   const [customerInfo, setCustomerInfo] = useState({
     first_name: order.customers?.first_name || '',
@@ -203,15 +205,20 @@ export function InvoiceAcceptanceView({
         }).eq('id', order.id);
 
         const customer = order.customers;
-        if (customer?.email) {
+        const firstName = customer?.first_name || customerInfo.first_name || '';
+        const lastName = customer?.last_name || customerInfo.last_name || '';
+        const email = customer?.email || customerInfo.email || '';
+        const phone = customer?.phone || customerInfo.phone || '';
+
+        if (email) {
           try {
             const confirmationEmail = generateConfirmationReceiptEmail({
               id: order.id,
               customer: {
-                first_name: customer.first_name,
-                last_name: customer.last_name,
-                email: customer.email,
-                phone: customer.phone || '',
+                first_name: firstName,
+                last_name: lastName,
+                email,
+                phone,
               },
               event_date: order.event_date,
               deposit_due_cents: 0,
@@ -221,12 +228,12 @@ export function InvoiceAcceptanceView({
 
             const smsMessage = generateConfirmationSmsMessage(
               { ...order, id: order.id },
-              customer.first_name
+              firstName
             );
 
             await sendNotificationToCustomer({
-              email: customer.email,
-              phone: customer.phone,
+              email,
+              phone,
               emailSubject: `Booking Confirmed! Order #${formatOrderId(order.id)}`,
               emailHtml: confirmationEmail,
               smsMessage,
@@ -239,14 +246,18 @@ export function InvoiceAcceptanceView({
 
         try {
           await sendAdminSms(
-            `Invoice accepted (no payment): Order #${formatOrderId(order.id)} - ${customer?.first_name} ${customer?.last_name}, ${order.event_date}. Full balance $${((order.balance_due_cents || 0) / 100).toFixed(2)} due day of event.`,
+            `Invoice accepted (no payment): Order #${formatOrderId(order.id)} - ${firstName} ${lastName}, ${order.event_date}. Full balance $${((order.balance_due_cents || 0) / 100).toFixed(2)} due day of event.`,
             order.id
           );
         } catch (adminNotifError) {
           console.error('Error sending admin notification:', adminNotifError);
         }
 
-        onReload();
+        if (onApprovalSuccess) {
+          onApprovalSuccess();
+        } else {
+          onReload();
+        }
         return;
       }
 
