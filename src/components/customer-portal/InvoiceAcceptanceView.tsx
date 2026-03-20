@@ -290,17 +290,16 @@ export function InvoiceAcceptanceView({
         if (email) {
           try {
             const confirmationEmail = generateConfirmationReceiptEmail({
-              id: order.id,
+              order,
               customer: {
                 first_name: firstName,
                 last_name: lastName,
                 email,
                 phone,
               },
-              event_date: order.event_date,
-              deposit_due_cents: 0,
-              balance_due_cents: order.balance_due_cents,
-              order_items: [],
+              address: order.addresses,
+              items: [],
+              totalCents: order.balance_due_cents,
             });
 
             await sendNotificationToCustomer({
