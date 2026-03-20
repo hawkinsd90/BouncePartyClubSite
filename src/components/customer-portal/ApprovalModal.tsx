@@ -80,12 +80,6 @@ export function ApprovalModal({
   async function handleUpdateCard() {
     setUpdatingCard(true);
     try {
-      const available = await checkAvailability();
-      if (!available) {
-        setUpdatingCard(false);
-        return;
-      }
-
       const { data: sessionData, error: sessionError } = await supabase.functions.invoke(
         'stripe-checkout',
         {
