@@ -63,6 +63,7 @@ export function CustomerPortal() {
             return;
           }
 
+          await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
           setInvoiceProcessing(false);
           setApprovalSuccess(true);
         } catch (err: any) {
