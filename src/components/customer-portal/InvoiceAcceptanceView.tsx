@@ -135,7 +135,7 @@ export function InvoiceAcceptanceView({
         if (customerError) throw customerError;
         customerId = newCustomer.id;
 
-        await supabase
+        const { error: consentUpdateError } = await supabase
           .from('orders')
           .update({
             customer_id: customerId,
@@ -145,12 +145,19 @@ export function InvoiceAcceptanceView({
           })
           .eq('id', order.id);
 
+        if (consentUpdateError) {
+          console.error('Failed to record consent:', consentUpdateError);
+          showToast('Failed to save your information. Please try again.', 'error');
+          setProcessing(false);
+          return;
+        }
+
         await supabase
           .from('invoice_links' as any)
           .update({ customer_filled: true })
           .eq('id', invoiceLink.id);
       } else {
-        await supabase
+        const { error: consentUpdateError } = await supabase
           .from('orders')
           .update({
             card_on_file_consent: isNoCardRequired ? false : cardOnFileConsent,
@@ -158,6 +165,13 @@ export function InvoiceAcceptanceView({
             invoice_accepted_at: new Date().toISOString(),
           })
           .eq('id', order.id);
+
+        if (consentUpdateError) {
+          console.error('Failed to record consent:', consentUpdateError);
+          showToast('Failed to save your information. Please try again.', 'error');
+          setProcessing(false);
+          return;
+        }
       }
 
       const tipCents = getTipCents();
@@ -188,7 +202,17 @@ export function InvoiceAcceptanceView({
       }
 
       if (tipCents > 0) {
-        await supabase.from('orders').update({ tip_cents: tipCents }).eq('id', order.id);
+        const { error: tipUpdateError } = await supabase
+          .from('orders')
+          .update({ tip_cents: tipCents })
+          .eq('id', order.id);
+
+        if (tipUpdateError) {
+          console.error('Failed to record tip:', tipUpdateError);
+          showToast('Failed to save tip amount. Please try again.', 'error');
+          setProcessing(false);
+          return;
+        }
       }
 
       // No card required & $0 deposit: confirm order directly without Stripe

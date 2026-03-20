@@ -110,34 +110,8 @@ export function useOrderData() {
       const discounts = discountsData || [];
       const customFees = feesData || [];
 
-      if ((discounts.length > 0 || customFees.length > 0) && orderData) {
-        const discountTotal = discounts.reduce((sum: number, d: any) => {
-          if (d.amount_cents > 0) {
-            return sum + d.amount_cents;
-          } else if (d.percentage > 0) {
-            const taxableBase = orderData.subtotal_cents + (orderData.generator_fee_cents || 0) + orderData.travel_fee_cents + orderData.surface_fee_cents;
-            return sum + Math.round(taxableBase * (d.percentage / 100));
-          }
-          return sum;
-        }, 0);
-
-        const customFeesTotal = customFees.reduce((sum: number, f: any) => sum + f.amount_cents, 0);
-
-        const effectiveTaxCents = orderData.tax_waived ? 0 : orderData.tax_cents || 0;
-
-        const recalculatedTotal =
-          orderData.subtotal_cents +
-          (orderData.generator_fee_cents || 0) +
-          orderData.travel_fee_cents +
-          orderData.surface_fee_cents +
-          (orderData.same_day_pickup_fee_cents || 0) +
-          customFeesTotal +
-          effectiveTaxCents +
-          (orderData.tip_cents || 0) -
-          discountTotal;
-
-        orderData.tax_cents = effectiveTaxCents;
-        orderData.balance_due_cents = recalculatedTotal - (orderData.deposit_paid_cents || orderData.deposit_due_cents);
+      if (orderData && orderData.tax_waived) {
+        orderData.tax_cents = 0;
       }
 
       const summaryData = await loadOrderSummary(orderIdToLoad);
