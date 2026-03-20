@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
-import { Edit2 } from 'lucide-react';
+import { CreditCard as Edit2 } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
+import { ORDER_STATUS_LABELS } from '../../lib/constants/statuses';
 
 interface OrderInfoSectionProps {
   order: any;
@@ -8,9 +9,25 @@ interface OrderInfoSectionProps {
   onEditClick: () => void;
 }
 
+const STATUS_BADGE_COLORS: Record<string, string> = {
+  draft: 'bg-orange-600',
+  pending_review: 'bg-orange-600',
+  awaiting_customer_approval: 'bg-amber-600',
+  confirmed: 'bg-green-600',
+  in_progress: 'bg-blue-600',
+  setup_in_progress: 'bg-blue-600',
+  on_the_way: 'bg-blue-600',
+  setup_completed: 'bg-teal-600',
+  pickup_in_progress: 'bg-cyan-600',
+  on_the_way_back: 'bg-blue-600',
+  completed: 'bg-green-700',
+  cancelled: 'bg-red-600',
+  void: 'bg-slate-500',
+};
+
 export function OrderInfoSection({ order, customerDisplayName, onEditClick }: OrderInfoSectionProps) {
-  const isDraft = order.status === 'draft';
-  const isAwaitingApproval = order.status === 'awaiting_customer_approval';
+  const badgeColor = STATUS_BADGE_COLORS[order.status] ?? 'bg-slate-600';
+  const badgeLabel = ORDER_STATUS_LABELS[order.status as keyof typeof ORDER_STATUS_LABELS] ?? order.status ?? 'Unknown';
 
   return (
     <>
@@ -25,9 +42,9 @@ export function OrderInfoSection({ order, customerDisplayName, onEditClick }: Or
         <div className="sm:text-right w-full sm:w-auto shrink-0">
           <div className="flex items-center justify-between sm:justify-end gap-2 mb-2">
             <span
-              className={`sm:hidden inline-block px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${isDraft ? 'bg-orange-600' : isAwaitingApproval ? 'bg-amber-600' : 'bg-orange-600'} text-white`}
+              className={`sm:hidden inline-block px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${badgeColor} text-white`}
             >
-              {isDraft ? 'DRAFT' : isAwaitingApproval ? 'AWAITING' : 'PENDING'}
+              {badgeLabel.toUpperCase()}
             </span>
             <button
               onClick={onEditClick}
@@ -47,13 +64,9 @@ export function OrderInfoSection({ order, customerDisplayName, onEditClick }: Or
           </p>
           <div className="mt-2 hidden sm:block">
             <span
-              className={`inline-block px-3 py-1 rounded-full text-xs font-semibold text-white ${isDraft ? 'bg-orange-600' : isAwaitingApproval ? 'bg-amber-600' : 'bg-orange-600'}`}
+              className={`inline-block px-3 py-1 rounded-full text-xs font-semibold text-white ${badgeColor}`}
             >
-              {isDraft
-                ? 'DRAFT - NEEDS DEPOSIT'
-                : isAwaitingApproval
-                  ? 'AWAITING CUSTOMER APPROVAL'
-                  : 'PENDING REVIEW'}
+              {badgeLabel.toUpperCase()}
             </span>
           </div>
         </div>

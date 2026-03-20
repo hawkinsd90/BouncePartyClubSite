@@ -124,7 +124,7 @@ export function CustomerPortal() {
 
   const needsApproval = order.status === 'awaiting_customer_approval';
   const isDraft = order.status === 'draft';
-  const isActive = ['pending_review', 'confirmed', 'in_progress', 'completed'].includes(order.status);
+  const isActive = ['pending_review', 'confirmed', 'setup_in_progress', 'on_the_way', 'setup_completed', 'pickup_in_progress', 'on_the_way_back', 'completed'].includes(order.status);
 
   const shouldShowRegularPortal = isActive;
 

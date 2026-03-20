@@ -85,6 +85,8 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
   const canCancel = ['draft', 'pending_review', 'awaiting_customer_approval', 'confirmed'].includes(
     order.status
   );
+  const isConfirmed = order.status === 'confirmed';
+  const stepsUnlocked = totalPaid > 0 || isConfirmed;
 
   async function handlePayment() {
     try {
@@ -237,10 +239,10 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                 )}
 
                 <button
-                  onClick={() => totalPaid > 0 && setActiveTab('waiver')}
-                  disabled={totalPaid === 0}
+                  onClick={() => stepsUnlocked && setActiveTab('waiver')}
+                  disabled={!stepsUnlocked}
                   className={`border rounded-lg p-4 transition-all ${
-                    totalPaid === 0
+                    !stepsUnlocked
                       ? 'border-slate-300 bg-slate-100 cursor-not-allowed opacity-60'
                       : needsWaiver
                       ? 'border-amber-500 bg-amber-50 hover:border-amber-600'
@@ -263,10 +265,10 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                 </button>
 
                 <button
-                  onClick={() => totalPaid > 0 && setActiveTab('payment')}
-                  disabled={totalPaid === 0}
+                  onClick={() => stepsUnlocked && setActiveTab('payment')}
+                  disabled={!stepsUnlocked}
                   className={`border rounded-lg p-4 transition-all ${
-                    totalPaid === 0
+                    !stepsUnlocked
                       ? 'border-slate-300 bg-slate-100 cursor-not-allowed opacity-60'
                       : needsPayment
                       ? 'border-amber-500 bg-amber-50 hover:border-amber-600'
@@ -289,10 +291,10 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                 </button>
 
                 <button
-                  onClick={() => totalPaid > 0 && setActiveTab('pictures')}
-                  disabled={totalPaid === 0}
+                  onClick={() => stepsUnlocked && setActiveTab('pictures')}
+                  disabled={!stepsUnlocked}
                   className={`border rounded-lg p-4 transition-all ${
-                    totalPaid === 0
+                    !stepsUnlocked
                       ? 'border-slate-300 bg-slate-100 cursor-not-allowed opacity-60'
                       : 'border-slate-300 bg-slate-50 hover:border-slate-400'
                   }`}
@@ -331,10 +333,10 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                 Lot Pictures
               </button>
               <button
-                onClick={() => totalPaid > 0 && setActiveTab('waiver')}
-                disabled={totalPaid === 0}
+                onClick={() => stepsUnlocked && setActiveTab('waiver')}
+                disabled={!stepsUnlocked}
                 className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  totalPaid === 0
+                  !stepsUnlocked
                     ? 'border-transparent text-slate-400 cursor-not-allowed'
                     : activeTab === 'waiver'
                     ? 'border-blue-600 text-blue-600'
@@ -344,10 +346,10 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                 Waiver
               </button>
               <button
-                onClick={() => totalPaid > 0 && setActiveTab('payment')}
-                disabled={totalPaid === 0}
+                onClick={() => stepsUnlocked && setActiveTab('payment')}
+                disabled={!stepsUnlocked}
                 className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  totalPaid === 0
+                  !stepsUnlocked
                     ? 'border-transparent text-slate-400 cursor-not-allowed'
                     : activeTab === 'payment'
                     ? 'border-blue-600 text-blue-600'
@@ -357,10 +359,10 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                 Payment
               </button>
               <button
-                onClick={() => totalPaid > 0 && setActiveTab('pictures')}
-                disabled={totalPaid === 0}
+                onClick={() => stepsUnlocked && setActiveTab('pictures')}
+                disabled={!stepsUnlocked}
                 className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  totalPaid === 0
+                  !stepsUnlocked
                     ? 'border-transparent text-slate-400 cursor-not-allowed'
                     : activeTab === 'pictures'
                     ? 'border-blue-600 text-blue-600'

@@ -294,7 +294,7 @@ export function InvoiceAcceptanceView({
           (order.surface_fee_cents || 0) +
           (order.same_day_pickup_fee_cents || 0) +
           (order.tax_cents || 0) +
-          (order.tip_cents || 0);
+          tipCents;
 
         const { data: fullItems } = await supabase
           .from('order_items')

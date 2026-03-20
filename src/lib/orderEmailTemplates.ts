@@ -115,18 +115,22 @@ export function generateConfirmationReceiptEmail(data: OrderEmailData): string {
     bold: true,
   });
 
-  pricingRows.push({
-    label: 'Deposit Paid',
-    value: `$${(order.deposit_due_cents / 100).toFixed(2)}`,
-    bold: true,
-    highlight: true,
-  });
+  if ((order.deposit_due_cents ?? 0) > 0) {
+    pricingRows.push({
+      label: 'Deposit Paid',
+      value: `$${(order.deposit_due_cents / 100).toFixed(2)}`,
+      bold: true,
+      highlight: true,
+    });
+  }
 
-  pricingRows.push({
-    label: 'Balance Due',
-    value: `$${(order.balance_due_cents / 100).toFixed(2)}`,
-    bold: true,
-  });
+  if ((order.balance_due_cents ?? 0) > 0) {
+    pricingRows.push({
+      label: 'Balance Due',
+      value: `$${(order.balance_due_cents / 100).toFixed(2)}`,
+      bold: true,
+    });
+  }
 
   content += createPricingSummary({
     title: 'Payment Summary',
