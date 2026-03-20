@@ -123,15 +123,7 @@ export function useOrderData() {
 
         const customFeesTotal = customFees.reduce((sum: number, f: any) => sum + f.amount_cents, 0);
 
-        const taxableAmount = Math.max(0,
-          orderData.subtotal_cents +
-          (orderData.generator_fee_cents || 0) +
-          orderData.travel_fee_cents +
-          orderData.surface_fee_cents +
-          customFeesTotal -
-          discountTotal
-        );
-        const recalculatedTax = Math.round(taxableAmount * 0.06);
+        const effectiveTaxCents = orderData.tax_waived ? 0 : orderData.tax_cents || 0;
 
         const recalculatedTotal =
           orderData.subtotal_cents +
@@ -140,12 +132,12 @@ export function useOrderData() {
           orderData.surface_fee_cents +
           (orderData.same_day_pickup_fee_cents || 0) +
           customFeesTotal +
-          recalculatedTax +
+          effectiveTaxCents +
           (orderData.tip_cents || 0) -
           discountTotal;
 
-        orderData.tax_cents = recalculatedTax;
-        orderData.balance_due_cents = recalculatedTotal - orderData.deposit_due_cents;
+        orderData.tax_cents = effectiveTaxCents;
+        orderData.balance_due_cents = recalculatedTotal - (orderData.deposit_paid_cents || orderData.deposit_due_cents);
       }
 
       const summaryData = await loadOrderSummary(orderIdToLoad);

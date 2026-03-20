@@ -197,18 +197,26 @@ export function InvoiceAcceptanceView({
           ? 'overnight_responsibility_accepted'
           : 'same_day_responsibility_accepted';
 
-        await supabase.from('orders').update({
+        const { error: confirmError } = await supabase.from('orders').update({
           [fieldToUpdate]: true,
           status: 'confirmed',
           invoice_accepted_at: new Date().toISOString(),
-          booking_confirmation_sent: true,
         }).eq('id', order.id);
+
+        if (confirmError) {
+          console.error('Error confirming order:', confirmError);
+          showToast('Failed to confirm booking. Please try again or contact support.', 'error');
+          setProcessing(false);
+          return;
+        }
 
         const customer = order.customers;
         const firstName = customer?.first_name || customerInfo.first_name || '';
         const lastName = customer?.last_name || customerInfo.last_name || '';
         const email = customer?.email || customerInfo.email || '';
         const phone = customer?.phone || customerInfo.phone || '';
+
+        let notificationsSent = false;
 
         if (email) {
           try {
@@ -239,9 +247,14 @@ export function InvoiceAcceptanceView({
               smsMessage,
               orderId: order.id,
             });
+            notificationsSent = true;
           } catch (notifError) {
             console.error('Error sending confirmation notifications:', notifError);
           }
+        }
+
+        if (notificationsSent) {
+          await supabase.from('orders').update({ booking_confirmation_sent: true }).eq('id', order.id);
         }
 
         try {
