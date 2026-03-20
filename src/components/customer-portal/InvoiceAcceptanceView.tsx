@@ -274,38 +274,49 @@ export function InvoiceAcceptanceView({
           return;
         }
 
-        const customer = order.customers;
-        const firstName = customer?.first_name || customerInfo.first_name || '';
-        const lastName = customer?.last_name || customerInfo.last_name || '';
-        const email = customer?.email || customerInfo.email || '';
-        const phone = customer?.phone || customerInfo.phone || '';
+        const firstName = order.customers?.first_name || customerInfo.first_name || '';
+        const lastName = order.customers?.last_name || customerInfo.last_name || '';
+        const email = order.customers?.email || customerInfo.email || '';
+        const phone = order.customers?.phone || customerInfo.phone || '';
+
+        const customer = {
+          first_name: firstName,
+          last_name: lastName,
+          email,
+          phone,
+        };
+
+        const smsMessage = generateConfirmationSmsMessage(order, firstName);
+
+        const totalCents =
+          (order.subtotal_cents || 0) +
+          (order.travel_fee_cents || 0) +
+          (order.surface_fee_cents || 0) +
+          (order.same_day_pickup_fee_cents || 0) +
+          (order.tax_cents || 0) +
+          (order.tip_cents || 0);
+
+        const { data: fullItems } = await supabase
+          .from('order_items')
+          .select('*, units(*)')
+          .eq('order_id', order.id);
 
         let notificationsSent = false;
-
-        const smsMessage = generateConfirmationSmsMessage(
-          { ...order, id: order.id },
-          firstName
-        );
 
         if (email) {
           try {
             const confirmationEmail = generateConfirmationReceiptEmail({
               order,
-              customer: {
-                first_name: firstName,
-                last_name: lastName,
-                email,
-                phone,
-              },
+              customer,
               address: order.addresses,
-              items: [],
-              totalCents: order.balance_due_cents,
+              items: fullItems || [],
+              totalCents,
             });
 
             await sendNotificationToCustomer({
               email,
               phone,
-              emailSubject: `Booking Confirmed! Order #${formatOrderId(order.id)}`,
+              emailSubject: `Booking Confirmed - Receipt for Order #${formatOrderId(order.id)}`,
               emailHtml: confirmationEmail,
               smsMessage,
               orderId: order.id,
@@ -333,19 +344,10 @@ export function InvoiceAcceptanceView({
         }
 
         if (notificationsSent) {
-          const { error: flagError } = await supabase
+          await supabase
             .from('orders')
             .update({ booking_confirmation_sent: true })
             .eq('id', order.id);
-
-          if (flagError) {
-            console.error('Failed to mark booking_confirmation_sent:', flagError);
-          }
-        } else if (!email && !phone) {
-          console.warn(
-            '[InvoiceAcceptanceView] No email or phone on order — customer confirmation notification skipped.',
-            { orderId: order.id }
-          );
         }
 
         try {
