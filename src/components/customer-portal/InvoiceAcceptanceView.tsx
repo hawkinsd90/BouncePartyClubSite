@@ -1,16 +1,30 @@
 import { useState } from 'react';
-import { format } from 'date-fns';
-import { CheckCircle, Printer, X, FileText } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/pricing';
-import { formatOrderId } from '../../lib/utils';
-import { showToast } from '../../lib/notifications';
-import { sendNotificationToCustomer } from '../../lib/notificationService';
-import { TipSelector, calculateTipCents } from '../payment/TipSelector';
+import {
+  Loader2,
+  CreditCard,
+  CheckCircle,
+  AlertCircle,
+  Shield,
+} from 'lucide-react';
+import { OrderSummaryDisplay } from '../../lib/orderSummary';
 import { SimpleInvoiceDisplay } from '../shared/SimpleInvoiceDisplay';
+import { TipSelector } from '../payment/TipSelector';
+import { PaymentAmountSelector } from './PaymentAmountSelector';
 import { CustomerInfoForm } from './CustomerInfoForm';
-import { CardOnFileAuthorization } from '../payment/CardOnFileAuthorization';
-import type { OrderSummaryDisplay } from '../../lib/orderSummary';
+import { CancelOrderModal } from './CancelOrderModal';
+import { showToast } from '../../lib/notifications';
+import { checkMultipleUnitsAvailability } from '../../lib/availability';
+import {
+  sendNotificationToCustomer,
+  sendAdminSms,
+} from '../../lib/notificationService';
+import {
+  generateConfirmationReceiptEmail,
+  generateConfirmationSmsMessage,
+} from '../../lib/orderEmailTemplates';
+import { formatOrderId } from '../../lib/utils';
 
 interface InvoiceAcceptanceViewProps {
   order: any;
@@ -20,15 +34,7 @@ interface InvoiceAcceptanceViewProps {
   invoiceLink: any | null;
   orderSummary: OrderSummaryDisplay | null;
   onReload: () => void;
-  onApprovalSuccess: () => void;
-}
-
-interface CustomerInfo {
-  first_name: string;
-  last_name: string;
-  email: string;
-  phone: string;
-  business_name: string;
+  onApprovalSuccess?: () => void;
 }
 
 export function InvoiceAcceptanceView({
@@ -39,22 +45,7 @@ export function InvoiceAcceptanceView({
   onReload,
   onApprovalSuccess,
 }: InvoiceAcceptanceViewProps) {
-  const hasCustomer = !!(order.customers?.first_name || order.customers?.email);
-  const requireCardOnFile = order.require_card_on_file !== false;
-  const depositDueCents = order.deposit_due_cents || 0;
-
-  const [processing, setProcessing] = useState(false);
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [accepted, setAccepted] = useState(false);
-
-  const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
-  const [customPaymentAmount, setCustomPaymentAmount] = useState('');
-  const [tipAmount, setTipAmount] = useState<'none' | '10' | '15' | '20' | 'custom'>('none');
-  const [customTipAmount, setCustomTipAmount] = useState('');
-  const [cardOnFileConsent, setCardOnFileConsent] = useState(false);
-  const [smsConsent, setSmsConsent] = useState(false);
-
-  const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
+  const [customerInfo, setCustomerInfo] = useState({
     first_name: order.customers?.first_name || '',
     last_name: order.customers?.last_name || '',
     email: order.customers?.email || '',
@@ -62,483 +53,639 @@ export function InvoiceAcceptanceView({
     business_name: order.customers?.business_name || '',
   });
 
-  const totalCents =
-    (order.subtotal_cents || 0) +
-    (order.travel_fee_cents || 0) +
-    (order.surface_fee_cents || 0) +
-    (order.same_day_pickup_fee_cents || 0) +
-    (order.generator_fee_cents || 0) +
-    (order.tax_cents || 0) -
-    (order.discount_cents || 0);
+  const [cardOnFileConsent, setCardOnFileConsent] = useState(false);
+  const [smsConsent, setSmsConsent] = useState(false);
+  const [overnightResponsibilityAccepted, setOvernightResponsibilityAccepted] =
+    useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState<
+    'deposit' | 'full' | 'custom'
+  >('deposit');
+  const [customPaymentAmount, setCustomPaymentAmount] = useState('');
+  const [tipAmount, setTipAmount] = useState<
+    'none' | '10' | '15' | '20' | 'custom'
+  >('none');
+  const [customTipAmount, setCustomTipAmount] = useState('');
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
-  const tipCents = calculateTipCents(tipAmount, customTipAmount, totalCents);
+  const needsCustomerInfo = invoiceLink && !invoiceLink.customer_filled;
+  const totalCents = order.deposit_due_cents + order.balance_due_cents;
 
-  const actualPaymentBaseCents = (() => {
+  function getActualPaymentCents(): number {
+    if (paymentAmount === 'deposit') return order.deposit_due_cents;
     if (paymentAmount === 'full') return totalCents;
+
     if (paymentAmount === 'custom' && customPaymentAmount) {
       return Math.round(parseFloat(customPaymentAmount) * 100);
     }
-    return depositDueCents;
-  })();
 
-  const actualPaymentCents = actualPaymentBaseCents + tipCents;
-
-  function handlePrintInvoice() {
-    window.print();
+    return 0;
   }
 
-  async function handleAccept() {
-    if (!accepted) {
-      showToast('Please review and accept the invoice terms.', 'error');
+  function getTipCents(): number {
+    if (tipAmount === '10') return Math.round(totalCents * 0.1);
+    if (tipAmount === '15') return Math.round(totalCents * 0.15);
+    if (tipAmount === '20') return Math.round(totalCents * 0.2);
+
+    if (tipAmount === 'custom' && customTipAmount) {
+      return Math.round(parseFloat(customTipAmount) * 100);
+    }
+
+    return 0;
+  }
+
+  const calculateTotalPayment = () => getActualPaymentCents() + getTipCents();
+
+  const isNoCardRequired =
+    order.require_card_on_file === false && order.deposit_due_cents === 0;
+
+  async function handleAcceptInvoice() {
+    if (!smsConsent) {
+      showToast('Please accept the SMS consent terms', 'error');
       return;
     }
 
-    if (requireCardOnFile && !cardOnFileConsent) {
-      showToast('Please accept the card-on-file authorization to continue.', 'error');
+    if (!isNoCardRequired && !cardOnFileConsent) {
+      showToast('Please accept the card-on-file authorization terms', 'error');
+      return;
+    }
+
+    if (
+      needsCustomerInfo &&
+      (!customerInfo.first_name ||
+        !customerInfo.last_name ||
+        !customerInfo.email ||
+        !customerInfo.phone)
+    ) {
+      showToast('Please fill in all required customer information', 'error');
+      return;
+    }
+
+    if (
+      order.pickup_preference === 'next_day' &&
+      !overnightResponsibilityAccepted
+    ) {
+      showToast('Please accept the overnight responsibility agreement', 'error');
+      return;
+    }
+
+    const actualPaymentCents = getActualPaymentCents();
+
+    if (!isNoCardRequired && paymentAmount === 'custom' && customPaymentAmount) {
+      if (actualPaymentCents < order.deposit_due_cents) {
+        showToast(
+          `Payment amount must be at least ${formatCurrency(order.deposit_due_cents)}`,
+          'error'
+        );
+        return;
+      }
+    }
+
+    if (
+      !isNoCardRequired &&
+      actualPaymentCents === 0 &&
+      paymentAmount !== 'deposit'
+    ) {
+      showToast('Please select a payment amount', 'error');
       return;
     }
 
     setProcessing(true);
 
     try {
-      if (!hasCustomer) {
-        if (!customerInfo.first_name || !customerInfo.last_name || !customerInfo.email || !customerInfo.phone) {
-          showToast('Please fill in all required fields.', 'error');
+      let customerId = order.customer_id;
+
+      if (needsCustomerInfo && customerInfo.email) {
+        const { data: newCustomer, error: customerError } = await supabase
+          .from('customers')
+          .insert([customerInfo])
+          .select()
+          .single();
+
+        if (customerError) throw customerError;
+
+        customerId = newCustomer.id;
+
+        const { error: consentUpdateError } = await supabase
+          .from('orders')
+          .update({
+            customer_id: customerId,
+            card_on_file_consent: isNoCardRequired ? false : cardOnFileConsent,
+            sms_consent: smsConsent,
+            invoice_accepted_at: new Date().toISOString(),
+          })
+          .eq('id', order.id);
+
+        if (consentUpdateError) {
+          console.error('Failed to record consent:', consentUpdateError);
+          showToast('Failed to save your information. Please try again.', 'error');
           setProcessing(false);
           return;
         }
 
-        const { error: customerError } = await supabase
-          .from('customers')
+        await supabase
+          .from('invoice_links' as any)
+          .update({ customer_filled: true })
+          .eq('id', invoiceLink.id);
+      } else {
+        const { error: consentUpdateError } = await supabase
+          .from('orders')
           .update({
-            first_name: customerInfo.first_name,
-            last_name: customerInfo.last_name,
-            email: customerInfo.email,
-            phone: customerInfo.phone,
-            business_name: customerInfo.business_name || null,
+            card_on_file_consent: isNoCardRequired ? false : cardOnFileConsent,
+            sms_consent: smsConsent,
+            invoice_accepted_at: new Date().toISOString(),
           })
-          .eq('id', order.customer_id);
+          .eq('id', order.id);
 
-        if (customerError) {
-          console.error('Failed to update customer info:', customerError);
+        if (consentUpdateError) {
+          console.error('Failed to record consent:', consentUpdateError);
           showToast('Failed to save your information. Please try again.', 'error');
           setProcessing(false);
           return;
         }
       }
 
+      const tipCents = getTipCents();
+
+      // Check unit availability before proceeding
+      const { data: orderItems } = await supabase
+        .from('order_items')
+        .select('unit_id')
+        .eq('order_id', order.id);
+
+      if (orderItems && orderItems.length > 0) {
+        const availabilityChecks = orderItems.map((item: any) => ({
+          unitId: item.unit_id,
+          eventStartDate: order.event_date,
+          eventEndDate: order.event_end_date || order.event_date,
+          excludeOrderId: order.id,
+        }));
+
+        const results = await checkMultipleUnitsAvailability(availabilityChecks);
+        const unavailable = results.filter((r) => !r.isAvailable);
+
+        if (unavailable.length > 0) {
+          showToast(
+            'Sorry, one or more items in your order are no longer available for your event date. Please contact us to reschedule.',
+            'error'
+          );
+          setProcessing(false);
+          return;
+        }
+      }
+
       if (tipCents > 0) {
-        const { error: tipError } = await supabase
+        const { error: tipUpdateError } = await supabase
           .from('orders')
           .update({ tip_cents: tipCents })
           .eq('id', order.id);
 
-        if (tipError) {
-          console.error('Failed to save tip:', tipError);
+        if (tipUpdateError) {
+          console.error('Failed to record tip:', tipUpdateError);
           showToast('Failed to save tip amount. Please try again.', 'error');
           setProcessing(false);
           return;
         }
       }
 
-      if (requireCardOnFile) {
-        const { error: paymentAmountError } = await supabase
+      // No card required & $0 deposit: confirm order directly without Stripe
+      if (isNoCardRequired) {
+        const fieldToUpdate =
+          order.pickup_preference === 'next_day'
+            ? 'overnight_responsibility_accepted'
+            : 'same_day_responsibility_accepted';
+
+        const { error: confirmError } = await supabase
           .from('orders')
-          .update({ customer_selected_payment_cents: actualPaymentCents })
+          .update({
+            [fieldToUpdate]: true,
+            status: 'confirmed',
+            invoice_accepted_at: new Date().toISOString(),
+          })
           .eq('id', order.id);
 
-        if (paymentAmountError) {
-          console.error('Failed to save payment selection:', paymentAmountError);
-          showToast('Failed to save payment selection. Please try again.', 'error');
+        if (confirmError) {
+          console.error('Error confirming order:', confirmError);
+          showToast(
+            'Failed to confirm booking. Please try again or contact support.',
+            'error'
+          );
           setProcessing(false);
           return;
         }
 
-        const { data: sessionData, error: sessionError } = await supabase.functions.invoke(
-          'stripe-checkout',
-          {
-            body: {
-              orderId: order.id,
-              depositCents: actualPaymentCents,
-              tipCents,
-              customerEmail: customerInfo.email || order.customers?.email,
-              customerName: `${customerInfo.first_name || order.customers?.first_name || ''} ${customerInfo.last_name || order.customers?.last_name || ''}`.trim(),
-              invoiceMode: true,
-            },
-          }
+        const customer = order.customers;
+        const firstName = customer?.first_name || customerInfo.first_name || '';
+        const lastName = customer?.last_name || customerInfo.last_name || '';
+        const email = customer?.email || customerInfo.email || '';
+        const phone = customer?.phone || customerInfo.phone || '';
+
+        let notificationsSent = false;
+
+        const smsMessage = generateConfirmationSmsMessage(
+          { ...order, id: order.id },
+          firstName
         );
 
-        if (sessionError || !sessionData?.url) {
-          throw new Error(sessionError?.message || 'Failed to create checkout session');
+        if (email) {
+          try {
+            const confirmationEmail = generateConfirmationReceiptEmail({
+              id: order.id,
+              customer: {
+                first_name: firstName,
+                last_name: lastName,
+                email,
+                phone,
+              },
+              event_date: order.event_date,
+              deposit_due_cents: 0,
+              balance_due_cents: order.balance_due_cents,
+              order_items: [],
+            });
+
+            await sendNotificationToCustomer({
+              email,
+              phone,
+              emailSubject: `Booking Confirmed! Order #${formatOrderId(order.id)}`,
+              emailHtml: confirmationEmail,
+              smsMessage,
+              orderId: order.id,
+            });
+
+            notificationsSent = true;
+          } catch (notifError) {
+            console.error('Error sending confirmation notifications:', notifError);
+          }
+        } else if (phone) {
+          try {
+            await sendNotificationToCustomer({
+              email: '',
+              phone,
+              emailSubject: '',
+              emailHtml: '',
+              smsMessage,
+              orderId: order.id,
+            });
+
+            notificationsSent = true;
+          } catch (notifError) {
+            console.error('Error sending SMS confirmation:', notifError);
+          }
         }
 
-        await supabase
-          .from('invoice_links' as any)
-          .update({ customer_filled: true })
-          .eq('id', invoiceLink?.id);
+        if (notificationsSent) {
+          await supabase
+            .from('orders')
+            .update({ booking_confirmation_sent: true })
+            .eq('id', order.id);
+        }
 
-        window.location.href = sessionData.url;
+        try {
+          await sendAdminSms(
+            `Invoice accepted (no payment): Order #${formatOrderId(order.id)} - ${firstName} ${lastName}, ${order.event_date}. Full balance $${((order.balance_due_cents || 0) / 100).toFixed(2)} due day of event.`,
+            order.id
+          );
+        } catch (adminNotifError) {
+          console.error('Error sending admin notification:', adminNotifError);
+        }
+
+        if (onApprovalSuccess) {
+          onApprovalSuccess();
+        } else {
+          onReload();
+        }
+
         return;
       }
 
-      const { error: statusError } = await supabase
+      // Store the chosen payment amount so charge-deposit uses it
+      const { error: paymentAmountError } = await supabase
         .from('orders')
-        .update({ status: 'confirmed' })
+        .update({ customer_selected_payment_cents: actualPaymentCents })
         .eq('id', order.id);
 
-      if (statusError) {
-        console.error('Failed to confirm order:', statusError);
-        showToast('Failed to confirm order. Please try again.', 'error');
+      if (paymentAmountError) {
+        console.error('Failed to save payment selection:', paymentAmountError);
+        showToast('Failed to save payment selection. Please try again.', 'error');
         setProcessing(false);
         return;
       }
 
-      await supabase
-        .from('invoice_links' as any)
-        .update({ customer_filled: true })
-        .eq('id', invoiceLink?.id);
+      const effectiveEmail = customerInfo.email || order.customers?.email;
+      const effectiveName = customerInfo.first_name
+        ? `${customerInfo.first_name} ${customerInfo.last_name}`
+        : `${order.customers?.first_name} ${order.customers?.last_name}`;
 
-      const email = customerInfo.email || order.customers?.email || '';
-      const phone = customerInfo.phone || order.customers?.phone || '';
-      const firstName = customerInfo.first_name || order.customers?.first_name || '';
-      const portalUrl = `${window.location.origin}/customer-portal/${order.id}`;
-      const smsMessage = `Hi ${firstName}, your Bounce Party Club booking (Order #${formatOrderId(order.id)}) has been confirmed! Event date: ${format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')}. View your portal: ${portalUrl}`;
-
-      let notificationsSent = false;
-
-      if (email) {
-        try {
-          await sendNotificationToCustomer({
-            email,
-            phone,
-            emailSubject: `Booking Confirmed - Order #${formatOrderId(order.id)}`,
-            emailHtml: `<p>Hi ${firstName},</p><p>Your Bounce Party Club booking has been confirmed! Event date: ${format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')}.</p><p><a href="${portalUrl}">View your portal</a></p>`,
-            smsMessage,
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
             orderId: order.id,
-          });
-          notificationsSent = true;
-        } catch (notifyErr) {
-          console.error('Failed to send confirmation notifications:', notifyErr);
+            setupMode: true,
+            invoiceMode: true,
+            customerEmail: effectiveEmail,
+            customerName: effectiveName,
+            origin: window.location.origin,
+            paymentState: {
+              paymentAmount,
+              customPaymentAmount,
+              newTipCents: tipCents,
+            },
+          }),
         }
-      } else if (phone) {
-        try {
-          await sendNotificationToCustomer({
-            email: '',
-            phone,
-            emailSubject: '',
-            emailHtml: '',
-            smsMessage,
-            orderId: order.id,
-          });
-          notificationsSent = true;
-        } catch (notifyErr) {
-          console.error('Failed to send confirmation SMS:', notifyErr);
-        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.url) {
+        throw new Error(data.error || 'Failed to create checkout session');
       }
 
-      if (notificationsSent) {
-        const { error: flagError } = await supabase
-          .from('orders')
-          .update({ booking_confirmation_sent: true })
-          .eq('id', order.id);
-
-        if (flagError) {
-          console.error('Failed to mark booking_confirmation_sent:', flagError);
-        }
-      }
-
-      showToast('Order confirmed successfully!', 'success');
-      onApprovalSuccess();
-    } catch (error: any) {
-      console.error('Error accepting invoice:', error);
-      showToast(error.message || 'Failed to process. Please try again.', 'error');
+      window.location.href = data.url;
+    } catch (err: any) {
+      console.error('Error accepting invoice:', err);
+      showToast('Failed to process invoice: ' + err.message, 'error');
       setProcessing(false);
     }
   }
 
+  const handlePrintInvoice = () => {
+    const invoiceData = {
+      orderData: {
+        event_date: order.event_date,
+        start_window: order.start_window,
+        end_window: order.end_window,
+        address_line1: order.addresses?.line1 || '',
+        address_line2: order.addresses?.line2 || '',
+        city: order.addresses?.city || '',
+        state: order.addresses?.state || '',
+        zip: order.addresses?.zip || '',
+        location_type: order.location_type,
+        pickup_preference: order.pickup_preference,
+        can_use_stakes: order.can_use_stakes,
+        generator_qty: order.generator_qty || 0,
+        tax_waived: order.tax_waived || false,
+        travel_fee_waived: order.travel_fee_waived || false,
+        surface_fee_waived: order.surface_fee_waived || false,
+        generator_fee_waived: order.generator_fee_waived || false,
+        same_day_pickup_fee_waived: order.same_day_pickup_fee_waived || false,
+      },
+      orderItems,
+      orderSummary,
+      contactData: {
+        first_name: customerInfo.first_name || order.customers?.first_name || '',
+        last_name: customerInfo.last_name || order.customers?.last_name || '',
+        email: customerInfo.email || order.customers?.email || '',
+        phone: customerInfo.phone || order.customers?.phone || '',
+        business_name:
+          customerInfo.business_name || order.customers?.business_name || '',
+      },
+    };
+
+    sessionStorage.setItem('invoice-preview-data', JSON.stringify(invoiceData));
+    sessionStorage.setItem(
+      'invoice-preview-return-to',
+      `/customer-portal/${order.id}`
+    );
+
+    window.open('/invoice-preview', '_blank');
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-600 to-cyan-600 px-4 sm:px-8 py-6 text-white">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => window.location.href = '/'}
-                className="hover:opacity-80 transition-opacity flex-shrink-0"
-                title="Return to Home"
-              >
-                <img
-                  src="/bounce%20party%20club%20logo.png"
-                  alt="Bounce Party Club"
-                  className="h-12 sm:h-16 w-12 sm:w-16 object-contain"
-                />
-              </button>
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-bold">Your Invoice</h1>
-                <p className="mt-1 text-sm opacity-90">Order #{formatOrderId(order.id)}</p>
-                <p className="text-xs opacity-90">
-                  Event Date: {format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')}
-                </p>
-              </div>
+      <div className="max-w-3xl mx-auto" id="print-content-wrapper">
+        <SimpleInvoiceDisplay
+          eventDate={order.event_date}
+          startWindow={order.start_window}
+          endWindow={order.end_window}
+          addressLine1={order.addresses?.line1 || ''}
+          addressLine2={order.addresses?.line2}
+          city={order.addresses?.city || ''}
+          state={order.addresses?.state || ''}
+          zip={order.addresses?.zip || ''}
+          locationType={order.location_type}
+          pickupPreference={order.pickup_preference}
+          canUseStakes={order.can_use_stakes}
+          generatorQty={order.generator_qty || 0}
+          orderItems={orderItems}
+          orderSummary={orderSummary}
+          taxWaived={order.tax_waived || false}
+          travelFeeWaived={order.travel_fee_waived || false}
+          surfaceFeeWaived={order.surface_fee_waived || false}
+          generatorFeeWaived={order.generator_fee_waived || false}
+          sameDayPickupFeeWaived={order.same_day_pickup_fee_waived || false}
+          showTip={orderSummary ? orderSummary.tip > 0 : false}
+          showPricingNotice={false}
+          onPrint={handlePrintInvoice}
+        />
+
+        <div className="bg-white rounded-lg shadow-md p-8 mt-6 no-print">
+          {isNoCardRequired ? (
+            <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+              <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
+              <p className="font-semibold text-green-800">
+                No payment required today
+              </p>
+              <p className="text-sm text-green-700 mt-1">
+                The full balance of {formatCurrency(order.balance_due_cents)} is
+                due on the day of your event.
+              </p>
             </div>
-          </div>
+          ) : (
+            <>
+              <PaymentAmountSelector
+                depositCents={order.deposit_due_cents}
+                balanceCents={order.balance_due_cents}
+                paymentAmount={paymentAmount}
+                customAmount={customPaymentAmount}
+                onPaymentAmountChange={setPaymentAmount}
+                onCustomAmountChange={setCustomPaymentAmount}
+              />
 
-          <div className="p-4 sm:p-8">
-            {order.admin_message && (
-              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-xs font-semibold text-blue-700 mb-1">Message from Bounce Party Club</p>
-                <p className="text-sm text-blue-900">{order.admin_message}</p>
-              </div>
-            )}
+              <TipSelector
+                totalCents={totalCents}
+                tipAmount={tipAmount}
+                customTipAmount={customTipAmount}
+                onTipAmountChange={setTipAmount}
+                onCustomTipAmountChange={setCustomTipAmount}
+                formatCurrency={formatCurrency}
+              />
+            </>
+          )}
 
-            <SimpleInvoiceDisplay
-              eventDate={format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')}
-              startWindow={order.start_window || ''}
-              endWindow={order.end_window || ''}
-              addressLine1={order.addresses?.line1 || ''}
-              addressLine2={order.addresses?.line2 || undefined}
-              city={order.addresses?.city || ''}
-              state={order.addresses?.state || ''}
-              zip={order.addresses?.zip || ''}
-              locationType={order.location_type || ''}
-              pickupPreference={order.pickup_preference || undefined}
-              canUseStakes={order.surface !== 'concrete' && order.surface !== 'asphalt' ? true : false}
-              generatorQty={order.generator_qty || 0}
-              orderItems={orderItems}
-              orderSummary={orderSummary}
-              taxWaived={order.tax_waived || false}
-              travelFeeWaived={order.travel_fee_waived || false}
-              surfaceFeeWaived={order.surface_fee_waived || false}
-              generatorFeeWaived={order.generator_fee_waived || false}
-              sameDayPickupFeeWaived={order.same_day_pickup_fee_waived || false}
-              showTip={false}
-              showPricingNotice={false}
-              onPrint={handlePrintInvoice}
+          {needsCustomerInfo && (
+            <CustomerInfoForm
+              customerInfo={customerInfo}
+              onChange={setCustomerInfo}
             />
+          )}
 
-            {!hasCustomer && (
-              <div className="mt-6">
-                <CustomerInfoForm customerInfo={customerInfo} onChange={setCustomerInfo} />
-              </div>
-            )}
+          <div className="mb-8 space-y-4">
+            {order.pickup_preference === 'next_day' && (
+              <div className="bg-amber-50 border border-amber-300 rounded-lg p-4">
+                <h3 className="font-semibold text-slate-900 mb-2 flex items-center">
+                  <AlertCircle className="w-5 h-5 mr-2 text-amber-600" />
+                  Overnight Responsibility Agreement
+                </h3>
 
-            {depositDueCents > 0 && requireCardOnFile && (
-              <div className="mt-6">
-                <h2 className="text-xl font-bold text-slate-900 mb-4">Payment Amount</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-                  <label
-                    className={`flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                      paymentAmount === 'deposit'
-                        ? 'border-blue-600 bg-blue-50'
-                        : 'border-slate-300 hover:border-blue-400'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="paymentAmount"
-                      value="deposit"
-                      checked={paymentAmount === 'deposit'}
-                      onChange={() => setPaymentAmount('deposit')}
-                      className="sr-only"
-                    />
-                    <span className="font-semibold text-slate-900">Minimum Deposit</span>
-                    <span className="text-lg font-bold text-blue-600 mt-1">
-                      {formatCurrency(depositDueCents)}
-                    </span>
-                    <span className="text-xs text-slate-600 mt-1">Pay balance at event</span>
-                  </label>
+                <p className="text-sm text-slate-700 mb-3">
+                  For next-day pickup rentals, you are responsible for the
+                  equipment left on your property overnight.
+                </p>
 
-                  <label
-                    className={`flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                      paymentAmount === 'full'
-                        ? 'border-green-600 bg-green-50'
-                        : 'border-slate-300 hover:border-green-400'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="paymentAmount"
-                      value="full"
-                      checked={paymentAmount === 'full'}
-                      onChange={() => setPaymentAmount('full')}
-                      className="sr-only"
-                    />
-                    <span className="font-semibold text-slate-900">Full Payment</span>
-                    <span className="text-lg font-bold text-green-600 mt-1">
-                      {formatCurrency(totalCents)}
-                    </span>
-                    <span className="text-xs text-slate-600 mt-1">Nothing due at event</span>
-                  </label>
-
-                  <label
-                    className={`flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all sm:col-span-2 ${
-                      paymentAmount === 'custom'
-                        ? 'border-teal-600 bg-teal-50'
-                        : 'border-slate-300 hover:border-teal-400'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="paymentAmount"
-                      value="custom"
-                      checked={paymentAmount === 'custom'}
-                      onChange={() => setPaymentAmount('custom')}
-                      className="sr-only"
-                    />
-                    <span className="font-semibold text-slate-900">Custom Amount</span>
-                    {paymentAmount === 'custom' && (
-                      <div className="mt-2 relative">
-                        <span className="absolute left-3 top-2.5 text-slate-600">$</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min={(depositDueCents / 100).toFixed(2)}
-                          max={(totalCents / 100).toFixed(2)}
-                          value={customPaymentAmount}
-                          onChange={(e) => setCustomPaymentAmount(e.target.value)}
-                          placeholder={(depositDueCents / 100).toFixed(2)}
-                          className="w-full pl-7 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </div>
-                    )}
-                  </label>
-                </div>
-
-                <div className="mt-4">
-                  <h3 className="font-semibold text-slate-900 mb-3">Add a Tip (Optional)</h3>
-                  <TipSelector
-                    totalCents={totalCents}
-                    tipAmount={tipAmount}
-                    customTipAmount={customTipAmount}
-                    onTipAmountChange={setTipAmount}
-                    onCustomTipAmountChange={setCustomTipAmount}
-                    formatCurrency={formatCurrency}
+                <label className="flex items-start cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={overnightResponsibilityAccepted}
+                    onChange={(e) =>
+                      setOvernightResponsibilityAccepted(e.target.checked)
+                    }
+                    className="w-5 h-5 text-blue-600 border-slate-300 rounded focus:ring-blue-500 mt-0.5"
+                    required
                   />
-                </div>
-
-                {actualPaymentCents > 0 && (
-                  <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                    <p className="text-sm font-semibold text-green-900">
-                      You will be charged {formatCurrency(actualPaymentCents)} today
-                      {tipCents > 0 && ` (includes ${formatCurrency(tipCents)} crew tip)`}.
-                    </p>
-                    {actualPaymentBaseCents < totalCents && (
-                      <p className="text-xs text-green-800 mt-1">
-                        Remaining balance of {formatCurrency(totalCents - actualPaymentBaseCents)} is due at the event.
-                      </p>
-                    )}
-                  </div>
-                )}
+                  <span className="ml-3 text-sm text-slate-700">
+                    I understand the inflatable will remain on my property
+                    overnight and I am legally responsible for its safety and
+                    security until pickup the next morning. *
+                  </span>
+                </label>
               </div>
             )}
 
-            {requireCardOnFile && (
-              <div className="mt-6">
-                <CardOnFileAuthorization
-                  cardOnFileConsent={cardOnFileConsent}
-                  onCardOnFileConsentChange={setCardOnFileConsent}
-                  smsConsent={smsConsent}
-                  onSmsConsentChange={setSmsConsent}
-                />
+            {!isNoCardRequired && (
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                <h3 className="font-semibold text-slate-900 mb-2 flex items-center">
+                  <Shield className="w-5 h-5 mr-2 text-green-600" />
+                  Card-on-File Authorization
+                </h3>
+
+                <p className="text-sm text-slate-700 mb-3">
+                  I authorize Bounce Party Club LLC to securely store my payment
+                  method and charge it for incidentals including damage, excess
+                  cleaning, or late fees as itemized in a receipt. I understand
+                  that any charges will be accompanied by photographic evidence
+                  and a detailed explanation.
+                </p>
+
+                <label className="flex items-start cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={cardOnFileConsent}
+                    onChange={(e) => setCardOnFileConsent(e.target.checked)}
+                    className="w-5 h-5 text-blue-600 border-slate-300 rounded focus:ring-blue-500 mt-0.5"
+                    required
+                  />
+                  <span className="ml-3 text-sm text-slate-700">
+                    I have read and agree to the card-on-file authorization
+                    terms above. *
+                  </span>
+                </label>
               </div>
             )}
 
-            <div className="mt-6">
-              <label className="flex items-start gap-3 cursor-pointer">
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+              <h3 className="font-semibold text-slate-900 mb-2">
+                SMS Notifications Consent
+              </h3>
+
+              <p className="text-sm text-slate-700 mb-3">
+                By providing my phone number and checking the box below, I
+                consent to receive transactional SMS text messages from Bounce
+                Party Club LLC at the phone number provided. These messages may
+                include order confirmations, delivery updates, and
+                service-related notifications about my booking. Message
+                frequency varies. Message and data rates may apply. You can
+                reply STOP to opt-out at any time.
+              </p>
+
+              <label className="flex items-start cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={accepted}
-                  onChange={(e) => setAccepted(e.target.checked)}
+                  checked={smsConsent}
+                  onChange={(e) => setSmsConsent(e.target.checked)}
                   className="w-5 h-5 text-blue-600 border-slate-300 rounded focus:ring-blue-500 mt-0.5"
+                  required
                 />
-                <span className="text-sm text-slate-700">
-                  I have reviewed this invoice and agree to the pricing and event details shown above. *
+                <span className="ml-3 text-sm text-slate-700">
+                  I consent to receive SMS notifications about my booking and
+                  agree to the terms above. *
                 </span>
               </label>
             </div>
-
-            <div className="mt-6 flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={() => setShowInvoiceModal(true)}
-                className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 px-6 rounded-lg transition-colors"
-              >
-                <FileText className="w-5 h-5" />
-                View as Invoice / Print PDF
-              </button>
-
-              <button
-                onClick={handleAccept}
-                disabled={processing || !accepted || (requireCardOnFile && !cardOnFileConsent)}
-                className={`flex-1 flex items-center justify-center gap-2 font-bold py-3 px-6 rounded-lg transition-colors ${
-                  processing || !accepted || (requireCardOnFile && !cardOnFileConsent)
-                    ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-                }`}
-              >
-                <CheckCircle className="w-5 h-5" />
-                {processing
-                  ? 'Processing...'
-                  : requireCardOnFile
-                  ? `Accept & Pay ${formatCurrency(actualPaymentCents)}`
-                  : 'Accept & Confirm Booking'}
-              </button>
-            </div>
           </div>
+
+          <button
+            onClick={handleAcceptInvoice}
+            disabled={
+              processing ||
+              (!isNoCardRequired && !cardOnFileConsent) ||
+              !smsConsent ||
+              (order.pickup_preference === 'next_day' &&
+                !overnightResponsibilityAccepted) ||
+              (!isNoCardRequired &&
+                paymentAmount === 'custom' &&
+                !customPaymentAmount)
+            }
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center"
+          >
+            {processing ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                Processing...
+              </>
+            ) : isNoCardRequired ? (
+              <>
+                <CheckCircle className="w-5 h-5 mr-2" />
+                Accept & Confirm Booking
+              </>
+            ) : calculateTotalPayment() === 0 ? (
+              <>
+                <CheckCircle className="w-5 h-5 mr-2" />
+                Accept Invoice
+              </>
+            ) : (
+              <>
+                <CreditCard className="w-5 h-5 mr-2" />
+                Accept & Pay {formatCurrency(calculateTotalPayment())}
+              </>
+            )}
+          </button>
+
+          <p className="text-xs text-slate-500 text-center mt-4">
+            {isNoCardRequired
+              ? 'By accepting, you confirm your booking. Full balance is due on event day.'
+              : order.deposit_due_cents === 0
+                ? 'By accepting, you acknowledge the order details above'
+                : 'Your payment information is secured with industry-standard encryption'}
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setShowCancelModal(true)}
+            className="w-full mt-4 bg-red-50 hover:bg-red-100 text-red-600 font-semibold py-3 px-6 rounded-lg transition-colors border-2 border-red-200"
+            disabled={processing}
+          >
+            Cancel This Order
+          </button>
         </div>
+
+        {showCancelModal && (
+          <CancelOrderModal
+            orderId={order.id}
+            eventDate={order.event_date}
+            onClose={() => setShowCancelModal(false)}
+            onSuccess={() => {
+              showToast('Your order has been cancelled', 'success');
+              onReload();
+            }}
+          />
+        )}
       </div>
-
-      {showInvoiceModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-5xl w-full my-8">
-            <div className="no-print flex items-center justify-between p-4 border-b border-slate-200">
-              <h2 className="text-lg font-semibold text-slate-900">Invoice Preview</h2>
-              <div className="flex gap-3">
-                <button
-                  onClick={handlePrintInvoice}
-                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-                >
-                  <Printer className="w-4 h-4" />
-                  Print / Save PDF
-                </button>
-                <button
-                  onClick={() => setShowInvoiceModal(false)}
-                  className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 px-4 rounded-lg transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                  Close
-                </button>
-              </div>
-            </div>
-            <div className="p-4">
-              <SimpleInvoiceDisplay
-                eventDate={format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')}
-                startWindow={order.start_window || ''}
-                endWindow={order.end_window || ''}
-                addressLine1={order.addresses?.line1 || ''}
-                addressLine2={order.addresses?.line2 || undefined}
-                city={order.addresses?.city || ''}
-                state={order.addresses?.state || ''}
-                zip={order.addresses?.zip || ''}
-                locationType={order.location_type || ''}
-                pickupPreference={order.pickup_preference || undefined}
-                canUseStakes={order.surface !== 'concrete' && order.surface !== 'asphalt' ? true : false}
-                generatorQty={order.generator_qty || 0}
-                orderItems={orderItems}
-                orderSummary={orderSummary}
-                taxWaived={order.tax_waived || false}
-                travelFeeWaived={order.travel_fee_waived || false}
-                surfaceFeeWaived={order.surface_fee_waived || false}
-                generatorFeeWaived={order.generator_fee_waived || false}
-                sameDayPickupFeeWaived={order.same_day_pickup_fee_waived || false}
-                showTip={false}
-                showPricingNotice={true}
-                onPrint={handlePrintInvoice}
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
