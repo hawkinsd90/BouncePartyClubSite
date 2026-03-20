@@ -334,10 +334,14 @@ export function InvoiceAcceptanceView({
         }
 
         if (notificationsSent) {
-          await supabase
+          const { error: flagError } = await supabase
             .from('orders')
             .update({ booking_confirmation_sent: true })
             .eq('id', order.id);
+
+          if (flagError) {
+            console.error('Failed to mark booking_confirmation_sent:', flagError);
+          }
         }
 
         try {
