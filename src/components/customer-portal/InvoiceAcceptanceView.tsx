@@ -342,6 +342,11 @@ export function InvoiceAcceptanceView({
           if (flagError) {
             console.error('Failed to mark booking_confirmation_sent:', flagError);
           }
+        } else if (!email && !phone) {
+          console.warn(
+            '[InvoiceAcceptanceView] No email or phone on order — customer confirmation notification skipped.',
+            { orderId: order.id }
+          );
         }
 
         try {
