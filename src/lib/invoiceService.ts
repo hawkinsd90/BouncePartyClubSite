@@ -64,6 +64,7 @@ interface InvoiceData {
   surfaceFeeWaiveReason?: string | null;
   generatorFeeWaived?: boolean;
   generatorFeeWaiveReason?: string | null;
+  requireCardOnFile?: boolean;
 }
 
 async function createAddress(eventDetails: EventDetails) {
@@ -99,7 +100,8 @@ async function createOrder(
   surfaceFeeWaived: boolean = false,
   surfaceFeeWaiveReason: string | null = null,
   generatorFeeWaived: boolean = false,
-  generatorFeeWaiveReason: string | null = null
+  generatorFeeWaiveReason: string | null = null,
+  requireCardOnFile: boolean = true
 ) {
   const { data, error } = await supabase
     .from('orders')
@@ -139,6 +141,7 @@ async function createOrder(
       generator_fee_waived: generatorFeeWaived,
       generator_fee_waive_reason: generatorFeeWaiveReason,
       deposit_due_cents: depositRequired,
+      deposit_required: depositRequired > 0,
       balance_due_cents: Math.max(0, totalCents - depositRequired),
       custom_deposit_cents: customDepositCents,
       tip_cents: 0,
@@ -149,6 +152,7 @@ async function createOrder(
       card_on_file_consent: false,
       sms_consent: false,
       admin_message: adminMessage || null,
+      require_card_on_file: requireCardOnFile,
     })
     .select()
     .single();
@@ -262,7 +266,8 @@ export async function generateInvoice(invoiceData: InvoiceData, customer: Custom
     invoiceData.surfaceFeeWaived || false,
     invoiceData.surfaceFeeWaiveReason || null,
     invoiceData.generatorFeeWaived || false,
-    invoiceData.generatorFeeWaiveReason || null
+    invoiceData.generatorFeeWaiveReason || null,
+    invoiceData.requireCardOnFile !== false
   );
 
   await createOrderItems(order.id, invoiceData.cartItems);

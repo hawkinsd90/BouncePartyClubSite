@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Send, AlertCircle } from 'lucide-react';
+import { Send, AlertCircle, CreditCard, Ban } from 'lucide-react';
 import { OrderSummary } from '../order/OrderSummary';
 import { showToast } from '../../lib/notifications';
 import { DiscountsManager } from '../order-detail/DiscountsManager';
@@ -45,6 +45,7 @@ export function InvoiceBuilder() {
   const [generatorFeeWaiveReason, setGeneratorFeeWaiveReason] = useState('');
   const [customDepositCents, setCustomDepositCents] = useState<number | null>(null);
   const [customDepositInput, setCustomDepositInput] = useState('');
+  const [requireCardOnFile, setRequireCardOnFile] = useState(true);
   const [availabilityIssues, setAvailabilityIssues] = useState<any[]>([]);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
 
@@ -244,6 +245,7 @@ export function InvoiceBuilder() {
           surfaceFeeWaiveReason,
           generatorFeeWaived,
           generatorFeeWaiveReason,
+          requireCardOnFile,
         },
         customer
       );
@@ -272,6 +274,7 @@ export function InvoiceBuilder() {
       setSurfaceFeeWaiveReason('');
       setGeneratorFeeWaived(false);
       setGeneratorFeeWaiveReason('');
+      setRequireCardOnFile(true);
       customerManagement.setSelectedCustomer('');
       resetEventDetails();
     } catch (error) {
@@ -392,14 +395,60 @@ export function InvoiceBuilder() {
             customDepositCents={customDepositCents}
             customDepositInput={customDepositInput}
             onInputChange={setCustomDepositInput}
-            onApply={(amountCents) => setCustomDepositCents(amountCents)}
+            onApply={(amountCents) => {
+              setCustomDepositCents(amountCents);
+              if (amountCents > 0) setRequireCardOnFile(true);
+            }}
             onClear={() => {
               setCustomDepositCents(null);
               setCustomDepositInput('');
+              setRequireCardOnFile(true);
             }}
             compact={true}
             showZeroHint={true}
           />
+
+          {customDepositCents === 0 && (
+            <div className="bg-blue-50 rounded-lg shadow p-4 sm:p-6">
+              <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-2">
+                Card on File Requirement
+              </h3>
+              <p className="text-sm text-slate-600 mb-4">
+                Deposit is waived ($0). Do you still require the customer to save a card on file?
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setRequireCardOnFile(true)}
+                  className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg border-2 text-sm font-medium transition-colors ${
+                    requireCardOnFile
+                      ? 'border-blue-600 bg-blue-600 text-white'
+                      : 'border-slate-300 bg-white text-slate-700 hover:border-blue-400'
+                  }`}
+                >
+                  <CreditCard className="w-4 h-4 flex-shrink-0" />
+                  <span>Require Card</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRequireCardOnFile(false)}
+                  className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg border-2 text-sm font-medium transition-colors ${
+                    !requireCardOnFile
+                      ? 'border-green-600 bg-green-600 text-white'
+                      : 'border-slate-300 bg-white text-slate-700 hover:border-green-400'
+                  }`}
+                >
+                  <Ban className="w-4 h-4 flex-shrink-0" />
+                  <span>No Card Needed</span>
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 mt-3">
+                {requireCardOnFile
+                  ? 'Customer will be directed to Stripe to save a card on file (no charge today).'
+                  : 'Customer can accept the invoice without entering any payment info. Full balance is owed on event day.'}
+              </p>
+            </div>
+          )}
 
           <TaxWaiver
             taxCents={calculatedPricing?.tax_cents || 0}

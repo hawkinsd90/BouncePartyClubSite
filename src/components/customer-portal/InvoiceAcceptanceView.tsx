@@ -10,6 +10,7 @@ import { CustomerInfoForm } from './CustomerInfoForm';
 import { CancelOrderModal } from './CancelOrderModal';
 import { showToast } from '../../lib/notifications';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
+import { completeOrderAfterPayment } from '../../lib/orderCreation';
 
 
 interface InvoiceAcceptanceViewProps {
@@ -69,9 +70,16 @@ export function InvoiceAcceptanceView({
 
   const calculateTotalPayment = () => getActualPaymentCents() + getTipCents();
 
+  const isNoCardRequired = order.require_card_on_file === false && order.deposit_due_cents === 0;
+
   async function handleAcceptInvoice() {
-    if (!cardOnFileConsent || !smsConsent) {
-      showToast('Please accept both authorization and consent terms', 'error');
+    if (!smsConsent) {
+      showToast('Please accept the SMS consent terms', 'error');
+      return;
+    }
+
+    if (!isNoCardRequired && !cardOnFileConsent) {
+      showToast('Please accept the card-on-file authorization terms', 'error');
       return;
     }
 
@@ -93,7 +101,7 @@ export function InvoiceAcceptanceView({
 
     const actualPaymentCents = getActualPaymentCents();
 
-    if (paymentAmount === 'custom' && customPaymentAmount) {
+    if (!isNoCardRequired && paymentAmount === 'custom' && customPaymentAmount) {
       if (actualPaymentCents < order.deposit_due_cents) {
         showToast(
           `Payment amount must be at least ${formatCurrency(order.deposit_due_cents)}`,
@@ -103,7 +111,7 @@ export function InvoiceAcceptanceView({
       }
     }
 
-    if (actualPaymentCents === 0 && paymentAmount !== 'deposit') {
+    if (!isNoCardRequired && actualPaymentCents === 0 && paymentAmount !== 'deposit') {
       showToast('Please select a payment amount', 'error');
       return;
     }
@@ -127,7 +135,7 @@ export function InvoiceAcceptanceView({
           .from('orders')
           .update({
             customer_id: customerId,
-            card_on_file_consent: cardOnFileConsent,
+            card_on_file_consent: isNoCardRequired ? false : cardOnFileConsent,
             sms_consent: smsConsent,
             invoice_accepted_at: new Date().toISOString(),
           })
@@ -141,7 +149,7 @@ export function InvoiceAcceptanceView({
         await supabase
           .from('orders')
           .update({
-            card_on_file_consent: cardOnFileConsent,
+            card_on_file_consent: isNoCardRequired ? false : cardOnFileConsent,
             sms_consent: smsConsent,
             invoice_accepted_at: new Date().toISOString(),
           })
@@ -150,7 +158,7 @@ export function InvoiceAcceptanceView({
 
       const tipCents = getTipCents();
 
-      // Check unit availability before proceeding to Stripe
+      // Check unit availability before proceeding
       const { data: orderItems } = await supabase
         .from('order_items')
         .select('unit_id')
@@ -177,6 +185,17 @@ export function InvoiceAcceptanceView({
 
       if (tipCents > 0) {
         await supabase.from('orders').update({ tip_cents: tipCents }).eq('id', order.id);
+      }
+
+      // No card required & $0 deposit: confirm order directly without Stripe
+      if (isNoCardRequired) {
+        const fieldToUpdate = order.pickup_preference === 'next_day'
+          ? 'overnight_responsibility_accepted'
+          : 'same_day_responsibility_accepted';
+        await supabase.from('orders').update({ [fieldToUpdate]: true }).eq('id', order.id);
+        await completeOrderAfterPayment(order.id, 'no_payment_required');
+        onReload();
+        return;
       }
 
       // Store the chosen payment amount so charge-deposit uses it
@@ -296,23 +315,35 @@ export function InvoiceAcceptanceView({
         />
 
         <div className="bg-white rounded-lg shadow-md p-8 mt-6 no-print">
-          <PaymentAmountSelector
-            depositCents={order.deposit_due_cents}
-            balanceCents={order.balance_due_cents}
-            paymentAmount={paymentAmount}
-            customAmount={customPaymentAmount}
-            onPaymentAmountChange={setPaymentAmount}
-            onCustomAmountChange={setCustomPaymentAmount}
-          />
+          {isNoCardRequired ? (
+            <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+              <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
+              <p className="font-semibold text-green-800">No payment required today</p>
+              <p className="text-sm text-green-700 mt-1">
+                The full balance of {formatCurrency(order.balance_due_cents)} is due on the day of your event.
+              </p>
+            </div>
+          ) : (
+            <>
+              <PaymentAmountSelector
+                depositCents={order.deposit_due_cents}
+                balanceCents={order.balance_due_cents}
+                paymentAmount={paymentAmount}
+                customAmount={customPaymentAmount}
+                onPaymentAmountChange={setPaymentAmount}
+                onCustomAmountChange={setCustomPaymentAmount}
+              />
 
-          <TipSelector
-            totalCents={totalCents}
-            tipAmount={tipAmount}
-            customTipAmount={customTipAmount}
-            onTipAmountChange={setTipAmount}
-            onCustomTipAmountChange={setCustomTipAmount}
-            formatCurrency={formatCurrency}
-          />
+              <TipSelector
+                totalCents={totalCents}
+                tipAmount={tipAmount}
+                customTipAmount={customTipAmount}
+                onTipAmountChange={setTipAmount}
+                onCustomTipAmountChange={setCustomTipAmount}
+                formatCurrency={formatCurrency}
+              />
+            </>
+          )}
 
           {needsCustomerInfo && (
             <CustomerInfoForm customerInfo={customerInfo} onChange={setCustomerInfo} />
@@ -346,30 +377,32 @@ export function InvoiceAcceptanceView({
               </div>
             )}
 
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-              <h3 className="font-semibold text-slate-900 mb-2 flex items-center">
-                <Shield className="w-5 h-5 mr-2 text-green-600" />
-                Card-on-File Authorization
-              </h3>
-              <p className="text-sm text-slate-700 mb-3">
-                I authorize Bounce Party Club LLC to securely store my payment method and charge
-                it for incidentals including damage, excess cleaning, or late fees as itemized
-                in a receipt. I understand that any charges will be accompanied by photographic
-                evidence and a detailed explanation.
-              </p>
-              <label className="flex items-start cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={cardOnFileConsent}
-                  onChange={(e) => setCardOnFileConsent(e.target.checked)}
-                  className="w-5 h-5 text-blue-600 border-slate-300 rounded focus:ring-blue-500 mt-0.5"
-                  required
-                />
-                <span className="ml-3 text-sm text-slate-700">
-                  I have read and agree to the card-on-file authorization terms above. *
-                </span>
-              </label>
-            </div>
+            {!isNoCardRequired && (
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                <h3 className="font-semibold text-slate-900 mb-2 flex items-center">
+                  <Shield className="w-5 h-5 mr-2 text-green-600" />
+                  Card-on-File Authorization
+                </h3>
+                <p className="text-sm text-slate-700 mb-3">
+                  I authorize Bounce Party Club LLC to securely store my payment method and charge
+                  it for incidentals including damage, excess cleaning, or late fees as itemized
+                  in a receipt. I understand that any charges will be accompanied by photographic
+                  evidence and a detailed explanation.
+                </p>
+                <label className="flex items-start cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={cardOnFileConsent}
+                    onChange={(e) => setCardOnFileConsent(e.target.checked)}
+                    className="w-5 h-5 text-blue-600 border-slate-300 rounded focus:ring-blue-500 mt-0.5"
+                    required
+                  />
+                  <span className="ml-3 text-sm text-slate-700">
+                    I have read and agree to the card-on-file authorization terms above. *
+                  </span>
+                </label>
+              </div>
+            )}
 
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
               <h3 className="font-semibold text-slate-900 mb-2">SMS Notifications Consent</h3>
@@ -400,10 +433,10 @@ export function InvoiceAcceptanceView({
             onClick={handleAcceptInvoice}
             disabled={
               processing ||
-              !cardOnFileConsent ||
+              (!isNoCardRequired && !cardOnFileConsent) ||
               !smsConsent ||
               (order.pickup_preference === 'next_day' && !overnightResponsibilityAccepted) ||
-              (paymentAmount === 'custom' && !customPaymentAmount)
+              (!isNoCardRequired && paymentAmount === 'custom' && !customPaymentAmount)
             }
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center"
           >
@@ -411,6 +444,11 @@ export function InvoiceAcceptanceView({
               <>
                 <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                 Processing...
+              </>
+            ) : isNoCardRequired ? (
+              <>
+                <CheckCircle className="w-5 h-5 mr-2" />
+                Accept & Confirm Booking
               </>
             ) : calculateTotalPayment() === 0 ? (
               <>
@@ -426,7 +464,9 @@ export function InvoiceAcceptanceView({
           </button>
 
           <p className="text-xs text-slate-500 text-center mt-4">
-            {order.deposit_due_cents === 0
+            {isNoCardRequired
+              ? 'By accepting, you confirm your booking. Full balance is due on event day.'
+              : order.deposit_due_cents === 0
               ? 'By accepting, you acknowledge the order details above'
               : 'Your payment information is secured with industry-standard encryption'}
           </p>
