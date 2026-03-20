@@ -10,7 +10,9 @@ import { CustomerInfoForm } from './CustomerInfoForm';
 import { CancelOrderModal } from './CancelOrderModal';
 import { showToast } from '../../lib/notifications';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
-import { completeOrderAfterPayment } from '../../lib/orderCreation';
+import { sendNotificationToCustomer, sendAdminSms } from '../../lib/notificationService';
+import { generateConfirmationReceiptEmail, generateConfirmationSmsMessage } from '../../lib/orderEmailTemplates';
+import { formatOrderId } from '../../lib/utils';
 
 
 interface InvoiceAcceptanceViewProps {
@@ -192,8 +194,58 @@ export function InvoiceAcceptanceView({
         const fieldToUpdate = order.pickup_preference === 'next_day'
           ? 'overnight_responsibility_accepted'
           : 'same_day_responsibility_accepted';
-        await supabase.from('orders').update({ [fieldToUpdate]: true }).eq('id', order.id);
-        await completeOrderAfterPayment(order.id, 'no_payment_required');
+
+        await supabase.from('orders').update({
+          [fieldToUpdate]: true,
+          status: 'confirmed',
+          invoice_accepted_at: new Date().toISOString(),
+          booking_confirmation_sent: true,
+        }).eq('id', order.id);
+
+        const customer = order.customers;
+        if (customer?.email) {
+          try {
+            const confirmationEmail = generateConfirmationReceiptEmail({
+              id: order.id,
+              customer: {
+                first_name: customer.first_name,
+                last_name: customer.last_name,
+                email: customer.email,
+                phone: customer.phone || '',
+              },
+              event_date: order.event_date,
+              deposit_due_cents: 0,
+              balance_due_cents: order.balance_due_cents,
+              order_items: [],
+            });
+
+            const smsMessage = generateConfirmationSmsMessage(
+              { ...order, id: order.id },
+              customer.first_name
+            );
+
+            await sendNotificationToCustomer({
+              email: customer.email,
+              phone: customer.phone,
+              emailSubject: `Booking Confirmed! Order #${formatOrderId(order.id)}`,
+              emailHtml: confirmationEmail,
+              smsMessage,
+              orderId: order.id,
+            });
+          } catch (notifError) {
+            console.error('Error sending confirmation notifications:', notifError);
+          }
+        }
+
+        try {
+          await sendAdminSms(
+            `Invoice accepted (no payment): Order #${formatOrderId(order.id)} - ${customer?.first_name} ${customer?.last_name}, ${order.event_date}. Full balance $${((order.balance_due_cents || 0) / 100).toFixed(2)} due day of event.`,
+            order.id
+          );
+        } catch (adminNotifError) {
+          console.error('Error sending admin notification:', adminNotifError);
+        }
+
         onReload();
         return;
       }

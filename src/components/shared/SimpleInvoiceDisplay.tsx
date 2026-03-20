@@ -86,6 +86,11 @@ export function SimpleInvoiceDisplay({
         <p className="text-slate-600 print-subtitle">Review and accept your order details below</p>
       </div>
 
+      {/* Rental Terms at top - screen only */}
+      <div className="mb-8 screen-only print-section print-terms">
+        <RentalTerms />
+      </div>
+
       <div className="mb-8 p-6 bg-slate-50 rounded-lg print-section">
         <h2 className="text-xl font-bold text-slate-900 mb-4 print-section-title">Event Details</h2>
 
@@ -177,11 +182,6 @@ export function SimpleInvoiceDisplay({
           )}
         </div>
       )}
-
-      {/* Terms (we will NOT force page 2 anymore; CSS will compress to fit page 1) */}
-      <div className="mb-8 print-section print-terms">
-        <RentalTerms />
-      </div>
 
       <button
         type="button"
