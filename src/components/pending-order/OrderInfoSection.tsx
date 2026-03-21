@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { CreditCard as Edit2 } from 'lucide-react';
+import { Edit2 } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
 import { ORDER_STATUS_LABELS } from '../../lib/constants/statuses';
 
