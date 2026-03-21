@@ -156,15 +156,35 @@ export function InvoiceAcceptanceView({
       let customerId = order.customer_id;
 
       if (needsCustomerInfo && customerInfo.email) {
-        const { data: newCustomer, error: customerError } = await supabase
+        const { data: existingCustomer } = await supabase
           .from('customers')
-          .upsert([customerInfo], { onConflict: 'email' })
-          .select()
-          .single();
+          .select('id')
+          .eq('email', customerInfo.email)
+          .maybeSingle();
 
-        if (customerError) throw customerError;
+        if (existingCustomer) {
+          customerId = existingCustomer.id;
 
-        customerId = newCustomer.id;
+          await supabase
+            .from('customers')
+            .update({
+              first_name: customerInfo.first_name,
+              last_name: customerInfo.last_name,
+              phone: customerInfo.phone,
+              ...(customerInfo.business_name ? { business_name: customerInfo.business_name } : {}),
+            })
+            .eq('id', existingCustomer.id);
+        } else {
+          const { data: newCustomer, error: customerError } = await supabase
+            .from('customers')
+            .insert([customerInfo])
+            .select()
+            .single();
+
+          if (customerError) throw customerError;
+
+          customerId = newCustomer.id;
+        }
 
         const { error: consentUpdateError } = await supabase
           .from('orders')
