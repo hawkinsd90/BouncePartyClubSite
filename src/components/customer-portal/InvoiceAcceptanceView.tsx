@@ -158,7 +158,7 @@ export function InvoiceAcceptanceView({
       if (needsCustomerInfo && customerInfo.email) {
         const { data: newCustomer, error: customerError } = await supabase
           .from('customers')
-          .insert([customerInfo])
+          .upsert([customerInfo], { onConflict: 'email' })
           .select()
           .single();
 
