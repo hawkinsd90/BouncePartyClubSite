@@ -82,6 +82,7 @@ Deno.serve(async (req: Request) => {
     });
 
     // Load order with contact details for notifications
+    // balance_paid_cents is read here so we can ACCUMULATE on top of it (not overwrite)
     const { data: order, error: orderError } = await supabaseClient
       .from("orders")
       .select(`
@@ -156,12 +157,14 @@ Deno.serve(async (req: Request) => {
         }
 
         // Charge succeeded — write DB (one authoritative write, webhook will skip)
+        // ACCUMULATE: add new payment on top of any prior balance_paid_cents
         const existingTip = order.tip_cents || 0;
+        const existingBalancePaid = order.balance_paid_cents || 0;
 
         await supabaseClient
           .from("orders")
           .update({
-            balance_paid_cents: balanceCents,
+            balance_paid_cents: existingBalancePaid + balanceCents,
             ...(tipCents > 0 ? { tip_cents: existingTip + tipCents } : {}),
           })
           .eq("id", orderId);

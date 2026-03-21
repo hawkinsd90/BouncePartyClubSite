@@ -19,12 +19,15 @@ export function DeliveryTab({ orderId }: DeliveryTabProps) {
   async function loadDeliveryPhotos() {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data: rows, error } = await supabase
         .from('task_status')
-        .select('delivery_images, updated_at, status')
+        .select('delivery_images, completed_time, updated_at, status')
         .eq('order_id', orderId)
         .eq('task_type', 'drop-off')
-        .maybeSingle();
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      const data = rows && rows.length > 0 ? rows[0] : null;
 
       if (error) {
         console.error('Error loading delivery photos:', error);
@@ -35,7 +38,8 @@ export function DeliveryTab({ orderId }: DeliveryTabProps) {
         const imgs: string[] = Array.isArray(data.delivery_images) ? data.delivery_images : [];
         setDeliveryImages(imgs);
         if (data.status === 'completed' || imgs.length > 0) {
-          setDeliveredAt(data.updated_at);
+          // Prefer completed_time (set when crew marks drop-off done) over updated_at
+          setDeliveredAt(data.completed_time || data.updated_at);
         }
       }
     } finally {

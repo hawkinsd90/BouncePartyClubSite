@@ -302,21 +302,22 @@ async function processWebhookEvent(
           const safeTipCents = Number.isFinite(balanceTipCents) ? balanceTipCents : 0;
           const balanceOnly = Math.max(0, amountPaid - safeTipCents);
 
-          // Fetch existing tip before updating
+          // Fetch existing balance_paid_cents AND tip before updating so we can ACCUMULATE
           const { data: balanceOrder } = await supabaseClient
             .from("orders")
-            .select("tip_cents")
+            .select("tip_cents, balance_paid_cents")
             .eq("id", orderId)
             .maybeSingle();
           const existingTip = balanceOrder?.tip_cents || 0;
+          const existingBalancePaid = balanceOrder?.balance_paid_cents || 0;
 
-          // Update order with balance payment, preserving and accumulating tip
+          // Update order with balance payment, accumulating both balance_paid_cents and tip_cents
           await supabaseClient
             .from("orders")
             .update({
               stripe_payment_method_id: paymentMethodId,
               stripe_customer_id: stripeCustomerId,
-              balance_paid_cents: balanceOnly,
+              balance_paid_cents: existingBalancePaid + balanceOnly,
               ...(safeTipCents > 0 ? { tip_cents: existingTip + safeTipCents } : {}),
             })
             .eq("id", orderId);
@@ -543,16 +544,25 @@ async function processWebhookEvent(
             // The checkout.session.completed handler is responsible for writing
             // balance_paid_cents and tip_cents. This branch handles the rare case
             // where checkout.session.completed did not fire first.
+            // ACCUMULATE: read existing values before writing.
             const tipCentsFromMeta = parseInt(paymentIntent.metadata?.tip_cents || "0", 10) || 0;
             const balanceOnlyAmount = Math.max(0, amountReceived - tipCentsFromMeta);
+
+            const { data: existingOrderPi } = await supabaseClient
+              .from("orders")
+              .select("balance_paid_cents, tip_cents")
+              .eq("id", orderId)
+              .maybeSingle();
+            const existingBalancePi = existingOrderPi?.balance_paid_cents || 0;
+            const existingTipPi = existingOrderPi?.tip_cents || 0;
 
             await supabaseClient
               .from("orders")
               .update({
                 stripe_payment_method_id: paymentMethodId,
                 stripe_customer_id: stripeCustomerId,
-                balance_paid_cents: balanceOnlyAmount,
-                ...(tipCentsFromMeta > 0 ? { tip_cents: tipCentsFromMeta } : {}),
+                balance_paid_cents: existingBalancePi + balanceOnlyAmount,
+                ...(tipCentsFromMeta > 0 ? { tip_cents: existingTipPi + tipCentsFromMeta } : {}),
               })
               .eq("id", orderId);
             }
