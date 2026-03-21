@@ -11,6 +11,7 @@ import { PicturesTab } from './PicturesTab';
 import { LotPicturesTab } from './LotPicturesTab';
 import { CancelOrderModal } from './CancelOrderModal';
 import { showToast } from '../../lib/notifications';
+import { OrderStatusBadge } from '../dashboard/OrderStatusBadge';
 
 interface RegularPortalViewProps {
   order: any;
@@ -191,8 +192,11 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                 </button>
                 <div className="min-w-0">
                   <h1 className="text-2xl sm:text-3xl font-bold">Customer Portal</h1>
-                  <p className="mt-1 sm:mt-2 text-sm sm:text-base">Order #{formatOrderId(order.id)}</p>
-                  <p className="text-xs sm:text-sm opacity-90">
+                  <div className="flex items-center gap-2 mt-1 sm:mt-2">
+                    <p className="text-sm sm:text-base">Order #{formatOrderId(order.id)}</p>
+                    <OrderStatusBadge order={order} />
+                  </div>
+                  <p className="text-xs sm:text-sm opacity-90 mt-1">
                     Event Date: {format(new Date(order.event_date), 'MMMM d, yyyy')} at{' '}
                     {order.start_window}
                   </p>
