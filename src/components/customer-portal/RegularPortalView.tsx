@@ -29,16 +29,29 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [payments, setPayments] = useState<any[]>([]);
   const [lotPicturesUploaded, setLotPicturesUploaded] = useState(false);
+  // Preserved tip cents from a card-update redirect (?tab=payment&tip=NNN)
+  const [restoredTipCents, setRestoredTipCents] = useState<number | null>(null);
 
   useEffect(() => {
     loadPayments();
     loadLotPictures();
 
-    // Check URL params for payment status
+    // Check URL params for payment status and preserved tip state
     const params = new URLSearchParams(window.location.search);
     const paymentStatus = params.get('payment');
+    const tabParam = params.get('tab');
+    const tipParam = params.get('tip');
 
-    if (paymentStatus === 'success') {
+    if (tabParam === 'payment') {
+      setActiveTab('payment');
+      if (tipParam) {
+        const parsed = parseInt(tipParam, 10);
+        if (!isNaN(parsed) && parsed > 0) {
+          setRestoredTipCents(parsed);
+        }
+      }
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (paymentStatus === 'success') {
       showToast('Payment successful! Thank you.', 'success');
       onReload();
       // Clean up URL
@@ -565,7 +578,9 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                 orderId={orderId}
                 order={order}
                 balanceDue={Math.max(0, balanceDue)}
+                orderSummary={orderSummary}
                 onPaymentComplete={onReload}
+                restoredTipCents={restoredTipCents ?? undefined}
               />
             )}
 

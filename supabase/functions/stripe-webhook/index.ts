@@ -469,15 +469,44 @@ async function processWebhookEvent(
           const amountReceived = paymentIntent.amount_received || 0;
 
           if (paymentType === "balance") {
-            // Handle balance payment
+            // Guard: if the customer-balance-payment edge fn already inserted a
+            // payment row for this PI (COF path), it has already written
+            // balance_paid_cents and tip_cents to the order authoritatively.
+            // Skip the order write here to prevent a double-write / tip pollution.
+            const { data: existingPaymentRow } = await supabaseClient
+              .from("payments")
+              .select("id")
+              .eq("stripe_payment_intent_id", paymentIntent.id)
+              .maybeSingle();
+
+            if (existingPaymentRow) {
+              // Edge fn already handled all DB writes — only update payment method
+              // fields on the order in case they're missing.
+              await supabaseClient
+                .from("orders")
+                .update({
+                  stripe_payment_method_id: paymentMethodId,
+                  stripe_customer_id: stripeCustomerId,
+                })
+                .eq("id", orderId);
+            } else {
+            // No existing payment row — this PI came through Stripe Checkout.
+            // The checkout.session.completed handler is responsible for writing
+            // balance_paid_cents and tip_cents. This branch handles the rare case
+            // where checkout.session.completed did not fire first.
+            const tipCentsFromMeta = parseInt(paymentIntent.metadata?.tip_cents || "0", 10) || 0;
+            const balanceOnlyAmount = Math.max(0, amountReceived - tipCentsFromMeta);
+
             await supabaseClient
               .from("orders")
               .update({
                 stripe_payment_method_id: paymentMethodId,
                 stripe_customer_id: stripeCustomerId,
-                balance_paid_cents: amountReceived,
+                balance_paid_cents: balanceOnlyAmount,
+                ...(tipCentsFromMeta > 0 ? { tip_cents: tipCentsFromMeta } : {}),
               })
               .eq("id", orderId);
+            }
           } else if (paymentType === "deposit") {
             // Handle deposit payment.
             // amountReceived is the FULL charged amount (base + tip).
