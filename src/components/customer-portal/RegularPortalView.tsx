@@ -90,38 +90,6 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
   const isConfirmed = order.status === 'confirmed';
   const stepsUnlocked = totalPaid > 0 || isConfirmed;
 
-  async function handlePayment() {
-    try {
-      // Create a Stripe Checkout session for balance payment
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/customer-balance-payment`;
-
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          orderId: orderId,
-          amountCents: balanceDue,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create payment session');
-      }
-
-      // Redirect to Stripe Checkout
-      if (data.url) {
-        window.location.href = data.url;
-      }
-    } catch (error: any) {
-      console.error('Payment error:', error);
-      showToast(error.message || 'Failed to process payment', 'error');
-    }
-  }
-
   async function handleSubmitPictures(files: File[], notes: string) {
     try {
       const uploadPromises = files.map(async (file) => {
@@ -596,7 +564,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
               <PaymentTab
                 orderId={orderId}
                 order={order}
-                balanceDue={balanceDue}
+                balanceDue={Math.max(0, balanceDue)}
                 onPaymentComplete={onReload}
               />
             )}

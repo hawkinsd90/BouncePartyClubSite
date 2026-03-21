@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { CheckCircle, XCircle, Phone, MapPin, Calendar, Package } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
 import { TipSelector, calculateTipCents } from '../payment/TipSelector';
@@ -36,6 +37,7 @@ export function OrderApprovalView({
   onRejectionSuccess,
 }: OrderApprovalViewProps) {
   const business = useBusinessSettings();
+  const navigate = useNavigate();
   const [keepOriginalPayment, setKeepOriginalPayment] = useState(true);
   const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
   const [customPaymentAmount, setCustomPaymentAmount] = useState('');
@@ -44,14 +46,14 @@ export function OrderApprovalView({
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [showRejectionModal, setShowRejectionModal] = useState(false);
 
-  const currentTotalCents =
-    (order.subtotal_cents || 0) +
-    (order.generator_fee_cents || 0) +
-    (order.travel_fee_cents || 0) +
-    (order.surface_fee_cents || 0) +
-    (order.same_day_pickup_fee_cents || 0) +
-    (order.tax_cents || 0) -
-    (order.discount_cents || 0);
+  const currentTotalCents = orderSummary
+    ? orderSummary.total
+    : (order.subtotal_cents || 0) +
+      (order.generator_fee_cents || 0) +
+      (order.travel_fee_cents || 0) +
+      (order.surface_fee_cents || 0) +
+      (order.same_day_pickup_fee_cents || 0) +
+      (order.tax_cents || 0);
 
   const currentDepositCents = order.deposit_due_cents || 0;
   const originalPaymentCents = order.customer_selected_payment_cents || 0;
@@ -152,11 +154,17 @@ export function OrderApprovalView({
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-6 text-white">
             <div className="flex items-center gap-4">
-              <img
-                src="/bounce%20party%20club%20logo.png"
-                alt="Bounce Party Club"
-                className="h-14 w-14 object-contain"
-              />
+              <button
+                onClick={() => navigate('/')}
+                className="hover:opacity-80 transition-opacity flex-shrink-0"
+                title="Return to Home"
+              >
+                <img
+                  src="/bounce%20party%20club%20logo.png"
+                  alt="Bounce Party Club"
+                  className="h-14 w-14 object-contain"
+                />
+              </button>
               <div>
                 <h1 className="text-2xl font-bold">Order Changes Require Approval</h1>
                 <p className="text-sm opacity-90 mt-1">Order #{formatOrderId(order.id)}</p>
@@ -235,45 +243,64 @@ export function OrderApprovalView({
                   <span className="font-medium">{formatCurrency(order.subtotal_cents || 0)}</span>
                 </div>
 
-                {(order.travel_fee_cents || 0) > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Travel Fee</span>
-                    <span className="font-medium">{formatCurrency(order.travel_fee_cents)}</span>
-                  </div>
-                )}
+                {orderSummary
+                  ? orderSummary.fees.map((fee: any, i: number) => (
+                      <div key={i} className="flex justify-between">
+                        <span className="text-slate-600">{fee.name}</span>
+                        <span className="font-medium">{formatCurrency(fee.amount)}</span>
+                      </div>
+                    ))
+                  : <>
+                      {(order.travel_fee_cents || 0) > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Travel Fee</span>
+                          <span className="font-medium">{formatCurrency(order.travel_fee_cents)}</span>
+                        </div>
+                      )}
+                      {(order.surface_fee_cents || 0) > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Surface Fee</span>
+                          <span className="font-medium">{formatCurrency(order.surface_fee_cents)}</span>
+                        </div>
+                      )}
+                      {(order.generator_fee_cents || 0) > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Generator Fee</span>
+                          <span className="font-medium">{formatCurrency(order.generator_fee_cents)}</span>
+                        </div>
+                      )}
+                      {(order.same_day_pickup_fee_cents || 0) > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Same Day Pickup</span>
+                          <span className="font-medium">{formatCurrency(order.same_day_pickup_fee_cents)}</span>
+                        </div>
+                      )}
+                    </>
+                }
 
-                {(order.surface_fee_cents || 0) > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Surface Fee</span>
-                    <span className="font-medium">{formatCurrency(order.surface_fee_cents)}</span>
+                {orderSummary && orderSummary.customFees.length > 0 && orderSummary.customFees.map((fee: any, i: number) => (
+                  <div key={i} className="flex justify-between">
+                    <span className="text-slate-600 flex items-center gap-1.5">
+                      {fee.name}
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700 border border-blue-300">
+                        ADDED
+                      </span>
+                    </span>
+                    <span className="font-medium">{formatCurrency(fee.amount)}</span>
                   </div>
-                )}
+                ))}
 
-                {(order.generator_fee_cents || 0) > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Generator Fee</span>
-                    <span className="font-medium">{formatCurrency(order.generator_fee_cents)}</span>
+                {orderSummary && orderSummary.discounts.length > 0 && orderSummary.discounts.map((d: any, i: number) => (
+                  <div key={i} className="flex justify-between text-green-700">
+                    <span>{d.name}</span>
+                    <span className="font-medium">-{formatCurrency(d.amount)}</span>
                   </div>
-                )}
-
-                {(order.same_day_pickup_fee_cents || 0) > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Same Day Pickup</span>
-                    <span className="font-medium">{formatCurrency(order.same_day_pickup_fee_cents)}</span>
-                  </div>
-                )}
+                ))}
 
                 {(order.tax_cents || 0) > 0 && (
                   <div className="flex justify-between">
                     <span className="text-slate-600">Tax</span>
                     <span className="font-medium">{formatCurrency(order.tax_cents)}</span>
-                  </div>
-                )}
-
-                {(order.discount_cents || 0) > 0 && (
-                  <div className="flex justify-between text-green-700">
-                    <span>Discount</span>
-                    <span className="font-medium">-{formatCurrency(order.discount_cents)}</span>
                   </div>
                 )}
 

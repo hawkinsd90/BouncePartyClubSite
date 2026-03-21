@@ -297,13 +297,27 @@ async function processWebhookEvent(
             }
           }
 
-          // Update order with balance payment
+          // Separate tip from balance amount (tip_cents stored in session metadata)
+          const balanceTipCents = parseInt(session.metadata?.tip_cents || "0", 10);
+          const safeTipCents = Number.isFinite(balanceTipCents) ? balanceTipCents : 0;
+          const balanceOnly = Math.max(0, amountPaid - safeTipCents);
+
+          // Fetch existing tip before updating
+          const { data: balanceOrder } = await supabaseClient
+            .from("orders")
+            .select("tip_cents")
+            .eq("id", orderId)
+            .maybeSingle();
+          const existingTip = balanceOrder?.tip_cents || 0;
+
+          // Update order with balance payment, preserving and accumulating tip
           await supabaseClient
             .from("orders")
             .update({
               stripe_payment_method_id: paymentMethodId,
               stripe_customer_id: stripeCustomerId,
-              balance_paid_cents: amountPaid,
+              balance_paid_cents: balanceOnly,
+              ...(safeTipCents > 0 ? { tip_cents: existingTip + safeTipCents } : {}),
             })
             .eq("id", orderId);
 
