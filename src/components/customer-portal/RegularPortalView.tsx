@@ -79,6 +79,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
     }
   }
 
+  const totalPaid = (order.deposit_paid_cents || 0) + (order.balance_paid_cents || 0);
   const balanceDue = order.balance_due_cents - (order.balance_paid_cents || 0);
   const needsWaiver = !order.waiver_signed_at;
   const needsPayment = balanceDue > 0;
@@ -168,7 +169,6 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
     }
   }
 
-  const totalPaid = (order.deposit_paid_cents || 0) + (order.balance_paid_cents || 0);
   const successfulPayments = payments.filter(p => p.status === 'succeeded');
 
   return (
