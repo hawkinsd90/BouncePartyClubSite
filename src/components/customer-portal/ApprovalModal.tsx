@@ -130,14 +130,16 @@ export function ApprovalModal({
         (order.deposit_paid_cents || 0) > 0;
 
       if (alreadyPaidDeposit) {
-        // Already paid — persist payment selection and confirm without charging
+        // Already paid — persist payment selection and confirm without charging.
+        // Only write tip_cents when the customer has actively selected a positive tip.
+        // Do not overwrite an existing stored tip with 0 through this flow.
         const updatePayload: Record<string, unknown> = {
           customer_selected_payment_cents: selectedPaymentBaseCents,
           customer_selected_payment_type: resolvedPaymentType,
           status: 'confirmed',
         };
 
-        if (!keepOriginalPayment && newTipCents >= 0) {
+        if (!keepOriginalPayment && newTipCents > 0) {
           updatePayload.tip_cents = newTipCents;
         }
 
@@ -158,7 +160,7 @@ export function ApprovalModal({
         // Deposit is $0 — no charge should happen today.
         // Require a valid saved card before confirming — we tell the customer their
         // card is kept on file, so one must actually exist.
-        if (!order.stripe_payment_method_id) {
+        if (!hasValidCardOnFile) {
           showToast(
             'Please add a payment method before confirming. Your card will be kept on file for the final payment.',
             'error'
@@ -225,11 +227,11 @@ export function ApprovalModal({
       <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi ${firstName},</p>
       <p style="margin:0 0 16px;color:#374151;font-size:15px;">
         Your order <strong>#${shortId}</strong> has been confirmed.
-        No deposit is required today — your card on file will be charged for the full balance at your event.
+        No deposit is required today — your card will be kept on file for the final payment due at your event.
       </p>
       ${eventDateStr ? `<p style="margin:0 0 8px;color:#374151;font-size:15px;"><strong>Event Date:</strong> ${eventDateStr}</p>` : ''}
       ${addressStr ? `<p style="margin:0 0 16px;color:#374151;font-size:15px;"><strong>Location:</strong> ${addressStr}</p>` : ''}
-      ${newTipCents > 0 ? `<p style="margin:0 0 16px;color:#374151;font-size:15px;">A crew tip of <strong>$${(newTipCents / 100).toFixed(2)}</strong> will also be collected at your event.</p>` : ''}
+      ${newTipCents > 0 ? `<p style="margin:0 0 16px;color:#374151;font-size:15px;">A crew tip of <strong>$${(newTipCents / 100).toFixed(2)}</strong> will be collected with the final payment.</p>` : ''}
       <p style="margin:0;color:#6b7280;font-size:13px;text-align:center;">Questions? Call us at (313) 889-3860.</p>
     </td>
   </tr>
@@ -251,7 +253,7 @@ export function ApprovalModal({
         }
 
         showToast(
-          'Booking confirmed! Your card is on file for the full balance due at your event.',
+          'Booking confirmed! Your card will be kept on file for the final payment due at your event.',
           'success'
         );
       } else {
@@ -365,6 +367,8 @@ export function ApprovalModal({
     order.stripe_payment_status === 'paid' ||
     (order.deposit_paid_cents || 0) > 0;
 
+  const hasValidCardOnFile = !!(order.stripe_customer_id && order.stripe_payment_method_id);
+
   if (!isOpen) return null;
 
   return (
@@ -449,12 +453,12 @@ export function ApprovalModal({
 
           {selectedPaymentBaseCents <= 0 && !alreadyPaidDeposit ? (
             <>
-              {order.stripe_payment_method_id ? (
+              {hasValidCardOnFile ? (
                 <div className="mb-3 p-3 bg-blue-50 border-2 border-blue-200 rounded-lg">
                   <p className="text-sm font-semibold text-blue-900">No deposit required today</p>
                   <p className="text-xs text-blue-700 mt-1">
-                    Your card on file will be charged for the full balance at your event.
-                    {newTipCents > 0 && ' Any tip you added will also be collected at that time.'}
+                    Your card will be kept on file for the final payment due at your event.
+                    {newTipCents > 0 && ' Any tip you added will be collected with the final payment.'}
                   </p>
                 </div>
               ) : (
@@ -540,7 +544,7 @@ export function ApprovalModal({
 
             <button
               onClick={handleConfirm}
-              disabled={submitting || (selectedPaymentBaseCents <= 0 && !alreadyPaidDeposit && !order.stripe_payment_method_id)}
+              disabled={submitting || (selectedPaymentBaseCents <= 0 && !alreadyPaidDeposit && !hasValidCardOnFile)}
               className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed text-white font-bold py-2.5 px-4 rounded-lg transition-colors text-sm"
             >
               {submitting
