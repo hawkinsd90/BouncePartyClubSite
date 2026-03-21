@@ -183,10 +183,12 @@ export function InvoiceAcceptanceView({
           return;
         }
 
-        await supabase
-          .from('invoice_links' as any)
-          .update({ customer_filled: true })
-          .eq('id', invoiceLink.id);
+        if (invoiceLink) {
+          await supabase
+            .from('invoice_links' as any)
+            .update({ customer_filled: true })
+            .eq('id', invoiceLink.id);
+        }
       } else {
         const { error: consentUpdateError } = await supabase
           .from('orders')
@@ -642,7 +644,12 @@ export function InvoiceAcceptanceView({
                 !overnightResponsibilityAccepted) ||
               (!isNoCardRequired &&
                 paymentAmount === 'custom' &&
-                !customPaymentAmount)
+                !customPaymentAmount) ||
+              (needsCustomerInfo &&
+                (!customerInfo.first_name ||
+                  !customerInfo.last_name ||
+                  !customerInfo.email ||
+                  !customerInfo.phone))
             }
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center"
           >
