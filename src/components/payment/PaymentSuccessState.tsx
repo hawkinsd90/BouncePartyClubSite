@@ -36,11 +36,13 @@ export function PaymentSuccessState({ orderDetails, isAdminInvoice, sessionTipCe
       <div className="bg-white max-w-lg w-full">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-6">
-            <img
-              src="/bounce party club logo.png"
-              alt="Bounce Party Club"
-              className="h-24 w-auto"
-            />
+            <button onClick={() => navigate('/')} className="focus:outline-none">
+              <img
+                src="/bounce party club logo.png"
+                alt="Bounce Party Club"
+                className="h-24 w-auto hover:opacity-80 transition-opacity cursor-pointer"
+              />
+            </button>
           </div>
 
           <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-6">

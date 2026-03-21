@@ -13,11 +13,13 @@ export function ApprovalSuccessView({ orderId }: ApprovalSuccessViewProps) {
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 flex items-center justify-center py-12 px-4">
       <div className="max-w-2xl w-full bg-white rounded-xl shadow-2xl overflow-hidden border-4 border-green-500">
         <div className="bg-white px-8 py-6 text-center border-b-4 border-green-500">
-          <img
-            src="/bounce party club logo.png"
-            alt="Bounce Party Club"
-            className="h-20 w-auto mx-auto mb-4"
-          />
+          <button onClick={() => navigate('/')} className="focus:outline-none">
+            <img
+              src="/bounce party club logo.png"
+              alt="Bounce Party Club"
+              className="h-20 w-auto mx-auto mb-4 hover:opacity-80 transition-opacity cursor-pointer"
+            />
+          </button>
           <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
             <svg
               className="w-12 h-12 text-white"

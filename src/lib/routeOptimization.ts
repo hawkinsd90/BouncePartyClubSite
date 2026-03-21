@@ -69,7 +69,17 @@ async function getSingleDistanceMatrixChunk(
     service.getDistanceMatrix(request, (response, status) => {
       if (status !== 'OK') {
         console.error('[Route Optimization] Distance Matrix API error:', status);
-        reject(new Error(`Distance Matrix API error: ${status}. This may be due to invalid addresses or API quota limits.`));
+        const readable =
+          status === 'INVALID_REQUEST'
+            ? 'One or more addresses could not be understood by Google Maps. Please verify all addresses are complete and valid.'
+            : status === 'MAX_ELEMENTS_EXCEEDED'
+            ? 'Too many stops for a single Distance Matrix request. This is a bug — please report it.'
+            : status === 'OVER_DAILY_LIMIT' || status === 'OVER_QUERY_LIMIT'
+            ? 'Google Maps API quota exceeded. Please try again later or contact support.'
+            : status === 'REQUEST_DENIED'
+            ? 'Google Maps API access denied. Please check the API key configuration.'
+            : `Google Maps Distance Matrix error: ${status}. Please check addresses and try again.`;
+        reject(new Error(readable));
         return;
       }
 
@@ -417,13 +427,20 @@ function calculateLateness(
   return Math.max(0, finishSetupMinutes - eventMinutes);
 }
 
+// Large but finite sentinel value used in scoring to deprioritize unreachable segments
+// without causing NaN / ±Infinity in the comparisons.
+const UNREACHABLE_SCORE_SENTINEL = 1e9;
+
 function calculateScore(
   candidate: Candidate,
   baseDriveDurationSeconds: number,
   isHighPriority: boolean
 ): number {
-  const driveDurationMinutes = candidate.driveDurationSeconds / 60;
-  const baseDriveDurationMinutes = baseDriveDurationSeconds / 60;
+  // Treat Infinity (unreachable segment) as a very high drive time so it's always
+  // placed last in the greedy selection — but we don't break scoring arithmetic.
+  const rawDrive = candidate.driveDurationSeconds;
+  const driveDurationMinutes = isFinite(rawDrive) ? rawDrive / 60 : UNREACHABLE_SCORE_SENTINEL;
+  const baseDriveDurationMinutes = isFinite(baseDriveDurationSeconds) ? baseDriveDurationSeconds / 60 : 0;
 
   const LATENESS_PENALTY = 100;
   const FAR_EARLY_BONUS = 0.1;
@@ -539,7 +556,8 @@ function evaluateRoute(
       throw new Error(`[Route Optimization] Missing matrix index for ${stop.taskId} (${stop.address})`);
     }
 
-    const driveDurationSeconds = distanceMatrix[currentMatrixIndex][stopMatrixIndex].duration;
+    const rawDriveSecs = distanceMatrix[currentMatrixIndex][stopMatrixIndex].duration;
+    const driveDurationSeconds = isFinite(rawDriveSecs) ? rawDriveSecs : 0;
     totalDuration += driveDurationSeconds;
 
     currentTime = new Date(currentTime.getTime() + driveDurationSeconds * 1000);
@@ -836,6 +854,86 @@ function isRouteValid(
   return true;
 }
 
+/**
+ * Pre-validates stops before hitting the Distance Matrix API.
+ * Catches blank/placeholder addresses and duplicates early.
+ */
+function preValidateStops(stops: MorningRouteStop[]): { warnings: string[]; errors: string[] } {
+  const warnings: string[] = [];
+  const errors: string[] = [];
+
+  const PLACEHOLDER_PATTERNS = /^(tbd|unknown|n\/a|na|address|none|test|placeholder|\s*)$/i;
+
+  // Track normalized addresses for duplicate detection
+  const seenAddresses = new Map<string, string[]>();
+
+  for (const stop of stops) {
+    const addr = (stop.address || '').trim();
+
+    if (!addr) {
+      errors.push(`Stop ${stop.taskId} (${stop.type}) has no address. Please add a valid address before optimizing.`);
+      continue;
+    }
+
+    if (PLACEHOLDER_PATTERNS.test(addr)) {
+      errors.push(`Stop ${stop.taskId} (${stop.type}) has an invalid placeholder address: "${addr}". Please fix before optimizing.`);
+      continue;
+    }
+
+    // Normalize for duplicate detection (lowercase, collapse spaces)
+    const normalized = addr.toLowerCase().replace(/\s+/g, ' ');
+    if (!seenAddresses.has(normalized)) {
+      seenAddresses.set(normalized, []);
+    }
+    seenAddresses.get(normalized)!.push(stop.taskId);
+  }
+
+  // Report duplicates as warnings (they may be intentional — e.g., same venue, different tasks)
+  for (const [addr, taskIds] of seenAddresses.entries()) {
+    if (taskIds.length > 1) {
+      warnings.push(
+        `Duplicate address detected (${addr}): stops ${taskIds.join(', ')}. ` +
+        'Route distances between these stops may be zero — verify this is intentional.'
+      );
+    }
+  }
+
+  return { warnings, errors };
+}
+
+/**
+ * After the distance matrix is built, scan for Infinity cells and warn about
+ * unreachable segments. If every cell in a row is Infinity the stop is
+ * completely unreachable and we throw so the caller can surface a clear error.
+ */
+function auditDistanceMatrix(
+  matrix: DistanceMatrixResult[][],
+  labels: string[]
+): void {
+  for (let i = 0; i < matrix.length; i++) {
+    const row = matrix[i];
+    const unreachable = row.filter(cell => cell.duration === Infinity);
+
+    if (unreachable.length === row.length && row.length > 0) {
+      // Every destination is unreachable from this origin
+      const origin = labels[i] || `index ${i}`;
+      throw new Error(
+        `Could not calculate driving distances from "${origin}". ` +
+        'This usually means the address is invalid, in an area with no road access, or the Google Maps API could not geocode it. ' +
+        'Please verify the address and try again.'
+      );
+    }
+
+    if (unreachable.length > 0) {
+      const origin = labels[i] || `index ${i}`;
+      console.warn(
+        `[Route Optimization] ${unreachable.length} unreachable destination(s) from "${origin}". ` +
+        'These segments will be treated as very long drives and may skew the route.'
+      );
+    }
+  }
+}
+
 export async function optimizeMorningRoute(stops: MorningRouteStop[]): Promise<OptimizedMorningStop[]> {
   console.log(`[Route Optimization] Starting optimization for ${stops.length} stops`);
 
@@ -854,6 +952,20 @@ export async function optimizeMorningRoute(stops: MorningRouteStop[]): Promise<O
         : (stops[0].numInflatables || 1) * SETUP_MINUTES_PER_UNIT,
       estimatedLateness: 0
     }];
+  }
+
+  // Pre-validate addresses before calling any API
+  console.log('[Route Optimization] Pre-validating stop addresses...');
+  const addressValidation = preValidateStops(stops);
+  if (addressValidation.warnings.length > 0) {
+    addressValidation.warnings.forEach(w => console.warn(`[Route Optimization] Address warning: ${w}`));
+  }
+  if (addressValidation.errors.length > 0) {
+    addressValidation.errors.forEach(e => console.error(`[Route Optimization] Address error: ${e}`));
+    throw new Error(
+      'Route optimization cannot proceed — address issues found:\n' +
+      addressValidation.errors.join('\n')
+    );
   }
 
   console.log('[Route Optimization] Getting home base address...');
@@ -894,6 +1006,10 @@ export async function optimizeMorningRoute(stops: MorningRouteStop[]): Promise<O
   console.log('[Route Optimization] Stop addresses:', stops.map((s, i) => `${i + 1}. ${s.address}`).join('\n'));
 
   const distanceMatrix = await getDistanceMatrix(addresses, addresses, trafficDepartureTime);
+
+  // Audit matrix for unreachable segments before proceeding
+  const matrixLabels = ['Home Base', ...stops.map(s => s.address)];
+  auditDistanceMatrix(distanceMatrix, matrixLabels);
 
   console.log('[Route Optimization] Building matrix index map...');
   const matrixIndexByTaskId = new Map<string, number>();

@@ -19,11 +19,13 @@ export function PaymentCanceled() {
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-orange-50 to-amber-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl p-10 text-center max-w-md border-2 border-slate-100">
         <div className="flex justify-center mb-6">
-          <img
-            src="/bounce party club logo.png"
-            alt="Bounce Party Club"
-            className="h-24 w-auto"
-          />
+          <button onClick={() => navigate('/')} className="focus:outline-none">
+            <img
+              src="/bounce party club logo.png"
+              alt="Bounce Party Club"
+              className="h-24 w-auto hover:opacity-80 transition-opacity cursor-pointer"
+            />
+          </button>
         </div>
         <div className="w-20 h-20 bg-gradient-to-br from-red-400 to-red-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
           <XCircle className="w-12 h-12 text-white" />

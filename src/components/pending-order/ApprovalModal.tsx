@@ -29,7 +29,11 @@ export function ApprovalModal({
         <div className="bg-amber-50 border-2 border-amber-400 rounded-lg p-4 mb-6">
           <p className="text-amber-900 text-sm font-semibold mb-2">This will:</p>
           <ul className="text-amber-800 text-sm space-y-1 list-disc list-inside">
-            <li>Charge the customer's card for the deposit</li>
+            {order.deposit_due_cents > 0 ? (
+              <li>Charge the customer's card for the deposit ({formatCurrency(order.deposit_due_cents)})</li>
+            ) : (
+              <li>Confirm the booking (no deposit charge — card kept on file for final payment)</li>
+            )}
             <li>Send confirmation SMS and email to customer</li>
             <li>Generate an invoice</li>
             <li>Mark the booking as confirmed</li>

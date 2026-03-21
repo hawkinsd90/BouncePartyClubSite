@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
@@ -7,6 +8,7 @@ interface OrderStatusViewProps {
 }
 
 export function OrderStatusView({ order }: OrderStatusViewProps) {
+  const navigate = useNavigate();
   const statusMessages = {
     draft: {
       title: 'Invoice Pending',
@@ -38,11 +40,13 @@ export function OrderStatusView({ order }: OrderStatusViewProps) {
     <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4">
       <div className="max-w-2xl w-full bg-white rounded-xl shadow-lg overflow-hidden border-2 border-slate-300">
         <div className="bg-gradient-to-r from-blue-600 to-cyan-600 px-8 py-6 text-center">
-          <img
-            src="/bounce party club logo.png"
-            alt="Bounce Party Club"
-            className="h-20 w-auto mx-auto mb-4"
-          />
+          <button onClick={() => navigate('/')} className="focus:outline-none">
+            <img
+              src="/bounce party club logo.png"
+              alt="Bounce Party Club"
+              className="h-20 w-auto mx-auto mb-4 hover:opacity-80 transition-opacity cursor-pointer"
+            />
+          </button>
           <h1 className="text-2xl font-bold text-white">Order Status</h1>
           <p className="text-blue-100 mt-2">
             Order #{formatOrderId(order.id)}
