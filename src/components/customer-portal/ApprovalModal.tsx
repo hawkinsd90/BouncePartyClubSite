@@ -155,15 +155,27 @@ export function ApprovalModal({
           'success'
         );
       } else if (selectedPaymentBaseCents <= 0) {
-        // Deposit is $0 — no charge should happen. Just confirm the order and keep
-        // card on file for final payment.
+        // Deposit is $0 — no charge should happen today.
+        // Require a valid saved card before confirming — we tell the customer their
+        // card is kept on file, so one must actually exist.
+        if (!order.stripe_payment_method_id) {
+          showToast(
+            'Please add a payment method before confirming. Your card will be kept on file for the final payment.',
+            'error'
+          );
+          if (isMountedRef.current) setSubmitting(false);
+          return;
+        }
+
+        // Tip deferred: store tip_cents on the order so it can be collected at
+        // final payment. UI already explains "tip collected at your event".
         const updatePayload: Record<string, unknown> = {
           customer_selected_payment_cents: 0,
           customer_selected_payment_type: resolvedPaymentType,
           status: 'confirmed',
         };
 
-        if (!keepOriginalPayment && newTipCents >= 0) {
+        if (!keepOriginalPayment && newTipCents > 0) {
           updatePayload.tip_cents = newTipCents;
         }
 
@@ -176,8 +188,70 @@ export function ApprovalModal({
           throw new Error(zeroDepositError.message || 'Failed to confirm order');
         }
 
+        // Send confirmation notification via edge function (fire-and-forget — non-fatal)
+        try {
+          const { data: fullOrder } = await supabase
+            .from('orders')
+            .select('*, customers(*), addresses(*)')
+            .eq('id', order.id)
+            .maybeSingle();
+
+          const customer = fullOrder?.customers as any;
+          const address = fullOrder?.addresses as any;
+
+          if (customer?.email) {
+            const firstName = customer.first_name || 'Customer';
+            const shortId = formatOrderId(order.id);
+            const eventDateStr = order.event_date
+              ? format(new Date(order.event_date + 'T12:00:00'), 'EEEE, MMMM d, yyyy')
+              : '';
+            const addressStr = address
+              ? `${address.line1}, ${address.city}, ${address.state}`
+              : '';
+
+            const emailHtml = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Arial,sans-serif;background-color:#f5f5f5;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5;padding:20px;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;border:1px solid #d1fae5;">
+  <tr>
+    <td align="center" style="padding:24px 40px 16px;border-bottom:2px solid #6ee7b7;background-color:#ecfdf5;border-radius:8px 8px 0 0;">
+      <h1 style="margin:0;color:#065f46;font-size:24px;font-weight:bold;">Booking Confirmed!</h1>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:28px 40px;">
+      <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi ${firstName},</p>
+      <p style="margin:0 0 16px;color:#374151;font-size:15px;">
+        Your order <strong>#${shortId}</strong> has been confirmed.
+        No deposit is required today — your card on file will be charged for the full balance at your event.
+      </p>
+      ${eventDateStr ? `<p style="margin:0 0 8px;color:#374151;font-size:15px;"><strong>Event Date:</strong> ${eventDateStr}</p>` : ''}
+      ${addressStr ? `<p style="margin:0 0 16px;color:#374151;font-size:15px;"><strong>Location:</strong> ${addressStr}</p>` : ''}
+      ${newTipCents > 0 ? `<p style="margin:0 0 16px;color:#374151;font-size:15px;">A crew tip of <strong>$${(newTipCents / 100).toFixed(2)}</strong> will also be collected at your event.</p>` : ''}
+      <p style="margin:0;color:#6b7280;font-size:13px;text-align:center;">Questions? Call us at (313) 889-3860.</p>
+    </td>
+  </tr>
+</table>
+</td></tr>
+</table>
+</body></html>`;
+
+            await supabase.functions.invoke('send-email', {
+              body: {
+                to: customer.email,
+                subject: `Booking Confirmed - Order #${shortId}`,
+                html: emailHtml,
+              },
+            });
+          }
+        } catch (notifyErr) {
+          console.error('Zero-deposit confirmation notification failed (non-fatal):', notifyErr);
+        }
+
         showToast(
-          'Booking confirmed! Your card is on file for the final payment.',
+          'Booking confirmed! Your card is on file for the full balance due at your event.',
           'success'
         );
       } else {
@@ -374,12 +448,37 @@ export function ApprovalModal({
           )}
 
           {selectedPaymentBaseCents <= 0 && !alreadyPaidDeposit ? (
-            <div className="mb-3 p-3 bg-blue-50 border-2 border-blue-200 rounded-lg">
-              <p className="text-sm font-semibold text-blue-900">No deposit required today</p>
-              <p className="text-xs text-blue-700 mt-1">
-                Your card is kept on file. The full balance will be due at your event.
-              </p>
-            </div>
+            <>
+              {order.stripe_payment_method_id ? (
+                <div className="mb-3 p-3 bg-blue-50 border-2 border-blue-200 rounded-lg">
+                  <p className="text-sm font-semibold text-blue-900">No deposit required today</p>
+                  <p className="text-xs text-blue-700 mt-1">
+                    Your card on file will be charged for the full balance at your event.
+                    {newTipCents > 0 && ' Any tip you added will also be collected at that time.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="mb-3 p-3 bg-amber-50 border-2 border-amber-300 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-semibold text-amber-900">Payment method required</p>
+                      <p className="text-xs text-amber-800 mt-1">
+                        No card is on file. Please add a payment method before confirming so we can collect the balance at your event.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleUpdateCard}
+                    disabled={updatingCard}
+                    className="mt-2 w-full bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white font-semibold text-sm py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    {updatingCard ? 'Loading...' : 'Add Payment Method'}
+                  </button>
+                </div>
+              )}
+            </>
           ) : (
             <div className="mb-3 p-3 bg-green-50 border-2 border-green-200 rounded-lg">
               <div className="flex items-center justify-between">
@@ -441,7 +540,7 @@ export function ApprovalModal({
 
             <button
               onClick={handleConfirm}
-              disabled={submitting}
+              disabled={submitting || (selectedPaymentBaseCents <= 0 && !alreadyPaidDeposit && !order.stripe_payment_method_id)}
               className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed text-white font-bold py-2.5 px-4 rounded-lg transition-colors text-sm"
             >
               {submitting

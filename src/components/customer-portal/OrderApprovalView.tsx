@@ -444,6 +444,11 @@ export function OrderApprovalView({
                       onCustomTipAmountChange={setCustomTipAmount}
                       formatCurrency={formatCurrency}
                     />
+                    {currentDepositCents <= 0 && (
+                      <p className="text-xs text-slate-500 mt-2">
+                        Since no deposit is due today, any tip you add will be collected at your event along with the full balance.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
