@@ -154,8 +154,34 @@ export function ApprovalModal({
           'Order approved successfully! Any changes will be added to your final balance.',
           'success'
         );
+      } else if (selectedPaymentBaseCents <= 0) {
+        // Deposit is $0 — no charge should happen. Just confirm the order and keep
+        // card on file for final payment.
+        const updatePayload: Record<string, unknown> = {
+          customer_selected_payment_cents: 0,
+          customer_selected_payment_type: resolvedPaymentType,
+          status: 'confirmed',
+        };
+
+        if (!keepOriginalPayment && newTipCents >= 0) {
+          updatePayload.tip_cents = newTipCents;
+        }
+
+        const { error: zeroDepositError } = await supabase
+          .from('orders')
+          .update(updatePayload)
+          .eq('id', order.id);
+
+        if (zeroDepositError) {
+          throw new Error(zeroDepositError.message || 'Failed to confirm order');
+        }
+
+        showToast(
+          'Booking confirmed! Your card is on file for the final payment.',
+          'success'
+        );
       } else {
-        // Customer hasn't paid yet — send all charge params in the request body.
+        // Customer hasn't paid yet and deposit > $0 — send all charge params in the request body.
         // charge-deposit uses these as source of truth; no pre-charge DB write needed.
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
         const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -199,7 +225,6 @@ export function ApprovalModal({
         }
 
         if (chargeData?.chargeSucceeded && !chargeData?.success) {
-          // Payment processed but order update had a DB issue — inform customer
           showToast(
             'Payment processed successfully! If your order status does not update shortly, please contact us.',
             'success'
@@ -289,7 +314,9 @@ export function ApprovalModal({
               </div>
               <div className="text-right">
                 <p className="text-xs text-slate-500">
-                  {alreadyPaidDeposit ? 'Total Amount' : 'Charging Now'}
+                  {alreadyPaidDeposit || selectedPaymentBaseCents <= 0
+                    ? 'Total Amount'
+                    : 'Charging Now'}
                 </p>
                 <p className="text-lg font-bold text-green-700">
                   {formatCurrency(selectedPaymentCents)}
@@ -346,33 +373,42 @@ export function ApprovalModal({
             </div>
           )}
 
-          <div className="mb-3 p-3 bg-green-50 border-2 border-green-200 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-600">Payment Amount Selected</p>
-                <p className="text-2xl font-bold text-green-700">
-                  {formatCurrency(selectedPaymentCents)}
-                </p>
-
-                {selectedPaymentBaseCents < currentTotalCents && (
-                  <p className="text-xs text-slate-600 mt-1">
-                    Balance due day of event:{' '}
-                    {formatCurrency(currentTotalCents - selectedPaymentBaseCents)}
+          {selectedPaymentBaseCents <= 0 && !alreadyPaidDeposit ? (
+            <div className="mb-3 p-3 bg-blue-50 border-2 border-blue-200 rounded-lg">
+              <p className="text-sm font-semibold text-blue-900">No deposit required today</p>
+              <p className="text-xs text-blue-700 mt-1">
+                Your card is kept on file. The full balance will be due at your event.
+              </p>
+            </div>
+          ) : (
+            <div className="mb-3 p-3 bg-green-50 border-2 border-green-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-600">Payment Amount Selected</p>
+                  <p className="text-2xl font-bold text-green-700">
+                    {formatCurrency(selectedPaymentCents)}
                   </p>
-                )}
 
-                {(keepOriginalPayment ? (order.tip_cents || 0) : newTipCents) > 0 && (
-                  <p className="text-xs text-green-600 mt-0.5">
-                    Includes{' '}
-                    {formatCurrency(
-                      keepOriginalPayment ? (order.tip_cents || 0) : newTipCents
-                    )}{' '}
-                    crew tip
-                  </p>
-                )}
+                  {selectedPaymentBaseCents < currentTotalCents && (
+                    <p className="text-xs text-slate-600 mt-1">
+                      Balance due day of event:{' '}
+                      {formatCurrency(currentTotalCents - selectedPaymentBaseCents)}
+                    </p>
+                  )}
+
+                  {(keepOriginalPayment ? (order.tip_cents || 0) : newTipCents) > 0 && (
+                    <p className="text-xs text-green-600 mt-0.5">
+                      Includes{' '}
+                      {formatCurrency(
+                        keepOriginalPayment ? (order.tip_cents || 0) : newTipCents
+                      )}{' '}
+                      crew tip
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {cardDeclined && (
             <div className="mb-3 p-3 bg-red-50 border border-red-300 rounded-lg">
@@ -408,7 +444,11 @@ export function ApprovalModal({
               disabled={submitting}
               className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed text-white font-bold py-2.5 px-4 rounded-lg transition-colors text-sm"
             >
-              {submitting ? 'Processing...' : 'Confirm & Pay'}
+              {submitting
+                ? 'Processing...'
+                : selectedPaymentBaseCents <= 0 && !alreadyPaidDeposit
+                ? 'Confirm Booking'
+                : 'Confirm & Pay'}
             </button>
           </div>
         </div>
