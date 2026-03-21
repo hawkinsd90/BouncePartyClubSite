@@ -68,7 +68,7 @@ export function InvoiceAcceptanceView({
   const [customTipAmount, setCustomTipAmount] = useState('');
   const [showCancelModal, setShowCancelModal] = useState(false);
 
-  const needsCustomerInfo = invoiceLink && !invoiceLink.customer_filled;
+  const needsCustomerInfo = !order.customer_id || (invoiceLink && !invoiceLink.customer_filled);
   const totalCents = order.deposit_due_cents + order.balance_due_cents;
 
   function getActualPaymentCents(): number {
