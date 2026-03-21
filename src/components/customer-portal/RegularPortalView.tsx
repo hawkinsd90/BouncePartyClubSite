@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { FileText, CreditCard, CheckCircle, Image as ImageIcon, MapPin, Printer, Calendar, MapPin as MapPinIcon, Home } from 'lucide-react';
+import { FileText, CreditCard, CheckCircle, Image as ImageIcon, MapPin, Printer, Calendar, MapPin as MapPinIcon, Home, Truck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
@@ -10,6 +10,7 @@ import { PaymentTab } from './PaymentTab';
 import { PicturesTab } from './PicturesTab';
 import { LotPicturesTab } from './LotPicturesTab';
 import { CancelOrderModal } from './CancelOrderModal';
+import { DeliveryTab } from './DeliveryTab';
 import { showToast } from '../../lib/notifications';
 import { OrderStatusBadge } from '../dashboard/OrderStatusBadge';
 
@@ -25,7 +26,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
   const navigate = useNavigate();
   const isPendingReview = order.status === 'pending_review';
   const lotPicturesRequested = order.lot_pictures_requested || false;
-  const [activeTab, setActiveTab] = useState<'details' | 'lot-pictures' | 'waiver' | 'payment' | 'pictures'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'lot-pictures' | 'waiver' | 'payment' | 'pictures' | 'delivery'>('details');
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [payments, setPayments] = useState<any[]>([]);
   const [lotPicturesUploaded, setLotPicturesUploaded] = useState(false);
@@ -369,6 +370,17 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
               >
                 Pictures
               </button>
+              <button
+                onClick={() => setActiveTab('delivery')}
+                className={`px-4 py-2 font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === 'delivery'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Truck className="w-4 h-4" />
+                Delivery
+              </button>
             </div>
 
             {activeTab === 'details' && (
@@ -598,6 +610,8 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
             )}
 
             {activeTab === 'pictures' && <PicturesTab onSubmit={handleSubmitPictures} />}
+
+            {activeTab === 'delivery' && <DeliveryTab orderId={orderId} />}
           </div>
         </div>
 

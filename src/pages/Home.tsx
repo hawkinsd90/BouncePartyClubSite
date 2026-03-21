@@ -11,6 +11,7 @@ import {
   Building2,
   Zap,
   ExternalLink,
+  Sun,
 } from 'lucide-react';
 import { AddressAutocomplete } from '../components/order/AddressAutocomplete';
 import { HeroCarousel } from '../components/admin/HeroCarousel';
@@ -148,6 +149,23 @@ export function Home() {
           ) : undefined
         }
       />
+
+      <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 text-white py-4 px-4">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-6 text-center">
+          <div className="flex items-center gap-2.5">
+            <Sun className="w-6 h-6 text-yellow-200 flex-shrink-0 animate-pulse" />
+            <span className="text-lg sm:text-xl font-extrabold tracking-tight">
+              We Specialize in ALL DAY Rentals
+            </span>
+            <Sun className="w-6 h-6 text-yellow-200 flex-shrink-0 animate-pulse" />
+          </div>
+          <span className="hidden sm:block text-orange-200 font-bold text-lg">—</span>
+          <p className="text-sm sm:text-base font-medium text-amber-100 max-w-md">
+            Equipment delivered in the morning, picked up that evening or the next morning.
+            No rushing — enjoy your full event day!
+          </p>
+        </div>
+      </div>
 
       <section className="relative bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-600 text-white overflow-hidden">
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDE2YzAtMS4xLjktMiAyLTJoMTZjMS4xIDAgMiAuOSAyIDJ2MTZjMCAxLjEtLjkgMi0yIDJIMzhjLTEuMSAwLTItLjktMi0yVjE2eiIvPjwvZz48L2c+PC9zdmc+')] opacity-20"></div>

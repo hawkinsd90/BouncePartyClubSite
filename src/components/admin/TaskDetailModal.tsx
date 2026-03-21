@@ -410,7 +410,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack }: T
 
       setUploadingImages(true);
       try {
-        await ensureTaskStatus();
+        const taskStatusId = await ensureTaskStatus();
         const uploadedUrls: string[] = [];
 
         for (const file of files) {
@@ -428,8 +428,28 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack }: T
           uploadedUrls.push(urlData.publicUrl);
         }
 
-        const photoType = isDamage ? 'damage' : 'proof';
-        showAlert(`${uploadedUrls.length} ${photoType} image(s) uploaded successfully! (Image tracking not yet implemented)`);
+        const columnName = isDamage ? 'damage_images' : 'delivery_images';
+
+        const { data: currentRow, error: fetchError } = await supabase
+          .from('task_status')
+          .select(columnName)
+          .eq('id', taskStatusId)
+          .maybeSingle();
+
+        if (fetchError) throw fetchError;
+
+        const existingUrls: string[] = (currentRow as any)?.[columnName] || [];
+        const mergedUrls = [...existingUrls, ...uploadedUrls];
+
+        const { error: updateError } = await supabase
+          .from('task_status')
+          .update({ [columnName]: mergedUrls })
+          .eq('id', taskStatusId);
+
+        if (updateError) throw updateError;
+
+        const photoType = isDamage ? 'damage' : 'delivery';
+        showAlert(`${uploadedUrls.length} ${photoType} photo(s) uploaded and saved successfully!`);
         onUpdate();
       } catch (error: any) {
         console.error('Error uploading images:', error);
