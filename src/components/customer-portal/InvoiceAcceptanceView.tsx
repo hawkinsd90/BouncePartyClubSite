@@ -156,16 +156,18 @@ export function InvoiceAcceptanceView({
       let customerId = order.customer_id;
 
       if (needsCustomerInfo && customerInfo.email) {
-        const { data: existingCustomer } = await supabase
+        const { data: existingCustomer, error: lookupError } = await supabase
           .from('customers')
           .select('id')
           .eq('email', customerInfo.email)
           .maybeSingle();
 
+        if (lookupError) throw lookupError;
+
         if (existingCustomer) {
           customerId = existingCustomer.id;
 
-          await supabase
+          const { error: updateError } = await supabase
             .from('customers')
             .update({
               first_name: customerInfo.first_name,
@@ -174,6 +176,10 @@ export function InvoiceAcceptanceView({
               ...(customerInfo.business_name ? { business_name: customerInfo.business_name } : {}),
             })
             .eq('id', existingCustomer.id);
+
+          if (updateError) {
+            console.error('Failed to update existing customer:', updateError);
+          }
         } else {
           const { data: newCustomer, error: customerError } = await supabase
             .from('customers')
@@ -204,10 +210,14 @@ export function InvoiceAcceptanceView({
         }
 
         if (invoiceLink) {
-          await supabase
+          const { error: invoiceLinkError } = await supabase
             .from('invoice_links' as any)
             .update({ customer_filled: true })
             .eq('id', invoiceLink.id);
+
+          if (invoiceLinkError) {
+            console.error('Failed to mark invoice link as filled:', invoiceLinkError);
+          }
         }
       } else {
         const { error: consentUpdateError } = await supabase

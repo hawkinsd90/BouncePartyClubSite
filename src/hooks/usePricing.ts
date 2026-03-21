@@ -241,7 +241,13 @@ export function usePricing() {
 
       // Calculate tax based on waived fees and apply_taxes_by_default setting
       const shouldApplyTaxesByDefault = pricingRules.apply_taxes_by_default ?? true;
-      const taxableAmount = priceBreakdown.subtotal_cents + finalTravelFeeCents + finalSurfaceFeeCents + finalGeneratorFeeCents;
+      const customFeesTotalCents = customFees.reduce((sum: number, f: any) => sum + (f.amount_cents || 0), 0);
+      const discountTotalCents = discounts.reduce((sum: number, d: any) => {
+        if (d.amount_cents > 0) return sum + d.amount_cents;
+        if (d.percentage > 0) return sum + Math.round(priceBreakdown.subtotal_cents * (d.percentage / 100));
+        return sum;
+      }, 0);
+      const taxableAmount = priceBreakdown.subtotal_cents + finalTravelFeeCents + finalSurfaceFeeCents + finalGeneratorFeeCents + customFeesTotalCents - discountTotalCents;
 
       // Calculate the potential tax amount (always calculated for display purposes)
       const calculatedTaxCents = Math.round(taxableAmount * 0.06);
@@ -263,7 +269,7 @@ export function usePricing() {
       const originalTaxCents = calculatedTaxCents;
 
       // Calculate total with all waivers applied
-      const finalTotalCents = priceBreakdown.subtotal_cents + finalTravelFeeCents + finalSurfaceFeeCents + finalSameDayPickupFeeCents + finalGeneratorFeeCents + finalTaxCents;
+      const finalTotalCents = priceBreakdown.subtotal_cents + finalTravelFeeCents + finalSurfaceFeeCents + finalSameDayPickupFeeCents + finalGeneratorFeeCents + customFeesTotalCents - discountTotalCents + finalTaxCents;
 
       // Calculate deposit
       const depositDueCents = customDepositCents !== null ? customDepositCents : priceBreakdown.deposit_due_cents;
