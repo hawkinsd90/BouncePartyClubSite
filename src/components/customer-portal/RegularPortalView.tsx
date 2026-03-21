@@ -389,7 +389,10 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                 )}
 
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
-                  <h3 className="text-lg font-semibold text-slate-900 mb-4">Order Information</h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-slate-900">Order Information</h3>
+                    <OrderStatusBadge order={order} />
+                  </div>
 
                   <div className="grid md:grid-cols-2 gap-4 mb-4">
                     <div>
@@ -450,22 +453,46 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                         {formatCurrency(order.subtotal_cents)}
                       </span>
                     </div>
-                    {order.travel_fee_cents > 0 && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Travel Fee:</span>
-                        <span className="font-semibold text-slate-900">
-                          {formatCurrency(order.travel_fee_cents)}
-                        </span>
+                    {orderSummary
+                      ? orderSummary.fees.map((fee, i) => (
+                          <div key={i} className="flex justify-between text-sm">
+                            <span className="text-slate-600">{fee.name}:</span>
+                            <span className="font-semibold text-slate-900">{formatCurrency(fee.amount)}</span>
+                          </div>
+                        ))
+                      : <>
+                          {order.travel_fee_cents > 0 && (
+                            <div className="flex justify-between text-sm">
+                              <span className="text-slate-600">Travel Fee:</span>
+                              <span className="font-semibold text-slate-900">{formatCurrency(order.travel_fee_cents)}</span>
+                            </div>
+                          )}
+                          {order.surface_fee_cents > 0 && (
+                            <div className="flex justify-between text-sm">
+                              <span className="text-slate-600">Surface Fee:</span>
+                              <span className="font-semibold text-slate-900">{formatCurrency(order.surface_fee_cents)}</span>
+                            </div>
+                          )}
+                          {order.generator_fee_cents > 0 && (
+                            <div className="flex justify-between text-sm">
+                              <span className="text-slate-600">Generator:</span>
+                              <span className="font-semibold text-slate-900">{formatCurrency(order.generator_fee_cents)}</span>
+                            </div>
+                          )}
+                        </>
+                    }
+                    {orderSummary && orderSummary.customFees.length > 0 && orderSummary.customFees.map((fee, i) => (
+                      <div key={i} className="flex justify-between text-sm">
+                        <span className="text-slate-600">{fee.name}:</span>
+                        <span className="font-semibold text-slate-900">{formatCurrency(fee.amount)}</span>
                       </div>
-                    )}
-                    {order.surface_fee_cents > 0 && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Surface Fee:</span>
-                        <span className="font-semibold text-slate-900">
-                          {formatCurrency(order.surface_fee_cents)}
-                        </span>
+                    ))}
+                    {orderSummary && orderSummary.discounts.length > 0 && orderSummary.discounts.map((d, i) => (
+                      <div key={i} className="flex justify-between text-sm">
+                        <span className="text-green-700">{d.name}:</span>
+                        <span className="font-semibold text-green-700">-{formatCurrency(d.amount)}</span>
                       </div>
-                    )}
+                    ))}
                     {order.tax_cents > 0 && (
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-600">Tax:</span>
@@ -477,13 +504,14 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                     <div className="flex justify-between pt-2 border-t border-slate-300">
                       <span className="font-semibold text-slate-900">Total:</span>
                       <span className="text-lg font-bold text-slate-900">
-                        {formatCurrency(
+                        {formatCurrency(orderSummary ? orderSummary.total : (
                           order.subtotal_cents +
                           order.travel_fee_cents +
                           order.surface_fee_cents +
                           order.same_day_pickup_fee_cents +
+                          (order.generator_fee_cents || 0) +
                           order.tax_cents
-                        )}
+                        ))}
                       </span>
                     </div>
                     {order.tip_cents > 0 && (

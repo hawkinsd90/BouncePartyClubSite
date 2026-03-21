@@ -289,12 +289,15 @@ export function InvoiceAcceptanceView({
         const smsMessage = generateConfirmationSmsMessage(order, firstName);
 
         const totalCents =
-          (order.subtotal_cents || 0) +
-          (order.travel_fee_cents || 0) +
-          (order.surface_fee_cents || 0) +
-          (order.same_day_pickup_fee_cents || 0) +
-          (order.tax_cents || 0) +
-          tipCents;
+          orderSummary
+            ? orderSummary.total + tipCents
+            : (order.subtotal_cents || 0) +
+              (order.travel_fee_cents || 0) +
+              (order.surface_fee_cents || 0) +
+              (order.same_day_pickup_fee_cents || 0) +
+              (order.generator_fee_cents || 0) +
+              (order.tax_cents || 0) +
+              tipCents;
 
         const { data: fullItems } = await supabase
           .from('order_items')
