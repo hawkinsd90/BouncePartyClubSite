@@ -150,48 +150,38 @@ export function Home() {
         }
       />
 
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-amber-500 via-orange-400 to-amber-500" />
-        <div
-          className="absolute inset-0 opacity-20"
-          style={{
-            backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.15) 10px, rgba(255,255,255,0.15) 20px)',
-          }}
-        />
-        <div
-          className="absolute -left-6 top-0 bottom-0 w-12 bg-white/10"
-          style={{ transform: 'skewX(-8deg)' }}
-        />
-        <div
-          className="absolute -right-6 top-0 bottom-0 w-12 bg-white/10"
-          style={{ transform: 'skewX(-8deg)' }}
-        />
-        <div className="relative z-10 py-3.5 px-4">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-5 text-center">
-            <div className="flex items-center gap-2.5">
-              <Sun className="w-5 h-5 text-yellow-200 flex-shrink-0 animate-pulse" />
-              <span className="text-base sm:text-lg font-extrabold tracking-wide text-white drop-shadow-sm uppercase">
-                We Specialize in ALL DAY Rentals
+      <style>{`
+        @keyframes ribbon-scroll {
+          0%   { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        .ribbon-scroll { animation: ribbon-scroll 28s linear infinite; }
+        .ribbon-scroll:hover { animation-play-state: paused; }
+      `}</style>
+      <div className="relative" style={{ filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.25))' }}>
+        <svg className="absolute top-0 left-0 h-full" style={{ width: '28px', zIndex: 10 }} viewBox="0 0 28 48" preserveAspectRatio="none">
+          <polygon points="28,0 28,48 0,24" fill="#d97706" />
+          <polygon points="28,0 28,6 4,24 28,42 28,48 0,24" fill="rgba(0,0,0,0.12)" />
+        </svg>
+        <svg className="absolute top-0 right-0 h-full" style={{ width: '28px', zIndex: 10 }} viewBox="0 0 28 48" preserveAspectRatio="none">
+          <polygon points="0,0 0,48 28,24" fill="#d97706" />
+          <polygon points="0,0 0,6 24,24 0,42 0,48 28,24" fill="rgba(0,0,0,0.12)" />
+        </svg>
+        <div className="overflow-hidden" style={{ background: 'linear-gradient(180deg, #f59e0b 0%, #d97706 50%, #b45309 100%)', borderTop: '2px solid rgba(255,255,255,0.25)', borderBottom: '2px solid rgba(0,0,0,0.18)' }}>
+          <div className="ribbon-scroll flex items-center whitespace-nowrap py-3" style={{ width: 'max-content' }}>
+            {[...Array(6)].map((_, i) => (
+              <span key={i} className="flex items-center gap-3 px-8">
+                <Sun className="w-4 h-4 text-yellow-100 flex-shrink-0" style={{ filter: 'drop-shadow(0 0 4px rgba(255,255,180,0.8))' }} />
+                <span className="text-sm sm:text-base font-extrabold tracking-widest text-white uppercase" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.35), 0 0 12px rgba(255,220,100,0.25)' }}>
+                  We Specialize in ALL DAY Rentals
+                </span>
+                <span className="text-amber-200 font-bold text-xs tracking-wider uppercase" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
+                  · Delivered in the morning, picked up the next morning ·
+                </span>
               </span>
-              <Sun className="w-5 h-5 text-yellow-200 flex-shrink-0 animate-pulse" />
-            </div>
-            <span className="hidden sm:block text-orange-200 font-bold">—</span>
-            <p className="text-sm font-medium text-amber-50 max-w-xs sm:max-w-sm">
-              Delivered in the morning, picked up the next morning. Enjoy your full event day!
-            </p>
+            ))}
           </div>
         </div>
-        <svg
-          className="absolute bottom-0 left-0 w-full"
-          viewBox="0 0 1440 8"
-          preserveAspectRatio="none"
-          style={{ height: '8px' }}
-        >
-          <path
-            d="M0,4 C360,8 720,0 1080,4 C1260,6 1380,3 1440,4 L1440,8 L0,8 Z"
-            fill="rgba(0,0,0,0.08)"
-          />
-        </svg>
       </div>
 
       <section className="relative bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-600 text-white overflow-hidden">
