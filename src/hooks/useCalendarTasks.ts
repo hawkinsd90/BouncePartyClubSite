@@ -169,11 +169,12 @@ export function useCalendarTasks(currentMonth: Date) {
                      order.travel_fee_cents +
                      order.surface_fee_cents +
                      (order.same_day_pickup_fee_cents || 0) +
-                     order.tax_cents -
-                     (order.discount_cents || 0);
+                     order.tax_cents;
 
-        const totalPaid = (order.deposit_paid_cents || 0) + (order.balance_paid_cents || 0);
-        const balanceDue = Math.max(0, total - totalPaid);
+        // Use the DB-stored balance_due_cents (which correctly accounts for deposit,
+        // custom fees, discounts, and all pricing) minus any balance already paid.
+        // This avoids raw-field math that misses custom fees and uses non-existent columns.
+        const balanceDue = Math.max(0, (order.balance_due_cents || 0) - (order.balance_paid_cents || 0));
 
         const dropOffStatus = taskStatuses?.find(
           ts => ts.order_id === order.id && ts.task_type === 'drop-off'

@@ -151,11 +151,17 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
   async function executePayment() {
     setLoading(true);
     try {
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/customer-balance-payment`;
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const apiUrl = `${supabaseUrl}/functions/v1/customer-balance-payment`;
 
       const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${anonKey}`,
+          'Apikey': anonKey,
+        },
         body: JSON.stringify({
           orderId,
           amountCents: balanceDue,
@@ -199,7 +205,8 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
 
   async function handleUpdateCard() {
     // Send customer through card-update (setup mode) Stripe Checkout,
-    // preserving the tip cents so they can complete payment on return.
+    // preserving tip state via paymentState so stripe-checkout encodes it
+    // in the ?card_updated return URL, which RegularPortalView then reads.
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -214,7 +221,9 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
         body: JSON.stringify({
           orderId,
           setupMode: true,
-          returnUrl: `${window.location.origin}/customer-portal/${orderId}?tab=payment&tip=${tipCents}`,
+          paymentState: {
+            newTipCents: tipCents,
+          },
         }),
       });
 

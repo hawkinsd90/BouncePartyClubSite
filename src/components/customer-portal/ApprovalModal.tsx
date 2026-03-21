@@ -24,6 +24,7 @@ interface ApprovalModalProps {
   keepOriginalPayment: boolean;
   paymentAmount: 'deposit' | 'full' | 'custom';
   customPaymentAmount?: string;
+  orderTotalCents?: number;
 }
 
 export function ApprovalModal({
@@ -37,6 +38,7 @@ export function ApprovalModal({
   keepOriginalPayment,
   paymentAmount,
   customPaymentAmount = '',
+  orderTotalCents,
 }: ApprovalModalProps) {
   const [submitting, setSubmitting] = useState(false);
   const [updatingCard, setUpdatingCard] = useState(false);
@@ -235,14 +237,14 @@ export function ApprovalModal({
     ? format(new Date(order.event_date + 'T12:00:00'), 'EEEE, MMMM d, yyyy')
     : 'No date';
 
-  const currentTotalCents =
-    order.subtotal_cents +
+  const currentTotalCents = orderTotalCents ?? (
+    (order.subtotal_cents || 0) +
     (order.generator_fee_cents || 0) +
-    order.travel_fee_cents +
-    order.surface_fee_cents +
+    (order.travel_fee_cents || 0) +
+    (order.surface_fee_cents || 0) +
     (order.same_day_pickup_fee_cents || 0) +
-    order.tax_cents -
-    (order.discount_cents || 0);
+    (order.tax_cents || 0)
+  );
 
   const lastFour =
     order.payment_method_last_four ||

@@ -342,12 +342,12 @@ async function processWebhookEvent(
               .select('id')
               .single();
 
-            // Get order details for transaction logging
+            // Get order details for transaction logging and receipt email
             const { data: order } = await supabaseClient
               .from("orders")
-              .select("customer_id")
+              .select("customer_id, event_date, contacts!inner(email, full_name)")
               .eq("id", orderId)
-              .single();
+              .maybeSingle();
 
             // Log balance payment transaction (with idempotency via unique stripe_charge_id)
             if (order && paymentRecord) {
@@ -363,6 +363,55 @@ async function processWebhookEvent(
                 stripePaymentIntentId: piId,
                 notes: 'Customer portal balance payment',
               });
+            }
+
+            // Send receipt email for Checkout-path balance payment
+            try {
+              const contact = Array.isArray(order?.contacts) ? order.contacts[0] : order?.contacts;
+              if (contact?.email) {
+                const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
+                const cardText = paymentBrand && paymentLast4
+                  ? `${paymentBrand.charAt(0).toUpperCase() + paymentBrand.slice(1)} ending in ${paymentLast4}`
+                  : paymentLast4 ? `Card ending in ${paymentLast4}` : "Card";
+                const eventLine = order?.event_date
+                  ? `<p style="margin:0;color:#64748b;font-size:14px;">Event Date: ${new Date(order.event_date + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</p>`
+                  : "";
+                const tipLine = safeTipCents > 0
+                  ? `<tr><td style="padding:8px 0;color:#64748b;font-size:14px;">Crew Tip</td><td style="padding:8px 0;text-align:right;color:#16a34a;font-size:14px;font-weight:600;">+${fmt(safeTipCents)}</td></tr>`
+                  : "";
+                const receiptHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#f8fafc;margin:0;padding:24px;">
+<div style="max-width:560px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1);">
+  <div style="background:linear-gradient(135deg,#0ea5e9,#0284c7);padding:32px;text-align:center;">
+    <h1 style="margin:0;color:white;font-size:22px;font-weight:700;">Payment Received</h1>
+    <p style="margin:8px 0 0;color:rgba(255,255,255,.85);font-size:14px;">Order #${orderId.substring(0, 8).toUpperCase()}</p>
+  </div>
+  <div style="padding:32px;">
+    <p style="margin:0 0 24px;font-size:16px;color:#1e293b;">Hi ${contact.full_name || "Customer"},</p>
+    <p style="margin:0 0 24px;font-size:14px;color:#64748b;">Your payment has been processed successfully. Here's your receipt:</p>
+    ${eventLine}
+    <table style="width:100%;border-collapse:collapse;margin:24px 0;">
+      ${balanceOnly > 0 ? `<tr><td style="padding:8px 0;color:#64748b;font-size:14px;">Balance Payment</td><td style="padding:8px 0;text-align:right;font-size:14px;font-weight:600;color:#1e293b;">${fmt(balanceOnly)}</td></tr>` : ""}
+      ${tipLine}
+      <tr style="border-top:2px solid #e2e8f0;">
+        <td style="padding:12px 0;font-weight:700;font-size:15px;color:#1e293b;">Total Charged</td>
+        <td style="padding:12px 0;text-align:right;font-weight:700;font-size:18px;color:#0ea5e9;">${fmt(amountPaid)}</td>
+      </tr>
+    </table>
+    <p style="margin:0;font-size:13px;color:#94a3b8;">Payment method: ${cardText}</p>
+    <p style="margin:16px 0 0;font-size:13px;color:#94a3b8;">Thank you for choosing Bounce Party Club!</p>
+  </div>
+</div>
+</body></html>`;
+                await supabaseClient.functions.invoke("send-email", {
+                  body: {
+                    to: contact.email,
+                    subject: `Payment Received - Order #${orderId.substring(0, 8).toUpperCase()}`,
+                    html: receiptHtml,
+                  },
+                });
+              }
+            } catch (emailErr) {
+              console.warn("[WEBHOOK] Failed to send checkout balance receipt email:", emailErr);
             }
           }
         } else {

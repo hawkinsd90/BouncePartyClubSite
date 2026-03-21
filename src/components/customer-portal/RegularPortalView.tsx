@@ -41,8 +41,21 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
     const paymentStatus = params.get('payment');
     const tabParam = params.get('tab');
     const tipParam = params.get('tip');
+    const cardUpdated = params.get('card_updated') === 'true';
 
     if (tabParam === 'payment') {
+      setActiveTab('payment');
+      if (tipParam) {
+        const parsed = parseInt(tipParam, 10);
+        if (!isNaN(parsed) && parsed > 0) {
+          setRestoredTipCents(parsed);
+        }
+      }
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (cardUpdated) {
+      // Customer returned from card-update Stripe Checkout for balance payment.
+      // CustomerPortal.tsx calls save-payment-method-from-session; we just restore
+      // the payment tab and any tip that was encoded in the return URL.
       setActiveTab('payment');
       if (tipParam) {
         const parsed = parseInt(tipParam, 10);

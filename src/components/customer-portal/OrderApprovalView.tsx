@@ -520,6 +520,7 @@ export function OrderApprovalView({
         keepOriginalPayment={keepOriginalPayment}
         paymentAmount={paymentAmount}
         customPaymentAmount={customPaymentAmount}
+        orderTotalCents={currentTotalCents}
       />
 
       <RejectionModal
