@@ -41,6 +41,65 @@ interface Candidate {
   score: number;
 }
 
+// Max elements per DistanceMatrix request (origins × destinations ≤ MAX_MATRIX_ELEMENTS)
+const MAX_MATRIX_ELEMENTS = 100;
+
+async function getSingleDistanceMatrixChunk(
+  origins: string[],
+  destinations: string[],
+  departureTime?: Date
+): Promise<DistanceMatrixResult[][]> {
+  return new Promise((resolve, reject) => {
+    const service = new google.maps.DistanceMatrixService();
+
+    const request: google.maps.DistanceMatrixRequest = {
+      origins,
+      destinations,
+      travelMode: google.maps.TravelMode.DRIVING,
+      unitSystem: google.maps.UnitSystem.IMPERIAL,
+    };
+
+    if (departureTime) {
+      request.drivingOptions = {
+        departureTime,
+        trafficModel: google.maps.TrafficModel.BEST_GUESS,
+      };
+    }
+
+    service.getDistanceMatrix(request, (response, status) => {
+      if (status !== 'OK') {
+        console.error('[Route Optimization] Distance Matrix API error:', status);
+        reject(new Error(`Distance Matrix API error: ${status}. This may be due to invalid addresses or API quota limits.`));
+        return;
+      }
+
+      if (!response) {
+        reject(new Error('No response from Distance Matrix API'));
+        return;
+      }
+
+      const results: DistanceMatrixResult[][] = [];
+      for (const row of response.rows) {
+        const rowResults: DistanceMatrixResult[] = [];
+        for (const element of row.elements) {
+          if (element.status === 'OK') {
+            rowResults.push({
+              distance: element.distance.value,
+              duration: element.duration.value,
+            });
+          } else {
+            console.warn('[Route Optimization] Failed to get distance for route segment:', element.status);
+            rowResults.push({ distance: Infinity, duration: Infinity });
+          }
+        }
+        results.push(rowResults);
+      }
+
+      resolve(results);
+    });
+  });
+}
+
 async function getDistanceMatrix(
   origins: string[],
   destinations: string[],
@@ -53,70 +112,55 @@ async function getDistanceMatrix(
     throw new Error('Google Maps API not loaded. Please check your API key configuration.');
   }
 
-  console.log(`[Route Optimization] Calculating distance matrix (distances and durations) for ${origins.length} locations...`);
+  const n = origins.length;
+  const m = destinations.length;
+  console.log(`[Route Optimization] Calculating distance matrix (distances and durations) for ${n} origins × ${m} destinations...`);
+
   if (departureTime) {
     console.log(`[Route Optimization] Using traffic-aware routing for ${departureTime.toLocaleString()}`);
   }
 
-  // Use the legacy DistanceMatrixService since it's still available and works
-  return new Promise((resolve, reject) => {
-    const service = new google.maps.DistanceMatrixService();
+  // Determine max batch size per dimension so that batchO × batchD ≤ MAX_MATRIX_ELEMENTS
+  // Use square batches: batchSize = floor(sqrt(MAX_MATRIX_ELEMENTS))
+  const batchSize = Math.floor(Math.sqrt(MAX_MATRIX_ELEMENTS));
 
-    const request: google.maps.DistanceMatrixRequest = {
-      origins,
-      destinations,
-      travelMode: google.maps.TravelMode.DRIVING,
-      unitSystem: google.maps.UnitSystem.IMPERIAL,
-    };
+  // If the whole matrix fits in one request, do it directly
+  if (n * m <= MAX_MATRIX_ELEMENTS) {
+    console.log('[Route Optimization] Matrix fits in single request');
+    return getSingleDistanceMatrixChunk(origins, destinations, departureTime);
+  }
 
-    // Add traffic-aware options if departure time provided
-    if (departureTime) {
-      request.drivingOptions = {
-        departureTime: departureTime,
-        trafficModel: google.maps.TrafficModel.BEST_GUESS,
-      };
-    }
+  console.log(`[Route Optimization] Matrix too large (${n * m} elements), splitting into ${batchSize}×${batchSize} chunks`);
 
-    service.getDistanceMatrix(
-      request,
-      (response, status) => {
-        if (status !== 'OK') {
-          console.error('[Route Optimization] Distance Matrix API error:', status);
-          reject(new Error(`Distance Matrix API error: ${status}. This may be due to invalid addresses or API quota limits.`));
-          return;
+  // Build full results matrix pre-filled with Infinity
+  const results: DistanceMatrixResult[][] = Array.from({ length: n }, () =>
+    Array.from({ length: m }, () => ({ distance: Infinity, duration: Infinity }))
+  );
+
+  // Process in chunks
+  for (let oStart = 0; oStart < n; oStart += batchSize) {
+    const oEnd = Math.min(oStart + batchSize, n);
+    const originChunk = origins.slice(oStart, oEnd);
+
+    for (let dStart = 0; dStart < m; dStart += batchSize) {
+      const dEnd = Math.min(dStart + batchSize, m);
+      const destChunk = destinations.slice(dStart, dEnd);
+
+      console.log(`[Route Optimization] Chunk origins[${oStart}-${oEnd - 1}] × destinations[${dStart}-${dEnd - 1}]`);
+
+      const chunkResults = await getSingleDistanceMatrixChunk(originChunk, destChunk, departureTime);
+
+      // Merge chunk into full matrix
+      for (let i = 0; i < chunkResults.length; i++) {
+        for (let j = 0; j < chunkResults[i].length; j++) {
+          results[oStart + i][dStart + j] = chunkResults[i][j];
         }
-
-        if (!response) {
-          reject(new Error('No response from Distance Matrix API'));
-          return;
-        }
-
-        console.log('[Route Optimization] Distance matrix calculated successfully');
-        const results: DistanceMatrixResult[][] = [];
-
-        for (const row of response.rows) {
-          const rowResults: DistanceMatrixResult[] = [];
-          for (const element of row.elements) {
-            if (element.status === 'OK') {
-              rowResults.push({
-                distance: element.distance.value,
-                duration: element.duration.value,
-              });
-            } else {
-              console.warn('[Route Optimization] Failed to get distance for route segment:', element.status);
-              rowResults.push({
-                distance: Infinity,
-                duration: Infinity,
-              });
-            }
-          }
-          results.push(rowResults);
-        }
-
-        resolve(results);
       }
-    );
-  });
+    }
+  }
+
+  console.log('[Route Optimization] Distance matrix calculated successfully (batched)');
+  return results;
 }
 
 function parseTimeToMinutes(timeStr: string): number {

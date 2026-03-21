@@ -59,6 +59,41 @@ export async function approveOrder(
       );
     }
 
+    // If deposit is $0 (admin set deposit override to 0), skip charging entirely.
+    // Just confirm the order and keep card on file for the final payment.
+    const effectiveDeposit = orderData.deposit_due_cents ?? 0;
+    if (effectiveDeposit <= 0) {
+      const { error: confirmError } = await supabase
+        .from('orders')
+        .update({ status: 'confirmed', stripe_payment_status: 'paid' })
+        .eq('id', orderId);
+
+      if (confirmError) throw new Error('Failed to confirm order: ' + confirmError.message);
+
+      const { data: orderWithRelationsNoDeposit } = await supabase
+        .from('orders')
+        .select('*, customers (*), addresses (*), order_items (*, units (*))')
+        .eq('id', orderId)
+        .single();
+
+      const customerNoDeposit = orderWithRelationsNoDeposit?.customers as any;
+      const totalCentsNoDeposit =
+        (orderData.subtotal_cents || 0) +
+        (orderData.travel_fee_cents || 0) +
+        ((orderData as any).surface_fee_cents ?? 0) +
+        ((orderData as any).same_day_pickup_fee_cents ?? 0) +
+        ((orderData as any).tax_cents ?? 0) +
+        ((orderData as any).tip_cents ?? 0);
+
+      if (customerNoDeposit) {
+        const confirmMsg = generateConfirmationSmsMessage(orderData, customerNoDeposit.first_name);
+        try { await sendSms(confirmMsg); } catch { /* non-fatal */ }
+        await sendConfirmationEmail(orderWithRelationsNoDeposit, totalCentsNoDeposit);
+      }
+
+      return { success: true };
+    }
+
     // Proceed with charging deposit
     const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/charge-deposit`;
     const response = await fetch(apiUrl, {

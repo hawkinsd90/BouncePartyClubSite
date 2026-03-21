@@ -304,11 +304,13 @@ export function Layout() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div>
               <div className="mb-4">
-                <img
-                  src="/bounce party club logo.png"
-                  alt="Bounce Party Club"
-                  className="h-16 w-auto"
-                />
+                <Link to="/" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+                  <img
+                    src="/bounce party club logo.png"
+                    alt="Bounce Party Club"
+                    className="h-16 w-auto hover:opacity-80 transition-opacity"
+                  />
+                </Link>
               </div>
               <p className="text-slate-400 text-sm">
                 {businessAddress}

@@ -25,14 +25,16 @@ export function DepositOverride({
 }: DepositOverrideProps) {
   function handleApply() {
     const inputValue = customDepositInput.trim();
-    if (inputValue === '' && !showZeroHint) {
-      showToast('Please enter a deposit amount', 'error');
-      return;
-    }
-    const amountCents = dollarsToCents(inputValue || '0');
-    if (isNaN(amountCents) || amountCents < 0) {
-      showToast('Please enter a valid deposit amount', 'error');
-      return;
+    let amountCents: number;
+
+    if (inputValue === '') {
+      amountCents = calculatedDepositCents;
+    } else {
+      amountCents = dollarsToCents(inputValue);
+      if (isNaN(amountCents) || amountCents < 0) {
+        showToast('Please enter a valid deposit amount', 'error');
+        return;
+      }
     }
 
     if (onApply.length === 1) {

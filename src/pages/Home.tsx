@@ -150,21 +150,48 @@ export function Home() {
         }
       />
 
-      <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 text-white py-4 px-4">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-6 text-center">
-          <div className="flex items-center gap-2.5">
-            <Sun className="w-6 h-6 text-yellow-200 flex-shrink-0 animate-pulse" />
-            <span className="text-lg sm:text-xl font-extrabold tracking-tight">
-              We Specialize in ALL DAY Rentals
-            </span>
-            <Sun className="w-6 h-6 text-yellow-200 flex-shrink-0 animate-pulse" />
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-amber-500 via-orange-400 to-amber-500" />
+        <div
+          className="absolute inset-0 opacity-20"
+          style={{
+            backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.15) 10px, rgba(255,255,255,0.15) 20px)',
+          }}
+        />
+        <div
+          className="absolute -left-6 top-0 bottom-0 w-12 bg-white/10"
+          style={{ transform: 'skewX(-8deg)' }}
+        />
+        <div
+          className="absolute -right-6 top-0 bottom-0 w-12 bg-white/10"
+          style={{ transform: 'skewX(-8deg)' }}
+        />
+        <div className="relative z-10 py-3.5 px-4">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-5 text-center">
+            <div className="flex items-center gap-2.5">
+              <Sun className="w-5 h-5 text-yellow-200 flex-shrink-0 animate-pulse" />
+              <span className="text-base sm:text-lg font-extrabold tracking-wide text-white drop-shadow-sm uppercase">
+                We Specialize in ALL DAY Rentals
+              </span>
+              <Sun className="w-5 h-5 text-yellow-200 flex-shrink-0 animate-pulse" />
+            </div>
+            <span className="hidden sm:block text-orange-200 font-bold">—</span>
+            <p className="text-sm font-medium text-amber-50 max-w-xs sm:max-w-sm">
+              Delivered in the morning, picked up the next morning. Enjoy your full event day!
+            </p>
           </div>
-          <span className="hidden sm:block text-orange-200 font-bold text-lg">—</span>
-          <p className="text-sm sm:text-base font-medium text-amber-100 max-w-md">
-            Equipment delivered in the morning, picked up that evening or the next morning.
-            No rushing — enjoy your full event day!
-          </p>
         </div>
+        <svg
+          className="absolute bottom-0 left-0 w-full"
+          viewBox="0 0 1440 8"
+          preserveAspectRatio="none"
+          style={{ height: '8px' }}
+        >
+          <path
+            d="M0,4 C360,8 720,0 1080,4 C1260,6 1380,3 1440,4 L1440,8 L0,8 Z"
+            fill="rgba(0,0,0,0.08)"
+          />
+        </svg>
       </div>
 
       <section className="relative bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-600 text-white overflow-hidden">
