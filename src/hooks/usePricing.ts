@@ -271,9 +271,10 @@ export function usePricing() {
       // Calculate total with all waivers applied
       const finalTotalCents = priceBreakdown.subtotal_cents + finalTravelFeeCents + finalSurfaceFeeCents + finalSameDayPickupFeeCents + finalGeneratorFeeCents + customFeesTotalCents - discountTotalCents + finalTaxCents;
 
-      // Calculate deposit
-      const depositDueCents = customDepositCents !== null ? customDepositCents : priceBreakdown.deposit_due_cents;
-      const balanceDueCents = finalTotalCents - depositDueCents;
+      // Calculate deposit — clamp so neither value can go negative or exceed total
+      const rawDepositDueCents = customDepositCents !== null ? customDepositCents : priceBreakdown.deposit_due_cents;
+      const depositDueCents = Math.min(rawDepositDueCents, finalTotalCents);
+      const balanceDueCents = Math.max(0, finalTotalCents - depositDueCents);
 
       // Build order summary data (with ORIGINAL amounts for display)
       const orderData: OrderSummaryData = {
