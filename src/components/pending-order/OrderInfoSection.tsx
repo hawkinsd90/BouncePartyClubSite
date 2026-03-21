@@ -5,7 +5,7 @@ import { ORDER_STATUS_LABELS } from '../../lib/constants/statuses';
 
 interface OrderInfoSectionProps {
   order: any;
-  customerDisplayName: string;
+  customerDisplayName: string;a
   onEditClick: () => void;
 }
 
