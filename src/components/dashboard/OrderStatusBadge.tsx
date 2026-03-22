@@ -13,6 +13,7 @@ const statusConfigs: Record<OrderStatus, StatusConfig> = {
   [ORDER_STATUS.PENDING]: { label: ORDER_STATUS_LABELS[ORDER_STATUS.PENDING], className: 'bg-yellow-100 text-yellow-700', icon: Clock },
   [ORDER_STATUS.CONFIRMED]: { label: ORDER_STATUS_LABELS[ORDER_STATUS.CONFIRMED], className: 'bg-green-100 text-green-700', icon: CheckCircle },
   [ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL]: { label: ORDER_STATUS_LABELS[ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL], className: 'bg-orange-100 text-orange-700', icon: AlertCircle },
+  [ORDER_STATUS.IN_PROGRESS]: { label: ORDER_STATUS_LABELS[ORDER_STATUS.IN_PROGRESS], className: 'bg-blue-100 text-blue-700', icon: Clock },
   [ORDER_STATUS.SETUP_IN_PROGRESS]: { label: ORDER_STATUS_LABELS[ORDER_STATUS.SETUP_IN_PROGRESS], className: 'bg-cyan-100 text-cyan-700', icon: Clock },
   [ORDER_STATUS.ON_THE_WAY]: { label: ORDER_STATUS_LABELS[ORDER_STATUS.ON_THE_WAY], className: 'bg-blue-100 text-blue-700', icon: Clock },
   [ORDER_STATUS.SETUP_COMPLETED]: { label: ORDER_STATUS_LABELS[ORDER_STATUS.SETUP_COMPLETED], className: 'bg-teal-100 text-teal-700', icon: CheckCircle },
@@ -28,7 +29,7 @@ interface OrderStatusBadgeProps {
 }
 
 export function OrderStatusBadge({ order }: OrderStatusBadgeProps) {
-  const config = statusConfigs[order.status as OrderStatus] || statusConfigs[ORDER_STATUS.PENDING];
+  const config = statusConfigs[order.status as OrderStatus] || { label: order.status, className: 'bg-gray-100 text-gray-700', icon: Clock };
   const Icon = config.icon;
 
   return (
