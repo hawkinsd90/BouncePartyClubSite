@@ -48,9 +48,10 @@ interface TaskDetailModalProps {
   onClose: () => void;
   onUpdate: () => void;
   onBack?: () => void;
+  onOpenMileageModal?: () => void;
 }
 
-export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack }: TaskDetailModalProps) {
+export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack, onOpenMileageModal }: TaskDetailModalProps) {
   const [processing, setProcessing] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -229,7 +230,11 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack }: T
         'Starting mileage required before marking tasks as En Route.\n\nWould you like to record your starting mileage now?'
       );
       if (confirmed) {
-        showAlert('Please use the "Start Day Mileage" button at the top of the day view to record your starting mileage, then return here to mark this task as En Route.');
+        if (onOpenMileageModal) {
+          onOpenMileageModal();
+        } else {
+          showAlert('Please use the "Start Day Mileage" button at the top of the day view to record your starting mileage, then return here to mark this task as En Route.');
+        }
       }
       return;
     }

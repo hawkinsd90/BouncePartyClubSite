@@ -3,6 +3,7 @@ import { TaskDetailModal } from './admin/TaskDetailModal';
 import { CalendarHeader } from './calendar/CalendarHeader';
 import { CalendarGrid } from './calendar/CalendarGrid';
 import { DayViewModal } from './calendar/DayViewModal';
+import { MileageModal } from './calendar/MileageModal';
 import { useCalendarTasks, Task } from '../hooks/useCalendarTasks';
 import { useRouteOptimization } from '../hooks/useRouteOptimization';
 import { getTasksForDate } from '../lib/calendarUtils';
@@ -13,6 +14,7 @@ export function AdminCalendar() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showDayModal, setShowDayModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [showMileageModal, setShowMileageModal] = useState(false);
 
   const { tasks, loading, reload } = useCalendarTasks(currentMonth);
   const { optimizing, optimizeRoute } = useRouteOptimization();
@@ -92,6 +94,14 @@ export function AdminCalendar() {
         </div>
       )}
 
+      <MileageModal
+        isOpen={showMileageModal}
+        date={selectedDate || new Date()}
+        type="start"
+        onClose={() => setShowMileageModal(false)}
+        onSuccess={() => { setShowMileageModal(false); reload(); }}
+      />
+
       {selectedTask && (
         <TaskDetailModal
           task={selectedTask}
@@ -102,6 +112,7 @@ export function AdminCalendar() {
             reload();
           }}
           onBack={selectedDate ? handleBackToDayView : undefined}
+          onOpenMileageModal={() => setShowMileageModal(true)}
         />
       )}
     </div>
