@@ -124,7 +124,8 @@ export function DayViewModal({
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                   <h3 className="text-base sm:text-lg font-bold text-green-900 flex items-center gap-2">
                     <TruckIcon className="w-5 h-5" />
-                    Morning Route ({allMorningTasks.length})
+                    Morning Route ({morning.active.length} active
+                    {allMorningTasks.length > morning.active.length ? ` / ${allMorningTasks.length} total` : ''})
                   </h3>
                   <div className="flex flex-row gap-2">
                     <button
@@ -281,7 +282,8 @@ export function DayViewModal({
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                   <h3 className="text-base sm:text-lg font-bold text-orange-900 flex items-center gap-2">
                     <Package className="w-5 h-5" />
-                    Afternoon Route ({allAfternoonTasks.length})
+                    Afternoon Route ({afternoon.active.length} active
+                    {allAfternoonTasks.length > afternoon.active.length ? ` / ${allAfternoonTasks.length} total` : ''})
                   </h3>
                   <button
                     onClick={() => handleManageRoute('pick-up')}

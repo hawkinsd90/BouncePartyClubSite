@@ -38,6 +38,7 @@ export function RouteManagementModal({
 
   useEffect(() => {
     if (isOpen && !modalJustOpened) {
+      // First open: initialize snapshot
       setModalJustOpened(true);
 
       const filteredTasks = tasks.filter(t => {
@@ -54,10 +55,25 @@ export function RouteManagementModal({
       setInitialTasks(eligibleTasks);
       setInitialOrder(eligibleTasks.map(t => t.id));
       setHasChanges(false);
+    } else if (isOpen && modalJustOpened && !hasChanges) {
+      // Modal is open and no unsaved edits — silently refresh active list when tasks change
+      const filteredTasks = tasks.filter(t => {
+        if (type === 'drop-off') {
+          return t.type === 'drop-off' || (t.type === 'pick-up' && t.pickupPreference === 'next_day');
+        }
+        return t.type === 'pick-up' && t.pickupPreference === 'same_day';
+      });
+
+      const allRouteTasks = sortTasksByOrder(filteredTasks);
+      const eligibleTasks = allRouteTasks.filter(t => isTaskActiveRouteStop(t));
+
+      setLocalTasks(eligibleTasks);
+      setInitialTasks(eligibleTasks);
+      setInitialOrder(eligibleTasks.map(t => t.id));
     } else if (!isOpen && modalJustOpened) {
       setModalJustOpened(false);
     }
-  }, [isOpen, tasks, type, modalJustOpened]);
+  }, [isOpen, tasks, type, modalJustOpened, hasChanges]);
 
   if (!isOpen) return null;
 

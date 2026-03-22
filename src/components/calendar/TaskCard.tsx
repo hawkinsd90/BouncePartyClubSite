@@ -51,53 +51,56 @@ export function TaskCard({ task, stopNumber, onClick }: TaskCardProps) {
             Order #{task.orderNumber}
           </h4>
           <div className="flex gap-2 mt-1 flex-wrap">
-            <span className={`inline-block text-xs px-2 py-1 rounded-full ${
-              isCompletedTask ? 'bg-green-600 text-white' :
-              task.taskStatus?.status === 'arrived' ? 'bg-yellow-600 text-white' :
-              task.taskStatus?.status === 'en_route' ? 'bg-blue-600 text-white' :
-              'bg-slate-200 text-slate-700'
-            }`}>
-              {task.taskStatus?.status?.toUpperCase() || 'PENDING'}
-            </span>
-
-            {isProjected && (
-              <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-slate-200 text-slate-600">
-                <Clock className="w-3 h-3" />
-                PROJECTED
-              </span>
-            )}
-
-            {isPlanningOnlyDropOff && !isCompletedTask && (
+            {/* Planning-only drop-offs: show only the PENDING REVIEW badge, no operational noise */}
+            {isPlanningOnlyDropOff && !isCompletedTask ? (
               <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-slate-200 text-slate-600">
                 <Clock className="w-3 h-3" />
                 PENDING REVIEW
               </span>
-            )}
+            ) : (
+              <>
+                <span className={`inline-block text-xs px-2 py-1 rounded-full ${
+                  isCompletedTask ? 'bg-green-600 text-white' :
+                  task.taskStatus?.status === 'arrived' ? 'bg-yellow-600 text-white' :
+                  task.taskStatus?.status === 'en_route' ? 'bg-blue-600 text-white' :
+                  'bg-slate-200 text-slate-700'
+                }`}>
+                  {task.taskStatus?.status?.toUpperCase() || 'PENDING'}
+                </span>
 
-            {isBlocked && (
-              <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">
-                <AlertTriangle className="w-3 h-3" />
-                BLOCKED
-              </span>
-            )}
+                {isProjected && (
+                  <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-slate-200 text-slate-600">
+                    <Clock className="w-3 h-3" />
+                    PROJECTED
+                  </span>
+                )}
 
-            {isCompletedTask && !isBlocked && !isProjected && (
-              <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
-                <CheckCircle className="w-3 h-3" />
-                DONE
-              </span>
-            )}
+                {isBlocked && (
+                  <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">
+                    <AlertTriangle className="w-3 h-3" />
+                    BLOCKED
+                  </span>
+                )}
 
-            {!task.waiverSigned && isDropOff && !isCompletedTask && (
-              <span className="inline-block text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-800">
-                NO WAIVER
-              </span>
-            )}
+                {isCompletedTask && !isBlocked && !isProjected && (
+                  <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
+                    <CheckCircle className="w-3 h-3" />
+                    DONE
+                  </span>
+                )}
 
-            {task.balanceDue > 0 && isDropOff && !isCompletedTask && (
-              <span className="inline-block text-xs px-2 py-1 rounded-full bg-red-100 text-red-800">
-                ${(task.balanceDue / 100).toFixed(0)} DUE
-              </span>
+                {!task.waiverSigned && isDropOff && !isCompletedTask && (
+                  <span className="inline-block text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-800">
+                    NO WAIVER
+                  </span>
+                )}
+
+                {task.balanceDue > 0 && isDropOff && !isCompletedTask && (
+                  <span className="inline-block text-xs px-2 py-1 rounded-full bg-red-100 text-red-800">
+                    ${(task.balanceDue / 100).toFixed(0)} DUE
+                  </span>
+                )}
+              </>
             )}
           </div>
 

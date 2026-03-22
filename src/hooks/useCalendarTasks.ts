@@ -65,9 +65,11 @@ export function derivePickupReadiness(
 export function derivePickupBlockReason(
   readiness: PickupReadiness,
   dropOffTaskStatus: string | null,
-  balanceDue: number
+  balanceDue: number,
+  orderStatus?: string
 ): string | undefined {
   if (readiness === 'projected') {
+    if (orderStatus === 'pending_review') return 'Order not yet confirmed';
     if (!dropOffTaskStatus || dropOffTaskStatus === 'pending') return 'Drop-off not yet started';
     if (dropOffTaskStatus === 'en_route') return 'Drop-off in progress';
     if (dropOffTaskStatus === 'arrived') return 'Drop-off in progress';
@@ -270,7 +272,7 @@ export function useCalendarTasks(currentMonth: Date) {
           balanceDue
         );
 
-        const pickupBlockReason = derivePickupBlockReason(pickupReadiness, dropOffStatus?.status ?? null, balanceDue);
+        const pickupBlockReason = derivePickupBlockReason(pickupReadiness, dropOffStatus?.status ?? null, balanceDue, order.status);
 
         generatedTasks.push({
           id: `${order.id}-pickup`,
