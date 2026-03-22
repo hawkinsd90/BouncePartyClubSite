@@ -138,15 +138,16 @@ export async function calculateETA(
     throw new Error('Google Maps importLibrary not available');
   }
 
-  await google.maps.importLibrary("routes");
+  const routesLib = await google.maps.importLibrary("routes") as any;
+  const DistanceMatrixService = routesLib.DistanceMatrixService;
 
   return new Promise((resolve, reject) => {
-    const service = new google.maps.DirectionsService();
+    const service = new DistanceMatrixService();
 
-    service.route(
+    service.getDistanceMatrix(
       {
-        origin: { lat: origin.lat, lng: origin.lng },
-        destination: destinationAddress,
+        origins: [{ lat: origin.lat, lng: origin.lng }],
+        destinations: [destinationAddress],
         travelMode: google.maps.TravelMode.DRIVING,
         unitSystem: google.maps.UnitSystem.IMPERIAL,
         drivingOptions: {
@@ -154,33 +155,25 @@ export async function calculateETA(
           trafficModel: google.maps.TrafficModel.BEST_GUESS,
         },
       },
-      (response, status) => {
-        if (status !== google.maps.DirectionsStatus.OK) {
-          reject(new Error(`Directions API error: ${status}`));
+      (response: any, status: string) => {
+        if (status !== 'OK') {
+          reject(new Error(`Distance Matrix API error: ${status}`));
           return;
         }
 
-        const leg = response?.routes[0]?.legs[0];
-        if (!leg) {
+        const result = response?.rows[0]?.elements[0];
+        if (!result || result.status !== 'OK') {
           reject(new Error('Unable to calculate route to destination'));
           return;
         }
 
-        const durationInTraffic = leg.duration_in_traffic;
-        const duration = durationInTraffic || leg.duration;
-
-        if (!duration) {
-          reject(new Error('No duration in route response'));
-          return;
-        }
-
+        const duration = result.duration_in_traffic || result.duration;
         const durationMinutes = Math.ceil(duration.value / 60);
-        const distanceText = leg.distance?.text || '';
 
         resolve({
           durationMinutes,
           durationText: duration.text,
-          distanceText,
+          distanceText: result.distance.text,
           location: origin,
         });
       }
