@@ -62,20 +62,19 @@ export default function WaiverViewer({
 
       // If we hit a new section header and we have pending initials, render them first
       if (isHeader && currentSectionNeedsInitials && currentSectionElements.length > 0) {
+        const sectionKey = currentSectionNeedsInitials;
         renderedSections.push(
           <div key={`section-${currentSectionIndex}`} className="mb-6">
             {currentSectionElements}
             <div className="mt-4 flex items-center gap-3 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
               <label className="text-sm font-medium text-gray-700">
-                Initial here to acknowledge "{currentSectionNeedsInitials}":
+                Initial here to acknowledge "{sectionKey}":
               </label>
               <input
                 type="text"
                 maxLength={4}
-                value={initials[currentSectionNeedsInitials || ''] || ''}
-                onChange={(e) =>
-                  currentSectionNeedsInitials && onInitialsChange(currentSectionNeedsInitials, e.target.value.toUpperCase())
-                }
+                value={initials[sectionKey] || ''}
+                onChange={(e) => onInitialsChange(sectionKey, e.target.value.toUpperCase())}
                 className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center font-semibold uppercase"
                 placeholder="AB"
               />
@@ -109,21 +108,20 @@ export default function WaiverViewer({
 
     // Render any remaining section
     if (currentSectionElements.length > 0) {
+      const finalSectionKey = currentSectionNeedsInitials;
       renderedSections.push(
         <div key={`section-${currentSectionIndex}`} className="mb-6">
           {currentSectionElements}
-          {currentSectionNeedsInitials && (
+          {finalSectionKey && (
             <div className="mt-4 flex items-center gap-3 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
               <label className="text-sm font-medium text-gray-700">
-                Initial here to acknowledge "{currentSectionNeedsInitials}":
+                Initial here to acknowledge "{finalSectionKey}":
               </label>
               <input
                 type="text"
                 maxLength={4}
-                value={initials[currentSectionNeedsInitials || ''] || ''}
-                onChange={(e) =>
-                  currentSectionNeedsInitials && onInitialsChange(currentSectionNeedsInitials, e.target.value.toUpperCase())
-                }
+                value={initials[finalSectionKey] || ''}
+                onChange={(e) => onInitialsChange(finalSectionKey, e.target.value.toUpperCase())}
                 className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center font-semibold uppercase"
                 placeholder="AB"
               />

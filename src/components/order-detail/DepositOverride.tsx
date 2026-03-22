@@ -27,7 +27,7 @@ export function DepositOverride({
     const inputValue = customDepositInput.trim();
 
     if (inputValue === '') {
-      showToast('Please enter a deposit amount (enter 0 for no deposit required)', 'error');
+      onApply(calculatedDepositCents);
       return;
     }
 
