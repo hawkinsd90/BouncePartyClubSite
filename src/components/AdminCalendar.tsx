@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { TaskDetailModal } from './admin/TaskDetailModal';
 import { CalendarHeader } from './calendar/CalendarHeader';
 import { CalendarGrid } from './calendar/CalendarGrid';
@@ -15,42 +15,69 @@ export function AdminCalendar() {
   const [showDayModal, setShowDayModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showMileageModal, setShowMileageModal] = useState(false);
+  const pendingTaskIdRef = useRef<string | null>(null);
 
   const { tasks, loading, reload } = useCalendarTasks(currentMonth);
   const { optimizing, optimizeRoute } = useRouteOptimization();
 
-  // Load date from URL on mount
+  // Load date and taskId from URL on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const dateParam = params.get('date');
+    const taskIdParam = params.get('taskId');
+
     if (dateParam) {
       try {
         const date = parse(dateParam, 'yyyy-MM-dd', new Date());
         setSelectedDate(date);
-        setShowDayModal(true);
+        if (taskIdParam) {
+          pendingTaskIdRef.current = taskIdParam;
+        } else {
+          setShowDayModal(true);
+        }
       } catch (error) {
         console.error('Invalid date in URL:', error);
       }
     }
   }, []);
 
-  // Update URL when date is selected
+  // Once tasks load, restore pending task from URL
   useEffect(() => {
-    if (selectedDate && showDayModal) {
-      const params = new URLSearchParams(window.location.search);
-      params.set('date', format(selectedDate, 'yyyy-MM-dd'));
+    if (!loading && pendingTaskIdRef.current && tasks.length > 0) {
+      const taskId = pendingTaskIdRef.current;
+      pendingTaskIdRef.current = null;
+      const found = tasks.find(t => t.id === taskId);
+      if (found) {
+        setSelectedTask(found);
+      } else {
+        setShowDayModal(true);
+      }
+    }
+  }, [loading, tasks]);
+
+  // Update URL when date or task changes
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+
+    if (selectedTask) {
+      if (selectedDate) params.set('date', format(selectedDate, 'yyyy-MM-dd'));
+      params.set('taskId', selectedTask.id);
       const newUrl = `${window.location.pathname}?${params.toString()}`;
       window.history.replaceState({}, '', newUrl);
-    } else if (!showDayModal) {
-      // Remove date param when modal is closed
-      const params = new URLSearchParams(window.location.search);
+    } else if (selectedDate && showDayModal) {
+      params.set('date', format(selectedDate, 'yyyy-MM-dd'));
+      params.delete('taskId');
+      const newUrl = `${window.location.pathname}?${params.toString()}`;
+      window.history.replaceState({}, '', newUrl);
+    } else if (!showDayModal && !selectedTask) {
       params.delete('date');
+      params.delete('taskId');
       const newUrl = params.toString()
         ? `${window.location.pathname}?${params.toString()}`
         : window.location.pathname;
       window.history.replaceState({}, '', newUrl);
     }
-  }, [selectedDate, showDayModal]);
+  }, [selectedDate, showDayModal, selectedTask]);
 
   function handleDateClick(date: Date) {
     setSelectedDate(date);
@@ -67,7 +94,16 @@ export function AdminCalendar() {
     setShowDayModal(true);
   }
 
+  function handleTaskRefresh() {
+    reload();
+  }
+
   const selectedDayTasks = selectedDate ? getTasksForDate(tasks, selectedDate) : [];
+
+  // Keep selectedTask in sync with freshly loaded tasks
+  const liveTask = selectedTask
+    ? (tasks.find(t => t.id === selectedTask.id) ?? selectedTask)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -102,15 +138,16 @@ export function AdminCalendar() {
         onSuccess={() => { setShowMileageModal(false); reload(); }}
       />
 
-      {selectedTask && (
+      {liveTask && (
         <TaskDetailModal
-          task={selectedTask}
-          allTasks={getTasksForDate(tasks, selectedTask.date)}
+          task={liveTask}
+          allTasks={getTasksForDate(tasks, liveTask.date)}
           onClose={() => setSelectedTask(null)}
           onUpdate={() => {
             setSelectedTask(null);
             reload();
           }}
+          onRefresh={handleTaskRefresh}
           onBack={selectedDate ? handleBackToDayView : undefined}
           onOpenMileageModal={() => setShowMileageModal(true)}
         />

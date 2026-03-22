@@ -47,11 +47,13 @@ interface TaskDetailModalProps {
   allTasks: Task[];
   onClose: () => void;
   onUpdate: () => void;
+  onRefresh?: () => void;
   onBack?: () => void;
   onOpenMileageModal?: () => void;
 }
 
-export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack, onOpenMileageModal }: TaskDetailModalProps) {
+export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, onBack, onOpenMileageModal }: TaskDetailModalProps) {
+  const refresh = onRefresh || onUpdate;
   const [processing, setProcessing] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -80,7 +82,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack, onO
       }
       debounceTimer = setTimeout(() => {
         setLastUpdated(new Date());
-        onUpdate();
+        refresh();
       }, 300);
     };
 
@@ -104,7 +106,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack, onO
       }
       supabase.removeChannel(channel);
     };
-  }, [task.orderId, onUpdate]);
+  }, [task.orderId, refresh]);
 
   useEffect(() => {
     async function loadMileageLog() {
@@ -132,7 +134,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack, onO
   async function handleRefresh() {
     setRefreshing(true);
     setLastUpdated(new Date());
-    await onUpdate();
+    await refresh();
     setTimeout(() => setRefreshing(false), 500);
   }
 
@@ -330,7 +332,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack, onO
         : `En route notification sent with real-time ETA: ${etaMinutes} min (${etaDistance})`;
 
       showAlert(successMsg);
-      onUpdate();
+      refresh();
     } catch (error: any) {
       console.error('Error sending en route notification:', error);
       showAlert('Failed to send notification: ' + error.message);
@@ -390,7 +392,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack, onO
         .eq('id', taskStatusId);
 
       showAlert('Arrival notification sent successfully!');
-      onUpdate();
+      refresh();
     } catch (error: any) {
       console.error('Error sending arrival notification:', error);
       showAlert('Failed to send notification: ' + error.message);
@@ -451,7 +453,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack, onO
 
         const photoType = isDamage ? 'damage' : 'delivery';
         showAlert(`${uploadedUrls.length} ${photoType} photo(s) uploaded and saved successfully!`);
-        onUpdate();
+        refresh();
       } catch (error: any) {
         console.error('Error uploading images:', error);
         showAlert('Failed to upload images: ' + error.message);
@@ -507,7 +509,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack, onO
         .eq('id', taskStatusId);
 
       showAlert('Delivery completed and customer notified!');
-      onUpdate();
+      refresh();
     } catch (error: any) {
       console.error('Error completing delivery:', error);
       showAlert('Failed to complete delivery: ' + error.message);
@@ -577,7 +579,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack, onO
         .eq('id', taskStatusId);
 
       showAlert('Pickup completed! Thank you message and review request sent.');
-      onUpdate();
+      refresh();
     } catch (error: any) {
       console.error('Error completing pickup:', error);
       showAlert('Failed to complete pickup: ' + error.message);
@@ -622,7 +624,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack, onO
 
       await Promise.all(updates);
       showAlert(`Task moved ${direction}`);
-      onUpdate();
+      refresh();
     } catch (error: any) {
       console.error('Error reordering tasks:', error);
       showAlert('Failed to reorder: ' + error.message);
@@ -684,7 +686,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack, onO
       showAlert(`Cash payment of ${formatCurrency(amountCents)} recorded successfully!`);
       setShowCashPayment(false);
       setCashAmount('');
-      onUpdate();
+      refresh();
     } catch (error: any) {
       console.error('Error recording cash payment:', error);
       showAlert('Failed to record payment: ' + error.message);
@@ -717,7 +719,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack, onO
       if (error) throw error;
 
       showAlert('Waiver marked as signed in person!');
-      onUpdate();
+      refresh();
     } catch (error: any) {
       console.error('Error marking waiver:', error);
       showAlert('Failed to mark waiver: ' + error.message);
