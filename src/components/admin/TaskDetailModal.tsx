@@ -383,23 +383,31 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         message += 'We\'ll begin pickup shortly. Thank you for using Bounce Party Club!';
       }
 
-      const smsResponse = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            to: task.customerPhone,
-            message,
-            order_id: task.orderId,
-          }),
+      let arrivedSmsWarning: string | null = null;
+      try {
+        const smsResponse = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              to: task.customerPhone,
+              message,
+              order_id: task.orderId,
+            }),
+          }
+        );
+        if (!smsResponse.ok) {
+          arrivedSmsWarning = 'SMS failed to send';
+          console.warn('Arrived SMS failed:', await smsResponse.text());
         }
-      );
-
-      if (!smsResponse.ok) throw new Error('Failed to send SMS');
+      } catch (smsError: any) {
+        arrivedSmsWarning = 'SMS failed: ' + smsError.message;
+        console.warn('Arrived SMS error:', smsError);
+      }
 
       const { error: arrivedUpdateError } = await supabase
         .from('task_status')
@@ -411,7 +419,9 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
 
       if (arrivedUpdateError) throw new Error('Failed to update task status: ' + arrivedUpdateError.message);
 
-      showAlert('Arrival notification sent successfully!');
+      showAlert(arrivedSmsWarning
+        ? `Arrived saved. Warning: ${arrivedSmsWarning}.`
+        : 'Arrived and customer notified successfully!');
       refresh();
     } catch (error: any) {
       console.error('Error sending arrival notification:', error);
@@ -501,24 +511,32 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
 
       let message = `Equipment has been delivered! You are now responsible for the equipment until ${pickupTime}.\n\n⚠️ IMPORTANT RULES:\n• NO SHOES on the inflatable\n• NO FOOD or DRINKS\n• NO SHARP OBJECTS\n• Adult supervision required at all times\n\nEnjoy your event! 🎉`;
 
-      const smsResponse = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            to: task.customerPhone,
-            message,
-            order_id: task.orderId,
-            mediaUrls: [],
-          }),
+      let dropOffSmsWarning: string | null = null;
+      try {
+        const smsResponse = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              to: task.customerPhone,
+              message,
+              order_id: task.orderId,
+              mediaUrls: [],
+            }),
+          }
+        );
+        if (!smsResponse.ok) {
+          dropOffSmsWarning = 'SMS failed to send';
+          console.warn('Drop-off complete SMS failed:', await smsResponse.text());
         }
-      );
-
-      if (!smsResponse.ok) throw new Error('Failed to send SMS');
+      } catch (smsError: any) {
+        dropOffSmsWarning = 'SMS failed: ' + smsError.message;
+        console.warn('Drop-off complete SMS error:', smsError);
+      }
 
       const { error: dropOffUpdateError } = await supabase
         .from('task_status')
@@ -530,7 +548,9 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
 
       if (dropOffUpdateError) throw new Error('Failed to update task status: ' + dropOffUpdateError.message);
 
-      showAlert('Delivery completed and customer notified!');
+      showAlert(dropOffSmsWarning
+        ? `Delivery marked complete. Warning: ${dropOffSmsWarning}.`
+        : 'Delivery completed and customer notified!');
       refresh();
     } catch (error: any) {
       console.error('Error completing delivery:', error);
@@ -550,46 +570,52 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     try {
       const taskStatusId = await ensureTaskStatus();
 
-      // Send SMS using the pickup_thanks_sms template
-      const smsResponse = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            templateKey: 'pickup_thanks_sms',
-            orderId: task.orderId,
-          }),
+      let pickupSmsWarning: string | null = null;
+      try {
+        const smsResponse = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              templateKey: 'pickup_thanks_sms',
+              orderId: task.orderId,
+            }),
+          }
+        );
+        if (!smsResponse.ok) {
+          const errorData = await smsResponse.json().catch(() => ({}));
+          pickupSmsWarning = errorData.error || 'SMS failed to send';
+          console.warn('Pickup complete SMS failed:', errorData);
         }
-      );
-
-      if (!smsResponse.ok) {
-        const errorData = await smsResponse.json();
-        console.error('SMS error:', errorData);
-        throw new Error(errorData.error || 'Failed to send SMS');
+      } catch (smsError: any) {
+        pickupSmsWarning = 'SMS failed: ' + smsError.message;
+        console.warn('Pickup complete SMS error:', smsError);
       }
 
-      // Send email using the pickup_complete template
-      const emailResponse = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            templateName: 'pickup_complete',
-            orderId: task.orderId,
-          }),
+      try {
+        const emailResponse = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              templateName: 'pickup_complete',
+              orderId: task.orderId,
+            }),
+          }
+        );
+        if (!emailResponse.ok) {
+          console.warn('Pickup complete email failed (non-blocking)');
         }
-      );
-
-      if (!emailResponse.ok) {
-        console.error('Email error - continuing anyway');
+      } catch (emailError: any) {
+        console.warn('Pickup complete email error (non-blocking):', emailError);
       }
 
       const { error: pickupUpdateError } = await supabase
@@ -602,7 +628,9 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
 
       if (pickupUpdateError) throw new Error('Failed to update task status: ' + pickupUpdateError.message);
 
-      showAlert('Pickup completed! Thank you message and review request sent.');
+      showAlert(pickupSmsWarning
+        ? `Pickup marked complete. Warning: ${pickupSmsWarning}.`
+        : 'Pickup completed! Thank you message and review request sent.');
       refresh();
     } catch (error: any) {
       console.error('Error completing pickup:', error);
