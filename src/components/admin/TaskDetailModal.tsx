@@ -723,18 +723,25 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         .single();
 
       if (order && (order.customers as any)?.email) {
-        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            to: (order.customers as any).email,
-            subject: `Payment Received - Order #${task.orderNumber}`,
-            text: `Thank you for your payment!\n\nWe have received your cash payment of ${formatCurrency(amountCents)} for order #${task.orderNumber}.\n\nThank you for choosing Bounce Party Club!`,
-          }),
-        });
+        try {
+          const receiptResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              to: (order.customers as any).email,
+              subject: `Payment Received - Order #${task.orderNumber}`,
+              text: `Thank you for your payment!\n\nWe have received your cash payment of ${formatCurrency(amountCents)} for order #${task.orderNumber}.\n\nThank you for choosing Bounce Party Club!`,
+            }),
+          });
+          if (!receiptResponse.ok) {
+            console.warn('Cash payment receipt email failed (non-blocking):', await receiptResponse.text());
+          }
+        } catch (emailError: any) {
+          console.warn('Cash payment receipt email error (non-blocking):', emailError);
+        }
       }
 
       showAlert(`Cash payment of ${formatCurrency(amountCents)} recorded successfully!`);
