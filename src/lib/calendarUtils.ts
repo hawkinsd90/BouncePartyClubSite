@@ -42,11 +42,6 @@ export function sortTasksByOrder(tasks: Task[]): Task[] {
   });
 }
 
-export function isPickupActionable(task: Task): boolean {
-  if (task.type !== 'pick-up') return true;
-  return task.pickupReadiness === 'ready';
-}
-
 export function isDropOffPlanningOnly(task: Task): boolean {
   return task.type === 'drop-off' && task.status === 'pending_review';
 }

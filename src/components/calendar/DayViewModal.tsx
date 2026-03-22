@@ -237,7 +237,7 @@ export function DayViewModal({
                       Projected Pickups — Planning Only ({morning.projected.length})
                     </h4>
                     <p className="text-xs text-slate-400 mb-2">
-                      These will become actionable once the drop-off is completed.
+                      These pickups are not actionable yet. See each card for the current reason.
                     </p>
                     <div className="space-y-2">
                       {morning.projected.map(task => (
@@ -356,7 +356,7 @@ export function DayViewModal({
                       Projected Pickups — Planning Only ({afternoon.projected.length})
                     </h4>
                     <p className="text-xs text-slate-400 mb-2">
-                      These will become actionable once the drop-off is completed.
+                      These pickups are not actionable yet. See each card for the current reason.
                     </p>
                     <div className="space-y-2">
                       {afternoon.projected.map(task => (

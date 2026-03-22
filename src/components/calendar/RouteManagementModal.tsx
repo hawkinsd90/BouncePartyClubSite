@@ -373,7 +373,7 @@ export function RouteManagementModal({
                 <Clock className="w-4 h-4 text-slate-400" />
                 Projected Pickups — Planning Only ({projectedTasks.length})
               </h3>
-              <p className="text-xs text-slate-500 mb-3">These will become actionable once their drop-off is completed.</p>
+              <p className="text-xs text-slate-500 mb-3">These pickups are not actionable yet. See each card for the current reason.</p>
               <div className="space-y-2">
                 {projectedTasks.map(task => (
                   <div key={task.id} className="bg-slate-50 border border-dashed border-slate-300 rounded-lg p-3 opacity-70">
