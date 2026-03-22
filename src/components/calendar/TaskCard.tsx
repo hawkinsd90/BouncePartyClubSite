@@ -1,4 +1,4 @@
-import { User, MapPin, Clock } from 'lucide-react';
+import { User, MapPin, Clock, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Task } from '../../hooks/useCalendarTasks';
 
 interface TaskCardProps {
@@ -9,21 +9,41 @@ interface TaskCardProps {
 
 export function TaskCard({ task, stopNumber, onClick }: TaskCardProps) {
   const isDropOff = task.type === 'drop-off';
-  const colorClasses = isDropOff
-    ? 'bg-green-50 border-green-200 hover:bg-green-100'
-    : 'bg-orange-50 border-orange-200 hover:bg-orange-100';
-  const badgeColor = isDropOff ? 'bg-green-700' : 'bg-orange-700';
+  const readiness = task.pickupReadiness;
+  const isProjected = !isDropOff && readiness === 'projected';
+  const isBlocked = !isDropOff && readiness === 'blocked';
+  const isCompletedTask = task.taskStatus?.status === 'completed' || (!isDropOff && readiness === 'completed');
+
+  function getCardStyle(): string {
+    if (isCompletedTask) return 'bg-slate-50 border-slate-200 hover:bg-slate-100 opacity-60';
+    if (isBlocked) return 'bg-amber-50 border-amber-300 hover:bg-amber-100';
+    if (isProjected) return 'bg-slate-50 border-dashed border-slate-300 hover:bg-slate-100 opacity-75';
+    if (isDropOff) return 'bg-green-50 border-green-200 hover:bg-green-100';
+    return 'bg-orange-50 border-orange-200 hover:bg-orange-100';
+  }
+
+  function getStopBadgeStyle(): string {
+    if (isCompletedTask) return 'bg-green-600';
+    if (isBlocked) return 'bg-amber-500';
+    if (isProjected) return 'bg-slate-400';
+    if (isDropOff) return 'bg-green-700';
+    return 'bg-orange-700';
+  }
+
   const bulletColor = isDropOff ? 'text-green-600' : 'text-orange-600';
   const borderColor = isDropOff ? 'border-green-300' : 'border-orange-300';
 
   return (
     <div
       onClick={onClick}
-      className={`${colorClasses} border-2 rounded-lg p-3 sm:p-4 cursor-pointer transition-colors relative`}
+      className={`${getCardStyle()} border-2 rounded-lg p-3 sm:p-4 cursor-pointer transition-colors relative`}
     >
-      <div className={`absolute top-2 right-2 ${badgeColor} text-white text-xs font-bold px-2 py-1 rounded`}>
-        Stop #{stopNumber}
-      </div>
+      {stopNumber > 0 && (
+        <div className={`absolute top-2 right-2 ${getStopBadgeStyle()} text-white text-xs font-bold px-2 py-1 rounded`}>
+          Stop #{stopNumber}
+        </div>
+      )}
+
       <div className="flex justify-between items-start mb-3 pr-16">
         <div>
           <h4 className="font-bold text-slate-900 text-base sm:text-lg">
@@ -31,24 +51,51 @@ export function TaskCard({ task, stopNumber, onClick }: TaskCardProps) {
           </h4>
           <div className="flex gap-2 mt-1 flex-wrap">
             <span className={`inline-block text-xs px-2 py-1 rounded-full ${
-              task.taskStatus?.status === 'completed' ? 'bg-green-600 text-white' :
+              isCompletedTask ? 'bg-green-600 text-white' :
               task.taskStatus?.status === 'arrived' ? 'bg-yellow-600 text-white' :
               task.taskStatus?.status === 'en_route' ? 'bg-blue-600 text-white' :
               'bg-slate-200 text-slate-700'
             }`}>
               {task.taskStatus?.status?.toUpperCase() || 'PENDING'}
             </span>
-            {!task.waiverSigned && isDropOff && (
+
+            {isProjected && (
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-slate-200 text-slate-600">
+                <Clock className="w-3 h-3" />
+                PROJECTED
+              </span>
+            )}
+
+            {isBlocked && (
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">
+                <AlertTriangle className="w-3 h-3" />
+                BLOCKED
+              </span>
+            )}
+
+            {isCompletedTask && !isBlocked && !isProjected && (
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
+                <CheckCircle className="w-3 h-3" />
+                DONE
+              </span>
+            )}
+
+            {!task.waiverSigned && isDropOff && !isCompletedTask && (
               <span className="inline-block text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-800">
                 NO WAIVER
               </span>
             )}
-            {task.balanceDue > 0 && isDropOff && (
+
+            {task.balanceDue > 0 && isDropOff && !isCompletedTask && (
               <span className="inline-block text-xs px-2 py-1 rounded-full bg-red-100 text-red-800">
                 ${(task.balanceDue / 100).toFixed(0)} DUE
               </span>
             )}
           </div>
+
+          {(isBlocked || isProjected) && task.pickupBlockReason && (
+            <p className="text-xs text-slate-500 mt-1">{task.pickupBlockReason}</p>
+          )}
         </div>
       </div>
 

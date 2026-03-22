@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase';
 import { formatOrderId } from '../lib/utils';
 import { format, startOfMonth, endOfMonth, parseISO, addDays } from 'date-fns';
 
+export type PickupReadiness = 'projected' | 'blocked' | 'ready' | 'completed';
+
 export interface Task {
   id: string;
   orderId: string;
@@ -42,6 +44,37 @@ export interface Task {
     damageImages?: string[];
     etaSent: boolean;
   };
+  pickupReadiness?: PickupReadiness;
+  pickupBlockReason?: string;
+}
+
+export function derivePickupReadiness(
+  orderStatus: string,
+  dropOffTaskStatus: string | null,
+  pickUpTaskStatus: string | null,
+  balanceDue: number
+): PickupReadiness {
+  if (pickUpTaskStatus === 'completed') return 'completed';
+  if (dropOffTaskStatus !== 'completed') return 'projected';
+  if (balanceDue > 0) return 'blocked';
+  return 'ready';
+}
+
+export function derivePickupBlockReason(
+  readiness: PickupReadiness,
+  dropOffTaskStatus: string | null,
+  balanceDue: number
+): string | undefined {
+  if (readiness === 'projected') {
+    if (!dropOffTaskStatus || dropOffTaskStatus === 'pending') return 'Drop-off not yet started';
+    if (dropOffTaskStatus === 'en_route') return 'Drop-off in progress';
+    if (dropOffTaskStatus === 'arrived') return 'Drop-off in progress';
+    return 'Drop-off not yet completed';
+  }
+  if (readiness === 'blocked') {
+    return `Unpaid balance: $${(balanceDue / 100).toFixed(2)}`;
+  }
+  return undefined;
 }
 
 export function useCalendarTasks(currentMonth: Date) {
@@ -223,6 +256,15 @@ export function useCalendarTasks(currentMonth: Date) {
           ts => ts.order_id === order.id && ts.task_type === 'pick-up'
         );
 
+        const pickupReadiness = derivePickupReadiness(
+          order.status,
+          dropOffStatus?.status ?? null,
+          pickUpStatus?.status ?? null,
+          balanceDue
+        );
+
+        const pickupBlockReason = derivePickupBlockReason(pickupReadiness, dropOffStatus?.status ?? null, balanceDue);
+
         generatedTasks.push({
           id: `${order.id}-pickup`,
           orderId: order.id,
@@ -256,6 +298,8 @@ export function useCalendarTasks(currentMonth: Date) {
             damageImages: (pickUpStatus.damage_images as any) || [],
             etaSent: pickUpStatus.eta_sent || false,
           } : undefined,
+          pickupReadiness,
+          pickupBlockReason,
         });
       }
 

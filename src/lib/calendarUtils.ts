@@ -42,10 +42,28 @@ export function sortTasksByOrder(tasks: Task[]): Task[] {
   });
 }
 
+export function isPickupActionable(task: Task): boolean {
+  if (task.type !== 'pick-up') return true;
+  return task.pickupReadiness === 'ready';
+}
+
+export function isTaskActiveRouteStop(task: Task): boolean {
+  if (task.type === 'drop-off') {
+    return task.taskStatus?.status !== 'completed';
+  }
+  return task.pickupReadiness === 'ready';
+}
+
 export function getStopNumber(task: Task, selectedDayTasks: Task[]): number {
-  const dropOffTasks = selectedDayTasks.filter(t => t.type === 'drop-off');
-  const morningPickUpTasks = selectedDayTasks.filter(t => t.type === 'pick-up' && t.pickupPreference === 'next_day');
-  const afternoonPickUpTasks = selectedDayTasks.filter(t => t.type === 'pick-up' && t.pickupPreference === 'same_day');
+  const dropOffTasks = selectedDayTasks.filter(t => t.type === 'drop-off' && isTaskActiveRouteStop(t));
+  const morningPickUpTasks = selectedDayTasks.filter(
+    t => t.type === 'pick-up' && t.pickupPreference === 'next_day' && isTaskActiveRouteStop(t)
+  );
+  const afternoonPickUpTasks = selectedDayTasks.filter(
+    t => t.type === 'pick-up' && t.pickupPreference === 'same_day' && isTaskActiveRouteStop(t)
+  );
+
+  if (!isTaskActiveRouteStop(task)) return 0;
 
   if (task.type === 'drop-off') {
     const morningTasks = sortTasksByOrder([...dropOffTasks, ...morningPickUpTasks]);
