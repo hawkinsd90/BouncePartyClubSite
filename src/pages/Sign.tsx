@@ -238,7 +238,7 @@ export default function Sign() {
         throw new Error(result.error || 'Failed to save signature');
       }
 
-      navigate(`/customer-portal?signatureComplete=true`);
+      navigate(`/customer-portal/${orderId}?signatureComplete=true`);
     } catch (err: any) {
       console.error('Error submitting signature:', err);
       setError(err.message || 'Failed to submit signature');
@@ -268,7 +268,7 @@ export default function Sign() {
           <h2 className="text-3xl font-bold text-gray-900 mb-3 tracking-tight">Unable to Load Waiver</h2>
           <p className="text-gray-600 mb-6">{error}</p>
           <button
-            onClick={() => navigate('/customer-portal')}
+            onClick={() => navigate(orderId ? `/customer-portal/${orderId}` : '/customer-portal')}
             className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl px-6 py-4 font-bold transition-all shadow-lg hover:shadow-xl"
           >
             Return to Portal
@@ -288,7 +288,7 @@ export default function Sign() {
             This waiver was signed on {new Date(order.waiver_signed_at).toLocaleDateString()}.
           </p>
           <button
-            onClick={() => navigate('/customer-portal')}
+            onClick={() => navigate(`/customer-portal/${orderId}`)}
             className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl px-6 py-4 font-bold transition-all shadow-lg hover:shadow-xl"
           >
             Return to Portal
