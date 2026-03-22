@@ -81,8 +81,8 @@ export function useOrders(userId: string | undefined, userEmail: string | undefi
         const past: Order[] = [];
 
         ordersData.forEach((order: any) => {
-          const eventDate = new Date(order.event_date);
-          const eventEndDate = order.event_end_date ? new Date(order.event_end_date) : eventDate;
+          const eventDate = new Date(order.event_date + 'T12:00:00');
+          const eventEndDate = order.event_end_date ? new Date(order.event_end_date + 'T12:00:00') : eventDate;
 
           if (
             (eventDate <= today && eventEndDate >= today) ||
@@ -96,9 +96,9 @@ export function useOrders(userId: string | undefined, userEmail: string | undefi
           }
         });
 
-        upcoming.sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime());
-        active.sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime());
-        past.sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime());
+        upcoming.sort((a, b) => new Date(a.event_date + 'T12:00:00').getTime() - new Date(b.event_date + 'T12:00:00').getTime());
+        active.sort((a, b) => new Date(a.event_date + 'T12:00:00').getTime() - new Date(b.event_date + 'T12:00:00').getTime());
+        past.sort((a, b) => new Date(b.event_date + 'T12:00:00').getTime() - new Date(a.event_date + 'T12:00:00').getTime());
 
         setUpcomingOrders(upcoming);
         setActiveOrders(active);

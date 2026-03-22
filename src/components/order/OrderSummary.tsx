@@ -219,7 +219,9 @@ export function OrderSummary({
             <div className="flex justify-between text-green-700 font-medium">
               <span className="font-semibold">
                 {customDepositCents !== null && customDepositCents !== undefined
-                  ? `Amount Paying Now (min ${formatCurrency(summary.depositDue)}):`
+                  ? customDepositCents === 0
+                    ? 'Deposit Due Now (Waived):'
+                    : `Amount Paying Now (min ${formatCurrency(summary.depositDue)}):`
                   : 'Deposit Due Now:'}
               </span>
               <div className="flex items-center gap-2">

@@ -25,16 +25,16 @@ export function DepositOverride({
 }: DepositOverrideProps) {
   function handleApply() {
     const inputValue = customDepositInput.trim();
-    let amountCents: number;
 
     if (inputValue === '') {
-      amountCents = calculatedDepositCents;
-    } else {
-      amountCents = dollarsToCents(inputValue);
-      if (isNaN(amountCents) || amountCents < 0) {
-        showToast('Please enter a valid deposit amount', 'error');
-        return;
-      }
+      showToast('Please enter a deposit amount (enter 0 for no deposit required)', 'error');
+      return;
+    }
+
+    const amountCents = dollarsToCents(inputValue);
+    if (isNaN(amountCents) || amountCents < 0) {
+      showToast('Please enter a valid deposit amount', 'error');
+      return;
     }
 
     onApply(amountCents);
@@ -69,7 +69,7 @@ export function DepositOverride({
                   value={customDepositInput}
                   onChange={(e) => onInputChange(e.target.value)}
                   className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg"
-                  placeholder="0.00"
+                  placeholder="Enter amount (0 for no deposit)"
                 />
               </div>
               {showZeroHint && (
