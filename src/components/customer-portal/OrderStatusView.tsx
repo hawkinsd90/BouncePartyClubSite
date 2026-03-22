@@ -9,7 +9,7 @@ interface OrderStatusViewProps {
 
 export function OrderStatusView({ order }: OrderStatusViewProps) {
   const navigate = useNavigate();
-  const statusMessages = {
+  const statusMessages: Record<string, { title: string; message: string }> = {
     draft: {
       title: 'Invoice Pending',
       message:
@@ -32,9 +32,12 @@ export function OrderStatusView({ order }: OrderStatusViewProps) {
     },
   };
 
-  const statusInfo =
-    statusMessages[order.status as keyof typeof statusMessages] ||
-    statusMessages.draft;
+  const fallback = {
+    title: 'Order Status',
+    message: 'Please contact us if you have questions about your order.',
+  };
+
+  const statusInfo = statusMessages[order.status] ?? fallback;
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4">
