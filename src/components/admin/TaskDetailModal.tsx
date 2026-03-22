@@ -249,7 +249,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       let etaDistance = '';
       let gpsLat = 0;
       let gpsLng = 0;
-      let etaCalculationError = null;
+      let etaCalculationError: string | null = null;
 
       try {
         const crewLocation = await getCurrentLocation();
@@ -260,13 +260,14 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         etaMinutes = etaResult.durationMinutes;
         etaDistance = etaResult.distanceText;
 
-        console.log(`✅ Real ETA calculated: ${etaMinutes} minutes (${etaDistance})`);
-
-        await supabase.from('crew_location_history').insert({
+        const { error: locationInsertError } = await supabase.from('crew_location_history').insert({
           latitude: crewLocation.lat,
           longitude: crewLocation.lng,
           order_id: task.orderId,
         });
+        if (locationInsertError) {
+          console.warn('crew_location_history insert failed (non-blocking):', locationInsertError.message);
+        }
       } catch (error: any) {
         console.warn('Could not calculate real ETA, using estimate:', error);
         etaCalculationError = error.message;
@@ -294,30 +295,38 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         message += '\n\nPlease ensure there is a clear path for delivery and setup. See you soon!';
       }
 
-      const smsResponse = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            to: task.customerPhone,
-            message,
-            order_id: task.orderId,
-          }),
+      let smsWarning: string | null = null;
+      try {
+        const smsResponse = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              to: task.customerPhone,
+              message,
+              order_id: task.orderId,
+            }),
+          }
+        );
+        if (!smsResponse.ok) {
+          smsWarning = 'SMS failed to send';
+          console.warn('En Route SMS failed:', await smsResponse.text());
         }
-      );
-
-      if (!smsResponse.ok) throw new Error('Failed to send SMS');
+      } catch (smsError: any) {
+        smsWarning = 'SMS failed: ' + smsError.message;
+        console.warn('En Route SMS error:', smsError);
+      }
 
       const { error: taskUpdateError } = await supabase
         .from('task_status')
         .update({
           status: 'en_route',
           en_route_time: new Date().toISOString(),
-          eta_sent: true,
+          eta_sent: smsWarning === null,
           waiver_reminder_sent: !task.waiverSigned,
           payment_reminder_sent: task.balanceDue > 0,
           calculated_eta_minutes: etaMinutes,
@@ -329,9 +338,16 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
 
       if (taskUpdateError) throw new Error('Failed to update task status: ' + taskUpdateError.message);
 
-      const successMsg = etaCalculationError
-        ? `En route notification sent! (Used estimated ETA - ${etaCalculationError})`
-        : `En route notification sent with real-time ETA: ${etaMinutes} min (${etaDistance})`;
+      let successMsg: string;
+      if (smsWarning && etaCalculationError) {
+        successMsg = `En Route saved (fallback ETA). Warning: ${smsWarning}.`;
+      } else if (smsWarning) {
+        successMsg = `En Route saved. Warning: ${smsWarning}.`;
+      } else if (etaCalculationError) {
+        successMsg = `En Route saved and customer notified (fallback ETA used).`;
+      } else {
+        successMsg = `En Route saved and customer notified. ETA: ${etaMinutes} min${etaDistance ? ` (${etaDistance})` : ''}.`;
+      }
 
       showAlert(successMsg);
       refresh();
@@ -610,7 +626,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const currentOrder = currentTask.taskStatus?.sortOrder || currentIndex;
       const swapOrder = swapTask.taskStatus?.sortOrder || swapIndex;
 
-      const updates = [];
+      const updates: Promise<{ error: any }>[] = [];
 
       if (currentTask.taskStatus?.id) {
         updates.push(
@@ -630,7 +646,9 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         );
       }
 
-      await Promise.all(updates);
+      const results = await Promise.all(updates);
+      const reorderError = results.find(r => r.error)?.error;
+      if (reorderError) throw new Error('Failed to reorder: ' + reorderError.message);
       showAlert(`Task moved ${direction}`);
       refresh();
     } catch (error: any) {
