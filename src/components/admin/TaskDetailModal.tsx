@@ -260,15 +260,11 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onBack, onO
 
         console.log(`✅ Real ETA calculated: ${etaMinutes} minutes (${etaDistance})`);
 
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          await supabase.from('crew_location_history').insert({
-            user_id: user.id,
-            lat: crewLocation.lat,
-            lng: crewLocation.lng,
-            accuracy: null,
-          });
-        }
+        await supabase.from('crew_location_history').insert({
+          latitude: crewLocation.lat,
+          longitude: crewLocation.lng,
+          order_id: task.orderId,
+        });
       } catch (error: any) {
         console.warn('Could not calculate real ETA, using estimate:', error);
         etaCalculationError = error.message;
