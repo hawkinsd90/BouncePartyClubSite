@@ -27,7 +27,7 @@ export function DepositOverride({
     const inputValue = customDepositInput.trim();
 
     if (inputValue === '') {
-      onApply(calculatedDepositCents);
+      onApply(0);
       return;
     }
 
@@ -69,12 +69,12 @@ export function DepositOverride({
                   value={customDepositInput}
                   onChange={(e) => onInputChange(e.target.value)}
                   className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg"
-                  placeholder="Enter amount (0 for no deposit)"
+                  placeholder="Leave blank to waive deposit"
                 />
               </div>
               {showZeroHint && (
                 <p className="text-xs text-slate-500 mt-1">
-                  Set to $0 for acceptance-only invoices (no payment required)
+                  Leave blank to waive deposit entirely, or enter a custom amount
                 </p>
               )}
             </div>
