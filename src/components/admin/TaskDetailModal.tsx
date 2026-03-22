@@ -312,7 +312,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
 
       if (!smsResponse.ok) throw new Error('Failed to send SMS');
 
-      await supabase
+      const { error: taskUpdateError } = await supabase
         .from('task_status')
         .update({
           status: 'en_route',
@@ -326,6 +326,8 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
           eta_calculation_error: etaCalculationError,
         })
         .eq('id', taskStatusId);
+
+      if (taskUpdateError) throw new Error('Failed to update task status: ' + taskUpdateError.message);
 
       const successMsg = etaCalculationError
         ? `En route notification sent! (Used estimated ETA - ${etaCalculationError})`
@@ -383,13 +385,15 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
 
       if (!smsResponse.ok) throw new Error('Failed to send SMS');
 
-      await supabase
+      const { error: arrivedUpdateError } = await supabase
         .from('task_status')
         .update({
           status: 'arrived',
           arrived_time: new Date().toISOString(),
         })
         .eq('id', taskStatusId);
+
+      if (arrivedUpdateError) throw new Error('Failed to update task status: ' + arrivedUpdateError.message);
 
       showAlert('Arrival notification sent successfully!');
       refresh();
@@ -500,13 +504,15 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
 
       if (!smsResponse.ok) throw new Error('Failed to send SMS');
 
-      await supabase
+      const { error: dropOffUpdateError } = await supabase
         .from('task_status')
         .update({
           status: 'completed',
           completed_time: new Date().toISOString(),
         })
         .eq('id', taskStatusId);
+
+      if (dropOffUpdateError) throw new Error('Failed to update task status: ' + dropOffUpdateError.message);
 
       showAlert('Delivery completed and customer notified!');
       refresh();
@@ -570,13 +576,15 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         console.error('Email error - continuing anyway');
       }
 
-      await supabase
+      const { error: pickupUpdateError } = await supabase
         .from('task_status')
         .update({
           status: 'completed',
           completed_time: new Date().toISOString(),
         })
         .eq('id', taskStatusId);
+
+      if (pickupUpdateError) throw new Error('Failed to update task status: ' + pickupUpdateError.message);
 
       showAlert('Pickup completed! Thank you message and review request sent.');
       refresh();

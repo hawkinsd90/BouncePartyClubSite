@@ -134,15 +134,12 @@ export async function calculateETA(
 ): Promise<ETAResult> {
   await loadGoogleMapsAPI();
 
-  if (typeof google.maps.importLibrary !== 'function') {
-    throw new Error('Google Maps importLibrary not available');
+  if (!window.google?.maps?.DistanceMatrixService) {
+    throw new Error('Google Maps DistanceMatrixService not available');
   }
 
-  const routesLib = await google.maps.importLibrary("routes") as any;
-  const DistanceMatrixService = routesLib.DistanceMatrixService;
-
   return new Promise((resolve, reject) => {
-    const service = new DistanceMatrixService();
+    const service = new google.maps.DistanceMatrixService();
 
     service.getDistanceMatrix(
       {
@@ -155,8 +152,8 @@ export async function calculateETA(
           trafficModel: google.maps.TrafficModel.BEST_GUESS,
         },
       },
-      (response: any, status: string) => {
-        if (status !== 'OK') {
+      (response, status) => {
+        if (status !== google.maps.DistanceMatrixStatus.OK) {
           reject(new Error(`Distance Matrix API error: ${status}`));
           return;
         }
@@ -173,7 +170,7 @@ export async function calculateETA(
         resolve({
           durationMinutes,
           durationText: duration.text,
-          distanceText: result.distance.text,
+          distanceText: result.distance?.text || '',
           location: origin,
         });
       }
