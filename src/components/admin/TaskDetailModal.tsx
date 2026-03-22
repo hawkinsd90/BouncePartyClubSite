@@ -338,6 +338,9 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
 
       if (taskUpdateError) throw new Error('Failed to update task status: ' + taskUpdateError.message);
 
+      const workflowValue = task.type === 'drop-off' ? 'on_the_way' : 'pickup_in_progress';
+      await supabase.from('orders').update({ workflow_status: workflowValue }).eq('id', task.orderId);
+
       let successMsg: string;
       if (smsWarning && etaCalculationError) {
         successMsg = `En Route saved (fallback ETA). Warning: ${smsWarning}.`;
@@ -418,6 +421,8 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         .eq('id', taskStatusId);
 
       if (arrivedUpdateError) throw new Error('Failed to update task status: ' + arrivedUpdateError.message);
+
+      await supabase.from('orders').update({ workflow_status: 'arrived' }).eq('id', task.orderId);
 
       showAlert(arrivedSmsWarning
         ? `Arrived saved. Warning: ${arrivedSmsWarning}.`
@@ -548,6 +553,8 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
 
       if (dropOffUpdateError) throw new Error('Failed to update task status: ' + dropOffUpdateError.message);
 
+      await supabase.from('orders').update({ workflow_status: 'setup_completed' }).eq('id', task.orderId);
+
       showAlert(dropOffSmsWarning
         ? `Delivery marked complete. Warning: ${dropOffSmsWarning}.`
         : 'Delivery completed and customer notified!');
@@ -617,6 +624,8 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       } catch (emailError: any) {
         console.warn('Pickup complete email error (non-blocking):', emailError);
       }
+
+      await supabase.from('orders').update({ workflow_status: 'pickup_in_progress' }).eq('id', task.orderId);
 
       const { error: pickupUpdateError } = await supabase
         .from('task_status')

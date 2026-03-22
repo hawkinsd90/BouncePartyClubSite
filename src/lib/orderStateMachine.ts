@@ -9,7 +9,7 @@ interface StatusTransition {
 const VALID_TRANSITIONS: StatusTransition[] = [
   {
     from: ORDER_STATUS.DRAFT,
-    to: [ORDER_STATUS.PENDING, ORDER_STATUS.CANCELLED, ORDER_STATUS.VOID]
+    to: [ORDER_STATUS.PENDING, ORDER_STATUS.CONFIRMED, ORDER_STATUS.CANCELLED, ORDER_STATUS.VOID]
   },
   {
     from: ORDER_STATUS.PENDING,
@@ -21,33 +21,11 @@ const VALID_TRANSITIONS: StatusTransition[] = [
   },
   {
     from: ORDER_STATUS.CONFIRMED,
-    to: [ORDER_STATUS.SETUP_IN_PROGRESS, ORDER_STATUS.CANCELLED],
-    requiredChecks: [
-      (order) => ({
-        valid: !!order.stripe_payment_method_id || order.payment_amount_due === 0,
-        reason: 'Cannot confirm order without payment method on file (unless payment is $0)'
-      })
-    ]
+    to: [ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.CANCELLED, ORDER_STATUS.VOID],
   },
   {
-    from: ORDER_STATUS.SETUP_IN_PROGRESS,
-    to: [ORDER_STATUS.ON_THE_WAY, ORDER_STATUS.SETUP_COMPLETED, ORDER_STATUS.CONFIRMED]
-  },
-  {
-    from: ORDER_STATUS.ON_THE_WAY,
-    to: [ORDER_STATUS.SETUP_COMPLETED, ORDER_STATUS.SETUP_IN_PROGRESS]
-  },
-  {
-    from: ORDER_STATUS.SETUP_COMPLETED,
-    to: [ORDER_STATUS.PICKUP_IN_PROGRESS]
-  },
-  {
-    from: ORDER_STATUS.PICKUP_IN_PROGRESS,
-    to: [ORDER_STATUS.ON_THE_WAY_BACK, ORDER_STATUS.SETUP_COMPLETED]
-  },
-  {
-    from: ORDER_STATUS.ON_THE_WAY_BACK,
-    to: [ORDER_STATUS.COMPLETED, ORDER_STATUS.PICKUP_IN_PROGRESS]
+    from: ORDER_STATUS.IN_PROGRESS,
+    to: [ORDER_STATUS.COMPLETED, ORDER_STATUS.CANCELLED, ORDER_STATUS.VOID]
   },
   {
     from: ORDER_STATUS.COMPLETED,

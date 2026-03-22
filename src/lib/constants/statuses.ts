@@ -4,11 +4,6 @@ export const ORDER_STATUS = {
   CONFIRMED: 'confirmed',
   AWAITING_CUSTOMER_APPROVAL: 'awaiting_customer_approval',
   IN_PROGRESS: 'in_progress',
-  SETUP_IN_PROGRESS: 'setup_in_progress',
-  ON_THE_WAY: 'on_the_way',
-  SETUP_COMPLETED: 'setup_completed',
-  PICKUP_IN_PROGRESS: 'pickup_in_progress',
-  ON_THE_WAY_BACK: 'on_the_way_back',
   COMPLETED: 'completed',
   CANCELLED: 'cancelled',
   VOID: 'void',
@@ -22,14 +17,33 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   [ORDER_STATUS.CONFIRMED]: 'Confirmed',
   [ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL]: 'Awaiting Approval',
   [ORDER_STATUS.IN_PROGRESS]: 'In Progress',
-  [ORDER_STATUS.SETUP_IN_PROGRESS]: 'Setup In Progress',
-  [ORDER_STATUS.ON_THE_WAY]: 'On The Way',
-  [ORDER_STATUS.SETUP_COMPLETED]: 'Setup Completed',
-  [ORDER_STATUS.PICKUP_IN_PROGRESS]: 'Pickup In Progress',
-  [ORDER_STATUS.ON_THE_WAY_BACK]: 'On The Way Back',
   [ORDER_STATUS.COMPLETED]: 'Completed',
   [ORDER_STATUS.CANCELLED]: 'Cancelled',
   [ORDER_STATUS.VOID]: 'Void',
+};
+
+export const WORKFLOW_STATUS = {
+  PENDING: 'pending',
+  ON_THE_WAY: 'on_the_way',
+  ARRIVED: 'arrived',
+  SETUP_IN_PROGRESS: 'setup_in_progress',
+  SETUP_COMPLETED: 'setup_completed',
+  PICKUP_SCHEDULED: 'pickup_scheduled',
+  PICKUP_IN_PROGRESS: 'pickup_in_progress',
+  COMPLETED: 'completed',
+} as const;
+
+export type WorkflowStatus = typeof WORKFLOW_STATUS[keyof typeof WORKFLOW_STATUS];
+
+export const WORKFLOW_STATUS_LABELS: Record<WorkflowStatus, string> = {
+  [WORKFLOW_STATUS.PENDING]: 'Pending',
+  [WORKFLOW_STATUS.ON_THE_WAY]: 'On The Way',
+  [WORKFLOW_STATUS.ARRIVED]: 'Arrived',
+  [WORKFLOW_STATUS.SETUP_IN_PROGRESS]: 'Setup In Progress',
+  [WORKFLOW_STATUS.SETUP_COMPLETED]: 'Setup Completed',
+  [WORKFLOW_STATUS.PICKUP_SCHEDULED]: 'Pickup Scheduled',
+  [WORKFLOW_STATUS.PICKUP_IN_PROGRESS]: 'Pickup In Progress',
+  [WORKFLOW_STATUS.COMPLETED]: 'Completed',
 };
 
 export const CANCELLABLE_STATUSES: readonly OrderStatus[] = [

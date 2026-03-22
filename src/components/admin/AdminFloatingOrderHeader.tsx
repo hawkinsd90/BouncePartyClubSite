@@ -66,7 +66,7 @@ export function AdminFloatingOrderHeader({ order, isVisible, onEditClick }: Admi
                     ? 'bg-orange-600 text-white'
                     : order.status === 'confirmed'
                     ? 'bg-green-600 text-white'
-                    : order.status === 'in_progress' || order.status === 'setup_in_progress' || order.status === 'on_the_way' || order.status === 'on_the_way_back'
+                    : order.status === 'in_progress'
                     ? 'bg-blue-600 text-white'
                     : order.status === 'completed'
                     ? 'bg-green-700 text-white'

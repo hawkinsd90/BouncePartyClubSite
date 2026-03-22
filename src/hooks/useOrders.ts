@@ -86,10 +86,10 @@ export function useOrders(userId: string | undefined, userEmail: string | undefi
 
           if (
             (eventDate <= today && eventEndDate >= today) ||
-            ['en_route_delivery', 'delivered', 'en_route_pickup'].includes(order.workflow_status)
+            order.status === 'in_progress'
           ) {
             active.push(order);
-          } else if (eventDate > today && !['completed', 'cancelled', 'voided'].includes(order.status)) {
+          } else if (eventDate > today && !['completed', 'cancelled', 'void'].includes(order.status)) {
             upcoming.push(order);
           } else {
             past.push(order);

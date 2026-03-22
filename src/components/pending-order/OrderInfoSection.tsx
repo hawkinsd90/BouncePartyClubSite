@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { Edit2 } from 'lucide-react';
+import { CreditCard as Edit2 } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
 import { ORDER_STATUS_LABELS } from '../../lib/constants/statuses';
 
@@ -15,11 +15,6 @@ const STATUS_BADGE_COLORS: Record<string, string> = {
   awaiting_customer_approval: 'bg-amber-600',
   confirmed: 'bg-green-600',
   in_progress: 'bg-blue-600',
-  setup_in_progress: 'bg-blue-600',
-  on_the_way: 'bg-blue-600',
-  setup_completed: 'bg-teal-600',
-  pickup_in_progress: 'bg-cyan-600',
-  on_the_way_back: 'bg-blue-600',
   completed: 'bg-green-700',
   cancelled: 'bg-red-600',
   void: 'bg-slate-500',
