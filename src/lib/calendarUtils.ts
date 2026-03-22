@@ -47,8 +47,14 @@ export function isPickupActionable(task: Task): boolean {
   return task.pickupReadiness === 'ready';
 }
 
+export function isDropOffPlanningOnly(task: Task): boolean {
+  return task.type === 'drop-off' && task.status === 'pending_review';
+}
+
 export function isTaskActiveRouteStop(task: Task): boolean {
   if (task.type === 'drop-off') {
+    // pending_review orders are unconfirmed — visible for planning but not actionable
+    if (task.status === 'pending_review') return false;
     return task.taskStatus?.status !== 'completed';
   }
   return task.pickupReadiness === 'ready';

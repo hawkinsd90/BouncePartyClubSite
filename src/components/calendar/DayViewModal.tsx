@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { format } from 'date-fns';
 import { X, Truck as TruckIcon, Package, MousePointer, Car, Settings, ClipboardList, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
 import { Task } from '../../hooks/useCalendarTasks';
-import { getStopNumber, sortTasksByOrder, isTaskActiveRouteStop } from '../../lib/calendarUtils';
+import { getStopNumber, sortTasksByOrder, isTaskActiveRouteStop, isDropOffPlanningOnly } from '../../lib/calendarUtils';
 import { TaskCard } from './TaskCard';
 import { MileageModal } from './MileageModal';
 import { RouteManagementModal } from './RouteManagementModal';
@@ -47,7 +47,9 @@ export function DayViewModal({
     ));
     const blocked = taskList.filter(t => t.type === 'pick-up' && t.pickupReadiness === 'blocked');
     const projected = taskList.filter(t => t.type === 'pick-up' && t.pickupReadiness === 'projected');
-    return { active, completed, blocked, projected };
+    // Drop-offs from pending_review orders are visible for planning but not actionable
+    const planningOnly = taskList.filter(t => isDropOffPlanningOnly(t));
+    return { active, completed, blocked, projected, planningOnly };
   }
 
   const morning = splitByReadiness(allMorningTasks);
@@ -238,6 +240,29 @@ export function DayViewModal({
                     </p>
                     <div className="space-y-2">
                       {morning.projected.map(task => (
+                        <TaskCard
+                          key={task.id}
+                          task={task}
+                          stopNumber={0}
+                          onClick={() => onTaskClick(task)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Planning-only drop-offs (pending_review orders) */}
+                {morning.planningOnly.length > 0 && (
+                  <div className="mb-4">
+                    <h4 className="text-sm font-semibold text-slate-500 mb-2 flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-slate-400" />
+                      Pending Review — Planning Only ({morning.planningOnly.length})
+                    </h4>
+                    <p className="text-xs text-slate-400 mb-2">
+                      These orders are awaiting confirmation and will not appear in the active route.
+                    </p>
+                    <div className="space-y-2">
+                      {morning.planningOnly.map(task => (
                         <TaskCard
                           key={task.id}
                           task={task}

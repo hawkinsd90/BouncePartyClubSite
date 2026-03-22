@@ -13,11 +13,12 @@ export function TaskCard({ task, stopNumber, onClick }: TaskCardProps) {
   const isProjected = !isDropOff && readiness === 'projected';
   const isBlocked = !isDropOff && readiness === 'blocked';
   const isCompletedTask = task.taskStatus?.status === 'completed' || (!isDropOff && readiness === 'completed');
+  const isPlanningOnlyDropOff = isDropOff && task.status === 'pending_review';
 
   function getCardStyle(): string {
     if (isCompletedTask) return 'bg-slate-50 border-slate-200 hover:bg-slate-100 opacity-60';
     if (isBlocked) return 'bg-amber-50 border-amber-300 hover:bg-amber-100';
-    if (isProjected) return 'bg-slate-50 border-dashed border-slate-300 hover:bg-slate-100 opacity-75';
+    if (isProjected || isPlanningOnlyDropOff) return 'bg-slate-50 border-dashed border-slate-300 hover:bg-slate-100 opacity-75';
     if (isDropOff) return 'bg-green-50 border-green-200 hover:bg-green-100';
     return 'bg-orange-50 border-orange-200 hover:bg-orange-100';
   }
@@ -63,6 +64,13 @@ export function TaskCard({ task, stopNumber, onClick }: TaskCardProps) {
               <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-slate-200 text-slate-600">
                 <Clock className="w-3 h-3" />
                 PROJECTED
+              </span>
+            )}
+
+            {isPlanningOnlyDropOff && !isCompletedTask && (
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-slate-200 text-slate-600">
+                <Clock className="w-3 h-3" />
+                PENDING REVIEW
               </span>
             )}
 

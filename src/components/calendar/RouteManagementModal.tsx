@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { Task } from '../../hooks/useCalendarTasks';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
-import { sortTasksByOrder, isTaskActiveRouteStop } from '../../lib/calendarUtils';
+import { sortTasksByOrder, isTaskActiveRouteStop, isDropOffPlanningOnly } from '../../lib/calendarUtils';
 import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
 
 interface RouteManagementModalProps {
@@ -77,6 +77,7 @@ export function RouteManagementModal({
   const completedTasks = allRouteTypeTasks.filter(
     t => t.taskStatus?.status === 'completed' || (t.type === 'pick-up' && t.pickupReadiness === 'completed')
   );
+  const planningOnlyDropOffs = allRouteTypeTasks.filter(t => isDropOffPlanningOnly(t));
 
   function checkForChanges(newTasks: Task[]) {
     const newOrder = newTasks.map(t => t.id);
@@ -370,6 +371,33 @@ export function RouteManagementModal({
                             {task.pickupBlockReason}
                           </span>
                         )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Planning-only drop-offs (pending_review) */}
+          {planningOnlyDropOffs.length > 0 && (
+            <div className="pt-2 border-t border-slate-200">
+              <h3 className="text-sm font-semibold text-slate-500 mb-2 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-slate-400" />
+                Pending Review — Planning Only ({planningOnlyDropOffs.length})
+              </h3>
+              <p className="text-xs text-slate-500 mb-3">These orders are awaiting confirmation and are not included in the active route.</p>
+              <div className="space-y-2">
+                {planningOnlyDropOffs.map(task => (
+                  <div key={task.id} className="bg-slate-50 border border-dashed border-slate-300 rounded-lg p-3 opacity-70">
+                    <div className="flex items-start gap-2">
+                      <Clock className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <span className="font-semibold text-sm text-slate-600">{task.customerName}</span>
+                        <p className="text-xs text-slate-400 truncate mb-1">{task.address}</p>
+                        <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                          Awaiting confirmation
+                        </span>
                       </div>
                     </div>
                   </div>

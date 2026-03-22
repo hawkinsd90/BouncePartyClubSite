@@ -55,6 +55,8 @@ export function derivePickupReadiness(
   balanceDue: number
 ): PickupReadiness {
   if (pickUpTaskStatus === 'completed') return 'completed';
+  // pending_review orders are not yet confirmed — treat pickup as planning-only
+  if (orderStatus === 'pending_review') return 'projected';
   if (dropOffTaskStatus !== 'completed') return 'projected';
   if (balanceDue > 0) return 'blocked';
   return 'ready';
@@ -163,10 +165,15 @@ export function useCalendarTasks(currentMonth: Date) {
         .select('*, units(name)')
         .in('order_id', orders.map(o => o.id));
 
+      // Expand the task_status window to match the order fetch window.
+      // Orders starting on monthStart-1 can have next-day pickups on monthStart,
+      // and their drop-off task_status has task_date = monthStart-1. Without this
+      // expansion, that drop-off status is missed and the pickup is misclassified
+      // as 'projected' even when the drop-off is actually completed.
       const { data: taskStatuses } = await supabase
         .from('task_status')
         .select('*')
-        .gte('task_date', format(monthStart, 'yyyy-MM-dd'))
+        .gte('task_date', format(queryStart, 'yyyy-MM-dd'))
         .lte('task_date', format(monthEnd, 'yyyy-MM-dd'));
 
       const generatedTasks: Task[] = [];
