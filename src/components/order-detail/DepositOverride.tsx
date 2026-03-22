@@ -7,7 +7,7 @@ interface DepositOverrideProps {
   customDepositCents: number | null;
   customDepositInput: string;
   onInputChange: (value: string) => void;
-  onApply: ((amountCents: number) => void) | (() => void);
+  onApply: (amountCents: number) => void;
   onClear: () => void;
   compact?: boolean;
   showZeroHint?: boolean;
@@ -37,11 +37,7 @@ export function DepositOverride({
       }
     }
 
-    if (onApply.length === 1) {
-      (onApply as (amountCents: number) => void)(amountCents);
-    } else {
-      (onApply as () => void)();
-    }
+    onApply(amountCents);
   }
 
   if (compact) {

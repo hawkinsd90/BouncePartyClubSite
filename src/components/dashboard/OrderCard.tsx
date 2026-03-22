@@ -18,8 +18,8 @@ interface OrderCardProps {
 
 export function OrderCard({ order, onViewReceipt, onDuplicateOrder, onCancelOrder }: OrderCardProps) {
   const navigate = useNavigate();
-  const eventStartDate = new Date(order.event_date);
-  const eventEndDate = order.event_end_date ? new Date(order.event_end_date) : eventStartDate;
+  const eventStartDate = new Date(order.event_date + 'T12:00:00');
+  const eventEndDate = order.event_end_date ? new Date(order.event_end_date + 'T12:00:00') : eventStartDate;
   const isMultiDay = eventStartDate.toDateString() !== eventEndDate.toDateString();
   const canCancel = isOrderCancellable(order.status);
 

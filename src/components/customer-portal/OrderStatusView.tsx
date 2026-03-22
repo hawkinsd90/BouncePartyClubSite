@@ -72,7 +72,7 @@ export function OrderStatusView({ order }: OrderStatusViewProps) {
             <div className="flex justify-between py-3 border-b border-slate-200">
               <span className="text-slate-600 font-medium">Event Date:</span>
               <span className="text-slate-900">
-                {format(new Date(order.event_date), 'MMMM d, yyyy')}
+                {format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')}
               </span>
             </div>
             <div className="flex justify-between py-3 border-b border-slate-200">

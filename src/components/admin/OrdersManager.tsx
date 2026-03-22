@@ -446,7 +446,7 @@ export function OrdersManager() {
                       <Calendar className="w-4 h-4 mr-2 text-slate-400" />
                       <div>
                         <div className="text-sm text-slate-900">
-                          {format(new Date(order.event_date), 'MMM d, yyyy')}
+                          {format(new Date(order.event_date + 'T12:00:00'), 'MMM d, yyyy')}
                         </div>
                         <div className="text-xs text-slate-500">
                           {order.start_window} - {order.end_window}

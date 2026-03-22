@@ -513,7 +513,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               Order #{formatOrderId(order.id)}
             </h2>
             <p className="text-xs md:text-sm text-slate-600 truncate">
-              {order.customers?.first_name} {order.customers?.last_name} • {format(new Date(order.event_date), 'MMM d, yyyy')}
+              {order.customers?.first_name} {order.customers?.last_name} • {format(new Date(order.event_date + 'T12:00:00'), 'MMM d, yyyy')}
             </p>
           </div>
           <div className="flex items-center gap-1 md:gap-2 shrink-0">

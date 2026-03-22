@@ -263,9 +263,9 @@ export function Receipt() {
               <p>
                 <span className="text-slate-600">Date: </span>
                 <span className="font-medium text-slate-900">
-                  {format(new Date(order.event_date), 'MMMM d, yyyy')}
+                  {format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')}
                   {order.event_end_date && order.event_end_date !== order.event_date && (
-                    <> - {format(new Date(order.event_end_date), 'MMMM d, yyyy')}</>
+                    <> - {format(new Date(order.event_end_date + 'T12:00:00'), 'MMMM d, yyyy')}</>
                   )}
                 </span>
               </p>

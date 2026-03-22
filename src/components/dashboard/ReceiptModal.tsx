@@ -143,9 +143,9 @@ export function ReceiptModal({ order, payment, summary, loading, onClose }: Rece
                 <p>
                   <span className="text-gray-600">Date: </span>
                   <span className="font-medium text-gray-900">
-                    {format(new Date(order.event_date), 'MMMM d, yyyy')}
+                    {format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')}
                     {order.event_end_date && order.event_end_date !== order.event_date && (
-                      <> - {format(new Date(order.event_end_date), 'MMMM d, yyyy')}</>
+                      <> - {format(new Date(order.event_end_date + 'T12:00:00'), 'MMMM d, yyyy')}</>
                     )}
                   </span>
                 </p>

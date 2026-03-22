@@ -36,7 +36,7 @@ export function AdminFloatingOrderHeader({ order, isVisible, onEditClick }: Admi
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-slate-600" />
                 <span className="text-slate-700">
-                  {format(new Date(order.event_date), 'MMM d, yyyy')}
+                  {format(new Date(order.event_date + 'T12:00:00'), 'MMM d, yyyy')}
                 </span>
               </div>
 
@@ -64,7 +64,15 @@ export function AdminFloatingOrderHeader({ order, isVisible, onEditClick }: Admi
                     ? 'bg-amber-600 text-white'
                     : order.status === 'draft'
                     ? 'bg-orange-600 text-white'
-                    : 'bg-slate-200 text-slate-900'
+                    : order.status === 'confirmed'
+                    ? 'bg-green-600 text-white'
+                    : order.status === 'in_progress' || order.status === 'setup_in_progress' || order.status === 'on_the_way' || order.status === 'on_the_way_back'
+                    ? 'bg-blue-600 text-white'
+                    : order.status === 'completed'
+                    ? 'bg-green-700 text-white'
+                    : order.status === 'cancelled'
+                    ? 'bg-red-600 text-white'
+                    : 'bg-slate-500 text-white'
                 }`}>
                   {order.status.replace(/_/g, ' ').toUpperCase()}
                 </span>

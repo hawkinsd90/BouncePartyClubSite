@@ -192,7 +192,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                     <OrderStatusBadge order={order} />
                   </div>
                   <p className="text-xs sm:text-sm opacity-90 mt-1">
-                    Event Date: {format(new Date(order.event_date), 'MMMM d, yyyy')} at{' '}
+                    Event Date: {format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')} at{' '}
                     {order.start_window}
                   </p>
                 </div>
@@ -406,7 +406,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4 text-blue-600" />
                         <p className="font-medium text-slate-900">
-                          {format(new Date(order.event_date), 'MMMM d, yyyy')}
+                          {format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')}
                         </p>
                       </div>
                     </div>
