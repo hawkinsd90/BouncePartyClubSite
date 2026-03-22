@@ -134,45 +134,53 @@ export async function calculateETA(
 ): Promise<ETAResult> {
   await loadGoogleMapsAPI();
 
-  // Ensure importLibrary is available
   if (typeof google.maps.importLibrary !== 'function') {
     throw new Error('Google Maps importLibrary not available');
   }
 
-  // Load the routes library which includes DistanceMatrixService
-  const routesLib = await google.maps.importLibrary("routes");
-  const DistanceMatrixService = routesLib.DistanceMatrixService;
+  await google.maps.importLibrary("routes");
 
   return new Promise((resolve, reject) => {
-    const service = new DistanceMatrixService();
+    const service = new google.maps.DirectionsService();
 
-    service.getDistanceMatrix(
+    service.route(
       {
-        origins: [{ lat: origin.lat, lng: origin.lng }],
-        destinations: [destinationAddress],
+        origin: { lat: origin.lat, lng: origin.lng },
+        destination: destinationAddress,
         travelMode: google.maps.TravelMode.DRIVING,
         unitSystem: google.maps.UnitSystem.IMPERIAL,
-        avoidHighways: false,
-        avoidTolls: false,
+        drivingOptions: {
+          departureTime: new Date(),
+          trafficModel: google.maps.TrafficModel.BEST_GUESS,
+        },
       },
       (response, status) => {
-        if (status !== 'OK') {
-          reject(new Error(`Distance Matrix API error: ${status}`));
+        if (status !== google.maps.DirectionsStatus.OK) {
+          reject(new Error(`Directions API error: ${status}`));
           return;
         }
 
-        const result = response?.rows[0]?.elements[0];
-        if (!result || result.status !== 'OK') {
+        const leg = response?.routes[0]?.legs[0];
+        if (!leg) {
           reject(new Error('Unable to calculate route to destination'));
           return;
         }
 
-        const durationMinutes = Math.ceil(result.duration.value / 60);
+        const durationInTraffic = leg.duration_in_traffic;
+        const duration = durationInTraffic || leg.duration;
+
+        if (!duration) {
+          reject(new Error('No duration in route response'));
+          return;
+        }
+
+        const durationMinutes = Math.ceil(duration.value / 60);
+        const distanceText = leg.distance?.text || '';
 
         resolve({
           durationMinutes,
-          durationText: result.duration.text,
-          distanceText: result.distance.text,
+          durationText: duration.text,
+          distanceText,
           location: origin,
         });
       }
