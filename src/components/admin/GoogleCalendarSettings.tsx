@@ -1,15 +1,32 @@
+/**
+ * GoogleCalendarSettings
+ *
+ * GOOGLE CALENDAR INTEGRATION: CURRENTLY DISABLED
+ *
+ * This component is scaffolded but all live sync functionality is
+ * commented out / guarded until Google OAuth credentials are set up.
+ *
+ * TO RE-ENABLE:
+ * 1. Complete Google Cloud Console setup (see setup steps in the UI).
+ * 2. Obtain OAuth Client ID, Client Secret, and a long-lived Refresh Token.
+ * 3. Store them via the form below (which writes to admin_settings).
+ * 4. Re-enable the DB trigger by running in Supabase SQL Editor:
+ *      CREATE TRIGGER trg_auto_sync_google_calendar
+ *        AFTER INSERT OR UPDATE OR DELETE ON orders
+ *        FOR EACH ROW
+ *        EXECUTE FUNCTION auto_sync_google_calendar();
+ * 5. Remove the GCAL_INTEGRATION_DISABLED guard constant below.
+ */
+
 import { useState, useEffect } from 'react';
-import { Calendar, CheckCircle2, AlertCircle, RefreshCw, Settings, ExternalLink } from 'lucide-react';
+import { Calendar, AlertCircle, Settings, ExternalLink, Info } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
-interface SyncRow {
-  event_date: string;
-  google_event_id: string | null;
-  last_synced_at: string | null;
-  last_sync_status: string;
-  last_sync_error: string | null;
-  order_count: number;
-}
+// ─── TEMPORARY DISABLE GUARD ────────────────────────────────────────────────
+// Set to false ONLY after Google credentials are configured and the DB trigger
+// has been re-enabled via the SQL command documented above.
+const GCAL_INTEGRATION_DISABLED = true;
+// ────────────────────────────────────────────────────────────────────────────
 
 interface CredentialField {
   key: string;
@@ -19,26 +36,20 @@ interface CredentialField {
 }
 
 const CRED_FIELDS: CredentialField[] = [
-  { key: 'google_calendar_client_id', label: 'OAuth Client ID', placeholder: 'xxxx.apps.googleusercontent.com', isSecret: false },
-  { key: 'google_calendar_client_secret', label: 'OAuth Client Secret', placeholder: 'GOCSPX-...', isSecret: true },
-  { key: 'google_calendar_refresh_token', label: 'Refresh Token', placeholder: 'Obtained from one-time OAuth flow', isSecret: true },
-  { key: 'google_calendar_id', label: 'Calendar ID (optional)', placeholder: 'primary (default) or specific calendar email', isSecret: false },
+  { key: 'google_calendar_client_id',      label: 'OAuth Client ID',        placeholder: 'xxxx.apps.googleusercontent.com',      isSecret: false },
+  { key: 'google_calendar_client_secret',  label: 'OAuth Client Secret',    placeholder: 'GOCSPX-...',                            isSecret: true  },
+  { key: 'google_calendar_refresh_token',  label: 'Refresh Token',          placeholder: 'Obtained from one-time OAuth flow',     isSecret: true  },
+  { key: 'google_calendar_id',             label: 'Calendar ID (optional)', placeholder: 'primary (default) or calendar email',   isSecret: false },
 ];
 
 export function GoogleCalendarSettings() {
   const [creds, setCreds] = useState<Record<string, string>>({});
   const [savedCreds, setSavedCreds] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [reconciling, setReconciling] = useState(false);
-  const [syncRows, setSyncRows] = useState<SyncRow[]>([]);
-  const [queueCount, setQueueCount] = useState(0);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
-  const [syncResult, setSyncResult] = useState<string | null>(null);
 
   useEffect(() => {
     loadSettings();
-    loadSyncStatus();
   }, []);
 
   async function loadSettings() {
@@ -55,30 +66,13 @@ export function GoogleCalendarSettings() {
     setSavedCreds(loaded);
   }
 
-  async function loadSyncStatus() {
-    const today = new Date().toISOString().split('T')[0];
-    const [rowsRes, queueRes] = await Promise.all([
-      supabase
-        .from('google_calendar_sync')
-        .select('event_date, google_event_id, last_synced_at, last_sync_status, last_sync_error, order_count')
-        .gte('event_date', today)
-        .order('event_date', { ascending: true })
-        .limit(30),
-      supabase
-        .from('google_calendar_sync_queue')
-        .select('id', { count: 'exact', head: true })
-        .is('processed_at', null),
-    ]);
-    setSyncRows(rowsRes.data || []);
-    setQueueCount(queueRes.count || 0);
-  }
-
   async function saveCredentials() {
     setSaving(true);
     setSaveStatus('idle');
     try {
       for (const [key, value] of Object.entries(creds)) {
         if (value === savedCreds[key]) continue;
+
         const { data: existing } = await supabase
           .from('admin_settings')
           .select('id')
@@ -101,84 +95,41 @@ export function GoogleCalendarSettings() {
     }
   }
 
-  async function triggerSync(reconcile = false) {
-    if (reconcile) setReconciling(true);
-    else setSyncing(true);
-    setSyncResult(null);
-    try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || anonKey;
-
-      const response = await fetch(`${supabaseUrl}/functions/v1/sync-google-calendar`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(reconcile ? { reconcile: true } : {}),
-      });
-      const result = await response.json();
-      if (result.ok) {
-        setSyncResult(`Synced ${result.processed} date(s). Actions: ${result.results?.map((r: any) => `${r.date}:${r.action}`).join(', ') || 'none'}`);
-      } else {
-        setSyncResult(`Error: ${result.error}`);
-      }
-      await loadSyncStatus();
-    } catch (err: any) {
-      setSyncResult(`Failed: ${err.message}`);
-    } finally {
-      setSyncing(false);
-      setReconciling(false);
-    }
-  }
-
-  const isConfigured = savedCreds['google_calendar_client_id'] &&
-    savedCreds['google_calendar_client_secret'] &&
-    savedCreds['google_calendar_refresh_token'];
-
-  const errorRows = syncRows.filter(r => r.last_sync_status === 'error');
+  const hasAnyValue = CRED_FIELDS.some(f => !!creds[f.key]);
 
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-6 text-white">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-slate-700 to-slate-800 rounded-2xl p-6 text-white">
         <div className="flex items-center gap-3 mb-2">
           <Calendar className="w-6 h-6" />
           <h2 className="text-xl font-bold">Google Calendar Sync</h2>
+          <span className="ml-auto px-3 py-1 bg-amber-400 text-amber-900 text-xs font-bold rounded-full">
+            SETUP REQUIRED
+          </span>
         </div>
-        <p className="text-blue-100 text-sm">
-          Automatically syncs one event per order day to <strong>bouncepartyclub@gmail.com</strong> with evening-before and morning-before reminders.
+        <p className="text-slate-300 text-sm">
+          One Google Calendar event per order day, synced to bouncepartyclub@gmail.com with evening-before and morning-before reminders.
         </p>
       </div>
 
-      {/* Connection Status */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5">
-        <div className="flex items-center gap-3">
-          {isConfigured ? (
-            <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
-          ) : (
-            <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
-          )}
-          <div>
-            <div className="font-semibold text-slate-900">
-              {isConfigured ? 'Credentials configured' : 'Credentials not yet configured'}
-            </div>
-            <div className="text-sm text-slate-500">
-              {isConfigured
-                ? 'Auto-sync is active. Orders will sync to Google Calendar automatically.'
-                : 'Enter your Google OAuth credentials below to enable sync.'}
+      {/* Disabled Notice */}
+      {GCAL_INTEGRATION_DISABLED && (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-5">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-amber-800">Auto-sync is currently disabled</p>
+              <p className="text-sm text-amber-700 mt-1">
+                The Google Calendar trigger and automatic sync are turned off until you finish credential setup.
+                You can save credentials here now — auto-sync will not run until it is explicitly re-enabled.
+              </p>
             </div>
           </div>
-          {queueCount > 0 && (
-            <div className="ml-auto px-3 py-1 bg-amber-100 text-amber-800 text-xs font-semibold rounded-full">
-              {queueCount} pending in queue
-            </div>
-          )}
         </div>
-      </div>
+      )}
 
-      {/* Credentials Form */}
+      {/* Credentials Form — always shown so you can set up creds */}
       <div className="bg-white rounded-xl border border-slate-200 p-5">
         <div className="flex items-center gap-2 mb-4">
           <Settings className="w-5 h-5 text-slate-600" />
@@ -211,125 +162,53 @@ export function GoogleCalendarSettings() {
         <div className="mt-4 flex items-center gap-3">
           <button
             onClick={saveCredentials}
-            disabled={saving}
+            disabled={saving || !hasAnyValue}
             className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
           >
             {saving ? 'Saving...' : 'Save Credentials'}
           </button>
           {saveStatus === 'saved' && (
-            <span className="text-green-600 text-sm flex items-center gap-1">
-              <CheckCircle2 className="w-4 h-4" /> Saved
-            </span>
+            <span className="text-green-600 text-sm">Saved. Auto-sync is still disabled until you complete re-enable steps.</span>
           )}
           {saveStatus === 'error' && (
             <span className="text-red-500 text-sm">Failed to save</span>
           )}
         </div>
 
-        <div className="mt-4 p-4 bg-slate-50 rounded-lg text-xs text-slate-600 space-y-1">
-          <p className="font-semibold text-slate-700">Setup steps:</p>
-          <p>1. Create a project at <strong>console.cloud.google.com</strong> and enable the Google Calendar API.</p>
-          <p>2. Create OAuth 2.0 credentials (Web Application). Add <code>https://developers.google.com/oauthplayground</code> as a redirect URI.</p>
-          <p>3. Go to <strong>OAuth Playground</strong>, click the gear icon, check "Use your own OAuth credentials," enter your Client ID and Secret.</p>
-          <p>4. In Step 1, authorize <code>https://www.googleapis.com/auth/calendar</code>. In Step 2, exchange for tokens.</p>
-          <p>5. Copy the <strong>Refresh Token</strong> (long-lived) and paste it above.</p>
-          <p>6. Leave Calendar ID as <code>primary</code> to sync to your main Google Calendar.</p>
+        {/* Setup instructions */}
+        <div className="mt-5 p-4 bg-blue-50 rounded-lg text-xs text-slate-700 space-y-1.5 border border-blue-100">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Info className="w-3.5 h-3.5 text-blue-600" />
+            <p className="font-semibold text-blue-800">Setup steps</p>
+          </div>
+          <p>1. Create a project at <strong>console.cloud.google.com</strong> and enable the <strong>Google Calendar API</strong>.</p>
+          <p>2. Create <strong>OAuth 2.0 credentials</strong> (Web Application). Add <code className="bg-white px-1 rounded">https://developers.google.com/oauthplayground</code> as an authorized redirect URI.</p>
+          <p>3. Go to <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">OAuth Playground</a>, click the gear icon → "Use your own OAuth credentials" → enter your Client ID and Secret.</p>
+          <p>4. In Step 1, authorize scope: <code className="bg-white px-1 rounded">https://www.googleapis.com/auth/calendar</code>.</p>
+          <p>5. In Step 2, exchange for tokens. Copy the <strong>Refresh Token</strong> and paste it above.</p>
+          <p>6. Save credentials here, then follow the re-enable steps in the file header comment to activate auto-sync.</p>
         </div>
       </div>
 
-      {/* Manual Sync Controls */}
-      {isConfigured && (
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <h3 className="font-semibold text-slate-900 mb-3">Manual Controls</h3>
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={() => triggerSync(false)}
-              disabled={syncing || reconciling}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-              {syncing ? 'Draining queue...' : 'Drain Queue Now'}
-            </button>
-            <button
-              onClick={() => triggerSync(true)}
-              disabled={syncing || reconciling}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={`w-4 h-4 ${reconciling ? 'animate-spin' : ''}`} />
-              {reconciling ? 'Reconciling...' : 'Full Reconcile (90 days)'}
-            </button>
-          </div>
-          {syncResult && (
-            <div className={`mt-3 p-3 rounded-lg text-sm ${syncResult.startsWith('Error') || syncResult.startsWith('Failed') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
-              {syncResult}
-            </div>
-          )}
-          <p className="mt-2 text-xs text-slate-500">
-            Auto-sync fires automatically when orders are created, updated, or cancelled. Use "Drain Queue" if events seem out of sync. Use "Full Reconcile" to rebuild all upcoming calendar events.
-          </p>
-        </div>
-      )}
-
       {/* Reminder Info */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
-        <p className="font-semibold mb-1">Reminder Schedule</p>
-        <ul className="space-y-1 text-blue-700">
-          <li>• Evening before at <strong>6:00 PM</strong> — popup + email reminder</li>
-          <li>• Morning before at <strong>9:00 AM</strong> — popup + email reminder</li>
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-700">
+        <p className="font-semibold text-slate-800 mb-2">Reminder Schedule (when enabled)</p>
+        <ul className="space-y-1 text-slate-600">
+          <li>• <strong>Evening before</strong> at 6:00 PM — email + popup reminder</li>
+          <li>• <strong>Morning before</strong> at 9:00 AM — email + popup reminder</li>
         </ul>
-        <p className="mt-2 text-xs text-blue-600">
-          Reminders are calculated relative to 8:00 AM on the order day (840 min and 1380 min before). Google Calendar will notify you at these times the day before the event.
+        <p className="mt-2 text-xs text-slate-500">
+          Reminders are 840 min (6 PM evening before) and 1,380 min (9 AM morning before) before 8:00 AM on the event day.
         </p>
       </div>
 
-      {/* Sync Status Table */}
-      {syncRows.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-slate-900">Upcoming Synced Dates</h3>
-            <button onClick={loadSyncStatus} className="text-xs text-blue-600 hover:underline">Refresh</button>
-          </div>
-          {errorRows.length > 0 && (
-            <div className="mb-3 p-3 bg-red-50 rounded-lg border border-red-200">
-              <p className="text-sm font-semibold text-red-800 mb-1">{errorRows.length} sync error(s)</p>
-              {errorRows.map(r => (
-                <p key={r.event_date} className="text-xs text-red-700">{r.event_date}: {r.last_sync_error}</p>
-              ))}
-            </div>
-          )}
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200">
-                  <th className="text-left py-2 pr-4 text-xs font-semibold text-slate-500">Date</th>
-                  <th className="text-left py-2 pr-4 text-xs font-semibold text-slate-500">Orders</th>
-                  <th className="text-left py-2 pr-4 text-xs font-semibold text-slate-500">Status</th>
-                  <th className="text-left py-2 text-xs font-semibold text-slate-500">Last Synced</th>
-                </tr>
-              </thead>
-              <tbody>
-                {syncRows.map(row => (
-                  <tr key={row.event_date} className="border-b border-slate-100 last:border-0">
-                    <td className="py-2 pr-4 font-mono text-slate-900">{row.event_date}</td>
-                    <td className="py-2 pr-4 text-slate-700">{row.order_count}</td>
-                    <td className="py-2 pr-4">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                        row.last_sync_status === 'ok' ? 'bg-green-100 text-green-700' :
-                        row.last_sync_status === 'error' ? 'bg-red-100 text-red-700' :
-                        'bg-slate-100 text-slate-600'
-                      }`}>
-                        {row.last_sync_status === 'ok' ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
-                        {row.google_event_id ? 'synced' : row.last_sync_status}
-                      </span>
-                    </td>
-                    <td className="py-2 text-slate-500 text-xs">
-                      {row.last_synced_at ? new Date(row.last_synced_at).toLocaleString() : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      {/* Sync controls — completely disabled until integration is re-enabled */}
+      {GCAL_INTEGRATION_DISABLED && (
+        <div className="bg-white rounded-xl border border-slate-200 p-5 opacity-50 pointer-events-none select-none">
+          <h3 className="font-semibold text-slate-900 mb-3">Manual Sync Controls</h3>
+          <p className="text-sm text-slate-500">
+            Sync controls are disabled. Complete credential setup and re-enable the integration first.
+          </p>
         </div>
       )}
     </div>

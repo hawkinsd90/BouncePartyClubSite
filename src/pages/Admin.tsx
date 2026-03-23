@@ -256,14 +256,14 @@ function AdminDashboard() {
 
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100 hover:shadow-2xl transition-shadow">
               <div className="flex items-center justify-between mb-4">
                 <Package className="w-8 h-8 text-blue-600" />
                 <span className="text-3xl font-bold text-slate-900">{units.length}</span>
               </div>
-              <h3 className="text-lg font-semibold text-slate-900">Total Units</h3>
-              <p className="text-sm text-slate-600">Active inventory items</p>
+              <h3 className="text-lg font-semibold text-slate-900">Active Units</h3>
+              <p className="text-sm text-slate-600">Inventory items available to book</p>
             </div>
 
             <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100 hover:shadow-2xl transition-shadow">
@@ -272,29 +272,11 @@ function AdminDashboard() {
                 <span className="text-3xl font-bold text-slate-900">{orders.length}</span>
               </div>
               <h3 className="text-lg font-semibold text-slate-900">Recent Orders</h3>
-              <p className="text-sm text-slate-600">Last 20 bookings</p>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100 hover:shadow-2xl transition-shadow">
-              <div className="flex items-center justify-between mb-4">
-                <DollarSign className="w-8 h-8 text-cyan-600" />
-                <span className="text-3xl font-bold text-slate-900">
-                  {formatCurrency(
-                    orders
-                      .filter((o) => o.status === 'confirmed')
-                      .reduce((sum, o) => sum + o.subtotal_cents, 0)
-                  )}
-                </span>
-              </div>
-              <h3 className="text-lg font-semibold text-slate-900">Total Revenue</h3>
-              <p className="text-sm text-slate-600">Confirmed bookings</p>
+              <p className="text-sm text-slate-600">Most recent loaded orders — see Analytics tab for all-time totals</p>
             </div>
           </div>
 
           <PerformanceAnalytics />
-          <div className="mt-6">
-            <BusinessAnalytics />
-          </div>
         </div>
       )}
 
