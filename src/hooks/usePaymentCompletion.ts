@@ -122,7 +122,11 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
         order = await fetchOrderDetails();
 
         if (order) {
-          console.log('[PAYMENT-COMPLETE] Attempt', retries + 1, '- Order status:', order.status, 'tip_cents:', order.tip_cents);
+          // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
+          // Restore only after a true dev/staging environment and explicit safe gating are in place.
+          // Previously logged tip_cents (financial field) alongside order status.
+          // console.log('[PAYMENT-COMPLETE] Attempt', retries + 1, '- Order status:', order.status, 'tip_cents:', order.tip_cents);
+          console.log('[PAYMENT-COMPLETE] Attempt', retries + 1, '- Order status:', order.status);
 
           // Check if webhook has processed (status changed from draft)
           if (order.status !== 'draft') {
