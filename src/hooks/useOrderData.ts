@@ -82,13 +82,7 @@ export function useOrderData() {
         orderData.status === 'awaiting_customer_approval' ||
         orderData.status === 'pending_review';
 
-      const [
-        changelogResult,
-        itemsResult,
-        discountsResult,
-        feesResult,
-        summaryData,
-      ] = await Promise.all([
+      const [changelogResult, summaryData] = await Promise.all([
         needsChangelog
           ? supabase
               .from('order_changelog')
@@ -96,25 +90,13 @@ export function useOrderData() {
               .eq('order_id', orderIdToLoad)
               .order('created_at', { ascending: false })
           : Promise.resolve({ data: [] }),
-        supabase
-          .from('order_items')
-          .select('*, units(name)')
-          .eq('order_id', orderIdToLoad),
-        supabase
-          .from('order_discounts')
-          .select('*')
-          .eq('order_id', orderIdToLoad),
-        supabase
-          .from('order_custom_fees')
-          .select('*')
-          .eq('order_id', orderIdToLoad),
         loadOrderSummary(orderIdToLoad),
       ]);
 
       const changelog: any[] = changelogResult.data || [];
-      const orderItems = itemsResult.data || [];
-      const discounts = discountsResult.data || [];
-      const customFees = feesResult.data || [];
+      const orderItems: any[] = summaryData?.items || [];
+      const discounts: any[] = summaryData?.discounts || [];
+      const customFees: any[] = summaryData?.customFees || [];
 
       if (orderData && orderData.tax_waived) {
         orderData.tax_cents = 0;

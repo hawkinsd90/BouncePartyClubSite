@@ -36,6 +36,13 @@ export function useOrders(userId: string | undefined, userEmail: string | undefi
       const profileData = profileResult.data;
       const emailCustomers = emailResult.data;
 
+      if (profileResult.error) {
+        console.error('Error loading customer profile:', profileResult.error);
+      }
+      if (emailResult.error) {
+        console.error('Error loading customers by email:', emailResult.error);
+      }
+
       let customerIds: string[] = [];
 
       if (profileData?.contacts && (profileData.contacts as any)?.customer_id) {
@@ -49,7 +56,6 @@ export function useOrders(userId: string | undefined, userEmail: string | undefi
       customerIds = Array.from(new Set(customerIds));
 
       if (customerIds.length === 0) {
-        setLoading(false);
         return;
       }
 
