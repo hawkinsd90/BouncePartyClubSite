@@ -344,7 +344,8 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       if (taskUpdateError) throw new Error('Failed to update task status: ' + taskUpdateError.message);
 
       const workflowValue = task.type === 'drop-off' ? 'on_the_way' : 'pickup_in_progress';
-      await supabase.from('orders').update({ workflow_status: workflowValue }).eq('id', task.orderId);
+      const { error: workflowEnRouteError } = await supabase.from('orders').update({ workflow_status: workflowValue }).eq('id', task.orderId);
+      if (workflowEnRouteError) console.warn('workflow_status update failed (en route):', workflowEnRouteError.message);
 
       let successMsg: string;
       if (smsWarning && etaCalculationError) {
@@ -432,7 +433,8 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
 
       if (arrivedUpdateError) throw new Error('Failed to update task status: ' + arrivedUpdateError.message);
 
-      await supabase.from('orders').update({ workflow_status: 'arrived' }).eq('id', task.orderId);
+      const { error: workflowArrivedError } = await supabase.from('orders').update({ workflow_status: 'arrived' }).eq('id', task.orderId);
+      if (workflowArrivedError) console.warn('workflow_status update failed (arrived):', workflowArrivedError.message);
 
       showAlert(arrivedSmsWarning
         ? `Arrived saved. Warning: ${arrivedSmsWarning}.`
@@ -571,7 +573,8 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
 
       if (dropOffUpdateError) throw new Error('Failed to update task status: ' + dropOffUpdateError.message);
 
-      await supabase.from('orders').update({ workflow_status: 'setup_completed' }).eq('id', task.orderId);
+      const { error: workflowDropOffError } = await supabase.from('orders').update({ workflow_status: 'setup_completed' }).eq('id', task.orderId);
+      if (workflowDropOffError) console.warn('workflow_status update failed (setup_completed):', workflowDropOffError.message);
 
       showAlert(dropOffSmsWarning
         ? `Delivery marked complete. Warning: ${dropOffSmsWarning}.`
@@ -643,8 +646,6 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         console.warn('Pickup complete email error (non-blocking):', emailError);
       }
 
-      await supabase.from('orders').update({ workflow_status: 'pickup_in_progress' }).eq('id', task.orderId);
-
       const { error: pickupUpdateError } = await supabase
         .from('task_status')
         .update({
@@ -654,6 +655,9 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         .eq('id', taskStatusId);
 
       if (pickupUpdateError) throw new Error('Failed to update task status: ' + pickupUpdateError.message);
+
+      const { error: workflowPickupError } = await supabase.from('orders').update({ workflow_status: 'pickup_in_progress' }).eq('id', task.orderId);
+      if (workflowPickupError) console.warn('workflow_status update failed (pickup_in_progress):', workflowPickupError.message);
 
       showAlert(pickupSmsWarning
         ? `Pickup marked complete. Warning: ${pickupSmsWarning}.`
