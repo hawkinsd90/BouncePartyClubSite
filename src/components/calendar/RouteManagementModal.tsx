@@ -271,9 +271,9 @@ export function RouteManagementModal({
         showToast(`Origin fallback: using ${label}`, 'info');
       }
 
-      const beforeOrder = tasksForOptimization.map(t => t.customerName).join(', ');
+      const beforeOrder = tasksForOptimization.map(t => t.id).join(',');
       const optimizedTasks = await onOptimizeRoute(tasksForOptimization, origin);
-      const afterOrder = optimizedTasks.map(t => t.customerName).join(', ');
+      const afterOrder = optimizedTasks.map(t => t.id).join(',');
 
       setLocalTasks([...optimizedTasks]);
       checkForChanges(optimizedTasks);
