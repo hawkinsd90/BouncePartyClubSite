@@ -227,6 +227,11 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
   }
 
   async function handleEnRoute() {
+    const confirmed = await showConfirm(
+      `Mark this ${task.type === 'drop-off' ? 'delivery' : 'pickup'} as En Route for ${task.customerName}?\n\nThis will notify the customer with an ETA.`
+    );
+    if (!confirmed) return;
+
     if (!mileageLog || !mileageLog.start_mileage) {
       const confirmed = await showConfirm(
         'Starting mileage required before marking tasks as En Route.\n\nWould you like to record your starting mileage now?'
@@ -363,6 +368,11 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
   }
 
   async function handleArrived() {
+    const confirmed = await showConfirm(
+      `Mark as Arrived at ${task.customerName}'s location?\n\nThis will notify the customer that the crew has arrived.`
+    );
+    if (!confirmed) return;
+
     if (!mileageLog || !mileageLog.start_mileage) {
       showAlert('You must enter your starting mileage before marking tasks. Please use the "Start Day Mileage" button in the day view.');
       return;
@@ -505,6 +515,14 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       showAlert('You must enter your starting mileage before completing tasks. Please use the "Start Day Mileage" button in the day view.');
       return;
     }
+
+    const hasPhotos = (task.taskStatus?.deliveryImages?.length ?? 0) > 0;
+    const confirmMsg = hasPhotos
+      ? `Mark delivery as complete and send rules to ${task.customerName}?\n\nThis will send the equipment rules SMS and notify the customer.`
+      : `Mark delivery as complete and send rules to ${task.customerName}?\n\n⚠️ WARNING: No delivery photos have been taken yet.\n\nYou can still proceed, but it is strongly recommended to take proof photos first.\n\nProceed without photos?`;
+
+    const confirmed = await showConfirm(confirmMsg);
+    if (!confirmed) return;
 
     setProcessing(true);
     try {
@@ -948,6 +966,84 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
             </button>
           </div>
         </div>
+
+        {isToday && (
+          <div className="sm:hidden sticky top-[60px] bg-white border-b border-slate-200 px-4 py-3 z-10 flex-shrink-0">
+            <div className="grid grid-cols-2 gap-2">
+              {isDropOff ? (
+                <>
+                  {currentStatus !== 'completed' && (
+                    <>
+                      <button
+                        onClick={handleEnRoute}
+                        disabled={processing}
+                        className="flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm"
+                      >
+                        <Navigation className="w-4 h-4 flex-shrink-0" />
+                        En Route
+                      </button>
+                      <button
+                        onClick={handleArrived}
+                        disabled={processing}
+                        className="flex items-center justify-center gap-1.5 bg-yellow-600 hover:bg-yellow-700 disabled:bg-slate-300 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm"
+                      >
+                        <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                        Arrived
+                      </button>
+                      <button
+                        onClick={() => handleImageUpload(false)}
+                        disabled={uploadingImages}
+                        className="flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:bg-slate-300 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm"
+                      >
+                        <Camera className="w-4 h-4 flex-shrink-0" />
+                        Photos
+                      </button>
+                      <button
+                        onClick={handleDropOffComplete}
+                        disabled={processing}
+                        className="flex items-center justify-center gap-1.5 bg-slate-600 hover:bg-slate-700 disabled:bg-slate-300 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm"
+                      >
+                        <MessageCircle className="w-4 h-4 flex-shrink-0" />
+                        Leaving
+                      </button>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  {currentStatus !== 'completed' && (
+                    <>
+                      <button
+                        onClick={handleEnRoute}
+                        disabled={processing}
+                        className="flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm"
+                      >
+                        <Navigation className="w-4 h-4 flex-shrink-0" />
+                        En Route
+                      </button>
+                      <button
+                        onClick={handleArrived}
+                        disabled={processing}
+                        className="flex items-center justify-center gap-1.5 bg-yellow-600 hover:bg-yellow-700 disabled:bg-slate-300 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm"
+                      >
+                        <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                        Arrived
+                      </button>
+                      <button
+                        onClick={handlePickupComplete}
+                        disabled={processing}
+                        className="flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:bg-slate-300 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm col-span-2"
+                      >
+                        <Star className="w-4 h-4 flex-shrink-0" />
+                        Complete Pickup
+                      </button>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="p-4 sm:p-6 space-y-6">
           {!isToday && (

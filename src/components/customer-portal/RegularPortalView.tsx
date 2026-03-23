@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { FileText, CreditCard, CheckCircle, Image as ImageIcon, MapPin, Printer, Calendar, MapPin as MapPinIcon, Home, Truck } from 'lucide-react';
+import { FileText, CreditCard, CheckCircle, Image as ImageIcon, MapPin, Printer, Calendar, MapPin as MapPinIcon, Home, Truck, Navigation, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
@@ -391,6 +391,48 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                     <p className="text-sm text-amber-700 mt-1">
                       Your order is pending approval. Payment will be required once approved.
                     </p>
+                  </div>
+                )}
+
+                {order.status === 'in_progress' && order.workflow_status === 'on_the_way' && (
+                  <div className="bg-blue-50 border border-blue-300 rounded-lg p-4 flex items-start gap-3">
+                    <Navigation className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-blue-900">Crew is on the way!</p>
+                      <p className="text-sm text-blue-700 mt-1">Your equipment is en route. The crew will arrive shortly.</p>
+                    </div>
+                  </div>
+                )}
+
+                {order.status === 'in_progress' && order.workflow_status === 'arrived' && (
+                  <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4 flex items-start gap-3">
+                    <Clock className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-yellow-900">Crew has arrived</p>
+                      <p className="text-sm text-yellow-700 mt-1">The crew is at your location setting up the equipment.</p>
+                    </div>
+                  </div>
+                )}
+
+                {order.status === 'in_progress' && order.workflow_status === 'setup_completed' && (
+                  <div className="bg-green-50 border border-green-300 rounded-lg p-4 flex items-start gap-3">
+                    <Truck className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-green-900">Equipment Delivered!</p>
+                      <p className="text-sm text-green-700 mt-1">
+                        Your equipment has been set up and delivered. Enjoy your event! Check the Delivery tab for proof of delivery photos.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {order.status === 'in_progress' && order.workflow_status === 'pickup_in_progress' && (
+                  <div className="bg-orange-50 border border-orange-300 rounded-lg p-4 flex items-start gap-3">
+                    <Navigation className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-orange-900">Pickup in Progress</p>
+                      <p className="text-sm text-orange-700 mt-1">The crew is on their way to pick up the equipment. Thank you!</p>
+                    </div>
                   </div>
                 )}
 

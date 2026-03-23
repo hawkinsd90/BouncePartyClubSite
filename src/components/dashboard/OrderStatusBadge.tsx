@@ -1,4 +1,4 @@
-import { CheckCircle, Clock, AlertCircle, FileText, X } from 'lucide-react';
+import { CheckCircle, Clock, AlertCircle, FileText, X, Truck } from 'lucide-react';
 import { Order } from '../../types/orders';
 import { ORDER_STATUS, ORDER_STATUS_LABELS, OrderStatus } from '../../lib/constants/statuses';
 
@@ -23,8 +23,18 @@ interface OrderStatusBadgeProps {
   order: Order;
 }
 
+const workflowOverrides: Partial<Record<string, StatusConfig>> = {
+  on_the_way: { label: 'On The Way', className: 'bg-blue-100 text-blue-700', icon: Clock },
+  arrived: { label: 'Crew Arrived', className: 'bg-yellow-100 text-yellow-700', icon: Clock },
+  setup_completed: { label: 'Delivered', className: 'bg-teal-100 text-teal-700', icon: Truck },
+  pickup_in_progress: { label: 'Pickup In Progress', className: 'bg-orange-100 text-orange-700', icon: Clock },
+};
+
 export function OrderStatusBadge({ order }: OrderStatusBadgeProps) {
-  const config = statusConfigs[order.status as OrderStatus] || { label: order.status, className: 'bg-gray-100 text-gray-700', icon: Clock };
+  const workflowOverride = order.status === 'in_progress' && order.workflow_status
+    ? workflowOverrides[order.workflow_status]
+    : undefined;
+  const config = workflowOverride || statusConfigs[order.status as OrderStatus] || { label: order.status, className: 'bg-gray-100 text-gray-700', icon: Clock };
   const Icon = config.icon;
 
   return (
