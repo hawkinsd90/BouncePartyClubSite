@@ -106,16 +106,21 @@ Deno.serve(async (req: Request) => {
 
     // Build deduplicated, ordered list of addresses.
     // Rules:
-    //   - Skip orders with status = pending_review (unconfirmed bookings).
-    //   - One address per order_id (first occurrence in sort-order wins).
+    //   - Only include orders with a driveable status (confirmed, in_progress, completed).
+    //     cancelled, draft, pending_review, awaiting_customer_approval are all excluded —
+    //     they are either unconfirmed or never actually driven to.
+    //   - One address per order_id (first occurrence in sort-order wins), because each
+    //     order has exactly one address_id and both its drop-off and pick-up task_status
+    //     rows point to the same physical stop.
     //   - Skip rows with no usable address.
+    const DRIVEABLE_STATUSES = new Set(["confirmed", "in_progress", "completed"]);
     const seenOrderIds = new Set<string>();
     const taskAddresses: string[] = [];
 
     for (const row of (taskRows ?? [])) {
       const order = row.orders as any;
       if (!order) continue;
-      if (order.status === "pending_review") continue;
+      if (!DRIVEABLE_STATUSES.has(order.status)) continue;
 
       const orderId = row.order_id as string;
       if (seenOrderIds.has(orderId)) continue;
