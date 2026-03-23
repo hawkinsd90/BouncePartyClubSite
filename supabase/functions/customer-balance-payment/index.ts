@@ -118,7 +118,11 @@ Deno.serve(async (req: Request) => {
       const validation = await validatePaymentMethod(paymentMethodId, stripe);
 
       if (validation.valid) {
-        console.log("[customer-balance-payment] Charging card on file:", paymentMethodId);
+        // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
+        // Restore only after a true dev/staging environment and explicit safe gating are in place.
+        // Previously logged a Stripe payment method ID (pm_xxx) — sensitive payment token.
+        // console.log("[customer-balance-payment] Charging card on file:", paymentMethodId);
+        console.log("[customer-balance-payment] Charging card on file.");
 
         let paymentIntent: Stripe.PaymentIntent;
         try {
@@ -272,7 +276,11 @@ Deno.serve(async (req: Request) => {
           console.warn("[customer-balance-payment] Failed to send receipt email:", emailErr);
         }
 
-        console.log("[customer-balance-payment] COF charge succeeded:", paymentIntent.id);
+        // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
+        // Restore only after a true dev/staging environment and explicit safe gating are in place.
+        // Previously logged a Stripe PaymentIntent ID (pi_xxx) — sensitive payment token.
+        // console.log("[customer-balance-payment] COF charge succeeded:", paymentIntent.id);
+        console.log("[customer-balance-payment] COF charge succeeded.");
 
         return new Response(
           JSON.stringify({ success: true }),
@@ -372,7 +380,11 @@ async function createCheckoutSession(
     },
   });
 
-  console.log("[customer-balance-payment] Checkout session created:", session.id);
+  // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
+  // Restore only after a true dev/staging environment and explicit safe gating are in place.
+  // Previously logged a Stripe Checkout Session ID (cs_xxx) — sensitive payment token.
+  // console.log("[customer-balance-payment] Checkout session created:", session.id);
+  console.log("[customer-balance-payment] Checkout session created.");
 
   return new Response(
     JSON.stringify({ sessionId: session.id, url: session.url }),
