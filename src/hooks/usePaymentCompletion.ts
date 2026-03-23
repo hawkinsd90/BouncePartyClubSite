@@ -54,7 +54,10 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
   const [sessionTipCents, setSessionTipCents] = useState<number>(0);
 
   useEffect(() => {
-    console.log('[PAYMENT-COMPLETE] useEffect triggered with orderId:', orderId, 'sessionId:', sessionId);
+    // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
+    // Restore only after a true dev/staging environment and explicit safe gating are in place.
+    // Previously logged Stripe Checkout Session ID (cs_xxx) in browser console.
+    // console.log('[PAYMENT-COMPLETE] useEffect triggered with orderId:', orderId, 'sessionId:', sessionId);
 
     if (!orderId) {
       console.log('[PAYMENT-COMPLETE] No order ID - setting error state');
@@ -137,13 +140,16 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
       console.log('[PAYMENT-COMPLETE] Order fetch result:', order ? 'SUCCESS' : 'NULL');
 
       if (order) {
-        console.log('[PAYMENT-COMPLETE] Final order details:', {
-          id: order.id,
-          status: order.status,
-          tip_cents: order.tip_cents,
-          deposit_due_cents: order.deposit_due_cents,
-          customer_selected_payment_cents: order.customer_selected_payment_cents,
-        });
+        // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
+        // Restore only after a true dev/staging environment and explicit safe gating are in place.
+        // Previously logged order financial fields (deposit_due_cents, customer_selected_payment_cents, tip_cents) in browser console.
+        // console.log('[PAYMENT-COMPLETE] Final order details:', {
+        //   id: order.id,
+        //   status: order.status,
+        //   tip_cents: order.tip_cents,
+        //   deposit_due_cents: order.deposit_due_cents,
+        //   customer_selected_payment_cents: order.customer_selected_payment_cents,
+        // });
 
         // If webhook still hasn't processed after retries, manually update the order
         if (order.status === 'draft' && sessionId) {
@@ -165,7 +171,11 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
 
             if (savePaymentMethodResponse.ok) {
               const result = await savePaymentMethodResponse.json();
-              console.log('[PAYMENT-COMPLETE] Payment method saved:', result.paymentMethodId);
+              // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
+              // Restore only after a true dev/staging environment and explicit safe gating are in place.
+              // Previously logged a Stripe payment method ID (pm_xxx) in browser console.
+              // console.log('[PAYMENT-COMPLETE] Payment method saved:', result.paymentMethodId);
+              console.log('[PAYMENT-COMPLETE] Payment method saved:', !!result.paymentMethodId);
             } else {
               console.error('[PAYMENT-COMPLETE] Failed to save payment method:', await savePaymentMethodResponse.text());
             }
@@ -266,7 +276,11 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
       return null;
     }
 
-    console.log('[PAYMENT-COMPLETE] Order fetched successfully:', order);
+    // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
+    // Restore only after a true dev/staging environment and explicit safe gating are in place.
+    // Previously logged the full order object including customer PII (email, phone, address) and financial fields.
+    // console.log('[PAYMENT-COMPLETE] Order fetched successfully:', order);
+    console.log('[PAYMENT-COMPLETE] Order fetched successfully.');
     return order as unknown as OrderDetails;
   }
 
