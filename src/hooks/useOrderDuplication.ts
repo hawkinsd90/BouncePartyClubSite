@@ -24,7 +24,7 @@ export function useOrderDuplication() {
           )
         `)
         .eq('id', orderId)
-        .single();
+        .maybeSingle();
 
       if (orderError || !orderDataRaw) {
         console.error('[Duplicate Order] Failed to load order:', orderError);

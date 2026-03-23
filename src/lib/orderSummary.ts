@@ -10,7 +10,7 @@ async function estimateDistanceFromFee(travelFeeCents: number): Promise<number> 
     const { data: pricingData } = await supabase
       .from('pricing_rules')
       .select('base_radius_miles, per_mile_after_base_cents')
-      .single();
+      .maybeSingle();
 
     if (!pricingData) {
       console.warn('[estimateDistanceFromFee] No pricing rules found, cannot estimate');
@@ -200,7 +200,7 @@ async function calculateOriginalFees(order: any, discounts: OrderDiscount[], cus
 export async function loadOrderSummary(orderId: string): Promise<OrderSummaryData | null> {
   try {
     const [orderRes, itemsRes, discountsRes, feesRes] = await Promise.all([
-      supabase.from('orders').select('*, customers(*), addresses(*)').eq('id', orderId).single(),
+      supabase.from('orders').select('*, customers(*), addresses(*)').eq('id', orderId).maybeSingle(),
       supabase.from('order_items').select('*, units(name)').eq('order_id', orderId),
       supabase.from('order_discounts').select('*').eq('order_id', orderId),
       supabase.from('order_custom_fees').select('*').eq('order_id', orderId),
@@ -219,7 +219,7 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
         const { data: pricingData } = await supabase
           .from('pricing_rules')
           .select('base_radius_miles')
-          .single();
+          .maybeSingle();
 
         const baseRadius = parseFloat(pricingData?.base_radius_miles?.toString() || '10');
         const chargeableMiles = order.travel_fee_cents / order.travel_per_mile_cents;
