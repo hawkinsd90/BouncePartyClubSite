@@ -93,6 +93,10 @@ export function useOrderData() {
         loadOrderSummary(orderIdToLoad),
       ]);
 
+      if (!summaryData) {
+        console.error('Error loading order summary for order:', orderIdToLoad);
+      }
+
       const changelog: any[] = changelogResult.data || [];
       const orderItems: any[] = summaryData?.items || [];
       const discounts: any[] = summaryData?.discounts || [];
