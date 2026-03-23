@@ -7,6 +7,7 @@ import { TaskCard, TaskPosition } from './TaskCard';
 import { MileageModal } from './MileageModal';
 import { RouteManagementModal } from './RouteManagementModal';
 import { EquipmentChecklistModal } from './EquipmentChecklistModal';
+import type { RouteOriginOptions } from '../../lib/routeOptimization';
 
 interface DayViewModalProps {
   selectedDate: Date;
@@ -14,7 +15,7 @@ interface DayViewModalProps {
   optimizing: boolean;
   onClose: () => void;
   onTaskClick: (task: Task) => void;
-  onOptimizeRoute: (tasks: Task[]) => Promise<Task[]>;
+  onOptimizeRoute: (tasks: Task[], origin?: RouteOriginOptions) => Promise<Task[]>;
   onRefresh?: () => void;
 }
 

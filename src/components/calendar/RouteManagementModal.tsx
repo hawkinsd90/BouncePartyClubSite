@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
-import { X, Route as RouteIcon, Shuffle, ChevronUp, ChevronDown, Truck, Package, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
+import { X, Route as RouteIcon, Shuffle, ChevronUp, ChevronDown, Truck, Package, AlertTriangle, Clock, CheckCircle, Home, MapPin, Navigation } from 'lucide-react';
 import { format } from 'date-fns';
 import { Task } from '../../hooks/useCalendarTasks';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
 import { sortTasksByOrder, isTaskActiveRouteStop, isDropOffPlanningOnly } from '../../lib/calendarUtils';
 import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
+import type { RouteOriginOptions } from '../../lib/routeOptimization';
+
+export type RouteStartMode = 'home_base' | 'last_completed' | 'current_location';
 
 interface RouteManagementModalProps {
   isOpen: boolean;
@@ -14,7 +17,7 @@ interface RouteManagementModalProps {
   date: Date;
   onClose: () => void;
   onUpdate: () => void;
-  onOptimizeRoute: (tasks: Task[]) => Promise<Task[]>;
+  onOptimizeRoute: (tasks: Task[], origin?: RouteOriginOptions) => Promise<Task[]>;
   optimizing?: boolean;
 }
 
@@ -35,10 +38,11 @@ export function RouteManagementModal({
   const [initialOrder, setInitialOrder] = useState<string[]>([]);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [modalJustOpened, setModalJustOpened] = useState(false);
+  const [startMode, setStartMode] = useState<RouteStartMode>('last_completed');
+  const [resolvedOriginLabel, setResolvedOriginLabel] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen && !modalJustOpened) {
-      // First open: initialize snapshot
       setModalJustOpened(true);
 
       const filteredTasks = tasks.filter(t => {
@@ -55,8 +59,8 @@ export function RouteManagementModal({
       setInitialTasks(eligibleTasks);
       setInitialOrder(eligibleTasks.map(t => t.id));
       setHasChanges(false);
+      setResolvedOriginLabel(null);
     } else if (isOpen && modalJustOpened && !hasChanges) {
-      // Modal is open and no unsaved edits — silently refresh active list when tasks change
       const filteredTasks = tasks.filter(t => {
         if (type === 'drop-off') {
           return t.type === 'drop-off' || (t.type === 'pick-up' && t.pickupPreference === 'next_day');
@@ -72,6 +76,7 @@ export function RouteManagementModal({
       setInitialOrder(eligibleTasks.map(t => t.id));
     } else if (!isOpen && modalJustOpened) {
       setModalJustOpened(false);
+      setResolvedOriginLabel(null);
     }
   }, [isOpen, tasks, type, modalJustOpened, hasChanges]);
 
@@ -95,6 +100,11 @@ export function RouteManagementModal({
   );
   const planningOnlyDropOffs = allRouteTypeTasks.filter(t => isDropOffPlanningOnly(t));
 
+  // Derive the last completed task — last in sort order that is completed
+  const lastCompletedTask = completedTasks.length > 0
+    ? sortTasksByOrder(completedTasks).slice(-1)[0]
+    : null;
+
   function checkForChanges(newTasks: Task[]) {
     const newOrder = newTasks.map(t => t.id);
     const hasOrderChanged = JSON.stringify(newOrder) !== JSON.stringify(initialOrder);
@@ -115,6 +125,64 @@ export function RouteManagementModal({
     [reorderedTasks[index], reorderedTasks[index + 1]] = [reorderedTasks[index + 1], reorderedTasks[index]];
     setLocalTasks(reorderedTasks);
     checkForChanges(reorderedTasks);
+  }
+
+  async function resolveOrigin(): Promise<{ origin: RouteOriginOptions | undefined; label: string; fallback: boolean }> {
+    if (startMode === 'home_base') {
+      console.log('[Route Start Mode] Selected: Home Base — no override needed');
+      return { origin: undefined, label: 'Home Base', fallback: false };
+    }
+
+    if (startMode === 'last_completed') {
+      if (lastCompletedTask) {
+        const origin: RouteOriginOptions = {
+          address: lastCompletedTask.address,
+          label: `Last Completed Stop (${lastCompletedTask.customerName})`,
+        };
+        console.log(`[Route Start Mode] Selected: Last Completed Stop → "${lastCompletedTask.address}"`);
+        return { origin, label: origin.label, fallback: false };
+      }
+      console.log('[Route Start Mode] Last Completed Stop selected but none found — falling back to Home Base');
+      return { origin: undefined, label: 'Home Base (fallback: no completed stops)', fallback: true };
+    }
+
+    if (startMode === 'current_location') {
+      console.log('[Route Start Mode] Selected: Current Location — requesting browser geolocation...');
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          if (!navigator.geolocation) {
+            reject(new Error('Geolocation not supported by this browser'));
+            return;
+          }
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            timeout: 8000,
+            maximumAge: 60000,
+          });
+        });
+        const { latitude, longitude } = position.coords;
+        const coordsAddress = `${latitude},${longitude}`;
+        const origin: RouteOriginOptions = {
+          address: coordsAddress,
+          label: 'Current Location',
+        };
+        console.log(`[Route Start Mode] Current Location resolved: lat=${latitude}, lng=${longitude} → address="${coordsAddress}"`);
+        return { origin, label: 'Current Location', fallback: false };
+      } catch (geoErr: any) {
+        console.warn(`[Route Start Mode] Geolocation failed: ${geoErr.message} — checking fallback...`);
+        if (lastCompletedTask) {
+          const origin: RouteOriginOptions = {
+            address: lastCompletedTask.address,
+            label: `Last Completed Stop (${lastCompletedTask.customerName})`,
+          };
+          console.log(`[Route Start Mode] Fallback to Last Completed Stop: "${lastCompletedTask.address}"`);
+          return { origin, label: `${origin.label} (fallback: geolocation denied)`, fallback: true };
+        }
+        console.log('[Route Start Mode] No completed stops — falling back to Home Base');
+        return { origin: undefined, label: 'Home Base (fallback: geolocation denied, no completed stops)', fallback: true };
+      }
+    }
+
+    return { origin: undefined, label: 'Home Base', fallback: false };
   }
 
   async function handleOptimize() {
@@ -148,8 +216,15 @@ export function RouteManagementModal({
         }
       }
 
+      const { origin, label, fallback } = await resolveOrigin();
+      setResolvedOriginLabel(label);
+
+      if (fallback) {
+        showToast(`Origin fallback: ${label}`, 'info');
+      }
+
       const beforeOrder = localTasks.map(t => t.customerName).join(', ');
-      const optimizedTasks = await onOptimizeRoute(localTasks);
+      const optimizedTasks = await onOptimizeRoute(localTasks, origin);
       const afterOrder = optimizedTasks.map(t => t.customerName).join(', ');
 
       setLocalTasks([...optimizedTasks]);
@@ -190,6 +265,30 @@ export function RouteManagementModal({
     }
   }
 
+  const startModeOptions: { value: RouteStartMode; label: string; icon: React.ReactNode; sublabel: string; available: boolean }[] = [
+    {
+      value: 'home_base',
+      label: 'Home Base',
+      icon: <Home className="w-4 h-4" />,
+      sublabel: 'Default departure point',
+      available: true,
+    },
+    {
+      value: 'last_completed',
+      label: 'Last Completed Stop',
+      icon: <CheckCircle className="w-4 h-4" />,
+      sublabel: lastCompletedTask ? lastCompletedTask.customerName : 'No completed stops yet',
+      available: !!lastCompletedTask,
+    },
+    {
+      value: 'current_location',
+      label: 'Current Location',
+      icon: <Navigation className="w-4 h-4" />,
+      sublabel: 'Uses browser GPS',
+      available: true,
+    },
+  ];
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -228,6 +327,46 @@ export function RouteManagementModal({
                   ? 'Use the arrows to reorder stops, or use auto-optimization'
                   : 'No actionable stops for this route yet'}
               </p>
+
+              {/* Start mode selector */}
+              {localTasks.length >= 2 && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                  <p className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5" />
+                    Route Start Origin
+                  </p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {startModeOptions.map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={() => {
+                          setStartMode(opt.value);
+                          setResolvedOriginLabel(null);
+                        }}
+                        disabled={!opt.available}
+                        className={`flex flex-col items-center gap-1 p-2 rounded-lg border-2 text-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                          startMode === opt.value
+                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                        }`}
+                      >
+                        <span className={startMode === opt.value ? 'text-blue-600' : 'text-slate-400'}>
+                          {opt.icon}
+                        </span>
+                        <span className="text-xs font-semibold leading-tight">{opt.label}</span>
+                        <span className="text-[10px] text-slate-400 leading-tight truncate w-full">{opt.sublabel}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {resolvedOriginLabel && (
+                    <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
+                      <MapPin className="w-3 h-3 text-blue-400 flex-shrink-0" />
+                      Last optimized from: <span className="font-medium text-slate-700 ml-1">{resolvedOriginLabel}</span>
+                    </p>
+                  )}
+                </div>
+              )}
+
               {localTasks.length >= 2 && (
                 <button
                   onClick={handleOptimize}

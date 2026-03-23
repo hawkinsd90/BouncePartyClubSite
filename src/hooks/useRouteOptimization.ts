@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { optimizeMorningRoute, type MorningRouteStop } from '../lib/routeOptimization';
+import { optimizeMorningRoute, type MorningRouteStop, type RouteOriginOptions } from '../lib/routeOptimization';
 import { Task } from './useCalendarTasks';
 
 export function useRouteOptimization() {
   const [optimizing, setOptimizing] = useState(false);
 
-  async function optimizeRoute(tasks: Task[]): Promise<Task[]> {
+  async function optimizeRoute(tasks: Task[], originOverride?: RouteOriginOptions): Promise<Task[]> {
     setOptimizing(true);
     try {
       if (tasks.length < 2) {
@@ -29,12 +29,17 @@ export function useRouteOptimization() {
       const stopsWithCoords = routeStops.filter(s => s.lat != null && s.lng != null).length;
       console.log(`[useRouteOptimization] ${stopsWithCoords}/${routeStops.length} stops have lat/lng coords`);
 
-      const optimizedStops = await optimizeMorningRoute(routeStops);
+      if (originOverride) {
+        console.log(`[useRouteOptimization] Start mode: custom origin "${originOverride.label}" → ${originOverride.address}`);
+      } else {
+        console.log('[useRouteOptimization] Start mode: Home Base (default)');
+      }
+
+      const optimizedStops = await optimizeMorningRoute(routeStops, originOverride);
 
       console.log('[useRouteOptimization] Optimized stops order:',
         optimizedStops.map((s, i) => `${i + 1}. ${s.address}`).join('\n'));
 
-      // Map optimized stops back to tasks in the new order
       const optimizedTasks = optimizedStops.map((stop, index) => {
         const task = tasks.find(t => t.id === stop.taskId);
         if (!task) throw new Error('Task not found');

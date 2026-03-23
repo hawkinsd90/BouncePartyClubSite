@@ -521,6 +521,14 @@ async function greedyRouteConstruction(
       throw new Error(`[Route Optimization] Missing matrix index for ${bestStop.taskId} (${bestStop.address})`);
     }
 
+    if (route.length === 0) {
+      console.log(
+        `[Greedy Standard] First stop selected: "${bestStop.address}" ` +
+        `(score: ${bestCandidate.score.toFixed(2)}, ` +
+        `drive from origin: ${(bestCandidate.driveDurationSeconds / 60).toFixed(1)} min)`
+      );
+    }
+
     route.push({
       ...bestCandidate.stop,
       sortOrder: route.length + 1,
@@ -694,6 +702,11 @@ async function greedyRouteConstructionWithStart(
   const setupMinutes = firstStop.type === 'pick-up'
     ? PICKUP_MINUTES
     : (firstStop.numInflatables || 1) * SETUP_MINUTES_PER_UNIT;
+
+  console.log(
+    `[Greedy With Start] First leg from origin (matrix row 0) to "${firstStop.address}": ` +
+    `${(driveDurationSeconds / 60).toFixed(1)} min drive`
+  );
 
   route.push({
     ...firstStop,
@@ -934,7 +947,15 @@ function auditDistanceMatrix(
   }
 }
 
-export async function optimizeMorningRoute(stops: MorningRouteStop[]): Promise<OptimizedMorningStop[]> {
+export interface RouteOriginOptions {
+  address: string;
+  label: string;
+}
+
+export async function optimizeMorningRoute(
+  stops: MorningRouteStop[],
+  originOverride?: RouteOriginOptions
+): Promise<OptimizedMorningStop[]> {
   console.log(`[Route Optimization] Starting optimization for ${stops.length} stops`);
 
   if (stops.length === 0) {
@@ -974,6 +995,14 @@ export async function optimizeMorningRoute(stops: MorningRouteStop[]): Promise<O
   const homeBaseAddress = homeBase.address;
   console.log('[Route Optimization] Home base:', homeBaseAddress);
 
+  const originAddress = originOverride?.address ?? homeBaseAddress;
+  const originLabel = originOverride?.label ?? 'Home Base';
+  if (originOverride) {
+    console.log(`[Route Optimization] Origin override provided: "${originLabel}" → ${originAddress}`);
+  } else {
+    console.log(`[Route Optimization] Using default origin: Home Base → ${originAddress}`);
+  }
+
   const routeDateISO = stops[0]?.routeDateISO;
   let baseDate: Date;
   if (routeDateISO) {
@@ -1002,13 +1031,14 @@ export async function optimizeMorningRoute(stops: MorningRouteStop[]): Promise<O
     console.log('[Route Optimization] Departure time is in the past. Traffic information is only available for future and current times.');
   }
 
-  const addresses = [homeBaseAddress, ...stops.map(s => s.address)];
+  const addresses = [originAddress, ...stops.map(s => s.address)];
+  console.log(`[Route Optimization] Origin (matrix row 0): "${originLabel}" → ${originAddress}`);
   console.log('[Route Optimization] Stop addresses:', stops.map((s, i) => `${i + 1}. ${s.address}`).join('\n'));
 
   const distanceMatrix = await getDistanceMatrix(addresses, addresses, trafficDepartureTime);
 
   // Audit matrix for unreachable segments before proceeding
-  const matrixLabels = ['Home Base', ...stops.map(s => s.address)];
+  const matrixLabels = [originLabel, ...stops.map(s => s.address)];
   auditDistanceMatrix(distanceMatrix, matrixLabels);
 
   console.log('[Route Optimization] Building matrix index map...');
@@ -1059,7 +1089,7 @@ export async function optimizeMorningRoute(stops: MorningRouteStop[]): Promise<O
   console.log('[Route Optimization] Starting Enhanced Optimization Pipeline');
   console.log('[Route Optimization] ========================================');
 
-  console.log('[Route Optimization] Step 1/3: Geographic sweep ordering...');
+  console.log('[Route Optimization] Step 1/3: Geographic sweep ordering (always relative to home base)...');
   const sweepOrderedStops = sortStopsByAngle(stops, homeBase.lat, homeBase.lng);
 
   console.log('[Route Optimization] Step 2/3: Multi-start greedy construction...');
