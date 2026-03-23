@@ -468,41 +468,48 @@ async function greedyRouteConstruction(
   const scheduled = new Set<string>();
   let currentTime = new Date(departureTime);
   let currentMatrixIndex = 0;
+  let firstLegLogged = false;
 
   while (scheduled.size < stops.length) {
     let bestCandidate: Candidate | null = null;
     let bestStop: MorningRouteStop | null = null;
+    const firstLegCandidates: Array<{ address: string; driveMins: number; lateness: number; score: number; eligible: boolean }> = [];
 
     for (const stop of stops) {
       if (scheduled.has(stop.taskId)) continue;
-      if (!canSchedule(stop, scheduled, dependencies)) continue;
 
       const stopMatrixIndex = matrixIndexByTaskId.get(stop.taskId);
       if (stopMatrixIndex === undefined) {
         throw new Error(`[Route Optimization] Missing matrix index for ${stop.taskId} (${stop.address})`);
       }
 
+      const isEligible = canSchedule(stop, scheduled, dependencies);
       const driveDurationSeconds = distanceMatrix[currentMatrixIndex][stopMatrixIndex].duration;
       const arrivalTime = new Date(currentTime.getTime() + driveDurationSeconds * 1000);
       const setupMinutes = stop.type === 'pick-up'
         ? PICKUP_MINUTES
         : (stop.numInflatables || 1) * SETUP_MINUTES_PER_UNIT;
       const lateness = calculateLateness(arrivalTime, stop, setupMinutes);
-
       const baseDriveDurationSeconds = distanceMatrix[0][stopMatrixIndex].duration;
       const isHighPriority =
         isEarlyEvent(stop.eventStartTime) ||
         stop.type === 'pick-up' ||
         (stop.feedsOrderIds && stop.feedsOrderIds.length > 0);
 
-      const candidate: Candidate = {
-        stop,
-        driveDurationSeconds,
-        arrivalTime,
-        lateness,
-        score: 0
-      };
+      const candidate: Candidate = { stop, driveDurationSeconds, arrivalTime, lateness, score: 0 };
       candidate.score = calculateScore(candidate, baseDriveDurationSeconds, isHighPriority || false);
+
+      if (!firstLegLogged) {
+        firstLegCandidates.push({
+          address: stop.address,
+          driveMins: isFinite(driveDurationSeconds) ? driveDurationSeconds / 60 : Infinity,
+          lateness,
+          score: candidate.score,
+          eligible: isEligible,
+        });
+      }
+
+      if (!isEligible) continue;
 
       if (bestCandidate === null || candidate.score < bestCandidate.score) {
         bestCandidate = candidate;
@@ -521,12 +528,19 @@ async function greedyRouteConstruction(
       throw new Error(`[Route Optimization] Missing matrix index for ${bestStop.taskId} (${bestStop.address})`);
     }
 
-    if (route.length === 0) {
-      console.log(
-        `[Greedy Standard] First stop selected: "${bestStop.address}" ` +
-        `(score: ${bestCandidate.score.toFixed(2)}, ` +
-        `drive from origin: ${(bestCandidate.driveDurationSeconds / 60).toFixed(1)} min)`
-      );
+    if (!firstLegLogged) {
+      firstLegLogged = true;
+      const sorted = [...firstLegCandidates].sort((a, b) => a.score - b.score);
+      console.log('[Greedy Standard] First-leg candidate comparison (origin = matrix row 0):');
+      sorted.forEach((c, i) => {
+        const marker = c.address === bestStop!.address ? ' <-- WINNER' : '';
+        const eligStr = c.eligible ? '' : ' [SKIPPED: dependency]';
+        console.log(
+          `  ${i + 1}. "${c.address}"${eligStr}${marker}\n` +
+          `     drive: ${isFinite(c.driveMins) ? c.driveMins.toFixed(1) : 'Inf'} min, ` +
+          `lateness: ${c.lateness.toFixed(0)} min, score: ${c.score.toFixed(2)}`
+        );
+      });
     }
 
     route.push({

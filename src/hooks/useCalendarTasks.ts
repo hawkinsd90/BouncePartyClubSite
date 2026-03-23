@@ -40,6 +40,7 @@ export interface Task {
     id: string;
     status: string;
     sortOrder: number | null;
+    completedTime: string | null;
     deliveryImages?: string[];
     damageImages?: string[];
     etaSent: boolean;
@@ -174,7 +175,7 @@ export function useCalendarTasks(currentMonth: Date) {
       // as 'projected' even when the drop-off is actually completed.
       const { data: taskStatuses } = await supabase
         .from('task_status')
-        .select('*')
+        .select('id, order_id, task_type, task_date, status, sort_order, completed_time, delivery_images, damage_images, eta_sent')
         .gte('task_date', format(queryStart, 'yyyy-MM-dd'))
         .lte('task_date', format(monthEnd, 'yyyy-MM-dd'));
 
@@ -251,6 +252,7 @@ export function useCalendarTasks(currentMonth: Date) {
             id: dropOffStatus.id,
             status: dropOffStatus.status,
             sortOrder: dropOffStatus.sort_order,
+            completedTime: dropOffStatus.completed_time ?? null,
             deliveryImages: (dropOffStatus.delivery_images as any) || [],
             damageImages: (dropOffStatus.damage_images as any) || [],
             etaSent: dropOffStatus.eta_sent || false,
@@ -303,6 +305,7 @@ export function useCalendarTasks(currentMonth: Date) {
             id: pickUpStatus.id,
             status: pickUpStatus.status,
             sortOrder: pickUpStatus.sort_order,
+            completedTime: pickUpStatus.completed_time ?? null,
             deliveryImages: (pickUpStatus.delivery_images as any) || [],
             damageImages: (pickUpStatus.damage_images as any) || [],
             etaSent: pickUpStatus.eta_sent || false,
