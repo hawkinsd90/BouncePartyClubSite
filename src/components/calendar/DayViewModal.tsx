@@ -406,7 +406,6 @@ export function DayViewModal({
         isOpen={showMileageModal}
         date={selectedDate}
         type={mileageType}
-        tasks={tasks}
         onClose={() => setShowMileageModal(false)}
         onSuccess={() => setShowMileageModal(false)}
       />

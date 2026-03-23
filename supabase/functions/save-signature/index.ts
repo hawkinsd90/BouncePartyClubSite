@@ -311,7 +311,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({
         success: true,
         signatureId: signatureRecord.id,
-        message: "Signature saved successfully. PDF generation in progress.",
+        message: "Signature saved successfully. A signed copy will be emailed to you shortly.",
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

@@ -2,18 +2,16 @@ import { useState, useEffect } from 'react';
 import { X, Car, Zap } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
-import { Task } from '../../hooks/useCalendarTasks';
 
 interface MileageModalProps {
   isOpen: boolean;
   date: Date;
   type: 'start' | 'end';
-  tasks?: Task[];
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export function MileageModal({ isOpen, date, type, tasks = [], onClose, onSuccess }: MileageModalProps) {
+export function MileageModal({ isOpen, date, type, onClose, onSuccess }: MileageModalProps) {
   const [mileage, setMileage] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -211,7 +209,7 @@ export function MileageModal({ isOpen, date, type, tasks = [], onClose, onSucces
 
           {canAutoCalculate && (
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600">
-              <strong>Auto-Calculate</strong> computes mileage from base to each task stop in route order, then back to base. Requires Google Maps.
+              <strong>Auto-Calculate</strong> computes total mileage from home base to each task stop in saved route order, then back to base.
             </div>
           )}
 
