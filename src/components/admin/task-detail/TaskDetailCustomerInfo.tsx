@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { formatCurrency } from '../../../lib/pricing';
-import { Task } from './TaskDetailTypes';
+import { Task } from '../../../hooks/useCalendarTasks';
 
 interface Props {
   task: Task;
@@ -43,7 +43,7 @@ export function TaskDetailCustomerInfo({ task, onRefund, refunding }: Props) {
         {succeededPayments.length > 0 && (
           <div className="mt-3 pt-3 border-t border-slate-200">
             <div className="flex items-center justify-between mb-2">
-              <div className="font-semibold text-slate-700">💳 Payments Received:</div>
+              <div className="font-semibold text-slate-700">Payments Received:</div>
               <button
                 onClick={() => setShowRefundForm(!showRefundForm)}
                 className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"

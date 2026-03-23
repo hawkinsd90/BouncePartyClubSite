@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { DollarSign, FileCheck, Ban } from 'lucide-react';
 import { formatCurrency } from '../../../lib/pricing';
-import { Task } from './TaskDetailTypes';
+import { Task } from '../../../hooks/useCalendarTasks';
 
 interface Props {
   task: Task;

@@ -5,7 +5,7 @@ import { X, ChevronUp, ChevronDown, AlertTriangle, RefreshCw, ExternalLink, Arro
 import { formatCurrency } from '../../lib/pricing';
 import { showAlert, showConfirm } from '../common/CustomModal';
 import { getCurrentLocation, calculateETA } from '../../lib/googleMaps';
-import { Task } from './task-detail/TaskDetailTypes';
+import { Task } from '../../hooks/useCalendarTasks';
 import { TaskDetailCustomerInfo } from './task-detail/TaskDetailCustomerInfo';
 import { TaskDetailOrderManagement } from './task-detail/TaskDetailOrderManagement';
 import { TaskDetailActions } from './task-detail/TaskDetailActions';
@@ -443,7 +443,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <h2 className="text-lg sm:text-2xl font-bold text-slate-900">
-                  {isDropOff ? '🚚 Delivery' : '📦 Pickup'}
+                  {isDropOff ? 'Delivery' : 'Pickup'}
                 </h2>
                 <span className={`text-xs px-2 py-1 rounded-full font-semibold ${statusColor}`}>
                   {currentStatus.toUpperCase()}
