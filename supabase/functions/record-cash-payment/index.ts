@@ -1,18 +1,18 @@
 /**
  * RECORD CASH PAYMENT - Supabase Edge Function
  *
- * Records an admin-entered cash payment for an order.
- * Provides full parity with card payment bookkeeping:
- *   - Inserts payment row (payment_method = 'cash')
- *   - Accumulates balance_paid_cents or sets deposit_paid_cents on orders
- *   - Recalculates balance_due_cents
- *   - Accumulates tip_cents if provided
- *   - Writes order_changelog audit entry
- *   - Writes transaction_receipts via logTransaction
- *   - Sends admin notification via logTransaction
- *   - Sends customer HTML receipt email
+ * Admin-only. Records a cash payment for an order via a single atomic DB transaction.
  *
- * Auth: requires admin JWT (verify_jwt = true, called with session access_token)
+ * Authorization:
+ *   Validates the bearer JWT and confirms the caller has role master/admin/crew.
+ *
+ * Atomicity:
+ *   All critical accounting writes (payments insert, orders update, order_changelog)
+ *   are executed inside a single Postgres transaction via the record_cash_payment RPC.
+ *   If any write fails, the entire transaction rolls back — no partial-write inconsistency.
+ *
+ * After the atomic RPC succeeds, non-critical side effects (transaction_receipts,
+ * admin notification email, customer receipt email) are executed as best-effort.
  */
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -26,11 +26,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-interface CashPaymentRequest {
-  orderId: string;
-  amountCents: number;
-  tipCents?: number;
-}
+const ALLOWED_ROLES = new Set(["master", "admin", "crew"]);
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -38,11 +34,54 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const body: CashPaymentRequest = await req.json();
-    const { orderId } = body;
+    // ── 1. Validate caller is an authenticated admin/staff user ──────────────
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const callerToken = authHeader.replace(/^Bearer\s+/i, "").trim();
+
+    if (!callerToken) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: missing bearer token." }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Service-role client for privileged DB operations
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
+    // Resolve the calling user from the JWT
+    const { data: { user: callerUser }, error: userError } = await supabaseAdmin.auth.getUser(callerToken);
+
+    if (userError || !callerUser) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: invalid or expired token." }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Check the caller's role in user_roles
+    const { data: roleRow } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", callerUser.id)
+      .maybeSingle();
+
+    const callerRole = roleRow?.role?.toLowerCase() ?? "";
+
+    if (!ALLOWED_ROLES.has(callerRole)) {
+      return new Response(
+        JSON.stringify({ error: "Forbidden: admin or crew role required." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── 2. Parse and validate request body ──────────────────────────────────
+    const body = await req.json();
+    const orderId: string = body.orderId ?? "";
     const amountCents = Math.max(0, Math.round(Number(body.amountCents) || 0));
     const tipCents = Math.max(0, Math.round(Number(body.tipCents) || 0));
-    const totalCents = amountCents + tipCents;
 
     if (!orderId || amountCents <= 0) {
       return new Response(
@@ -51,166 +90,74 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    // ── 3. Execute all critical accounting writes atomically via DB RPC ─────
+    //   The RPC: locks the order row, validates amount vs balance, inserts
+    //   payment, updates orders fields, and inserts order_changelog.
+    //   If anything fails inside the RPC, Postgres rolls the whole thing back.
+    const { data: rpcResult, error: rpcError } = await supabaseAdmin.rpc(
+      "record_cash_payment",
+      {
+        p_order_id:       orderId,
+        p_amount_cents:   amountCents,
+        p_tip_cents:      tipCents,
+        p_acting_user_id: callerUser.id,
+      }
     );
 
-    // Load order with all pricing fields needed for balance recalculation
-    const { data: order, error: orderError } = await supabaseClient
-      .from("orders")
-      .select(`
-        id, status, customer_id,
-        subtotal_cents, travel_fee_cents, surface_fee_cents,
-        same_day_pickup_fee_cents, generator_fee_cents, tax_cents,
-        deposit_paid_cents, balance_paid_cents, balance_due_cents,
-        tip_cents, event_date,
-        customers(first_name, last_name, email),
-        order_custom_fees(amount_cents),
-        order_discounts(amount_cents)
-      `)
-      .eq("id", orderId)
-      .single();
-
-    if (orderError || !order) {
+    if (rpcError) {
+      console.error("[record-cash-payment] RPC failed:", rpcError);
+      const msg = rpcError.message ?? "Failed to record payment";
+      const isValidation = msg.includes("exceeds effective balance") ||
+                           msg.includes("Order not found") ||
+                           msg.includes("Cannot record payment");
       return new Response(
-        JSON.stringify({ error: "Order not found." }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: msg }),
+        {
+          status: isValidation ? 422 : 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
 
-    // Recalculate order total to accurately set balance_due_cents
-    const customFeesCents = (order.order_custom_fees as any[] || [])
-      .reduce((sum: number, f: any) => sum + (f.amount_cents || 0), 0);
-    const discountCents = (order.order_discounts as any[] || [])
-      .reduce((sum: number, d: any) => sum + (d.amount_cents || 0), 0);
-
-    const orderTotal =
-      (order.subtotal_cents || 0) +
-      (order.travel_fee_cents || 0) +
-      (order.surface_fee_cents || 0) +
-      (order.same_day_pickup_fee_cents || 0) +
-      (order.generator_fee_cents || 0) +
-      (order.tax_cents || 0) +
-      customFeesCents -
-      discountCents;
-
-    // Determine payment type: if no deposit has been paid yet treat as deposit,
-    // otherwise treat as balance payment (accumulates balance_paid_cents)
-    const isDeposit = (order.deposit_paid_cents || 0) === 0;
-    const paymentType: "deposit" | "balance" = isDeposit ? "deposit" : "balance";
-
-    // Calculate updated accounting fields
-    const existingBalancePaid = order.balance_paid_cents || 0;
-    const existingDepositPaid = order.deposit_paid_cents || 0;
-    const existingTip = order.tip_cents || 0;
-
-    const newDepositPaid = isDeposit
-      ? existingDepositPaid + amountCents
-      : existingDepositPaid;
-    const newBalancePaid = !isDeposit
-      ? existingBalancePaid + amountCents
-      : existingBalancePaid;
-
-    const totalPaidTowardBalance = newDepositPaid + newBalancePaid;
-    const newBalanceDue = Math.max(0, orderTotal - totalPaidTowardBalance);
-    const newTip = tipCents > 0 ? existingTip + tipCents : existingTip;
-
-    // Determine if order should advance to confirmed
-    // Only auto-confirm if currently awaiting_customer_approval or pending_review
-    const confirmableStatuses = ["awaiting_customer_approval", "pending_review"];
-    const shouldConfirm = confirmableStatuses.includes(order.status);
-
-    // Build orders update payload
-    const ordersUpdate: Record<string, any> = {
-      balance_due_cents: newBalanceDue,
-      ...(isDeposit ? { deposit_paid_cents: newDepositPaid } : { balance_paid_cents: newBalancePaid }),
-      ...(tipCents > 0 ? { tip_cents: newTip } : {}),
-      ...(shouldConfirm ? { status: "confirmed" } : {}),
+    const result = rpcResult as {
+      payment_id:    string;
+      payment_type:  "deposit" | "balance";
+      new_balance_due: number;
+      status_changed:  string | null;
+      customer_id:   string;
+      event_date:    string | null;
+      total_cents:   number;
+      amount_cents:  number;
+      tip_cents:     number;
     };
 
-    const { error: updateError } = await supabaseClient
-      .from("orders")
-      .update(ordersUpdate)
-      .eq("id", orderId);
+    const {
+      payment_id,
+      payment_type,
+      new_balance_due,
+      status_changed,
+      customer_id,
+      event_date,
+    } = result;
 
-    if (updateError) {
-      console.error("[record-cash-payment] Order update failed:", updateError);
-      return new Response(
-        JSON.stringify({ error: "Failed to update order accounting fields: " + updateError.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    console.log("[record-cash-payment] RPC succeeded:", {
+      orderId, payment_id, payment_type, new_balance_due, caller: callerUser.id,
+    });
 
-    // Write order_changelog audit entry (non-fatal)
-    try {
-      const changelogEntries: any[] = [];
-      if (shouldConfirm) {
-        changelogEntries.push({
-          order_id: orderId,
-          user_id: null,
-          change_type: "cash_payment",
-          field_changed: "status",
-          old_value: order.status,
-          new_value: "confirmed",
-        });
-      }
-      changelogEntries.push({
-        order_id: orderId,
-        user_id: null,
-        change_type: "cash_payment",
-        field_changed: "balance_due_cents",
-        old_value: String(order.balance_due_cents || 0),
-        new_value: String(newBalanceDue),
-      });
-      await supabaseClient.from("order_changelog").insert(changelogEntries);
-    } catch (changelogErr) {
-      console.error("[record-cash-payment] Changelog insert failed (non-fatal):", changelogErr);
-    }
+    // ── 4. Non-critical side effects (best-effort, non-atomic) ──────────────
 
-    // Insert payment row
-    const { data: paymentRecord, error: paymentError } = await supabaseClient
-      .from("payments")
-      .insert({
-        order_id: orderId,
-        stripe_payment_intent_id: null,
-        stripe_charge_id: null,
-        amount_cents: totalCents,
-        type: paymentType,
-        tip_cents: tipCents,
-        status: "succeeded",
-        paid_at: new Date().toISOString(),
-        payment_method: "cash",
-        payment_brand: null,
-        payment_last4: null,
-        stripe_fee_amount: 0,
-        stripe_net_amount: totalCents,
-        currency: "usd",
-      })
-      .select("id")
-      .maybeSingle();
-
-    if (paymentError) {
-      console.error("[record-cash-payment] Payment insert failed:", paymentError);
-      return new Response(
-        JSON.stringify({ error: "Order updated but payment row failed: " + paymentError.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Log transaction receipt + trigger admin notification (non-fatal)
+    // 4a. Log transaction receipt + trigger admin notification email
     let receiptNumber: string | null = null;
-    if (paymentRecord && order.customer_id) {
+    if (payment_id && customer_id) {
       try {
-        const notesArr: string[] = [];
+        const notesArr: string[] = ["Cash payment recorded by admin"];
         if (tipCents > 0) notesArr.push(`includes tip $${(tipCents / 100).toFixed(2)}`);
-        notesArr.push("Cash payment recorded by admin");
-        receiptNumber = await logTransaction(supabaseClient, {
-          transactionType: paymentType,
+        receiptNumber = await logTransaction(supabaseAdmin, {
+          transactionType: payment_type,
           orderId,
-          customerId: order.customer_id,
-          paymentId: paymentRecord.id,
-          amountCents: totalCents,
+          customerId: customer_id,
+          paymentId: payment_id,
+          amountCents: amountCents + tipCents,
           paymentMethod: "cash",
           paymentMethodBrand: null,
           stripeChargeId: null,
@@ -222,26 +169,32 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Send customer HTML receipt email (non-fatal)
+    // 4b. Send customer HTML receipt email
     try {
-      const customer = Array.isArray(order.customers) ? order.customers[0] : order.customers;
-      if (customer?.email) {
-        const contactName = customer.first_name
-          ? `${customer.first_name} ${customer.last_name || ""}`.trim()
+      const { data: customerRow } = await supabaseAdmin
+        .from("customers")
+        .select("first_name, last_name, email")
+        .eq("id", customer_id)
+        .maybeSingle();
+
+      if (customerRow?.email) {
+        const contactName = customerRow.first_name
+          ? `${customerRow.first_name} ${customerRow.last_name ?? ""}`.trim()
           : "Customer";
-        await supabaseClient.functions.invoke("send-email", {
+
+        await supabaseAdmin.functions.invoke("send-email", {
           body: {
-            to: customer.email,
+            to: customerRow.email,
             subject: `Payment Received - Order #${formatOrderId(orderId)}`,
             html: buildCashReceiptEmail({
               contactName,
               orderId,
               amountCents,
               tipCents,
-              totalCents,
-              paymentType,
-              newBalanceDue,
-              eventDate: order.event_date,
+              totalCents: amountCents + tipCents,
+              paymentType: payment_type,
+              newBalanceDue: new_balance_due,
+              eventDate: event_date,
             }),
           },
         });
@@ -250,15 +203,13 @@ Deno.serve(async (req: Request) => {
       console.error("[record-cash-payment] Customer email failed (non-fatal):", emailErr);
     }
 
-    console.log("[record-cash-payment] Completed:", { orderId, totalCents, paymentType, receiptNumber });
-
     return new Response(
       JSON.stringify({
         success: true,
-        paymentType,
-        newBalanceDue,
+        paymentType: payment_type,
+        newBalanceDue: new_balance_due,
         receiptNumber,
-        statusChanged: shouldConfirm ? "confirmed" : null,
+        statusChanged: status_changed ?? null,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
@@ -286,7 +237,6 @@ function buildCashReceiptEmail(opts: {
   const { contactName, orderId, amountCents, tipCents, totalCents, paymentType, newBalanceDue, eventDate } = opts;
   const orderNum = formatOrderId(orderId);
   const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
-
   const paymentLabel = paymentType === "deposit" ? "Deposit Payment" : "Balance Payment";
 
   const eventLine = eventDate
