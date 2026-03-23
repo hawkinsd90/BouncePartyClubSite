@@ -359,20 +359,14 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     if (!confirmed) return;
     setRecordingCash(true);
     try {
-      const { error: payErr } = await supabase.from('payments').insert({
-        order_id: task.orderId, stripe_payment_intent_id: null, stripe_charge_id: null,
-        amount_cents: amountCents, tip_cents: 0, status: 'succeeded', payment_method: 'cash', error_message: null,
+      const { data: { session } } = await supabase.auth.getSession();
+      const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-cash-payment`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: task.orderId, amountCents }),
       });
-      if (payErr) throw payErr;
-      const { data: ord } = await supabase.from('orders').select('*, customers(*)').eq('id', task.orderId).single();
-      if (ord && (ord.customers as any)?.email) {
-        try {
-          await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`, {
-            method: 'POST', headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to: (ord.customers as any).email, subject: `Payment Received - Order #${task.orderNumber}`, text: `Thank you for your payment!\n\nWe have received your cash payment of ${formatCurrency(amountCents)} for order #${task.orderNumber}.\n\nThank you for choosing Bounce Party Club!` }),
-          });
-        } catch (e: any) { console.warn('Cash receipt email failed (non-blocking):', e); }
-      }
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Failed to record payment');
       showAlert(`Cash payment of ${formatCurrency(amountCents)} recorded successfully!`);
       refresh();
     } catch (e: any) { console.error('Cash payment error:', e); showAlert('Failed to record payment: ' + e.message); }
