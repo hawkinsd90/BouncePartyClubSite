@@ -23,7 +23,8 @@ export async function getAdminSetting(key: string, useCache = true): Promise<str
     .maybeSingle();
 
   if (error) {
-    console.error(`Error fetching admin setting "${key}":`, error);
+    // BPC-SECURITY-HARDENING: key name removed from log — it can reveal secret setting names in browser console.
+    console.error('Error fetching admin setting:', error);
     return null;
   }
 
