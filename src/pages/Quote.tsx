@@ -12,6 +12,7 @@ import { useDataFetch } from '../hooks/useDataFetch';
 import { supabase } from '../lib/supabase';
 import { validateQuote } from '../lib/quoteValidation';
 import type { PricingRules } from '../lib/pricing';
+import { trackEvent } from '../lib/siteEvents';
 import { CartSection } from '../components/quote/CartSection';
 import { AddressSection } from '../components/quote/AddressSection';
 import { EventDetailsSection } from '../components/quote/EventDetailsSection';
@@ -52,6 +53,10 @@ export function Quote() {
   const addressRef = useRef<HTMLDivElement>(null);
   const eventRef = useRef<HTMLDivElement>(null);
   const setupRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    trackEvent('quote_started');
+  }, []);
 
   const { cart, updateCartItem, removeFromCart, clearCart, checkCartAvailability } = useQuoteCart();
   const { formData, setFormData, updateFormData, addressInput, setAddressInput, saveFormData, clearForm } =
@@ -317,6 +322,7 @@ export function Quote() {
 
     saveFormData();
     savePriceBreakdown();
+    trackEvent('quote_submitted');
     navigate('/checkout');
   };
 

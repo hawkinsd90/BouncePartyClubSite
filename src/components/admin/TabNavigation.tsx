@@ -2,6 +2,9 @@ export type AdminTab =
   | 'overview'
   | 'pending'
   | 'calendar'
+  | 'analytics'
+  | 'site_activity'
+  | 'google_calendar'
   | 'inventory'
   | 'orders'
   | 'contacts'
@@ -33,6 +36,9 @@ export function TabNavigation({ activeTab, onTabChange, pendingCount = 0 }: TabN
     { id: 'overview', label: 'Overview' },
     { id: 'pending', label: 'Pending Review', badge: pendingCount, color: 'amber' },
     { id: 'calendar', label: 'Calendar' },
+    { id: 'analytics', label: 'Analytics' },
+    { id: 'site_activity', label: 'Site Activity' },
+    { id: 'google_calendar', label: 'Google Calendar' },
     { id: 'inventory', label: 'Inventory' },
     { id: 'orders', label: 'Orders' },
     { id: 'contacts', label: 'Contacts' },

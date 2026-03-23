@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../lib/pricing';
 import { RentalTerms } from '../components/waiver/RentalTerms';
@@ -15,12 +15,17 @@ import { TipSection } from '../components/checkout/TipSection';
 import { ConsentSection } from '../components/checkout/ConsentSection';
 import { CheckoutSummary } from '../components/checkout/CheckoutSummary';
 import { createLogger } from '../lib/logger';
+import { trackEvent } from '../lib/siteEvents';
 
 const log = createLogger('Checkout');
 
 export function Checkout() {
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  useEffect(() => {
+    trackEvent('checkout_started');
+  }, []);
 
   const {
     quoteData,

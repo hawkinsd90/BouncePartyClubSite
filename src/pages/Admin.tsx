@@ -19,6 +19,9 @@ import { AddressCoordinateBackfill } from '../components/admin/AddressCoordinate
 import { InventorySection } from '../components/admin/InventorySection';
 import { PricingSection } from '../components/admin/PricingSection';
 import { PerformanceAnalytics } from '../components/admin/PerformanceAnalytics';
+import { BusinessAnalytics } from '../components/admin/BusinessAnalytics';
+import { SiteAnalytics } from '../components/admin/SiteAnalytics';
+import { GoogleCalendarSettings } from '../components/admin/GoogleCalendarSettings';
 import { NotificationFailuresAlert } from '../components/admin/NotificationFailuresAlert';
 import { AdminFloatingOrderHeader } from '../components/admin/AdminFloatingOrderHeader';
 import { TabNavigation, type AdminTab } from '../components/admin/TabNavigation';
@@ -289,6 +292,9 @@ function AdminDashboard() {
           </div>
 
           <PerformanceAnalytics />
+          <div className="mt-6">
+            <BusinessAnalytics />
+          </div>
         </div>
       )}
 
@@ -343,6 +349,24 @@ function AdminDashboard() {
       {activeTab === 'calendar' && (
         <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100">
           <AdminCalendar />
+        </div>
+      )}
+
+      {activeTab === 'analytics' && (
+        <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100">
+          <BusinessAnalytics />
+        </div>
+      )}
+
+      {activeTab === 'site_activity' && (
+        <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100">
+          <SiteAnalytics />
+        </div>
+      )}
+
+      {activeTab === 'google_calendar' && (
+        <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100">
+          <GoogleCalendarSettings />
         </div>
       )}
 

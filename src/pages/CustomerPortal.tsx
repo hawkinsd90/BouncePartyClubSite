@@ -11,11 +11,16 @@ import { RegularPortalView } from '../components/customer-portal/RegularPortalVi
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { approveOrder } from '../lib/orderApprovalService';
 import { showToast } from '../lib/notifications';
+import { trackEvent } from '../lib/siteEvents';
 
 export function CustomerPortal() {
   const { orderId, token } = useParams();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    trackEvent('customer_portal_viewed', { orderId: orderId || undefined });
+  }, [orderId]);
 
   const isInvoiceLink = location.pathname.startsWith('/invoice/');
   const invoiceToken = isInvoiceLink ? token : null;

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FileCheck, AlertCircle, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { trackEvent } from '../lib/siteEvents';
 import SignaturePad from '../components/waiver/SignaturePad';
 import WaiverViewer from '../components/waiver/WaiverViewer';
 import {
@@ -67,6 +68,7 @@ export default function Sign() {
   const [sameAsEventAddress, setSameAsEventAddress] = useState(false);
 
   useEffect(() => {
+    if (orderId) trackEvent('waiver_link_opened', { orderId });
     loadOrder();
   }, [orderId]);
 

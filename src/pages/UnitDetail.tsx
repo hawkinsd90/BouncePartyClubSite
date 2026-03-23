@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { SafeStorage } from '../lib/safeStorage';
+import { trackEvent } from '../lib/siteEvents';
 import { notifyWarning } from '../lib/notifications';
 import {
   Users,
@@ -74,6 +75,7 @@ export function UnitDetail() {
 
       const loadedUnit = { ...unitData, media: (mediaData || []) as any } as any;
       setUnit(loadedUnit);
+      trackEvent('unit_view', { unitId: unitData.id, metadata: { name: unitData.name, slug: unitData.slug } });
       // Auto-select water mode for water slide units
       if ((loadedUnit.types || []).includes('Water Slide') && !(loadedUnit.types || []).includes('Combo')) {
         setWetOrDry('water');

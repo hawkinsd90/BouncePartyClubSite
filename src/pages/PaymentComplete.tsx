@@ -1,8 +1,10 @@
+import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { usePaymentCompletion } from '../hooks/usePaymentCompletion';
 import { PaymentLoadingState } from '../components/payment/PaymentLoadingState';
 import { PaymentErrorState } from '../components/payment/PaymentErrorState';
 import { PaymentSuccessState } from '../components/payment/PaymentSuccessState';
+import { trackEvent } from '../lib/siteEvents';
 
 export function PaymentComplete() {
   const [searchParams] = useSearchParams();
@@ -15,6 +17,12 @@ export function PaymentComplete() {
   // console.log('[PAYMENT-COMPLETE-PAGE] Rendering with orderId:', orderId, 'sessionId:', sessionId);
 
   const { status, error, orderDetails, isAdminInvoice, sessionTipCents } = usePaymentCompletion(orderId, sessionId);
+
+  useEffect(() => {
+    if (status === 'success' && orderId) {
+      trackEvent('checkout_completed', { orderId });
+    }
+  }, [status, orderId]);
 
   // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
   // Restore only after a true dev/staging environment and explicit safe gating are in place.
