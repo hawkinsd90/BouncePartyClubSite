@@ -252,7 +252,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     try {
       const taskStatusId = await ensureTaskStatus();
       const pickupTime = task.pickupPreference === 'same_day' ? `this evening (${task.eventEndTime || 'after your event'})` : 'tomorrow morning';
-      const msg = `Equipment has been delivered! You are now responsible for the equipment until ${pickupTime}.\n\n⚠️ IMPORTANT RULES:\n• NO SHOES on the inflatable\n• NO FOOD or DRINKS\n• NO SHARP OBJECTS\n• Adult supervision required at all times\n\nEnjoy your event! 🎉`;
+      const msg = `Equipment has been delivered! You are now responsible for the equipment until ${pickupTime}.\n\n⚠️ IMPORTANT RULES:\n• NO SHOES on the inflatable\n• NO FOOD or DRINKS\n• NO SHARP OBJECTS\n• NO HANGING OR CLIMBING ON THE NETS\n• Adult supervision required at all times\n\nEnjoy your event! 🎉`;
 
       let smsWarn: string | null = null;
       try {

@@ -327,7 +327,9 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
               </div>
             </div>
 
-            <div className="flex gap-2 mb-6 border-b border-slate-200 overflow-x-auto">
+            <div className="relative mb-6">
+              <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent z-10" />
+            <div className="flex gap-2 border-b border-slate-200 overflow-x-auto scrollbar-hide">
               <button
                 onClick={() => setActiveTab('details')}
                 className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
@@ -399,6 +401,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                 <Truck className="w-4 h-4" />
                 Delivery
               </button>
+            </div>
             </div>
 
             {activeTab === 'details' && (

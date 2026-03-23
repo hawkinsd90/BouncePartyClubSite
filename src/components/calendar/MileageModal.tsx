@@ -1,21 +1,27 @@
 import { useState, useEffect } from 'react';
-import { X, Car } from 'lucide-react';
+import { X, Car, Zap } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
+import { Task } from '../../hooks/useCalendarTasks';
+import { loadGoogleMapsAPI } from '../../lib/googleMaps';
+import { getHomeBaseAddress } from '../../lib/adminSettingsCache';
+import { sortTasksByOrder, isTaskActiveRouteStop } from '../../lib/calendarUtils';
 
 interface MileageModalProps {
   isOpen: boolean;
   date: Date;
   type: 'start' | 'end';
+  tasks?: Task[];
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export function MileageModal({ isOpen, date, type, onClose, onSuccess }: MileageModalProps) {
+export function MileageModal({ isOpen, date, type, tasks = [], onClose, onSuccess }: MileageModalProps) {
   const [mileage, setMileage] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [existingLog, setExistingLog] = useState<any>(null);
+  const [calculating, setCalculating] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -49,6 +55,74 @@ export function MileageModal({ isOpen, date, type, onClose, onSuccess }: Mileage
       }
     } catch (error) {
       console.error('Error loading mileage log:', error);
+    }
+  }
+
+  async function handleAutoCalculate() {
+    if (!existingLog?.start_mileage) {
+      showToast('Start of day mileage must be recorded before auto-calculating', 'error');
+      return;
+    }
+
+    const routeTasks = sortTasksByOrder(tasks.filter(t => isTaskActiveRouteStop(t) || t.taskStatus?.status === 'completed'));
+    const taskAddresses = routeTasks
+      .filter(t => t.address && t.address.trim())
+      .map(t => t.address.trim());
+
+    if (taskAddresses.length === 0) {
+      showToast('No task addresses found for today\'s route', 'error');
+      return;
+    }
+
+    setCalculating(true);
+    try {
+      await loadGoogleMapsAPI();
+
+      if (!window.google?.maps) {
+        throw new Error('Google Maps is not available');
+      }
+
+      const homeBase = await getHomeBaseAddress();
+      const allAddresses = [homeBase.address, ...taskAddresses, homeBase.address];
+
+      let totalMeters = 0;
+      const service = new google.maps.DistanceMatrixService();
+
+      for (let i = 0; i < allAddresses.length - 1; i++) {
+        const result = await new Promise<number>((resolve, reject) => {
+          service.getDistanceMatrix(
+            {
+              origins: [allAddresses[i]],
+              destinations: [allAddresses[i + 1]],
+              travelMode: google.maps.TravelMode.DRIVING,
+              unitSystem: google.maps.UnitSystem.IMPERIAL,
+            },
+            (response, status) => {
+              if (status !== 'OK' || !response) {
+                reject(new Error(`Distance Matrix error: ${status}`));
+                return;
+              }
+              const element = response.rows[0]?.elements[0];
+              if (element?.status !== 'OK') {
+                reject(new Error(`Could not calculate distance for segment ${i + 1}`));
+                return;
+              }
+              resolve(element.distance.value);
+            }
+          );
+        });
+        totalMeters += result;
+      }
+
+      const totalMiles = totalMeters * 0.000621371;
+      const calculatedEndMileage = existingLog.start_mileage + totalMiles;
+      setMileage(calculatedEndMileage.toFixed(1));
+      showToast(`Calculated ${totalMiles.toFixed(1)} miles for today's route (${taskAddresses.length} stops)`, 'success');
+    } catch (error: any) {
+      console.error('Error calculating mileage:', error);
+      showToast(error.message || 'Failed to calculate route mileage', 'error');
+    } finally {
+      setCalculating(false);
     }
   }
 
@@ -106,6 +180,8 @@ export function MileageModal({ isOpen, date, type, onClose, onSuccess }: Mileage
 
   if (!isOpen) return null;
 
+  const canAutoCalculate = type === 'end' && !!existingLog?.start_mileage;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[70] flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
@@ -126,9 +202,22 @@ export function MileageModal({ isOpen, date, type, onClose, onSuccess }: Mileage
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Odometer Reading <span className="text-red-600">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-slate-700">
+                Odometer Reading <span className="text-red-600">*</span>
+              </label>
+              {canAutoCalculate && (
+                <button
+                  type="button"
+                  onClick={handleAutoCalculate}
+                  disabled={calculating}
+                  className="flex items-center gap-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-60 border border-blue-200 px-2.5 py-1 rounded-lg transition-colors"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  {calculating ? 'Calculating...' : 'Auto-Calculate'}
+                </button>
+              )}
+            </div>
             <input
               type="number"
               step="0.1"
@@ -146,6 +235,12 @@ export function MileageModal({ isOpen, date, type, onClose, onSuccess }: Mileage
                 : 'Enter your odometer reading after completing all tasks'}
             </p>
           </div>
+
+          {canAutoCalculate && (
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600">
+              <strong>Auto-Calculate</strong> computes mileage from base to each task stop in route order, then back to base. Requires Google Maps.
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">

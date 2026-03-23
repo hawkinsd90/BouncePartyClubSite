@@ -197,6 +197,99 @@ Deno.serve(async (req: Request) => {
       }
     })();
 
+    (async () => {
+      try {
+        const firstName = renterName.split(" ")[0] || renterName;
+        const formattedDate = new Date(eventDate).toLocaleDateString("en-US", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+        const eventAddress = [eventAddressLine1, eventAddressLine2, `${eventCity}, ${eventState} ${eventZip}`]
+          .filter(Boolean)
+          .join(", ");
+        const signedAt = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+
+        const emailHtml = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#f8fafc;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;padding:40px 20px;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.1);border:2px solid #10b981;">
+        <tr>
+          <td style="background-color:#ffffff;padding:30px;text-align:center;border-bottom:2px solid #10b981;">
+            <img src="https://qaagfafagdpgzcijnfbw.supabase.co/storage/v1/object/public/public-assets/bounce-party-club-logo.png" alt="Bounce Party Club" style="height:80px;width:auto;" />
+            <h1 style="margin:15px 0 0;color:#10b981;font-size:24px;font-weight:bold;">Rental Agreement Signed</h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:30px;">
+            <p style="margin:0 0 20px;color:#1e293b;font-size:16px;">Hi ${firstName},</p>
+            <p style="margin:0 0 20px;color:#475569;font-size:15px;line-height:1.6;">Thank you for signing your rental agreement. Your electronic signature has been recorded and this confirms your agreement to the rental terms.</p>
+            <div style="background-color:#f0fdf4;border:2px solid #10b981;border-radius:6px;padding:20px;margin:25px 0;">
+              <h3 style="margin:0 0 15px;color:#15803d;font-size:16px;font-weight:600;">Signature Details</h3>
+              <table width="100%" cellpadding="6" cellspacing="0">
+                <tr>
+                  <td style="color:#64748b;font-size:14px;">Signed By:</td>
+                  <td style="color:#1e293b;font-size:14px;font-weight:600;text-align:right;">${renterName}</td>
+                </tr>
+                <tr>
+                  <td style="color:#64748b;font-size:14px;">Event Date:</td>
+                  <td style="color:#1e293b;font-size:14px;font-weight:600;text-align:right;">${formattedDate}</td>
+                </tr>
+                <tr>
+                  <td style="color:#64748b;font-size:14px;">Event Address:</td>
+                  <td style="color:#1e293b;font-size:14px;font-weight:600;text-align:right;">${eventAddress}</td>
+                </tr>
+                <tr>
+                  <td style="color:#64748b;font-size:14px;">Signed At:</td>
+                  <td style="color:#1e293b;font-size:14px;font-weight:600;text-align:right;">${signedAt}</td>
+                </tr>
+              </table>
+            </div>
+            <div style="background-color:#dbeafe;border:2px solid #3b82f6;border-radius:6px;padding:18px;margin:25px 0;">
+              <h3 style="margin:0 0 12px;color:#1e40af;font-size:15px;font-weight:600;">Important Reminders</h3>
+              <ul style="margin:0;padding-left:20px;color:#1e40af;font-size:14px;line-height:1.8;">
+                <li>No shoes on inflatables</li>
+                <li>No food or drinks on equipment</li>
+                <li>No sharp objects</li>
+                <li>No hanging or climbing on the nets</li>
+                <li>Adult supervision required at all times</li>
+              </ul>
+            </div>
+            <p style="margin:25px 0 0;color:#475569;font-size:14px;line-height:1.6;">Questions? Call us at <strong style="color:#1e293b;">(313) 889-3860</strong></p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background-color:#f8fafc;padding:25px;text-align:center;border-top:2px solid #10b981;">
+            <p style="margin:0;color:#64748b;font-size:13px;">Bounce Party Club | (313) 889-3860</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            to: renterEmail,
+            subject: "Your Rental Agreement Has Been Signed — Bounce Party Club",
+            html: emailHtml,
+          }),
+        });
+      } catch (emailError) {
+        console.error("Waiver confirmation email error:", emailError);
+      }
+    })();
+
     return new Response(
       JSON.stringify({
         success: true,

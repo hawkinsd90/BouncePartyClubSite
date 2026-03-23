@@ -101,7 +101,9 @@ export function showModal(options: ModalOptions): Promise<boolean> {
     // Close any existing modal
     if (activeModal) {
       activeModal.root.unmount();
-      document.body.removeChild(activeModal.wrapper);
+      if (document.body.contains(activeModal.wrapper)) {
+        document.body.removeChild(activeModal.wrapper);
+      }
       activeModal = null;
     }
 
@@ -126,7 +128,9 @@ export function showModal(options: ModalOptions): Promise<boolean> {
       wrapper.style.animation = 'fadeOut 0.2s ease-in';
       setTimeout(() => {
         root.unmount();
-        document.body.removeChild(wrapper);
+        if (document.body.contains(wrapper)) {
+          document.body.removeChild(wrapper);
+        }
         if (activeModal?.wrapper === wrapper) {
           activeModal = null;
         }
