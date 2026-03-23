@@ -93,7 +93,10 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
             const sessionData = await sessionResponse.json();
             const tipCents = parseInt(sessionData.metadata?.tip_cents || '0', 10);
             setSessionTipCents(tipCents);
-            console.log('[PAYMENT-COMPLETE] Retrieved tip from session:', tipCents);
+            // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
+            // Restore only after a true dev/staging environment and explicit safe gating are in place.
+            // Previously logged tip amount (financial field) in browser console.
+            // console.log('[PAYMENT-COMPLETE] Retrieved tip from session:', tipCents);
           }
         } catch (err) {
           console.error('[PAYMENT-COMPLETE] Error retrieving session metadata:', err);
@@ -181,7 +184,11 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
               // console.log('[PAYMENT-COMPLETE] Payment method saved:', result.paymentMethodId);
               console.log('[PAYMENT-COMPLETE] Payment method saved:', !!result.paymentMethodId);
             } else {
-              console.error('[PAYMENT-COMPLETE] Failed to save payment method:', await savePaymentMethodResponse.text());
+              // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
+              // Restore only after a true dev/staging environment and explicit safe gating are in place.
+              // Previously logged raw HTTP response body — could expose Stripe/API error internals in browser console.
+              // console.error('[PAYMENT-COMPLETE] Failed to save payment method:', await savePaymentMethodResponse.text());
+              console.error('[PAYMENT-COMPLETE] Failed to save payment method (non-OK response).');
             }
           } catch (err) {
             console.error('[PAYMENT-COMPLETE] Error saving payment method:', err);
