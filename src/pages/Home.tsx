@@ -9,7 +9,7 @@ import {
   DollarSign,
   Home as HomeIcon,
   Building2,
-  Zap,
+  // Zap, // BPC-SECURITY-HARDENING: removed — only used by the commented-out test booking button.
   ExternalLink,
   Sun,
 } from 'lucide-react';
@@ -18,7 +18,9 @@ import { HeroCarousel } from '../components/admin/HeroCarousel';
 import { SafeStorage } from '../lib/safeStorage';
 import { useAuth } from '../contexts/AuthContext';
 import { useCustomerProfile } from '../contexts/CustomerProfileContext';
-import { createTestBooking } from '../lib/testBooking';
+// BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
+// Restore only after a true dev/staging environment and explicit safe gating are in place.
+// import { createTestBooking } from '../lib/testBooking';
 import { notifyError } from '../lib/notifications';
 import { createLogger } from '../lib/logger';
 import { supabase } from '../lib/supabase';
@@ -45,7 +47,8 @@ export function Home() {
   const [addressData, setAddressData] = useState<any>(null);
   const [locationType, setLocationType] = useState<'residential' | 'commercial'>('residential');
   const [addressInput, setAddressInput] = useState('');
-  const [creatingTestBooking, setCreatingTestBooking] = useState(false);
+  // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
+  // const [creatingTestBooking, setCreatingTestBooking] = useState(false);
   const [reviews, setReviews] = useState<GoogleReview[]>([]);
   const [averageRating, setAverageRating] = useState(5.0);
   const [addressAutofilled, setAddressAutofilled] = useState(false);
@@ -119,35 +122,29 @@ export function Home() {
   return (
     <div className="relative">
       <HeroCarousel
-        adminControls={
-          isAdmin ? (
-            <button
-              onClick={async () => {
-                log.info('Create Test Booking button clicked');
-                setCreatingTestBooking(true);
-
-                log.info('Calling createTestBooking');
-                const result = await createTestBooking();
-                log.debug('createTestBooking result', result);
-
-                setCreatingTestBooking(false);
-
-                if (result.success) {
-                  log.info('Test booking created successfully, navigating to /checkout');
-                  navigate('/checkout');
-                } else {
-                  log.error('Test booking failed', result.error);
-                  notifyError('Failed to create test booking: ' + result.error);
-                }
-              }}
-              disabled={creatingTestBooking}
-              className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-3 sm:px-4 py-2 rounded-lg inline-flex items-center gap-2 font-semibold transition-colors text-xs sm:text-sm shadow-md"
-            >
-              <Zap className="w-3 h-3 sm:w-4 sm:h-4" />
-              {creatingTestBooking ? 'Creating...' : 'Create Test Booking'}
-            </button>
-          ) : undefined
-        }
+        // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
+        // Restore only after a true dev/staging environment and explicit safe gating are in place.
+        // adminControls={
+        //   isAdmin ? (
+        //     <button
+        //       onClick={async () => {
+        //         setCreatingTestBooking(true);
+        //         const result = await createTestBooking();
+        //         setCreatingTestBooking(false);
+        //         if (result.success) {
+        //           navigate('/checkout');
+        //         } else {
+        //           notifyError('Failed to create test booking: ' + result.error);
+        //         }
+        //       }}
+        //       disabled={creatingTestBooking}
+        //       className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-3 sm:px-4 py-2 rounded-lg inline-flex items-center gap-2 font-semibold transition-colors text-xs sm:text-sm shadow-md"
+        //     >
+        //       <Zap className="w-3 h-3 sm:w-4 sm:h-4" />
+        //       {creatingTestBooking ? 'Creating...' : 'Create Test Booking'}
+        //     </button>
+        //   ) : undefined
+        // }
       />
 
       <style>{`

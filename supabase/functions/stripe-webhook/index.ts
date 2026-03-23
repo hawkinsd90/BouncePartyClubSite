@@ -15,7 +15,8 @@ const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
 });
 
 Deno.serve(async (req: Request) => {
-  console.log("🧲 [WEBHOOK] Received request:", req.method);
+  // BPC-SECURITY-HARDENING: verbose dev debug log commented out for production.
+  // console.log("🧲 [WEBHOOK] Received request:", req.method);
 
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -26,29 +27,47 @@ Deno.serve(async (req: Request) => {
     const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
     const signature = req.headers.get("stripe-signature");
 
-    console.log("🔐 [WEBHOOK] Has webhook secret:", !!webhookSecret);
-    console.log("🖊️ [WEBHOOK] Has signature:", !!signature);
+    // BPC-SECURITY-HARDENING: verbose dev debug logs commented out for production.
+    // console.log("🔐 [WEBHOOK] Has webhook secret:", !!webhookSecret);
+    // console.log("🖊️ [WEBHOOK] Has signature:", !!signature);
 
     let event: Stripe.Event;
 
-    if (webhookSecret && signature) {
-      try {
-        event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-        console.log("✅ [WEBHOOK] Signature verified");
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        console.error("❌ [WEBHOOK] Signature verification failed:", message);
-        return new Response(JSON.stringify({ error: "Invalid signature" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-    } else {
-      event = JSON.parse(body);
-      console.log("⚠️ [WEBHOOK] No signature verification (dev mode)");
+    // BPC-SECURITY-HARDENING: The unverified fallback path below has been removed.
+    // Production MUST have STRIPE_WEBHOOK_SECRET set. If the secret is missing or the
+    // Stripe-Signature header is absent, we now reject with 400 instead of processing
+    // an unverified payload. This prevents any caller from forging Stripe events.
+    // To restore dev-mode bypass: only after a true dev/staging environment and explicit
+    // safe gating (e.g. IS_DEV env var) are in place.
+    if (!webhookSecret) {
+      console.error("[WEBHOOK] STRIPE_WEBHOOK_SECRET is not configured. Rejecting request.");
+      return new Response(JSON.stringify({ error: "Webhook secret not configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    console.log("📨 [WEBHOOK] Event type:", event.type);
+    if (!signature) {
+      console.error("[WEBHOOK] Missing Stripe-Signature header. Rejecting request.");
+      return new Response(JSON.stringify({ error: "Missing signature" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    try {
+      event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      console.error("❌ [WEBHOOK] Signature verification failed:", message);
+      return new Response(JSON.stringify({ error: "Invalid signature" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // BPC-SECURITY-HARDENING: verbose dev debug log commented out for production.
+    // console.log("📨 [WEBHOOK] Event type:", event.type);
 
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -64,7 +83,8 @@ Deno.serve(async (req: Request) => {
     );
 
     if (alreadyProcessed) {
-      console.log(`✅ [WEBHOOK] Event already succeeded: ${event.id}`);
+      // BPC-SECURITY-HARDENING: verbose dev debug log commented out for production.
+      // console.log(`✅ [WEBHOOK] Event already succeeded: ${event.id}`);
       return new Response(JSON.stringify({ received: true, skipped: true, reason: 'already_processed' }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -72,7 +92,8 @@ Deno.serve(async (req: Request) => {
     }
 
     if (alreadyProcessing) {
-      console.log(`⏳ [WEBHOOK] Event currently processing: ${event.id}`);
+      // BPC-SECURITY-HARDENING: verbose dev debug log commented out for production.
+      // console.log(`⏳ [WEBHOOK] Event currently processing: ${event.id}`);
       return new Response(JSON.stringify({ received: true, skipped: true, reason: 'currently_processing' }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -164,7 +185,8 @@ async function processWebhookEvent(
 
         // Handle setup mode (card saved, no charge yet)
         if (session.mode === "setup" && setupIntentId) {
-          console.log(`🔐 [WEBHOOK] Setup session completed for order ${orderId}`);
+          // BPC-SECURITY-HARDENING: verbose dev debug log commented out for production.
+          // console.log(`🔐 [WEBHOOK] Setup session completed for order ${orderId}`);
 
           // CRITICAL: Retrieve the SetupIntent to get the payment_method
           // In setup mode, payment_method is NOT on the session, it's on the SetupIntent
@@ -174,7 +196,8 @@ async function processWebhookEvent(
             actualPaymentMethodId = typeof setupIntent.payment_method === "string"
               ? setupIntent.payment_method
               : setupIntent.payment_method?.id || null;
-            console.log(`[WEBHOOK] Retrieved payment method from SetupIntent: ${actualPaymentMethodId}`);
+            // BPC-SECURITY-HARDENING: verbose dev debug log commented out for production.
+            // console.log(`[WEBHOOK] Retrieved payment method from SetupIntent: ${actualPaymentMethodId}`);
           } catch (err) {
             console.error(`[WEBHOOK] Failed to retrieve SetupIntent ${setupIntentId}:`, err);
           }
@@ -219,12 +242,14 @@ async function processWebhookEvent(
           if (updateError) {
             console.error(`[WEBHOOK] Error updating order ${orderId}:`, updateError);
           } else {
-            console.log(`[WEBHOOK] Setup completed - order ${orderId} updated to ${newStatus} with payment method: ${actualPaymentMethodId}, tip: $${(tipCents/100).toFixed(2)}`);
+            // BPC-SECURITY-HARDENING: verbose dev debug log commented out for production.
+            // console.log(`[WEBHOOK] Setup completed - order ${orderId} updated to ${newStatus} with payment method: ${actualPaymentMethodId}, tip: $${(tipCents/100).toFixed(2)}`);
           }
           break;
         }
 
-        console.log(`💰 [WEBHOOK] Payment completed: ${paymentType} for order ${orderId}`);
+        // BPC-SECURITY-HARDENING: verbose dev debug log commented out for production.
+        // console.log(`💰 [WEBHOOK] Payment completed: ${paymentType} for order ${orderId}`);
 
         if (paymentType === "balance") {
           // Extract payment method details and latest_charge from expanded PaymentIntent
@@ -432,12 +457,13 @@ async function processWebhookEvent(
           const isAdminInvoice = !!invoiceLink;
           const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
 
-          console.log(`[WEBHOOK] Updating order ${orderId}:`, {
-            depositOnly,
-            tipCents,
-            newStatus,
-            isAdminInvoice,
-          });
+          // BPC-SECURITY-HARDENING: verbose dev debug log commented out for production.
+          // console.log(`[WEBHOOK] Updating order ${orderId}:`, {
+          //   depositOnly,
+          //   tipCents,
+          //   newStatus,
+          //   isAdminInvoice,
+          // });
 
           const { error: updateError } = await supabaseClient
             .from("orders")
@@ -454,7 +480,8 @@ async function processWebhookEvent(
           if (updateError) {
             console.error(`[WEBHOOK] Error updating order ${orderId}:`, updateError);
           } else {
-            console.log(`[WEBHOOK] Successfully updated order ${orderId} to status: ${newStatus}`);
+            // BPC-SECURITY-HARDENING: verbose dev debug log commented out for production.
+          // console.log(`[WEBHOOK] Successfully updated order ${orderId} to status: ${newStatus}`);
           }
 
           if (paymentIntentId) {
@@ -707,7 +734,8 @@ async function processWebhookEvent(
             status: charge.refunded ? "succeeded" : "pending",
           });
 
-          console.log(`✅ [WEBHOOK] Refund processed: -$${(refundAmountCents / 100).toFixed(2)} for order ${originalPayment.order_id}`);
+          // BPC-SECURITY-HARDENING: verbose dev debug log commented out for production.
+          // console.log(`✅ [WEBHOOK] Refund processed: -$${(refundAmountCents / 100).toFixed(2)} for order ${originalPayment.order_id}`);
         }
         break;
       }
@@ -721,7 +749,8 @@ async function processWebhookEvent(
           break;
         }
 
-        console.log(`🔐 [WEBHOOK] SetupIntent succeeded for order ${orderId}`);
+        // BPC-SECURITY-HARDENING: verbose dev debug log commented out for production.
+        // console.log(`🔐 [WEBHOOK] SetupIntent succeeded for order ${orderId}`);
 
         const paymentMethodId =
           typeof setupIntent.payment_method === "string"
@@ -771,12 +800,14 @@ async function processWebhookEvent(
         if (updateError) {
           console.error(`[WEBHOOK] Error updating order ${orderId}:`, updateError);
         } else {
-          console.log(`[WEBHOOK] Successfully updated order ${orderId} to status: ${newStatus}`);
+          // BPC-SECURITY-HARDENING: verbose dev debug log commented out for production.
+          // console.log(`[WEBHOOK] Successfully updated order ${orderId} to status: ${newStatus}`);
         }
         break;
       }
 
       default:
-        console.log(`ℹ️ [WEBHOOK] Unhandled event type: ${event.type}`);
+        // BPC-SECURITY-HARDENING: verbose dev debug log commented out for production.
+        // console.log(`ℹ️ [WEBHOOK] Unhandled event type: ${event.type}`);
     }
 }

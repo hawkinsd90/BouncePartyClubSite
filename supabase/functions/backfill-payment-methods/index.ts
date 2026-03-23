@@ -16,8 +16,34 @@ Deno.serve(async (req: Request) => {
   try {
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      {
+        global: {
+          headers: { Authorization: req.headers.get("Authorization") ?? "" },
+        },
+      }
     );
+
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (!user) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { data: userRole } = await supabaseClient
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!userRole || (userRole.role !== "ADMIN" && userRole.role !== "MASTER")) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Admin access required" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Get Stripe secret key from database
     const { data: stripeKeyData, error: keyError } = await supabaseClient
