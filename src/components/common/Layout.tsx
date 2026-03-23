@@ -32,11 +32,8 @@ export function Layout() {
         }
 
         if (data) {
-          console.log('Social links data loaded:', data);
           const instagram = data.find(s => s.key === 'instagram_url')?.value || '';
           const facebook = data.find(s => s.key === 'facebook_url')?.value || '';
-          console.log('Instagram URL:', instagram);
-          console.log('Facebook URL:', facebook);
           setInstagramUrl(instagram);
           setFacebookUrl(facebook);
         }
