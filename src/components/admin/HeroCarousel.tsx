@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
-import { ChevronLeft, ChevronRight, Plus, Trash2, Edit2, Save, X, MoveUp, MoveDown, Upload, Link as LinkIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Trash2, CreditCard as Edit2, Save, X, MoveUp, MoveDown, Upload, Link as LinkIcon } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { notifyError, showConfirm } from '../../lib/notifications';
 
@@ -47,11 +47,29 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
   useEffect(() => {
     if (media.length === 0) return;
 
-    const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % media.length);
-    }, 5000);
+    const advance = () => setCurrentIndex((prev) => (prev + 1) % media.length);
 
-    return () => clearInterval(interval);
+    let interval: ReturnType<typeof setInterval> | null = document.hidden
+      ? null
+      : setInterval(advance, 5000);
+
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        if (interval !== null) {
+          clearInterval(interval);
+          interval = null;
+        }
+      } else {
+        interval = setInterval(advance, 5000);
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      if (interval !== null) clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [media.length]);
 
   async function loadMedia() {

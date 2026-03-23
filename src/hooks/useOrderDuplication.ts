@@ -107,6 +107,7 @@ export function useOrderDuplication() {
       }));
 
       SafeStorage.setItem('bpc_cart', cartItems, { expirationDays: 7 });
+      window.dispatchEvent(new CustomEvent('bpc-cart-updated'));
 
       const prefillData = {
         address: orderData.addresses ? {

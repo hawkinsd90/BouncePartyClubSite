@@ -332,6 +332,7 @@ export function UnitDetail() {
                 };
                 cart.push(cartItem);
                 SafeStorage.setItem('bpc_cart', cart, { expirationDays: 7 });
+                window.dispatchEvent(new CustomEvent('bpc-cart-updated'));
                 navigate('/quote');
               }}
               className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-5 px-6 rounded-2xl transition-all shadow-xl hover:shadow-2xl flex items-center justify-center text-lg sm:text-xl"

@@ -238,7 +238,7 @@ export function OrdersManager() {
     { key: 'cancelled', label: 'Cancelled' },
   ];
 
-  function handleTabChange(tab: OrderTab) {
+  const handleTabChange = useCallback((tab: OrderTab) => {
     setActiveTab(tab);
     const params = new URLSearchParams(searchParams);
     params.set('subtab', tab);
@@ -248,16 +248,16 @@ export function OrdersManager() {
       setSingleOrderSearchId('');
     }
     setSearchParams(params);
-  }
+  }, [searchParams, setSearchParams]);
 
-  function handleSingleOrderSearch() {
+  const handleSingleOrderSearch = useCallback(() => {
     if (singleOrderSearchId.trim()) {
       const params = new URLSearchParams(searchParams);
       params.set('subtab', 'single_order');
       params.set('orderId', singleOrderSearchId.trim());
       setSearchParams(params);
     }
-  }
+  }, [singleOrderSearchId, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (activeTab !== 'pending_review' && activeTab !== 'awaiting_customer_approval') {
@@ -265,7 +265,9 @@ export function OrdersManager() {
       return;
     }
 
-    function handleScroll() {
+    let rafId: number | null = null;
+
+    function computeVisibleOrder() {
       let bestMatch = null;
       let closestDistance = Infinity;
 
@@ -273,14 +275,10 @@ export function OrdersManager() {
         const { card, actionButtons } = refs;
         const cardRect = card.getBoundingClientRect();
 
-        // Use action buttons position if available, otherwise use card bottom
         const triggerElement = actionButtons || card;
         const triggerRect = triggerElement.getBoundingClientRect();
 
-        // Header should appear only after we've scrolled past the top of the card
-        const hasScrolledPastTop = cardRect.top < 64; // 64px = top-16 (header height)
-
-        // Header should disappear when action buttons scroll out of view
+        const hasScrolledPastTop = cardRect.top < 64;
         const actionButtonsVisible = triggerRect.bottom > 64;
 
         if (hasScrolledPastTop && actionButtonsVisible) {
@@ -299,11 +297,20 @@ export function OrdersManager() {
       setVisibleOrder(bestMatch);
     }
 
+    function handleScroll() {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        computeVisibleOrder();
+      });
+    }
+
     window.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
+    computeVisibleOrder();
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
+      if (rafId !== null) cancelAnimationFrame(rafId);
     };
   }, [activeTab, filteredOrders]);
 

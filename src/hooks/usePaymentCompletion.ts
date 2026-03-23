@@ -328,6 +328,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
   function clearLocalStorage() {
     console.log('[PAYMENT-COMPLETE] Clearing localStorage data...');
     SafeStorage.removeItem('bpc_cart');
+    window.dispatchEvent(new CustomEvent('bpc-cart-updated'));
     SafeStorage.removeItem('bpc_quote_form');
     SafeStorage.removeItem('bpc_price_breakdown');
     SafeStorage.removeItem('bpc_contact_data');

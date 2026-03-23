@@ -184,8 +184,10 @@ function AdminDashboard() {
       return;
     }
 
-    function handleScroll() {
-      const pendingOrders = orders.filter(o => o.status === 'pending_review');
+    const pendingOrders = orders.filter(o => o.status === 'pending_review');
+    let rafId: number | null = null;
+
+    function computeVisibleOrder() {
       let bestMatch = null;
       let closestDistance = Infinity;
 
@@ -193,14 +195,10 @@ function AdminDashboard() {
         const { card, actionButtons } = refs;
         const cardRect = card.getBoundingClientRect();
 
-        // Use action buttons position if available, otherwise use card bottom
         const triggerElement = actionButtons || card;
         const triggerRect = triggerElement.getBoundingClientRect();
 
-        // Header should appear only after we've scrolled past the top of the card
-        const hasScrolledPastTop = cardRect.top < 64; // 64px = top-16 (header height)
-
-        // Header should disappear when action buttons scroll out of view
+        const hasScrolledPastTop = cardRect.top < 64;
         const actionButtonsVisible = triggerRect.bottom > 64;
 
         if (hasScrolledPastTop && actionButtonsVisible) {
@@ -219,11 +217,20 @@ function AdminDashboard() {
       setVisibleOrder(bestMatch);
     }
 
+    function handleScroll() {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        computeVisibleOrder();
+      });
+    }
+
     window.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
+    computeVisibleOrder();
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
+      if (rafId !== null) cancelAnimationFrame(rafId);
     };
   }, [activeTab, orders]);
 

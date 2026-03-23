@@ -118,7 +118,9 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
       return;
     }
 
-    function handleScroll() {
+    let rafId: number | null = null;
+
+    function computeFloatingHeader() {
       if (!cardRef.current) {
         setShowFloatingHeader(false);
         return;
@@ -127,24 +129,29 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
       const { card, actionButtons } = cardRef.current;
       const cardRect = card.getBoundingClientRect();
 
-      // Use action buttons position if available, otherwise use card bottom
       const triggerElement = actionButtons || card;
       const triggerRect = triggerElement.getBoundingClientRect();
 
-      // Header should appear only after we've scrolled past the top of the card
-      const hasScrolledPastTop = cardRect.top < 64; // 64px = top-16 (header height)
-
-      // Header should disappear when action buttons scroll out of view
+      const hasScrolledPastTop = cardRect.top < 64;
       const actionButtonsVisible = triggerRect.bottom > 64;
 
       setShowFloatingHeader(hasScrolledPastTop && actionButtonsVisible);
     }
 
+    function handleScroll() {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        computeFloatingHeader();
+      });
+    }
+
     window.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
+    computeFloatingHeader();
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
+      if (rafId !== null) cancelAnimationFrame(rafId);
     };
   }, [order]);
 

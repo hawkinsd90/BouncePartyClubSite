@@ -61,11 +61,11 @@ export function Layout() {
 
     updateCartCount();
     window.addEventListener('storage', updateCartCount);
-    const interval = setInterval(updateCartCount, 1000);
+    window.addEventListener('bpc-cart-updated', updateCartCount);
 
     return () => {
       window.removeEventListener('storage', updateCartCount);
-      clearInterval(interval);
+      window.removeEventListener('bpc-cart-updated', updateCartCount);
     };
   }, []);
 

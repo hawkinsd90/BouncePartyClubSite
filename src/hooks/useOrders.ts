@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Order } from '../types/orders';
 
@@ -8,7 +8,7 @@ export function useOrders(userId: string | undefined, userEmail: string | undefi
   const [pastOrders, setPastOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
-  async function loadOrders() {
+  const loadOrders = useCallback(async () => {
     if (!userId || !userEmail) {
       setLoading(false);
       return;
@@ -119,13 +119,13 @@ export function useOrders(userId: string | undefined, userEmail: string | undefi
     } finally {
       setLoading(false);
     }
-  }
+  }, [userId, userEmail]);
 
   useEffect(() => {
     if (userId && userEmail) {
       loadOrders();
     }
-  }, [userId, userEmail]);
+  }, [userId, userEmail, loadOrders]);
 
   return {
     upcomingOrders,

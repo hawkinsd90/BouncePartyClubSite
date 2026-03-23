@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { createLogger } from '../lib/logger';
 
@@ -159,12 +159,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
-  };
+  }, []);
 
-  const signInWithGoogle = async (destinationPath?: string) => {
+  const signInWithGoogle = useCallback(async (destinationPath?: string) => {
     const redirectTo = destinationPath
       ? `${window.location.origin}/?next=${encodeURIComponent(destinationPath)}`
       : `${window.location.origin}/`;
@@ -173,9 +173,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       options: { redirectTo },
     });
     if (error) throw error;
-  };
+  }, []);
 
-  const signInWithApple = async (destinationPath?: string) => {
+  const signInWithApple = useCallback(async (destinationPath?: string) => {
     const redirectTo = destinationPath
       ? `${window.location.origin}/?next=${encodeURIComponent(destinationPath)}`
       : `${window.location.origin}/`;
@@ -184,42 +184,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       options: { redirectTo },
     });
     if (error) throw error;
-  };
+  }, []);
 
-  const signUp = async (email: string, password: string, metadata?: any) => {
+  const signUp = useCallback(async (email: string, password: string, metadata?: any) => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: metadata },
     });
     if (error) throw error;
-  };
+  }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
-  };
+  }, []);
 
-  const hasRole = (checkRole: string): boolean => roles.includes(checkRole);
+  const hasRole = useCallback((checkRole: string): boolean => roles.includes(checkRole), [roles]);
 
-  const isAdmin = hasRole('ADMIN') || hasRole('MASTER');
-  const isMaster = hasRole('MASTER');
+  const isAdmin = useMemo(() => roles.includes('ADMIN') || roles.includes('MASTER'), [roles]);
+  const isMaster = useMemo(() => roles.includes('MASTER'), [roles]);
+
+  const contextValue = useMemo(() => ({
+    user,
+    role,
+    roles,
+    loading,
+    signIn,
+    signInWithGoogle,
+    signInWithApple,
+    signUp,
+    signOut,
+    hasRole,
+    isAdmin,
+    isMaster,
+  }), [user, role, roles, loading, signIn, signInWithGoogle, signInWithApple, signUp, signOut, hasRole, isAdmin, isMaster]);
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      role,
-      roles,
-      loading,
-      signIn,
-      signInWithGoogle,
-      signInWithApple,
-      signUp,
-      signOut,
-      hasRole,
-      isAdmin,
-      isMaster,
-    }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

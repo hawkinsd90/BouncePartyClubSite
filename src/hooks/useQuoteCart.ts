@@ -39,22 +39,29 @@ export function useQuoteCart() {
     setCart(savedCart || []);
   }
 
+  function notifyCartUpdate() {
+    window.dispatchEvent(new CustomEvent('bpc-cart-updated'));
+  }
+
   function updateCartItem(index: number, updates: Partial<CartItem>) {
     const newCart = [...cart];
     newCart[index] = { ...newCart[index], ...updates };
     setCart(newCart);
     SafeStorage.setItem(CART_STORAGE_KEY, newCart, { expirationDays: 7 });
+    notifyCartUpdate();
   }
 
   function removeFromCart(index: number) {
     const newCart = cart.filter((_, i) => i !== index);
     setCart(newCart);
     SafeStorage.setItem(CART_STORAGE_KEY, newCart, { expirationDays: 7 });
+    notifyCartUpdate();
   }
 
   function clearCart() {
     setCart([]);
     SafeStorage.removeItem(CART_STORAGE_KEY);
+    notifyCartUpdate();
   }
 
   const checkCartAvailability = useCallback(

@@ -137,7 +137,7 @@ async function calculateOriginalFees(order: any, discounts: OrderDiscount[], cus
   const { data: pricingData } = await supabase
     .from('pricing_rules')
     .select('*')
-    .single();
+    .maybeSingle();
 
   if (!pricingData) {
     return {

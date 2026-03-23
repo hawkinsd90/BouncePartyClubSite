@@ -1,4 +1,4 @@
-import { useState, useEffect, forwardRef, useRef, useImperativeHandle } from 'react';
+import { useState, useEffect, forwardRef, useRef, useImperativeHandle, memo } from 'react';
 import { OrderDetailModal } from './OrderDetailModal';
 import { OrderSummary } from '../order/OrderSummary';
 import { usePendingOrderData } from '../../hooks/usePendingOrderData';
@@ -24,7 +24,7 @@ export interface PendingOrderCardRef {
   openEdit: () => void;
 }
 
-export const PendingOrderCard = forwardRef<PendingOrderCardRef, {
+const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
   order: any;
   onUpdate: () => void;
   openEditMode?: boolean;
@@ -85,11 +85,25 @@ export const PendingOrderCard = forwardRef<PendingOrderCardRef, {
   }, [order.id]);
 
   useEffect(() => {
-    const intervalId = setInterval(() => {
-      loadSmsConversations();
-    }, 10000);
+    const channel = supabase
+      .channel(`sms_conv_${order.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'sms_conversations',
+          filter: `order_id=eq.${order.id}`,
+        },
+        () => {
+          loadSmsConversations();
+        }
+      )
+      .subscribe();
 
-    return () => clearInterval(intervalId);
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [order.id]);
 
   async function confirmApproval() {
@@ -371,3 +385,5 @@ export const PendingOrderCard = forwardRef<PendingOrderCardRef, {
     </div>
   );
 });
+
+export const PendingOrderCard = memo(PendingOrderCardInner);

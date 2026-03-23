@@ -20,8 +20,27 @@ export function NotificationFailuresAlert() {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 60000);
-    return () => clearInterval(interval);
+
+    let interval: ReturnType<typeof setInterval> | null = setInterval(loadData, 60000);
+
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        if (interval !== null) {
+          clearInterval(interval);
+          interval = null;
+        }
+      } else {
+        loadData();
+        interval = setInterval(loadData, 60000);
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      if (interval !== null) clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   async function loadData() {
