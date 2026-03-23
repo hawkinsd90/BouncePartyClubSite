@@ -189,8 +189,10 @@ Deno.serve(async (req: Request) => {
           .join(", ");
         const signedAt = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
 
-        // Generate the signed waiver PDF first so we can include the link in the email
+        // Generate the signed waiver PDF so we can attach it to the confirmation email
+        // and store a permanent public link for the customer portal.
         let pdfUrl: string | null = null;
+        let pdfBase64: string | null = null;
         try {
           const pdfResponse = await fetch(
             `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-signed-waiver`,
@@ -207,6 +209,21 @@ Deno.serve(async (req: Request) => {
           if (pdfResponse.ok) {
             const pdfData = await pdfResponse.json();
             pdfUrl = pdfData.pdfUrl || null;
+
+            // Fetch the PDF bytes so we can attach the file directly to the email.
+            // This gives customers an immediately openable attachment rather than
+            // requiring them to click a link.
+            if (pdfUrl) {
+              try {
+                const pdfBytesResponse = await fetch(pdfUrl);
+                if (pdfBytesResponse.ok) {
+                  const buffer = await pdfBytesResponse.arrayBuffer();
+                  pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+                }
+              } catch (fetchErr) {
+                console.error("PDF bytes fetch failed (attachment will be omitted):", fetchErr);
+              }
+            }
           } else {
             console.error("PDF generation failed:", await pdfResponse.text());
           }
@@ -214,11 +231,13 @@ Deno.serve(async (req: Request) => {
           console.error("PDF generation error:", pdfError);
         }
 
+        // Always include the download link in the body. When the attachment is also
+        // present it acts as a convenient fallback for email clients that strip attachments.
         const pdfSection = pdfUrl
           ? `
             <div style="background-color:#f0fdf4;border:2px solid #10b981;border-radius:6px;padding:18px;margin:25px 0;text-align:center;">
               <h3 style="margin:0 0 10px;color:#15803d;font-size:15px;font-weight:600;">Your Signed Waiver Copy</h3>
-              <p style="margin:0 0 14px;color:#166534;font-size:14px;">A copy of your signed rental agreement is available for download.</p>
+              <p style="margin:0 0 14px;color:#166534;font-size:14px;">Your signed rental agreement is attached to this email. You can also download it using the button below.</p>
               <a href="${pdfUrl}" target="_blank" style="display:inline-block;background-color:#10b981;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:6px;font-weight:700;font-size:15px;">Download Signed Waiver (PDF)</a>
               <p style="margin:12px 0 0;color:#64748b;font-size:12px;">Keep this for your records. This link will remain active.</p>
             </div>`
@@ -290,17 +309,30 @@ Deno.serve(async (req: Request) => {
 </body>
 </html>`;
 
+        const emailBody: Record<string, unknown> = {
+          to: renterEmail,
+          subject: "Your Rental Agreement Has Been Signed — Bounce Party Club",
+          html: emailHtml,
+        };
+
+        // Attach the PDF directly when bytes are available. Resend accepts
+        // attachments as { filename, content } where content is base64.
+        if (pdfBase64) {
+          emailBody.attachments = [
+            {
+              filename: `signed-waiver-${orderId}.pdf`,
+              content: pdfBase64,
+            },
+          ];
+        }
+
         await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            to: renterEmail,
-            subject: "Your Rental Agreement Has Been Signed — Bounce Party Club",
-            html: emailHtml,
-          }),
+          body: JSON.stringify(emailBody),
         });
       } catch (emailError) {
         console.error("Waiver confirmation email error:", emailError);

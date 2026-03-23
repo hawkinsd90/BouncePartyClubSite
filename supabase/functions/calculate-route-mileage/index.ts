@@ -79,7 +79,7 @@ Deno.serve(async (req: Request) => {
     // Fetch all task_status rows for this date, ordered by saved route sort_order
     // (nulls last), then order_id for deterministic tiebreaking.
     // We pull order_id and the linked order's status so we can:
-    //   1. Exclude pending_review orders (not yet confirmed — planning-only)
+    //   1. Filter to only driveable order statuses (see DRIVEABLE_STATUSES below).
     //   2. Deduplicate by order_id so same-day pickup + drop-off for one address
     //      count as a single route stop, not two.
     const { data: taskRows, error: taskError } = await supabaseAdmin

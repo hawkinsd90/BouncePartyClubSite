@@ -6,12 +6,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
 };
 
+interface EmailAttachment {
+  filename: string;
+  content: string;
+}
+
 interface EmailRequest {
   to?: string;
   from?: string;
   subject?: string;
   html?: string;
   text?: string;
+  attachments?: EmailAttachment[];
   context?: Record<string, unknown>;
   skipFallback?: boolean;
   templateName?: string;
@@ -80,7 +86,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const { to, from, subject, html, text, context, skipFallback, templateName, orderId } = body;
+    const { to, from, subject, html, text, attachments, context, skipFallback, templateName, orderId } = body;
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -253,6 +259,7 @@ Deno.serve(async (req: Request) => {
 
     if (emailHtml) emailPayload.html = emailHtml;
     if (emailText) emailPayload.text = emailText;
+    if (attachments && attachments.length > 0) emailPayload.attachments = attachments;
 
     const resendResponse = await fetch('https://api.resend.com/emails', {
       method: 'POST',
