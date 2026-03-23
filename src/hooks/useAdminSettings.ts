@@ -55,9 +55,10 @@ export function useAdminSettings() {
           .eq('key', update.key);
 
         if (error) {
-          // BPC-SECURITY-HARDENING: update.key removed from log — it can reveal secret key names (twilio_auth_token, etc.)
+          // BPC-SECURITY-HARDENING: update.key removed from log and thrown message — it can reveal secret key names
+          // (twilio_auth_token, etc.) in both browser console and user-visible toast notifications.
           console.error('Error updating setting:', error);
-          throw new Error(`Failed to update ${update.key}: ${error.message}`);
+          throw new Error(`A setting could not be saved: ${error.message}`);
         }
       }
 
@@ -91,9 +92,10 @@ export function useAdminSettings() {
           .eq('key', update.key);
 
         if (error) {
-          // BPC-SECURITY-HARDENING: update.key removed from log — it can reveal secret key names (stripe_secret_key, etc.)
+          // BPC-SECURITY-HARDENING: update.key removed from log and thrown message — it can reveal secret key names
+          // (stripe_secret_key, etc.) in both browser console and user-visible toast notifications.
           console.error('Error updating Stripe setting:', error);
-          throw new Error(`Failed to update ${update.key}: ${error.message}`);
+          throw new Error(`A Stripe setting could not be saved: ${error.message}`);
         }
       }
 
