@@ -62,7 +62,6 @@ Deno.serve(async (req: Request) => {
 
     const targetUserId = userId || user.id;
 
-    // Fetch start mileage for validation
     const { data: mileageLog } = await supabaseAdmin
       .from("daily_mileage_logs")
       .select("start_mileage")
@@ -77,19 +76,25 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Fetch all task_status rows for this date with their order addresses,
-    // sorted by sort_order so we respect the saved route order
+    // Fetch all task_status rows for this date, ordered by saved route sort_order
+    // (nulls last), then order_id for deterministic tiebreaking.
+    // We pull order_id and the linked order's status so we can:
+    //   1. Exclude pending_review orders (not yet confirmed — planning-only)
+    //   2. Deduplicate by order_id so same-day pickup + drop-off for one address
+    //      count as a single route stop, not two.
     const { data: taskRows, error: taskError } = await supabaseAdmin
       .from("task_status")
       .select(`
+        order_id,
         sort_order,
-        status,
         orders (
+          status,
           addresses ( line1, city, state, zip )
         )
       `)
       .eq("task_date", date)
-      .order("sort_order", { ascending: true });
+      .order("sort_order", { ascending: true, nullsFirst: false })
+      .order("order_id", { ascending: true });
 
     if (taskError) {
       console.error("task_status fetch error:", taskError);
@@ -99,10 +104,24 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Extract addresses that are valid (completed or active tasks)
+    // Build deduplicated, ordered list of addresses.
+    // Rules:
+    //   - Skip orders with status = pending_review (unconfirmed bookings).
+    //   - One address per order_id (first occurrence in sort-order wins).
+    //   - Skip rows with no usable address.
+    const seenOrderIds = new Set<string>();
     const taskAddresses: string[] = [];
+
     for (const row of (taskRows ?? [])) {
-      const addr = (row.orders as any)?.addresses;
+      const order = row.orders as any;
+      if (!order) continue;
+      if (order.status === "pending_review") continue;
+
+      const orderId = row.order_id as string;
+      if (seenOrderIds.has(orderId)) continue;
+      seenOrderIds.add(orderId);
+
+      const addr = order.addresses;
       if (addr?.line1 && addr?.city && addr?.state) {
         const full = `${addr.line1}, ${addr.city}, ${addr.state} ${addr.zip || ""}`.trim();
         taskAddresses.push(full);
@@ -111,12 +130,11 @@ Deno.serve(async (req: Request) => {
 
     if (taskAddresses.length === 0) {
       return new Response(
-        JSON.stringify({ error: "No task addresses found for this date. Make sure tasks are assigned and have delivery addresses." }),
+        JSON.stringify({ error: "No confirmed task addresses found for this date. Make sure tasks are assigned to confirmed orders with delivery addresses." }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Fetch home base address from admin_settings
     const { data: homeBaseSetting } = await supabaseAdmin
       .from("admin_settings")
       .select("value")
@@ -125,10 +143,8 @@ Deno.serve(async (req: Request) => {
 
     const homeBase: string = homeBaseSetting?.value || "Wayne, MI 48184";
 
-    // Build full route: home → stops in order → home
     const allAddresses = [homeBase, ...taskAddresses, homeBase];
 
-    // Call Google Maps Distance Matrix API from the backend
     const googleMapsKey = Deno.env.get("GOOGLE_MAPS_API_KEY") ?? "";
     if (!googleMapsKey) {
       return new Response(
