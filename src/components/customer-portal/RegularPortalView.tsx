@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { FileText, CreditCard, CheckCircle, Image as ImageIcon, MapPin, Printer, Calendar, MapPin as MapPinIcon, Home, Truck, Navigation, Clock } from 'lucide-react';
+import { FileText, CreditCard, CheckCircle, Image as ImageIcon, MapPin, Printer, Calendar, MapPin as MapPinIcon, Home, Truck, Navigation, Clock, Package } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
@@ -167,6 +167,18 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
 
   const successfulPayments = payments.filter(p => p.status === 'succeeded');
 
+  const workflowLabels: Record<string, { text: string; icon: React.ReactNode; color: string }> = {
+    on_the_way:        { text: 'Crew is on the way',        icon: <Navigation className="w-3.5 h-3.5" />, color: 'text-blue-200' },
+    arrived:           { text: 'Crew has arrived',           icon: <Clock className="w-3.5 h-3.5" />,      color: 'text-yellow-200' },
+    setup_in_progress: { text: 'Setup in progress',          icon: <Truck className="w-3.5 h-3.5" />,      color: 'text-cyan-200' },
+    setup_completed:   { text: 'Equipment delivered',        icon: <Truck className="w-3.5 h-3.5" />,      color: 'text-green-200' },
+    pickup_scheduled:  { text: 'Pickup scheduled',           icon: <Package className="w-3.5 h-3.5" />,    color: 'text-amber-200' },
+    pickup_in_progress:{ text: 'Crew picking up equipment',  icon: <Navigation className="w-3.5 h-3.5" />, color: 'text-orange-200' },
+  };
+  const activeWorkflow = order.status === 'in_progress' && order.workflow_status
+    ? workflowLabels[order.workflow_status]
+    : null;
+
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
@@ -187,10 +199,16 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                 </button>
                 <div className="min-w-0">
                   <h1 className="text-2xl sm:text-3xl font-bold">Customer Portal</h1>
-                  <div className="flex items-center gap-2 mt-1 sm:mt-2">
+                  <div className="flex items-center gap-2 mt-1 sm:mt-2 flex-wrap">
                     <p className="text-sm sm:text-base">Order #{formatOrderId(order.id)}</p>
                     <OrderStatusBadge order={order} />
                   </div>
+                  {activeWorkflow && (
+                    <div className={`flex items-center gap-1.5 mt-1 text-xs font-medium ${activeWorkflow.color}`}>
+                      {activeWorkflow.icon}
+                      {activeWorkflow.text}
+                    </div>
+                  )}
                   <p className="text-xs sm:text-sm opacity-90 mt-1">
                     Event Date: {format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')} at{' '}
                     {order.start_window}
@@ -437,9 +455,17 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                 )}
 
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-start justify-between mb-4">
                     <h3 className="text-lg font-semibold text-slate-900">Order Information</h3>
-                    <OrderStatusBadge order={order} />
+                    <div className="flex flex-col items-end gap-1">
+                      <OrderStatusBadge order={order} />
+                      {activeWorkflow && (
+                        <span className={`flex items-center gap-1 text-xs font-medium text-slate-500`}>
+                          {activeWorkflow.icon}
+                          {activeWorkflow.text}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="grid md:grid-cols-2 gap-4 mb-4">

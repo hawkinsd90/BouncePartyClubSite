@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { X, Truck as TruckIcon, Package, MousePointer, Car, Settings, ClipboardList, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
 import { Task } from '../../hooks/useCalendarTasks';
 import { getStopNumber, sortTasksByOrder, isTaskActiveRouteStop, isDropOffPlanningOnly } from '../../lib/calendarUtils';
-import { TaskCard } from './TaskCard';
+import { TaskCard, TaskPosition } from './TaskCard';
 import { MileageModal } from './MileageModal';
 import { RouteManagementModal } from './RouteManagementModal';
 import { EquipmentChecklistModal } from './EquipmentChecklistModal';
@@ -54,6 +54,17 @@ export function DayViewModal({
 
   const morning = splitByReadiness(allMorningTasks);
   const afternoon = splitByReadiness(allAfternoonTasks);
+
+  function getTaskPosition(task: Task, activeList: Task[], completedList: Task[]): TaskPosition {
+    if (activeList.length === 0) return null;
+    const currentTask = activeList[0];
+    const nextTask = activeList[1] ?? null;
+    const prevTask = completedList.length > 0 ? completedList[completedList.length - 1] : null;
+    if (task.id === currentTask.id) return 'current';
+    if (nextTask && task.id === nextTask.id) return 'next';
+    if (prevTask && task.id === prevTask.id) return 'previous';
+    return null;
+  }
 
   function handleStartDay() {
     setMileageType('start');
@@ -160,6 +171,7 @@ export function DayViewModal({
                             key={task.id}
                             task={task}
                             stopNumber={getStopNumber(task, tasks)}
+                            taskPosition={getTaskPosition(task, morning.active, morning.completed)}
                             onClick={() => onTaskClick(task)}
                           />
                         ))}
@@ -182,6 +194,7 @@ export function DayViewModal({
                             key={task.id}
                             task={task}
                             stopNumber={getStopNumber(task, tasks)}
+                            taskPosition={getTaskPosition(task, morning.active, morning.completed)}
                             onClick={() => onTaskClick(task)}
                           />
                         ))}
@@ -302,6 +315,7 @@ export function DayViewModal({
                         key={task.id}
                         task={task}
                         stopNumber={getStopNumber(task, tasks)}
+                        taskPosition={getTaskPosition(task, afternoon.active, afternoon.completed)}
                         onClick={() => onTaskClick(task)}
                       />
                     ))}

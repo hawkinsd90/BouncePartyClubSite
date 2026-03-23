@@ -89,7 +89,7 @@ Deno.serve(async (req: Request) => {
         id, subtotal_cents, balance_due_cents, balance_paid_cents, deposit_paid_cents,
         tip_cents, stripe_customer_id, stripe_payment_method_id,
         payment_method_brand, payment_method_last_four, customer_id, event_date,
-        contacts!inner(email, full_name)
+        customers(email, first_name, last_name)
       `)
       .eq("id", orderId)
       .single();
@@ -248,14 +248,14 @@ Deno.serve(async (req: Request) => {
 
         // Send customer receipt email
         try {
-          const contact = Array.isArray(order.contacts) ? order.contacts[0] : order.contacts;
-          if (contact?.email) {
+          const customer = Array.isArray(order.customers) ? order.customers[0] : order.customers;
+          if (customer?.email) {
             await supabaseClient.functions.invoke("send-email", {
               body: {
-                to: contact.email,
+                to: customer.email,
                 subject: `Payment Received - Order #${formatOrderId(orderId)}`,
                 html: buildReceiptEmail({
-                  contactName: contact.full_name || "Customer",
+                  contactName: customer.first_name ? `${customer.first_name} ${customer.last_name || ""}`.trim() : "Customer",
                   orderId,
                   balanceCents,
                   tipCents,
@@ -286,10 +286,10 @@ Deno.serve(async (req: Request) => {
     // ─── PATH B: No valid card — Stripe Checkout ─────────────────────────────
     let customerId = stripeCustomerId;
     if (!customerId) {
-      const contact = Array.isArray(order.contacts) ? order.contacts[0] : order.contacts;
+      const customer = Array.isArray(order.customers) ? order.customers[0] : order.customers;
       const newCustomer = await stripe.customers.create({
-        email: contact?.email,
-        name: contact?.full_name,
+        email: customer?.email,
+        name: customer?.first_name ? `${customer.first_name} ${customer.last_name || ""}`.trim() : undefined,
         metadata: { order_id: orderId },
       });
       customerId = newCustomer.id;

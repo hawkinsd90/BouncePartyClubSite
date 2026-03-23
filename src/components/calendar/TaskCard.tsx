@@ -1,13 +1,16 @@
-import { User, MapPin, Clock, AlertTriangle, CheckCircle } from 'lucide-react';
+import { User, MapPin, Clock, AlertTriangle, CheckCircle, Navigation, ArrowRight, History } from 'lucide-react';
 import { Task } from '../../hooks/useCalendarTasks';
+
+export type TaskPosition = 'current' | 'next' | 'previous' | null;
 
 interface TaskCardProps {
   task: Task;
   stopNumber: number;
+  taskPosition?: TaskPosition;
   onClick: () => void;
 }
 
-export function TaskCard({ task, stopNumber, onClick }: TaskCardProps) {
+export function TaskCard({ task, stopNumber, taskPosition = null, onClick }: TaskCardProps) {
   const isDropOff = task.type === 'drop-off';
   const readiness = task.pickupReadiness;
   const isProjected = !isDropOff && readiness === 'projected';
@@ -37,13 +40,33 @@ export function TaskCard({ task, stopNumber, onClick }: TaskCardProps) {
   return (
     <div
       onClick={onClick}
-      className={`${getCardStyle()} border-2 rounded-lg p-3 sm:p-4 cursor-pointer transition-colors relative`}
+      className={`${getCardStyle()} border-2 rounded-lg p-3 sm:p-4 cursor-pointer transition-colors relative ${taskPosition === 'current' ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
     >
-      {stopNumber > 0 && (
-        <div className={`absolute top-2 right-2 ${getStopBadgeStyle()} text-white text-xs font-bold px-2 py-1 rounded`}>
-          Stop #{stopNumber}
-        </div>
-      )}
+      <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
+        {stopNumber > 0 && (
+          <div className={`${getStopBadgeStyle()} text-white text-xs font-bold px-2 py-1 rounded`}>
+            Stop #{stopNumber}
+          </div>
+        )}
+        {taskPosition === 'current' && (
+          <div className="flex items-center gap-1 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded shadow-sm">
+            <Navigation className="w-3 h-3" />
+            NOW
+          </div>
+        )}
+        {taskPosition === 'next' && (
+          <div className="flex items-center gap-1 bg-amber-500 text-white text-xs font-bold px-2 py-1 rounded shadow-sm">
+            <ArrowRight className="w-3 h-3" />
+            NEXT
+          </div>
+        )}
+        {taskPosition === 'previous' && (
+          <div className="flex items-center gap-1 bg-slate-500 text-white text-xs font-bold px-2 py-1 rounded shadow-sm">
+            <History className="w-3 h-3" />
+            PREV
+          </div>
+        )}
+      </div>
 
       <div className="flex justify-between items-start mb-3 pr-16">
         <div>
