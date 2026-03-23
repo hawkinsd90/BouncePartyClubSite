@@ -357,6 +357,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       } else {
         successMsg = `En Route saved and customer notified. ETA: ${etaMinutes} min${etaDistance ? ` (${etaDistance})` : ''}.`;
       }
+      if (workflowEnRouteError) successMsg += '\n\n⚠️ Portal status may not update — workflow state failed to save.';
 
       showAlert(successMsg);
       refresh();
@@ -436,9 +437,12 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const { error: workflowArrivedError } = await supabase.from('orders').update({ workflow_status: 'arrived' }).eq('id', task.orderId);
       if (workflowArrivedError) console.warn('workflow_status update failed (arrived):', workflowArrivedError.message);
 
-      showAlert(arrivedSmsWarning
+      let arrivedMsg = arrivedSmsWarning
         ? `Arrived saved. Warning: ${arrivedSmsWarning}.`
-        : 'Arrived and customer notified successfully!');
+        : 'Arrived and customer notified successfully!';
+      if (workflowArrivedError) arrivedMsg += '\n\n⚠️ Portal status may not update — workflow state failed to save.';
+
+      showAlert(arrivedMsg);
       refresh();
     } catch (error: any) {
       console.error('Error sending arrival notification:', error);
@@ -576,9 +580,12 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const { error: workflowDropOffError } = await supabase.from('orders').update({ workflow_status: 'setup_completed' }).eq('id', task.orderId);
       if (workflowDropOffError) console.warn('workflow_status update failed (setup_completed):', workflowDropOffError.message);
 
-      showAlert(dropOffSmsWarning
+      let dropOffMsg = dropOffSmsWarning
         ? `Delivery marked complete. Warning: ${dropOffSmsWarning}.`
-        : 'Delivery completed and customer notified!');
+        : 'Delivery completed and customer notified!';
+      if (workflowDropOffError) dropOffMsg += '\n\n⚠️ Portal will not show "Delivered" — workflow state failed to save.';
+
+      showAlert(dropOffMsg);
       refresh();
     } catch (error: any) {
       console.error('Error completing delivery:', error);
@@ -646,6 +653,15 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         console.warn('Pickup complete email error (non-blocking):', emailError);
       }
 
+      // workflow_status MUST be written and confirmed before task_status so the DB trigger
+      // (trigger_auto_update_order_status) reads 'pickup_in_progress' when it fires on the
+      // task_status update. If it reads a stale value the order never auto-advances to completed.
+      const { error: workflowPickupError } = await supabase
+        .from('orders')
+        .update({ workflow_status: 'pickup_in_progress' })
+        .eq('id', task.orderId);
+      if (workflowPickupError) throw new Error('Failed to set pickup workflow status: ' + workflowPickupError.message);
+
       const { error: pickupUpdateError } = await supabase
         .from('task_status')
         .update({
@@ -655,9 +671,6 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         .eq('id', taskStatusId);
 
       if (pickupUpdateError) throw new Error('Failed to update task status: ' + pickupUpdateError.message);
-
-      const { error: workflowPickupError } = await supabase.from('orders').update({ workflow_status: 'pickup_in_progress' }).eq('id', task.orderId);
-      if (workflowPickupError) console.warn('workflow_status update failed (pickup_in_progress):', workflowPickupError.message);
 
       showAlert(pickupSmsWarning
         ? `Pickup marked complete. Warning: ${pickupSmsWarning}.`
