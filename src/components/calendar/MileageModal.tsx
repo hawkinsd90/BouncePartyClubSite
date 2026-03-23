@@ -3,9 +3,6 @@ import { X, Car, Zap } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
 import { Task } from '../../hooks/useCalendarTasks';
-import { loadGoogleMapsAPI } from '../../lib/googleMaps';
-import { getHomeBaseAddress } from '../../lib/adminSettingsCache';
-import { sortTasksByOrder, isTaskActiveRouteStop } from '../../lib/calendarUtils';
 
 interface MileageModalProps {
   isOpen: boolean;
@@ -64,60 +61,36 @@ export function MileageModal({ isOpen, date, type, tasks = [], onClose, onSucces
       return;
     }
 
-    const routeTasks = sortTasksByOrder(tasks.filter(t => isTaskActiveRouteStop(t) || t.taskStatus?.status === 'completed'));
-    const taskAddresses = routeTasks
-      .filter(t => t.address && t.address.trim())
-      .map(t => t.address.trim());
-
-    if (taskAddresses.length === 0) {
-      showToast('No task addresses found for today\'s route', 'error');
-      return;
-    }
-
     setCalculating(true);
     try {
-      await loadGoogleMapsAPI();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Not authenticated');
 
-      if (!window.google?.maps) {
-        throw new Error('Google Maps is not available');
+      const dateStr = date.toISOString().split('T')[0];
+
+      const resp = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/calculate-route-mileage`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ date: dateStr }),
+        }
+      );
+
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        throw new Error(data.error || 'Failed to calculate route mileage');
       }
 
-      const homeBase = await getHomeBaseAddress();
-      const allAddresses = [homeBase.address, ...taskAddresses, homeBase.address];
-
-      let totalMeters = 0;
-      const service = new google.maps.DistanceMatrixService();
-
-      for (let i = 0; i < allAddresses.length - 1; i++) {
-        const result = await new Promise<number>((resolve, reject) => {
-          service.getDistanceMatrix(
-            {
-              origins: [allAddresses[i]],
-              destinations: [allAddresses[i + 1]],
-              travelMode: google.maps.TravelMode.DRIVING,
-              unitSystem: google.maps.UnitSystem.IMPERIAL,
-            },
-            (response, status) => {
-              if (status !== 'OK' || !response) {
-                reject(new Error(`Distance Matrix error: ${status}`));
-                return;
-              }
-              const element = response.rows[0]?.elements[0];
-              if (element?.status !== 'OK') {
-                reject(new Error(`Could not calculate distance for segment ${i + 1}`));
-                return;
-              }
-              resolve(element.distance.value);
-            }
-          );
-        });
-        totalMeters += result;
-      }
-
-      const totalMiles = totalMeters * 0.000621371;
-      const calculatedEndMileage = existingLog.start_mileage + totalMiles;
-      setMileage(calculatedEndMileage.toFixed(1));
-      showToast(`Calculated ${totalMiles.toFixed(1)} miles for today's route (${taskAddresses.length} stops)`, 'success');
+      setMileage(data.calculatedEndMileage.toFixed(1));
+      showToast(
+        `Calculated ${data.totalMiles.toFixed(1)} miles for today's route (${data.stopCount} stop${data.stopCount !== 1 ? 's' : ''})`,
+        'success'
+      );
     } catch (error: any) {
       console.error('Error calculating mileage:', error);
       showToast(error.message || 'Failed to calculate route mileage', 'error');

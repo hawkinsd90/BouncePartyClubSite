@@ -244,6 +244,10 @@ function buildCashReceiptEmail(opts: {
   const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
   const LOGO_URL = "https://qaagfafagdpgzcijnfbw.supabase.co/storage/v1/object/public/public-assets/bounce-party-club-logo.png";
   const PHONE = "(313) 889-3860";
+  // Success theme — matches booking confirmed email exactly
+  const BORDER = "#10b981";
+  const ACCENT = "#15803d";
+  const BG = "#f0fdf4";
 
   const eventDateStr = order.event_date
     ? new Date(order.event_date + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
@@ -251,38 +255,54 @@ function buildCashReceiptEmail(opts: {
 
   const timeStr = order.start_window && order.end_window
     ? `${order.start_window} - ${order.end_window}`
-    : order.event_start_time && order.event_end_time
-    ? `${order.event_start_time} - ${order.event_end_time}`
     : "";
 
   const addressStr = order.addresses
-    ? `${order.addresses.line1}, ${order.addresses.city}, ${order.addresses.state} ${order.addresses.zip}`
+    ? `${order.addresses.line1}, ${order.addresses.city}, ${order.addresses.state}`
     : "";
 
-  const eventRows = [
-    { label: "Order #", value: `#${orderNum}` },
+  // ── Event Details info box (matches createInfoBox with success theme) ─────
+  const eventDetailRows = [
+    { label: "Order #", value: orderNum },
     ...(eventDateStr ? [{ label: "Date", value: eventDateStr }] : []),
     ...(timeStr ? [{ label: "Time", value: timeStr }] : []),
     ...(addressStr ? [{ label: "Location", value: addressStr }] : []),
     ...(order.location_type ? [{ label: "Location Type", value: order.location_type }] : []),
     ...(order.surface ? [{ label: "Surface", value: order.surface }] : []),
   ].map(r => `
-    <tr>
-      <td style="color:#64748b;font-size:14px;padding:5px 0;">${r.label}:</td>
-      <td style="color:#1e293b;font-size:14px;font-weight:600;text-align:right;padding:5px 0;">${r.value}</td>
-    </tr>`).join("");
+      <tr>
+        <td style="color:#64748b;font-size:14px;">${r.label}:</td>
+        <td style="color:#1e293b;font-size:14px;font-weight:600;text-align:right;">${r.value}</td>
+      </tr>`).join("");
 
+  const eventInfoBox = `
+    <div style="background-color:${BG};border:2px solid ${BORDER};border-radius:6px;padding:20px;margin:25px 0;">
+      <h3 style="margin:0 0 15px;color:${ACCENT};font-size:16px;font-weight:600;">Event Details</h3>
+      <table width="100%" cellpadding="6" cellspacing="0">${eventDetailRows}</table>
+    </div>`;
+
+  // ── Order Items (matches createItemsTable) ────────────────────────────────
   const items: any[] = order.order_items || [];
-  const itemRows = items.map((item: any) => `
+  const itemRowsHtml = items.map((item: any) => `
     <tr>
-      <td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#1e293b;">${item.qty}x ${item.units?.name} <span style="color:#64748b;font-size:13px;">(${item.wet_or_dry === "water" ? "Wet" : "Dry"})</span></td>
-      <td style="padding:10px 0;border-bottom:1px solid #e2e8f0;text-align:right;color:#1e293b;">${fmt(item.unit_price_cents * item.qty)}</td>
+      <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;color:#1e293b;">
+        ${item.qty}x ${item.units?.name} <span style="color:#64748b;font-size:13px;">(${item.wet_or_dry === "water" ? "Wet" : "Dry"})</span>
+      </td>
+      <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;text-align:right;color:#1e293b;">${fmt(item.unit_price_cents * item.qty)}</td>
     </tr>`).join("");
 
+  const itemsSection = items.length > 0 ? `
+    <div style="margin:25px 0;">
+      <h3 style="margin:0 0 15px;color:#1e293b;font-size:16px;font-weight:600;">Order Items</h3>
+      <table width="100%" cellpadding="0" cellspacing="0">${itemRowsHtml}</table>
+    </div>` : "";
+
+  // ── Pricing summary (matches createPricingSummary) ────────────────────────
   const customFees: any[] = order.order_custom_fees || [];
   const discounts: any[] = order.order_discounts || [];
 
-  const pricingRows: Array<{ label: string; value: string; bold?: boolean; highlight?: boolean; green?: boolean }> = [
+  type PricingRow = { label: string; value: string; bold?: boolean; highlight?: boolean };
+  const pricingRows: PricingRow[] = [
     { label: "Subtotal", value: fmt(order.subtotal_cents || 0) },
   ];
   if ((order.travel_fee_cents || 0) > 0) pricingRows.push({ label: "Travel Fee", value: fmt(order.travel_fee_cents) });
@@ -296,91 +316,84 @@ function buildCashReceiptEmail(opts: {
     (order.generator_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.tax_cents || 0) +
     customFees.reduce((s: number, f: any) => s + f.amount_cents, 0) - discounts.reduce((s: number, d: any) => s + d.amount_cents, 0);
   pricingRows.push({ label: "Total", value: fmt(orderTotal), bold: true });
-  pricingRows.push({ label: "Deposit Paid", value: fmt(order.deposit_paid_cents || 0), green: true });
-  pricingRows.push({ label: "Balance Paid", value: fmt(order.balance_paid_cents || 0), green: true });
+  if ((order.deposit_paid_cents || 0) > 0) pricingRows.push({ label: "Deposit Paid", value: fmt(order.deposit_paid_cents), highlight: true });
+  if ((order.balance_paid_cents || 0) > 0) pricingRows.push({ label: "Balance Paid", value: fmt(order.balance_paid_cents), highlight: true });
 
   const pricingRowsHtml = pricingRows.map(r => `
     <tr${r.bold ? ' style="border-top:2px solid #e2e8f0;"' : ''}>
-      <td style="color:${r.bold ? "#1e293b" : "#64748b"};font-size:${r.bold ? "15px" : "14px"};font-weight:${r.bold ? "600" : "normal"};${r.bold ? "padding-top:10px;" : "padding:4px 0;"}">${r.label}:</td>
-      <td style="color:${r.green ? "#10b981" : r.bold ? "#1e293b" : "#1e293b"};font-size:${r.bold ? "15px" : "14px"};font-weight:${r.bold ? "700" : "normal"};text-align:right;${r.bold ? "padding-top:10px;" : "padding:4px 0;"}">${r.value}</td>
+      <td style="color:${r.bold ? "#1e293b" : "#64748b"};font-size:${r.bold ? "15px" : "14px"};font-weight:${r.bold ? "600" : "normal"};${r.bold ? "padding-top:10px;" : ""}">${r.label}:</td>
+      <td style="color:${r.highlight ? "#10b981" : r.bold ? "#1e293b" : "#1e293b"};font-size:${r.bold ? "15px" : "14px"};font-weight:${r.bold ? "700" : "normal"};text-align:right;${r.bold ? "padding-top:10px;" : ""}">${r.value}</td>
     </tr>`).join("");
 
+  const pricingSection = `
+    <div style="background-color:#f8fafc;border-radius:6px;padding:20px;margin:25px 0;">
+      <h3 style="margin:0 0 15px;color:#1e293b;font-size:16px;font-weight:600;">Payment Summary</h3>
+      <table width="100%" cellpadding="6" cellspacing="0">${pricingRowsHtml}</table>
+    </div>`;
+
+  // ── This payment receipt (success info box) ───────────────────────────────
   const paymentLabel = paymentType === "deposit" ? "Deposit Payment" : "Balance Payment";
   const tipRow = tipCents > 0 ? `
-    <tr>
-      <td style="color:#64748b;font-size:14px;padding:5px 0;">Crew Tip:</td>
-      <td style="color:#16a34a;font-size:14px;font-weight:600;text-align:right;padding:5px 0;">+${fmt(tipCents)}</td>
-    </tr>` : "";
-
+      <tr>
+        <td style="color:#64748b;font-size:14px;">Crew Tip:</td>
+        <td style="color:#16a34a;font-size:14px;font-weight:600;text-align:right;">+${fmt(tipCents)}</td>
+      </tr>` : "";
   const balanceRow = newBalanceDue > 0
-    ? `<tr><td style="color:#64748b;font-size:14px;padding:5px 0;">Remaining Balance Due:</td><td style="color:#dc2626;font-size:14px;font-weight:700;text-align:right;padding:5px 0;">${fmt(newBalanceDue)}</td></tr>`
-    : `<tr><td style="color:#64748b;font-size:14px;padding:5px 0;">Remaining Balance Due:</td><td style="color:#16a34a;font-size:14px;font-weight:700;text-align:right;padding:5px 0;">PAID IN FULL</td></tr>`;
+    ? `<tr style="border-top:2px solid #e2e8f0;"><td style="color:#1e293b;font-size:15px;font-weight:600;padding-top:10px;">Remaining Balance Due:</td><td style="color:#dc2626;font-size:15px;font-weight:700;text-align:right;padding-top:10px;">${fmt(newBalanceDue)}</td></tr>`
+    : `<tr style="border-top:2px solid #e2e8f0;"><td style="color:#1e293b;font-size:15px;font-weight:600;padding-top:10px;">Remaining Balance Due:</td><td style="color:#16a34a;font-size:15px;font-weight:700;text-align:right;padding-top:10px;">PAID IN FULL</td></tr>`;
 
+  const paymentReceiptBox = `
+    <div style="background-color:${BG};border:2px solid ${BORDER};border-radius:6px;padding:20px;margin:25px 0;">
+      <h3 style="margin:0 0 15px;color:${ACCENT};font-size:16px;font-weight:600;">Payment Receipt</h3>
+      <table width="100%" cellpadding="6" cellspacing="0">
+        <tr>
+          <td style="color:#64748b;font-size:14px;">${paymentLabel}:</td>
+          <td style="color:#1e293b;font-size:14px;font-weight:600;text-align:right;">${fmt(amountCents)}</td>
+        </tr>
+        ${tipRow}
+        <tr style="border-top:2px solid #d1fae5;">
+          <td style="color:${ACCENT};font-size:15px;font-weight:700;padding-top:10px;">Total Received:</td>
+          <td style="color:${ACCENT};font-size:18px;font-weight:800;text-align:right;padding-top:10px;">${fmt(totalCents)}</td>
+        </tr>
+        ${balanceRow}
+      </table>
+    </div>`;
+
+  // ── CASH PAYMENT bold banner (only for cash payments) ─────────────────────
+  const cashBanner = `
+    <div style="background-color:#fef3c7;border:2px solid #f59e0b;border-radius:6px;padding:16px 20px;margin:25px 0;text-align:center;">
+      <p style="margin:0;font-size:18px;font-weight:900;color:#92400e;letter-spacing:0.5px;">PAID IN CASH</p>
+      <p style="margin:6px 0 0;font-size:13px;color:#b45309;font-weight:600;">Cash payment received and recorded by staff</p>
+    </div>`;
+
+  const content = `
+    <p style="margin:0 0 20px;color:#1e293b;font-size:16px;">Hi ${firstName},</p>
+    <p style="margin:0 0 20px;color:#475569;font-size:15px;line-height:1.6;">We've received your payment. Here is your receipt and order summary.</p>
+    ${cashBanner}
+    ${eventInfoBox}
+    ${itemsSection}
+    ${pricingSection}
+    ${paymentReceiptBox}
+    <p style="margin:25px 0 0;color:#475569;font-size:14px;line-height:1.6;">Questions? Call us at <strong style="color:#1e293b;">${PHONE}</strong></p>
+  `;
+
+  // Wrap in the same outer shell as emailTemplateBase.createEmailWrapper (success theme)
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Payment Received</title></head>
 <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#f8fafc;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;padding:40px 20px;">
     <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.1);border:2px solid #3b82f6;">
+      <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.1);border:2px solid ${BORDER};">
         <tr>
-          <td style="background-color:#ffffff;padding:30px;text-align:center;border-bottom:2px solid #3b82f6;">
+          <td style="background-color:#ffffff;padding:30px;text-align:center;border-bottom:2px solid ${BORDER};">
             <img src="${LOGO_URL}" alt="Bounce Party Club" style="height:80px;width:auto;" />
-            <h1 style="margin:15px 0 0;color:#3b82f6;font-size:24px;font-weight:bold;">Payment Received!</h1>
-            <p style="margin:6px 0 0;color:#64748b;font-size:14px;">Order #${orderNum}</p>
+            <h1 style="margin:15px 0 0;color:${BORDER};font-size:24px;font-weight:bold;">Payment Received!</h1>
           </td>
         </tr>
-        <tr><td style="padding:30px;">
-
-          <p style="margin:0 0 20px;color:#1e293b;font-size:16px;">Hi ${firstName},</p>
-          <p style="margin:0 0 24px;color:#475569;font-size:15px;line-height:1.6;">We've received your payment. Here is your receipt and order summary.</p>
-
-          <!-- CASH PAYMENT BANNER -->
-          <div style="background-color:#fef3c7;border:2px solid #f59e0b;border-radius:6px;padding:16px 20px;margin:0 0 24px;text-align:center;">
-            <p style="margin:0;font-size:17px;font-weight:800;color:#92400e;letter-spacing:0.5px;">PAID IN CASH</p>
-            <p style="margin:4px 0 0;font-size:13px;color:#b45309;">Cash payment received and recorded</p>
-          </div>
-
-          <!-- Event Details -->
-          <div style="background-color:#eff6ff;border:2px solid #3b82f6;border-radius:6px;padding:20px;margin:0 0 24px;">
-            <h3 style="margin:0 0 15px;color:#1e40af;font-size:16px;font-weight:600;">Event Details</h3>
-            <table width="100%" cellpadding="6" cellspacing="0">${eventRows}</table>
-          </div>
-
-          ${items.length > 0 ? `
-          <!-- Order Items -->
-          <div style="margin:0 0 24px;">
-            <h3 style="margin:0 0 15px;color:#1e293b;font-size:16px;font-weight:600;">Order Items</h3>
-            <table width="100%" cellpadding="0" cellspacing="0">${itemRows}</table>
-          </div>` : ""}
-
-          <!-- Pricing Summary -->
-          <div style="background-color:#f8fafc;border-radius:6px;padding:20px;margin:0 0 24px;">
-            <h3 style="margin:0 0 15px;color:#1e293b;font-size:16px;font-weight:600;">Payment Summary</h3>
-            <table width="100%" cellpadding="6" cellspacing="0">${pricingRowsHtml}</table>
-          </div>
-
-          <!-- This Payment -->
-          <div style="background-color:#f0fdf4;border:2px solid #10b981;border-radius:6px;padding:20px;margin:0 0 24px;">
-            <h3 style="margin:0 0 15px;color:#15803d;font-size:16px;font-weight:600;">Payment Receipt</h3>
-            <table width="100%" cellpadding="6" cellspacing="0">
-              <tr>
-                <td style="color:#64748b;font-size:14px;padding:5px 0;">${paymentLabel}:</td>
-                <td style="color:#1e293b;font-size:14px;font-weight:600;text-align:right;padding:5px 0;">${fmt(amountCents)}</td>
-              </tr>
-              ${tipRow}
-              <tr style="border-top:2px solid #d1fae5;">
-                <td style="color:#15803d;font-size:15px;font-weight:700;padding-top:10px;">Total Received:</td>
-                <td style="color:#15803d;font-size:18px;font-weight:800;text-align:right;padding-top:10px;">${fmt(totalCents)}</td>
-              </tr>
-              ${balanceRow}
-            </table>
-          </div>
-
-          <p style="margin:0;color:#475569;font-size:14px;line-height:1.6;">Questions? Call us at <strong style="color:#1e293b;">${PHONE}</strong></p>
-        </td></tr>
+        <tr><td style="padding:30px;">${content}</td></tr>
         <tr>
-          <td style="background-color:#f8fafc;padding:25px;text-align:center;border-top:2px solid #3b82f6;">
+          <td style="background-color:#f8fafc;padding:25px;text-align:center;border-top:2px solid ${BORDER};">
             <p style="margin:0 0 5px;color:#64748b;font-size:13px;">Bounce Party Club | ${PHONE}</p>
           </td>
         </tr>

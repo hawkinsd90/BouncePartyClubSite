@@ -328,33 +328,37 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
             </div>
 
             <div className="relative mb-6">
-              <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent z-10" />
-            <div className="flex gap-2 border-b border-slate-200 overflow-x-auto scrollbar-hide">
+              <div className="pointer-events-none absolute left-0 top-0 bottom-2 w-6 bg-gradient-to-r from-white to-transparent z-10 sm:hidden" />
+              <div className="pointer-events-none absolute right-0 top-0 bottom-2 w-10 bg-gradient-to-l from-white to-transparent z-10" />
+              <p className="text-xs text-slate-400 mb-1 sm:hidden flex items-center gap-1">
+                <span>&#8592;</span> Swipe tabs to see more <span>&#8594;</span>
+              </p>
+            <div className="flex gap-1 border-b border-slate-200 overflow-x-auto scrollbar-hide pb-0">
               <button
                 onClick={() => setActiveTab('details')}
-                className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
+                className={`px-3 py-2.5 font-medium border-b-2 transition-colors whitespace-nowrap text-sm ${
                   activeTab === 'details'
                     ? 'border-blue-600 text-blue-600'
                     : 'border-transparent text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Order Details
+                Details
               </button>
               <button
                 onClick={() => setActiveTab('lot-pictures')}
-                className={`px-4 py-2 font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
+                className={`px-3 py-2.5 font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap text-sm ${
                   activeTab === 'lot-pictures'
                     ? 'border-blue-600 text-blue-600'
                     : 'border-transparent text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <MapPin className="w-4 h-4" />
-                Lot Pictures
+                <MapPin className="w-3.5 h-3.5" />
+                Lot Pics
               </button>
               <button
                 onClick={() => stepsUnlocked && setActiveTab('waiver')}
                 disabled={!stepsUnlocked}
-                className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
+                className={`px-3 py-2.5 font-medium border-b-2 transition-colors whitespace-nowrap text-sm relative ${
                   !stepsUnlocked
                     ? 'border-transparent text-slate-400 cursor-not-allowed'
                     : activeTab === 'waiver'
@@ -363,11 +367,14 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                 }`}
               >
                 Waiver
+                {needsWaiver && stepsUnlocked && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-amber-500 rounded-full" />
+                )}
               </button>
               <button
                 onClick={() => stepsUnlocked && setActiveTab('payment')}
                 disabled={!stepsUnlocked}
-                className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
+                className={`px-3 py-2.5 font-medium border-b-2 transition-colors whitespace-nowrap text-sm relative ${
                   !stepsUnlocked
                     ? 'border-transparent text-slate-400 cursor-not-allowed'
                     : activeTab === 'payment'
@@ -376,11 +383,14 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                 }`}
               >
                 Payment
+                {needsPayment && stepsUnlocked && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-amber-500 rounded-full" />
+                )}
               </button>
               <button
                 onClick={() => stepsUnlocked && setActiveTab('pictures')}
                 disabled={!stepsUnlocked}
-                className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
+                className={`px-3 py-2.5 font-medium border-b-2 transition-colors whitespace-nowrap text-sm ${
                   !stepsUnlocked
                     ? 'border-transparent text-slate-400 cursor-not-allowed'
                     : activeTab === 'pictures'
@@ -392,13 +402,13 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
               </button>
               <button
                 onClick={() => setActiveTab('delivery')}
-                className={`px-4 py-2 font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+                className={`px-3 py-2.5 font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap text-sm ${
                   activeTab === 'delivery'
                     ? 'border-blue-600 text-blue-600'
                     : 'border-transparent text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <Truck className="w-4 h-4" />
+                <Truck className="w-3.5 h-3.5" />
                 Delivery
               </button>
             </div>

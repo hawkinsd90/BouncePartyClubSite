@@ -177,28 +177,6 @@ Deno.serve(async (req: Request) => {
 
     (async () => {
       try {
-        const pdfResponse = await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-signed-waiver`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ signatureId: signatureRecord.id }),
-          }
-        );
-
-        if (!pdfResponse.ok) {
-          console.error("PDF generation failed:", await pdfResponse.text());
-        }
-      } catch (pdfError) {
-        console.error("PDF generation error:", pdfError);
-      }
-    })();
-
-    (async () => {
-      try {
         const firstName = renterName.split(" ")[0] || renterName;
         const formattedDate = new Date(eventDate).toLocaleDateString("en-US", {
           weekday: "long",
@@ -210,6 +188,44 @@ Deno.serve(async (req: Request) => {
           .filter(Boolean)
           .join(", ");
         const signedAt = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+
+        // Generate the signed waiver PDF first so we can include the link in the email
+        let pdfUrl: string | null = null;
+        try {
+          const pdfResponse = await fetch(
+            `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-signed-waiver`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ signatureId: signatureRecord.id }),
+            }
+          );
+
+          if (pdfResponse.ok) {
+            const pdfData = await pdfResponse.json();
+            pdfUrl = pdfData.pdfUrl || null;
+          } else {
+            console.error("PDF generation failed:", await pdfResponse.text());
+          }
+        } catch (pdfError) {
+          console.error("PDF generation error:", pdfError);
+        }
+
+        const pdfSection = pdfUrl
+          ? `
+            <div style="background-color:#f0fdf4;border:2px solid #10b981;border-radius:6px;padding:18px;margin:25px 0;text-align:center;">
+              <h3 style="margin:0 0 10px;color:#15803d;font-size:15px;font-weight:600;">Your Signed Waiver Copy</h3>
+              <p style="margin:0 0 14px;color:#166534;font-size:14px;">A copy of your signed rental agreement is available for download.</p>
+              <a href="${pdfUrl}" target="_blank" style="display:inline-block;background-color:#10b981;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:6px;font-weight:700;font-size:15px;">Download Signed Waiver (PDF)</a>
+              <p style="margin:12px 0 0;color:#64748b;font-size:12px;">Keep this for your records. This link will remain active.</p>
+            </div>`
+          : `
+            <div style="background-color:#fef3c7;border:2px solid #f59e0b;border-radius:6px;padding:14px;margin:25px 0;">
+              <p style="margin:0;color:#92400e;font-size:13px;">Your signed waiver PDF is being generated and will be available in your customer portal shortly.</p>
+            </div>`;
 
         const emailHtml = `<!DOCTYPE html>
 <html>
@@ -249,6 +265,7 @@ Deno.serve(async (req: Request) => {
                 </tr>
               </table>
             </div>
+            ${pdfSection}
             <div style="background-color:#dbeafe;border:2px solid #3b82f6;border-radius:6px;padding:18px;margin:25px 0;">
               <h3 style="margin:0 0 12px;color:#1e40af;font-size:15px;font-weight:600;">Important Reminders</h3>
               <ul style="margin:0;padding-left:20px;color:#1e40af;font-size:14px;line-height:1.8;">
