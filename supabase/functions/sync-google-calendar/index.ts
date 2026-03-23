@@ -1,3 +1,19 @@
+// GOOGLE CALENDAR SYNC — CURRENTLY DISABLED
+//
+// This function is scaffolded but intentionally inactive until Google OAuth
+// credentials are configured. The DB trigger (trg_auto_sync_google_calendar)
+// has been dropped so this function will not be invoked automatically.
+//
+// The function itself has an early-return guard at line ~276: if credentials
+// are absent from admin_settings it returns { ok: false } immediately.
+//
+// TO RE-ENABLE:
+// 1. Store Google credentials via Admin → Google Calendar tab.
+// 2. Re-create the DB trigger (SQL in GoogleCalendarSettings.tsx file header).
+// 3. Remove the GCAL_INTEGRATION_DISABLED constant from GoogleCalendarSettings.tsx.
+// 4. Fix the queue-mark-before-sync ordering bug: move the processed_at update
+//    to AFTER each syncDate() call succeeds, not before the loop.
+
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 

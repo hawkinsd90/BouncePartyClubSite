@@ -1,15 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Activity, Eye, ShoppingCart, CreditCard, Users, TrendingUp, RefreshCw } from 'lucide-react';
+import { Activity, ShoppingCart, CreditCard, Users, TrendingUp, RefreshCw, BarChart2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 
 interface FunnelRow {
   event_name: string;
-  count: number;
-}
-
-interface TopPage {
-  page_path: string;
   count: number;
 }
 
@@ -25,29 +20,36 @@ interface RecentEvent {
   metadata: Record<string, unknown>;
 }
 
+interface EventCount {
+  event_name: string;
+  count: number;
+}
+
 interface SiteMetrics {
   funnel: FunnelRow[];
-  topPages: TopPage[];
   topUnits: TopUnit[];
   recentEvents: RecentEvent[];
+  allEventCounts: EventCount[];
   totalSessionsToday: number;
   totalEventsToday: number;
 }
 
+// Only include events that are actually tracked in the codebase.
+// page_view and payment_link_opened are defined in the type but never called —
+// they are intentionally excluded here until implemented.
 const EVENT_LABELS: Record<string, string> = {
-  page_view: 'Page Views',
   unit_view: 'Unit Views',
   quote_started: 'Quotes Started',
   quote_submitted: 'Quotes Submitted',
   checkout_started: 'Checkouts Started',
   checkout_completed: 'Checkouts Completed',
   customer_portal_viewed: 'Portal Views',
-  payment_link_opened: 'Payment Links Opened',
   waiver_link_opened: 'Waiver Links Opened',
 };
 
+// Conversion funnel — only steps that are actually tracked.
+// Top of funnel is unit_view (the first measurable intent signal we capture).
 const FUNNEL_EVENTS = [
-  'page_view',
   'unit_view',
   'quote_started',
   'quote_submitted',
@@ -71,15 +73,10 @@ export function SiteAnalytics() {
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
 
-      const [funnelRes, pagesRes, unitsRes, recentRes, todayRes] = await Promise.all([
+      const [allEventsRes, unitsRes, recentRes, todayRes] = await Promise.all([
         supabase
           .from('site_events')
           .select('event_name')
-          .gte('created_at', since),
-        supabase
-          .from('site_events')
-          .select('page_path')
-          .eq('event_name', 'page_view')
           .gte('created_at', since),
         supabase
           .from('site_events')
@@ -99,27 +96,24 @@ export function SiteAnalytics() {
           .gte('created_at', todayStart.toISOString()),
       ]);
 
-      const funnelCounts: Record<string, number> = {};
-      for (const row of (funnelRes.data || [])) {
-        funnelCounts[row.event_name] = (funnelCounts[row.event_name] || 0) + 1;
+      // Count all events by name
+      const allCounts: Record<string, number> = {};
+      for (const row of (allEventsRes.data || [])) {
+        allCounts[row.event_name] = (allCounts[row.event_name] || 0) + 1;
       }
 
+      // Build funnel from tracked events only
       const funnel: FunnelRow[] = FUNNEL_EVENTS.map(name => ({
         event_name: name,
-        count: funnelCounts[name] || 0,
+        count: allCounts[name] || 0,
       }));
 
-      const pageCounts: Record<string, number> = {};
-      for (const row of (pagesRes.data || [])) {
-        if (row.page_path) {
-          pageCounts[row.page_path] = (pageCounts[row.page_path] || 0) + 1;
-        }
-      }
-      const topPages: TopPage[] = Object.entries(pageCounts)
+      // All event type counts (for the summary panel)
+      const allEventCounts: EventCount[] = Object.entries(allCounts)
         .sort((a, b) => b[1] - a[1])
-        .slice(0, 10)
-        .map(([page_path, count]) => ({ page_path, count }));
+        .map(([event_name, count]) => ({ event_name, count }));
 
+      // Top units viewed
       const unitCounts: Record<string, number> = {};
       for (const row of (unitsRes.data || [])) {
         const unitName = (row.units as any)?.name || 'Unknown';
@@ -135,9 +129,9 @@ export function SiteAnalytics() {
 
       setMetrics({
         funnel,
-        topPages,
         topUnits,
         recentEvents: (recentRes.data || []) as RecentEvent[],
+        allEventCounts,
         totalSessionsToday: uniqueSessions,
         totalEventsToday: todayData.length,
       });
@@ -165,7 +159,9 @@ export function SiteAnalytics() {
     );
   }
 
-  const maxFunnel = metrics.funnel[0]?.count || 1;
+  // Use the top tracked funnel step as the bar-width base, not index 0.
+  // This keeps the bars honest: the widest bar is 100%, others are proportional.
+  const maxFunnel = Math.max(...metrics.funnel.map(r => r.count), 1);
 
   return (
     <div className="space-y-8">
@@ -204,6 +200,7 @@ export function SiteAnalytics() {
             <span className="text-sm font-medium text-slate-600">Sessions Today</span>
           </div>
           <div className="text-3xl font-bold text-slate-900">{metrics.totalSessionsToday}</div>
+          <p className="text-xs text-slate-400 mt-1">Unique session IDs from tracked events</p>
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
           <div className="flex items-center gap-3 mb-2">
@@ -213,66 +210,56 @@ export function SiteAnalytics() {
             <span className="text-sm font-medium text-slate-600">Events Today</span>
           </div>
           <div className="text-3xl font-bold text-slate-900">{metrics.totalEventsToday}</div>
+          <p className="text-xs text-slate-400 mt-1">All tracked event types combined</p>
         </div>
       </div>
 
       {/* Conversion Funnel */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-        <div className="flex items-center gap-2 mb-5">
-          <TrendingUp className="w-5 h-5 text-blue-600" />
-          <h3 className="font-semibold text-slate-900">Conversion Funnel</h3>
-          <span className="text-xs text-slate-400 ml-1">({days}d)</span>
+        <div className="flex items-start justify-between mb-5">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-blue-600" />
+            <h3 className="font-semibold text-slate-900">Conversion Funnel</h3>
+            <span className="text-xs text-slate-400 ml-1">({days}d)</span>
+          </div>
+          <p className="text-xs text-slate-400 max-w-xs text-right">
+            Only tracked events are shown. Page views are not yet instrumented.
+          </p>
         </div>
-        <div className="space-y-3">
-          {metrics.funnel.map((row, i) => {
-            const prev = i > 0 ? metrics.funnel[i - 1].count : row.count;
-            const convPct = prev > 0 ? `${((row.count / prev) * 100).toFixed(0)}%` : '—';
-            return (
-              <div key={row.event_name} className="flex items-center gap-3">
-                <div className="w-32 text-xs text-slate-600 shrink-0">
-                  {EVENT_LABELS[row.event_name] || row.event_name}
-                </div>
-                <div className="flex-1">
-                  <div className="w-full bg-slate-100 rounded-full h-6 relative overflow-hidden">
-                    <div
-                      className="h-6 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all"
-                      style={{ width: `${maxFunnel > 0 ? (row.count / maxFunnel) * 100 : 0}%` }}
-                    />
-                    <span className="absolute inset-0 flex items-center pl-2 text-xs font-semibold text-white mix-blend-luminosity">
-                      {row.count.toLocaleString()}
-                    </span>
+        {maxFunnel === 1 && metrics.funnel.every(r => r.count === 0) ? (
+          <p className="text-sm text-slate-500">No funnel events recorded in this period yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {metrics.funnel.map((row, i) => {
+              const prev = i > 0 ? metrics.funnel[i - 1].count : row.count;
+              const convPct = prev > 0 ? `${((row.count / prev) * 100).toFixed(0)}%` : '—';
+              return (
+                <div key={row.event_name} className="flex items-center gap-3">
+                  <div className="w-36 text-xs text-slate-600 shrink-0">
+                    {EVENT_LABELS[row.event_name] || row.event_name}
                   </div>
+                  <div className="flex-1">
+                    <div className="w-full bg-slate-100 rounded-full h-6 relative overflow-hidden">
+                      <div
+                        className="h-6 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all"
+                        style={{ width: `${(row.count / maxFunnel) * 100}%` }}
+                      />
+                      <span className="absolute inset-0 flex items-center pl-2 text-xs font-semibold text-slate-700 mix-blend-normal">
+                        {row.count.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                  {i > 0 && (
+                    <div className="w-14 text-right text-xs text-slate-500 shrink-0">{convPct}</div>
+                  )}
                 </div>
-                {i > 0 && (
-                  <div className="w-14 text-right text-xs text-slate-500 shrink-0">{convPct}</div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Top Pages */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Eye className="w-5 h-5 text-slate-600" />
-            <h3 className="font-semibold text-slate-900">Top Pages</h3>
-          </div>
-          {metrics.topPages.length === 0 ? (
-            <p className="text-sm text-slate-500">No page views recorded yet</p>
-          ) : (
-            <div className="space-y-2">
-              {metrics.topPages.map(p => (
-                <div key={p.page_path} className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                  <span className="text-sm text-slate-700 truncate font-mono">{p.page_path}</span>
-                  <span className="text-sm font-semibold text-slate-900 ml-2 shrink-0">{p.count.toLocaleString()}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
         {/* Top Units Viewed */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
           <div className="flex items-center gap-2 mb-4">
@@ -287,6 +274,28 @@ export function SiteAnalytics() {
                 <div key={u.unit_name} className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
                   <span className="text-sm text-slate-700 truncate">{u.unit_name}</span>
                   <span className="text-sm font-semibold text-slate-900 ml-2 shrink-0">{u.views.toLocaleString()} views</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* All Event Type Counts */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <BarChart2 className="w-5 h-5 text-blue-600" />
+            <h3 className="font-semibold text-slate-900">Events by Type</h3>
+          </div>
+          {metrics.allEventCounts.length === 0 ? (
+            <p className="text-sm text-slate-500">No events recorded yet</p>
+          ) : (
+            <div className="space-y-2">
+              {metrics.allEventCounts.map(e => (
+                <div key={e.event_name} className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
+                  <span className="text-sm text-slate-700 truncate">
+                    {EVENT_LABELS[e.event_name] || e.event_name}
+                  </span>
+                  <span className="text-sm font-semibold text-slate-900 ml-2 shrink-0">{e.count.toLocaleString()}</span>
                 </div>
               ))}
             </div>
