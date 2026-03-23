@@ -78,7 +78,8 @@ export function CustomerPortal() {
             body: { sessionId: returnSessionId, orderId },
           });
           if (pmError || !pmData?.success) {
-            console.error('[CustomerPortal] invoice save-pm failed:', pmError ?? pmData?.error);
+            // BPC-SECURITY-HARDENING: raw error object removed — could expose payment API internals in browser console.
+            console.error('[CustomerPortal] invoice save-pm failed.');
             showToast('Failed to save payment method. Please try again.', 'error');
             setInvoiceProcessing(false);
             await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
@@ -97,7 +98,8 @@ export function CustomerPortal() {
           setInvoiceProcessing(false);
           setApprovalSuccess(true);
         } catch (err: any) {
-          console.error('[CustomerPortal] invoice approval error:', err);
+          // BPC-SECURITY-HARDENING: raw error object removed — could expose payment/approval internals in browser console.
+          console.error('[CustomerPortal] invoice approval error:', err instanceof Error ? err.message : 'unknown');
           showToast('Something went wrong. Please contact us.', 'error');
           setInvoiceProcessing(false);
           await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
@@ -110,12 +112,15 @@ export function CustomerPortal() {
             body: { sessionId: returnSessionId, orderId },
           });
           if (pmError) {
-            console.error('[CustomerPortal] save-payment-method-from-session invocation error:', pmError);
+            // BPC-SECURITY-HARDENING: raw pmError removed — could expose payment service internals in browser console.
+            console.error('[CustomerPortal] save-payment-method-from-session invocation error.');
           } else if (!pmData?.success) {
-            console.error('[CustomerPortal] save-payment-method-from-session returned failure:', pmData?.error ?? 'unknown');
+            // BPC-SECURITY-HARDENING: raw pmData?.error removed — could expose payment API response internals.
+            console.error('[CustomerPortal] save-payment-method-from-session returned failure.');
           }
         } catch (err) {
-          console.error('[CustomerPortal] save-payment-method-from-session threw unexpectedly:', err);
+          // BPC-SECURITY-HARDENING: raw error removed — could expose payment API internals in browser console.
+          console.error('[CustomerPortal] save-payment-method-from-session threw unexpectedly:', err instanceof Error ? err.message : 'unknown');
         }
         await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
       })();
