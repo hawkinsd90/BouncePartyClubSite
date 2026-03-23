@@ -210,12 +210,7 @@ export function useCalendarTasks(currentMonth: Date) {
         const numInflatables = orderItemsForOrder
           .reduce((sum, item) => sum + (item.qty || 1), 0);
 
-        const total = order.subtotal_cents +
-                     (order.generator_fee_cents || 0) +
-                     order.travel_fee_cents +
-                     order.surface_fee_cents +
-                     (order.same_day_pickup_fee_cents || 0) +
-                     order.tax_cents;
+        const total = (order.balance_due_cents || 0) + (order.deposit_due_cents || 0);
 
         // Use the DB-stored balance_due_cents (which correctly accounts for deposit,
         // custom fees, discounts, and all pricing) minus any balance already paid.

@@ -50,7 +50,7 @@ export function StatusChangeDialog({
     try {
       const { data: currentOrder } = await supabase
         .from('orders')
-        .select('stripe_payment_method_id, payment_amount_due')
+        .select('stripe_payment_method_id, payment_amount_due, balance_due_cents, balance_paid_cents')
         .eq('id', orderId)
         .single();
 
@@ -59,6 +59,20 @@ export function StatusChangeDialog({
         showToast(validation.reason || 'Invalid status transition', 'error');
         setIsChanging(false);
         return;
+      }
+
+      if (pendingStatus === 'completed' && currentOrder) {
+        const remaining = Math.max(0, (currentOrder.balance_due_cents || 0) - (currentOrder.balance_paid_cents || 0));
+        if (remaining > 0) {
+          const dollars = (remaining / 100).toFixed(2);
+          const proceed = window.confirm(
+            `⚠️ Outstanding balance of $${dollars} has not been collected.\n\nAre you sure you want to mark this order as completed without full payment?`
+          );
+          if (!proceed) {
+            setIsChanging(false);
+            return;
+          }
+        }
       }
 
       if (pendingStatus === 'confirmed') {

@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { format, isToday, isFuture, isPast } from 'date-fns';
-import { Search, Calendar, User, Phone, Archive, ArchiveX } from 'lucide-react';
+import { Search, Calendar, User, Phone, Archive, ArchiveX, ArchiveRestore } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import { showToast } from '../../lib/notifications';
 import { OrderDetailModal } from '../admin/OrderDetailModal';
 import { PendingOrderCard } from '../admin/PendingOrderCard';
 import { SingleOrderView } from '../admin/SingleOrderView';
@@ -32,6 +34,7 @@ export function OrdersManager() {
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [visibleOrder, setVisibleOrder] = useState<any>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   const orderCardsRef = useRef<Map<string, { card: HTMLElement, actionButtons: HTMLElement | null }>>(new Map());
 
   const fetchOrdersData = useCallback(async () => {
@@ -57,6 +60,24 @@ export function OrdersManager() {
 
   const orders = data?.orders || [];
   const contactsMap = data?.contactsMap || new Map();
+
+  async function handleArchiveOldOrders() {
+    const confirmed = window.confirm(
+      'Archive completed orders older than 90 days?\n\nThey will be hidden from the Past tab by default but can be shown with "Show Archived".'
+    );
+    if (!confirmed) return;
+    setArchiving(true);
+    try {
+      const { error } = await supabase.rpc('archive_old_orders', { threshold_days: 90 });
+      if (error) throw error;
+      showToast('Old orders archived successfully.', 'success');
+      refetch();
+    } catch (err: any) {
+      showToast('Failed to archive orders: ' + (err.message || 'Unknown error'), 'error');
+    } finally {
+      setArchiving(false);
+    }
+  }
 
   // Categorize orders once for performance
   const categorizedOrders = useMemo(() => {
@@ -345,17 +366,27 @@ export function OrdersManager() {
               ? 'Showing all past orders including archived'
               : 'Showing recent past orders — archived orders hidden'}
           </p>
-          <button
-            onClick={() => setShowArchived(v => !v)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
-              showArchived
-                ? 'bg-slate-700 text-white border-slate-700 hover:bg-slate-600'
-                : 'bg-white text-slate-700 border-slate-300 hover:border-slate-500'
-            }`}
-          >
-            {showArchived ? <ArchiveX className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
-            {showArchived ? 'Hide Archived' : 'Show Archived'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleArchiveOldOrders}
+              disabled={archiving}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors bg-white text-slate-700 border-slate-300 hover:border-slate-500 disabled:opacity-50"
+            >
+              <ArchiveRestore className="w-4 h-4" />
+              {archiving ? 'Archiving...' : 'Archive Old Orders'}
+            </button>
+            <button
+              onClick={() => setShowArchived(v => !v)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                showArchived
+                  ? 'bg-slate-700 text-white border-slate-700 hover:bg-slate-600'
+                  : 'bg-white text-slate-700 border-slate-300 hover:border-slate-500'
+              }`}
+            >
+              {showArchived ? <ArchiveX className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+              {showArchived ? 'Hide Archived' : 'Show Archived'}
+            </button>
+          </div>
         </div>
       )}
 
