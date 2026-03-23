@@ -167,13 +167,13 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
 
   const successfulPayments = payments.filter(p => p.status === 'succeeded');
 
-  const workflowLabels: Record<string, { text: string; icon: React.ReactNode; color: string }> = {
-    on_the_way:        { text: 'Crew is on the way',        icon: <Navigation className="w-3.5 h-3.5" />, color: 'text-blue-200' },
-    arrived:           { text: 'Crew has arrived',           icon: <Clock className="w-3.5 h-3.5" />,      color: 'text-yellow-200' },
-    setup_in_progress: { text: 'Setup in progress',          icon: <Truck className="w-3.5 h-3.5" />,      color: 'text-cyan-200' },
-    setup_completed:   { text: 'Equipment delivered',        icon: <Truck className="w-3.5 h-3.5" />,      color: 'text-green-200' },
-    pickup_scheduled:  { text: 'Pickup scheduled',           icon: <Package className="w-3.5 h-3.5" />,    color: 'text-amber-200' },
-    pickup_in_progress:{ text: 'Crew picking up equipment',  icon: <Navigation className="w-3.5 h-3.5" />, color: 'text-orange-200' },
+  const workflowLabels: Record<string, { text: string; icon: React.ReactNode; headerColor: string; cardColor: string }> = {
+    on_the_way:         { text: 'Crew is on the way',       icon: <Navigation className="w-3.5 h-3.5" />, headerColor: 'text-white font-semibold', cardColor: 'text-blue-700' },
+    arrived:            { text: 'Crew has arrived',          icon: <Clock className="w-3.5 h-3.5" />,      headerColor: 'text-white font-semibold', cardColor: 'text-yellow-700' },
+    setup_in_progress:  { text: 'Setup in progress',         icon: <Truck className="w-3.5 h-3.5" />,      headerColor: 'text-white font-semibold', cardColor: 'text-cyan-700' },
+    setup_completed:    { text: 'Equipment delivered',       icon: <Truck className="w-3.5 h-3.5" />,      headerColor: 'text-white font-semibold', cardColor: 'text-green-700' },
+    pickup_scheduled:   { text: 'Pickup scheduled',          icon: <Package className="w-3.5 h-3.5" />,    headerColor: 'text-white font-semibold', cardColor: 'text-amber-700' },
+    pickup_in_progress: { text: 'Crew picking up equipment', icon: <Navigation className="w-3.5 h-3.5" />, headerColor: 'text-white font-semibold', cardColor: 'text-orange-700' },
   };
   const activeWorkflow = order.status === 'in_progress' && order.workflow_status
     ? workflowLabels[order.workflow_status]
@@ -204,7 +204,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                     <OrderStatusBadge order={order} />
                   </div>
                   {activeWorkflow && (
-                    <div className={`flex items-center gap-1.5 mt-1 text-xs font-medium ${activeWorkflow.color}`}>
+                    <div className={`flex items-center gap-1.5 mt-1 text-xs ${activeWorkflow.headerColor}`}>
                       {activeWorkflow.icon}
                       {activeWorkflow.text}
                     </div>
@@ -460,7 +460,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                     <div className="flex flex-col items-end gap-1">
                       <OrderStatusBadge order={order} />
                       {activeWorkflow && (
-                        <span className={`flex items-center gap-1 text-xs font-medium text-slate-500`}>
+                        <span className={`flex items-center gap-1 text-xs font-medium ${activeWorkflow.cardColor}`}>
                           {activeWorkflow.icon}
                           {activeWorkflow.text}
                         </span>

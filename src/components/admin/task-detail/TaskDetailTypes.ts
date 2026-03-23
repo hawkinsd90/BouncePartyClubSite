@@ -27,7 +27,7 @@ export interface Task {
   taskStatus?: {
     id: string;
     status: string;
-    sortOrder: number;
+    sortOrder: number | null;
     deliveryImages?: string[];
     damageImages?: string[];
     etaSent: boolean;

@@ -59,7 +59,12 @@ export function DayViewModal({
     if (activeList.length === 0) return null;
     const currentTask = activeList[0];
     const nextTask = activeList[1] ?? null;
-    const prevTask = completedList.length > 0 ? completedList[completedList.length - 1] : null;
+    const sortedCompleted = [...completedList].sort((a, b) => {
+      const oa = a.taskStatus?.sortOrder ?? Infinity;
+      const ob = b.taskStatus?.sortOrder ?? Infinity;
+      return oa - ob;
+    });
+    const prevTask = sortedCompleted.length > 0 ? sortedCompleted[sortedCompleted.length - 1] : null;
     if (task.id === currentTask.id) return 'current';
     if (nextTask && task.id === nextTask.id) return 'next';
     if (prevTask && task.id === prevTask.id) return 'previous';

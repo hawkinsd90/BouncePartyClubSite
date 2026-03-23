@@ -19,7 +19,7 @@ export function TaskDetailActions({
 }: Props) {
   return (
     <div className="border-t border-slate-200 pt-6">
-      <h3 className="font-bold text-slate-900 mb-4">Delivery Actions</h3>
+      <h3 className="font-bold text-slate-900 mb-4">{isDropOff ? 'Delivery Actions' : 'Pickup Actions'}</h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <button
           onClick={onEnRoute}
