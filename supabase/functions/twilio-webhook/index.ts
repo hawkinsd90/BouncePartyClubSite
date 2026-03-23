@@ -38,9 +38,9 @@ Deno.serve(async (req: Request) => {
 
     // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
     // Restore only after a true dev/staging environment and explicit safe gating are in place.
-    // Previously logged PII (phone numbers) and raw SMS body.
+    // Previously logged PII (phone numbers), raw SMS body, and Twilio MessageSid (SM_xxx) — a third-party identifier.
     // console.log("Received SMS:", { messageSid, from, to, body });
-    console.log("Received SMS:", { messageSid, hasFrom: !!from, hasTo: !!to, hasBody: !!body });
+    console.log("Received SMS:", { hasMessageSid: !!messageSid, hasFrom: !!from, hasTo: !!to, hasBody: !!body });
 
     if (!messageSid || !from || !to || !body) {
       return new Response(
