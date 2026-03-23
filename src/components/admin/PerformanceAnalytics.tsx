@@ -29,7 +29,11 @@ export function PerformanceAnalytics() {
       const { data: taskData, error } = await supabase
         .from('task_status')
         .select(`
-          *,
+          id,
+          status,
+          created_at,
+          completed_at,
+          estimated_arrival,
           orders!inner(status)
         `)
         .gte('created_at', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString());

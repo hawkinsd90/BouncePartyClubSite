@@ -16,27 +16,31 @@ export function useOrders(userId: string | undefined, userEmail: string | undefi
 
     setLoading(true);
     try {
-      const { data: profileData } = await supabase
-        .from('customer_profiles')
-        .select(`
-          contact_id,
-          contacts (
-            customer_id
-          )
-        `)
-        .eq('user_id', userId)
-        .maybeSingle();
+      const [profileResult, emailResult] = await Promise.all([
+        supabase
+          .from('customer_profiles')
+          .select(`
+            contact_id,
+            contacts (
+              customer_id
+            )
+          `)
+          .eq('user_id', userId)
+          .maybeSingle(),
+        supabase
+          .from('customers')
+          .select('id')
+          .eq('email', userEmail),
+      ]);
+
+      const profileData = profileResult.data;
+      const emailCustomers = emailResult.data;
 
       let customerIds: string[] = [];
 
       if (profileData?.contacts && (profileData.contacts as any)?.customer_id) {
         customerIds.push((profileData.contacts as any).customer_id);
       }
-
-      const { data: emailCustomers } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('email', userEmail);
 
       if (emailCustomers) {
         customerIds.push(...emailCustomers.map(c => c.id));

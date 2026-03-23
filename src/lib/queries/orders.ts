@@ -48,19 +48,14 @@ export async function getOrdersByEmail(email: string, options?: QueryOptions) {
   );
 }
 
-export async function getAllOrders(limit?: number, options?: QueryOptions) {
+export async function getAllOrders(limit: number = 500, options?: QueryOptions) {
   return executeQuery(
     async () => {
-      let query = supabase
+      return await supabase
         .from('orders')
         .select(COMPACT_ORDER_SELECT)
-        .order('event_date', { ascending: true });
-
-      if (limit) {
-        query = query.limit(limit);
-      }
-
-      return await query;
+        .order('event_date', { ascending: true })
+        .limit(limit);
     },
     { context: 'getAllOrders', ...options }
   );

@@ -78,43 +78,48 @@ export function useOrderData() {
         }
       }
 
-      const changelog: any[] = [];
-      if (orderData.status === 'awaiting_customer_approval' || orderData.status === 'pending_review') {
-        const { data: changelogData } = await supabase
-          .from('order_changelog')
+      const needsChangelog =
+        orderData.status === 'awaiting_customer_approval' ||
+        orderData.status === 'pending_review';
+
+      const [
+        changelogResult,
+        itemsResult,
+        discountsResult,
+        feesResult,
+        summaryData,
+      ] = await Promise.all([
+        needsChangelog
+          ? supabase
+              .from('order_changelog')
+              .select('*')
+              .eq('order_id', orderIdToLoad)
+              .order('created_at', { ascending: false })
+          : Promise.resolve({ data: [] }),
+        supabase
+          .from('order_items')
+          .select('*, units(name)')
+          .eq('order_id', orderIdToLoad),
+        supabase
+          .from('order_discounts')
           .select('*')
-          .eq('order_id', orderIdToLoad)
-          .order('created_at', { ascending: false });
+          .eq('order_id', orderIdToLoad),
+        supabase
+          .from('order_custom_fees')
+          .select('*')
+          .eq('order_id', orderIdToLoad),
+        loadOrderSummary(orderIdToLoad),
+      ]);
 
-        if (changelogData) {
-          changelog.push(...changelogData);
-        }
-      }
-
-      const { data: itemsData } = await supabase
-        .from('order_items')
-        .select('*, units(name)')
-        .eq('order_id', orderIdToLoad);
-
-      const { data: discountsData } = await supabase
-        .from('order_discounts')
-        .select('*')
-        .eq('order_id', orderIdToLoad);
-
-      const { data: feesData } = await supabase
-        .from('order_custom_fees')
-        .select('*')
-        .eq('order_id', orderIdToLoad);
-
-      const orderItems = itemsData || [];
-      const discounts = discountsData || [];
-      const customFees = feesData || [];
+      const changelog: any[] = changelogResult.data || [];
+      const orderItems = itemsResult.data || [];
+      const discounts = discountsResult.data || [];
+      const customFees = feesResult.data || [];
 
       if (orderData && orderData.tax_waived) {
         orderData.tax_cents = 0;
       }
 
-      const summaryData = await loadOrderSummary(orderIdToLoad);
       const orderSummary = summaryData ? formatOrderSummary(summaryData) : null;
 
       const result = {
