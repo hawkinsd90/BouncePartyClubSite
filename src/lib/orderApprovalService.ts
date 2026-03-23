@@ -108,7 +108,8 @@ export async function approveOrder(
     const data = await response.json();
 
     if (!response.ok || !data.success) {
-      console.error('Charge deposit failed:', data);
+      // BPC-SECURITY-HARDENING: raw response object removed — could expose Stripe error internals in browser console.
+      console.error('Charge deposit failed:', data?.error || '(no error message)');
       // Send decline notification to customer
       try {
         const { data: fullOrder } = await supabase
@@ -142,7 +143,11 @@ export async function approveOrder(
       throw new Error(data.error || 'Failed to charge card. Customer has been notified via email and SMS.');
     }
 
-    console.log('Deposit charged successfully:', data);
+    // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
+    // Restore only after a true dev/staging environment and explicit safe gating are in place.
+    // Previously logged the full charge-deposit response including Stripe PaymentIntent ID (pi_xxx) and Charge ID (ch_xxx).
+    // console.log('Deposit charged successfully:', data);
+    console.log('Deposit charged successfully.');
 
     // Get payment record to link to transaction receipt
     const { data: paymentRecord } = await supabase
