@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
 import { showToast } from '../../lib/notifications';
 import { validateStatusTransition } from '../../lib/orderStateMachine';
+import { showConfirm } from '../common/CustomModal';
 
 interface StatusChangeDialogProps {
   isOpen: boolean;
@@ -65,8 +66,9 @@ export function StatusChangeDialog({
         const remaining = Math.max(0, (currentOrder.balance_due_cents || 0) - (currentOrder.balance_paid_cents || 0));
         if (remaining > 0) {
           const dollars = (remaining / 100).toFixed(2);
-          const proceed = window.confirm(
-            `⚠️ Outstanding balance of $${dollars} has not been collected.\n\nAre you sure you want to mark this order as completed without full payment?`
+          const proceed = await showConfirm(
+            `Outstanding balance of $${dollars} has not been collected.\n\nAre you sure you want to mark this order as completed without full payment?`,
+            'Unpaid Balance Warning'
           );
           if (!proceed) {
             setIsChanging(false);

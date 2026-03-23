@@ -13,6 +13,7 @@ import { handleError } from '../../lib/errorHandling';
 import { formatOrderId } from '../../lib/utils';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
 import { getAllOrdersWithContacts } from '../../lib/queries/orders';
+import { showConfirm } from '../common/CustomModal';
 
 
 type OrderTab = 'draft' | 'pending_review' | 'awaiting_customer_approval' | 'current' | 'upcoming' | 'all' | 'past' | 'cancelled' | 'single_order';
@@ -62,8 +63,9 @@ export function OrdersManager() {
   const contactsMap = data?.contactsMap || new Map();
 
   async function handleArchiveOldOrders() {
-    const confirmed = window.confirm(
-      'Archive completed orders older than 90 days?\n\nThey will be hidden from the Past tab by default but can be shown with "Show Archived".'
+    const confirmed = await showConfirm(
+      'Archive completed and cancelled orders older than 90 days?\n\nThey will be hidden from the Past and Cancelled tabs by default but can be shown with "Show Archived".',
+      'Archive Old Orders'
     );
     if (!confirmed) return;
     setArchiving(true);
@@ -159,18 +161,27 @@ export function OrdersManager() {
     return filtered;
   }, [categorizedOrders, activeTab, searchTerm]);
 
-  // Memoize tab counts for performance
-  const tabCounts = useMemo(() => ({
-    draft: categorizedOrders.draft.length,
-    pending_review: categorizedOrders.pending_review.length,
-    awaiting_customer_approval: categorizedOrders.awaiting_customer_approval.length,
-    current: categorizedOrders.current.length,
-    upcoming: categorizedOrders.upcoming.length,
-    past: categorizedOrders.past.length,
-    cancelled: categorizedOrders.cancelled.length,
-    all: orders.length,
-    single_order: 0,
-  }), [categorizedOrders, orders.length]);
+  // Memoize tab counts — past and cancelled respect the showArchived flag
+  // so the badge count always matches what is actually visible in the list.
+  const tabCounts = useMemo(() => {
+    const pastVisible = showArchived
+      ? categorizedOrders.past.length
+      : categorizedOrders.past.filter((o: any) => !o.archived_at).length;
+    const cancelledVisible = showArchived
+      ? categorizedOrders.cancelled.length
+      : categorizedOrders.cancelled.filter((o: any) => !o.archived_at).length;
+    return {
+      draft: categorizedOrders.draft.length,
+      pending_review: categorizedOrders.pending_review.length,
+      awaiting_customer_approval: categorizedOrders.awaiting_customer_approval.length,
+      current: categorizedOrders.current.length,
+      upcoming: categorizedOrders.upcoming.length,
+      past: pastVisible,
+      cancelled: cancelledVisible,
+      all: orders.length,
+      single_order: 0,
+    };
+  }, [categorizedOrders, orders.length, showArchived]);
 
   useEffect(() => {
     if (!tabFromUrl && !singleOrderId) {
