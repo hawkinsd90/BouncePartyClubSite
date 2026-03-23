@@ -135,7 +135,7 @@ export function OrdersManager() {
   const filteredOrders = useMemo(() => {
     let filtered = categorizedOrders[activeTab as keyof typeof categorizedOrders] || [];
 
-    if (activeTab === 'past' && !showArchived) {
+    if ((activeTab === 'past' || activeTab === 'cancelled') && !showArchived) {
       filtered = filtered.filter((o: any) => !o.archived_at);
     }
 
@@ -359,22 +359,24 @@ export function OrdersManager() {
         ))}
       </div>
 
-      {activeTab === 'past' && (
+      {(activeTab === 'past' || activeTab === 'cancelled') && (
         <div className="flex items-center justify-between mb-4">
           <p className="text-sm text-slate-600">
             {showArchived
-              ? 'Showing all past orders including archived'
-              : 'Showing recent past orders — archived orders hidden'}
+              ? 'Showing all orders including archived'
+              : 'Archived orders hidden — use "Show Archived" to reveal them'}
           </p>
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleArchiveOldOrders}
-              disabled={archiving}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors bg-white text-slate-700 border-slate-300 hover:border-slate-500 disabled:opacity-50"
-            >
-              <ArchiveRestore className="w-4 h-4" />
-              {archiving ? 'Archiving...' : 'Archive Old Orders'}
-            </button>
+            {activeTab === 'past' && (
+              <button
+                onClick={handleArchiveOldOrders}
+                disabled={archiving}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors bg-white text-slate-700 border-slate-300 hover:border-slate-500 disabled:opacity-50"
+              >
+                <ArchiveRestore className="w-4 h-4" />
+                {archiving ? 'Archiving...' : 'Archive Old Orders'}
+              </button>
+            )}
             <button
               onClick={() => setShowArchived(v => !v)}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
