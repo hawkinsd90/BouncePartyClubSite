@@ -470,10 +470,11 @@ async function greedyRouteConstruction(
   let currentMatrixIndex = 0;
   let firstLegLogged = false;
 
+  const firstLegCandidates: Array<{ address: string; driveMins: number; lateness: number; score: number; eligible: boolean }> = [];
+
   while (scheduled.size < stops.length) {
     let bestCandidate: Candidate | null = null;
     let bestStop: MorningRouteStop | null = null;
-    const firstLegCandidates: Array<{ address: string; driveMins: number; lateness: number; score: number; eligible: boolean }> = [];
 
     for (const stop of stops) {
       if (scheduled.has(stop.taskId)) continue;

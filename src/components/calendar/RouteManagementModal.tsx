@@ -31,9 +31,9 @@ function deriveLastCompletedTask(completedTasks: Task[]): Task | null {
   const withTime = completedTasks.filter(t => t.taskStatus?.completedTime);
   if (withTime.length > 0) {
     return withTime.reduce((latest, t) => {
-      const latestTs = latest.taskStatus!.completedTime!;
-      const candidateTs = t.taskStatus!.completedTime!;
-      return candidateTs > latestTs ? t : latest;
+      const latestMs = new Date(latest.taskStatus!.completedTime!).getTime();
+      const candidateMs = new Date(t.taskStatus!.completedTime!).getTime();
+      return candidateMs > latestMs ? t : latest;
     });
   }
 
@@ -229,35 +229,40 @@ export function RouteManagementModal({
 
   async function handleOptimize() {
     try {
-      for (const task of localTasks) {
-        if (!task.taskStatus) {
-          const { data, error } = await supabase
-            .from('task_status')
-            .insert({
-              order_id: task.orderId,
-              task_type: task.type,
-              task_date: task.date.toISOString().split('T')[0],
-              status: 'pending',
-            })
-            .select()
-            .single();
+      // Build a local copy of tasks so we never mutate shared parent references.
+      // task_status rows that are missing will be created and stored only in this copy.
+      const tasksForOptimization = await Promise.all(localTasks.map(async (task) => {
+        if (task.taskStatus) return task;
 
-          if (error) {
-            console.error('Error creating task status:', error);
-            throw error;
-          } else if (data) {
-            task.taskStatus = {
-              id: data.id,
-              status: data.status,
-              sortOrder: 0,
-              completedTime: null,
-              deliveryImages: [],
-              damageImages: [],
-              etaSent: false,
-            };
-          }
+        const { data, error } = await supabase
+          .from('task_status')
+          .insert({
+            order_id: task.orderId,
+            task_type: task.type,
+            task_date: task.date.toISOString().split('T')[0],
+            status: 'pending',
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Error creating task status:', error);
+          throw error;
         }
-      }
+
+        return {
+          ...task,
+          taskStatus: {
+            id: data.id,
+            status: data.status,
+            sortOrder: 0,
+            completedTime: null,
+            deliveryImages: [] as string[],
+            damageImages: [] as string[],
+            etaSent: false,
+          },
+        };
+      }));
 
       const { origin, label, fallback } = await resolveOrigin();
       setResolvedOriginLabel(label);
@@ -266,8 +271,8 @@ export function RouteManagementModal({
         showToast(`Origin fallback: using ${label}`, 'info');
       }
 
-      const beforeOrder = localTasks.map(t => t.customerName).join(', ');
-      const optimizedTasks = await onOptimizeRoute(localTasks, origin);
+      const beforeOrder = tasksForOptimization.map(t => t.customerName).join(', ');
+      const optimizedTasks = await onOptimizeRoute(tasksForOptimization, origin);
       const afterOrder = optimizedTasks.map(t => t.customerName).join(', ');
 
       setLocalTasks([...optimizedTasks]);
