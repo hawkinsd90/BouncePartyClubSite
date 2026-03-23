@@ -23,6 +23,9 @@ export interface Task {
   notes?: string;
   status: string;
   total: number;
+  depositPaidCents: number;
+  balancePaidCents: number;
+  tipCents: number;
   waiverSigned: boolean;
   balanceDue: number;
   pickupPreference?: string;
@@ -241,6 +244,9 @@ export function useCalendarTasks(currentMonth: Date) {
           notes: order.special_details || undefined,
           status: order.status,
           total,
+          depositPaidCents: order.deposit_paid_cents || 0,
+          balancePaidCents: order.balance_paid_cents || 0,
+          tipCents: order.tip_cents || 0,
           waiverSigned: !!order.waiver_signed_at,
           balanceDue,
           pickupPreference: order.pickup_preference,
@@ -294,6 +300,9 @@ export function useCalendarTasks(currentMonth: Date) {
           notes: order.special_details || undefined,
           status: order.status,
           total,
+          depositPaidCents: order.deposit_paid_cents || 0,
+          balancePaidCents: order.balance_paid_cents || 0,
+          tipCents: order.tip_cents || 0,
           waiverSigned: !!order.waiver_signed_at,
           balanceDue,
           pickupPreference: order.pickup_preference,

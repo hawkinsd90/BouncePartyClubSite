@@ -9,6 +9,7 @@ import { Task } from '../../hooks/useCalendarTasks';
 import { TaskDetailCustomerInfo } from './task-detail/TaskDetailCustomerInfo';
 import { TaskDetailOrderManagement } from './task-detail/TaskDetailOrderManagement';
 import { TaskDetailActions } from './task-detail/TaskDetailActions';
+import { PickupCompletionSummary, CompletionSummaryData } from './task-detail/PickupCompletionSummary';
 
 export type { Task };
 
@@ -33,6 +34,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
   const [signingWaiver, setSigningWaiver] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [mileageLog, setMileageLog] = useState<any>(null);
+  const [completionSummary, setCompletionSummary] = useState<CompletionSummaryData | null>(null);
   const currentStatus = task.taskStatus?.status || 'pending';
   const navigate = useNavigate();
 
@@ -282,6 +284,15 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       showAlert('You must enter your starting mileage before completing tasks. Please use the "Start Day Mileage" button in the day view.');
       return;
     }
+
+    const hasBalance = task.balanceDue > 0;
+    if (hasBalance) {
+      const override = await showConfirm(
+        `⚠️ Outstanding balance of ${formatCurrency(task.balanceDue)} has not been collected.\n\nAre you sure you want to mark this pickup as complete without full payment?\n\nClick OK to complete anyway, or Cancel to go back and collect payment first.`
+      );
+      if (!override) return;
+    }
+
     setProcessing(true);
     try {
       const taskStatusId = await ensureTaskStatus();
@@ -311,7 +322,30 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const { error: taskErr } = await supabase.from('task_status').update({ status: 'completed', completed_time: new Date().toISOString() }).eq('id', taskStatusId);
       if (taskErr) throw new Error('Failed to update task status: ' + taskErr.message);
 
-      showAlert(smsWarn ? `Pickup marked complete. Warning: ${smsWarn}.` : 'Pickup completed! Thank you message and review request sent.');
+      if (smsWarn) {
+        showAlert(`Pickup marked complete. Warning: ${smsWarn}.`);
+      }
+
+      const paymentMethods = [...new Set(
+        (task.payments || [])
+          .filter((p: any) => p.status === 'paid' || p.status === 'succeeded')
+          .map((p: any) => p.type === 'cash' ? 'Cash' : 'Card')
+      )];
+
+      const summary: CompletionSummaryData = {
+        orderNumber: task.orderNumber,
+        customerName: task.customerName,
+        totalCents: task.total,
+        depositPaidCents: task.depositPaidCents,
+        balancePaidCents: task.balancePaidCents,
+        tipCents: task.tipCents,
+        remainingBalanceCents: hasBalance ? task.balanceDue : 0,
+        paymentMethods,
+        waiverSigned: task.waiverSigned,
+        completionTime: new Date(),
+        hadBalanceWarning: hasBalance,
+      };
+      setCompletionSummary(summary);
       refresh();
     } catch (e: any) { console.error('Pickup complete error:', e); showAlert('Failed to complete pickup: ' + e.message); }
     finally { setProcessing(false); }
@@ -575,6 +609,13 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
           ) : null}
         </div>
       </div>
+
+      {completionSummary && (
+        <PickupCompletionSummary
+          summary={completionSummary}
+          onClose={() => { setCompletionSummary(null); onClose(); }}
+        />
+      )}
     </div>
   );
 }

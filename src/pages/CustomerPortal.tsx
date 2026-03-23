@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useLocation, useSearchParams } from 'react-router-dom';
 import { AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -38,6 +38,36 @@ export function CustomerPortal() {
   const { data, loading, loadOrder } = useOrderData();
 
   const resolvedOrderId = orderId || (data?.order?.id);
+
+  const realtimeOrderId = resolvedOrderId;
+  const reloadRef = useRef<() => Promise<void>>();
+  reloadRef.current = async () => {
+    await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
+  };
+
+  useEffect(() => {
+    if (!realtimeOrderId) return;
+
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedReload = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => { reloadRef.current?.(); }, 400);
+    };
+
+    const channel = supabase
+      .channel(`portal-order-${realtimeOrderId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${realtimeOrderId}` }, debouncedReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments', filter: `order_id=eq.${realtimeOrderId}` }, debouncedReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_signatures', filter: `order_id=eq.${realtimeOrderId}` }, debouncedReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_status', filter: `order_id=eq.${realtimeOrderId}` }, debouncedReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_lot_pictures', filter: `order_id=eq.${realtimeOrderId}` }, debouncedReload)
+      .subscribe();
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
+  }, [realtimeOrderId]);
 
   useEffect(() => {
     if (invoiceCardSaved && returnSessionId && orderId) {

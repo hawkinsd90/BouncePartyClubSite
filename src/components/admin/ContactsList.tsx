@@ -1,16 +1,24 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Mail, Phone, Calendar, Edit2, X } from 'lucide-react';
+import { Mail, Phone, Calendar, CreditCard as Edit2, X, Star, TrendingUp } from 'lucide-react';
 import { format } from 'date-fns';
+import { formatCurrency } from '../../lib/pricing';
 import { useSupabaseQuery, useMutation } from '../../hooks/useDataFetch';
 
 interface Contact {
   id: string;
-  name: string;
+  first_name: string;
+  last_name: string;
   email: string | null;
   phone: string | null;
   business_name: string | null;
   created_at: string;
+  total_bookings: number;
+  total_spent_cents: number;
+  completed_bookings_count: number;
+  is_repeat_customer: boolean;
+  last_completed_booking_date: string | null;
+  first_completed_booking_date: string | null;
 }
 
 export function ContactsList() {
@@ -36,7 +44,8 @@ export function ContactsList() {
     const { data, error} = await supabase
       .from('contacts')
       .update({
-        name: contact.name,
+        first_name: contact.first_name,
+        last_name: contact.last_name,
         business_name: contact.business_name || null,
         email: contact.email,
         phone: contact.phone,
@@ -104,7 +113,10 @@ export function ContactsList() {
               <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider whitespace-nowrap">
                 Phone
               </th>
-              <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider whitespace-nowrap">
+              <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider whitespace-nowrap hidden md:table-cell">
+                Loyalty
+              </th>
+              <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider whitespace-nowrap hidden lg:table-cell">
                 Added
               </th>
               <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider whitespace-nowrap">
@@ -115,14 +127,24 @@ export function ContactsList() {
           <tbody className="bg-white divide-y divide-slate-200">
             {filteredContacts.map((contact: Contact) => (
               <tr key={contact.id} className="hover:bg-slate-50">
-                <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
-                  {contact.business_name && (
-                    <div className="font-bold text-slate-900 text-sm sm:text-base">
-                      {contact.business_name}
+                <td className="px-3 sm:px-6 py-3 sm:py-4">
+                  <div className="flex items-start gap-2">
+                    <div>
+                      {contact.business_name && (
+                        <div className="font-bold text-slate-900 text-sm">
+                          {contact.business_name}
+                        </div>
+                      )}
+                      <div className="font-medium text-slate-900 text-sm">
+                        {contact.first_name} {contact.last_name}
+                      </div>
+                      {contact.is_repeat_customer && (
+                        <span className="inline-flex items-center gap-0.5 mt-1 px-1.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+                          <Star className="w-2.5 h-2.5" />
+                          Repeat
+                        </span>
+                      )}
                     </div>
-                  )}
-                  <div className="font-medium text-slate-900 text-sm">
-                    {contact.name}
                   </div>
                 </td>
                 <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
@@ -137,11 +159,27 @@ export function ContactsList() {
                     {contact.phone || 'N/A'}
                   </div>
                 </td>
-                <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-slate-500">
+                <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap hidden md:table-cell">
+                  <div className="flex items-center gap-1 text-xs text-slate-700">
+                    <TrendingUp className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="font-semibold">{contact.completed_bookings_count}</span>
+                    <span className="text-slate-500">completed</span>
+                  </div>
+                  {contact.total_spent_cents > 0 && (
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      {formatCurrency(contact.total_spent_cents)} lifetime
+                    </div>
+                  )}
+                  {contact.last_completed_booking_date && (
+                    <div className="text-xs text-slate-400 mt-0.5">
+                      Last: {format(new Date(contact.last_completed_booking_date + 'T12:00:00'), 'MMM d, yyyy')}
+                    </div>
+                  )}
+                </td>
+                <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-slate-500 hidden lg:table-cell">
                   <div className="flex items-center">
                     <Calendar className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
-                    <span className="hidden sm:inline">{format(new Date(contact.created_at), 'MMM d, yyyy')}</span>
-                    <span className="sm:hidden">{format(new Date(contact.created_at), 'MM/dd/yy')}</span>
+                    {format(new Date(contact.created_at), 'MMM d, yyyy')}
                   </div>
                 </td>
                 <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
@@ -190,19 +228,34 @@ export function ContactsList() {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1 sm:mb-2">
-                  Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={editingContact.name}
-                  onChange={(e) =>
-                    setEditingContact({ ...editingContact, name: e.target.value })
-                  }
-                  className="w-full px-3 sm:px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1 sm:mb-2">
+                    First Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editingContact.first_name}
+                    onChange={(e) =>
+                      setEditingContact({ ...editingContact, first_name: e.target.value })
+                    }
+                    className="w-full px-3 sm:px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1 sm:mb-2">
+                    Last Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editingContact.last_name}
+                    onChange={(e) =>
+                      setEditingContact({ ...editingContact, last_name: e.target.value })
+                    }
+                    className="w-full px-3 sm:px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
               </div>
 
               <div>
@@ -247,7 +300,7 @@ export function ContactsList() {
               </button>
               <button
                 onClick={handleSaveContact}
-                disabled={saving || !editingContact.name}
+                disabled={saving || !editingContact.first_name}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
               >
                 {saving ? 'Saving...' : 'Save Changes'}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { format, isToday, isFuture, isPast } from 'date-fns';
-import { Search, Calendar, User, Phone } from 'lucide-react';
+import { Search, Calendar, User, Phone, Archive, ArchiveX } from 'lucide-react';
 import { OrderDetailModal } from '../admin/OrderDetailModal';
 import { PendingOrderCard } from '../admin/PendingOrderCard';
 import { SingleOrderView } from '../admin/SingleOrderView';
@@ -31,6 +31,7 @@ export function OrdersManager() {
   const [singleOrderSearchId, setSingleOrderSearchId] = useState(singleOrderId || '');
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [visibleOrder, setVisibleOrder] = useState<any>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const orderCardsRef = useRef<Map<string, { card: HTMLElement, actionButtons: HTMLElement | null }>>(new Map());
 
   const fetchOrdersData = useCallback(async () => {
@@ -112,6 +113,10 @@ export function OrdersManager() {
 
   const filteredOrders = useMemo(() => {
     let filtered = categorizedOrders[activeTab as keyof typeof categorizedOrders] || [];
+
+    if (activeTab === 'past' && !showArchived) {
+      filtered = filtered.filter((o: any) => !o.archived_at);
+    }
 
     const search = searchTerm.toLowerCase();
     if (search) {
@@ -333,6 +338,27 @@ export function OrdersManager() {
         ))}
       </div>
 
+      {activeTab === 'past' && (
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-sm text-slate-600">
+            {showArchived
+              ? 'Showing all past orders including archived'
+              : 'Showing recent past orders — archived orders hidden'}
+          </p>
+          <button
+            onClick={() => setShowArchived(v => !v)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+              showArchived
+                ? 'bg-slate-700 text-white border-slate-700 hover:bg-slate-600'
+                : 'bg-white text-slate-700 border-slate-300 hover:border-slate-500'
+            }`}
+          >
+            {showArchived ? <ArchiveX className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+            {showArchived ? 'Hide Archived' : 'Show Archived'}
+          </button>
+        </div>
+      )}
+
       {activeTab === 'single_order' ? (
         singleOrderId ? (
           <SingleOrderView
@@ -463,6 +489,7 @@ export function OrdersManager() {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex flex-col gap-1">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                       order.status === 'confirmed' ? 'bg-green-100 text-green-800' :
                       order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
@@ -472,6 +499,13 @@ export function OrdersManager() {
                     }`}>
                       {order.status.replace('_', ' ')}
                     </span>
+                    {order.archived_at && (
+                      <span className="inline-flex items-center gap-0.5 px-2 py-0.5 text-xs font-medium rounded-full bg-slate-100 text-slate-500">
+                        <Archive className="w-3 h-3" />
+                        Archived
+                      </span>
+                    )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
