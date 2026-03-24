@@ -90,7 +90,7 @@ Deno.serve(async (req: Request) => {
         tip_cents, stripe_customer_id, stripe_payment_method_id,
         payment_method_brand, payment_method_last_four, customer_id, event_date,
         travel_fee_cents, surface_fee_cents, same_day_pickup_fee_cents, generator_fee_cents, tax_cents,
-        addresses(address_line1, city, state, zip),
+        addresses(line1, city, state, zip),
         customers(email, first_name, last_name),
         order_items(quantity, unit_price_cents, units(name))
       `)
