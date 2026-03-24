@@ -39,7 +39,9 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
     loadPayments();
     loadLotPictures();
     loadDeliveryStatus();
+  }, [order.status, orderId]);
 
+  useEffect(() => {
     // Check URL params for payment status and preserved tip state
     const params = new URLSearchParams(window.location.search);
     const paymentStatus = params.get('payment');
