@@ -1,16 +1,15 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Shield, Trash2, History, Mail } from 'lucide-react';
+import { Shield, Trash2, History, UserPlus } from 'lucide-react';
 import { notifyError, notifySuccess, showConfirm } from '../../lib/notifications';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 
 interface UserRole {
-  id: string | null;
   user_id: string;
   role: 'master' | 'admin' | 'crew' | null;
   created_at: string;
-  email?: string;
-  full_name?: string;
+  email: string;
+  full_name: string;
 }
 
 interface ChangelogEntry {
@@ -18,24 +17,23 @@ interface ChangelogEntry {
   action: string;
   old_role: string | null;
   new_role: string | null;
-  changed_by_email: string;
+  changed_by_user_id: string | null;
   notes: string | null;
   created_at: string;
 }
 
-interface CurrentUser {
-  role: 'master' | 'admin' | 'crew' | null;
-}
-
 export function PermissionsTab() {
   const [users, setUsers] = useState<UserRole[]>([]);
-  const [currentUserRole, setCurrentUserRole] = useState<CurrentUser['role']>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<'master' | 'admin' | 'crew' | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedUserChangelog, setSelectedUserChangelog] = useState<string | null>(null);
   const [changelog, setChangelog] = useState<ChangelogEntry[]>([]);
   const [loadingChangelog, setLoadingChangelog] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [addEmail, setAddEmail] = useState('');
+  const [addRole, setAddRole] = useState<'admin' | 'crew'>('crew');
+  const [addingUser, setAddingUser] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -53,33 +51,26 @@ export function PermissionsTab() {
         .eq('user_id', user.id)
         .maybeSingle();
 
-      setCurrentUserRole((roleData?.role?.toLowerCase() as CurrentUser['role']) ?? null);
+      setCurrentUserRole((roleData?.role?.toLowerCase() as typeof currentUserRole) ?? null);
 
-      const { data: allUsers, error: usersError } = await supabase
-        .from('user_roles')
-        .select('id, user_id, role, created_at')
-        .order('created_at', { ascending: false });
+      const { data: allRoleUsers, error: rolesError } = await supabase.rpc('get_all_role_users');
 
-      if (usersError) throw usersError;
+      if (rolesError) throw rolesError;
 
-      if (allUsers && allUsers.length > 0) {
-        const userIds = allUsers.map(u => u.user_id);
-        const { data: userInfos } = await supabase.rpc('get_users_info', { user_ids: userIds });
-
-        const enrichedUsers = allUsers.map(u => {
-          const info = userInfos?.find((i: any) => i.id === u.user_id);
-          return {
-            ...u,
-            role: u.role ? (u.role.toLowerCase() as UserRole['role']) : null,
-            email: info?.email || '',
-            full_name: info?.full_name || '',
-          };
-        });
-
-        setUsers(enrichedUsers);
-      } else {
+      if (!allRoleUsers || allRoleUsers.length === 0) {
         setUsers([]);
+        return;
       }
+
+      const enriched: UserRole[] = allRoleUsers.map((r: any) => ({
+        user_id: r.id,
+        role: r.role ? (r.role.toLowerCase() as UserRole['role']) : null,
+        created_at: r.created_at,
+        email: r.email || r.id,
+        full_name: '',
+      }));
+
+      setUsers(enriched);
     } catch (error: any) {
       notifyError(error.message || 'Failed to load users');
     } finally {
@@ -96,26 +87,15 @@ export function PermissionsTab() {
     if (!confirmed) return;
 
     try {
-      if (!user.role) {
-        const { error } = await supabase
-          .from('user_roles')
-          .insert({ user_id: user.user_id, role: newRole });
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('user_roles')
-          .update({ role: newRole })
-          .eq('user_id', user.user_id);
-        if (error) throw error;
-      }
+      const { error } = await supabase
+        .from('user_roles')
+        .update({ role: newRole })
+        .eq('user_id', user.user_id);
 
-      notifySuccess('Role updated successfully');
-      sendPermissionChangeEmail(
-        user.role ? 'changed' : 'added',
-        user.email || '',
-        newRole,
-        user.role || undefined
-      );
+      if (error) throw error;
+
+      notifySuccess('Role updated');
+      sendPermissionChangeEmail('changed', user.email, newRole, user.role || undefined);
       fetchData();
     } catch (error: any) {
       notifyError(error.message || 'Failed to update role');
@@ -136,8 +116,8 @@ export function PermissionsTab() {
 
       if (error) throw error;
 
-      notifySuccess('Role removed successfully');
-      sendPermissionChangeEmail('removed', user.email || '', user.role || '');
+      notifySuccess('Role removed');
+      sendPermissionChangeEmail('removed', user.email, user.role || '');
       fetchData();
     } catch (error: any) {
       notifyError(error.message || 'Failed to remove role');
@@ -145,18 +125,39 @@ export function PermissionsTab() {
   }
 
   async function handleAddUserByEmail() {
-    if (!selectedUserId.trim()) {
-      notifyError('Please enter a user ID or email');
+    if (!addEmail.trim()) {
+      notifyError('Enter an email address');
       return;
     }
-    notifyError('Use the role selector on an existing user row. To add a new user, have them sign up first.');
+    setAddingUser(true);
+    try {
+      const { data, error } = await supabase.rpc('assign_role_by_email', {
+        p_email: addEmail.trim().toLowerCase(),
+        p_role: addRole,
+      });
+
+      if (error) throw error;
+      if (data === false || data === null) {
+        throw new Error('User not found. They must sign up before being assigned a role.');
+      }
+
+      notifySuccess(`Role ${addRole} assigned to ${addEmail}`);
+      sendPermissionChangeEmail('added', addEmail.trim(), addRole);
+      setAddEmail('');
+      setShowAddForm(false);
+      fetchData();
+    } catch (error: any) {
+      notifyError(error.message || 'Failed to assign role');
+    } finally {
+      setAddingUser(false);
+    }
   }
 
   async function fetchChangelog(userId: string) {
     setLoadingChangelog(true);
     try {
       const { data, error } = await supabase
-        .from('permissions_changelog')
+        .from('user_permissions_changelog')
         .select('*')
         .eq('target_user_id', userId)
         .order('created_at', { ascending: false })
@@ -227,8 +228,7 @@ export function PermissionsTab() {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return (
-      u.email?.toLowerCase().includes(q) ||
-      u.full_name?.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
       u.role?.toLowerCase().includes(q)
     );
   });
@@ -254,15 +254,64 @@ export function PermissionsTab() {
           <Shield className="w-6 h-6 text-slate-700" />
           <h2 className="text-xl font-bold text-slate-900">Permissions Management</h2>
         </div>
-        <p className="text-sm text-slate-500">
-          Your role: <span className="font-semibold text-slate-700 capitalize">{currentUserRole || 'unknown'}</span>
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-slate-500">
+            Your role: <span className="font-semibold text-slate-700 capitalize">{currentUserRole || 'unknown'}</span>
+          </p>
+          {(currentUserRole === 'master' || currentUserRole === 'admin') && (
+            <button
+              onClick={() => setShowAddForm(v => !v)}
+              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+            >
+              <UserPlus className="w-4 h-4" />
+              Add User
+            </button>
+          )}
+        </div>
       </div>
+
+      {showAddForm && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+          <p className="text-sm font-semibold text-blue-800">Assign Role to Existing User</p>
+          <p className="text-xs text-blue-600">The user must have already signed up before a role can be assigned.</p>
+          <div className="flex gap-2 flex-wrap">
+            <input
+              type="email"
+              placeholder="user@email.com"
+              value={addEmail}
+              onChange={e => setAddEmail(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAddUserByEmail()}
+              className="flex-1 min-w-48 border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <select
+              value={addRole}
+              onChange={e => setAddRole(e.target.value as 'admin' | 'crew')}
+              className="border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+              {currentUserRole === 'master' && <option value="admin">Admin</option>}
+              <option value="crew">Crew</option>
+            </select>
+            <button
+              onClick={handleAddUserByEmail}
+              disabled={addingUser}
+              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {addingUser ? 'Assigning...' : 'Assign'}
+            </button>
+            <button
+              onClick={() => { setShowAddForm(false); setAddEmail(''); }}
+              className="px-4 py-2 bg-white border border-slate-300 text-slate-700 text-sm rounded-lg hover:bg-slate-50 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       <div>
         <input
           type="text"
-          placeholder="Search by email, name, or role..."
+          placeholder="Search by email or role..."
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           className="w-full border border-slate-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -280,9 +329,6 @@ export function PermissionsTab() {
           >
             <div className="flex-1 min-w-0">
               <p className="font-medium text-slate-900 truncate">{user.email}</p>
-              {user.full_name && (
-                <p className="text-sm text-slate-500 truncate">{user.full_name}</p>
-              )}
               <span className={`inline-block mt-1 text-xs px-2 py-0.5 rounded-full font-semibold capitalize ${
                 user.role === 'master' ? 'bg-red-100 text-red-700' :
                 user.role === 'admin' ? 'bg-blue-100 text-blue-700' :
@@ -368,7 +414,12 @@ export function PermissionsTab() {
                 <div key={entry.id} className="text-sm bg-white border border-slate-100 rounded p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <span className="font-medium text-slate-700 capitalize">{entry.action}</span>
+                      <span className="font-medium text-slate-700 capitalize">
+                        {entry.action === 'role_added' ? 'Role Added' :
+                         entry.action === 'role_changed' ? 'Role Changed' :
+                         entry.action === 'role_removed' ? 'Role Removed' :
+                         entry.action}
+                      </span>
                       {entry.old_role && entry.new_role && (
                         <span className="text-slate-500">
                           : <span className="capitalize">{entry.old_role}</span> → <span className="capitalize">{entry.new_role}</span>
@@ -385,12 +436,6 @@ export function PermissionsTab() {
                       {new Date(entry.created_at).toLocaleDateString()}
                     </span>
                   </div>
-                  {entry.changed_by_email && (
-                    <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                      <Mail className="w-3 h-3" />
-                      {entry.changed_by_email}
-                    </p>
-                  )}
                   {entry.notes && (
                     <p className="text-xs text-slate-500 mt-1">{entry.notes}</p>
                   )}

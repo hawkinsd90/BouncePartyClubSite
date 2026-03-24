@@ -277,8 +277,8 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // If already paid, persist the latest payment selection and confirm (avoid double charge)
-    if (order.deposit_paid_cents && order.deposit_paid_cents >= paymentAmountCents) {
+    // If already paid (positive value), persist the latest payment selection and confirm (avoid double charge)
+    if (order.deposit_paid_cents && order.deposit_paid_cents > 0 && order.deposit_paid_cents >= paymentAmountCents) {
       const alreadyPaidUpdate: Record<string, unknown> = {
         status: "confirmed",
         customer_selected_payment_cents: paymentAmountCents,
@@ -383,9 +383,51 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Atomic race guard: claim this order for charging by doing a conditional UPDATE.
+    // We set deposit_paid_cents = -1 (sentinel) only if it is currently 0 or NULL.
+    // If two concurrent calls race here, exactly one will update 1 row; the other
+    // gets 0 rows and must abort — preventing a double Stripe charge.
+    const { data: claimedRows, error: claimError } = await supabaseClient
+      .from("orders")
+      .update({ deposit_paid_cents: -1 })
+      .eq("id", orderId)
+      .or("deposit_paid_cents.is.null,deposit_paid_cents.eq.0")
+      .select("id");
+
+    if (claimError) {
+      console.error("[charge-deposit] Claim update failed:", claimError);
+      return new Response(
+        JSON.stringify({ success: false, error: "Failed to claim order for payment. Please try again." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!claimedRows || claimedRows.length === 0) {
+      // Another process already claimed or charged this order
+      return new Response(
+        JSON.stringify({ success: false, error: "This order is already being processed. Please refresh and try again." }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Helper: roll back the sentinel on any pre-charge failure so the order
+    // can be retried. Only called BEFORE stripe.paymentIntents.create fires.
+    const releaseClaim = async () => {
+      try {
+        await supabaseClient
+          .from("orders")
+          .update({ deposit_paid_cents: 0 })
+          .eq("id", orderId)
+          .eq("deposit_paid_cents", -1);
+      } catch (e) {
+        console.error("[charge-deposit] Failed to release claim sentinel:", e);
+      }
+    };
+
     const validation = await validatePaymentMethod(resolvedPaymentMethodId, stripe);
 
     if (!validation.valid) {
+      await releaseClaim();
       return new Response(
         JSON.stringify({
           success: false,
