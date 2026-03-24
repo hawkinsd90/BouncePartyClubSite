@@ -283,6 +283,7 @@ Deno.serve(async (req: Request) => {
     // If already paid (positive value), persist the latest payment selection and confirm (avoid double charge)
     if (order.deposit_paid_cents && order.deposit_paid_cents > 0 && order.deposit_paid_cents >= paymentAmountCents) {
       const alreadyPaidUpdate: Record<string, unknown> = {
+        status: "confirmed",
         customer_selected_payment_cents: paymentAmountCents,
         customer_selected_payment_type: persistedPaymentType,
         tip_cents: tipCents,
@@ -506,23 +507,6 @@ Deno.serve(async (req: Request) => {
 
     // ---- Stripe charge succeeded — all failures below must NOT return decline UI ----
 
-    // Changelog insert is non-fatal
-    try {
-      await supabaseClient.from("order_changelog").insert({
-        order_id: orderId,
-        user_id: null,
-        change_type: "customer_approval",
-        field_changed: "status",
-        old_value: "awaiting_customer_approval",
-        new_value: "confirmed",
-      });
-    } catch (changelogErr) {
-      console.error(
-        "[charge-deposit] Failed to insert changelog (non-fatal):",
-        changelogErr
-      );
-    }
-
     // Recalculate balance_due_cents
     const orderTotal =
       (order.subtotal_cents || 0) +
@@ -536,11 +520,16 @@ Deno.serve(async (req: Request) => {
 
     const newBalanceDue = Math.max(0, orderTotal - paymentAmountCents);
 
-    // Update order payment fields only — lifecycle will own the status transition to confirmed.
+    // Update order status + payment fields atomically.
+    // Status write is intentionally co-located with the payment fields write so that
+    // a subsequent non-fatal lifecycle failure cannot leave a charged order stuck in
+    // a pre-confirmed state. Lifecycle is called after to handle admin alerting and
+    // changelog only — it is NOT the sole owner of the status transition here.
     // IMPORTANT: deposit_paid_cents should NOT include tip
     const { error: updateError } = await supabaseClient
       .from("orders")
       .update({
+        status: "confirmed",
         deposit_paid_cents: paymentAmountCents,
         stripe_payment_status: "paid",
         balance_due_cents: newBalanceDue,

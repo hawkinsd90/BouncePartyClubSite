@@ -400,6 +400,7 @@ export async function saveOrderChanges({
   const hasFieldChanges = Object.keys(changes).length > 0;
 
   if (hasTrackedChanges || hasFieldChanges) {
+    const oldStatus = order.status;
     if (adminOverrideApproval) {
       changes.status = 'confirmed';
     } else {
@@ -414,6 +415,7 @@ export async function saveOrderChanges({
     }
 
     if (adminOverrideApproval) {
+      await logChangeFn('status', oldStatus, 'confirmed');
       try {
         const { enterConfirmed } = await import('./orderLifecycle');
         await enterConfirmed(order.id, 'admin_override_approval', 'waived');

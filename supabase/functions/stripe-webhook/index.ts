@@ -225,10 +225,12 @@ async function processWebhookEvent(
             .maybeSingle();
 
           const isAdminInvoice = !!invoiceLink;
+          const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
 
           const { error: updateError } = await supabaseClient
             .from("orders")
             .update({
+              status: newStatus,
               stripe_payment_method_id: actualPaymentMethodId,
               stripe_customer_id: stripeCustomerId,
               tip_cents: tipCents,
@@ -564,10 +566,12 @@ async function processWebhookEvent(
             .maybeSingle();
 
           const isAdminInvoice = !!invoiceLink;
+          const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
 
           const { error: updateError } = await supabaseClient
             .from("orders")
             .update({
+              status: newStatus,
               stripe_payment_status: "paid",
               stripe_payment_method_id: paymentMethodId,
               stripe_customer_id: stripeCustomerId,
@@ -720,6 +724,7 @@ async function processWebhookEvent(
               .maybeSingle();
 
             const isAdminInvoice = !!invoiceLink;
+            const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
 
             const alreadyRecordedByCheckout =
               depositOrder?.stripe_payment_status === "paid" &&
@@ -732,6 +737,7 @@ async function processWebhookEvent(
               await supabaseClient
                 .from("orders")
                 .update({
+                  status: newStatus,
                   stripe_payment_status: "paid",
                   stripe_payment_method_id: paymentMethodId,
                   stripe_customer_id: stripeCustomerId,
@@ -882,11 +888,15 @@ async function processWebhookEvent(
           .maybeSingle();
 
         const isAdminInvoice = !!invoiceLink;
+        const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
 
-        // Update payment method fields only — lifecycle owns the status transition
+        // Status is written atomically with payment fields so that a subsequent
+        // non-fatal lifecycle failure cannot leave the order stuck in draft.
+        // Lifecycle is called after to handle admin alerting and changelog.
         const { error: updateError } = await supabaseClient
           .from("orders")
           .update({
+            status: newStatus,
             stripe_payment_method_id: paymentMethodId,
             stripe_customer_id: stripeCustomerId,
             ...(siCardBrand ? { payment_method_brand: siCardBrand } : {}),
