@@ -43,7 +43,7 @@ export function PaymentsTab({ orderId, customerName, payments, order, customFees
   const hasLedgerData = succeededPayments.length > 0;
   const displayDepositCents = hasLedgerData
     ? Math.max(0, ledgerDepositCents - tipCents)
-    : (order?.deposit_paid_cents || 0);
+    : Math.max(0, order?.deposit_paid_cents ?? 0);
   const displayBalanceCents = hasLedgerData
     ? ledgerBalanceCents
     : (order?.balance_paid_cents || 0);
