@@ -51,12 +51,15 @@ Deno.serve(async (req: Request) => {
     }
 
     // Return only the columns needed for the customer portal display.
-    // Sensitive columns (waiver_text_snapshot, home_address_*, device_info,
-    // user_agent, electronic_consent_text, typed_name) are intentionally omitted.
+    // Omitted entirely: waiver_text_snapshot, home_address_*, device_info,
+    // user_agent, electronic_consent_text, typed_name, signer_email, ip_address.
+    // signer_email and ip_address are PII; the customer already knows their own
+    // email and the raw IP provides no value to them. ip_address in particular
+    // would be forwarded by the UI to a third-party geolocation service.
     const { data: sig, error: sigError } = await supabaseClient
       .from("order_signatures")
       .select(
-        "signed_at, signer_name, signer_email, waiver_version, ip_address, initials_data, signature_image_url, pdf_url"
+        "signed_at, signer_name, waiver_version, initials_data, signature_image_url, pdf_url"
       )
       .eq("order_id", orderId)
       .maybeSingle();
