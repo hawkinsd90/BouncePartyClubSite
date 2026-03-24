@@ -438,7 +438,7 @@ function buildReceiptEmail(opts: {
 
   const addr = Array.isArray(order.addresses) ? order.addresses[0] : order.addresses;
   const addressStr = addr
-    ? `${addr.address_line1}, ${addr.city}, ${addr.state}`
+    ? `${addr.line1}, ${addr.city}, ${addr.state}`
     : "";
 
   const items: any[] = Array.isArray(order.order_items) ? order.order_items : [];

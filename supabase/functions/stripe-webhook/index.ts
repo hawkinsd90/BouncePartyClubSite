@@ -382,8 +382,8 @@ async function processWebhookEvent(
                 subtotal_cents, travel_fee_cents, surface_fee_cents,
                 same_day_pickup_fee_cents, generator_fee_cents, tax_cents,
                 deposit_paid_cents, balance_due_cents,
-                addresses(address_line1, city, state),
-                order_items(quantity, unit_price_cents, units(name)),
+                addresses(line1, city, state, zip),
+                order_items(qty, unit_price_cents, units(name)),
                 contacts!inner(email, full_name)
               `)
               .eq("id", orderId)
@@ -434,12 +434,12 @@ async function processWebhookEvent(
                   ? new Date(order.event_date + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
                   : "";
                 const addr = Array.isArray(order?.addresses) ? order.addresses[0] : order?.addresses;
-                const addressStr = addr ? `${addr.address_line1}, ${addr.city}, ${addr.state}` : "";
+                const addressStr = addr ? `${addr.line1}, ${addr.city}, ${addr.state}` : "";
 
                 const items: any[] = Array.isArray(order?.order_items) ? order.order_items : [];
                 const itemsHtml = items.map((item: any) => {
                   const unitName = item.units?.name || "Item";
-                  const qty = item.quantity || 1;
+                  const qty = item.qty || 1;
                   const price = item.unit_price_cents || 0;
                   return `<tr><td style="padding:4px 0;color:#374151;font-size:14px;">${qty}x ${unitName}</td><td style="padding:4px 0;text-align:right;color:#374151;font-size:14px;">${fmt(price * qty)}</td></tr>`;
                 }).join("");

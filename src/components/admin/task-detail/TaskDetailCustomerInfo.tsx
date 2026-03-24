@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { RotateCcw } from 'lucide-react';
+import { formatCurrency } from '../../../lib/pricing';
+import { Task } from '../../../hooks/useCalendarTasks';
 
 function formatTimeStr(time: string): string {
   if (!time || time === 'TBD') return time;
@@ -9,8 +11,6 @@ function formatTimeStr(time: string): string {
   const hour = h % 12 || 12;
   return `${hour}:${String(m).padStart(2, '0')} ${period}`;
 }
-import { formatCurrency } from '../../../lib/pricing';
-import { Task } from '../../../hooks/useCalendarTasks';
 
 interface Props {
   task: Task;
