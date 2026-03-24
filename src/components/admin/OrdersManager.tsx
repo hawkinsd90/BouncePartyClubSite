@@ -62,6 +62,24 @@ export function OrdersManager() {
   const orders = data?.orders || [];
   const contactsMap = data?.contactsMap || new Map();
 
+  useEffect(() => {
+    const channel = supabase
+      .channel('orders-manager-realtime')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'orders' },
+        () => { refetch(); }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'orders' },
+        () => { refetch(); }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [refetch]);
+
   async function handleArchiveOldOrders() {
     const confirmed = await showConfirm(
       'Archive completed and cancelled orders older than 90 days?\n\nThey will be hidden from the Past and Cancelled tabs by default but can be shown with "Show Archived".',

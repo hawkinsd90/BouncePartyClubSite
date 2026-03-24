@@ -7,6 +7,7 @@ interface LotPicturesDisplayProps {
   orderId: string;
   orderNumber: string;
   onPromptCustomer?: () => void;
+  lotPicturesRequested?: boolean;
 }
 
 interface LotPicture {
@@ -17,7 +18,7 @@ interface LotPicture {
   uploaded_at: string;
 }
 
-export function LotPicturesDisplay({ orderId, onPromptCustomer }: LotPicturesDisplayProps) {
+export function LotPicturesDisplay({ orderId, onPromptCustomer, lotPicturesRequested }: LotPicturesDisplayProps) {
   const [pictures, setPictures] = useState<LotPicture[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -98,16 +99,19 @@ export function LotPicturesDisplay({ orderId, onPromptCustomer }: LotPicturesDis
 
   if (pictures.length === 0) {
     return (
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+      <div className={`${lotPicturesRequested ? 'bg-blue-50 border-blue-200' : 'bg-amber-50 border-amber-200'} border rounded-lg p-4`}>
         <div className="flex items-start gap-3">
-          <ImageIcon className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <ImageIcon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${lotPicturesRequested ? 'text-blue-600' : 'text-amber-600'}`} />
           <div className="flex-1">
-            <h3 className="font-semibold text-amber-900 mb-1">No Lot Pictures Uploaded</h3>
-            <p className="text-sm text-amber-800 mb-3">
-              The customer hasn't uploaded pictures of the event location yet. These pictures help assess setup
-              requirements and identify any potential issues.
+            <h3 className={`font-semibold mb-1 ${lotPicturesRequested ? 'text-blue-900' : 'text-amber-900'}`}>
+              {lotPicturesRequested ? 'Lot Pictures Requested' : 'No Lot Pictures Uploaded'}
+            </h3>
+            <p className={`text-sm mb-3 ${lotPicturesRequested ? 'text-blue-800' : 'text-amber-800'}`}>
+              {lotPicturesRequested
+                ? 'A request has been sent to the customer. Waiting for them to upload pictures through their portal.'
+                : "The customer hasn't uploaded pictures of the event location yet. These pictures help assess setup requirements and identify any potential issues."}
             </p>
-            {onPromptCustomer && (
+            {onPromptCustomer && !lotPicturesRequested && (
               <button
                 onClick={onPromptCustomer}
                 className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"

@@ -38,6 +38,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(openEditMode);
   const [selectedImage, setSelectedImage] = useState<{ url: string; label: string } | null>(null);
+  const [lotPicturesRequestedLocal, setLotPicturesRequestedLocal] = useState(order.lot_pictures_requested || false);
 
   const cardRef = useRef<HTMLDivElement>(null);
   const actionButtonsRef = useRef<HTMLDivElement>(null);
@@ -257,9 +258,9 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
         <LotPicturesDisplay
           orderId={order.id}
           orderNumber={formatOrderId(order.id)}
+          lotPicturesRequested={lotPicturesRequestedLocal}
           onPromptCustomer={async () => {
             try {
-              // Mark that lot pictures have been requested
               const { error } = await supabase
                 .from('orders')
                 .update({
@@ -270,12 +271,10 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
 
               if (error) throw error;
 
-              // Send SMS to customer
               const message = `Bounce Party Club - Hi! We're reviewing your order #${formatOrderId(order.id)}. Could you please upload pictures of the event location through your customer portal? This helps us prepare better for your event. Link: ${window.location.origin}/customer-portal/${order.id}`;
               await sendSms(message);
 
-              // Reload order data
-              onUpdate();
+              setLotPicturesRequestedLocal(true);
             } catch (error) {
               console.error('Error requesting lot pictures:', error);
               alert('Failed to send request. Please try again.');
