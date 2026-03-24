@@ -283,7 +283,6 @@ Deno.serve(async (req: Request) => {
     // If already paid (positive value), persist the latest payment selection and confirm (avoid double charge)
     if (order.deposit_paid_cents && order.deposit_paid_cents > 0 && order.deposit_paid_cents >= paymentAmountCents) {
       const alreadyPaidUpdate: Record<string, unknown> = {
-        status: "confirmed",
         customer_selected_payment_cents: paymentAmountCents,
         customer_selected_payment_type: persistedPaymentType,
         tip_cents: tipCents,
@@ -537,12 +536,11 @@ Deno.serve(async (req: Request) => {
 
     const newBalanceDue = Math.max(0, orderTotal - paymentAmountCents);
 
-    // Update order as paid & confirmed — persist payment selection post-charge
+    // Update order payment fields only — lifecycle will own the status transition to confirmed.
     // IMPORTANT: deposit_paid_cents should NOT include tip
     const { error: updateError } = await supabaseClient
       .from("orders")
       .update({
-        status: "confirmed",
         deposit_paid_cents: paymentAmountCents,
         stripe_payment_status: "paid",
         balance_due_cents: newBalanceDue,

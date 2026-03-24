@@ -202,24 +202,22 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
             .maybeSingle();
 
           const isAdminInvoice = !!invoiceLink;
-          const newStatus = isAdminInvoice ? 'confirmed' : 'pending_review';
 
-          // Update order status (no charge yet, just card saved)
-          // Note: tip_cents is already saved when order was created, no need to update it here
-          const { error: updateError } = await supabase
-            .from('orders')
-            .update({
-              status: newStatus,
-            })
-            .eq('id', orderId!);
-
-          if (updateError) {
-            console.error('[PAYMENT-COMPLETE] Error manually updating order:', updateError);
-          } else {
-            console.log(`[PAYMENT-COMPLETE] Successfully updated order to status: ${newStatus}`);
-            // Refetch order with updated data
-            order = await fetchOrderDetails();
+          // Route through lifecycle so status transition is owned by the authoritative handler
+          try {
+            const { enterPendingReview, enterConfirmed } = await import('../lib/orderLifecycle');
+            if (isAdminInvoice) {
+              await enterConfirmed(orderId!, 'webhook_fallback_admin_invoice', 'zero_due_with_card');
+            } else {
+              await enterPendingReview(orderId!, 'webhook_fallback_standard');
+            }
+            console.log(`[PAYMENT-COMPLETE] Lifecycle transition complete (isAdminInvoice=${isAdminInvoice})`);
+          } catch (lifecycleErr) {
+            console.error('[PAYMENT-COMPLETE] Lifecycle call failed in fallback path:', lifecycleErr);
           }
+
+          // Refetch order with updated data
+          order = await fetchOrderDetails();
         }
 
         setOrderDetails(order);

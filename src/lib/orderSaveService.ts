@@ -413,6 +413,15 @@ export async function saveOrderChanges({
       await logChangeFn(field, oldVal, newVal);
     }
 
+    if (adminOverrideApproval) {
+      try {
+        const { enterConfirmed } = await import('./orderLifecycle');
+        await enterConfirmed(order.id, 'admin_override_approval', 'waived');
+      } catch (lifecycleErr) {
+        console.error('[orderSaveService] enterConfirmed (admin-override) failed (non-fatal):', lifecycleErr);
+      }
+    }
+
     if (hasTrackedChanges && !adminOverrideApproval) {
       await sendNotificationsFn();
     }

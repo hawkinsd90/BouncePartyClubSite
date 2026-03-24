@@ -225,7 +225,6 @@ async function processWebhookEvent(
             .maybeSingle();
 
           const isAdminInvoice = !!invoiceLink;
-          const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
 
           const { error: updateError } = await supabaseClient
             .from("orders")
@@ -233,7 +232,6 @@ async function processWebhookEvent(
               stripe_payment_method_id: actualPaymentMethodId,
               stripe_customer_id: stripeCustomerId,
               tip_cents: tipCents,
-              status: newStatus,
               ...(setupCardBrand ? { payment_method_brand: setupCardBrand } : {}),
               ...(setupCardLast4 ? { payment_method_last_four: setupCardLast4 } : {}),
             })
@@ -242,8 +240,6 @@ async function processWebhookEvent(
           if (updateError) {
             console.error(`[WEBHOOK] Error updating order ${orderId}:`, updateError);
           } else {
-            // BPC-SECURITY-HARDENING: verbose dev debug log commented out for production.
-            // console.log(`[WEBHOOK] Setup completed - order ${orderId} updated to ${newStatus} with payment method: ${actualPaymentMethodId}, tip: $${(tipCents/100).toFixed(2)}`);
             if (isAdminInvoice) {
               await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_setup_session_admin_invoice", "charged_now");
             } else {
@@ -568,15 +564,6 @@ async function processWebhookEvent(
             .maybeSingle();
 
           const isAdminInvoice = !!invoiceLink;
-          const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
-
-          // BPC-SECURITY-HARDENING: verbose dev debug log commented out for production.
-          // console.log(`[WEBHOOK] Updating order ${orderId}:`, {
-          //   depositOnly,
-          //   tipCents,
-          //   newStatus,
-          //   isAdminInvoice,
-          // });
 
           const { error: updateError } = await supabaseClient
             .from("orders")
@@ -586,15 +573,12 @@ async function processWebhookEvent(
               stripe_customer_id: stripeCustomerId,
               deposit_paid_cents: depositOnly,
               tip_cents: tipCents,
-              status: newStatus,
             })
             .eq("id", orderId);
 
           if (updateError) {
             console.error(`[WEBHOOK] Error updating order ${orderId}:`, updateError);
           } else {
-            // BPC-SECURITY-HARDENING: verbose dev debug log commented out for production.
-            // console.log(`[WEBHOOK] Successfully updated order ${orderId} to status: ${newStatus}`);
             if (isAdminInvoice) {
               await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_checkout_deposit_admin_invoice", "charged_now");
             } else {
@@ -736,7 +720,6 @@ async function processWebhookEvent(
               .maybeSingle();
 
             const isAdminInvoice = !!invoiceLink;
-            const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
 
             const alreadyRecordedByCheckout =
               depositOrder?.stripe_payment_status === "paid" &&
@@ -753,7 +736,6 @@ async function processWebhookEvent(
                   stripe_payment_method_id: paymentMethodId,
                   stripe_customer_id: stripeCustomerId,
                   deposit_paid_cents: depositOnlyFromPI,
-                  status: newStatus,
                 })
                 .eq("id", orderId);
 
@@ -900,15 +882,13 @@ async function processWebhookEvent(
           .maybeSingle();
 
         const isAdminInvoice = !!invoiceLink;
-        const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
 
-        // Update order with payment method and set to pending_review (or confirmed for admin invoices)
+        // Update payment method fields only — lifecycle owns the status transition
         const { error: updateError } = await supabaseClient
           .from("orders")
           .update({
             stripe_payment_method_id: paymentMethodId,
             stripe_customer_id: stripeCustomerId,
-            status: newStatus,
             ...(siCardBrand ? { payment_method_brand: siCardBrand } : {}),
             ...(siCardLast4 ? { payment_method_last_four: siCardLast4 } : {}),
           })
@@ -917,8 +897,6 @@ async function processWebhookEvent(
         if (updateError) {
           console.error(`[WEBHOOK] Error updating order ${orderId}:`, updateError);
         } else {
-          // BPC-SECURITY-HARDENING: verbose dev debug log commented out for production.
-          // console.log(`[WEBHOOK] Successfully updated order ${orderId} to status: ${newStatus}`);
           if (isAdminInvoice) {
             await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_setup_intent_admin_invoice", "zero_due_with_card");
           } else {
