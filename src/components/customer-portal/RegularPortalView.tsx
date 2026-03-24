@@ -122,7 +122,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
       const row = rows && rows.length > 0 ? rows[0] : null;
       if (row) {
         const imgs: string[] = Array.isArray(row.delivery_images) ? row.delivery_images : [];
-        setDeliveryPhotosAvailable(imgs.length > 0 || row.status === 'completed');
+        setDeliveryPhotosAvailable(imgs.length > 0);
       }
     } catch {
       // non-fatal — tab stays disabled

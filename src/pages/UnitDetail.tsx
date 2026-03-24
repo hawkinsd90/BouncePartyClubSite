@@ -377,12 +377,13 @@ export function UnitDetail() {
 
       {/* Image Modal */}
       {isImageModalOpen && (() => {
-        const filteredMedia = unit.media.filter((m: any) => {
-          if (((unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide'))) {
-            return m.mode === wetOrDry;
-          }
-          return true;
-        });
+        const isWetDryUnitModal = (unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide');
+        let filteredMedia = isWetDryUnitModal
+          ? unit.media.filter((m: any) => m.mode === wetOrDry)
+          : unit.media;
+        if (isWetDryUnitModal && wetOrDry === 'water' && filteredMedia.length === 0) {
+          filteredMedia = unit.media.filter((m: any) => m.mode === 'dry');
+        }
         const displayImage = filteredMedia[selectedImageIndex] || filteredMedia[0];
 
         return (

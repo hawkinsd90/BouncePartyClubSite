@@ -105,7 +105,14 @@ export async function approveOrder(
       body: JSON.stringify({ orderId }),
     });
 
-    const data = await response.json();
+    let data: any = {};
+    try {
+      data = await response.json();
+    } catch {
+      if (!response.ok) {
+        throw new Error(`Payment service error (${response.status}). Please try again or contact support.`);
+      }
+    }
 
     if (!response.ok || !data.success) {
       // BPC-SECURITY-HARDENING: raw response object removed — could expose Stripe error internals in browser console.

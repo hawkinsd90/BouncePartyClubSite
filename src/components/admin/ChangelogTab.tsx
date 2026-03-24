@@ -133,18 +133,25 @@ export function ChangelogTab() {
         orderGroups.get(change.order_id)!.changes.push(change);
       }
 
+      // Batch-fetch all order customer names in one query (avoids N+1)
+      const allOrderIds = Array.from(orderGroups.keys());
+      const orderCustomerNames: Record<string, string> = {};
+      if (allOrderIds.length > 0) {
+        const { data: ordersWithCustomers } = await supabase
+          .from('orders')
+          .select('id, customers(first_name, last_name)')
+          .in('id', allOrderIds);
+        (ordersWithCustomers || []).forEach((o: any) => {
+          orderCustomerNames[o.id] = o.customers
+            ? `${o.customers.first_name} ${o.customers.last_name}`
+            : 'Unknown Customer';
+        });
+      }
+
       // Create grouped order entries
       const grouped: GroupedOrderChange[] = [];
       for (const [order_id, group] of orderGroups) {
-        const { data: orderData } = await supabase
-          .from('orders')
-          .select('id, customers(first_name, last_name)')
-          .eq('id', order_id)
-          .maybeSingle();
-
-        const customerName = orderData?.customers
-          ? `${(orderData.customers as any).first_name} ${(orderData.customers as any).last_name}`
-          : 'Unknown Customer';
+        const customerName = orderCustomerNames[order_id] || 'Unknown Customer';
 
         // Sort changes by timestamp descending
         group.changes.sort((a, b) =>
@@ -260,7 +267,7 @@ export function ChangelogTab() {
             System Changelog
           </h2>
           <p className="text-xs sm:text-sm text-slate-600 mt-1 sm:mt-2">
-            Complete audit trail of all changes across orders, permissions, and settings
+            Audit trail of changes across orders and settings
           </p>
         </div>
         <button

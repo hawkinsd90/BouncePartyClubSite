@@ -10,7 +10,6 @@ interface PerformanceMetrics {
   avgPickupMinutes: number | null;
   totalCompletedTasks: number;
   taskCompletionRate: number;
-  onTimeDeliveryRate: number;
   avgTotalServiceMinutes: number | null;
   tasksLast30Days: number;
   tasksCompletedToday: number;
@@ -70,7 +69,6 @@ export function PerformanceAnalytics() {
         avgPickupMinutes: null,
         totalCompletedTasks: completedTasks.length,
         taskCompletionRate: totalTasks > 0 ? (completedTasks.length / totalTasks) * 100 : 0,
-        onTimeDeliveryRate: 0,
         avgTotalServiceMinutes: serviceCount > 0 ? totalServiceMinutes / serviceCount : null,
         tasksLast30Days,
         tasksCompletedToday,
@@ -190,20 +188,18 @@ export function PerformanceAnalytics() {
                 <Target className="w-6 h-6 text-blue-600" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-slate-900">On-Time Delivery</h3>
-                <p className="text-sm text-slate-600">Deliveries within ETA</p>
+                <h3 className="text-lg font-semibold text-slate-900">Avg Total Service Time</h3>
+                <p className="text-sm text-slate-600">Task creation to completion</p>
               </div>
             </div>
             <span className="text-3xl font-bold text-blue-600">
-              {metrics.onTimeDeliveryRate.toFixed(1)}%
+              {metrics.avgTotalServiceMinutes ? formatDuration(metrics.avgTotalServiceMinutes) : 'N/A'}
             </span>
           </div>
           <div className="mt-4 pt-4 border-t border-slate-200">
             <div className="flex justify-between text-sm">
-              <span className="text-slate-600">Avg Total Service:</span>
-              <span className="font-semibold text-slate-900">
-                {metrics.avgTotalServiceMinutes ? formatDuration(metrics.avgTotalServiceMinutes) : 'N/A'}
-              </span>
+              <span className="text-slate-600">Based on:</span>
+              <span className="font-semibold text-slate-900">{metrics.totalCompletedTasks} completed tasks</span>
             </div>
           </div>
         </div>
@@ -255,9 +251,6 @@ export function PerformanceAnalytics() {
               )}
               {metrics.avgSetupMinutes && metrics.avgSetupMinutes > 60 && (
                 <li>• Setup times averaging over 1 hour - crew may benefit from additional training</li>
-              )}
-              {metrics.onTimeDeliveryRate < 80 && (
-                <li>• On-time delivery rate below 80% - review ETA calculation and traffic factors</li>
               )}
               {metrics.taskCompletionRate < 90 && (
                 <li>• Task completion rate below 90% - investigate incomplete tasks</li>
