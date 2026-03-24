@@ -339,7 +339,7 @@ async function processWebhookEvent(
           const newBalanceDueWh = Math.max(0, existingBalanceDueWh - balanceOnly);
 
           // Update order with balance payment, accumulating both balance_paid_cents and tip_cents
-          await supabaseClient
+          const { error: balanceUpdateError } = await supabaseClient
             .from("orders")
             .update({
               stripe_payment_method_id: paymentMethodId,
@@ -349,6 +349,9 @@ async function processWebhookEvent(
               ...(safeTipCents > 0 ? { tip_cents: existingTip + safeTipCents } : {}),
             })
             .eq("id", orderId);
+          if (balanceUpdateError) {
+            console.error("[WEBHOOK] CRITICAL: Failed to update balance_due_cents on order", { orderId, newBalanceDueWh, balanceUpdateError });
+          }
 
           // Insert balance payment record with fee tracking
           if (piId) {
