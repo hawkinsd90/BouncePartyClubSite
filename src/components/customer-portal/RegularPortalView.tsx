@@ -142,6 +142,9 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
   );
   const isConfirmed = order.status === 'confirmed';
   const stepsUnlocked = totalPaid > 0 || isConfirmed;
+  const orderDelivered = ['completed', 'in_progress'].includes(order.status) &&
+    ['setup_completed', 'pickup_scheduled', 'pickup_in_progress'].includes(order.workflow_status || '')
+    || order.status === 'completed';
 
   async function handleSubmitPictures(files: File[], notes: string) {
     try {
@@ -334,11 +337,11 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                 </button>
 
                 <button
-                  onClick={() => isDelivered && setActiveTab('pictures')}
-                  disabled={!isDelivered}
-                  title={!isDelivered ? 'Available after equipment is delivered' : undefined}
+                  onClick={() => (isDelivered || orderDelivered) && setActiveTab('pictures')}
+                  disabled={!isDelivered && !orderDelivered}
+                  title={!isDelivered && !orderDelivered ? 'Available after equipment is delivered' : undefined}
                   className={`border rounded-lg p-4 transition-all ${
-                    !isDelivered
+                    !isDelivered && !orderDelivered
                       ? 'border-slate-300 bg-slate-100 cursor-not-allowed opacity-60'
                       : 'border-slate-300 bg-slate-50 hover:border-slate-400'
                   }`}
@@ -347,7 +350,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                     <ImageIcon className="w-6 h-6 text-slate-600" />
                     <div className="text-left">
                       <p className="font-semibold text-slate-900">Pictures</p>
-                      <p className="text-xs text-slate-600">{isDelivered ? 'Optional' : 'After delivery'}</p>
+                      <p className="text-xs text-slate-600">{(isDelivered || orderDelivered) ? 'Optional' : 'After delivery'}</p>
                     </div>
                   </div>
                 </button>
@@ -415,11 +418,11 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                 )}
               </button>
               <button
-                onClick={() => isDelivered && setActiveTab('pictures')}
-                disabled={!isDelivered}
-                title={!isDelivered ? 'Available after equipment is delivered' : undefined}
+                onClick={() => (isDelivered || orderDelivered) && setActiveTab('pictures')}
+                disabled={!isDelivered && !orderDelivered}
+                title={!isDelivered && !orderDelivered ? 'Available after equipment is delivered' : undefined}
                 className={`px-3 py-2.5 font-medium border-b-2 transition-colors whitespace-nowrap text-sm ${
-                  !isDelivered
+                  !isDelivered && !orderDelivered
                     ? 'border-transparent text-slate-400 cursor-not-allowed'
                     : activeTab === 'pictures'
                     ? 'border-blue-600 text-blue-600'

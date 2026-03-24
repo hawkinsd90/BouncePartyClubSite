@@ -98,8 +98,9 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (orderError || !order) {
+      console.error("[customer-balance-payment] Order query failed:", JSON.stringify(orderError), "orderId:", orderId);
       return new Response(
-        JSON.stringify({ error: "Order not found." }),
+        JSON.stringify({ error: "Order not found.", detail: orderError?.message }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

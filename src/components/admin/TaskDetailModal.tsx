@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { X, ChevronUp, ChevronDown, AlertTriangle, RefreshCw, ExternalLink, ArrowLeft } from 'lucide-react';
+import { X, ChevronUp, ChevronDown, AlertTriangle, RefreshCw, ExternalLink, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { showAlert, showConfirm } from '../common/CustomModal';
 import { getCurrentLocation, calculateETA } from '../../lib/googleMaps';
@@ -516,6 +516,26 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         )}
 
         <div className="p-4 sm:p-6 space-y-6">
+          {/* Completed banner */}
+          {currentStatus === 'completed' && (
+            <div className="bg-green-600 rounded-xl p-5 flex items-center gap-4 shadow-lg">
+              <div className="bg-white bg-opacity-20 rounded-full p-2 flex-shrink-0">
+                <CheckCircle2 className="w-8 h-8 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-bold text-lg leading-tight">
+                  {isDropOff ? 'Delivery Complete' : 'Pickup Complete'}
+                </p>
+                <p className="text-green-100 text-sm mt-0.5">
+                  This task has been marked as completed.
+                  {task.taskStatus?.completed_time && (
+                    <span> Completed at {new Date(task.taskStatus.completed_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}.</span>
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Date warning */}
           {!isToday && (
             <div className={`rounded-lg p-4 border-2 ${isFuture ? 'bg-amber-50 border-amber-400' : 'bg-slate-100 border-slate-400'}`}>

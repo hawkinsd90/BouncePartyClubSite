@@ -14,6 +14,7 @@ export default function WaiverTab({ orderId }: WaiverTabProps) {
   const navigate = useNavigate();
   const [signatureData, setSignatureData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [ipLocation, setIpLocation] = useState<string | null>(null);
 
   useEffect(() => {
     loadSignatureData();
@@ -31,6 +32,22 @@ export default function WaiverTab({ orderId }: WaiverTabProps) {
 
       if (error) throw error;
       setSignatureData(data);
+
+      if (data?.ip_address && data.ip_address !== 'unknown' && data.ip_address !== '0.0.0.0') {
+        try {
+          const geoRes = await fetch(`https://ipapi.co/${data.ip_address}/json/`);
+          if (geoRes.ok) {
+            const geo = await geoRes.json();
+            if (geo.city && geo.region) {
+              setIpLocation(`${geo.city}, ${geo.region}`);
+            } else if (geo.city) {
+              setIpLocation(geo.city);
+            }
+          }
+        } catch {
+          // non-fatal
+        }
+      }
     } catch (err) {
       console.error('Error loading signature:', err);
     } finally {
@@ -143,6 +160,9 @@ export default function WaiverTab({ orderId }: WaiverTabProps) {
               <p className="font-semibold text-gray-900 font-mono text-xs">
                 {signatureData.ip_address}
               </p>
+              {ipLocation && (
+                <p className="text-gray-500 text-xs mt-0.5">{ipLocation}</p>
+              )}
             </div>
           </div>
 
