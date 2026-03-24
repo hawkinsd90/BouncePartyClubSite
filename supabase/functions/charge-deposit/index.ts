@@ -407,17 +407,18 @@ Deno.serve(async (req: Request) => {
 
     // Atomic race guard: claim this order for charging by doing a conditional UPDATE.
     // We set deposit_paid_cents = -1 (sentinel) only if it is currently 0 or NULL.
+    // Using lte(0) covers both NULL (column default is 0) and explicit 0.
     // If two concurrent calls race here, exactly one will update 1 row; the other
     // gets 0 rows and must abort — preventing a double Stripe charge.
     const { data: claimedRows, error: claimError } = await supabaseClient
       .from("orders")
       .update({ deposit_paid_cents: -1 })
       .eq("id", orderId)
-      .or("deposit_paid_cents.is.null,deposit_paid_cents.eq.0")
+      .lte("deposit_paid_cents", 0)
       .select("id");
 
     if (claimError) {
-      console.error("[charge-deposit] Claim update failed:", claimError);
+      console.error("[charge-deposit] Claim update failed (code:", claimError.code, "message:", claimError.message, "details:", claimError.details, ")");
       return new Response(
         JSON.stringify({ success: false, error: "Failed to claim order for payment. Please try again." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
