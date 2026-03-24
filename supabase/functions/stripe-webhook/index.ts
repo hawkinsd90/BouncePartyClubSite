@@ -449,7 +449,7 @@ async function processWebhookEvent(
                 const tax = order?.tax_cents || 0;
                 const total = subtotal + travelFee + surfaceFee + sameDayFee + generatorFee + tax;
                 const depositPaid = order?.deposit_paid_cents || 0;
-                const newBalanceDue = Math.max(0, (order?.balance_due_cents || 0) - balanceOnly);
+                const newBalanceDue = newBalanceDueWh;
 
                 const feeRowsHtml = [
                   travelFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Travel Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(travelFee)}</td></tr>` : "",
