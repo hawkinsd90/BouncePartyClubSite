@@ -16,10 +16,8 @@ import { CustomerInfoForm } from './CustomerInfoForm';
 import { CancelOrderModal } from './CancelOrderModal';
 import { showToast } from '../../lib/notifications';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
-import {
-  sendNotificationToCustomer,
-  sendAdminSms,
-} from '../../lib/notificationService';
+import { sendNotificationToCustomer } from '../../lib/notificationService';
+import { enterConfirmed } from '../../lib/orderLifecycle';
 import {
   generateConfirmationReceiptEmail,
   generateConfirmationSmsMessage,
@@ -386,12 +384,9 @@ export function InvoiceAcceptanceView({
         }
 
         try {
-          await sendAdminSms(
-            `Invoice accepted (no payment): Order #${formatOrderId(order.id)} - ${firstName} ${lastName}, ${order.event_date}. Full balance $${((order.balance_due_cents || 0) / 100).toFixed(2)} due day of event.`,
-            order.id
-          );
-        } catch (adminNotifError) {
-          console.error('Error sending admin notification:', adminNotifError);
+          await enterConfirmed(order.id, 'invoice_acceptance_no_card', 'waived');
+        } catch (lifecycleErr) {
+          console.error('[InvoiceAcceptanceView] enterConfirmed failed (non-fatal):', lifecycleErr);
         }
 
         if (onApprovalSuccess) {

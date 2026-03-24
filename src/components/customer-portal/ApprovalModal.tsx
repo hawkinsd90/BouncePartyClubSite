@@ -12,6 +12,7 @@ import { formatOrderId } from '../../lib/utils';
 import { format } from 'date-fns';
 import { formatCurrency } from '../../lib/pricing';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
+import { enterConfirmed } from '../../lib/orderLifecycle';
 
 interface ApprovalModalProps {
   isOpen: boolean;
@@ -152,6 +153,12 @@ export function ApprovalModal({
           throw new Error(statusError.message || 'Failed to update order status');
         }
 
+        try {
+          await enterConfirmed(order.id, 'customer_approval_already_paid', 'already_paid');
+        } catch (lifecycleErr) {
+          console.error('[ApprovalModal] enterConfirmed (already-paid) failed (non-fatal):', lifecycleErr);
+        }
+
         showToast(
           'Order approved successfully! Any changes will be added to your final balance.',
           'success'
@@ -252,6 +259,12 @@ export function ApprovalModal({
           console.error('Zero-deposit confirmation notification failed (non-fatal):', notifyErr);
         }
 
+        try {
+          await enterConfirmed(order.id, 'customer_approval_zero_deposit', 'zero_due_with_card');
+        } catch (lifecycleErr) {
+          console.error('[ApprovalModal] enterConfirmed (zero-deposit) failed (non-fatal):', lifecycleErr);
+        }
+
         showToast(
           'Booking confirmed! Your card will be kept on file for the final payment due at your event.',
           'success'
@@ -307,6 +320,12 @@ export function ApprovalModal({
           );
         } else {
           showToast('Order approved and payment processed successfully!', 'success');
+        }
+
+        try {
+          await enterConfirmed(order.id, 'customer_approval_charge_deposit', 'charged_now');
+        } catch (lifecycleErr) {
+          console.error('[ApprovalModal] enterConfirmed (charge-deposit) failed (non-fatal):', lifecycleErr);
         }
       }
 

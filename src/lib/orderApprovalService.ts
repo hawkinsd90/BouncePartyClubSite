@@ -8,6 +8,7 @@ import {
 import { checkMultipleUnitsAvailability } from './availability';
 import { formatOrderId } from './utils';
 import { logGroupedTransactions } from './transactionReceiptService';
+import { enterConfirmed } from './orderLifecycle';
 
 interface ApprovalResult {
   success: boolean;
@@ -99,6 +100,12 @@ export async function approveOrder(
         const confirmMsg = generateConfirmationSmsMessage(orderData, customerNoDeposit.first_name);
         try { await sendSms(confirmMsg); } catch { /* non-fatal */ }
         await sendConfirmationEmail(orderWithRelationsNoDeposit, totalCentsNoDeposit);
+      }
+
+      try {
+        await enterConfirmed(orderId, 'admin_approve_zero_deposit', 'waived');
+      } catch (lifecycleErr) {
+        console.error('[orderApprovalService] enterConfirmed (zero-deposit) failed (non-fatal):', lifecycleErr);
       }
 
       return { success: true };
@@ -278,6 +285,12 @@ export async function approveOrder(
       await sendConfirmationEmail(orderWithRelations, totalCents);
     }
 
+    try {
+      await enterConfirmed(orderId, 'admin_approve_charge_deposit', 'charged_now');
+    } catch (lifecycleErr) {
+      console.error('[orderApprovalService] enterConfirmed (charge-deposit) failed (non-fatal):', lifecycleErr);
+    }
+
     return { success: true };
   } catch (error: any) {
     console.error('Error approving order:', error);
@@ -343,6 +356,12 @@ export async function forceApproveOrder(orderId: string): Promise<ApprovalResult
     if (error) throw error;
     if (!claimedRows || claimedRows.length === 0) {
       throw new Error('This order has already been confirmed or cancelled. Refresh the page to see the current status.');
+    }
+
+    try {
+      await enterConfirmed(orderId, 'admin_force_approve', 'waived');
+    } catch (lifecycleErr) {
+      console.error('[orderApprovalService] enterConfirmed (force-approve) failed (non-fatal):', lifecycleErr);
     }
 
     return { success: true };

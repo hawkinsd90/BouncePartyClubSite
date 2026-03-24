@@ -295,7 +295,6 @@ export async function completeOrderAfterPayment(orderId: string, _paymentIntentI
     throw new Error('Order or customer not found');
   }
 
-  // Note: invoice_links table doesn't exist in current schema
   const { data: invoiceLink } = await supabase
     .from('invoice_links' as any)
     .select('id')
@@ -303,10 +302,8 @@ export async function completeOrderAfterPayment(orderId: string, _paymentIntentI
     .maybeSingle();
   const isAdminSent = !!invoiceLink;
 
-  const newStatus = 'pending_review';
-
   const updateData: any = {
-    status: newStatus,
+    status: 'pending_review',
     deposit_paid_cents: order.deposit_due_cents,
   };
 
@@ -321,80 +318,12 @@ export async function completeOrderAfterPayment(orderId: string, _paymentIntentI
 
   if (orderError) throw orderError;
 
-  const customer = (order.customers as any);
-
-  const contactData = {
-    first_name: customer.first_name,
-    last_name: customer.last_name,
-    email: customer.email,
-  };
-
-
-
-  // Note: messages table doesn't exist in current schema
-  // Create confirmation message would go here
-  // await supabase.from('messages').insert({
-  //   order_id: order.id,
-  //   to_email: contactData.email,
-  //   channel: 'email',
-  //   template_key: 'deposit_receipt',
-  //   payload_json: {
-  //     name: `${contactData.first_name} ${contactData.last_name}`,
-  //     units: cart.map((item: any) => item.unit_name).join(', '),
-  //     event_date: order.event_date,
-  //     balance: formatCurrency(order.balance_due_cents),
-  //   },
-  //   status: 'pending',
-  // });
-
-  // Send admin notifications (SMS + Email) for new orders
   if (!isAdminSent) {
     try {
-      // Send SMS using template
-      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          orderId: order.id,
-          templateKey: 'booking_received_admin',
-        }),
-      });
-    } catch (smsError) {
-      console.error('Error sending admin SMS notification:', smsError);
-    }
-
-    try {
-      // Send email notification
-      const { sendAdminEmail } = await import('./notificationService');
-      const formattedOrderId = formatOrderId(order.id);
-      const customerName = `${contactData.first_name} ${contactData.last_name}`;
-      const portalLink = `${window.location.origin}/admin?tab=pending`;
-
-      await sendAdminEmail(
-        `New Order Pending Review - #${formattedOrderId}`,
-        `
-          <h2>New Order Received</h2>
-          <p>A new order has been submitted and is pending your review.</p>
-
-          <h3>Order Details</h3>
-          <ul>
-            <li><strong>Order ID:</strong> ${formattedOrderId}</li>
-            <li><strong>Customer:</strong> ${customerName}</li>
-            <li><strong>Email:</strong> ${contactData.email}</li>
-            <li><strong>Phone:</strong> ${contactData.phone}</li>
-            <li><strong>Event Date:</strong> ${order.event_date}</li>
-            <li><strong>Event Location:</strong> ${order.event_address_line1}</li>
-            <li><strong>Total:</strong> ${formatCurrency(order.balance_due_cents)}</li>
-          </ul>
-
-          <p><a href="${portalLink}" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 6px; margin-top: 16px;">Review Order</a></p>
-        `
-      );
-    } catch (emailError) {
-      console.error('Error sending admin email notification:', emailError);
+      const { enterPendingReview } = await import('./orderLifecycle');
+      await enterPendingReview(orderId, 'standard_checkout');
+    } catch (lifecycleError) {
+      console.error('[orderCreation] enterPendingReview failed (non-fatal):', lifecycleError);
     }
   }
 

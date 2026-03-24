@@ -244,6 +244,11 @@ async function processWebhookEvent(
           } else {
             // BPC-SECURITY-HARDENING: verbose dev debug log commented out for production.
             // console.log(`[WEBHOOK] Setup completed - order ${orderId} updated to ${newStatus} with payment method: ${actualPaymentMethodId}, tip: $${(tipCents/100).toFixed(2)}`);
+            if (isAdminInvoice) {
+              await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_setup_session_admin_invoice", "charged_now");
+            } else {
+              await invokeLifecycle(supabaseClient, "enter_pending_review", orderId, "webhook_setup_session_checkout");
+            }
           }
           break;
         }
@@ -589,7 +594,12 @@ async function processWebhookEvent(
             console.error(`[WEBHOOK] Error updating order ${orderId}:`, updateError);
           } else {
             // BPC-SECURITY-HARDENING: verbose dev debug log commented out for production.
-          // console.log(`[WEBHOOK] Successfully updated order ${orderId} to status: ${newStatus}`);
+            // console.log(`[WEBHOOK] Successfully updated order ${orderId} to status: ${newStatus}`);
+            if (isAdminInvoice) {
+              await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_checkout_deposit_admin_invoice", "charged_now");
+            } else {
+              await invokeLifecycle(supabaseClient, "enter_pending_review", orderId, "webhook_checkout_deposit_standard");
+            }
           }
 
           if (paymentIntentId) {
@@ -746,18 +756,14 @@ async function processWebhookEvent(
                   status: newStatus,
                 })
                 .eq("id", orderId);
-            } else {
-              // checkout.session.completed already wrote deposit_paid_cents correctly;
-              // only update payment method fields and status.
-              await supabaseClient
-                .from("orders")
-                .update({
-                  stripe_payment_method_id: paymentMethodId,
-                  stripe_customer_id: stripeCustomerId,
-                  status: newStatus,
-                })
-                .eq("id", orderId);
+
+              if (isAdminInvoice) {
+                await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_pi_deposit_admin_invoice", "charged_now");
+              } else {
+                await invokeLifecycle(supabaseClient, "enter_pending_review", orderId, "webhook_pi_deposit_standard");
+              }
             }
+            // If alreadyRecordedByCheckout, checkout.session.completed already called lifecycle
           }
         }
         break;
@@ -913,6 +919,11 @@ async function processWebhookEvent(
         } else {
           // BPC-SECURITY-HARDENING: verbose dev debug log commented out for production.
           // console.log(`[WEBHOOK] Successfully updated order ${orderId} to status: ${newStatus}`);
+          if (isAdminInvoice) {
+            await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_setup_intent_admin_invoice", "zero_due_with_card");
+          } else {
+            await invokeLifecycle(supabaseClient, "enter_pending_review", orderId, "webhook_setup_intent_standard");
+          }
         }
         break;
       }
@@ -921,4 +932,20 @@ async function processWebhookEvent(
         // BPC-SECURITY-HARDENING: verbose dev debug log commented out for production.
         // console.log(`ℹ️ [WEBHOOK] Unhandled event type: ${event.type}`);
     }
+}
+
+async function invokeLifecycle(
+  supabaseClient: any,
+  action: string,
+  orderId: string,
+  source: string,
+  paymentOutcome?: string
+): Promise<void> {
+  try {
+    await supabaseClient.functions.invoke("order-lifecycle", {
+      body: { action, orderId, source, paymentOutcome },
+    });
+  } catch (err) {
+    console.error(`[WEBHOOK] order-lifecycle invoke failed (non-fatal): action=${action} orderId=${orderId}`, err);
+  }
 }
