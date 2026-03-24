@@ -30,12 +30,14 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [payments, setPayments] = useState<any[]>([]);
   const [lotPicturesUploaded, setLotPicturesUploaded] = useState(false);
+  const [deliveryPhotosAvailable, setDeliveryPhotosAvailable] = useState(false);
   // Preserved tip cents from a card-update redirect (?tab=payment&tip=NNN)
   const [restoredTipCents, setRestoredTipCents] = useState<number | null>(null);
 
   useEffect(() => {
     loadPayments();
     loadLotPictures();
+    loadDeliveryStatus();
 
     // Check URL params for payment status and preserved tip state
     const params = new URLSearchParams(window.location.search);
@@ -104,6 +106,26 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
       setLotPicturesUploaded((data || []).length > 0);
     } catch (error) {
       console.error('Error loading lot pictures:', error);
+    }
+  }
+
+  async function loadDeliveryStatus() {
+    try {
+      const { data: rows } = await supabase
+        .from('task_status')
+        .select('delivery_images, status')
+        .eq('order_id', orderId)
+        .eq('task_type', 'drop-off')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      const row = rows && rows.length > 0 ? rows[0] : null;
+      if (row) {
+        const imgs: string[] = Array.isArray(row.delivery_images) ? row.delivery_images : [];
+        setDeliveryPhotosAvailable(imgs.length > 0 || row.status === 'completed');
+      }
+    } catch {
+      // non-fatal — tab stays disabled
     }
   }
 
@@ -401,9 +423,13 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                 Pictures
               </button>
               <button
-                onClick={() => setActiveTab('delivery')}
+                onClick={() => deliveryPhotosAvailable && setActiveTab('delivery')}
+                disabled={!deliveryPhotosAvailable}
+                title={!deliveryPhotosAvailable ? 'Delivery photos will appear here after crew completes setup' : undefined}
                 className={`px-3 py-2.5 font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap text-sm ${
-                  activeTab === 'delivery'
+                  !deliveryPhotosAvailable
+                    ? 'border-transparent text-slate-400 cursor-not-allowed'
+                    : activeTab === 'delivery'
                     ? 'border-blue-600 text-blue-600'
                     : 'border-transparent text-slate-600 hover:text-slate-900'
                 }`}

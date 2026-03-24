@@ -167,12 +167,17 @@ export function UnitDetail() {
 
             {/* Main image display */}
             {(() => {
-              const filteredMedia = unit.media.filter((m: any) => {
-                if (((unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide'))) {
-                  return m.mode === wetOrDry;
-                }
-                return true;
-              });
+              const isWetDryUnit = (unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide');
+              let filteredMedia = isWetDryUnit
+                ? unit.media.filter((m: any) => m.mode === wetOrDry)
+                : unit.media;
+
+              // If wet mode selected but no wet images exist, fall back to dry images
+              // (unit has "same as dry" checked in admin — no separate wet images stored)
+              if (isWetDryUnit && wetOrDry === 'water' && filteredMedia.length === 0) {
+                filteredMedia = unit.media.filter((m: any) => m.mode === 'dry');
+              }
+
               const displayImage = filteredMedia[selectedImageIndex] || filteredMedia[0];
 
               return (

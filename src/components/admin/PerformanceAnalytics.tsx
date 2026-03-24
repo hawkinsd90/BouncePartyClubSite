@@ -32,8 +32,7 @@ export function PerformanceAnalytics() {
           id,
           status,
           created_at,
-          completed_at,
-          estimated_arrival,
+          completed_time,
           orders!inner(status)
         `)
         .gte('created_at', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString());
@@ -41,7 +40,7 @@ export function PerformanceAnalytics() {
       if (error) throw error;
 
       const tasks = taskData || [];
-      const completedTasks = tasks.filter(t => t.completed_at && t.status === 'completed');
+      const completedTasks = tasks.filter(t => t.completed_time && t.status === 'completed');
       const totalTasks = tasks.length;
 
       const now = new Date();
@@ -50,22 +49,17 @@ export function PerformanceAnalytics() {
 
       const tasksLast30Days = tasks.filter(t => new Date(t.created_at) >= thirtyDaysAgo).length;
       const tasksCompletedToday = tasks.filter(t =>
-        t.completed_at && new Date(t.completed_at) >= today
+        t.completed_time && new Date(t.completed_time) >= today
       ).length;
 
       let totalServiceMinutes = 0;
       let serviceCount = 0;
-      let onTimeDeliveries = 0;
 
       completedTasks.forEach(task => {
-        if (task.created_at && task.completed_at) {
-          const taskMinutes = (new Date(task.completed_at).getTime() - new Date(task.created_at).getTime()) / 60000;
+        if (task.created_at && task.completed_time) {
+          const taskMinutes = (new Date(task.completed_time).getTime() - new Date(task.created_at).getTime()) / 60000;
           totalServiceMinutes += taskMinutes;
           serviceCount++;
-
-          if (task.estimated_arrival && new Date(task.completed_at) <= new Date(task.estimated_arrival)) {
-            onTimeDeliveries++;
-          }
         }
       });
 
@@ -76,7 +70,7 @@ export function PerformanceAnalytics() {
         avgPickupMinutes: null,
         totalCompletedTasks: completedTasks.length,
         taskCompletionRate: totalTasks > 0 ? (completedTasks.length / totalTasks) * 100 : 0,
-        onTimeDeliveryRate: serviceCount > 0 ? (onTimeDeliveries / serviceCount) * 100 : 0,
+        onTimeDeliveryRate: 0,
         avgTotalServiceMinutes: serviceCount > 0 ? totalServiceMinutes / serviceCount : null,
         tasksLast30Days,
         tasksCompletedToday,

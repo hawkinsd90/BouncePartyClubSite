@@ -24,7 +24,7 @@ export async function approveOrder(
       .from('orders')
       .select('*, order_items (*)')
       .eq('id', orderId)
-      .single();
+      .maybeSingle();
 
     if (!orderData) {
       throw new Error('Order not found');
@@ -74,7 +74,7 @@ export async function approveOrder(
         .from('orders')
         .select('*, customers (*), addresses (*), order_items (*, units (*))')
         .eq('id', orderId)
-        .single();
+        .maybeSingle();
 
       const customerNoDeposit = orderWithRelationsNoDeposit?.customers as any;
       const totalCentsNoDeposit =
@@ -116,7 +116,7 @@ export async function approveOrder(
           .from('orders')
           .select('*, customers(*), addresses(*)')
           .eq('id', orderId)
-          .single();
+          .maybeSingle();
 
         if (fullOrder?.customers?.email) {
           const portalUrl = `${window.location.origin}/customer-portal/${orderId}`;
@@ -161,7 +161,7 @@ export async function approveOrder(
       .from('customers')
       .select('*')
       .eq('id', orderData.customer_id)
-      .single();
+      .maybeSingle();
 
     // Use Stripe's actual charge amount as the source of truth for receipts and invoice
     // This prevents drift between what was charged vs what we record in accounting
@@ -247,7 +247,7 @@ export async function approveOrder(
       .from('orders')
       .select(`*, customers (*), addresses (*), order_items (*, units (*))`)
       .eq('id', orderId)
-      .single();
+      .maybeSingle();
 
     const customer = orderWithRelations?.customers as any;
 
@@ -276,7 +276,7 @@ export async function forceApproveOrder(orderId: string): Promise<ApprovalResult
       .from('orders')
       .select('*, order_items (*)')
       .eq('id', orderId)
-      .single();
+      .maybeSingle();
 
     if (!orderData) {
       throw new Error('Order not found');

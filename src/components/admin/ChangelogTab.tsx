@@ -75,7 +75,7 @@ export function ChangelogTab() {
       const { data: settingChanges, error: settingError } = await supabase
         .from('admin_settings_changelog' as any)
         .select('*')
-        .order('changed_at', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(limit);
 
       if (settingError) throw settingError;
@@ -187,10 +187,10 @@ export function ChangelogTab() {
         allEntries.push({
           id: change.id,
           type: 'setting',
-          timestamp: change.changed_at,
+          timestamp: change.created_at,
           user_email: userEmail,
           title: `Setting Changed: ${change.setting_key}`,
-          description: change.change_reason || 'Setting updated',
+          description: change.change_description || 'Setting updated',
           old_value: change.old_value,
           new_value: change.new_value,
           details: { setting_key: change.setting_key }
