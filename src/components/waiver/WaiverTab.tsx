@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileCheck, FileText, Download, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 import { format } from 'date-fns';
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 interface WaiverTabProps {
   orderId: string;
@@ -24,13 +26,17 @@ export default function WaiverTab({ orderId }: WaiverTabProps) {
     try {
       setLoading(true);
 
-      const { data, error } = await supabase
-        .from('order_signatures')
-        .select('*')
-        .eq('order_id', orderId)
-        .maybeSingle();
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/get-waiver-status`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ orderId }),
+      });
 
-      if (error) throw error;
+      if (!res.ok) throw new Error(`get-waiver-status returned ${res.status}`);
+      const { data } = await res.json();
       setSignatureData(data);
 
       if (data?.ip_address && data.ip_address !== 'unknown' && data.ip_address !== '0.0.0.0') {

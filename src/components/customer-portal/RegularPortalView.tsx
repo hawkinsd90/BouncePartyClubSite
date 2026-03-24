@@ -139,8 +139,8 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
         setDeliveryPhotosAvailable(imgs.length > 0);
         setIsDelivered(row.status === 'completed');
       }
-    } catch {
-      // non-fatal — tab stays disabled
+    } catch (err) {
+      console.error('Error loading delivery status:', err);
     }
   }
 
@@ -175,8 +175,8 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
       });
 
       setExistingPictures(withUrls);
-    } catch {
-      // non-fatal
+    } catch (err) {
+      console.error('Error loading existing pictures:', err);
     }
   }
 
