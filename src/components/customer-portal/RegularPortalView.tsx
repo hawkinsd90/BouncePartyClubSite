@@ -137,7 +137,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
       if (row) {
         const imgs: string[] = Array.isArray(row.delivery_images) ? row.delivery_images : [];
         setDeliveryPhotosAvailable(imgs.length > 0);
-        setIsDelivered(row.status === 'setup_completed');
+        setIsDelivered(row.status === 'completed');
       }
     } catch {
       // non-fatal — tab stays disabled

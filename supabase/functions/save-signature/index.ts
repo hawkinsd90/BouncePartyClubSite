@@ -176,7 +176,48 @@ Deno.serve(async (req: Request) => {
       console.error("Consent record error:", consentError);
     }
 
-    if (sendEmailConfirmation) (async () => {
+    EdgeRuntime.waitUntil((async () => {
+      // Always generate the PDF regardless of email preference so pdf_url is
+      // stored in order_signatures and the Download button appears in the portal.
+      let pdfUrl: string | null = null;
+      let pdfBase64: string | null = null;
+      try {
+        const pdfResponse = await fetch(
+          `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-signed-waiver`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ signatureId: signatureRecord.id }),
+          }
+        );
+
+        if (pdfResponse.ok) {
+          const pdfData = await pdfResponse.json();
+          pdfUrl = pdfData.pdfUrl || null;
+
+          if (pdfUrl) {
+            try {
+              const pdfBytesResponse = await fetch(pdfUrl);
+              if (pdfBytesResponse.ok) {
+                const buffer = await pdfBytesResponse.arrayBuffer();
+                pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+              }
+            } catch (fetchErr) {
+              console.error("PDF bytes fetch failed (attachment will be omitted):", fetchErr);
+            }
+          }
+        } else {
+          console.error("PDF generation failed:", await pdfResponse.text());
+        }
+      } catch (pdfError) {
+        console.error("PDF generation error:", pdfError);
+      }
+
+      if (!sendEmailConfirmation) return;
+
       try {
         const firstName = renterName.split(" ")[0] || renterName;
         const formattedDate = new Date(eventDate).toLocaleDateString("en-US", {
@@ -189,48 +230,6 @@ Deno.serve(async (req: Request) => {
           .filter(Boolean)
           .join(", ");
         const signedAt = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
-
-        // Generate the signed waiver PDF so we can attach it to the confirmation email
-        // and store a permanent public link for the customer portal.
-        let pdfUrl: string | null = null;
-        let pdfBase64: string | null = null;
-        try {
-          const pdfResponse = await fetch(
-            `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-signed-waiver`,
-            {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ signatureId: signatureRecord.id }),
-            }
-          );
-
-          if (pdfResponse.ok) {
-            const pdfData = await pdfResponse.json();
-            pdfUrl = pdfData.pdfUrl || null;
-
-            // Fetch the PDF bytes so we can attach the file directly to the email.
-            // This gives customers an immediately openable attachment rather than
-            // requiring them to click a link.
-            if (pdfUrl) {
-              try {
-                const pdfBytesResponse = await fetch(pdfUrl);
-                if (pdfBytesResponse.ok) {
-                  const buffer = await pdfBytesResponse.arrayBuffer();
-                  pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-                }
-              } catch (fetchErr) {
-                console.error("PDF bytes fetch failed (attachment will be omitted):", fetchErr);
-              }
-            }
-          } else {
-            console.error("PDF generation failed:", await pdfResponse.text());
-          }
-        } catch (pdfError) {
-          console.error("PDF generation error:", pdfError);
-        }
 
         // Always include the download link in the body. When the attachment is also
         // present it acts as a convenient fallback for email clients that strip attachments.
@@ -338,7 +337,7 @@ Deno.serve(async (req: Request) => {
       } catch (emailError) {
         console.error("Waiver confirmation email error:", emailError);
       }
-    })();
+    })());
 
     return new Response(
       JSON.stringify({
