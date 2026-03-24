@@ -308,6 +308,19 @@ Deno.serve(async (req: Request) => {
         );
       }
 
+      try {
+        await supabaseClient.functions.invoke("order-lifecycle", {
+          body: {
+            action: "enter_confirmed",
+            orderId,
+            source: "charge_deposit_already_paid",
+            paymentOutcome: "already_paid",
+          },
+        });
+      } catch (lifecycleErr) {
+        console.error("[charge-deposit] order-lifecycle invoke failed (non-fatal):", lifecycleErr);
+      }
+
       return new Response(
         JSON.stringify({ success: true, alreadyCharged: true }),
         {
@@ -568,6 +581,20 @@ Deno.serve(async (req: Request) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
+    }
+
+    // Invoke lifecycle for admin alerting (non-fatal — charge already succeeded)
+    try {
+      await supabaseClient.functions.invoke("order-lifecycle", {
+        body: {
+          action: "enter_confirmed",
+          orderId,
+          source: "charge_deposit",
+          paymentOutcome: "charged_now",
+        },
+      });
+    } catch (lifecycleErr) {
+      console.error("[charge-deposit] order-lifecycle invoke failed (non-fatal):", lifecycleErr);
     }
 
     // Get payment method details and Stripe fees

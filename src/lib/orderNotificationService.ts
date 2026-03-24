@@ -139,6 +139,17 @@ export async function sendBookingConfirmationNotifications(order: BookingOrderDe
   }
 }
 
+export async function sendCustomerBookingConfirmationNotifications(order: BookingOrderDetails): Promise<void> {
+  const { generateCustomerBookingEmail, generateCustomerSMS } = await import('./bookingEmailTemplates');
+
+  try {
+    await sendCustomerBookingEmail(order, generateCustomerBookingEmail);
+    await sendCustomerBookingSMS(order, generateCustomerSMS);
+  } catch (error) {
+    console.error('[NOTIFICATION] Error in sendCustomerBookingConfirmationNotifications:', error);
+  }
+}
+
 async function sendCustomerBookingEmail(order: BookingOrderDetails, generateEmail: (order: any) => string): Promise<void> {
   try {
     const emailHtml = generateEmail(order);

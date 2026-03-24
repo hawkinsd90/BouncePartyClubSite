@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { SafeStorage } from '../lib/safeStorage';
-import { sendBookingConfirmationNotifications } from '../lib/orderNotificationService';
+import { sendCustomerBookingConfirmationNotifications } from '../lib/orderNotificationService';
 
 interface OrderDetails {
   id: string;
@@ -317,7 +317,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
       return;
     }
 
-    await sendBookingConfirmationNotifications(order);
+    await sendCustomerBookingConfirmationNotifications(order);
 
     await supabase
       .from('orders')

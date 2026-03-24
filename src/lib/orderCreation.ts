@@ -302,23 +302,21 @@ export async function completeOrderAfterPayment(orderId: string, _paymentIntentI
     .maybeSingle();
   const isAdminSent = !!invoiceLink;
 
-  const updateData: any = {
-    status: 'pending_review',
-    deposit_paid_cents: order.deposit_due_cents,
-  };
-
   if (isAdminSent) {
-    updateData.invoice_accepted_at = new Date().toISOString();
-  }
+    const { error: timestampError } = await supabase
+      .from('orders')
+      .update({ invoice_accepted_at: new Date().toISOString() })
+      .eq('id', orderId);
 
-  const { error: orderError } = await supabase
-    .from('orders')
-    .update(updateData)
-    .eq('id', orderId);
+    if (timestampError) throw timestampError;
 
-  if (orderError) throw orderError;
-
-  if (!isAdminSent) {
+    try {
+      const { enterConfirmed } = await import('./orderLifecycle');
+      await enterConfirmed(orderId, 'invoice_page_payment', 'charged_now');
+    } catch (lifecycleError) {
+      console.error('[orderCreation] enterConfirmed (admin invoice) failed (non-fatal):', lifecycleError);
+    }
+  } else {
     try {
       const { enterPendingReview } = await import('./orderLifecycle');
       await enterPendingReview(orderId, 'standard_checkout');
