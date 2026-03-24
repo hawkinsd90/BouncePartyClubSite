@@ -336,6 +336,11 @@ export function InvoiceAcceptanceView({
 
         let notificationsSent = false;
 
+        const notificationTimeout = (ms: number) =>
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Notification timeout')), ms)
+          );
+
         if (email) {
           try {
             const confirmationEmail = generateConfirmationReceiptEmail({
@@ -346,14 +351,17 @@ export function InvoiceAcceptanceView({
               totalCents,
             });
 
-            await sendNotificationToCustomer({
-              email,
-              phone,
-              emailSubject: `Booking Confirmed - Receipt for Order #${formatOrderId(order.id)}`,
-              emailHtml: confirmationEmail,
-              smsMessage,
-              orderId: order.id,
-            });
+            await Promise.race([
+              sendNotificationToCustomer({
+                email,
+                phone,
+                emailSubject: `Booking Confirmed - Receipt for Order #${formatOrderId(order.id)}`,
+                emailHtml: confirmationEmail,
+                smsMessage,
+                orderId: order.id,
+              }),
+              notificationTimeout(10000),
+            ]);
 
             notificationsSent = true;
           } catch (notifError) {
@@ -361,14 +369,17 @@ export function InvoiceAcceptanceView({
           }
         } else if (phone) {
           try {
-            await sendNotificationToCustomer({
-              email: '',
-              phone,
-              emailSubject: '',
-              emailHtml: '',
-              smsMessage,
-              orderId: order.id,
-            });
+            await Promise.race([
+              sendNotificationToCustomer({
+                email: '',
+                phone,
+                emailSubject: '',
+                emailHtml: '',
+                smsMessage,
+                orderId: order.id,
+              }),
+              notificationTimeout(10000),
+            ]);
 
             notificationsSent = true;
           } catch (notifError) {

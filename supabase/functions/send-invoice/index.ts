@@ -61,7 +61,18 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const invoiceUrl = `${req.headers.get('origin')}/customer-portal/${order.id}`;
+    // Resolve the public origin: prefer the request's origin header, fall back to
+    // the SITE_URL env var (set in Supabase dashboard), then a hard-coded production URL.
+    // req.headers.get('origin') is null when the fetch comes from within another
+    // edge function or when the browser omits it on same-site requests.
+    const resolvedOrigin =
+      (req.headers.get('origin') && req.headers.get('origin') !== 'null'
+        ? req.headers.get('origin')
+        : null) ||
+      Deno.env.get('SITE_URL') ||
+      'https://bouncepartyclub.com';
+
+    const invoiceUrl = `${resolvedOrigin}/customer-portal/${order.id}`;
 
     // Update order with invoice sent timestamp
     await supabase
@@ -69,13 +80,14 @@ Deno.serve(async (req: Request) => {
       .update({ invoice_sent_at: new Date().toISOString() })
       .eq('id', orderId);
 
-    // If customer info provided, send email and SMS
+    // Send email and SMS fire-and-forget so they never block the response.
+    // EdgeRuntime.waitUntil keeps the function alive long enough for them to
+    // complete, but the 200 response is returned immediately to the caller.
     if (customerEmail || customerPhone) {
-      const emailPromises = [];
-      const smsPromises = [];
+      const notificationTasks: Promise<any>[] = [];
 
       if (customerEmail) {
-        emailPromises.push(
+        notificationTasks.push(
           fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-email`, {
             method: 'POST',
             headers: {
@@ -96,12 +108,12 @@ Deno.serve(async (req: Request) => {
                 <p>Questions? Call us at (313) 889-3860</p>
               `,
             }),
-          })
+          }).catch((err) => console.error('[send-invoice] Email dispatch failed:', err))
         );
       }
 
       if (customerPhone) {
-        smsPromises.push(
+        notificationTasks.push(
           fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-sms-notification`, {
             method: 'POST',
             headers: {
@@ -112,11 +124,13 @@ Deno.serve(async (req: Request) => {
               to: customerPhone,
               message: `Your Bounce Party Club invoice is ready! View and accept: ${invoiceUrl}`,
             }),
-          })
+          }).catch((err) => console.error('[send-invoice] SMS dispatch failed:', err))
         );
       }
 
-      await Promise.all([...emailPromises, ...smsPromises]);
+      // Fire-and-forget: keeps the Deno runtime alive to finish sending
+      // but does NOT block returning the success response to the admin.
+      EdgeRuntime.waitUntil(Promise.all(notificationTasks));
     }
 
     return new Response(
