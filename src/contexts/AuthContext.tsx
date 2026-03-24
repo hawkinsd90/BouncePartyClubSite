@@ -10,7 +10,7 @@ const log = createLogger('Auth');
 // (user_id, consent_batch_id, consent_type) in user_consent_log.
 const drainingUserIds = new Set<string>();
 
-type UserRole = 'MASTER' | 'ADMIN' | 'CREW' | 'CUSTOMER' | null;
+type UserRole = 'master' | 'admin' | 'crew' | 'customer' | null;
 
 interface AuthContextType {
   user: any;
@@ -102,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
 
       if (!error && data?.role) {
-        const userRole = data.role as string;
+        const userRole = (data.role as string).toLowerCase();
         setRoles([userRole]);
         setRole(userRole as UserRole);
       } else {
@@ -200,10 +200,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
   }, []);
 
-  const hasRole = useCallback((checkRole: string): boolean => roles.includes(checkRole), [roles]);
+  const hasRole = useCallback((checkRole: string): boolean => roles.includes(checkRole.toLowerCase()), [roles]);
 
-  const isAdmin = useMemo(() => roles.includes('ADMIN') || roles.includes('MASTER'), [roles]);
-  const isMaster = useMemo(() => roles.includes('MASTER'), [roles]);
+  const isAdmin = useMemo(() => roles.includes('admin') || roles.includes('master'), [roles]);
+  const isMaster = useMemo(() => roles.includes('master'), [roles]);
 
   const contextValue = useMemo(() => ({
     user,
