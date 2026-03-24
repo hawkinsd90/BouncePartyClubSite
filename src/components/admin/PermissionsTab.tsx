@@ -62,10 +62,10 @@ export function PermissionsTab() {
       }
 
       const enriched: UserRole[] = allRoleUsers.map((r: any) => ({
-        user_id: r.user_id,
+        user_id: r.id,
         role: r.role ? (r.role.toLowerCase() as UserRole['role']) : null,
         created_at: r.created_at,
-        email: r.email || r.user_id,
+        email: r.email || r.id,
       }));
 
       setUsers(enriched);
