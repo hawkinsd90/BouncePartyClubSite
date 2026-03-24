@@ -27,6 +27,9 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  // Hoisted so the outer catch can release the claim sentinel on unexpected errors.
+  let releaseClaim: (() => Promise<void>) | null = null;
+
   try {
     const body = await req.json();
     const {
@@ -412,7 +415,8 @@ Deno.serve(async (req: Request) => {
 
     // Helper: roll back the sentinel on any pre-charge failure so the order
     // can be retried. Only called BEFORE stripe.paymentIntents.create fires.
-    const releaseClaim = async () => {
+    // Also assigned to the outer-scope variable so the catch block can use it.
+    releaseClaim = async () => {
       try {
         await supabaseClient
           .from("orders")
@@ -471,10 +475,15 @@ Deno.serve(async (req: Request) => {
     });
 
     if (paymentIntent.status !== "succeeded") {
+      // For non-succeeded statuses (requires_action, processing, etc.),
+      // the charge has NOT completed — release the sentinel so the order
+      // can be retried. Include PI id so support can look up the attempt.
+      await releaseClaim();
       return new Response(
         JSON.stringify({
           success: false,
-          error: `PaymentIntent status is ${paymentIntent.status}`,
+          error: `Payment could not be completed (status: ${paymentIntent.status}). Please try again or contact support.`,
+          paymentIntentId: paymentIntent.id,
         }),
         {
           status: 400,
@@ -531,13 +540,28 @@ Deno.serve(async (req: Request) => {
       .eq("id", orderId);
 
     if (updateError) {
-      // Stripe already charged — signal partial success so frontend does NOT show decline UI
+      // Stripe already charged — signal partial success so frontend does NOT show decline UI.
+      // Write a changelog entry so admins can query for stuck orders.
       console.error("[charge-deposit] Post-charge order update failed:", updateError);
+      try {
+        await supabaseClient.from("order_changelog").insert({
+          order_id: orderId,
+          user_id: null,
+          change_type: "payment_error",
+          field_changed: "deposit_paid_cents",
+          old_value: "-1",
+          new_value: String(paymentAmountCents),
+          notes: `PARTIAL_CHARGE_FAILURE: Stripe charged ${chargeAmountCents} cents (PI: ${paymentIntent.id}) but order DB update failed: ${updateError.message}`,
+        });
+      } catch (clErr) {
+        console.error("[charge-deposit] Failed to write partial-charge changelog (non-fatal):", clErr);
+      }
       return new Response(
         JSON.stringify({
           success: false,
           chargeSucceeded: true,
           error: "Payment was processed but order update failed. Please contact support.",
+          paymentIntentId: paymentIntent.id,
         }),
         {
           status: 200,
@@ -911,6 +935,14 @@ Deno.serve(async (req: Request) => {
   } catch (error: unknown) {
     console.error("charge-deposit error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
+
+    // Best-effort: release the claim sentinel so the order is not stuck.
+    // releaseClaim is only non-null if the claim was successfully taken.
+    // It is safe to call here because the Stripe charge has not succeeded
+    // if we are in this catch block (succeeded path never throws).
+    if (releaseClaim) {
+      await releaseClaim();
+    }
 
     return new Response(
       JSON.stringify({ success: false, error: message }),
