@@ -140,11 +140,18 @@ export default function WaiverViewer({
         ref={containerRef}
         className="border-2 border-gray-300 rounded-lg p-6 h-96 overflow-y-auto bg-white"
       >
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">
-          Liability Waiver and Rental Agreement
-        </h2>
-        <div className="text-sm text-gray-600 mb-6">
-          Version 1.0 | Effective Date: December 2, 2025
+        <div className="flex flex-col items-center mb-6">
+          <img
+            src="/bounce party club logo.png"
+            alt="Bounce Party Club"
+            className="h-20 w-auto mb-4"
+          />
+          <h2 className="text-2xl font-bold text-gray-900 text-center">
+            Liability Waiver and Rental Agreement
+          </h2>
+          <div className="text-sm text-gray-600 mt-1 text-center">
+            Version 1.0 | Effective Date: December 2, 2025
+          </div>
         </div>
         {renderWaiverWithInitials()}
         <div ref={bottomMarkerRef} className="h-1" />

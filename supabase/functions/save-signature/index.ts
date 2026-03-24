@@ -238,7 +238,7 @@ Deno.serve(async (req: Request) => {
             <div style="background-color:#f0fdf4;border:2px solid #10b981;border-radius:6px;padding:18px;margin:25px 0;text-align:center;">
               <h3 style="margin:0 0 10px;color:#15803d;font-size:15px;font-weight:600;">Your Signed Waiver Copy</h3>
               <p style="margin:0 0 14px;color:#166534;font-size:14px;">Your signed rental agreement is attached to this email. You can also download it using the button below.</p>
-              <a href="${pdfUrl}" target="_blank" style="display:inline-block;background-color:#10b981;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:6px;font-weight:700;font-size:15px;">Download Signed Waiver (PDF)</a>
+              <a href="${pdfUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background-color:#10b981;color:#ffffff;text-decoration:none;padding:16px 32px;border-radius:6px;font-weight:700;font-size:16px;cursor:pointer;-webkit-text-size-adjust:none;mso-hide:none;">Download Signed Waiver (PDF)</a>
               <p style="margin:12px 0 0;color:#64748b;font-size:12px;">Keep this for your records. This link will remain active.</p>
             </div>`
           : `

@@ -50,7 +50,13 @@ export default function WaiverTab({ orderId }: WaiverTabProps) {
 
   const handleDownloadPdf = () => {
     if (signatureData?.pdf_url) {
-      window.open(signatureData.pdf_url, '_blank');
+      const link = document.createElement('a');
+      link.href = signatureData.pdf_url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
   };
 

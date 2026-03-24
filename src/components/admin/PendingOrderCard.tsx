@@ -39,6 +39,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
   const [showEditModal, setShowEditModal] = useState(openEditMode);
   const [selectedImage, setSelectedImage] = useState<{ url: string; label: string } | null>(null);
   const [lotPicturesRequestedLocal, setLotPicturesRequestedLocal] = useState(order.lot_pictures_requested || false);
+  const [lotPicturesCount, setLotPicturesCount] = useState(0);
 
   const cardRef = useRef<HTMLDivElement>(null);
   const actionButtonsRef = useRef<HTMLDivElement>(null);
@@ -83,6 +84,12 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
     if (order.customer_id) {
       loadCustomerDamageHistory(order.customer_id);
     }
+
+    supabase
+      .from('order_lot_pictures')
+      .select('id', { count: 'exact', head: true })
+      .eq('order_id', order.id)
+      .then(({ count }) => setLotPicturesCount(count ?? 0));
   }, [order.id]);
 
   useEffect(() => {
@@ -134,6 +141,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
 
     if (result.success) {
       alert('Order has been force approved and marked as confirmed!');
+      onUpdate();
     } else {
       alert(`Failed to force approve order: ${result.error}`);
     }
@@ -153,6 +161,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
 
     if (result.success) {
       alert('Booking approved, card charged, and customer notified via SMS and email!');
+      onUpdate();
     } else {
       alert(`Error approving order: ${result.error}`);
     }
@@ -356,6 +365,8 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
         <ApprovalModal
           order={order}
           customerDisplayName={getCustomerDisplayName()}
+          lotPicturesRequested={lotPicturesRequestedLocal}
+          lotPicturesReceived={lotPicturesCount > 0}
           onConfirm={confirmApproval}
           onCancel={() => setShowApprovalModal(false)}
         />

@@ -30,6 +30,11 @@ export async function approveOrder(
       throw new Error('Order not found');
     }
 
+    // Idempotency guard: if already confirmed by another admin session, abort gracefully
+    if (orderData.status === 'confirmed') {
+      throw new Error('This order has already been confirmed. Refresh the page to see the current status.');
+    }
+
     // Check availability before approving
     const orderItems = (Array.isArray(orderData.order_items) ? orderData.order_items : []) as any[];
     const availabilityChecks = orderItems.map(item => ({
@@ -283,6 +288,11 @@ export async function forceApproveOrder(orderId: string): Promise<ApprovalResult
 
     if (!orderData) {
       throw new Error('Order not found');
+    }
+
+    // Idempotency guard: abort if already confirmed
+    if (orderData.status === 'confirmed') {
+      throw new Error('This order has already been confirmed. Refresh the page to see the current status.');
     }
 
     // Check availability before force approving

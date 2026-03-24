@@ -57,7 +57,7 @@ export function TimePickerInput({
         </div>
       </div>
 
-      {/* Native time input overlaid (invisible but receives taps) */}
+      {/* Native time input overlaid (invisible but receives taps and clicks) */}
       <input
         id={id}
         type="time"
@@ -68,7 +68,7 @@ export function TimePickerInput({
         disabled={disabled}
         required={required}
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-        style={{ fontSize: '16px' }}
+        style={{ fontSize: '16px', zIndex: 10 }}
         aria-label={placeholder}
       />
     </div>

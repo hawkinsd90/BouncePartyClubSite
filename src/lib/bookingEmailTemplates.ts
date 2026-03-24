@@ -316,7 +316,7 @@ export function generateAdminSMS(order: OrderEmailData): string {
   });
 
   return (
-    `NEW BOOKING! ${order.customer.first_name} ${order.customer.last_name} ` +
+    `NEW BOOKING REQUEST! ${order.customer.first_name} ${order.customer.last_name} ` +
     `for ${eventDateStr}. Review in admin panel. ` +
     `Order #${formatOrderId(order.id)}`
   );
