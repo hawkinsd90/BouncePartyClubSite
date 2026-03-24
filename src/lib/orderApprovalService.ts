@@ -30,9 +30,9 @@ export async function approveOrder(
       throw new Error('Order not found');
     }
 
-    // Idempotency guard: if already confirmed by another admin session, abort gracefully
-    if (orderData.status === 'confirmed') {
-      throw new Error('This order has already been confirmed. Refresh the page to see the current status.');
+    // Idempotency guard: if already confirmed/cancelled/void, abort gracefully
+    if (['confirmed', 'cancelled', 'void'].includes(orderData.status)) {
+      throw new Error('This order has already been confirmed or cancelled. Refresh the page to see the current status.');
     }
 
     // Check availability before approving
@@ -68,12 +68,17 @@ export async function approveOrder(
     // Just confirm the order and keep card on file for the final payment.
     const effectiveDeposit = orderData.deposit_due_cents ?? 0;
     if (effectiveDeposit <= 0) {
-      const { error: confirmError } = await supabase
+      const { data: claimedRows, error: confirmError } = await supabase
         .from('orders')
         .update({ status: 'confirmed', stripe_payment_status: 'paid' })
-        .eq('id', orderId);
+        .eq('id', orderId)
+        .not('status', 'in', '("confirmed","cancelled","void")')
+        .select('id');
 
       if (confirmError) throw new Error('Failed to confirm order: ' + confirmError.message);
+      if (!claimedRows || claimedRows.length === 0) {
+        throw new Error('This order has already been confirmed or cancelled. Refresh the page to see the current status.');
+      }
 
       const { data: orderWithRelationsNoDeposit } = await supabase
         .from('orders')
@@ -100,11 +105,14 @@ export async function approveOrder(
     }
 
     // Proceed with charging deposit
+    const { data: { session: adminSession } } = await supabase.auth.getSession();
+    if (!adminSession) throw new Error('Not authenticated');
+
     const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/charge-deposit`;
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        Authorization: `Bearer ${adminSession.access_token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ orderId }),
@@ -290,9 +298,9 @@ export async function forceApproveOrder(orderId: string): Promise<ApprovalResult
       throw new Error('Order not found');
     }
 
-    // Idempotency guard: abort if already confirmed
-    if (orderData.status === 'confirmed') {
-      throw new Error('This order has already been confirmed. Refresh the page to see the current status.');
+    // Idempotency guard: abort if already confirmed/cancelled/void
+    if (['confirmed', 'cancelled', 'void'].includes(orderData.status)) {
+      throw new Error('This order has already been confirmed or cancelled. Refresh the page to see the current status.');
     }
 
     // Check availability before force approving
@@ -324,13 +332,18 @@ export async function forceApproveOrder(orderId: string): Promise<ApprovalResult
       );
     }
 
-    // Proceed with force approval
-    const { error } = await supabase
+    // Proceed with force approval — predicated on status to guard against races
+    const { data: claimedRows, error } = await supabase
       .from('orders')
       .update({ status: 'confirmed' })
-      .eq('id', orderId);
+      .eq('id', orderId)
+      .not('status', 'in', '("confirmed","cancelled","void")')
+      .select('id');
 
     if (error) throw error;
+    if (!claimedRows || claimedRows.length === 0) {
+      throw new Error('This order has already been confirmed or cancelled. Refresh the page to see the current status.');
+    }
 
     return { success: true };
   } catch (error: any) {
