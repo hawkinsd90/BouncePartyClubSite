@@ -6,6 +6,7 @@ interface ChangelogEntry {
   field_changed: string;
   old_value: string | null;
   new_value: string | null;
+  notes: string | null;
   created_at: string;
   users?: {
     email: string;
@@ -27,10 +28,11 @@ export function OrderChangelogTab({ changelog }: OrderChangelogTabProps) {
           {changelog.map(change => (
             <div key={change.id} className="bg-slate-50 rounded-lg p-3">
               <div className="flex items-center justify-between mb-2">
-                <p className="font-medium text-sm">
+                <p className={`font-medium text-sm ${change.change_type === 'payment_error' ? 'text-red-700' : ''}`}>
                   {change.change_type === 'status_change' ? 'Status Change' :
                    change.change_type === 'field_update' ? 'Field Update' :
                    change.change_type === 'customer_approval' ? 'Customer Approval' :
+                   change.change_type === 'payment_error' ? 'Payment Error' :
                    change.change_type}
                 </p>
                 <span className="text-xs text-slate-500">
@@ -53,6 +55,12 @@ export function OrderChangelogTab({ changelog }: OrderChangelogTabProps) {
               {change.new_value && (
                 <p className="text-sm text-slate-600">
                   <span className="font-medium">To:</span> {change.new_value}
+                </p>
+              )}
+
+              {change.notes && (
+                <p className="text-xs text-slate-500 mt-1 break-all">
+                  {change.notes}
                 </p>
               )}
 

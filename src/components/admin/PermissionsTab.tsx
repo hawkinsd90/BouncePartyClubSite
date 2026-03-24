@@ -9,7 +9,6 @@ interface UserRole {
   role: 'master' | 'admin' | 'crew' | null;
   created_at: string;
   email: string;
-  full_name: string;
 }
 
 interface ChangelogEntry {
@@ -63,11 +62,10 @@ export function PermissionsTab() {
       }
 
       const enriched: UserRole[] = allRoleUsers.map((r: any) => ({
-        user_id: r.id,
+        user_id: r.user_id,
         role: r.role ? (r.role.toLowerCase() as UserRole['role']) : null,
         created_at: r.created_at,
-        email: r.email || r.id,
-        full_name: '',
+        email: r.email || r.user_id,
       }));
 
       setUsers(enriched);
