@@ -134,7 +134,6 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
 
     if (result.success) {
       alert('Order has been force approved and marked as confirmed!');
-      onUpdate();
     } else {
       alert(`Failed to force approve order: ${result.error}`);
     }
@@ -154,7 +153,6 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
 
     if (result.success) {
       alert('Booking approved, card charged, and customer notified via SMS and email!');
-      onUpdate();
     } else {
       alert(`Error approving order: ${result.error}`);
     }
@@ -173,7 +171,6 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
     if (result.success) {
       alert('Booking rejected and customer notified via SMS.');
       setShowRejectionModal(false);
-      onUpdate();
     } else {
       alert(`Error rejecting order: ${result.error}`);
     }
