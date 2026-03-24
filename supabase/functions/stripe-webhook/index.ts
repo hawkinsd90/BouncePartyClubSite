@@ -384,7 +384,7 @@ async function processWebhookEvent(
                 deposit_paid_cents, balance_due_cents,
                 addresses(line1, city, state, zip),
                 order_items(qty, unit_price_cents, units(name)),
-                contacts!inner(email, full_name)
+                customers(email, first_name, last_name)
               `)
               .eq("id", orderId)
               .maybeSingle();
@@ -407,8 +407,8 @@ async function processWebhookEvent(
 
             // Send receipt email for Checkout-path balance payment
             try {
-              const contact = Array.isArray(order?.contacts) ? order.contacts[0] : order?.contacts;
-              if (contact?.email) {
+              const customer = Array.isArray(order?.customers) ? order.customers[0] : order?.customers;
+              if (customer?.email) {
                 const { data: bizSettings } = await supabaseClient
                   .from("admin_settings")
                   .select("key, value")
@@ -425,7 +425,7 @@ async function processWebhookEvent(
                 const logoHtml = biz.logo_url
                   ? `<img src="${biz.logo_url}" alt="${businessName}" style="height:60px;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto;">`
                   : "";
-                const contactName = contact.full_name || "Customer";
+                const contactName = customer.first_name ? `${customer.first_name} ${customer.last_name || ""}`.trim() : "Customer";
                 const cardText = paymentBrand && paymentLast4
                   ? `${paymentBrand.charAt(0).toUpperCase() + paymentBrand.slice(1)} \u2022\u2022\u2022\u2022 ${paymentLast4}`
                   : paymentLast4 ? `Card \u2022\u2022\u2022\u2022 ${paymentLast4}` : "Card on file";
@@ -538,7 +538,7 @@ async function processWebhookEvent(
 </html>`;
                 await supabaseClient.functions.invoke("send-email", {
                   body: {
-                    to: contact.email,
+                    to: customer.email,
                     subject: `Payment Received - Order #${shortId}`,
                     html: receiptHtml,
                   },

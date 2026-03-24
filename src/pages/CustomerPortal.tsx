@@ -66,6 +66,7 @@ export function CustomerPortal() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'order_signatures', filter: `order_id=eq.${realtimeOrderId}` }, debouncedReload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'task_status', filter: `order_id=eq.${realtimeOrderId}` }, debouncedReload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'order_lot_pictures', filter: `order_id=eq.${realtimeOrderId}` }, debouncedReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_pictures', filter: `order_id=eq.${realtimeOrderId}` }, debouncedReload)
       .subscribe();
 
     return () => {
