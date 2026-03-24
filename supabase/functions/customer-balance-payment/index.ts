@@ -89,7 +89,10 @@ Deno.serve(async (req: Request) => {
         id, subtotal_cents, balance_due_cents, balance_paid_cents, deposit_paid_cents,
         tip_cents, stripe_customer_id, stripe_payment_method_id,
         payment_method_brand, payment_method_last_four, customer_id, event_date,
-        customers(email, first_name, last_name)
+        travel_fee_cents, surface_fee_cents, same_day_pickup_fee_cents, generator_fee_cents, tax_cents,
+        addresses(address_line1, city, state, zip),
+        customers(email, first_name, last_name),
+        order_items(quantity, unit_price_cents, units(name))
       `)
       .eq("id", orderId)
       .single();
@@ -164,11 +167,14 @@ Deno.serve(async (req: Request) => {
         // ACCUMULATE: add new payment on top of any prior balance_paid_cents
         const existingTip = order.tip_cents || 0;
         const existingBalancePaid = order.balance_paid_cents || 0;
+        const existingBalanceDue = order.balance_due_cents || 0;
+        const newBalanceDue = Math.max(0, existingBalanceDue - balanceCents);
 
         await supabaseClient
           .from("orders")
           .update({
             balance_paid_cents: existingBalancePaid + balanceCents,
+            balance_due_cents: newBalanceDue,
             ...(tipCents > 0 ? { tip_cents: existingTip + tipCents } : {}),
           })
           .eq("id", orderId);
@@ -254,6 +260,15 @@ Deno.serve(async (req: Request) => {
         try {
           const customer = Array.isArray(order.customers) ? order.customers[0] : order.customers;
           if (customer?.email) {
+            const { data: bizSettings } = await supabaseClient
+              .from("admin_settings")
+              .select("key, value")
+              .in("key", ["business_name", "business_phone", "logo_url"]);
+            const biz: Record<string, string> = {};
+            bizSettings?.forEach((s: { key: string; value: string | null }) => {
+              if (s.value) biz[s.key] = s.value;
+            });
+
             await supabaseClient.functions.invoke("send-email", {
               body: {
                 to: customer.email,
@@ -267,6 +282,8 @@ Deno.serve(async (req: Request) => {
                   cardBrand: paymentBrand,
                   cardLast4: paymentLast4,
                   eventDate: order.event_date,
+                  order,
+                  biz,
                 }),
               },
             });
@@ -401,46 +418,142 @@ function buildReceiptEmail(opts: {
   cardBrand: string | null;
   cardLast4: string | null;
   eventDate: string | null;
+  order: any;
+  biz: Record<string, string>;
 }): string {
-  const { contactName, orderId, balanceCents, tipCents, totalChargeAmount, cardBrand, cardLast4, eventDate } = opts;
+  const { contactName, orderId, balanceCents, tipCents, totalChargeAmount, cardBrand, cardLast4, eventDate, order, biz } = opts;
   const orderNum = formatOrderId(orderId);
-  const cardText = cardBrand && cardLast4
-    ? `${cardBrand.charAt(0).toUpperCase() + cardBrand.slice(1)} ending in ${cardLast4}`
-    : cardLast4
-    ? `Card ending in ${cardLast4}`
-    : "Card on file";
-
   const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
-  const eventLine = eventDate
-    ? `<p style="margin:0;color:#64748b;font-size:14px;">Event Date: ${new Date(eventDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</p>`
+  const businessName = biz.business_name || "Bounce Party Club";
+  const businessPhone = biz.business_phone || "(313) 889-3860";
+
+  const cardText = cardBrand && cardLast4
+    ? `${cardBrand.charAt(0).toUpperCase() + cardBrand.slice(1)} \u2022\u2022\u2022\u2022 ${cardLast4}`
+    : cardLast4
+    ? `Card \u2022\u2022\u2022\u2022 ${cardLast4}`
+    : "Card on file";
+
+  const eventDateStr = eventDate
+    ? new Date(eventDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
     : "";
 
-  const tipLine = tipCents > 0
-    ? `<tr><td style="padding:8px 0;color:#64748b;font-size:14px;">Crew Tip</td><td style="padding:8px 0;text-align:right;color:#16a34a;font-size:14px;font-weight:600;">+${fmt(tipCents)}</td></tr>`
+  const addr = Array.isArray(order.addresses) ? order.addresses[0] : order.addresses;
+  const addressStr = addr
+    ? `${addr.address_line1}, ${addr.city}, ${addr.state}`
     : "";
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#f8fafc;margin:0;padding:24px;">
-<div style="max-width:560px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1);">
-  <div style="background:linear-gradient(135deg,#0ea5e9,#0284c7);padding:32px;text-align:center;">
-    <h1 style="margin:0;color:white;font-size:22px;font-weight:700;">Payment Received</h1>
-    <p style="margin:8px 0 0;color:rgba(255,255,255,.85);font-size:14px;">Order #${orderNum}</p>
-  </div>
-  <div style="padding:32px;">
-    <p style="margin:0 0 24px;font-size:16px;color:#1e293b;">Hi ${contactName},</p>
-    <p style="margin:0 0 24px;font-size:14px;color:#64748b;">Your payment has been processed successfully. Here's your receipt:</p>
-    ${eventLine}
-    <table style="width:100%;border-collapse:collapse;margin:24px 0;">
-      ${balanceCents > 0 ? `<tr><td style="padding:8px 0;color:#64748b;font-size:14px;">Balance Payment</td><td style="padding:8px 0;text-align:right;font-size:14px;font-weight:600;color:#1e293b;">${fmt(balanceCents)}</td></tr>` : ""}
-      ${tipLine}
-      <tr style="border-top:2px solid #e2e8f0;">
-        <td style="padding:12px 0;font-weight:700;font-size:15px;color:#1e293b;">Total Charged</td>
-        <td style="padding:12px 0;text-align:right;font-weight:700;font-size:18px;color:#0ea5e9;">${fmt(totalChargeAmount)}</td>
-      </tr>
-    </table>
-    <p style="margin:0;font-size:13px;color:#94a3b8;">Payment method: ${cardText}</p>
-    <p style="margin:16px 0 0;font-size:13px;color:#94a3b8;">If you have any questions, please contact us. Thank you for choosing Bounce Party Club!</p>
-  </div>
-</div>
-</body></html>`;
+  const items: any[] = Array.isArray(order.order_items) ? order.order_items : [];
+  const itemsHtml = items.map((item: any) => {
+    const unitName = item.units?.name || "Item";
+    const qty = item.quantity || 1;
+    const price = item.unit_price_cents || 0;
+    return `<tr><td style="padding:4px 0;color:#374151;font-size:14px;">${qty}x ${unitName}</td><td style="padding:4px 0;text-align:right;color:#374151;font-size:14px;">${fmt(price * qty)}</td></tr>`;
+  }).join("");
+
+  const subtotal = order.subtotal_cents || 0;
+  const travelFee = order.travel_fee_cents || 0;
+  const surfaceFee = order.surface_fee_cents || 0;
+  const sameDayFee = order.same_day_pickup_fee_cents || 0;
+  const generatorFee = order.generator_fee_cents || 0;
+  const tax = order.tax_cents || 0;
+  const total = subtotal + travelFee + surfaceFee + sameDayFee + generatorFee + tax;
+  const depositPaid = order.deposit_paid_cents || 0;
+  const newBalanceDue = Math.max(0, (order.balance_due_cents || 0) - balanceCents);
+
+  const feeRowsHtml = [
+    travelFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Travel Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(travelFee)}</td></tr>` : "",
+    surfaceFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Surface Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(surfaceFee)}</td></tr>` : "",
+    sameDayFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Same-Day Pickup Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(sameDayFee)}</td></tr>` : "",
+    generatorFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Generator Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(generatorFee)}</td></tr>` : "",
+    tax > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Tax</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(tax)}</td></tr>` : "",
+  ].join("");
+
+  const paymentDate = new Date().toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
+  });
+
+  const portalUrl = `https://bouncepartyclub.com/customer-portal/${orderId}`;
+
+  const logoHtml = biz.logo_url
+    ? `<img src="${biz.logo_url}" alt="${businessName}" style="height:60px;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto;">`
+    : "";
+
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Arial,sans-serif;background-color:#f5f5f5;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5;padding:20px;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;border:1px solid #d1fae5;">
+  <tr>
+    <td align="center" style="padding:24px 40px 16px;border-bottom:2px solid #d1fae5;">
+      ${logoHtml}
+      <h1 style="margin:0;color:#059669;font-size:26px;font-weight:bold;">Payment Received!</h1>
+      <p style="margin:6px 0 0;color:#6b7280;font-size:14px;">Order #${orderNum}</p>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:28px 40px 8px;">
+      <p style="margin:0 0 6px;color:#374151;font-size:15px;">Hi ${contactName},</p>
+      <p style="margin:0 0 20px;color:#374151;font-size:15px;">Your payment has been processed successfully. Here's your receipt.</p>
+
+      ${eventDateStr || addressStr ? `
+      <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;margin-bottom:24px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 10px;font-weight:bold;color:#065f46;font-size:15px;">Event Details</p>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr><td style="padding:3px 0;color:#6b7280;font-size:14px;width:40%;">Order #:</td><td style="padding:3px 0;color:#111827;font-size:14px;font-weight:600;text-align:right;">${orderNum}</td></tr>
+            ${eventDateStr ? `<tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Date:</td><td style="padding:3px 0;color:#111827;font-size:14px;text-align:right;">${eventDateStr}</td></tr>` : ""}
+            ${addressStr ? `<tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Location:</td><td style="padding:3px 0;color:#111827;font-size:14px;text-align:right;">${addressStr}</td></tr>` : ""}
+          </table>
+        </td></tr>
+      </table>` : ""}
+
+      ${itemsHtml ? `
+      <p style="margin:0 0 10px;font-weight:bold;color:#111827;font-size:15px;">Order Items</p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+        ${itemsHtml}
+      </table>` : ""}
+
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+        <tr><td colspan="2" style="padding:0 0 8px;font-weight:bold;color:#111827;font-size:15px;">Payment Summary</td></tr>
+        <tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Subtotal:</td><td style="padding:4px 0;text-align:right;color:#374151;font-size:14px;">${fmt(subtotal)}</td></tr>
+        ${feeRowsHtml}
+        <tr style="border-top:2px solid #e5e7eb;"><td style="padding:10px 0 4px;font-weight:bold;color:#111827;">Total:</td><td style="padding:10px 0 4px;text-align:right;font-weight:bold;color:#111827;">${fmt(total)}</td></tr>
+        ${tipCents > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Crew Tip:</td><td style="padding:4px 0;text-align:right;color:#059669;font-size:14px;">${fmt(tipCents)}</td></tr>` : ""}
+        ${depositPaid > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Deposit Paid:</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(depositPaid)}</td></tr>` : ""}
+        <tr><td style="padding:4px 0;color:#059669;font-size:14px;font-weight:600;">Balance Payment:</td><td style="padding:4px 0;text-align:right;color:#059669;font-size:14px;font-weight:600;">${fmt(balanceCents)}</td></tr>
+        <tr><td style="padding:4px 0;color:#374151;font-weight:600;">Remaining Balance:</td><td style="padding:4px 0;text-align:right;color:#374151;font-weight:600;">${fmt(newBalanceDue)}</td></tr>
+      </table>
+
+      <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;margin-bottom:24px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 10px;font-weight:bold;color:#065f46;font-size:15px;">Payment Receipt</p>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Payment Method:</td><td style="padding:3px 0;color:#111827;font-size:14px;text-align:right;">${cardText}</td></tr>
+            <tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Amount Paid:</td><td style="padding:3px 0;color:#111827;font-size:14px;font-weight:600;text-align:right;">${fmt(totalChargeAmount)}</td></tr>
+            <tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Payment Date:</td><td style="padding:3px 0;color:#111827;font-size:14px;text-align:right;">${paymentDate}</td></tr>
+            <tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Transaction ID:</td><td style="padding:3px 0;color:#111827;font-size:14px;text-align:right;">${orderNum}</td></tr>
+          </table>
+        </td></tr>
+      </table>
+
+      <div style="text-align:center;margin-bottom:24px;">
+        <a href="${portalUrl}" style="display:inline-block;background-color:#2563eb;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:12px 32px;border-radius:6px;">Track Your Order</a>
+      </div>
+
+      <p style="margin:0 0 28px;color:#6b7280;font-size:14px;text-align:center;">Thank you for choosing ${businessName}!</p>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:16px 40px;background-color:#f9fafb;border-top:1px solid #e5e7eb;border-radius:0 0 8px 8px;text-align:center;">
+      <p style="margin:0;color:#6b7280;font-size:13px;">${businessName} | ${businessPhone}</p>
+    </td>
+  </tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
 }

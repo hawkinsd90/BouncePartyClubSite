@@ -31,6 +31,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
   const [payments, setPayments] = useState<any[]>([]);
   const [lotPicturesUploaded, setLotPicturesUploaded] = useState(false);
   const [deliveryPhotosAvailable, setDeliveryPhotosAvailable] = useState(false);
+  const [isDelivered, setIsDelivered] = useState(false);
   // Preserved tip cents from a card-update redirect (?tab=payment&tip=NNN)
   const [restoredTipCents, setRestoredTipCents] = useState<number | null>(null);
 
@@ -123,6 +124,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
       if (row) {
         const imgs: string[] = Array.isArray(row.delivery_images) ? row.delivery_images : [];
         setDeliveryPhotosAvailable(imgs.length > 0);
+        setIsDelivered(row.status === 'setup_completed');
       }
     } catch {
       // non-fatal — tab stays disabled
@@ -330,10 +332,11 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                 </button>
 
                 <button
-                  onClick={() => stepsUnlocked && setActiveTab('pictures')}
-                  disabled={!stepsUnlocked}
+                  onClick={() => isDelivered && setActiveTab('pictures')}
+                  disabled={!isDelivered}
+                  title={!isDelivered ? 'Available after equipment is delivered' : undefined}
                   className={`border rounded-lg p-4 transition-all ${
-                    !stepsUnlocked
+                    !isDelivered
                       ? 'border-slate-300 bg-slate-100 cursor-not-allowed opacity-60'
                       : 'border-slate-300 bg-slate-50 hover:border-slate-400'
                   }`}
@@ -342,7 +345,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                     <ImageIcon className="w-6 h-6 text-slate-600" />
                     <div className="text-left">
                       <p className="font-semibold text-slate-900">Pictures</p>
-                      <p className="text-xs text-slate-600">Optional</p>
+                      <p className="text-xs text-slate-600">{isDelivered ? 'Optional' : 'After delivery'}</p>
                     </div>
                   </div>
                 </button>
@@ -410,10 +413,11 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                 )}
               </button>
               <button
-                onClick={() => stepsUnlocked && setActiveTab('pictures')}
-                disabled={!stepsUnlocked}
+                onClick={() => isDelivered && setActiveTab('pictures')}
+                disabled={!isDelivered}
+                title={!isDelivered ? 'Available after equipment is delivered' : undefined}
                 className={`px-3 py-2.5 font-medium border-b-2 transition-colors whitespace-nowrap text-sm ${
-                  !stepsUnlocked
+                  !isDelivered
                     ? 'border-transparent text-slate-400 cursor-not-allowed'
                     : activeTab === 'pictures'
                     ? 'border-blue-600 text-blue-600'

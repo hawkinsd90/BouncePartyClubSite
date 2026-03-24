@@ -330,11 +330,13 @@ async function processWebhookEvent(
           // Fetch existing balance_paid_cents AND tip before updating so we can ACCUMULATE
           const { data: balanceOrder } = await supabaseClient
             .from("orders")
-            .select("tip_cents, balance_paid_cents")
+            .select("tip_cents, balance_paid_cents, balance_due_cents")
             .eq("id", orderId)
             .maybeSingle();
           const existingTip = balanceOrder?.tip_cents || 0;
           const existingBalancePaid = balanceOrder?.balance_paid_cents || 0;
+          const existingBalanceDueWh = balanceOrder?.balance_due_cents || 0;
+          const newBalanceDueWh = Math.max(0, existingBalanceDueWh - balanceOnly);
 
           // Update order with balance payment, accumulating both balance_paid_cents and tip_cents
           await supabaseClient
@@ -343,6 +345,7 @@ async function processWebhookEvent(
               stripe_payment_method_id: paymentMethodId,
               stripe_customer_id: stripeCustomerId,
               balance_paid_cents: existingBalancePaid + balanceOnly,
+              balance_due_cents: newBalanceDueWh,
               ...(safeTipCents > 0 ? { tip_cents: existingTip + safeTipCents } : {}),
             })
             .eq("id", orderId);
