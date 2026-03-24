@@ -153,26 +153,23 @@ export function PermissionsTab() {
           .from('user_roles')
           .insert({
             user_id: user.user_id,
-            role: newRole.toUpperCase(),
+            role: newRole,
           });
 
         if (error) throw error;
-
-        await sendPermissionChangeEmail('added', user.email || '', newRole);
         notifySuccess('Role assigned successfully');
       } else {
         // Update existing role
         const { error } = await supabase
           .from('user_roles')
-          .update({ role: newRole.toUpperCase() })
+          .update({ role: newRole })
           .eq('user_id', user.user_id);
 
         if (error) throw error;
-
-        await sendPermissionChangeEmail('changed', user.email || '', newRole, user.role);
         notifySuccess('Role updated successfully');
       }
 
+      sendPermissionChangeEmail(user.role ? 'changed' : 'added', user.email || '', newRole, user.role || undefined);
       fetchData();
     } catch (error: any) {
       notifyError(error.message);
@@ -214,6 +211,9 @@ export function PermissionsTab() {
       const { data: { user } } = await supabase.auth.getUser();
       const changedByEmail = user?.email || 'Unknown';
 
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
       let subject = '';
       let message = '';
 
@@ -234,7 +234,7 @@ export function PermissionsTab() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            Authorization: `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
             to: import.meta.env.VITE_ADMIN_EMAIL || 'admin@bouncepartyclub.com',
