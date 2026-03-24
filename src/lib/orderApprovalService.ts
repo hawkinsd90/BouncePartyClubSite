@@ -103,7 +103,7 @@ export async function approveOrder(
       }
 
       try {
-        await enterConfirmed(orderId, 'admin_approve_zero_deposit', 'waived');
+        await enterConfirmed(orderId, 'admin_approve_zero_deposit', 'waived', orderData.status);
       } catch (lifecycleErr) {
         console.error('[orderApprovalService] enterConfirmed (zero-deposit) failed (non-fatal):', lifecycleErr);
       }
@@ -359,7 +359,7 @@ export async function forceApproveOrder(orderId: string): Promise<ApprovalResult
     }
 
     try {
-      await enterConfirmed(orderId, 'admin_force_approve', 'waived');
+      await enterConfirmed(orderId, 'admin_force_approve', 'waived', orderData.status);
     } catch (lifecycleErr) {
       console.error('[orderApprovalService] enterConfirmed (force-approve) failed (non-fatal):', lifecycleErr);
     }

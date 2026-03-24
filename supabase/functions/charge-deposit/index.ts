@@ -315,6 +315,7 @@ Deno.serve(async (req: Request) => {
             orderId,
             source: "charge_deposit_already_paid",
             paymentOutcome: "already_paid",
+            oldStatusHint: order.status,
           },
         });
       } catch (lifecycleErr) {
@@ -570,7 +571,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Invoke lifecycle for admin alerting (non-fatal — charge already succeeded)
+    // Invoke lifecycle for admin alerting and changelog (non-fatal — charge already succeeded)
     try {
       await supabaseClient.functions.invoke("order-lifecycle", {
         body: {
@@ -578,6 +579,7 @@ Deno.serve(async (req: Request) => {
           orderId,
           source: "charge_deposit",
           paymentOutcome: "charged_now",
+          oldStatusHint: order.status,
         },
       });
     } catch (lifecycleErr) {

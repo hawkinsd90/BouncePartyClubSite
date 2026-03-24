@@ -21,7 +21,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json();
-    const { action, orderId, source, paymentOutcome } = body;
+    const { action, orderId, source, paymentOutcome, oldStatusHint } = body;
 
     if (!orderId || !action) {
       return new Response(JSON.stringify({ error: "Missing required fields: orderId, action" }), {
@@ -44,7 +44,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "enter_confirmed") {
-      const result = await enterConfirmed(supabase, orderId, source || "unknown", paymentOutcome || "already_paid");
+      const result = await enterConfirmed(supabase, orderId, source || "unknown", paymentOutcome || "already_paid", oldStatusHint || null);
       return new Response(JSON.stringify(result), {
         status: result.success ? 200 : 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -93,29 +93,30 @@ async function enterPendingReview(
     return { success: false, error: "Order not found" };
   }
 
-  const allowedFromStatuses = ["draft"];
+  const allowedFromStatuses = ["draft", "pending_review"];
   if (!allowedFromStatuses.includes(order.status)) {
-    if (order.status === "pending_review") {
-      if (order.pending_review_admin_alerted) {
-        return { success: true, alreadySent: true };
-      }
-    } else {
-      return {
-        success: false,
-        error: `Cannot enter pending_review from status: ${order.status}`,
-      };
-    }
+    return {
+      success: false,
+      error: `Cannot enter pending_review from status: ${order.status}`,
+    };
   }
 
-  if (order.status === "draft") {
-    const { error: updateError } = await supabase
-      .from("orders")
-      .update({ status: "pending_review" })
-      .eq("id", orderId)
-      .eq("status", "draft");
+  // Write changelog entry on first processing (before alreadySent check),
+  // regardless of whether the DB status write was needed. This covers callers
+  // that already wrote the status atomically alongside payment fields.
+  if (!order.pending_review_admin_alerted) {
+    const oldStatus = order.status === "pending_review" ? "draft" : order.status;
 
-    if (updateError) {
-      return { success: false, error: `Failed to update status: ${updateError.message}` };
+    if (order.status === "draft") {
+      const { error: updateError } = await supabase
+        .from("orders")
+        .update({ status: "pending_review" })
+        .eq("id", orderId)
+        .eq("status", "draft");
+
+      if (updateError) {
+        return { success: false, error: `Failed to update status: ${updateError.message}` };
+      }
     }
 
     try {
@@ -124,16 +125,14 @@ async function enterPendingReview(
         user_id: null,
         change_type: "status_change",
         field_changed: "status",
-        old_value: "draft",
+        old_value: oldStatus,
         new_value: "pending_review",
         notes: `Booking request submitted via ${source}`,
       });
     } catch (e) {
       console.warn("[order-lifecycle] Changelog insert failed (non-fatal):", e);
     }
-  }
-
-  if (order.pending_review_admin_alerted) {
+  } else {
     return { success: true, alreadySent: true };
   }
 
@@ -157,7 +156,8 @@ async function enterConfirmed(
   supabase: any,
   orderId: string,
   source: string,
-  paymentOutcome: string
+  paymentOutcome: string,
+  oldStatusHint: string | null = null
 ): Promise<{ success: boolean; error?: string; alreadySent?: boolean }> {
   const { data: order, error: fetchError } = await supabase
     .from("orders")
@@ -179,22 +179,25 @@ async function enterConfirmed(
     return { success: false, error: "Order not found" };
   }
 
-  const allowedFromStatuses = ["draft", "pending_review", "awaiting_customer_approval"];
+  const allowedFromStatuses = ["draft", "pending_review", "awaiting_customer_approval", "confirmed"];
 
-  if (!allowedFromStatuses.includes(order.status) && order.status !== "confirmed") {
+  if (!allowedFromStatuses.includes(order.status)) {
     return {
       success: false,
       error: `Cannot enter confirmed from status: ${order.status}`,
     };
   }
 
-  if (order.status === "confirmed") {
-    if (order.confirmed_admin_alerted) {
-      return { success: true, alreadySent: true };
-    }
+  // Short-circuit only when the admin has already been alerted — full idempotency.
+  if (order.confirmed_admin_alerted) {
+    return { success: true, alreadySent: true };
   }
 
-  const oldStatus = order.status;
+  // Capture old status before any write.
+  // When the caller already wrote status="confirmed" atomically with payment fields,
+  // order.status is already "confirmed" here. The caller must pass oldStatusHint
+  // so the changelog accurately reflects the pre-transition state.
+  const oldStatus = (order.status === "confirmed" && oldStatusHint) ? oldStatusHint : order.status;
 
   if (order.status !== "confirmed") {
     const { error: updateError } = await supabase
@@ -206,24 +209,20 @@ async function enterConfirmed(
     if (updateError) {
       return { success: false, error: `Failed to update status: ${updateError.message}` };
     }
-
-    try {
-      await supabase.from("order_changelog").insert({
-        order_id: orderId,
-        user_id: null,
-        change_type: "status_change",
-        field_changed: "status",
-        old_value: oldStatus,
-        new_value: "confirmed",
-        notes: `Order confirmed via ${source} (payment: ${paymentOutcome})`,
-      });
-    } catch (e) {
-      console.warn("[order-lifecycle] Changelog insert failed (non-fatal):", e);
-    }
   }
 
-  if (order.confirmed_admin_alerted) {
-    return { success: true, alreadySent: true };
+  try {
+    await supabase.from("order_changelog").insert({
+      order_id: orderId,
+      user_id: null,
+      change_type: "status_change",
+      field_changed: "status",
+      old_value: oldStatus,
+      new_value: "confirmed",
+      notes: `Order confirmed via ${source} (payment: ${paymentOutcome})`,
+    });
+  } catch (e) {
+    console.warn("[order-lifecycle] Changelog insert failed (non-fatal):", e);
   }
 
   const customer = Array.isArray(order.customers) ? order.customers[0] : order.customers;

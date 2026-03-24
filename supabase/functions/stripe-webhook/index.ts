@@ -243,9 +243,9 @@ async function processWebhookEvent(
             console.error(`[WEBHOOK] Error updating order ${orderId}:`, updateError);
           } else {
             if (isAdminInvoice) {
-              await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_setup_session_admin_invoice", "charged_now");
+              await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_setup_session_admin_invoice", "charged_now", "draft");
             } else {
-              await invokeLifecycle(supabaseClient, "enter_pending_review", orderId, "webhook_setup_session_checkout");
+              await invokeLifecycle(supabaseClient, "enter_pending_review", orderId, "webhook_setup_session_checkout", undefined, "draft");
             }
           }
           break;
@@ -584,9 +584,9 @@ async function processWebhookEvent(
             console.error(`[WEBHOOK] Error updating order ${orderId}:`, updateError);
           } else {
             if (isAdminInvoice) {
-              await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_checkout_deposit_admin_invoice", "charged_now");
+              await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_checkout_deposit_admin_invoice", "charged_now", "draft");
             } else {
-              await invokeLifecycle(supabaseClient, "enter_pending_review", orderId, "webhook_checkout_deposit_standard");
+              await invokeLifecycle(supabaseClient, "enter_pending_review", orderId, "webhook_checkout_deposit_standard", undefined, "draft");
             }
           }
 
@@ -742,16 +742,29 @@ async function processWebhookEvent(
                   stripe_payment_method_id: paymentMethodId,
                   stripe_customer_id: stripeCustomerId,
                   deposit_paid_cents: depositOnlyFromPI,
+                  ...(paymentBrand ? { payment_method_brand: paymentBrand } : {}),
+                  ...(paymentLast4 ? { payment_method_last_four: paymentLast4 } : {}),
                 })
                 .eq("id", orderId);
 
               if (isAdminInvoice) {
-                await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_pi_deposit_admin_invoice", "charged_now");
+                await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_pi_deposit_admin_invoice", "charged_now", "draft");
               } else {
-                await invokeLifecycle(supabaseClient, "enter_pending_review", orderId, "webhook_pi_deposit_standard");
+                await invokeLifecycle(supabaseClient, "enter_pending_review", orderId, "webhook_pi_deposit_standard", undefined, "draft");
+              }
+            } else {
+              // checkout.session.completed already wrote payment/status fields and called lifecycle.
+              // Still patch card brand/last4 which the checkout handler does not write.
+              if (paymentBrand || paymentLast4) {
+                await supabaseClient
+                  .from("orders")
+                  .update({
+                    ...(paymentBrand ? { payment_method_brand: paymentBrand } : {}),
+                    ...(paymentLast4 ? { payment_method_last_four: paymentLast4 } : {}),
+                  })
+                  .eq("id", orderId);
               }
             }
-            // If alreadyRecordedByCheckout, checkout.session.completed already called lifecycle
           }
         }
         break;
@@ -908,9 +921,9 @@ async function processWebhookEvent(
           console.error(`[WEBHOOK] Error updating order ${orderId}:`, updateError);
         } else {
           if (isAdminInvoice) {
-            await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_setup_intent_admin_invoice", "zero_due_with_card");
+            await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_setup_intent_admin_invoice", "zero_due_with_card", "draft");
           } else {
-            await invokeLifecycle(supabaseClient, "enter_pending_review", orderId, "webhook_setup_intent_standard");
+            await invokeLifecycle(supabaseClient, "enter_pending_review", orderId, "webhook_setup_intent_standard", undefined, "draft");
           }
         }
         break;
@@ -927,11 +940,12 @@ async function invokeLifecycle(
   action: string,
   orderId: string,
   source: string,
-  paymentOutcome?: string
+  paymentOutcome?: string,
+  oldStatusHint?: string
 ): Promise<void> {
   try {
     await supabaseClient.functions.invoke("order-lifecycle", {
-      body: { action, orderId, source, paymentOutcome },
+      body: { action, orderId, source, paymentOutcome, ...(oldStatusHint ? { oldStatusHint } : {}) },
     });
   } catch (err) {
     console.error(`[WEBHOOK] order-lifecycle invoke failed (non-fatal): action=${action} orderId=${orderId}`, err);

@@ -384,7 +384,7 @@ export function InvoiceAcceptanceView({
         }
 
         try {
-          await enterConfirmed(order.id, 'invoice_acceptance_no_card', 'waived');
+          await enterConfirmed(order.id, 'invoice_acceptance_no_card', 'waived', order.status);
         } catch (lifecycleErr) {
           console.error('[InvoiceAcceptanceView] enterConfirmed failed (non-fatal):', lifecycleErr);
         }

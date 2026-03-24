@@ -154,7 +154,7 @@ export function ApprovalModal({
         }
 
         try {
-          await enterConfirmed(order.id, 'customer_approval_already_paid', 'already_paid');
+          await enterConfirmed(order.id, 'customer_approval_already_paid', 'already_paid', order.status);
         } catch (lifecycleErr) {
           console.error('[ApprovalModal] enterConfirmed (already-paid) failed (non-fatal):', lifecycleErr);
         }
@@ -260,7 +260,7 @@ export function ApprovalModal({
         }
 
         try {
-          await enterConfirmed(order.id, 'customer_approval_zero_deposit', 'zero_due_with_card');
+          await enterConfirmed(order.id, 'customer_approval_zero_deposit', 'zero_due_with_card', order.status);
         } catch (lifecycleErr) {
           console.error('[ApprovalModal] enterConfirmed (zero-deposit) failed (non-fatal):', lifecycleErr);
         }

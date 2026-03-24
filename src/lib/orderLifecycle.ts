@@ -39,7 +39,8 @@ export async function enterPendingReview(
 export async function enterConfirmed(
   orderId: string,
   source: string,
-  paymentOutcome: PaymentOutcome
+  paymentOutcome: PaymentOutcome,
+  oldStatusHint?: string
 ): Promise<{ success: boolean; error?: string }> {
-  return callLifecycle({ action: 'enter_confirmed', orderId, source, paymentOutcome });
+  return callLifecycle({ action: 'enter_confirmed', orderId, source, paymentOutcome, ...(oldStatusHint ? { oldStatusHint } : {}) });
 }
