@@ -46,6 +46,7 @@ Deno.serve(async (req: Request) => {
       waiverVersion,
       waiverText,
       electronicConsentText,
+      sendEmailConfirmation = true,
     } = await req.json();
 
     if (!orderId || !signatureDataUrl || !renterName || !renterEmail || !renterPhone || !eventDate || !eventAddressLine1 || !eventCity || !eventState || !eventZip) {
@@ -175,7 +176,7 @@ Deno.serve(async (req: Request) => {
       console.error("Consent record error:", consentError);
     }
 
-    (async () => {
+    if (sendEmailConfirmation) (async () => {
       try {
         const firstName = renterName.split(" ")[0] || renterName;
         const formattedDate = new Date(eventDate).toLocaleDateString("en-US", {

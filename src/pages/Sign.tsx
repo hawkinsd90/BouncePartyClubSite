@@ -48,6 +48,7 @@ export default function Sign() {
   const [initials, setInitials] = useState<Record<string, string>>({});
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
   const [electronicConsent, setElectronicConsent] = useState(false);
+  const [sendEmailConfirmation, setSendEmailConfirmation] = useState(true);
 
   // Renter Information State
   const [renterName, setRenterName] = useState('');
@@ -230,6 +231,7 @@ export default function Sign() {
             waiverVersion: WAIVER_VERSION,
             waiverText: WAIVER_TEXT,
             electronicConsentText: ELECTRONIC_CONSENT_TEXT,
+            sendEmailConfirmation,
           }),
         }
       );
@@ -625,6 +627,25 @@ export default function Sign() {
                   </div>
                 </label>
               </div>
+            </div>
+
+            <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={sendEmailConfirmation}
+                  onChange={(e) => setSendEmailConfirmation(e.target.checked)}
+                  className="mt-1 w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                />
+                <div>
+                  <p className="text-sm font-semibold text-gray-900 mb-1">
+                    Send me a copy of the signed waiver
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Email a signed copy of this waiver (with PDF attachment) to {renterEmail || 'your email'}.
+                  </p>
+                </div>
+              </label>
             </div>
 
             {error && (
