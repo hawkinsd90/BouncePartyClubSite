@@ -113,6 +113,15 @@ export function PaymentsTab({ orderId, customerName, payments, order, customFees
 
   return (
     <div className="space-y-4">
+      {order?.deposit_paid_cents === -1 && (
+        <div className="bg-red-50 border border-red-300 rounded-lg p-3 flex items-start gap-2">
+          <span className="text-red-600 font-bold text-sm mt-0.5">!</span>
+          <div>
+            <p className="text-sm font-semibold text-red-800">Payment processing error detected</p>
+            <p className="text-xs text-red-700 mt-0.5">A charge may have been attempted but the order was not updated. Check the Changelog tab for a PARTIAL_CHARGE_FAILURE entry and contact Stripe support if needed.</p>
+          </div>
+        </div>
+      )}
       {order && (
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">

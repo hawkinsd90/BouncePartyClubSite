@@ -434,9 +434,11 @@ export function PermissionsTab() {
                       {new Date(entry.created_at).toLocaleDateString()}
                     </span>
                   </div>
-                  {entry.notes && (
+                  {entry.notes ? (
                     <p className="text-xs text-slate-500 mt-1">{entry.notes}</p>
-                  )}
+                  ) : entry.changed_by_user_id ? (
+                    <p className="text-xs text-slate-400 mt-1">Changed by: {entry.changed_by_user_id.slice(0, 8)}…</p>
+                  ) : null}
                 </div>
               ))}
             </div>
