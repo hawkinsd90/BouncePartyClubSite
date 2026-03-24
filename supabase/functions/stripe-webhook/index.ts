@@ -944,10 +944,17 @@ async function invokeLifecycle(
   oldStatusHint?: string
 ): Promise<void> {
   try {
-    await supabaseClient.functions.invoke("order-lifecycle", {
+    const { data, error } = await supabaseClient.functions.invoke("order-lifecycle", {
       body: { action, orderId, source, paymentOutcome, ...(oldStatusHint ? { oldStatusHint } : {}) },
     });
+    if (error) {
+      console.error(`[WEBHOOK] order-lifecycle transport error: action=${action} orderId=${orderId}`, error);
+    } else if (data && data.alreadySent) {
+      // normal idempotent path — no log needed
+    } else if (data && !data.success) {
+      console.error(`[WEBHOOK] order-lifecycle returned success=false: action=${action} orderId=${orderId} error=${data.error}`);
+    }
   } catch (err) {
-    console.error(`[WEBHOOK] order-lifecycle invoke failed (non-fatal): action=${action} orderId=${orderId}`, err);
+    console.error(`[WEBHOOK] order-lifecycle invoke threw (non-fatal): action=${action} orderId=${orderId}`, err);
   }
 }

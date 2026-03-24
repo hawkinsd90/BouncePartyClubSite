@@ -309,7 +309,7 @@ Deno.serve(async (req: Request) => {
       }
 
       try {
-        await supabaseClient.functions.invoke("order-lifecycle", {
+        const { data: lcData, error: lcError } = await supabaseClient.functions.invoke("order-lifecycle", {
           body: {
             action: "enter_confirmed",
             orderId,
@@ -318,8 +318,13 @@ Deno.serve(async (req: Request) => {
             oldStatusHint: order.status,
           },
         });
+        if (lcError) {
+          console.error("[charge-deposit] order-lifecycle transport error (already_paid):", lcError);
+        } else if (lcData && !lcData.success && !lcData.alreadySent) {
+          console.error("[charge-deposit] order-lifecycle returned success=false (already_paid):", lcData.error);
+        }
       } catch (lifecycleErr) {
-        console.error("[charge-deposit] order-lifecycle invoke failed (non-fatal):", lifecycleErr);
+        console.error("[charge-deposit] order-lifecycle invoke threw (non-fatal):", lifecycleErr);
       }
 
       return new Response(
@@ -573,7 +578,7 @@ Deno.serve(async (req: Request) => {
 
     // Invoke lifecycle for admin alerting and changelog (non-fatal — charge already succeeded)
     try {
-      await supabaseClient.functions.invoke("order-lifecycle", {
+      const { data: lcData, error: lcError } = await supabaseClient.functions.invoke("order-lifecycle", {
         body: {
           action: "enter_confirmed",
           orderId,
@@ -582,8 +587,13 @@ Deno.serve(async (req: Request) => {
           oldStatusHint: order.status,
         },
       });
+      if (lcError) {
+        console.error("[charge-deposit] order-lifecycle transport error (charged_now):", lcError);
+      } else if (lcData && !lcData.success && !lcData.alreadySent) {
+        console.error("[charge-deposit] order-lifecycle returned success=false (charged_now):", lcData.error);
+      }
     } catch (lifecycleErr) {
-      console.error("[charge-deposit] order-lifecycle invoke failed (non-fatal):", lifecycleErr);
+      console.error("[charge-deposit] order-lifecycle invoke threw (non-fatal):", lifecycleErr);
     }
 
     // Get payment method details and Stripe fees
