@@ -48,7 +48,7 @@ export default function Sign() {
   const [initials, setInitials] = useState<Record<string, string>>({});
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
   const [electronicConsent, setElectronicConsent] = useState(false);
-  const [sendEmailConfirmation, setSendEmailConfirmation] = useState(true);
+  const [sendEmailConfirmation, setSendEmailConfirmation] = useState(false);
 
   // Renter Information State
   const [renterName, setRenterName] = useState('');

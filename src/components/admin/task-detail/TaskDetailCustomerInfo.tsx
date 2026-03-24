@@ -1,5 +1,14 @@
 import { useState } from 'react';
 import { RotateCcw } from 'lucide-react';
+
+function formatTimeStr(time: string): string {
+  if (!time || time === 'TBD') return time;
+  const [h, m] = time.split(':').map(Number);
+  if (isNaN(h)) return time;
+  const period = h >= 12 ? 'PM' : 'AM';
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m).padStart(2, '0')} ${period}`;
+}
 import { formatCurrency } from '../../../lib/pricing';
 import { Task } from '../../../hooks/useCalendarTasks';
 
@@ -32,7 +41,7 @@ export function TaskDetailCustomerInfo({ task, onRefund, refunding }: Props) {
         <div><span className="font-semibold">Name:</span> {task.customerName}</div>
         <div><span className="font-semibold">Phone:</span> {task.customerPhone}</div>
         <div><span className="font-semibold">Address:</span> {task.address}</div>
-        <div><span className="font-semibold">Event Time:</span> {task.eventStartTime} - {task.eventEndTime}</div>
+        <div><span className="font-semibold">Event Time:</span> {formatTimeStr(task.eventStartTime)} - {formatTimeStr(task.eventEndTime)}</div>
         {!task.waiverSigned && (
           <div className="text-amber-700 font-semibold">⚠️ Waiver not signed</div>
         )}

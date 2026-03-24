@@ -92,7 +92,7 @@ Deno.serve(async (req: Request) => {
         travel_fee_cents, surface_fee_cents, same_day_pickup_fee_cents, generator_fee_cents, tax_cents,
         addresses(line1, city, state, zip),
         customers(email, first_name, last_name),
-        order_items(quantity, unit_price_cents, units(name))
+        order_items(qty, unit_price_cents, units(name))
       `)
       .eq("id", orderId)
       .single();
@@ -444,7 +444,7 @@ function buildReceiptEmail(opts: {
   const items: any[] = Array.isArray(order.order_items) ? order.order_items : [];
   const itemsHtml = items.map((item: any) => {
     const unitName = item.units?.name || "Item";
-    const qty = item.quantity || 1;
+    const qty = item.qty || 1;
     const price = item.unit_price_cents || 0;
     return `<tr><td style="padding:4px 0;color:#374151;font-size:14px;">${qty}x ${unitName}</td><td style="padding:4px 0;text-align:right;color:#374151;font-size:14px;">${fmt(price * qty)}</td></tr>`;
   }).join("");

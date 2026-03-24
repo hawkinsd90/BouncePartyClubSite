@@ -14,6 +14,15 @@ import { DeliveryTab } from './DeliveryTab';
 import { showToast } from '../../lib/notifications';
 import { OrderStatusBadge } from '../dashboard/OrderStatusBadge';
 
+function formatTimeStr(time: string): string {
+  if (!time) return '';
+  const [h, m] = time.split(':').map(Number);
+  if (isNaN(h)) return time;
+  const period = h >= 12 ? 'PM' : 'AM';
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m).padStart(2, '0')} ${period}`;
+}
+
 interface RegularPortalViewProps {
   order: any;
   orderId: string;
@@ -32,6 +41,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
   const [lotPicturesUploaded, setLotPicturesUploaded] = useState(false);
   const [deliveryPhotosAvailable, setDeliveryPhotosAvailable] = useState(false);
   const [isDelivered, setIsDelivered] = useState(false);
+  const [existingPictures, setExistingPictures] = useState<any[]>([]);
   // Preserved tip cents from a card-update redirect (?tab=payment&tip=NNN)
   const [restoredTipCents, setRestoredTipCents] = useState<number | null>(null);
 
@@ -39,6 +49,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
     loadPayments();
     loadLotPictures();
     loadDeliveryStatus();
+    loadExistingPictures();
   }, [order.status, orderId]);
 
   useEffect(() => {
@@ -146,6 +157,29 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
     ['setup_completed', 'pickup_scheduled', 'pickup_in_progress'].includes(order.workflow_status || '')
     || order.status === 'completed';
 
+  async function loadExistingPictures() {
+    try {
+      const { data, error } = await supabase
+        .from('order_pictures' as any)
+        .select('id, file_path, file_name, notes, created_at')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const withUrls = (data || []).map((pic: any) => {
+        const { data: urlData } = supabase.storage
+          .from('order-pictures')
+          .getPublicUrl(pic.file_path);
+        return { ...pic, url: urlData.publicUrl };
+      });
+
+      setExistingPictures(withUrls);
+    } catch {
+      // non-fatal
+    }
+  }
+
   async function handleSubmitPictures(files: File[], notes: string) {
     try {
       const uploadPromises = files.map(async (file) => {
@@ -187,6 +221,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
         `Successfully uploaded ${files.length} picture${files.length > 1 ? 's' : ''}`,
         'success'
       );
+      loadExistingPictures();
     } catch (error) {
       console.error('Error submitting pictures:', error);
       showToast('Failed to upload pictures. Please try again.', 'error');
@@ -239,8 +274,10 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
                     </div>
                   )}
                   <p className="text-xs sm:text-sm opacity-90 mt-1">
-                    Event Date: {format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')} at{' '}
-                    {order.start_window}
+                    Event Date: {format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')}
+                    {order.start_window && (
+                      <> at {formatTimeStr(order.start_window)}</>
+                    )}
                   </p>
                 </div>
               </div>
@@ -529,7 +566,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
 
                     <div>
                       <p className="text-xs text-slate-600 mb-1">Time Window</p>
-                      <p className="font-medium text-slate-900">{order.start_window}</p>
+                      <p className="font-medium text-slate-900">{formatTimeStr(order.start_window)}</p>
                     </div>
                   </div>
 
@@ -725,7 +762,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
               />
             )}
 
-            {activeTab === 'pictures' && <PicturesTab onSubmit={handleSubmitPictures} />}
+            {activeTab === 'pictures' && <PicturesTab onSubmit={handleSubmitPictures} existingPictures={existingPictures} />}
 
             {activeTab === 'delivery' && <DeliveryTab orderId={orderId} />}
           </div>

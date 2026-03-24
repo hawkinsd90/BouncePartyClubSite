@@ -408,16 +408,29 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
   }
 
   async function handlePaperWaiver() {
-    const confirmed = await showConfirm(`Mark waiver as signed in person for ${task.customerName}?\n\nThis will update the order to show the waiver has been completed.`);
+    const confirmed = await showConfirm(`Mark waiver as signed in person for ${task.customerName}?\n\nThis records a paper waiver was signed on-site and updates the order status.`);
     if (!confirmed) return;
     setSigningWaiver(true);
     try {
-      const { error } = await supabase.from('order_signatures').insert({
-        order_id: task.orderId, signature_data_url: 'PAPER_WAIVER_SIGNED_IN_PERSON',
-        renter_name: task.customerName || 'Unknown', renter_phone: task.customerPhone || '',
-        renter_email: task.customerEmail || null, ip_address: '0.0.0.0', user_agent: 'Admin Paper Waiver',
+      const now = new Date().toISOString();
+      const { error: sigError } = await supabase.from('order_signatures').insert({
+        order_id: task.orderId,
+        signer_name: task.customerName || 'Unknown',
+        signer_phone: task.customerPhone || '',
+        signer_email: task.customerEmail || null,
+        typed_name: task.customerName || 'Unknown',
+        ip_address: '0.0.0.0',
+        user_agent: 'Admin - Paper Waiver Signed On-Site',
+        waiver_version: 'paper',
+        electronic_consent_given: false,
+        signed_at: now,
       });
-      if (error) throw error;
+      if (sigError) throw sigError;
+      const { error: orderError } = await supabase.from('orders').update({
+        waiver_signed_at: now,
+        e_signature_consent: false,
+      }).eq('id', task.orderId);
+      if (orderError) console.warn('Order waiver_signed_at update failed:', orderError.message);
       showAlert('Waiver marked as signed in person!');
       refresh();
     } catch (e: any) { console.error('Paper waiver error:', e); showAlert('Failed to mark waiver: ' + e.message); }
