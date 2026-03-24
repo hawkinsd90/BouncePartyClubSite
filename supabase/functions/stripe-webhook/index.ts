@@ -734,7 +734,7 @@ async function processWebhookEvent(
               const storedTipCents = depositOrder?.tip_cents || 0;
               const depositOnlyFromPI = Math.max(0, amountReceived - storedTipCents);
 
-              await supabaseClient
+              const { error: piDepositUpdateError } = await supabaseClient
                 .from("orders")
                 .update({
                   status: newStatus,
@@ -747,7 +747,9 @@ async function processWebhookEvent(
                 })
                 .eq("id", orderId);
 
-              if (isAdminInvoice) {
+              if (piDepositUpdateError) {
+                console.error(`[WEBHOOK] Failed to update order ${orderId} for pi deposit:`, piDepositUpdateError);
+              } else if (isAdminInvoice) {
                 await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_pi_deposit_admin_invoice", "charged_now", "draft");
               } else {
                 await invokeLifecycle(supabaseClient, "enter_pending_review", orderId, "webhook_pi_deposit_standard", undefined, "draft");
