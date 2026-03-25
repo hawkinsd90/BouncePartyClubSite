@@ -196,10 +196,9 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
 
   function handlePayClick() {
     if (isDisabled) return;
-    if (hasCardOnFile) {
+    if (hasCardDetails) {
       setShowConfirmModal(true);
     } else {
-      // No card on file — go directly to Stripe Checkout
       executePayment();
     }
   }
@@ -308,7 +307,7 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
           </div>
         )}
 
-        {hasCardOnFile && !isDisabled && (
+        {hasCardDetails && !isDisabled && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm text-blue-800">
               <CreditCard className="w-4 h-4 flex-shrink-0" />
