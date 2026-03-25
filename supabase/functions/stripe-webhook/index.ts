@@ -583,8 +583,8 @@ async function processWebhookEvent(
             .update({
               ...(safeToAdvanceStatus ? { status: newStatus } : {}),
               stripe_payment_status: "paid",
-              stripe_payment_method_id: paymentMethodId,
-              stripe_customer_id: stripeCustomerId,
+              ...(paymentMethodId ? { stripe_payment_method_id: paymentMethodId } : {}),
+              ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
               deposit_paid_cents: depositOnly,
               ...(tipCents > 0 ? { tip_cents: tipCents } : {}),
               ...(depositCardBrand ? { payment_method_brand: depositCardBrand } : {}),
@@ -1091,13 +1091,16 @@ async function sendCheckoutBalanceReceiptEmail(
 </body>
 </html>`;
 
-  await supabaseClient.functions.invoke("send-email", {
+  const { error: sendEmailInvokeErr } = await supabaseClient.functions.invoke("send-email", {
     body: {
       to: customer.email,
       subject: `Payment Received - Order #${shortId}`,
       html: receiptHtml,
     },
   });
+  if (sendEmailInvokeErr) {
+    console.warn("[WEBHOOK] send-email returned error (non-fatal):", sendEmailInvokeErr);
+  }
 }
 
 async function invokeLifecycle(

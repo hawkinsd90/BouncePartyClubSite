@@ -209,7 +209,7 @@ Deno.serve(async (req: Request) => {
         // The unique constraint on stripe_payment_intent_id means exactly one writer wins.
         // If this process crashes before the orders UPDATE below, the webhook's 23505 branch
         // will detect the existing row and call apply_balance_payment_financials to repair.
-        const { data: paymentRecord } = await supabaseClient
+        const { data: paymentRecord, error: paymentInsertError } = await supabaseClient
           .from("payments")
           .insert({
             order_id: orderId,
@@ -229,13 +229,26 @@ Deno.serve(async (req: Request) => {
           .select("id")
           .maybeSingle();
 
+        if (paymentInsertError) {
+          // A 23505 here means the webhook already inserted this PI's row — the webhook's
+          // 23505 repair branch will call apply_balance_payment_financials to reconcile.
+          // Any other error is a hard failure: Stripe charged the customer but we could not
+          // record it. Return 500 so the caller knows payment did NOT fully record.
+          if (paymentInsertError.code === "23505") {
+            console.warn("[customer-balance-payment] 23505 on payment insert — webhook will reconcile", { orderId, piId: paymentIntent.id });
+          } else {
+            console.error("[customer-balance-payment] CRITICAL: Failed to insert payment row", { orderId, piId: paymentIntent.id, paymentInsertError });
+            throw new Error(`Payment row insert failed: ${paymentInsertError.message}`);
+          }
+        }
+
         // Write DB — accumulate balance fields and save card details on orders
         const existingTip = order.tip_cents || 0;
         const existingBalancePaid = order.balance_paid_cents || 0;
         const existingBalanceDue = order.balance_due_cents || 0;
         const newBalanceDue = Math.max(0, existingBalanceDue - balanceCents);
 
-        await supabaseClient
+        const { error: ordersUpdateError } = await supabaseClient
           .from("orders")
           .update({
             balance_paid_cents: existingBalancePaid + balanceCents,
@@ -247,12 +260,24 @@ Deno.serve(async (req: Request) => {
           })
           .eq("id", orderId);
 
+        if (ordersUpdateError) {
+          // Order financials failed to write. The payment row exists (Stripe was charged),
+          // so the webhook's 23505 + apply_balance_payment_financials path will repair
+          // balance_due_cents / balance_paid_cents on the next Stripe re-delivery.
+          // Return 500 so the customer portal shows an error rather than false success.
+          console.error("[customer-balance-payment] CRITICAL: Failed to update order financials", { orderId, ordersUpdateError });
+          throw new Error(`Order financials update failed: ${ordersUpdateError.message}`);
+        }
+
         // Mark payment row as financials applied (mirrors what the RPC does on other paths)
         if (paymentRecord) {
-          await supabaseClient
+          const { error: appliedFlagError } = await supabaseClient
             .from("payments")
             .update({ order_financials_applied: true })
             .eq("id", paymentRecord.id);
+          if (appliedFlagError) {
+            console.warn("[customer-balance-payment] Failed to mark payment row as applied — non-fatal", { paymentId: paymentRecord.id, appliedFlagError });
+          }
         }
 
         // Log transaction receipt
@@ -296,7 +321,7 @@ Deno.serve(async (req: Request) => {
               .select("name, amount_cents, percentage")
               .eq("order_id", orderId);
 
-            await supabaseClient.functions.invoke("send-email", {
+            const { error: sendEmailErr } = await supabaseClient.functions.invoke("send-email", {
               body: {
                 to: customer.email,
                 subject: `Payment Received - Order #${formatOrderId(orderId)}`,
@@ -316,6 +341,9 @@ Deno.serve(async (req: Request) => {
                 }),
               },
             });
+            if (sendEmailErr) {
+              console.warn("[customer-balance-payment] send-email returned error (non-fatal):", sendEmailErr);
+            }
           }
         } catch (emailErr) {
           // Non-fatal — log and continue

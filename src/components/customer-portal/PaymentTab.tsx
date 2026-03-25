@@ -129,8 +129,9 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
     }
   }, [restoredTipCents]);
 
-  // Use canonical orderSummary.total when available; fall back to raw field sum only if not.
-  // This ensures custom fees and discounts are always included correctly.
+  // Use canonical orderSummary.total when available (includes custom fees and discounts).
+  // The fallback raw-field sum omits custom fees and discounts — only used if orderSummary
+  // prop is not passed, which should not happen in normal portal rendering.
   const orderTotal: number = orderSummary
     ? orderSummary.total
     : (order.subtotal_cents || 0) +
@@ -145,7 +146,6 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
   const cardLast4: string | null = order.payment_method_last_four || null;
   const cardBrand: string | null = order.payment_method_brand || null;
   const canChargeSavedCard = !!(order.stripe_customer_id && order.stripe_payment_method_id);
-  const hasCardDetails = canChargeSavedCard && !!cardLast4;
   const isDisabled = totalDueNow <= 0 || loading;
 
   // The already-paid amount is deposit + balance_paid (both stored without tip)
@@ -310,7 +310,7 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
           </div>
         )}
 
-        {hasCardDetails && !isDisabled && (
+        {canChargeSavedCard && !isDisabled && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm text-blue-800">
               <CreditCard className="w-4 h-4 flex-shrink-0" />
