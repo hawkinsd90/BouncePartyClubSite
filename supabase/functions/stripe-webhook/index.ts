@@ -396,10 +396,10 @@ async function processWebhookEvent(
                 });
               if (repairErr) {
                 console.error("[WEBHOOK] apply_balance_payment_financials failed on 23505 path", { orderId, piId, repairErr });
-              } else {
-                const r = Array.isArray(repairRows) ? repairRows[0] : repairRows;
-                console.log("[WEBHOOK] 23505 repair RPC result", { orderId, piId, applied: r?.applied, payment_row_found: r?.payment_row_found });
+                throw new Error(`apply_balance_payment_financials failed (23505 path): ${repairErr.message}`);
               }
+              const r = Array.isArray(repairRows) ? repairRows[0] : repairRows;
+              console.log("[WEBHOOK] 23505 repair RPC result", { orderId, piId, applied: r?.applied, payment_row_found: r?.payment_row_found });
               break;
             }
             console.error("[WEBHOOK] CRITICAL: Failed to insert balance payment row", { orderId, piId, balancePaymentInsertError });
@@ -725,13 +725,13 @@ async function processWebhookEvent(
 
             if (piApplyErr) {
               console.error("[WEBHOOK] pi.succeeded apply_balance_payment_financials failed", { orderId, piId: paymentIntent.id, piApplyErr });
+              throw new Error(`apply_balance_payment_financials failed (pi.succeeded): ${piApplyErr.message}`);
+            }
+            const r = Array.isArray(piApplyRows) ? piApplyRows[0] : piApplyRows;
+            if (!r?.payment_row_found) {
+              console.log("[WEBHOOK] pi.succeeded: no payment row yet — checkout.session.completed will apply", { orderId, piId: paymentIntent.id });
             } else {
-              const r = Array.isArray(piApplyRows) ? piApplyRows[0] : piApplyRows;
-              if (!r?.payment_row_found) {
-                console.log("[WEBHOOK] pi.succeeded: no payment row yet — checkout.session.completed will apply", { orderId, piId: paymentIntent.id });
-              } else {
-                console.log("[WEBHOOK] pi.succeeded RPC result", { orderId, piId: paymentIntent.id, applied: r?.applied });
-              }
+              console.log("[WEBHOOK] pi.succeeded RPC result", { orderId, piId: paymentIntent.id, applied: r?.applied });
             }
 
           } else if (paymentType === "deposit") {
