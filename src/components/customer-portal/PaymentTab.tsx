@@ -39,7 +39,11 @@ function ConfirmChargeModal({
   const brandName = cardBrand ? cardBrand.charAt(0).toUpperCase() + cardBrand.slice(1) : null;
   const cardText = brandName && cardLast4
     ? `${brandName} \u2022\u2022\u2022\u2022 ${cardLast4}`
-    : `Card \u2022\u2022\u2022\u2022 ${cardLast4}`;
+    : cardLast4
+    ? `Card \u2022\u2022\u2022\u2022 ${cardLast4}`
+    : brandName
+    ? `${brandName} card on file`
+    : 'Saved card on file';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -196,7 +200,7 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
 
   function handlePayClick() {
     if (isDisabled) return;
-    if (canDisplaySavedCard) {
+    if (canChargeSavedCard) {
       setShowConfirmModal(true);
     } else {
       executePayment();
@@ -359,7 +363,7 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
         </p>
       </div>
 
-      {showConfirmModal && hasCardDetails && (
+      {showConfirmModal && canChargeSavedCard && (
         <ConfirmChargeModal
           balanceDue={balanceDue}
           tipCents={tipCents}

@@ -53,6 +53,10 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[SAVE-PM] Session mode: ${session.mode}, status: ${session.status}`);
 
+    const stripeCustomerId = typeof session.customer === "string"
+      ? session.customer
+      : (session.customer as any)?.id || null;
+
     let paymentMethodId = null;
 
     // For setup mode, get payment method from SetupIntent
@@ -102,6 +106,7 @@ Deno.serve(async (req: Request) => {
       .from("orders")
       .update({
         stripe_payment_method_id: paymentMethodId,
+        ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
         ...(cardBrand ? { payment_method_brand: cardBrand } : {}),
         ...(cardLast4 ? { payment_method_last_four: cardLast4 } : {}),
       })
