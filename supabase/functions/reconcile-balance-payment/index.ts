@@ -224,12 +224,20 @@ Deno.serve(async (req: Request) => {
           .eq("stripe_payment_intent_id", piId)
           .maybeSingle();
 
-        if (existingPayment?.order_financials_applied === false) {
-          // Prior winner inserted the row but crashed before updating order totals.
-          // We repair using the stored amount_cents from the payment row (source of truth).
+        // Atomically claim ownership of the repair using a CAS UPDATE.
+        // The RPC sets order_financials_applied=TRUE in a single statement WHERE it is FALSE.
+        // Exactly one concurrent caller gets claimed=true; all others get claimed=false.
+        // This eliminates the TOCTOU race where two callers both read FALSE and both apply.
+        const { data: claimRows } = await supabaseClient
+          .rpc("claim_balance_payment_financials", { p_pi_id: piId });
+
+        const claim = Array.isArray(claimRows) ? claimRows[0] : claimRows;
+
+        if (claim?.claimed === true) {
+          // We are the exclusive repair owner. Apply order financials using stored amount_cents.
           console.warn("[reconcile-balance-payment] Repairing stale order totals after partial failure", { orderId, piId });
 
-          const repairAmountPaid = existingPayment.amount_cents;
+          const repairAmountPaid = claim.amount_cents;
           const repairBalanceOnly = Math.max(0, repairAmountPaid - safeTipCents);
 
           const { data: repairOrder } = await supabaseClient
@@ -239,32 +247,30 @@ Deno.serve(async (req: Request) => {
             .maybeSingle();
 
           if (repairOrder) {
-            const repairNewBalancePaid = (repairOrder.balance_paid_cents || 0) + repairBalanceOnly;
-            const repairNewBalanceDue = Math.max(0, (repairOrder.balance_due_cents || 0) - repairBalanceOnly);
-
             const { error: repairOrderErr } = await supabaseClient
               .from("orders")
               .update({
-                balance_paid_cents: repairNewBalancePaid,
-                balance_due_cents: repairNewBalanceDue,
+                balance_paid_cents: (repairOrder.balance_paid_cents || 0) + repairBalanceOnly,
+                balance_due_cents: Math.max(0, (repairOrder.balance_due_cents || 0) - repairBalanceOnly),
                 ...(safeTipCents > 0 ? { tip_cents: (repairOrder.tip_cents || 0) + safeTipCents } : {}),
                 ...(expandedPmId ? { stripe_payment_method_id: expandedPmId } : {}),
                 ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
               })
               .eq("id", orderId);
 
-            if (!repairOrderErr) {
-              // Mark flag TRUE so subsequent retries skip repair
+            if (repairOrderErr) {
+              // The RPC already set order_financials_applied=TRUE optimistically.
+              // Roll it back so the next retry can re-claim.
+              console.error("[reconcile-balance-payment] Repair order update failed, rolling back claim flag:", repairOrderErr);
               await supabaseClient
                 .from("payments")
-                .update({ order_financials_applied: true })
-                .eq("id", existingPayment.id);
-            } else {
-              console.error("[reconcile-balance-payment] Repair order update failed:", repairOrderErr);
+                .update({ order_financials_applied: false })
+                .eq("id", claim.payment_id);
             }
           }
         } else {
-          // order_financials_applied is TRUE — financial work is complete; just patch non-financial fields
+          // claimed=false: another caller already holds the claim (flag is TRUE or being set).
+          // Financial work is complete or in progress. Only patch non-financial fields.
           if (expandedPmId || stripeCustomerId) {
             await supabaseClient
               .from("orders")
