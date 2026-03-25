@@ -973,13 +973,31 @@ async function sendCheckoutBalanceReceiptEmail(
     return `<tr><td style="padding:4px 0;color:#374151;font-size:14px;">${qty}x ${unitName}</td><td style="padding:4px 0;text-align:right;color:#374151;font-size:14px;">${fmt(price * qty)}</td></tr>`;
   }).join("");
 
+  const { data: webhookCustomFees } = await supabaseClient
+    .from("order_custom_fees")
+    .select("name, amount_cents")
+    .eq("order_id", orderId);
+
+  const { data: webhookDiscounts } = await supabaseClient
+    .from("order_discounts")
+    .select("name, amount_cents, percentage")
+    .eq("order_id", orderId);
+
+  const customFees: Array<{ name: string; amount_cents: number }> = webhookCustomFees || [];
+  const discounts: Array<{ name: string; amount_cents: number | null; percentage: number | null }> = webhookDiscounts || [];
+
   const subtotal = order?.subtotal_cents || 0;
   const travelFee = order?.travel_fee_waived ? 0 : (order?.travel_fee_cents || 0);
   const surfaceFee = order?.surface_fee_waived ? 0 : (order?.surface_fee_cents || 0);
   const sameDayFee = order?.same_day_pickup_fee_waived ? 0 : (order?.same_day_pickup_fee_cents || 0);
   const generatorFee = order?.generator_fee_waived ? 0 : (order?.generator_fee_cents || 0);
   const tax = order?.tax_waived ? 0 : (order?.tax_cents || 0);
-  const total = subtotal + travelFee + surfaceFee + sameDayFee + generatorFee + tax;
+  const customFeesTotal = customFees.reduce((s, f) => s + (f.amount_cents || 0), 0);
+  const discountsTotal = discounts.reduce((s, d) => {
+    if (d.percentage && d.percentage > 0) return s + Math.round(subtotal * (d.percentage / 100));
+    return s + (d.amount_cents || 0);
+  }, 0);
+  const total = subtotal + travelFee + surfaceFee + sameDayFee + generatorFee + tax + customFeesTotal - discountsTotal;
   const depositPaid = order?.deposit_paid_cents || 0;
   const newBalanceDue = order?.balance_due_cents ?? 0;
 
@@ -989,6 +1007,11 @@ async function sendCheckoutBalanceReceiptEmail(
     sameDayFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Same-Day Pickup Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(sameDayFee)}</td></tr>` : "",
     generatorFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Generator Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(generatorFee)}</td></tr>` : "",
     tax > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Tax</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(tax)}</td></tr>` : "",
+    ...customFees.map(f => f.amount_cents > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">${f.name}</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(f.amount_cents)}</td></tr>` : ""),
+    ...discounts.map(d => {
+      const amt = d.percentage && d.percentage > 0 ? Math.round(subtotal * (d.percentage / 100)) : (d.amount_cents || 0);
+      return amt > 0 ? `<tr><td style="padding:4px 0;color:#059669;font-size:14px;">${d.name} (discount)</td><td style="padding:4px 0;text-align:right;color:#059669;font-size:14px;">-${fmt(amt)}</td></tr>` : "";
+    }),
   ].join("");
 
   const paymentDate = new Date().toLocaleDateString("en-US", {
