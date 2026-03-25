@@ -393,6 +393,14 @@ async function createCheckoutSession(
     line_items: lineItems,
     success_url,
     cancel_url,
+    payment_intent_data: {
+      setup_future_usage: "off_session",
+      metadata: {
+        order_id: orderId,
+        payment_type: "balance",
+        tip_cents: String(tipCents),
+      },
+    },
     metadata: {
       order_id: orderId,
       payment_type: "balance",
