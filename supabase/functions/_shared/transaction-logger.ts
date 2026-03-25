@@ -40,7 +40,7 @@ export async function logTransaction(
         receipt_group_id: data.receiptGroupId,
       })
       .select('receipt_number')
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error('[TransactionLogger] Error logging transaction:', error);

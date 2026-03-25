@@ -666,15 +666,18 @@ async function processWebhookEvent(
               .maybeSingle();
 
             if (existingPaymentRow) {
-              // Edge fn already handled all DB writes — only update payment method
-              // fields on the order in case they're missing.
-              await supabaseClient
-                .from("orders")
-                .update({
-                  stripe_payment_method_id: paymentMethodId,
-                  stripe_customer_id: stripeCustomerId,
-                })
-                .eq("id", orderId);
+              // Edge fn or reconcile already handled all DB writes.
+              // Only patch payment method fields if they are non-null to avoid
+              // nulling out an already-saved payment method id.
+              if (paymentMethodId || stripeCustomerId) {
+                await supabaseClient
+                  .from("orders")
+                  .update({
+                    ...(paymentMethodId ? { stripe_payment_method_id: paymentMethodId } : {}),
+                    ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
+                  })
+                  .eq("id", orderId);
+              }
             } else {
             // No existing payment row — this PI came through Stripe Checkout.
             // The checkout.session.completed handler is responsible for writing
@@ -829,7 +832,7 @@ async function processWebhookEvent(
               currency: 'usd',
             })
             .select('id')
-            .single();
+            .maybeSingle();
 
           // Create transaction receipt for refund with negative amount
           if (order && refundPayment) {

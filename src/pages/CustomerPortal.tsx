@@ -28,6 +28,7 @@ export function CustomerPortal() {
   const cardJustUpdated = searchParams.get('card_updated') === 'true';
   const invoiceCardSaved = searchParams.get('invoice_card_saved') === 'true';
   const returnSessionId = searchParams.get('session_id') || null;
+  const paymentSuccess = searchParams.get('payment') === 'success';
 
   const restoredPaymentState = cardJustUpdated ? {
     paymentAmount: (searchParams.get('pa') || 'deposit') as 'deposit' | 'full' | 'custom',
@@ -92,7 +93,20 @@ export function CustomerPortal() {
   }, [realtimeOrderId]);
 
   useEffect(() => {
-    if (invoiceCardSaved && returnSessionId && orderId) {
+    if (paymentSuccess && returnSessionId && orderId) {
+      // Path B balance payment: actively reconcile with Stripe before showing the portal.
+      // This is durable — even if the webhook hasn't fired yet, the portal will be correct.
+      (async () => {
+        try {
+          await supabase.functions.invoke('reconcile-balance-payment', {
+            body: { sessionId: returnSessionId, orderId },
+          });
+        } catch (err) {
+          console.error('[CustomerPortal] reconcile-balance-payment threw:', err instanceof Error ? err.message : 'unknown');
+        }
+        await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
+      })();
+    } else if (invoiceCardSaved && returnSessionId && orderId) {
       setInvoiceProcessing(true);
       (async () => {
         try {

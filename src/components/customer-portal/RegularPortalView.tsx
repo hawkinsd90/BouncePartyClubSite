@@ -84,16 +84,9 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
     } else if (paymentStatus === 'success') {
       showToast('Payment successful! Thank you.', 'success');
       window.history.replaceState({}, '', window.location.pathname);
-      // Poll for webhook to process: retry up to 5 times with 1.5s delay
-      let attempts = 0;
-      const poll = async () => {
-        onReload();
-        attempts++;
-        if (attempts < 5) {
-          setTimeout(poll, 1500);
-        }
-      };
-      setTimeout(poll, 1000);
+      // CustomerPortal already called reconcile-balance-payment before rendering this component.
+      // One deferred reload covers any Realtime events that arrived between reconcile and render.
+      setTimeout(() => { onReload(); }, 1500);
     } else if (paymentStatus === 'canceled') {
       showToast('Payment was canceled. You can try again anytime.', 'info');
       // Clean up URL
