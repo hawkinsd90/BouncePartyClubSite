@@ -66,6 +66,8 @@ export function useOrderDetails(orderId: string | null) {
   const [pricingRules, setPricingRules] = useState<PricingRule | null>(null);
   const [loading, setLoading] = useState(true);
   const isLoadingRef = useRef(false);
+  const pendingRefreshRef = useRef(false);
+  const currentOrderIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (orderId) {
@@ -74,8 +76,15 @@ export function useOrderDetails(orderId: string | null) {
   }, [orderId]);
 
   const loadData = async () => {
-    if (!orderId || isLoadingRef.current) return;
+    if (!orderId) return;
+    if (isLoadingRef.current) {
+      pendingRefreshRef.current = true;
+      return;
+    }
     isLoadingRef.current = true;
+    pendingRefreshRef.current = false;
+    const loadingForOrderId = orderId;
+    currentOrderIdRef.current = orderId;
 
     try {
       setLoading(true);
@@ -87,8 +96,14 @@ export function useOrderDetails(orderId: string | null) {
     } catch (err) {
       console.error('Error loading order data:', err);
     } finally {
-      setLoading(false);
+      if (currentOrderIdRef.current === loadingForOrderId) {
+        setLoading(false);
+      }
       isLoadingRef.current = false;
+      if (pendingRefreshRef.current) {
+        pendingRefreshRef.current = false;
+        loadData();
+      }
     }
   };
 

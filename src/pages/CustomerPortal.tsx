@@ -47,13 +47,22 @@ export function CustomerPortal() {
   const realtimeOrderId = resolvedOrderId;
   const reloadRef = useRef<() => Promise<void>>();
   const isReloadingRef = useRef(false);
+  const pendingRefreshRef = useRef(false);
   reloadRef.current = async () => {
-    if (isReloadingRef.current) return;
+    if (isReloadingRef.current) {
+      pendingRefreshRef.current = true;
+      return;
+    }
     isReloadingRef.current = true;
+    pendingRefreshRef.current = false;
     try {
       await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
     } finally {
       isReloadingRef.current = false;
+      if (pendingRefreshRef.current) {
+        pendingRefreshRef.current = false;
+        reloadRef.current?.();
+      }
     }
   };
 

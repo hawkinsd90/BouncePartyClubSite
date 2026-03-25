@@ -38,6 +38,7 @@ export function OrdersManager() {
   const [archiving, setArchiving] = useState(false);
   const orderCardsRef = useRef<Map<string, { card: HTMLElement, actionButtons: HTMLElement | null }>>(new Map());
   const isRefetchingRef = useRef(false);
+  const pendingRefetchRef = useRef(false);
 
   const fetchOrdersData = useCallback(async () => {
     // Load up to 200 most recent orders by default for performance
@@ -68,12 +69,20 @@ export function OrdersManager() {
     const debouncedRefetch = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(async () => {
-        if (isRefetchingRef.current) return;
+        if (isRefetchingRef.current) {
+          pendingRefetchRef.current = true;
+          return;
+        }
         isRefetchingRef.current = true;
+        pendingRefetchRef.current = false;
         try {
           await refetch();
         } finally {
           isRefetchingRef.current = false;
+          if (pendingRefetchRef.current) {
+            pendingRefetchRef.current = false;
+            refetch();
+          }
         }
       }, 800);
     };

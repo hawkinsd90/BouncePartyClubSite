@@ -8,6 +8,8 @@ export function useOrders(userId: string | undefined, userEmail: string | undefi
   const [pastOrders, setPastOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const isLoadingRef = useRef(false);
+  const pendingRefreshRef = useRef(false);
+  const currentUserIdRef = useRef<string | undefined>(undefined);
 
   const loadOrders = useCallback(async () => {
     if (!userId || !userEmail) {
@@ -15,8 +17,14 @@ export function useOrders(userId: string | undefined, userEmail: string | undefi
       return;
     }
 
-    if (isLoadingRef.current) return;
+    if (isLoadingRef.current) {
+      pendingRefreshRef.current = true;
+      return;
+    }
     isLoadingRef.current = true;
+    pendingRefreshRef.current = false;
+    const loadingForUserId = userId;
+    currentUserIdRef.current = userId;
     setLoading(true);
     try {
       const [profileResult, emailResult] = await Promise.all([
@@ -120,8 +128,14 @@ export function useOrders(userId: string | undefined, userEmail: string | undefi
     } catch (error) {
       console.error('Error loading orders:', error);
     } finally {
-      setLoading(false);
+      if (currentUserIdRef.current === loadingForUserId) {
+        setLoading(false);
+      }
       isLoadingRef.current = false;
+      if (pendingRefreshRef.current) {
+        pendingRefreshRef.current = false;
+        loadOrders();
+      }
     }
   }, [userId, userEmail]);
 
