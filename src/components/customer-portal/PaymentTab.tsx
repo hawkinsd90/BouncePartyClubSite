@@ -39,11 +39,7 @@ function ConfirmChargeModal({
   const brandName = cardBrand ? cardBrand.charAt(0).toUpperCase() + cardBrand.slice(1) : null;
   const cardText = brandName && cardLast4
     ? `${brandName} \u2022\u2022\u2022\u2022 ${cardLast4}`
-    : cardLast4
-    ? `Card \u2022\u2022\u2022\u2022 ${cardLast4}`
-    : brandName
-    ? `${brandName} card`
-    : 'Saved card';
+    : `Card \u2022\u2022\u2022\u2022 ${cardLast4}`;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -134,11 +130,11 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
   const orderTotal: number = orderSummary
     ? orderSummary.total
     : (order.subtotal_cents || 0) +
-      (order.travel_fee_cents || 0) +
-      (order.surface_fee_cents || 0) +
-      (order.same_day_pickup_fee_cents || 0) +
-      (order.generator_fee_cents || 0) +
-      (order.tax_cents || 0);
+      (order.travel_fee_waived ? 0 : (order.travel_fee_cents || 0)) +
+      (order.surface_fee_waived ? 0 : (order.surface_fee_cents || 0)) +
+      (order.same_day_pickup_fee_waived ? 0 : (order.same_day_pickup_fee_cents || 0)) +
+      (order.generator_fee_waived ? 0 : (order.generator_fee_cents || 0)) +
+      (order.tax_waived ? 0 : (order.tax_cents || 0));
 
   const tipCents = calculateTipCents(tipAmount, customTipAmount, orderTotal);
   const totalDueNow = balanceDue + tipCents;
@@ -318,11 +314,7 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
               <span>
                 {cardBrand && cardLast4
                   ? `${cardBrand.charAt(0).toUpperCase() + cardBrand.slice(1)} \u2022\u2022\u2022\u2022 ${cardLast4} will be charged`
-                  : cardLast4
-                  ? `Card \u2022\u2022\u2022\u2022 ${cardLast4} will be charged`
-                  : cardBrand
-                  ? `${cardBrand.charAt(0).toUpperCase() + cardBrand.slice(1)} card will be charged`
-                  : 'Saved card will be charged'}
+                  : `Card \u2022\u2022\u2022\u2022 ${cardLast4} will be charged`}
               </span>
             </div>
             <button

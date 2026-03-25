@@ -227,13 +227,22 @@ async function processWebhookEvent(
           const isAdminInvoice = !!invoiceLink;
           const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
 
+          // Only advance status if the order is still in an initial state.
+          // Never downgrade a confirmed/in_progress/completed order.
+          const { data: setupCurrentOrder } = await supabaseClient
+            .from("orders")
+            .select("status")
+            .eq("id", orderId)
+            .maybeSingle();
+          const setupSafeToAdvance = ["draft", "quote", "pending_review"].includes(setupCurrentOrder?.status || "");
+
           const { error: updateError } = await supabaseClient
             .from("orders")
             .update({
-              status: newStatus,
+              ...(setupSafeToAdvance ? { status: newStatus } : {}),
               stripe_payment_method_id: actualPaymentMethodId,
               stripe_customer_id: stripeCustomerId,
-              tip_cents: tipCents,
+              ...(tipCents > 0 ? { tip_cents: tipCents } : {}),
               ...(setupCardBrand ? { payment_method_brand: setupCardBrand } : {}),
               ...(setupCardLast4 ? { payment_method_last_four: setupCardLast4 } : {}),
             })
@@ -241,7 +250,7 @@ async function processWebhookEvent(
 
           if (updateError) {
             console.error(`[WEBHOOK] Error updating order ${orderId}:`, updateError);
-          } else {
+          } else if (setupSafeToAdvance) {
             if (isAdminInvoice) {
               await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_setup_session_admin_invoice", "charged_now", "draft");
             } else {
@@ -565,7 +574,7 @@ async function processWebhookEvent(
             .select("status")
             .eq("id", orderId)
             .maybeSingle();
-          const safeToAdvanceStatus = ["draft", "quote"].includes(currentOrder?.status || "");
+          const safeToAdvanceStatus = ["draft", "quote", "pending_review"].includes(currentOrder?.status || "");
 
           const { error: updateError } = await supabaseClient
             .from("orders")
@@ -575,7 +584,7 @@ async function processWebhookEvent(
               stripe_payment_method_id: paymentMethodId,
               stripe_customer_id: stripeCustomerId,
               deposit_paid_cents: depositOnly,
-              tip_cents: tipCents,
+              ...(tipCents > 0 ? { tip_cents: tipCents } : {}),
               ...(depositCardBrand ? { payment_method_brand: depositCardBrand } : {}),
               ...(depositCardLast4 ? { payment_method_last_four: depositCardLast4 } : {}),
             })
@@ -710,7 +719,7 @@ async function processWebhookEvent(
               depositOrder?.stripe_payment_status === "paid" &&
               (depositOrder?.deposit_paid_cents || 0) > 0;
 
-            const piDepositSafeToAdvance = ["draft", "quote"].includes(depositOrder?.status || "");
+            const piDepositSafeToAdvance = ["draft", "quote", "pending_review"].includes(depositOrder?.status || "");
 
             if (!alreadyRecordedByCheckout) {
               const storedTipCents = depositOrder?.tip_cents || 0;
@@ -895,7 +904,7 @@ async function processWebhookEvent(
           .select("status")
           .eq("id", orderId)
           .maybeSingle();
-        const siSafeToAdvance = ["draft", "quote"].includes(siCurrentOrder?.status || "");
+        const siSafeToAdvance = ["draft", "quote", "pending_review"].includes(siCurrentOrder?.status || "");
 
         const { error: updateError } = await supabaseClient
           .from("orders")
