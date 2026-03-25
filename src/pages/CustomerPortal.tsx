@@ -46,8 +46,15 @@ export function CustomerPortal() {
 
   const realtimeOrderId = resolvedOrderId;
   const reloadRef = useRef<() => Promise<void>>();
+  const isReloadingRef = useRef(false);
   reloadRef.current = async () => {
-    await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
+    if (isReloadingRef.current) return;
+    isReloadingRef.current = true;
+    try {
+      await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
+    } finally {
+      isReloadingRef.current = false;
+    }
   };
 
   useEffect(() => {

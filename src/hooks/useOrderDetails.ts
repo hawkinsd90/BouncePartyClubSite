@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { getOrderById, getOrderPayments } from '../lib/queries/orders';
 
@@ -65,6 +65,7 @@ export function useOrderDetails(orderId: string | null) {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [pricingRules, setPricingRules] = useState<PricingRule | null>(null);
   const [loading, setLoading] = useState(true);
+  const isLoadingRef = useRef(false);
 
   useEffect(() => {
     if (orderId) {
@@ -73,7 +74,8 @@ export function useOrderDetails(orderId: string | null) {
   }, [orderId]);
 
   const loadData = async () => {
-    if (!orderId) return;
+    if (!orderId || isLoadingRef.current) return;
+    isLoadingRef.current = true;
 
     try {
       setLoading(true);
@@ -86,6 +88,7 @@ export function useOrderDetails(orderId: string | null) {
       console.error('Error loading order data:', err);
     } finally {
       setLoading(false);
+      isLoadingRef.current = false;
     }
   };
 

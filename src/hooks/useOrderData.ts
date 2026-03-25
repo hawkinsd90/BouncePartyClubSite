@@ -60,21 +60,16 @@ export function useOrderData() {
         return null;
       }
 
-      let travelMiles = orderData.travel_total_miles || 0;
-      if (travelMiles === 0 && orderData.travel_fee_cents > 0 && orderData.addresses) {
-        try {
-          const addr = orderData.addresses as any;
-          const lat = parseFloat(addr.lat);
-          const lng = parseFloat(addr.lng);
-          if (lat && lng) {
-            travelMiles = await calculateDrivingDistance(HOME_BASE.lat, HOME_BASE.lng, lat, lng);
-            if (travelMiles > 0) {
-              supabase.from('orders').update({ travel_total_miles: travelMiles }).eq('id', orderData.id);
-              orderData.travel_total_miles = travelMiles;
+      if (!orderData.travel_total_miles && orderData.travel_fee_cents > 0 && orderData.addresses) {
+        const addr = orderData.addresses as any;
+        const lat = parseFloat(addr.lat);
+        const lng = parseFloat(addr.lng);
+        if (lat && lng) {
+          calculateDrivingDistance(HOME_BASE.lat, HOME_BASE.lng, lat, lng).then(miles => {
+            if (miles > 0) {
+              supabase.from('orders').update({ travel_total_miles: miles }).eq('id', orderData.id);
             }
-          }
-        } catch (error) {
-          console.error('Error calculating travel distance:', error);
+          }).catch(() => {});
         }
       }
 

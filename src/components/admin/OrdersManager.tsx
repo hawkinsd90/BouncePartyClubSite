@@ -37,6 +37,7 @@ export function OrdersManager() {
   const [showArchived, setShowArchived] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const orderCardsRef = useRef<Map<string, { card: HTMLElement, actionButtons: HTMLElement | null }>>(new Map());
+  const isRefetchingRef = useRef(false);
 
   const fetchOrdersData = useCallback(async () => {
     // Load up to 200 most recent orders by default for performance
@@ -66,7 +67,15 @@ export function OrdersManager() {
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const debouncedRefetch = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => { refetch(); }, 800);
+      debounceTimer = setTimeout(async () => {
+        if (isRefetchingRef.current) return;
+        isRefetchingRef.current = true;
+        try {
+          await refetch();
+        } finally {
+          isRefetchingRef.current = false;
+        }
+      }, 800);
     };
 
     const channel = supabase

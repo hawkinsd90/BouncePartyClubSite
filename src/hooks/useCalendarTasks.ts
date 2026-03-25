@@ -89,6 +89,7 @@ export function useCalendarTasks(currentMonth: Date) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isLoadingRef = useRef(false);
 
   useEffect(() => {
     loadTasks();
@@ -135,6 +136,8 @@ export function useCalendarTasks(currentMonth: Date) {
   }, [currentMonth]);
 
   async function loadTasks() {
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
     setLoading(true);
     try {
       const monthStart = startOfMonth(currentMonth);
@@ -324,6 +327,7 @@ export function useCalendarTasks(currentMonth: Date) {
       console.error('Error loading tasks:', error);
     } finally {
       setLoading(false);
+      isLoadingRef.current = false;
     }
   }
 

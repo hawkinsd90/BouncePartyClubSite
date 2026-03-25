@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Order } from '../types/orders';
 
@@ -7,6 +7,7 @@ export function useOrders(userId: string | undefined, userEmail: string | undefi
   const [activeOrders, setActiveOrders] = useState<Order[]>([]);
   const [pastOrders, setPastOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const isLoadingRef = useRef(false);
 
   const loadOrders = useCallback(async () => {
     if (!userId || !userEmail) {
@@ -14,6 +15,8 @@ export function useOrders(userId: string | undefined, userEmail: string | undefi
       return;
     }
 
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
     setLoading(true);
     try {
       const [profileResult, emailResult] = await Promise.all([
@@ -118,6 +121,7 @@ export function useOrders(userId: string | undefined, userEmail: string | undefi
       console.error('Error loading orders:', error);
     } finally {
       setLoading(false);
+      isLoadingRef.current = false;
     }
   }, [userId, userEmail]);
 
