@@ -534,6 +534,19 @@ async function processWebhookEvent(
             amountPaid - (Number.isFinite(tipCents) ? tipCents : 0)
           );
 
+          // Retrieve card brand/last4 from the payment method so the portal can show it
+          let depositCardBrand: string | null = null;
+          let depositCardLast4: string | null = null;
+          if (paymentMethodId) {
+            try {
+              const pm = await stripe.paymentMethods.retrieve(paymentMethodId);
+              depositCardBrand = pm.card?.brand || null;
+              depositCardLast4 = pm.card?.last4 || null;
+            } catch (err) {
+              console.error("[WEBHOOK] Failed to retrieve PM for deposit:", err);
+            }
+          }
+
           const { data: invoiceLink } = await supabaseClient
             .from("invoice_links")
             .select("id")
@@ -552,6 +565,8 @@ async function processWebhookEvent(
               stripe_customer_id: stripeCustomerId,
               deposit_paid_cents: depositOnly,
               tip_cents: tipCents,
+              ...(depositCardBrand ? { payment_method_brand: depositCardBrand } : {}),
+              ...(depositCardLast4 ? { payment_method_last_four: depositCardLast4 } : {}),
             })
             .eq("id", orderId);
 

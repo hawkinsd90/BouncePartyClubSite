@@ -142,7 +142,7 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
   const cardLast4: string | null = order.payment_method_last_four || null;
   const cardBrand: string | null = order.payment_method_brand || null;
   const hasCardOnFile = !!(order.stripe_customer_id && order.stripe_payment_method_id);
-  const hasCardDetails = hasCardOnFile && !!(cardLast4);
+  const hasCardDetails = hasCardOnFile && !!(cardLast4 || cardBrand);
   const isDisabled = totalDueNow <= 0 || loading;
 
   // The already-paid amount is deposit + balance_paid (both stored without tip)
@@ -361,7 +361,7 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
         </p>
       </div>
 
-      {showConfirmModal && (
+      {showConfirmModal && hasCardDetails && (
         <ConfirmChargeModal
           balanceDue={balanceDue}
           tipCents={tipCents}
