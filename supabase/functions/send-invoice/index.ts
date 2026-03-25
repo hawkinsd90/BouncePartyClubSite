@@ -21,7 +21,8 @@ Deno.serve(async (req: Request) => {
     );
 
     const { orderId, depositCents: rawDepositCents, customerEmail, customerPhone, customerName } = await req.json();
-    const depositCents = Number(rawDepositCents || 0);
+    const parsedDepositCents = Number(rawDepositCents);
+    const depositCents = Number.isFinite(parsedDepositCents) ? parsedDepositCents : 0;
 
     if (!orderId) {
       return new Response(
@@ -89,43 +90,61 @@ Deno.serve(async (req: Request) => {
 
       if (customerEmail) {
         notificationTasks.push(
-          fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-email`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              to: customerEmail,
-              subject: 'Invoice from Bounce Party Club',
-              html: `
-                <h2>Invoice Ready for Review</h2>
-                <p>Hi ${customerName || 'there'},</p>
-                <p>Your invoice is ready for review and acceptance.</p>
-                <p><strong>Total Amount:</strong> $${(((order.subtotal_cents || 0) + (order.travel_fee_cents || 0) + (order.surface_fee_cents || 0) + (order.generator_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.tax_cents || 0)) / 100).toFixed(2)}</p>
-                <p><strong>Deposit Due:</strong> $${(depositCents / 100).toFixed(2)}</p>
-                <p><a href="${invoiceUrl}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:white;text-decoration:none;border-radius:8px;margin:16px 0;">View & Accept Invoice</a></p>
-                <p>This link will expire in 7 days.</p>
-                <p>Questions? Call us at (313) 889-3860</p>
-              `,
-            }),
-          }).catch((err) => console.error('[send-invoice] Email dispatch failed:', err))
+          (async () => {
+            try {
+              const res = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-email`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  to: customerEmail,
+                  subject: 'Invoice from Bounce Party Club',
+                  html: `
+                    <h2>Invoice Ready for Review</h2>
+                    <p>Hi ${customerName || 'there'},</p>
+                    <p>Your invoice is ready for review and acceptance.</p>
+                    <p><strong>Total Amount:</strong> $${(((order.subtotal_cents || 0) + (order.travel_fee_cents || 0) + (order.surface_fee_cents || 0) + (order.generator_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.tax_cents || 0)) / 100).toFixed(2)}</p>
+                    <p><strong>Deposit Due:</strong> $${(depositCents / 100).toFixed(2)}</p>
+                    <p><a href="${invoiceUrl}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:white;text-decoration:none;border-radius:8px;margin:16px 0;">View & Accept Invoice</a></p>
+                    <p>This link will expire in 7 days.</p>
+                    <p>Questions? Call us at (313) 889-3860</p>
+                  `,
+                }),
+              });
+              if (!res.ok) {
+                console.error(`[send-invoice] Email dispatch failed: ${res.status} ${await res.text()}`);
+              }
+            } catch (err) {
+              console.error('[send-invoice] Email dispatch threw:', err);
+            }
+          })()
         );
       }
 
       if (customerPhone) {
         notificationTasks.push(
-          fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-sms-notification`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              to: customerPhone,
-              message: `Your Bounce Party Club invoice is ready! View and accept: ${invoiceUrl}`,
-            }),
-          }).catch((err) => console.error('[send-invoice] SMS dispatch failed:', err))
+          (async () => {
+            try {
+              const res = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-sms-notification`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  to: customerPhone,
+                  message: `Your Bounce Party Club invoice is ready! View and accept: ${invoiceUrl}`,
+                }),
+              });
+              if (!res.ok) {
+                console.error(`[send-invoice] SMS dispatch failed: ${res.status} ${await res.text()}`);
+              }
+            } catch (err) {
+              console.error('[send-invoice] SMS dispatch threw:', err);
+            }
+          })()
         );
       }
 
