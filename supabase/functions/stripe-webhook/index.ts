@@ -261,6 +261,7 @@ async function processWebhookEvent(
           let paymentMethodType: string | null = null;
           let paymentBrand: string | null = null;
           let paymentLast4: string | null = null;
+          let expandedPaymentMethodId: string | null = null;
 
           if (piId) {
             try {
@@ -280,6 +281,8 @@ async function processWebhookEvent(
               if (pm && typeof pm === 'object') {
                 // @ts-ignore (pm is expanded PaymentMethod)
                 paymentMethodType = pm.type || null;
+                // @ts-ignore
+                expandedPaymentMethodId = pm.id || null;
                 // @ts-ignore
                 if (pm.card) {
                   // @ts-ignore
@@ -345,7 +348,7 @@ async function processWebhookEvent(
           const { error: balanceUpdateError } = await supabaseClient
             .from("orders")
             .update({
-              stripe_payment_method_id: paymentMethodId,
+              ...(expandedPaymentMethodId ? { stripe_payment_method_id: expandedPaymentMethodId } : {}),
               stripe_customer_id: stripeCustomerId,
               balance_paid_cents: existingBalancePaid + balanceOnly,
               balance_due_cents: newBalanceDueWh,
@@ -375,7 +378,7 @@ async function processWebhookEvent(
                 currency: currency,
               })
               .select('id')
-              .single();
+              .maybeSingle();
 
             // Get order details for transaction logging and receipt email
             const { data: order } = await supabaseClient

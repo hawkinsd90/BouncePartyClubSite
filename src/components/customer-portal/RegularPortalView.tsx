@@ -83,9 +83,17 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
       window.history.replaceState({}, '', window.location.pathname);
     } else if (paymentStatus === 'success') {
       showToast('Payment successful! Thank you.', 'success');
-      onReload();
-      // Clean up URL
       window.history.replaceState({}, '', window.location.pathname);
+      // Poll for webhook to process: retry up to 5 times with 1.5s delay
+      let attempts = 0;
+      const poll = async () => {
+        onReload();
+        attempts++;
+        if (attempts < 5) {
+          setTimeout(poll, 1500);
+        }
+      };
+      setTimeout(poll, 1000);
     } else if (paymentStatus === 'canceled') {
       showToast('Payment was canceled. You can try again anytime.', 'info');
       // Clean up URL

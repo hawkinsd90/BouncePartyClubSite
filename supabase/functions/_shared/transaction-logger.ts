@@ -72,13 +72,13 @@ async function sendAdminNotification(
 ): Promise<void> {
   try {
     // Get admin email from settings (key-value lookup)
-    const { data } = await supabaseClient
+    const { data: adminEmailSetting } = await supabaseClient
       .from('admin_settings')
       .select('value')
       .eq('key', 'admin_email')
       .maybeSingle();
 
-    const adminEmail = data?.value;
+    const adminEmail = adminEmailSetting?.value;
     if (!adminEmail) {
       console.error('[TransactionLogger] Admin email not configured');
       return;
@@ -89,7 +89,7 @@ async function sendAdminNotification(
       .from('orders')
       .select('*, customers(*)')
       .eq('id', data.orderId)
-      .single();
+      .maybeSingle();
 
     if (!order || !order.customers) {
       console.error('[TransactionLogger] Order or customer not found');
