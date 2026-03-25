@@ -48,6 +48,13 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const { data: logoSetting } = await supabaseClient
+      .from("admin_settings")
+      .select("value")
+      .eq("key", "logo_url")
+      .maybeSingle();
+    const logoUrl: string | null = logoSetting?.value || null;
+
     const doc = new jsPDF({
       orientation: "portrait",
       unit: "mm",
@@ -59,6 +66,26 @@ Deno.serve(async (req: Request) => {
     const margin = 20;
     const maxWidth = pageWidth - 2 * margin;
     let yPosition = margin;
+
+    if (logoUrl) {
+      try {
+        const logoResponse = await fetch(logoUrl);
+        if (logoResponse.ok) {
+          const logoBlob = await logoResponse.arrayBuffer();
+          const base64Logo = btoa(String.fromCharCode(...new Uint8Array(logoBlob)));
+          const contentType = logoResponse.headers.get("content-type") || "image/png";
+          const ext = contentType.includes("jpeg") ? "JPEG" : "PNG";
+          const logoDataUrl = `data:${contentType};base64,${base64Logo}`;
+          const logoWidth = 40;
+          const logoHeight = 20;
+          const logoX = (pageWidth - logoWidth) / 2;
+          doc.addImage(logoDataUrl, ext, logoX, yPosition, logoWidth, logoHeight);
+          yPosition += logoHeight + 6;
+        }
+      } catch {
+        // Logo load failed — continue without it
+      }
+    }
 
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
