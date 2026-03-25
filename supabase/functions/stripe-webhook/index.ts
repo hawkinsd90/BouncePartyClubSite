@@ -380,66 +380,25 @@ async function processWebhookEvent(
 
           if (balancePaymentInsertError) {
             if (balancePaymentInsertError.code === "23505") {
-              // Another writer already holds this PI's mutex. Check the flag to determine
-              // whether the financial update actually completed.
-              const { data: existingPayment } = await supabaseClient
-                .from("payments")
-                .select("id, amount_cents, order_financials_applied")
-                .eq("stripe_payment_intent_id", piId)
-                .maybeSingle();
-
-              // Atomically claim repair ownership via a single CAS UPDATE in the RPC.
-              // Exactly one concurrent caller gets claimed=true; all others get claimed=false.
-              const { data: claimRowsCso } = await supabaseClient
-                .rpc("claim_balance_payment_financials", { p_pi_id: piId });
-
-              const claimCso = Array.isArray(claimRowsCso) ? claimRowsCso[0] : claimRowsCso;
-
-              if (claimCso?.claimed === true) {
-                // We are the exclusive repair owner — apply order financials.
-                console.warn("[WEBHOOK] Repairing stale order totals after partial failure", { orderId, piId });
-
-                const repairBalanceOnly = Math.max(0, claimCso.amount_cents - safeTipCents);
-
-                const { data: repairOrder } = await supabaseClient
-                  .from("orders")
-                  .select("balance_paid_cents, balance_due_cents, tip_cents")
-                  .eq("id", orderId)
-                  .maybeSingle();
-
-                if (repairOrder) {
-                  const { error: repairErr } = await supabaseClient
-                    .from("orders")
-                    .update({
-                      balance_paid_cents: (repairOrder.balance_paid_cents || 0) + repairBalanceOnly,
-                      balance_due_cents: Math.max(0, (repairOrder.balance_due_cents || 0) - repairBalanceOnly),
-                      ...(safeTipCents > 0 ? { tip_cents: (repairOrder.tip_cents || 0) + safeTipCents } : {}),
-                      ...(expandedPaymentMethodId ? { stripe_payment_method_id: expandedPaymentMethodId } : {}),
-                      ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
-                    })
-                    .eq("id", orderId);
-
-                  if (repairErr) {
-                    // Roll back the claim so the next Stripe retry can re-claim and re-repair.
-                    console.error("[WEBHOOK] CRITICAL: Repair order update failed, rolling back claim", { orderId, piId, repairErr });
-                    await supabaseClient
-                      .from("payments")
-                      .update({ order_financials_applied: false })
-                      .eq("id", claimCso.payment_id);
-                  }
-                }
+              // Another writer already inserted this PI's payment row (reconcile or a prior
+              // webhook delivery). Call the same atomic RPC — it will lock the row, check
+              // applied flag, and apply financials exactly once if not already done.
+              // This is identical to the winner path below; the RPC is idempotent.
+              console.warn("[WEBHOOK] 23505 on balance insert — delegating to RPC", { orderId, piId });
+              const { data: repairRows, error: repairErr } = await supabaseClient
+                .rpc("apply_balance_payment_financials", {
+                  p_pi_id: piId,
+                  p_order_id: orderId,
+                  p_balance_cents: balanceOnly,
+                  p_tip_cents: safeTipCents,
+                  p_pm_id: expandedPaymentMethodId || null,
+                  p_customer_id: stripeCustomerId || null,
+                });
+              if (repairErr) {
+                console.error("[WEBHOOK] apply_balance_payment_financials failed on 23505 path", { orderId, piId, repairErr });
               } else {
-                // claimed=false: another caller holds the claim — financial work complete or in progress.
-                // Only patch non-financial fields.
-                if (expandedPaymentMethodId || stripeCustomerId) {
-                  await supabaseClient
-                    .from("orders")
-                    .update({
-                      ...(expandedPaymentMethodId ? { stripe_payment_method_id: expandedPaymentMethodId } : {}),
-                      ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
-                    })
-                    .eq("id", orderId);
-                }
+                const r = Array.isArray(repairRows) ? repairRows[0] : repairRows;
+                console.log("[WEBHOOK] 23505 repair RPC result", { orderId, piId, applied: r?.applied, payment_row_found: r?.payment_row_found });
               }
               break;
             }
@@ -447,37 +406,30 @@ async function processWebhookEvent(
             throw new Error(`Balance payment insert failed: ${balancePaymentInsertError.message}`);
           }
 
-          // We won the mutex — read current order values and update totals exactly once.
-          const { data: balanceOrder } = await supabaseClient
-            .from("orders")
-            .select("tip_cents, balance_paid_cents, balance_due_cents, customer_id")
-            .eq("id", orderId)
-            .maybeSingle();
-          const existingTip = balanceOrder?.tip_cents || 0;
-          const existingBalancePaid = balanceOrder?.balance_paid_cents || 0;
-          const existingBalanceDueWh = balanceOrder?.balance_due_cents || 0;
-          const newBalanceDueWh = Math.max(0, existingBalanceDueWh - balanceOnly);
-
-          const { error: balanceUpdateError } = await supabaseClient
-            .from("orders")
-            .update({
-              ...(expandedPaymentMethodId ? { stripe_payment_method_id: expandedPaymentMethodId } : {}),
-              stripe_customer_id: stripeCustomerId,
-              balance_paid_cents: existingBalancePaid + balanceOnly,
-              balance_due_cents: newBalanceDueWh,
-              ...(safeTipCents > 0 ? { tip_cents: existingTip + safeTipCents } : {}),
-            })
-            .eq("id", orderId);
-          if (balanceUpdateError) {
-            console.error("[WEBHOOK] CRITICAL: Failed to update balance_due_cents on order", { orderId, newBalanceDueWh, balanceUpdateError });
-            // Payment row committed with order_financials_applied=FALSE.
-            // Next retry (Stripe re-delivers) will detect FALSE and repair automatically.
-          } else if (paymentRecord) {
-            // Mark financial work complete — only after successful order UPDATE
-            await supabaseClient
-              .from("payments")
-              .update({ order_financials_applied: true })
-              .eq("id", paymentRecord.id);
+          // Apply order financials through the atomic RPC — this is the ONLY place
+          // balance_paid_cents / tip_cents / balance_due_cents are written for this PI.
+          // The RPC holds a row lock on the payment row for the full read-apply-mark
+          // sequence, preventing any concurrent repair caller from racing with this winner.
+          const { data: applyRows, error: applyErr } = await supabaseClient
+            .rpc("apply_balance_payment_financials", {
+              p_pi_id: piId,
+              p_order_id: orderId,
+              p_balance_cents: balanceOnly,
+              p_tip_cents: safeTipCents,
+              p_pm_id: expandedPaymentMethodId || null,
+              p_customer_id: stripeCustomerId || null,
+            });
+          if (applyErr) {
+            console.error("[WEBHOOK] CRITICAL: apply_balance_payment_financials failed", { orderId, piId, applyErr });
+            // Payment row exists with order_financials_applied=FALSE.
+            // Next Stripe retry will call this same path and the RPC will apply then.
+          } else {
+            const applyResult = Array.isArray(applyRows) ? applyRows[0] : applyRows;
+            if (applyResult?.applied === true) {
+              console.log("[WEBHOOK] Applied balance financials via RPC", { orderId, piId, balanceOnly, safeTipCents });
+            } else {
+              console.log("[WEBHOOK] RPC returned applied=false (already done or no row)", { orderId, piId });
+            }
           }
 
           // Get order details for transaction logging and receipt email
@@ -754,61 +706,32 @@ async function processWebhookEvent(
           const amountReceived = paymentIntent.amount_received || 0;
 
           if (paymentType === "balance") {
-            // Attempt atomic CAS claim for repair. The RPC sets order_financials_applied=TRUE
-            // WHERE it is currently FALSE in a single UPDATE statement.
-            // claimed=true  → we own repair; apply order financials once, roll back on failure.
-            // claimed=false → flag is already TRUE (work complete) or no row exists yet.
+            // All balance financial application goes through apply_balance_payment_financials.
+            // The RPC locks the payment row, checks applied flag, applies exactly once, marks done.
+            // If no payment row exists yet (pi.succeeded arrived before checkout.session.completed),
+            // the RPC returns payment_row_found=false and does nothing — checkout.session.completed
+            // or reconcile-balance-payment will insert the row and call the RPC themselves.
             const tipCentsFromMeta = parseInt(paymentIntent.metadata?.tip_cents || "0", 10) || 0;
+            const balanceOnlyFromMeta = Math.max(0, amountReceived - tipCentsFromMeta);
 
-            const { data: claimRowsPi } = await supabaseClient
-              .rpc("claim_balance_payment_financials", { p_pi_id: paymentIntent.id });
+            const { data: piApplyRows, error: piApplyErr } = await supabaseClient
+              .rpc("apply_balance_payment_financials", {
+                p_pi_id: paymentIntent.id,
+                p_order_id: orderId,
+                p_balance_cents: balanceOnlyFromMeta,
+                p_tip_cents: tipCentsFromMeta,
+                p_pm_id: paymentMethodId || null,
+                p_customer_id: stripeCustomerId || null,
+              });
 
-            const claimPi = Array.isArray(claimRowsPi) ? claimRowsPi[0] : claimRowsPi;
-
-            if (claimPi?.claimed === true) {
-              // Exclusive repair ownership acquired — apply order financials.
-              console.warn("[WEBHOOK] pi.succeeded repair: stale order totals detected, applying", { orderId, piId: paymentIntent.id });
-              const repairBalanceOnly = Math.max(0, claimPi.amount_cents - tipCentsFromMeta);
-
-              const { data: repairOrderPi } = await supabaseClient
-                .from("orders")
-                .select("balance_paid_cents, balance_due_cents, tip_cents")
-                .eq("id", orderId)
-                .maybeSingle();
-
-              if (repairOrderPi) {
-                const { error: piRepairErr } = await supabaseClient
-                  .from("orders")
-                  .update({
-                    balance_paid_cents: (repairOrderPi.balance_paid_cents || 0) + repairBalanceOnly,
-                    balance_due_cents: Math.max(0, (repairOrderPi.balance_due_cents || 0) - repairBalanceOnly),
-                    ...(tipCentsFromMeta > 0 ? { tip_cents: (repairOrderPi.tip_cents || 0) + tipCentsFromMeta } : {}),
-                    ...(paymentMethodId ? { stripe_payment_method_id: paymentMethodId } : {}),
-                    ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
-                  })
-                  .eq("id", orderId);
-
-                if (piRepairErr) {
-                  // Roll back the claim so the next Stripe retry can re-claim and re-repair.
-                  console.error("[WEBHOOK] pi.succeeded repair order update failed, rolling back claim", { orderId, piRepairErr });
-                  await supabaseClient
-                    .from("payments")
-                    .update({ order_financials_applied: false })
-                    .eq("id", claimPi.payment_id);
-                }
-              }
+            if (piApplyErr) {
+              console.error("[WEBHOOK] pi.succeeded apply_balance_payment_financials failed", { orderId, piId: paymentIntent.id, piApplyErr });
             } else {
-              // claimed=false: either no payment row exists yet (checkout.session.completed / reconcile
-              // will own financial application) or the flag is already TRUE (work complete).
-              // Either way: only patch safe non-financial fields. Never mutate order totals here.
-              if (paymentMethodId || stripeCustomerId) {
-                await supabaseClient
-                  .from("orders")
-                  .update({
-                    ...(paymentMethodId ? { stripe_payment_method_id: paymentMethodId } : {}),
-                    ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
-                  })
-                  .eq("id", orderId);
+              const r = Array.isArray(piApplyRows) ? piApplyRows[0] : piApplyRows;
+              if (!r?.payment_row_found) {
+                console.log("[WEBHOOK] pi.succeeded: no payment row yet — checkout.session.completed will apply", { orderId, piId: paymentIntent.id });
+              } else {
+                console.log("[WEBHOOK] pi.succeeded RPC result", { orderId, piId: paymentIntent.id, applied: r?.applied });
               }
             }
 

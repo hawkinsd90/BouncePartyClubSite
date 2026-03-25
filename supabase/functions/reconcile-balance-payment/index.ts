@@ -216,72 +216,25 @@ Deno.serve(async (req: Request) => {
 
     if (paymentInsertError) {
       if (paymentInsertError.code === "23505") {
-        // Another writer already inserted this payment row. Check whether it
-        // also completed the order financial update (order_financials_applied).
-        const { data: existingPayment } = await supabaseClient
-          .from("payments")
-          .select("id, amount_cents, order_financials_applied")
-          .eq("stripe_payment_intent_id", piId)
-          .maybeSingle();
-
-        // Atomically claim ownership of the repair using a CAS UPDATE.
-        // The RPC sets order_financials_applied=TRUE in a single statement WHERE it is FALSE.
-        // Exactly one concurrent caller gets claimed=true; all others get claimed=false.
-        // This eliminates the TOCTOU race where two callers both read FALSE and both apply.
-        const { data: claimRows } = await supabaseClient
-          .rpc("claim_balance_payment_financials", { p_pi_id: piId });
-
-        const claim = Array.isArray(claimRows) ? claimRows[0] : claimRows;
-
-        if (claim?.claimed === true) {
-          // We are the exclusive repair owner. Apply order financials using stored amount_cents.
-          console.warn("[reconcile-balance-payment] Repairing stale order totals after partial failure", { orderId, piId });
-
-          const repairAmountPaid = claim.amount_cents;
-          const repairBalanceOnly = Math.max(0, repairAmountPaid - safeTipCents);
-
-          const { data: repairOrder } = await supabaseClient
-            .from("orders")
-            .select("balance_paid_cents, balance_due_cents, tip_cents, customer_id")
-            .eq("id", orderId)
-            .maybeSingle();
-
-          if (repairOrder) {
-            const { error: repairOrderErr } = await supabaseClient
-              .from("orders")
-              .update({
-                balance_paid_cents: (repairOrder.balance_paid_cents || 0) + repairBalanceOnly,
-                balance_due_cents: Math.max(0, (repairOrder.balance_due_cents || 0) - repairBalanceOnly),
-                ...(safeTipCents > 0 ? { tip_cents: (repairOrder.tip_cents || 0) + safeTipCents } : {}),
-                ...(expandedPmId ? { stripe_payment_method_id: expandedPmId } : {}),
-                ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
-              })
-              .eq("id", orderId);
-
-            if (repairOrderErr) {
-              // The RPC already set order_financials_applied=TRUE optimistically.
-              // Roll it back so the next retry can re-claim.
-              console.error("[reconcile-balance-payment] Repair order update failed, rolling back claim flag:", repairOrderErr);
-              await supabaseClient
-                .from("payments")
-                .update({ order_financials_applied: false })
-                .eq("id", claim.payment_id);
-            }
-          }
+        // Another writer already inserted this PI's payment row (webhook or a prior reconcile).
+        // Call the same atomic RPC — it will lock the row, check the applied flag, and apply
+        // financials exactly once if not yet done. Identical to the winner path below.
+        console.warn("[reconcile-balance-payment] 23505 on insert — delegating to RPC", { orderId, piId });
+        const { data: repairRows, error: repairErr } = await supabaseClient
+          .rpc("apply_balance_payment_financials", {
+            p_pi_id: piId,
+            p_order_id: orderId,
+            p_balance_cents: balanceOnly,
+            p_tip_cents: safeTipCents,
+            p_pm_id: expandedPmId || null,
+            p_customer_id: stripeCustomerId || null,
+          });
+        if (repairErr) {
+          console.error("[reconcile-balance-payment] apply_balance_payment_financials failed on 23505 path", { orderId, piId, repairErr });
         } else {
-          // claimed=false: another caller already holds the claim (flag is TRUE or being set).
-          // Financial work is complete or in progress. Only patch non-financial fields.
-          if (expandedPmId || stripeCustomerId) {
-            await supabaseClient
-              .from("orders")
-              .update({
-                ...(expandedPmId ? { stripe_payment_method_id: expandedPmId } : {}),
-                ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
-              })
-              .eq("id", orderId);
-          }
+          const r = Array.isArray(repairRows) ? repairRows[0] : repairRows;
+          console.log("[reconcile-balance-payment] 23505 RPC result", { orderId, piId, applied: r?.applied, payment_row_found: r?.payment_row_found });
         }
-
         return new Response(
           JSON.stringify({ success: true, alreadyReconciled: true }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -295,59 +248,44 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // ── 5. We won the race — now safely update order totals ───────────────────
-    // Read current values immediately after winning the insert so we accumulate correctly.
-    const { data: currentOrder } = await supabaseClient
-      .from("orders")
-      .select("balance_paid_cents, balance_due_cents, tip_cents, customer_id")
-      .eq("id", orderId)
-      .maybeSingle();
+    // ── 5. We inserted the row — apply order financials through the atomic RPC ─
+    // The RPC locks the payment row we just inserted, verifies applied=false,
+    // reads+updates order totals, and marks applied=true — all in one transaction.
+    // This prevents any concurrent caller (pi.succeeded, a second reconcile) from
+    // racing with us: they will block on the row lock until we commit, then see
+    // applied=true and skip.
+    const { data: applyRows, error: applyErr } = await supabaseClient
+      .rpc("apply_balance_payment_financials", {
+        p_pi_id: piId,
+        p_order_id: orderId,
+        p_balance_cents: balanceOnly,
+        p_tip_cents: safeTipCents,
+        p_pm_id: expandedPmId || null,
+        p_customer_id: stripeCustomerId || null,
+      });
 
-    if (!currentOrder) {
-      console.error("[reconcile-balance-payment] Order not found after winning payment insert:", orderId);
-      return new Response(
-        JSON.stringify({ error: "Order not found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const existingBalancePaid = currentOrder.balance_paid_cents || 0;
-    const existingBalanceDue = currentOrder.balance_due_cents || 0;
-    const existingTip = currentOrder.tip_cents || 0;
-    const newBalancePaid = existingBalancePaid + balanceOnly;
-    const newBalanceDue = Math.max(0, existingBalanceDue - balanceOnly);
-
-    const { error: orderUpdateError } = await supabaseClient
-      .from("orders")
-      .update({
-        balance_paid_cents: newBalancePaid,
-        balance_due_cents: newBalanceDue,
-        ...(safeTipCents > 0 ? { tip_cents: existingTip + safeTipCents } : {}),
-        ...(expandedPmId ? { stripe_payment_method_id: expandedPmId } : {}),
-        ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
-      })
-      .eq("id", orderId);
-
-    if (orderUpdateError) {
-      console.error("[reconcile-balance-payment] Failed to update order:", orderUpdateError);
+    if (applyErr) {
+      console.error("[reconcile-balance-payment] apply_balance_payment_financials failed", { orderId, piId, applyErr });
       // Payment row is committed with order_financials_applied=FALSE.
-      // The next retry (reconcile or webhook) will detect the FALSE flag and repair.
+      // Next retry (reconcile or webhook pi.succeeded) will call the RPC and repair.
       return new Response(
-        JSON.stringify({ error: "Order update failed after payment insert" }),
+        JSON.stringify({ error: "Order financial update failed after payment insert" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Mark financial work complete — must come AFTER successful order UPDATE
-    if (paymentRecord) {
-      await supabaseClient
-        .from("payments")
-        .update({ order_financials_applied: true })
-        .eq("id", paymentRecord.id);
-    }
+    const applyResult = Array.isArray(applyRows) ? applyRows[0] : applyRows;
+    console.log("[reconcile-balance-payment] RPC applied financials", { orderId, piId, applied: applyResult?.applied });
+
+    // Fetch customer_id for receipt logging (order already updated by RPC)
+    const { data: currentOrder } = await supabaseClient
+      .from("orders")
+      .select("customer_id")
+      .eq("id", orderId)
+      .maybeSingle();
 
     // ── 6. Log transaction receipt (idempotent via unique PI id constraint) ────
-    if (paymentRecord && currentOrder.customer_id) {
+    if (paymentRecord && currentOrder?.customer_id) {
       try {
         await supabaseClient
           .from("transaction_receipts")
