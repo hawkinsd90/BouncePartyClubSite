@@ -20,7 +20,8 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { orderId, depositCents, customerEmail, customerPhone, customerName } = await req.json();
+    const { orderId, depositCents: rawDepositCents, customerEmail, customerPhone, customerName } = await req.json();
+    const depositCents = Number(rawDepositCents || 0);
 
     if (!orderId) {
       return new Response(
