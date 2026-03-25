@@ -200,7 +200,7 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
 
   function handlePayClick() {
     if (isDisabled) return;
-    if (canChargeSavedCard) {
+    if (canDisplaySavedCard) {
       setShowConfirmModal(true);
     } else {
       executePayment();
@@ -363,7 +363,7 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
         </p>
       </div>
 
-      {showConfirmModal && canChargeSavedCard && (
+      {showConfirmModal && canDisplaySavedCard && (
         <ConfirmChargeModal
           balanceDue={balanceDue}
           tipCents={tipCents}
