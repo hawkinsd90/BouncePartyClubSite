@@ -60,6 +60,29 @@ Deno.serve(async (req: Request) => {
     const maxWidth = pageWidth - 2 * margin;
     let yPosition = margin;
 
+    // Fetch logo_url from admin_settings and embed at top center
+    try {
+      const { data: logoSetting } = await supabaseClient
+        .from("admin_settings")
+        .select("value")
+        .eq("key", "logo_url")
+        .maybeSingle();
+      const logoUrl = logoSetting?.value || null;
+      if (logoUrl) {
+        const logoResp = await fetch(logoUrl);
+        if (logoResp.ok) {
+          const logoBuffer = await logoResp.arrayBuffer();
+          const logoBase64 = btoa(String.fromCharCode(...new Uint8Array(logoBuffer)));
+          const contentType = logoResp.headers.get("content-type") || "image/png";
+          const imgFormat = contentType.includes("png") ? "PNG" : "JPEG";
+          const logoDataUrl = `data:${contentType};base64,${logoBase64}`;
+          const logoSize = 20;
+          doc.addImage(logoDataUrl, imgFormat, (pageWidth - logoSize) / 2, yPosition, logoSize, logoSize);
+          yPosition += logoSize + 5;
+        }
+      }
+    } catch (_) {}
+
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
     doc.text("LIABILITY WAIVER AND RENTAL AGREEMENT", pageWidth / 2, yPosition, {

@@ -27,6 +27,7 @@ export function CustomerPortal() {
 
   const cardJustUpdated = searchParams.get('card_updated') === 'true';
   const invoiceCardSaved = searchParams.get('invoice_card_saved') === 'true';
+  const balancePaymentSuccess = searchParams.get('payment') === 'success';
   const returnSessionId = searchParams.get('session_id') || null;
 
   const restoredPaymentState = cardJustUpdated ? {
@@ -143,6 +144,17 @@ export function CustomerPortal() {
         } catch (err) {
           // BPC-SECURITY-HARDENING: raw error removed — could expose payment API internals in browser console.
           console.error('[CustomerPortal] save-payment-method-from-session threw unexpectedly:', err instanceof Error ? err.message : 'unknown');
+        }
+        await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
+      })();
+    } else if (balancePaymentSuccess && returnSessionId && orderId) {
+      (async () => {
+        try {
+          await supabase.functions.invoke('reconcile-balance-payment', {
+            body: { sessionId: returnSessionId, orderId },
+          });
+        } catch (err) {
+          console.error('[CustomerPortal] reconcile-balance-payment error:', err instanceof Error ? err.message : 'unknown');
         }
         await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
       })();

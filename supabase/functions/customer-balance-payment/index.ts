@@ -379,7 +379,7 @@ async function createCheckoutSession(
 
   // success_url: go to portal with ?payment=success
   // cancel_url: go back to payment tab so tip state is NOT lost via URL param
-  const success_url = `${siteOrigin}/customer-portal/${orderId}?payment=success`;
+  const success_url = `${siteOrigin}/customer-portal/${orderId}?payment=success&session_id={CHECKOUT_SESSION_ID}`;
   const cancel_url = `${siteOrigin}/customer-portal/${orderId}?tab=payment&tip=${tipCents}`;
 
   const session = await stripe.checkout.sessions.create({
