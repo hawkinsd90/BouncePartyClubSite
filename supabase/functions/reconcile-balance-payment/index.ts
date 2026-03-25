@@ -183,12 +183,17 @@ Deno.serve(async (req: Request) => {
       console.warn("[reconcile-balance-payment] Could not fetch charge fee details:", err);
     }
 
-    // ── 4. RACE-SAFE: Insert payment row FIRST ─────────────────────────────────
-    // The unique constraint on stripe_payment_intent_id is our mutex.
-    // If this insert succeeds → we won the race and own all subsequent writes.
-    // If it fails with 23505 (unique violation) → webhook or prior call already
-    //   won; return alreadyReconciled without touching order totals.
-    // Any other insert error → propagate as 500.
+    // ── 4. RACE-SAFE + REPAIR-SAFE: Insert payment row FIRST ──────────────────
+    // The unique constraint on stripe_payment_intent_id is our distributed mutex.
+    //
+    // order_financials_applied starts FALSE. The winner sets it TRUE only after
+    // the order UPDATE succeeds. On 23505, the caller reads the flag:
+    //   TRUE  → financial work is complete; skip safely (idempotent)
+    //   FALSE → prior winner partially failed (order UPDATE crashed); this caller
+    //            performs the repair, then marks the flag TRUE.
+    //
+    // This guarantees: even after a partial failure, the next retry (reconcile or
+    // webhook) automatically repairs stale order totals — without double-writing.
     const { data: paymentRecord, error: paymentInsertError } = await supabaseClient
       .from("payments")
       .insert({
@@ -204,24 +209,73 @@ Deno.serve(async (req: Request) => {
         stripe_fee_amount: stripeFee,
         stripe_net_amount: stripeNet,
         currency: "usd",
+        order_financials_applied: false,
       })
       .select("id")
       .maybeSingle();
 
     if (paymentInsertError) {
-      // 23505 = unique_violation: another writer (webhook or prior reconcile call) already owns this PI.
-      // Do NOT update order totals — they were (or will be) written by the winner.
       if (paymentInsertError.code === "23505") {
-        // Patch non-financial fields only (safe because they are idempotent)
-        if (expandedPmId || stripeCustomerId) {
-          await supabaseClient
+        // Another writer already inserted this payment row. Check whether it
+        // also completed the order financial update (order_financials_applied).
+        const { data: existingPayment } = await supabaseClient
+          .from("payments")
+          .select("id, amount_cents, order_financials_applied")
+          .eq("stripe_payment_intent_id", piId)
+          .maybeSingle();
+
+        if (existingPayment?.order_financials_applied === false) {
+          // Prior winner inserted the row but crashed before updating order totals.
+          // We repair using the stored amount_cents from the payment row (source of truth).
+          console.warn("[reconcile-balance-payment] Repairing stale order totals after partial failure", { orderId, piId });
+
+          const repairAmountPaid = existingPayment.amount_cents;
+          const repairBalanceOnly = Math.max(0, repairAmountPaid - safeTipCents);
+
+          const { data: repairOrder } = await supabaseClient
             .from("orders")
-            .update({
-              ...(expandedPmId ? { stripe_payment_method_id: expandedPmId } : {}),
-              ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
-            })
-            .eq("id", orderId);
+            .select("balance_paid_cents, balance_due_cents, tip_cents, customer_id")
+            .eq("id", orderId)
+            .maybeSingle();
+
+          if (repairOrder) {
+            const repairNewBalancePaid = (repairOrder.balance_paid_cents || 0) + repairBalanceOnly;
+            const repairNewBalanceDue = Math.max(0, (repairOrder.balance_due_cents || 0) - repairBalanceOnly);
+
+            const { error: repairOrderErr } = await supabaseClient
+              .from("orders")
+              .update({
+                balance_paid_cents: repairNewBalancePaid,
+                balance_due_cents: repairNewBalanceDue,
+                ...(safeTipCents > 0 ? { tip_cents: (repairOrder.tip_cents || 0) + safeTipCents } : {}),
+                ...(expandedPmId ? { stripe_payment_method_id: expandedPmId } : {}),
+                ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
+              })
+              .eq("id", orderId);
+
+            if (!repairOrderErr) {
+              // Mark flag TRUE so subsequent retries skip repair
+              await supabaseClient
+                .from("payments")
+                .update({ order_financials_applied: true })
+                .eq("id", existingPayment.id);
+            } else {
+              console.error("[reconcile-balance-payment] Repair order update failed:", repairOrderErr);
+            }
+          }
+        } else {
+          // order_financials_applied is TRUE — financial work is complete; just patch non-financial fields
+          if (expandedPmId || stripeCustomerId) {
+            await supabaseClient
+              .from("orders")
+              .update({
+                ...(expandedPmId ? { stripe_payment_method_id: expandedPmId } : {}),
+                ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
+              })
+              .eq("id", orderId);
+          }
         }
+
         return new Response(
           JSON.stringify({ success: true, alreadyReconciled: true }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -270,13 +324,20 @@ Deno.serve(async (req: Request) => {
 
     if (orderUpdateError) {
       console.error("[reconcile-balance-payment] Failed to update order:", orderUpdateError);
-      // Payment row is already committed — return partial success so the
-      // webhook (which will see the existing payment row and skip) does not
-      // inadvertently overwrite with stale data.
+      // Payment row is committed with order_financials_applied=FALSE.
+      // The next retry (reconcile or webhook) will detect the FALSE flag and repair.
       return new Response(
         JSON.stringify({ error: "Order update failed after payment insert" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Mark financial work complete — must come AFTER successful order UPDATE
+    if (paymentRecord) {
+      await supabaseClient
+        .from("payments")
+        .update({ order_financials_applied: true })
+        .eq("id", paymentRecord.id);
     }
 
     // ── 6. Log transaction receipt (idempotent via unique PI id constraint) ────

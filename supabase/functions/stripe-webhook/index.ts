@@ -373,24 +373,71 @@ async function processWebhookEvent(
               stripe_fee_amount: stripeFee,
               stripe_net_amount: stripeNet,
               currency: currency,
+              order_financials_applied: false,
             })
             .select('id')
             .maybeSingle();
 
           if (balancePaymentInsertError) {
             if (balancePaymentInsertError.code === "23505") {
-              // reconcile-balance-payment (or a prior webhook delivery) already won the mutex
-              // and is responsible for order totals. Patch only non-financial fields.
-              if (expandedPaymentMethodId || stripeCustomerId) {
-                await supabaseClient
+              // Another writer already holds this PI's mutex. Check the flag to determine
+              // whether the financial update actually completed.
+              const { data: existingPayment } = await supabaseClient
+                .from("payments")
+                .select("id, amount_cents, order_financials_applied")
+                .eq("stripe_payment_intent_id", piId)
+                .maybeSingle();
+
+              if (existingPayment?.order_financials_applied === false) {
+                // Prior winner inserted the row but crashed before updating order totals. Repair.
+                console.warn("[WEBHOOK] Repairing stale order totals after partial failure", { orderId, piId });
+
+                const repairAmountPaid = existingPayment.amount_cents;
+                const repairBalanceOnly = Math.max(0, repairAmountPaid - safeTipCents);
+
+                const { data: repairOrder } = await supabaseClient
                   .from("orders")
-                  .update({
-                    ...(expandedPaymentMethodId ? { stripe_payment_method_id: expandedPaymentMethodId } : {}),
-                    ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
-                  })
-                  .eq("id", orderId);
+                  .select("balance_paid_cents, balance_due_cents, tip_cents")
+                  .eq("id", orderId)
+                  .maybeSingle();
+
+                if (repairOrder) {
+                  const repairNewBalancePaid = (repairOrder.balance_paid_cents || 0) + repairBalanceOnly;
+                  const repairNewBalanceDue = Math.max(0, (repairOrder.balance_due_cents || 0) - repairBalanceOnly);
+
+                  const { error: repairErr } = await supabaseClient
+                    .from("orders")
+                    .update({
+                      balance_paid_cents: repairNewBalancePaid,
+                      balance_due_cents: repairNewBalanceDue,
+                      ...(safeTipCents > 0 ? { tip_cents: (repairOrder.tip_cents || 0) + safeTipCents } : {}),
+                      ...(expandedPaymentMethodId ? { stripe_payment_method_id: expandedPaymentMethodId } : {}),
+                      ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
+                    })
+                    .eq("id", orderId);
+
+                  if (!repairErr) {
+                    await supabaseClient
+                      .from("payments")
+                      .update({ order_financials_applied: true })
+                      .eq("id", existingPayment.id);
+                  } else {
+                    console.error("[WEBHOOK] CRITICAL: Repair order update failed", { orderId, piId, repairErr });
+                  }
+                }
+              } else {
+                // order_financials_applied is TRUE — financial work already done; only patch non-financial fields
+                if (expandedPaymentMethodId || stripeCustomerId) {
+                  await supabaseClient
+                    .from("orders")
+                    .update({
+                      ...(expandedPaymentMethodId ? { stripe_payment_method_id: expandedPaymentMethodId } : {}),
+                      ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
+                    })
+                    .eq("id", orderId);
+                }
               }
-              break; // exit the balance branch entirely — do NOT fall through to order totals
+              break;
             }
             console.error("[WEBHOOK] CRITICAL: Failed to insert balance payment row", { orderId, piId, balancePaymentInsertError });
             throw new Error(`Balance payment insert failed: ${balancePaymentInsertError.message}`);
@@ -419,9 +466,14 @@ async function processWebhookEvent(
             .eq("id", orderId);
           if (balanceUpdateError) {
             console.error("[WEBHOOK] CRITICAL: Failed to update balance_due_cents on order", { orderId, newBalanceDueWh, balanceUpdateError });
-            // Payment row is committed — order totals are stale. Stripe will retry this
-            // event; on retry the 23505 path above will fire and skip the update again.
-            // Manual reconciliation or a future repair function is required if this persists.
+            // Payment row committed with order_financials_applied=FALSE.
+            // Next retry (Stripe re-delivers) will detect FALSE and repair automatically.
+          } else if (paymentRecord) {
+            // Mark financial work complete — only after successful order UPDATE
+            await supabaseClient
+              .from("payments")
+              .update({ order_financials_applied: true })
+              .eq("id", paymentRecord.id);
           }
 
           // Get order details for transaction logging and receipt email
@@ -698,28 +750,61 @@ async function processWebhookEvent(
           const amountReceived = paymentIntent.amount_received || 0;
 
           if (paymentType === "balance") {
-            // Guard: if the customer-balance-payment edge fn already inserted a
-            // payment row for this PI (COF path), it has already written
-            // balance_paid_cents and tip_cents to the order authoritatively.
-            // Skip the order write here to prevent a double-write / tip pollution.
+            // Check for an existing payment row and its order_financials_applied flag.
+            // Row exists + flag TRUE  → complete; only patch non-financial fields.
+            // Row exists + flag FALSE → prior winner partially failed; repair order totals.
+            // Row absent              → checkout.session.completed hasn't fired yet; write now.
             const { data: existingPaymentRow } = await supabaseClient
               .from("payments")
-              .select("id")
+              .select("id, amount_cents, order_financials_applied")
               .eq("stripe_payment_intent_id", paymentIntent.id)
               .maybeSingle();
 
             if (existingPaymentRow) {
-              // Edge fn or reconcile already handled all DB writes.
-              // Only patch payment method fields if they are non-null to avoid
-              // nulling out an already-saved payment method id.
-              if (paymentMethodId || stripeCustomerId) {
-                await supabaseClient
+              if (existingPaymentRow.order_financials_applied === false) {
+                // Repair path: prior winner crashed before updating order totals.
+                console.warn("[WEBHOOK] pi.succeeded repair: stale order totals detected", { orderId, piId: paymentIntent.id });
+                const tipCentsFromMeta = parseInt(paymentIntent.metadata?.tip_cents || "0", 10) || 0;
+                const repairBalanceOnly = Math.max(0, existingPaymentRow.amount_cents - tipCentsFromMeta);
+
+                const { data: repairOrderPi } = await supabaseClient
                   .from("orders")
-                  .update({
-                    ...(paymentMethodId ? { stripe_payment_method_id: paymentMethodId } : {}),
-                    ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
-                  })
-                  .eq("id", orderId);
+                  .select("balance_paid_cents, balance_due_cents, tip_cents")
+                  .eq("id", orderId)
+                  .maybeSingle();
+
+                if (repairOrderPi) {
+                  const { error: piRepairErr } = await supabaseClient
+                    .from("orders")
+                    .update({
+                      balance_paid_cents: (repairOrderPi.balance_paid_cents || 0) + repairBalanceOnly,
+                      balance_due_cents: Math.max(0, (repairOrderPi.balance_due_cents || 0) - repairBalanceOnly),
+                      ...(tipCentsFromMeta > 0 ? { tip_cents: (repairOrderPi.tip_cents || 0) + tipCentsFromMeta } : {}),
+                      ...(paymentMethodId ? { stripe_payment_method_id: paymentMethodId } : {}),
+                      ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
+                    })
+                    .eq("id", orderId);
+
+                  if (!piRepairErr) {
+                    await supabaseClient
+                      .from("payments")
+                      .update({ order_financials_applied: true })
+                      .eq("id", existingPaymentRow.id);
+                  } else {
+                    console.error("[WEBHOOK] pi.succeeded repair order update failed", { orderId, piRepairErr });
+                  }
+                }
+              } else {
+                // Financial work complete — only patch non-financial fields
+                if (paymentMethodId || stripeCustomerId) {
+                  await supabaseClient
+                    .from("orders")
+                    .update({
+                      ...(paymentMethodId ? { stripe_payment_method_id: paymentMethodId } : {}),
+                      ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
+                    })
+                    .eq("id", orderId);
+                }
               }
             } else {
             // No existing payment row — this PI came through Stripe Checkout.
