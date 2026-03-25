@@ -36,7 +36,9 @@ export function loadGoogleMapsAPI(): Promise<void> {
     };
 
     if (scriptEl) {
-      if (scriptEl.dataset.loaded === 'true') {
+      if (typeof window.google?.maps?.importLibrary === 'function') {
+        resolve();
+      } else if (scriptEl.dataset.loaded === 'true') {
         onReady();
       } else {
         scriptEl.addEventListener('load', onReady, { once: true });
