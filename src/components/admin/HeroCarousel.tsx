@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { ChevronLeft, ChevronRight, Plus, Trash2, CreditCard as Edit2, Save, X, MoveUp, MoveDown, Upload, Link as LinkIcon } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -39,6 +39,10 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
     description: '',
     mediaType: 'image' as 'image' | 'video',
   });
+
+  const touchStartX = useRef<number | null>(null);
+  const touchEndX = useRef<number | null>(null);
+  const SWIPE_THRESHOLD = 50;
 
   useEffect(() => {
     loadMedia();
@@ -320,12 +324,35 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
     setCurrentIndex(index);
   };
 
-  const goToPrevious = () => {
+  const goToPrevious = useCallback(() => {
     setCurrentIndex((prev) => (prev === 0 ? media.length - 1 : prev - 1));
+  }, [media.length]);
+
+  const goToNext = useCallback(() => {
+    setCurrentIndex((prev) => (prev + 1) % media.length);
+  }, [media.length]);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchEndX.current = null;
   };
 
-  const goToNext = () => {
-    setCurrentIndex((prev) => (prev + 1) % media.length);
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = () => {
+    if (touchStartX.current === null || touchEndX.current === null) return;
+    const diff = touchStartX.current - touchEndX.current;
+    if (Math.abs(diff) >= SWIPE_THRESHOLD) {
+      if (diff > 0) {
+        goToNext();
+      } else {
+        goToPrevious();
+      }
+    }
+    touchStartX.current = null;
+    touchEndX.current = null;
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -342,7 +369,7 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
 
   if (loading) {
     return (
-      <div className="w-full h-96 bg-slate-200 animate-pulse flex items-center justify-center">
+      <div className="w-full aspect-[16/9] max-h-[600px] bg-slate-200 animate-pulse flex items-center justify-center">
         <p className="text-slate-500">Loading carousel...</p>
       </div>
     );
@@ -350,7 +377,7 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
 
   if (error) {
     return (
-      <div className="w-full h-96 bg-red-50 flex items-center justify-center">
+      <div className="w-full aspect-[16/9] max-h-[600px] bg-red-50 flex items-center justify-center">
         <div className="text-center p-4">
           <p className="text-red-600 font-semibold mb-2">Failed to load carousel</p>
           <p className="text-red-500 text-sm">{error}</p>
@@ -368,8 +395,8 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
   if (media.length === 0) {
     if (isAdmin) {
       return (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="bg-slate-100 rounded-lg p-8 text-center">
+        <section className="w-full sm:max-w-7xl sm:mx-auto sm:px-6 lg:px-8 py-0 sm:py-8">
+          <div className="bg-slate-100 sm:rounded-lg p-8 text-center">
             <p className="text-slate-600 mb-4">No carousel media yet. Add your first image or video!</p>
             <button
               onClick={() => setShowAddForm(true)}
@@ -386,7 +413,7 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
   }
 
   return (
-    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+    <section className="w-full sm:max-w-7xl sm:mx-auto sm:px-6 lg:px-8 py-0 sm:py-8">
       <div className="relative">
         {isAdmin && (
           <div className="flex flex-wrap justify-end gap-2 mb-4">
@@ -410,8 +437,14 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
           </div>
         )}
 
-        <div className="relative rounded-xl overflow-hidden shadow-2xl">
-          <div className="relative h-96 sm:h-[500px]">
+        <div className="relative sm:rounded-xl overflow-hidden shadow-none sm:shadow-2xl">
+          <div
+            className="relative w-full"
+            style={{ aspectRatio: '16/9', maxHeight: '600px' }}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
             {media.map((item, index) => (
               <div
                 key={item.id}
@@ -433,16 +466,17 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
                     src={item.image_url}
                     alt={item.title || 'Carousel media'}
                     className="w-full h-full object-cover"
+                    loading="lazy"
                   />
                 )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
                 {(item.title || item.description) && (
-                  <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8 text-white">
+                  <div className="absolute bottom-0 left-0 right-0 pb-10 sm:pb-12 px-4 sm:px-8 text-white">
                     {item.title && (
-                      <h3 className="text-2xl sm:text-4xl font-bold mb-2">{item.title}</h3>
+                      <h3 className="text-xl sm:text-3xl lg:text-4xl font-bold mb-1 sm:mb-2 drop-shadow-md">{item.title}</h3>
                     )}
                     {item.description && (
-                      <p className="text-lg sm:text-xl text-white/90">{item.description}</p>
+                      <p className="text-sm sm:text-lg lg:text-xl text-white/90 drop-shadow">{item.description}</p>
                     )}
                   </div>
                 )}
@@ -454,28 +488,28 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
             <>
               <button
                 onClick={goToPrevious}
-                className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-slate-900 p-2 rounded-full transition-all"
+                className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-1.5 sm:p-2.5 rounded-full transition-all backdrop-blur-sm"
                 aria-label="Previous slide"
               >
-                <ChevronLeft className="w-6 h-6" />
+                <ChevronLeft className="w-4 h-4 sm:w-6 sm:h-6" />
               </button>
               <button
                 onClick={goToNext}
-                className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-slate-900 p-2 rounded-full transition-all"
+                className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-1.5 sm:p-2.5 rounded-full transition-all backdrop-blur-sm"
                 aria-label="Next slide"
               >
-                <ChevronRight className="w-6 h-6" />
+                <ChevronRight className="w-4 h-4 sm:w-6 sm:h-6" />
               </button>
 
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+              <div className="absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 sm:gap-2">
                 {media.map((_, index) => (
                   <button
                     key={index}
                     onClick={() => goToSlide(index)}
-                    className={`w-2 h-2 rounded-full transition-all ${
+                    className={`h-1.5 sm:h-2 rounded-full transition-all duration-300 ${
                       index === currentIndex
-                        ? 'bg-white w-8'
-                        : 'bg-white/50 hover:bg-white/75'
+                        ? 'bg-white w-6 sm:w-8'
+                        : 'bg-white/50 hover:bg-white/75 w-1.5 sm:w-2'
                     }`}
                     aria-label={`Go to slide ${index + 1}`}
                   />
