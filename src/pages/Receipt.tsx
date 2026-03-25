@@ -191,7 +191,6 @@ export function Receipt() {
             <div className="text-sm font-medium text-blue-900">
               Payment Type: {
                 payment.type === 'deposit' ? 'Deposit Payment' :
-                payment.type === 'balance' && order.balance_due_cents === 0 && (order.balance_paid_cents === 0 || order.balance_paid_cents === null) ? 'Crew Tip Payment' :
                 payment.type === 'balance' && payment.amount_cents <= (order.tip_cents || 0) && order.balance_due_cents === 0 ? 'Crew Tip Payment' :
                 'Final Balance Payment'
               }

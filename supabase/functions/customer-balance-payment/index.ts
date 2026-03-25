@@ -90,6 +90,7 @@ Deno.serve(async (req: Request) => {
         tip_cents, stripe_customer_id, stripe_payment_method_id,
         payment_method_brand, payment_method_last_four, customer_id, event_date,
         travel_fee_cents, surface_fee_cents, same_day_pickup_fee_cents, generator_fee_cents, tax_cents,
+        travel_fee_waived, surface_fee_waived, same_day_pickup_fee_waived, generator_fee_waived, tax_waived,
         addresses(line1, city, state, zip),
         customers(email, first_name, last_name),
         order_items(qty, unit_price_cents, units(name))
@@ -462,11 +463,11 @@ function buildReceiptEmail(opts: {
   }).join("");
 
   const subtotal = order.subtotal_cents || 0;
-  const travelFee = order.travel_fee_cents || 0;
-  const surfaceFee = order.surface_fee_cents || 0;
-  const sameDayFee = order.same_day_pickup_fee_cents || 0;
-  const generatorFee = order.generator_fee_cents || 0;
-  const tax = order.tax_cents || 0;
+  const travelFee = order.travel_fee_waived ? 0 : (order.travel_fee_cents || 0);
+  const surfaceFee = order.surface_fee_waived ? 0 : (order.surface_fee_cents || 0);
+  const sameDayFee = order.same_day_pickup_fee_waived ? 0 : (order.same_day_pickup_fee_cents || 0);
+  const generatorFee = order.generator_fee_waived ? 0 : (order.generator_fee_cents || 0);
+  const tax = order.tax_waived ? 0 : (order.tax_cents || 0);
   const total = subtotal + travelFee + surfaceFee + sameDayFee + generatorFee + tax;
   const depositPaid = order.deposit_paid_cents || 0;
   const newBalanceDue = Math.max(0, (order.balance_due_cents || 0) - balanceCents);

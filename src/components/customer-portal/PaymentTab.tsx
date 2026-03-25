@@ -36,10 +36,13 @@ function ConfirmChargeModal({
   onCancel,
   onUpdateCard,
 }: ConfirmModalProps) {
-  const cardText = cardBrand && cardLast4
-    ? `${cardBrand.charAt(0).toUpperCase() + cardBrand.slice(1)} \u2022\u2022\u2022\u2022 ${cardLast4}`
+  const brandName = cardBrand ? cardBrand.charAt(0).toUpperCase() + cardBrand.slice(1) : null;
+  const cardText = brandName && cardLast4
+    ? `${brandName} \u2022\u2022\u2022\u2022 ${cardLast4}`
     : cardLast4
     ? `Card \u2022\u2022\u2022\u2022 ${cardLast4}`
+    : brandName
+    ? `${brandName} card`
     : 'Saved card';
 
   return (
@@ -141,8 +144,9 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
   const totalDueNow = balanceDue + tipCents;
   const cardLast4: string | null = order.payment_method_last_four || null;
   const cardBrand: string | null = order.payment_method_brand || null;
-  const hasCardOnFile = !!(order.stripe_customer_id && order.stripe_payment_method_id);
-  const hasCardDetails = hasCardOnFile && !!(cardLast4 || cardBrand);
+  const canChargeSavedCard = !!(order.stripe_customer_id && order.stripe_payment_method_id);
+  const canDisplaySavedCard = canChargeSavedCard && !!cardLast4;
+  const hasCardDetails = canDisplaySavedCard;
   const isDisabled = totalDueNow <= 0 || loading;
 
   // The already-paid amount is deposit + balance_paid (both stored without tip)
@@ -196,7 +200,7 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
 
   function handlePayClick() {
     if (isDisabled) return;
-    if (hasCardDetails) {
+    if (canDisplaySavedCard) {
       setShowConfirmModal(true);
     } else {
       executePayment();
@@ -316,6 +320,8 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
                   ? `${cardBrand.charAt(0).toUpperCase() + cardBrand.slice(1)} \u2022\u2022\u2022\u2022 ${cardLast4} will be charged`
                   : cardLast4
                   ? `Card \u2022\u2022\u2022\u2022 ${cardLast4} will be charged`
+                  : cardBrand
+                  ? `${cardBrand.charAt(0).toUpperCase() + cardBrand.slice(1)} card will be charged`
                   : 'Saved card will be charged'}
               </span>
             </div>

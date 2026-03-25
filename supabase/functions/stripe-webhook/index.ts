@@ -482,6 +482,8 @@ async function processWebhookEvent(
               customer_id, event_date,
               subtotal_cents, travel_fee_cents, surface_fee_cents,
               same_day_pickup_fee_cents, generator_fee_cents, tax_cents,
+              travel_fee_waived, surface_fee_waived, same_day_pickup_fee_waived,
+              generator_fee_waived, tax_waived,
               deposit_paid_cents, balance_due_cents,
               addresses(line1, city, state, zip),
               order_items(qty, unit_price_cents, units(name)),
@@ -556,10 +558,19 @@ async function processWebhookEvent(
           const isAdminInvoice = !!invoiceLink;
           const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
 
+          // Only advance status if the order is still in an initial state.
+          // Never downgrade a confirmed/in_progress/completed order.
+          const { data: currentOrder } = await supabaseClient
+            .from("orders")
+            .select("status")
+            .eq("id", orderId)
+            .maybeSingle();
+          const safeToAdvanceStatus = ["draft", "quote"].includes(currentOrder?.status || "");
+
           const { error: updateError } = await supabaseClient
             .from("orders")
             .update({
-              status: newStatus,
+              ...(safeToAdvanceStatus ? { status: newStatus } : {}),
               stripe_payment_status: "paid",
               stripe_payment_method_id: paymentMethodId,
               stripe_customer_id: stripeCustomerId,
@@ -572,7 +583,7 @@ async function processWebhookEvent(
 
           if (updateError) {
             console.error(`[WEBHOOK] Error updating order ${orderId}:`, updateError);
-          } else {
+          } else if (safeToAdvanceStatus) {
             if (isAdminInvoice) {
               await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_checkout_deposit_admin_invoice", "charged_now", "draft");
             } else {
@@ -682,7 +693,7 @@ async function processWebhookEvent(
             // persisted on the order row when this handler runs.
             const { data: depositOrder } = await supabaseClient
               .from("orders")
-              .select("tip_cents, deposit_paid_cents, stripe_payment_status")
+              .select("tip_cents, deposit_paid_cents, stripe_payment_status, status")
               .eq("id", orderId)
               .maybeSingle();
 
@@ -699,6 +710,8 @@ async function processWebhookEvent(
               depositOrder?.stripe_payment_status === "paid" &&
               (depositOrder?.deposit_paid_cents || 0) > 0;
 
+            const piDepositSafeToAdvance = ["draft", "quote"].includes(depositOrder?.status || "");
+
             if (!alreadyRecordedByCheckout) {
               const storedTipCents = depositOrder?.tip_cents || 0;
               const depositOnlyFromPI = Math.max(0, amountReceived - storedTipCents);
@@ -706,7 +719,7 @@ async function processWebhookEvent(
               const { error: piDepositUpdateError } = await supabaseClient
                 .from("orders")
                 .update({
-                  status: newStatus,
+                  ...(piDepositSafeToAdvance ? { status: newStatus } : {}),
                   stripe_payment_status: "paid",
                   stripe_payment_method_id: paymentMethodId,
                   stripe_customer_id: stripeCustomerId,
@@ -718,10 +731,12 @@ async function processWebhookEvent(
 
               if (piDepositUpdateError) {
                 console.error(`[WEBHOOK] Failed to update order ${orderId} for pi deposit:`, piDepositUpdateError);
-              } else if (isAdminInvoice) {
-                await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_pi_deposit_admin_invoice", "charged_now", "draft");
-              } else {
-                await invokeLifecycle(supabaseClient, "enter_pending_review", orderId, "webhook_pi_deposit_standard", undefined, "draft");
+              } else if (piDepositSafeToAdvance) {
+                if (isAdminInvoice) {
+                  await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_pi_deposit_admin_invoice", "charged_now", "draft");
+                } else {
+                  await invokeLifecycle(supabaseClient, "enter_pending_review", orderId, "webhook_pi_deposit_standard", undefined, "draft");
+                }
               }
             } else {
               // checkout.session.completed already wrote payment/status fields and called lifecycle.
@@ -874,13 +889,18 @@ async function processWebhookEvent(
         const isAdminInvoice = !!invoiceLink;
         const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
 
-        // Status is written atomically with payment fields so that a subsequent
-        // non-fatal lifecycle failure cannot leave the order stuck in draft.
-        // Lifecycle is called after to handle admin alerting and changelog.
+        // Only advance status if the order is still in an initial state.
+        const { data: siCurrentOrder } = await supabaseClient
+          .from("orders")
+          .select("status")
+          .eq("id", orderId)
+          .maybeSingle();
+        const siSafeToAdvance = ["draft", "quote"].includes(siCurrentOrder?.status || "");
+
         const { error: updateError } = await supabaseClient
           .from("orders")
           .update({
-            status: newStatus,
+            ...(siSafeToAdvance ? { status: newStatus } : {}),
             stripe_payment_method_id: paymentMethodId,
             stripe_customer_id: stripeCustomerId,
             ...(siCardBrand ? { payment_method_brand: siCardBrand } : {}),
@@ -890,7 +910,7 @@ async function processWebhookEvent(
 
         if (updateError) {
           console.error(`[WEBHOOK] Error updating order ${orderId}:`, updateError);
-        } else {
+        } else if (siSafeToAdvance) {
           if (isAdminInvoice) {
             await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_setup_intent_admin_invoice", "zero_due_with_card", "draft");
           } else {
@@ -945,11 +965,11 @@ async function sendCheckoutBalanceReceiptEmail(
   }).join("");
 
   const subtotal = order?.subtotal_cents || 0;
-  const travelFee = order?.travel_fee_cents || 0;
-  const surfaceFee = order?.surface_fee_cents || 0;
-  const sameDayFee = order?.same_day_pickup_fee_cents || 0;
-  const generatorFee = order?.generator_fee_cents || 0;
-  const tax = order?.tax_cents || 0;
+  const travelFee = order?.travel_fee_waived ? 0 : (order?.travel_fee_cents || 0);
+  const surfaceFee = order?.surface_fee_waived ? 0 : (order?.surface_fee_cents || 0);
+  const sameDayFee = order?.same_day_pickup_fee_waived ? 0 : (order?.same_day_pickup_fee_cents || 0);
+  const generatorFee = order?.generator_fee_waived ? 0 : (order?.generator_fee_cents || 0);
+  const tax = order?.tax_waived ? 0 : (order?.tax_cents || 0);
   const total = subtotal + travelFee + surfaceFee + sameDayFee + generatorFee + tax;
   const depositPaid = order?.deposit_paid_cents || 0;
   const newBalanceDue = order?.balance_due_cents ?? 0;
