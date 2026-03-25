@@ -71,7 +71,9 @@ Deno.serve(async (req: Request) => {
         ? setupIntent.payment_method
         : setupIntent.payment_method?.id || null;
 
-      console.log(`[SAVE-PM] Retrieved payment method from SetupIntent: ${paymentMethodId}`);
+      // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
+      // Previously logged a Stripe payment method ID (pm_xxx) — sensitive payment token.
+      // console.log(`[SAVE-PM] Retrieved payment method from SetupIntent: ${paymentMethodId}`);
     }
     // For payment mode, get from session directly
     else if (session.payment_method) {
@@ -79,7 +81,9 @@ Deno.serve(async (req: Request) => {
         ? session.payment_method
         : session.payment_method.id || null;
 
-      console.log(`[SAVE-PM] Retrieved payment method from session: ${paymentMethodId}`);
+      // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
+      // Previously logged a Stripe payment method ID (pm_xxx) — sensitive payment token.
+      // console.log(`[SAVE-PM] Retrieved payment method from session: ${paymentMethodId}`);
     }
 
     if (!paymentMethodId) {
@@ -120,7 +124,9 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log(`[SAVE-PM] Successfully saved payment method ${paymentMethodId} to order ${orderId}`);
+    // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
+    // Previously logged a Stripe payment method ID (pm_xxx) — sensitive payment token.
+    // console.log(`[SAVE-PM] Successfully saved payment method ${paymentMethodId} to order ${orderId}`);
 
     return new Response(
       JSON.stringify({ success: true, paymentMethodId }),
