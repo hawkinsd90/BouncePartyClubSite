@@ -163,29 +163,14 @@ Deno.serve(async (req: Request) => {
           );
         }
 
-        // Charge succeeded — write DB (one authoritative write, webhook will skip)
-        // ACCUMULATE: add new payment on top of any prior balance_paid_cents
-        const existingTip = order.tip_cents || 0;
-        const existingBalancePaid = order.balance_paid_cents || 0;
-        const existingBalanceDue = order.balance_due_cents || 0;
-        const newBalanceDue = Math.max(0, existingBalanceDue - balanceCents);
-
-        await supabaseClient
-          .from("orders")
-          .update({
-            balance_paid_cents: existingBalancePaid + balanceCents,
-            balance_due_cents: newBalanceDue,
-            ...(tipCents > 0 ? { tip_cents: existingTip + tipCents } : {}),
-          })
-          .eq("id", orderId);
-
-        // Retrieve card details from PaymentIntent for the receipt
+        // Charge succeeded — retrieve card details first so we can save them to orders
         let paymentMethodType: string | null = "card";
         let paymentBrand: string | null = order.payment_method_brand || null;
         let paymentLast4: string | null = order.payment_method_last_four || null;
         let latestChargeId: string | null = null;
         let stripeFee = 0;
         let stripeNet = totalChargeAmount;
+        let resolvedPaymentMethodId: string | null = paymentMethodId;
 
         try {
           const expandedPI = await stripe.paymentIntents.retrieve(paymentIntent.id, {
@@ -198,6 +183,7 @@ Deno.serve(async (req: Request) => {
           const pm = expandedPI.payment_method;
           if (pm && typeof pm === "object") {
             paymentMethodType = (pm as any).type || "card";
+            resolvedPaymentMethodId = (pm as any).id || resolvedPaymentMethodId;
             if ((pm as any).card) {
               paymentBrand = (pm as any).card.brand || paymentBrand;
               paymentLast4 = (pm as any).card.last4 || paymentLast4;
@@ -217,6 +203,24 @@ Deno.serve(async (req: Request) => {
         } catch (expandErr) {
           console.warn("[customer-balance-payment] Failed to expand PI details:", expandErr);
         }
+
+        // Write DB — accumulate balance fields and save card details on orders
+        const existingTip = order.tip_cents || 0;
+        const existingBalancePaid = order.balance_paid_cents || 0;
+        const existingBalanceDue = order.balance_due_cents || 0;
+        const newBalanceDue = Math.max(0, existingBalanceDue - balanceCents);
+
+        await supabaseClient
+          .from("orders")
+          .update({
+            balance_paid_cents: existingBalancePaid + balanceCents,
+            balance_due_cents: newBalanceDue,
+            ...(tipCents > 0 ? { tip_cents: existingTip + tipCents } : {}),
+            ...(resolvedPaymentMethodId ? { stripe_payment_method_id: resolvedPaymentMethodId, payment_method_id: resolvedPaymentMethodId } : {}),
+            ...(paymentBrand ? { payment_method_brand: paymentBrand } : {}),
+            ...(paymentLast4 ? { payment_method_last_four: paymentLast4 } : {}),
+          })
+          .eq("id", orderId);
 
         // Insert payment record — tagged with the PI id so webhook can detect duplicate
         const { data: paymentRecord } = await supabaseClient

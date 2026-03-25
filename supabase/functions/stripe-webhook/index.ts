@@ -462,6 +462,18 @@ async function processWebhookEvent(
           const applyResult = Array.isArray(applyRows) ? applyRows[0] : applyRows;
           console.log("[WEBHOOK] apply_balance_payment_financials result", { orderId, piId, applied: applyResult?.applied, payment_row_found: applyResult?.payment_row_found });
 
+          // Save card details to orders so the customer portal shows the correct card
+          if (paymentBrand || paymentLast4 || expandedPaymentMethodId) {
+            await supabaseClient
+              .from("orders")
+              .update({
+                ...(expandedPaymentMethodId ? { stripe_payment_method_id: expandedPaymentMethodId } : {}),
+                ...(paymentBrand ? { payment_method_brand: paymentBrand } : {}),
+                ...(paymentLast4 ? { payment_method_last_four: paymentLast4 } : {}),
+              })
+              .eq("id", orderId);
+          }
+
           // Read the post-apply order state for receipt/email values.
           // This is the authoritative source for balance_due_cents after the RPC committed.
           const { data: order } = await supabaseClient

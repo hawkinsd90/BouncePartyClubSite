@@ -40,7 +40,7 @@ function ConfirmChargeModal({
     ? `${cardBrand.charAt(0).toUpperCase() + cardBrand.slice(1)} \u2022\u2022\u2022\u2022 ${cardLast4}`
     : cardLast4
     ? `Card \u2022\u2022\u2022\u2022 ${cardLast4}`
-    : 'Card on file';
+    : 'Saved card';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -139,11 +139,11 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
 
   const tipCents = calculateTipCents(tipAmount, customTipAmount, orderTotal);
   const totalDueNow = balanceDue + tipCents;
-  const hasCardOnFile = !!(order.stripe_customer_id && order.stripe_payment_method_id);
-  const isDisabled = totalDueNow <= 0 || loading;
-
   const cardLast4: string | null = order.payment_method_last_four || null;
   const cardBrand: string | null = order.payment_method_brand || null;
+  const hasCardOnFile = !!(order.stripe_customer_id && order.stripe_payment_method_id);
+  const hasCardDetails = hasCardOnFile && !!(cardLast4);
+  const isDisabled = totalDueNow <= 0 || loading;
 
   // The already-paid amount is deposit + balance_paid (both stored without tip)
   const alreadyPaid = (order.deposit_paid_cents || 0) + (order.balance_paid_cents || 0);
@@ -199,6 +199,7 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
     if (hasCardOnFile) {
       setShowConfirmModal(true);
     } else {
+      // No card on file — go directly to Stripe Checkout
       executePayment();
     }
   }
@@ -313,10 +314,10 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
               <CreditCard className="w-4 h-4 flex-shrink-0" />
               <span>
                 {cardBrand && cardLast4
-                  ? `${cardBrand.charAt(0).toUpperCase() + cardBrand.slice(1)} \u2022\u2022\u2022\u2022 ${cardLast4}`
+                  ? `${cardBrand.charAt(0).toUpperCase() + cardBrand.slice(1)} \u2022\u2022\u2022\u2022 ${cardLast4} will be charged`
                   : cardLast4
-                  ? `Card \u2022\u2022\u2022\u2022 ${cardLast4}`
-                  : 'Card on file will be charged'}
+                  ? `Card \u2022\u2022\u2022\u2022 ${cardLast4} will be charged`
+                  : 'Saved card will be charged'}
               </span>
             </div>
             <button
