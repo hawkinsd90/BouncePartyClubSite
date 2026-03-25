@@ -5,14 +5,20 @@
  * Verifies the session directly with Stripe and idempotently writes any DB state
  * that the webhook may not have written yet.
  *
- * Idempotency guarantees:
- * - Checks payments table for existing row with same stripe_payment_intent_id before inserting
- * - Checks transaction_receipts for existing row with same stripe_payment_intent_id before inserting
- * - Only updates order balance fields if payment row did not already exist
- * - Safe to call multiple times; second call is a no-op returning { alreadyReconciled: true }
+ * Race-safety model:
+ * ─────────────────
+ * The payments table has a unique constraint on stripe_payment_intent_id.
+ * This function inserts the payment row FIRST (before any order mutation).
+ * Whichever concurrent writer (reconcile or webhook) inserts first wins the
+ * constraint and proceeds to update order totals and log the receipt.
+ * The loser receives a 23505 unique-violation, detects it, and returns
+ * { alreadyReconciled: true } without touching order totals.
  *
- * Does NOT send a receipt email — the webhook or customer-balance-payment edge fn owns that.
- * Does NOT interfere with webhook processing — webhook will skip DB writes if payment row exists.
+ * This guarantees:
+ * - Exactly one writer increments balance_paid_cents / decrements balance_due_cents
+ * - Exactly one payment row exists per PaymentIntent
+ * - Exactly one transaction receipt exists per PaymentIntent
+ * - Safe to call multiple times; all calls after the first are no-ops
  */
 
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
@@ -177,75 +183,13 @@ Deno.serve(async (req: Request) => {
       console.warn("[reconcile-balance-payment] Could not fetch charge fee details:", err);
     }
 
-    // ── 4. Check idempotency: is payment row already written? ─────────────────
-    const { data: existingPayment } = await supabaseClient
-      .from("payments")
-      .select("id")
-      .eq("stripe_payment_intent_id", piId)
-      .maybeSingle();
-
-    if (existingPayment) {
-      // Webhook or a prior reconciliation already wrote everything.
-      // Just ensure the order has the latest stripe_payment_method_id/customer if set.
-      if (expandedPmId || stripeCustomerId) {
-        await supabaseClient
-          .from("orders")
-          .update({
-            ...(expandedPmId ? { stripe_payment_method_id: expandedPmId } : {}),
-            ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
-          })
-          .eq("id", orderId);
-      }
-
-      return new Response(
-        JSON.stringify({ success: true, alreadyReconciled: true }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // ── 5. No payment row yet — write all DB state atomically ─────────────────
-    // Read current order values first so we accumulate correctly
-    const { data: currentOrder } = await supabaseClient
-      .from("orders")
-      .select("balance_paid_cents, balance_due_cents, tip_cents, customer_id")
-      .eq("id", orderId)
-      .maybeSingle();
-
-    if (!currentOrder) {
-      return new Response(
-        JSON.stringify({ error: "Order not found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const existingBalancePaid = currentOrder.balance_paid_cents || 0;
-    const existingBalanceDue = currentOrder.balance_due_cents || 0;
-    const existingTip = currentOrder.tip_cents || 0;
-    const newBalancePaid = existingBalancePaid + balanceOnly;
-    const newBalanceDue = Math.max(0, existingBalanceDue - balanceOnly);
-
-    // 5a. Update order
-    const { error: orderUpdateError } = await supabaseClient
-      .from("orders")
-      .update({
-        balance_paid_cents: newBalancePaid,
-        balance_due_cents: newBalanceDue,
-        ...(safeTipCents > 0 ? { tip_cents: existingTip + safeTipCents } : {}),
-        ...(expandedPmId ? { stripe_payment_method_id: expandedPmId } : {}),
-        ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
-      })
-      .eq("id", orderId);
-
-    if (orderUpdateError) {
-      console.error("[reconcile-balance-payment] Failed to update order:", orderUpdateError);
-      return new Response(
-        JSON.stringify({ error: "Failed to update order" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // 5b. Insert payment row
-    const { data: paymentRecord } = await supabaseClient
+    // ── 4. RACE-SAFE: Insert payment row FIRST ─────────────────────────────────
+    // The unique constraint on stripe_payment_intent_id is our mutex.
+    // If this insert succeeds → we won the race and own all subsequent writes.
+    // If it fails with 23505 (unique violation) → webhook or prior call already
+    //   won; return alreadyReconciled without touching order totals.
+    // Any other insert error → propagate as 500.
+    const { data: paymentRecord, error: paymentInsertError } = await supabaseClient
       .from("payments")
       .insert({
         order_id: orderId,
@@ -264,7 +208,78 @@ Deno.serve(async (req: Request) => {
       .select("id")
       .maybeSingle();
 
-    // 5c. Log transaction receipt (idempotent — unique constraint on stripe_payment_intent_id)
+    if (paymentInsertError) {
+      // 23505 = unique_violation: another writer (webhook or prior reconcile call) already owns this PI.
+      // Do NOT update order totals — they were (or will be) written by the winner.
+      if (paymentInsertError.code === "23505") {
+        // Patch non-financial fields only (safe because they are idempotent)
+        if (expandedPmId || stripeCustomerId) {
+          await supabaseClient
+            .from("orders")
+            .update({
+              ...(expandedPmId ? { stripe_payment_method_id: expandedPmId } : {}),
+              ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
+            })
+            .eq("id", orderId);
+        }
+        return new Response(
+          JSON.stringify({ success: true, alreadyReconciled: true }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      console.error("[reconcile-balance-payment] Payment insert failed:", paymentInsertError);
+      return new Response(
+        JSON.stringify({ error: "Failed to insert payment record" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── 5. We won the race — now safely update order totals ───────────────────
+    // Read current values immediately after winning the insert so we accumulate correctly.
+    const { data: currentOrder } = await supabaseClient
+      .from("orders")
+      .select("balance_paid_cents, balance_due_cents, tip_cents, customer_id")
+      .eq("id", orderId)
+      .maybeSingle();
+
+    if (!currentOrder) {
+      console.error("[reconcile-balance-payment] Order not found after winning payment insert:", orderId);
+      return new Response(
+        JSON.stringify({ error: "Order not found" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const existingBalancePaid = currentOrder.balance_paid_cents || 0;
+    const existingBalanceDue = currentOrder.balance_due_cents || 0;
+    const existingTip = currentOrder.tip_cents || 0;
+    const newBalancePaid = existingBalancePaid + balanceOnly;
+    const newBalanceDue = Math.max(0, existingBalanceDue - balanceOnly);
+
+    const { error: orderUpdateError } = await supabaseClient
+      .from("orders")
+      .update({
+        balance_paid_cents: newBalancePaid,
+        balance_due_cents: newBalanceDue,
+        ...(safeTipCents > 0 ? { tip_cents: existingTip + safeTipCents } : {}),
+        ...(expandedPmId ? { stripe_payment_method_id: expandedPmId } : {}),
+        ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
+      })
+      .eq("id", orderId);
+
+    if (orderUpdateError) {
+      console.error("[reconcile-balance-payment] Failed to update order:", orderUpdateError);
+      // Payment row is already committed — return partial success so the
+      // webhook (which will see the existing payment row and skip) does not
+      // inadvertently overwrite with stale data.
+      return new Response(
+        JSON.stringify({ error: "Order update failed after payment insert" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── 6. Log transaction receipt (idempotent via unique PI id constraint) ────
     if (paymentRecord && currentOrder.customer_id) {
       try {
         await supabaseClient
@@ -284,7 +299,7 @@ Deno.serve(async (req: Request) => {
               : "Customer portal balance payment via Stripe Checkout",
           });
       } catch (receiptErr: any) {
-        // Unique constraint violation means webhook already inserted receipt — non-fatal
+        // 23505 means webhook already inserted receipt — non-fatal; payment row is committed
         if (receiptErr?.code !== "23505") {
           console.warn("[reconcile-balance-payment] Failed to insert transaction receipt:", receiptErr);
         }

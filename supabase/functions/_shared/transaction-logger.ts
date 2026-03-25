@@ -47,6 +47,13 @@ export async function logTransaction(
       return null;
     }
 
+    if (!receipt) {
+      // Unique constraint violation swallowed by maybeSingle — another writer
+      // already inserted this receipt. Non-fatal; return null.
+      console.warn('[TransactionLogger] Receipt insert returned no row (likely duplicate).');
+      return null;
+    }
+
     const receiptNumber = receipt.receipt_number;
     console.log('[TransactionLogger] Transaction logged:', receiptNumber);
 

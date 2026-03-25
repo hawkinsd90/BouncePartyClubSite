@@ -82,11 +82,10 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
       }
       window.history.replaceState({}, '', window.location.pathname);
     } else if (paymentStatus === 'success') {
+      // CustomerPortal.tsx owns reconciliation and has already reloaded the order
+      // before this component mounts. Just show the toast and clean the URL.
       showToast('Payment successful! Thank you.', 'success');
       window.history.replaceState({}, '', window.location.pathname);
-      // CustomerPortal already called reconcile-balance-payment before rendering this component.
-      // One deferred reload covers any Realtime events that arrived between reconcile and render.
-      setTimeout(() => { onReload(); }, 1500);
     } else if (paymentStatus === 'canceled') {
       showToast('Payment was canceled. You can try again anytime.', 'info');
       // Clean up URL

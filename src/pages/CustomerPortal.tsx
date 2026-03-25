@@ -98,9 +98,16 @@ export function CustomerPortal() {
       // This is durable — even if the webhook hasn't fired yet, the portal will be correct.
       (async () => {
         try {
-          await supabase.functions.invoke('reconcile-balance-payment', {
+          const { data: reconcileData, error: reconcileError } = await supabase.functions.invoke('reconcile-balance-payment', {
             body: { sessionId: returnSessionId, orderId },
           });
+          if (reconcileError) {
+            console.error('[CustomerPortal] reconcile-balance-payment transport error:', reconcileError.message ?? 'unknown');
+          } else if (reconcileData?.reason === 'payment_not_complete') {
+            console.warn('[CustomerPortal] reconcile-balance-payment: payment not yet complete, portal will rely on webhook');
+          } else if (reconcileData?.error) {
+            console.error('[CustomerPortal] reconcile-balance-payment returned error:', reconcileData.error);
+          }
         } catch (err) {
           console.error('[CustomerPortal] reconcile-balance-payment threw:', err instanceof Error ? err.message : 'unknown');
         }
