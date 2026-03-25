@@ -94,7 +94,17 @@ export function Receipt() {
         subtotal_cents: orderData.subtotal_cents || 0,
         tax_cents: orderData.tax_cents || 0,
         tip_cents: orderData.tip_cents || 0,
-        total_cents: orderData.total_cents || orderData.subtotal_cents || 0,
+        total_cents: (orderData.subtotal_cents || 0)
+          + (orderData.travel_fee_waived ? 0 : (orderData.travel_fee_cents || 0))
+          + (orderData.surface_fee_waived ? 0 : (orderData.surface_fee_cents || 0))
+          + (orderData.same_day_pickup_fee_waived ? 0 : (orderData.same_day_pickup_fee_cents || 0))
+          + (orderData.generator_fee_waived ? 0 : (orderData.generator_fee_cents || 0))
+          + (orderData.tax_waived ? 0 : (orderData.tax_cents || 0))
+          + ((customFees || []).reduce((s: number, f: any) => s + (f.amount_cents || 0), 0))
+          - ((discounts || []).reduce((s: number, d: any) => {
+              if (d.percentage && d.percentage > 0) return s + Math.round((orderData.subtotal_cents || 0) * (d.percentage / 100));
+              return s + (d.amount_cents || 0);
+            }, 0)),
         deposit_due_cents: orderData.deposit_due_cents || 0,
         deposit_paid_cents: orderData.deposit_paid_cents || 0,
         balance_due_cents: orderData.balance_due_cents || 0,
