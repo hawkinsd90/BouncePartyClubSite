@@ -488,17 +488,17 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
             <>
               <button
                 onClick={goToPrevious}
-                className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-1.5 sm:p-2.5 rounded-full transition-all backdrop-blur-sm"
+                className="hidden sm:flex absolute left-4 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-2.5 rounded-full transition-all backdrop-blur-sm items-center justify-center"
                 aria-label="Previous slide"
               >
-                <ChevronLeft className="w-4 h-4 sm:w-6 sm:h-6" />
+                <ChevronLeft className="w-6 h-6" />
               </button>
               <button
                 onClick={goToNext}
-                className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-1.5 sm:p-2.5 rounded-full transition-all backdrop-blur-sm"
+                className="hidden sm:flex absolute right-4 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-2.5 rounded-full transition-all backdrop-blur-sm items-center justify-center"
                 aria-label="Next slide"
               >
-                <ChevronRight className="w-4 h-4 sm:w-6 sm:h-6" />
+                <ChevronRight className="w-6 h-6" />
               </button>
 
               <div className="absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 sm:gap-2">
