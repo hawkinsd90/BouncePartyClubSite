@@ -420,19 +420,18 @@ async function processWebhookEvent(
               p_customer_id: stripeCustomerId || null,
             });
           if (applyErr) {
+            // Financial application failed — throw so the outer webhook handler marks this
+            // event as failed and Stripe re-delivers. The payment row already exists with
+            // order_financials_applied=FALSE, so the next delivery will retry via the RPC.
             console.error("[WEBHOOK] CRITICAL: apply_balance_payment_financials failed", { orderId, piId, applyErr });
-            // Payment row exists with order_financials_applied=FALSE.
-            // Next Stripe retry will call this same path and the RPC will apply then.
-          } else {
-            const applyResult = Array.isArray(applyRows) ? applyRows[0] : applyRows;
-            if (applyResult?.applied === true) {
-              console.log("[WEBHOOK] Applied balance financials via RPC", { orderId, piId, balanceOnly, safeTipCents });
-            } else {
-              console.log("[WEBHOOK] RPC returned applied=false (already done or no row)", { orderId, piId });
-            }
+            throw new Error(`apply_balance_payment_financials failed: ${applyErr.message}`);
           }
 
-          // Get order details for transaction logging and receipt email
+          const applyResult = Array.isArray(applyRows) ? applyRows[0] : applyRows;
+          console.log("[WEBHOOK] apply_balance_payment_financials result", { orderId, piId, applied: applyResult?.applied, payment_row_found: applyResult?.payment_row_found });
+
+          // Read the post-apply order state for receipt/email values.
+          // This is the authoritative source for balance_due_cents after the RPC committed.
           const { data: order } = await supabaseClient
             .from("orders")
             .select(`
@@ -510,7 +509,7 @@ async function processWebhookEvent(
               const tax = order?.tax_cents || 0;
               const total = subtotal + travelFee + surfaceFee + sameDayFee + generatorFee + tax;
               const depositPaid = order?.deposit_paid_cents || 0;
-              const newBalanceDue = newBalanceDueWh;
+              const newBalanceDue = order?.balance_due_cents ?? 0;
 
               const feeRowsHtml = [
                 travelFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Travel Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(travelFee)}</td></tr>` : "",
