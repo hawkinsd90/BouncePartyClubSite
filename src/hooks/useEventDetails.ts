@@ -49,13 +49,23 @@ export function useEventDetails() {
 
   useEffect(() => {
     if (eventDetails.location_type === 'commercial') {
-      setEventDetails(prev => ({
-        ...prev,
-        pickup_preference: 'same_day',
-        until_end_of_day: false,
-        same_day_responsibility_accepted: false,
-        overnight_responsibility_accepted: false,
-      }));
+      setEventDetails(prev => {
+        if (
+          prev.pickup_preference === 'same_day' &&
+          prev.until_end_of_day === false &&
+          prev.same_day_responsibility_accepted === false &&
+          prev.overnight_responsibility_accepted === false
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          pickup_preference: 'same_day',
+          until_end_of_day: false,
+          same_day_responsibility_accepted: false,
+          overnight_responsibility_accepted: false,
+        };
+      });
     }
   }, [eventDetails.location_type]);
 
@@ -65,12 +75,22 @@ export function useEventDetails() {
       eventDetails.location_type === 'commercial';
 
     if (isSameDayRestricted) {
-      setEventDetails(prev => ({
-        ...prev,
-        event_end_date: prev.event_date,
-        until_end_of_day: false,
-        end_window: prev.end_window > '19:00' ? '19:00' : prev.end_window,
-      }));
+      const cappedEndWindow = eventDetails.end_window > '19:00' ? '19:00' : eventDetails.end_window;
+      setEventDetails(prev => {
+        if (
+          prev.event_end_date === prev.event_date &&
+          prev.until_end_of_day === false &&
+          prev.end_window === cappedEndWindow
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          event_end_date: prev.event_date,
+          until_end_of_day: false,
+          end_window: cappedEndWindow,
+        };
+      });
     }
   }, [eventDetails.pickup_preference, eventDetails.location_type, eventDetails.event_date]);
 

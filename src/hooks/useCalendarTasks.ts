@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { formatOrderId } from '../lib/utils';
 import { format, startOfMonth, endOfMonth, parseISO, addDays } from 'date-fns';
@@ -88,20 +88,19 @@ export function derivePickupBlockReason(
 export function useCalendarTasks(currentMonth: Date) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     loadTasks();
 
-    // Debounce timer to prevent cascading reloads
-    let debounceTimer: NodeJS.Timeout | null = null;
-
     const debouncedLoadTasks = () => {
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
       }
-      debounceTimer = setTimeout(() => {
+      debounceTimerRef.current = setTimeout(() => {
+        debounceTimerRef.current = null;
         loadTasks();
-      }, 500); // Wait 500ms after last change before reloading
+      }, 1000);
     };
 
     const channel = supabase
@@ -127,8 +126,9 @@ export function useCalendarTasks(currentMonth: Date) {
       .subscribe();
 
     return () => {
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
       }
       supabase.removeChannel(channel);
     };

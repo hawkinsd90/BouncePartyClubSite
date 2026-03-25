@@ -1,77 +1,71 @@
-let isLoading = false;
+let loaderPromise: Promise<void> | null = null;
 
 export function loadGoogleMapsAPI(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    // Check if the new API with importLibrary is available
-    if (typeof window.google?.maps?.importLibrary === 'function') {
-      resolve();
-      return;
-    }
+  if (typeof window.google?.maps?.importLibrary === 'function') {
+    return Promise.resolve();
+  }
 
-    if (isLoading) {
-      const checkInterval = setInterval(() => {
-        if (typeof window.google?.maps?.importLibrary === 'function') {
-          clearInterval(checkInterval);
-          resolve();
-        }
-      }, 100);
+  if (loaderPromise) {
+    return loaderPromise;
+  }
 
-      setTimeout(() => {
-        clearInterval(checkInterval);
-        if (!window.google?.maps?.importLibrary) {
-          reject(new Error('Google Maps loading timeout'));
-        }
-      }, 10000);
-      return;
-    }
-
+  loaderPromise = new Promise<void>((resolve, reject) => {
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
     if (!apiKey) {
+      loaderPromise = null;
       reject(new Error('Google Maps API key not configured'));
       return;
     }
 
     const existingScript = document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]');
-    if (existingScript) {
-      existingScript.addEventListener('load', () => {
-        isLoading = false;
-        resolve();
-      });
-      existingScript.addEventListener('error', () => {
-        isLoading = false;
-        reject(new Error('Google Maps script failed to load'));
-      });
+    const scriptEl = existingScript as HTMLScriptElement | null;
+
+    const onReady = () => {
+      const deadline = Date.now() + 10000;
+      const poll = () => {
+        if (typeof window.google?.maps?.importLibrary === 'function') {
+          resolve();
+        } else if (Date.now() > deadline) {
+          loaderPromise = null;
+          reject(new Error('Google Maps loading timeout'));
+        } else {
+          setTimeout(poll, 50);
+        }
+      };
+      poll();
+    };
+
+    if (scriptEl) {
+      if (scriptEl.dataset.loaded === 'true') {
+        onReady();
+      } else {
+        scriptEl.addEventListener('load', onReady, { once: true });
+        scriptEl.addEventListener('error', () => {
+          loaderPromise = null;
+          reject(new Error('Google Maps script failed to load'));
+        }, { once: true });
+      }
       return;
     }
 
-    isLoading = true;
-
     const script = document.createElement('script');
-    // Use the new API loader with v=weekly to get importLibrary support
     script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&v=weekly&loading=async`;
     script.async = true;
     script.defer = true;
     script.onload = () => {
-      isLoading = false;
+      script.dataset.loaded = 'true';
       console.log('✅ Google Maps API loaded successfully with new loader');
-
-      // Wait for importLibrary to be available
-      const waitForImportLibrary = () => {
-        if (typeof window.google?.maps?.importLibrary === 'function') {
-          resolve();
-        } else {
-          setTimeout(waitForImportLibrary, 50);
-        }
-      };
-      waitForImportLibrary();
+      onReady();
     };
     script.onerror = (e) => {
-      isLoading = false;
+      loaderPromise = null;
       console.error('❌ Failed to load Google Maps API:', e);
       reject(new Error('Failed to load Google Maps API'));
     };
     document.head.appendChild(script);
   });
+
+  return loaderPromise;
 }
 
 export function isGoogleMapsLoaded(): boolean {

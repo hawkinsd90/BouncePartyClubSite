@@ -56,7 +56,23 @@ export function useInvoicePricing(
     ) {
       calculatePricing();
     }
-  }, [cartItems, pricingRules, eventDetails, discounts, customFees]);
+  }, [
+    cartItems,
+    pricingRules,
+    eventDetails.event_date,
+    eventDetails.event_end_date,
+    eventDetails.location_type,
+    eventDetails.surface,
+    eventDetails.can_stake,
+    eventDetails.generator_qty,
+    eventDetails.pickup_preference,
+    eventDetails.city,
+    eventDetails.zip,
+    eventDetails.lat,
+    eventDetails.lng,
+    discounts,
+    customFees,
+  ]);
 
   async function calculatePricing() {
     if (!pricingRules) return;

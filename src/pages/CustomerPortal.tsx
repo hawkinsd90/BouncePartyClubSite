@@ -56,7 +56,7 @@ export function CustomerPortal() {
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const debouncedReload = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => { reloadRef.current?.(); }, 400);
+      debounceTimer = setTimeout(() => { reloadRef.current?.(); }, 600);
     };
 
     const channel = supabase

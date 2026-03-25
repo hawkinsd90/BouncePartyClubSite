@@ -63,21 +63,30 @@ export function OrdersManager() {
   const contactsMap = data?.contactsMap || new Map();
 
   useEffect(() => {
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedRefetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => { refetch(); }, 800);
+    };
+
     const channel = supabase
       .channel('orders-manager-realtime')
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'orders' },
-        () => { refetch(); }
+        debouncedRefetch
       )
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'orders' },
-        () => { refetch(); }
+        debouncedRefetch
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
   }, [refetch]);
 
   async function handleArchiveOldOrders() {

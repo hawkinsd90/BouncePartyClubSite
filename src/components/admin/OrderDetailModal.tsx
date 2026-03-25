@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { X, Truck, MessageSquare, FileText, History, Save, CreditCard } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { format } from 'date-fns';
@@ -104,6 +104,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
   const { orderSummary: updatedOrderSummary, calculatedPricing, calculatePricing } = usePricing();
   const { payments, pricingRules, reload: reloadOrderData } = useOrderDetails(order.id);
+  const pricingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     // Load current order summary for display
@@ -196,8 +197,15 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   // Recalculate pricing whenever discounts, custom fees, staged items, or fee waivers change
   useEffect(() => {
     if (pricingRules && editedOrder && stagedItems.length > 0) {
-      handleRecalculatePricing();
+      if (pricingDebounceRef.current) clearTimeout(pricingDebounceRef.current);
+      pricingDebounceRef.current = setTimeout(() => {
+        pricingDebounceRef.current = null;
+        handleRecalculatePricing();
+      }, 300);
     }
+    return () => {
+      if (pricingDebounceRef.current) clearTimeout(pricingDebounceRef.current);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     discounts,
