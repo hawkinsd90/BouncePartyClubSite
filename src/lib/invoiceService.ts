@@ -216,23 +216,32 @@ async function sendInvoiceToCustomer(
   depositRequired: number,
   customer: Customer | null
 ) {
-  const response = await fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-invoice`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        orderId: orderId,
-        depositCents: depositRequired,
-        customerEmail: customer?.email || null,
-        customerPhone: customer?.phone || null,
-        customerName: customer ? `${customer.first_name} ${customer.last_name}` : null,
-      }),
-    }
-  );
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20_000);
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-invoice`,
+      {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderId: orderId,
+          depositCents: depositRequired,
+          customerEmail: customer?.email || null,
+          customerPhone: customer?.phone || null,
+          customerName: customer ? `${customer.first_name} ${customer.last_name}` : null,
+        }),
+      }
+    );
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   const data = await response.json();
 
