@@ -333,10 +333,73 @@ async function processWebhookEvent(
           const safeTipCents = Number.isFinite(balanceTipCents) ? balanceTipCents : 0;
           const balanceOnly = Math.max(0, amountPaid - safeTipCents);
 
-          // Fetch existing balance_paid_cents AND tip before updating so we can ACCUMULATE
+          // ── RACE-SAFE: Insert payment row FIRST (same mutex as reconcile-balance-payment) ──
+          // The unique constraint on stripe_payment_intent_id is the distributed mutex.
+          // Whichever concurrent writer (this webhook or reconcile-balance-payment) inserts
+          // first wins the constraint and is exclusively allowed to update order totals.
+          // The loser receives a 23505 unique-violation and MUST NOT touch order totals.
+          //
+          // Race scenario prevented:
+          //   reconcile inserts payment row → wins mutex → updates order totals
+          //   webhook arrives concurrently → 23505 on insert → skips order totals (patched here)
+          //
+          // Partial-failure recovery:
+          //   If the winner inserts the payment row but the order UPDATE fails, the payment
+          //   row exists with correct amount. The next webhook retry (Stripe re-delivers within
+          //   hours) will see 23505 on the insert and skip the order update — so the order
+          //   totals will remain stale. To repair: the payment_intent.succeeded handler for
+          //   balance type already has a "no existing payment row" branch that will NOT fire
+          //   (because the row exists), so recovery must be done manually or via a reconcile
+          //   call from the customer portal which re-reads Stripe and patches non-financial
+          //   fields. For full auto-recovery, a separate DB function that sums payments and
+          //   recomputes balance_due_cents can be added in a future migration.
+          if (!piId) {
+            console.error("[WEBHOOK] Balance payment has no PaymentIntent ID — cannot record safely");
+            break;
+          }
+
+          const { data: paymentRecord, error: balancePaymentInsertError } = await supabaseClient
+            .from("payments")
+            .insert({
+              order_id: orderId,
+              stripe_payment_intent_id: piId,
+              amount_cents: amountPaid,
+              type: "balance",
+              status: "succeeded",
+              paid_at: new Date().toISOString(),
+              payment_method: paymentMethodType,
+              payment_brand: paymentBrand,
+              payment_last4: paymentLast4,
+              stripe_fee_amount: stripeFee,
+              stripe_net_amount: stripeNet,
+              currency: currency,
+            })
+            .select('id')
+            .maybeSingle();
+
+          if (balancePaymentInsertError) {
+            if (balancePaymentInsertError.code === "23505") {
+              // reconcile-balance-payment (or a prior webhook delivery) already won the mutex
+              // and is responsible for order totals. Patch only non-financial fields.
+              if (expandedPaymentMethodId || stripeCustomerId) {
+                await supabaseClient
+                  .from("orders")
+                  .update({
+                    ...(expandedPaymentMethodId ? { stripe_payment_method_id: expandedPaymentMethodId } : {}),
+                    ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
+                  })
+                  .eq("id", orderId);
+              }
+              break; // exit the balance branch entirely — do NOT fall through to order totals
+            }
+            console.error("[WEBHOOK] CRITICAL: Failed to insert balance payment row", { orderId, piId, balancePaymentInsertError });
+            throw new Error(`Balance payment insert failed: ${balancePaymentInsertError.message}`);
+          }
+
+          // We won the mutex — read current order values and update totals exactly once.
           const { data: balanceOrder } = await supabaseClient
             .from("orders")
-            .select("tip_cents, balance_paid_cents, balance_due_cents")
+            .select("tip_cents, balance_paid_cents, balance_due_cents, customer_id")
             .eq("id", orderId)
             .maybeSingle();
           const existingTip = balanceOrder?.tip_cents || 0;
@@ -344,7 +407,6 @@ async function processWebhookEvent(
           const existingBalanceDueWh = balanceOrder?.balance_due_cents || 0;
           const newBalanceDueWh = Math.max(0, existingBalanceDueWh - balanceOnly);
 
-          // Update order with balance payment, accumulating both balance_paid_cents and tip_cents
           const { error: balanceUpdateError } = await supabaseClient
             .from("orders")
             .update({
@@ -357,123 +419,105 @@ async function processWebhookEvent(
             .eq("id", orderId);
           if (balanceUpdateError) {
             console.error("[WEBHOOK] CRITICAL: Failed to update balance_due_cents on order", { orderId, newBalanceDueWh, balanceUpdateError });
+            // Payment row is committed — order totals are stale. Stripe will retry this
+            // event; on retry the 23505 path above will fire and skip the update again.
+            // Manual reconciliation or a future repair function is required if this persists.
           }
 
-          // Insert balance payment record with fee tracking
-          if (piId) {
-            const { data: paymentRecord } = await supabaseClient
-              .from("payments")
-              .insert({
-                order_id: orderId,
-                stripe_payment_intent_id: piId,
-                amount_cents: amountPaid,
-                type: "balance",
-                status: "succeeded",
-                paid_at: new Date().toISOString(),
-                payment_method: paymentMethodType,
-                payment_brand: paymentBrand,
-                payment_last4: paymentLast4,
-                stripe_fee_amount: stripeFee,
-                stripe_net_amount: stripeNet,
-                currency: currency,
-              })
-              .select('id')
-              .maybeSingle();
+          // Get order details for transaction logging and receipt email
+          const { data: order } = await supabaseClient
+            .from("orders")
+            .select(`
+              customer_id, event_date,
+              subtotal_cents, travel_fee_cents, surface_fee_cents,
+              same_day_pickup_fee_cents, generator_fee_cents, tax_cents,
+              deposit_paid_cents, balance_due_cents,
+              addresses(line1, city, state, zip),
+              order_items(qty, unit_price_cents, units(name)),
+              customers(email, first_name, last_name)
+            `)
+            .eq("id", orderId)
+            .maybeSingle();
 
-            // Get order details for transaction logging and receipt email
-            const { data: order } = await supabaseClient
-              .from("orders")
-              .select(`
-                customer_id, event_date,
-                subtotal_cents, travel_fee_cents, surface_fee_cents,
-                same_day_pickup_fee_cents, generator_fee_cents, tax_cents,
-                deposit_paid_cents, balance_due_cents,
-                addresses(line1, city, state, zip),
-                order_items(qty, unit_price_cents, units(name)),
-                customers(email, first_name, last_name)
-              `)
-              .eq("id", orderId)
-              .maybeSingle();
+          // Log balance payment transaction (idempotent via unique stripe_charge_id)
+          if (order && paymentRecord) {
+            await logTransaction(supabaseClient, {
+              transactionType: 'balance',
+              orderId,
+              customerId: order.customer_id,
+              paymentId: paymentRecord.id,
+              amountCents: amountPaid,
+              paymentMethod: paymentMethodType,
+              paymentMethodBrand: paymentBrand,
+              stripeChargeId: latestChargeId,
+              stripePaymentIntentId: piId,
+              notes: 'Customer portal balance payment',
+            });
+          }
 
-            // Log balance payment transaction (with idempotency via unique stripe_charge_id)
-            if (order && paymentRecord) {
-              await logTransaction(supabaseClient, {
-                transactionType: 'balance',
-                orderId,
-                customerId: order.customer_id,
-                paymentId: paymentRecord.id,
-                amountCents: amountPaid,
-                paymentMethod: paymentMethodType,
-                paymentMethodBrand: paymentBrand,
-                stripeChargeId: latestChargeId,
-                stripePaymentIntentId: piId,
-                notes: 'Customer portal balance payment',
+          // Send receipt email for Checkout-path balance payment
+          try {
+            const customer = Array.isArray(order?.customers) ? order.customers[0] : order?.customers;
+            if (customer?.email) {
+              const { data: bizSettings } = await supabaseClient
+                .from("admin_settings")
+                .select("key, value")
+                .in("key", ["business_name", "business_phone", "logo_url"]);
+              const biz: Record<string, string> = {};
+              bizSettings?.forEach((s: { key: string; value: string | null }) => {
+                if (s.value) biz[s.key] = s.value;
               });
-            }
 
-            // Send receipt email for Checkout-path balance payment
-            try {
-              const customer = Array.isArray(order?.customers) ? order.customers[0] : order?.customers;
-              if (customer?.email) {
-                const { data: bizSettings } = await supabaseClient
-                  .from("admin_settings")
-                  .select("key, value")
-                  .in("key", ["business_name", "business_phone", "logo_url"]);
-                const biz: Record<string, string> = {};
-                bizSettings?.forEach((s: { key: string; value: string | null }) => {
-                  if (s.value) biz[s.key] = s.value;
-                });
+              const shortId = orderId.substring(0, 8).toUpperCase();
+              const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
+              const businessName = biz.business_name || "Bounce Party Club";
+              const businessPhone = biz.business_phone || "(313) 889-3860";
+              const logoHtml = biz.logo_url
+                ? `<img src="${biz.logo_url}" alt="${businessName}" style="height:60px;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto;">`
+                : "";
+              const contactName = customer.first_name ? `${customer.first_name} ${customer.last_name || ""}`.trim() : "Customer";
+              const cardText = paymentBrand && paymentLast4
+                ? `${paymentBrand.charAt(0).toUpperCase() + paymentBrand.slice(1)} \u2022\u2022\u2022\u2022 ${paymentLast4}`
+                : paymentLast4 ? `Card \u2022\u2022\u2022\u2022 ${paymentLast4}` : "Card on file";
 
-                const shortId = orderId.substring(0, 8).toUpperCase();
-                const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
-                const businessName = biz.business_name || "Bounce Party Club";
-                const businessPhone = biz.business_phone || "(313) 889-3860";
-                const logoHtml = biz.logo_url
-                  ? `<img src="${biz.logo_url}" alt="${businessName}" style="height:60px;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto;">`
-                  : "";
-                const contactName = customer.first_name ? `${customer.first_name} ${customer.last_name || ""}`.trim() : "Customer";
-                const cardText = paymentBrand && paymentLast4
-                  ? `${paymentBrand.charAt(0).toUpperCase() + paymentBrand.slice(1)} \u2022\u2022\u2022\u2022 ${paymentLast4}`
-                  : paymentLast4 ? `Card \u2022\u2022\u2022\u2022 ${paymentLast4}` : "Card on file";
+              const eventDateStr = order?.event_date
+                ? new Date(order.event_date + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
+                : "";
+              const addr = Array.isArray(order?.addresses) ? order.addresses[0] : order?.addresses;
+              const addressStr = addr ? `${addr.line1}, ${addr.city}, ${addr.state}` : "";
 
-                const eventDateStr = order?.event_date
-                  ? new Date(order.event_date + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
-                  : "";
-                const addr = Array.isArray(order?.addresses) ? order.addresses[0] : order?.addresses;
-                const addressStr = addr ? `${addr.line1}, ${addr.city}, ${addr.state}` : "";
+              const items: any[] = Array.isArray(order?.order_items) ? order.order_items : [];
+              const itemsHtml = items.map((item: any) => {
+                const unitName = item.units?.name || "Item";
+                const qty = item.qty || 1;
+                const price = item.unit_price_cents || 0;
+                return `<tr><td style="padding:4px 0;color:#374151;font-size:14px;">${qty}x ${unitName}</td><td style="padding:4px 0;text-align:right;color:#374151;font-size:14px;">${fmt(price * qty)}</td></tr>`;
+              }).join("");
 
-                const items: any[] = Array.isArray(order?.order_items) ? order.order_items : [];
-                const itemsHtml = items.map((item: any) => {
-                  const unitName = item.units?.name || "Item";
-                  const qty = item.qty || 1;
-                  const price = item.unit_price_cents || 0;
-                  return `<tr><td style="padding:4px 0;color:#374151;font-size:14px;">${qty}x ${unitName}</td><td style="padding:4px 0;text-align:right;color:#374151;font-size:14px;">${fmt(price * qty)}</td></tr>`;
-                }).join("");
+              const subtotal = order?.subtotal_cents || 0;
+              const travelFee = order?.travel_fee_cents || 0;
+              const surfaceFee = order?.surface_fee_cents || 0;
+              const sameDayFee = order?.same_day_pickup_fee_cents || 0;
+              const generatorFee = order?.generator_fee_cents || 0;
+              const tax = order?.tax_cents || 0;
+              const total = subtotal + travelFee + surfaceFee + sameDayFee + generatorFee + tax;
+              const depositPaid = order?.deposit_paid_cents || 0;
+              const newBalanceDue = newBalanceDueWh;
 
-                const subtotal = order?.subtotal_cents || 0;
-                const travelFee = order?.travel_fee_cents || 0;
-                const surfaceFee = order?.surface_fee_cents || 0;
-                const sameDayFee = order?.same_day_pickup_fee_cents || 0;
-                const generatorFee = order?.generator_fee_cents || 0;
-                const tax = order?.tax_cents || 0;
-                const total = subtotal + travelFee + surfaceFee + sameDayFee + generatorFee + tax;
-                const depositPaid = order?.deposit_paid_cents || 0;
-                const newBalanceDue = newBalanceDueWh;
+              const feeRowsHtml = [
+                travelFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Travel Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(travelFee)}</td></tr>` : "",
+                surfaceFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Surface Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(surfaceFee)}</td></tr>` : "",
+                sameDayFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Same-Day Pickup Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(sameDayFee)}</td></tr>` : "",
+                generatorFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Generator Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(generatorFee)}</td></tr>` : "",
+                tax > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Tax</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(tax)}</td></tr>` : "",
+              ].join("");
 
-                const feeRowsHtml = [
-                  travelFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Travel Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(travelFee)}</td></tr>` : "",
-                  surfaceFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Surface Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(surfaceFee)}</td></tr>` : "",
-                  sameDayFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Same-Day Pickup Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(sameDayFee)}</td></tr>` : "",
-                  generatorFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Generator Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(generatorFee)}</td></tr>` : "",
-                  tax > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Tax</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(tax)}</td></tr>` : "",
-                ].join("");
+              const paymentDate = new Date().toLocaleDateString("en-US", {
+                month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
+              });
+              const portalUrl = `https://bouncepartyclub.com/customer-portal/${orderId}`;
 
-                const paymentDate = new Date().toLocaleDateString("en-US", {
-                  month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
-                });
-                const portalUrl = `https://bouncepartyclub.com/customer-portal/${orderId}`;
-
-                const receiptHtml = `<!DOCTYPE html>
+              const receiptHtml = `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="margin:0;padding:0;font-family:Arial,sans-serif;background-color:#f5f5f5;">
@@ -542,17 +586,16 @@ async function processWebhookEvent(
 </table>
 </body>
 </html>`;
-                await supabaseClient.functions.invoke("send-email", {
-                  body: {
-                    to: customer.email,
-                    subject: `Payment Received - Order #${shortId}`,
-                    html: receiptHtml,
-                  },
-                });
-              }
-            } catch (emailErr) {
-              console.warn("[WEBHOOK] Failed to send checkout balance receipt email:", emailErr);
+              await supabaseClient.functions.invoke("send-email", {
+                body: {
+                  to: customer.email,
+                  subject: `Payment Received - Order #${shortId}`,
+                  html: receiptHtml,
+                },
+              });
             }
+          } catch (emailErr) {
+            console.warn("[WEBHOOK] Failed to send checkout balance receipt email:", emailErr);
           }
         } else {
           // Handle deposit payment
