@@ -81,7 +81,7 @@ export function OrdersManager() {
           isRefetchingRef.current = false;
           if (pendingRefetchRef.current) {
             pendingRefetchRef.current = false;
-            refetch();
+            debouncedRefetch();
           }
         }
       }, 800);

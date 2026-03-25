@@ -89,8 +89,8 @@ export function useOrderDetails(orderId: string | null) {
     try {
       setLoading(true);
       await Promise.all([
-        loadOrderDetails(),
-        loadPayments(),
+        loadOrderDetails(loadingForOrderId),
+        loadPayments(loadingForOrderId),
         loadPricingRules(),
       ]);
     } catch (err) {
@@ -107,20 +107,16 @@ export function useOrderDetails(orderId: string | null) {
     }
   };
 
-  const loadOrderDetails = async () => {
-    if (!orderId) return;
-
-    const { data } = await getOrderById(orderId);
-    if (data) {
+  const loadOrderDetails = async (forOrderId: string) => {
+    const { data } = await getOrderById(forOrderId);
+    if (data && currentOrderIdRef.current === forOrderId) {
       setOrder(data as any);
     }
   };
 
-  const loadPayments = async () => {
-    if (!orderId) return;
-
-    const { data } = await getOrderPayments(orderId);
-    if (data) {
+  const loadPayments = async (forOrderId: string) => {
+    const { data } = await getOrderPayments(forOrderId);
+    if (data && currentOrderIdRef.current === forOrderId) {
       setPayments(data as any[]);
     }
   };

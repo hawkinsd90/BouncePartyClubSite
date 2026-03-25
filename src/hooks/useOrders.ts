@@ -121,9 +121,11 @@ export function useOrders(userId: string | undefined, userEmail: string | undefi
         active.sort((a, b) => new Date(a.event_date + 'T12:00:00').getTime() - new Date(b.event_date + 'T12:00:00').getTime());
         past.sort((a, b) => new Date(b.event_date + 'T12:00:00').getTime() - new Date(a.event_date + 'T12:00:00').getTime());
 
-        setUpcomingOrders(upcoming);
-        setActiveOrders(active);
-        setPastOrders(past);
+        if (currentUserIdRef.current === loadingForUserId) {
+          setUpcomingOrders(upcoming);
+          setActiveOrders(active);
+          setPastOrders(past);
+        }
       }
     } catch (error) {
       console.error('Error loading orders:', error);
