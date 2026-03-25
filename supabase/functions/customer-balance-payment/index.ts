@@ -205,6 +205,30 @@ Deno.serve(async (req: Request) => {
           console.warn("[customer-balance-payment] Failed to expand PI details:", expandErr);
         }
 
+        // Insert payment row FIRST — this is the distributed mutex for the race-safe model.
+        // The unique constraint on stripe_payment_intent_id means exactly one writer wins.
+        // If this process crashes before the orders UPDATE below, the webhook's 23505 branch
+        // will detect the existing row and call apply_balance_payment_financials to repair.
+        const { data: paymentRecord } = await supabaseClient
+          .from("payments")
+          .insert({
+            order_id: orderId,
+            stripe_payment_intent_id: paymentIntent.id,
+            amount_cents: totalChargeAmount,
+            type: "balance",
+            status: "succeeded",
+            paid_at: new Date().toISOString(),
+            payment_method: paymentMethodType,
+            payment_brand: paymentBrand,
+            payment_last4: paymentLast4,
+            stripe_fee_amount: stripeFee,
+            stripe_net_amount: stripeNet,
+            currency: "usd",
+            order_financials_applied: false,
+          })
+          .select("id")
+          .maybeSingle();
+
         // Write DB — accumulate balance fields and save card details on orders
         const existingTip = order.tip_cents || 0;
         const existingBalancePaid = order.balance_paid_cents || 0;
@@ -223,25 +247,13 @@ Deno.serve(async (req: Request) => {
           })
           .eq("id", orderId);
 
-        // Insert payment record — tagged with the PI id so webhook can detect duplicate
-        const { data: paymentRecord } = await supabaseClient
-          .from("payments")
-          .insert({
-            order_id: orderId,
-            stripe_payment_intent_id: paymentIntent.id,
-            amount_cents: totalChargeAmount,
-            type: "balance",
-            status: "succeeded",
-            paid_at: new Date().toISOString(),
-            payment_method: paymentMethodType,
-            payment_brand: paymentBrand,
-            payment_last4: paymentLast4,
-            stripe_fee_amount: stripeFee,
-            stripe_net_amount: stripeNet,
-            currency: "usd",
-          })
-          .select("id")
-          .maybeSingle();
+        // Mark payment row as financials applied (mirrors what the RPC does on other paths)
+        if (paymentRecord) {
+          await supabaseClient
+            .from("payments")
+            .update({ order_financials_applied: true })
+            .eq("id", paymentRecord.id);
+        }
 
         // Log transaction receipt
         if (paymentRecord && order.customer_id) {
