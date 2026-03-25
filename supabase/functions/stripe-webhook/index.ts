@@ -418,6 +418,8 @@ async function processWebhookEvent(
                     customer_id, event_date,
                     subtotal_cents, travel_fee_cents, surface_fee_cents,
                     same_day_pickup_fee_cents, generator_fee_cents, tax_cents,
+                    travel_fee_waived, surface_fee_waived, same_day_pickup_fee_waived,
+                    generator_fee_waived, tax_waived,
                     deposit_paid_cents, balance_due_cents,
                     addresses(line1, city, state, zip),
                     order_items(qty, unit_price_cents, units(name)),
