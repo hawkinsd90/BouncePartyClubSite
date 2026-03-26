@@ -115,7 +115,7 @@ async function getDistanceMatrix(
   destinations: string[],
   departureTime?: Date
 ): Promise<DistanceMatrixResult[][]> {
-  console.log('[Route Optimization] Loading Google Maps API...');
+  // console.log('[Route Optimization] Loading Google Maps API...');
   await loadGoogleMapsAPI();
 
   if (!window.google?.maps) {
@@ -124,10 +124,10 @@ async function getDistanceMatrix(
 
   const n = origins.length;
   const m = destinations.length;
-  console.log(`[Route Optimization] Calculating distance matrix (distances and durations) for ${n} origins × ${m} destinations...`);
+  // console.log(`[Route Optimization] Calculating distance matrix (distances and durations) for ${n} origins × ${m} destinations...`);
 
   if (departureTime) {
-    console.log(`[Route Optimization] Using traffic-aware routing for ${departureTime.toLocaleString()}`);
+    // console.log(`[Route Optimization] Using traffic-aware routing for ${departureTime.toLocaleString()}`);
   }
 
   // Determine max batch size per dimension so that batchO × batchD ≤ MAX_MATRIX_ELEMENTS
@@ -136,11 +136,11 @@ async function getDistanceMatrix(
 
   // If the whole matrix fits in one request, do it directly
   if (n * m <= MAX_MATRIX_ELEMENTS) {
-    console.log('[Route Optimization] Matrix fits in single request');
+    // console.log('[Route Optimization] Matrix fits in single request');
     return getSingleDistanceMatrixChunk(origins, destinations, departureTime);
   }
 
-  console.log(`[Route Optimization] Matrix too large (${n * m} elements), splitting into ${batchSize}×${batchSize} chunks`);
+  // console.log(`[Route Optimization] Matrix too large (${n * m} elements), splitting into ${batchSize}×${batchSize} chunks`);
 
   // Build full results matrix pre-filled with Infinity
   const results: DistanceMatrixResult[][] = Array.from({ length: n }, () =>
@@ -156,7 +156,7 @@ async function getDistanceMatrix(
       const dEnd = Math.min(dStart + batchSize, m);
       const destChunk = destinations.slice(dStart, dEnd);
 
-      console.log(`[Route Optimization] Chunk origins[${oStart}-${oEnd - 1}] × destinations[${dStart}-${dEnd - 1}]`);
+      // console.log(`[Route Optimization] Chunk origins[${oStart}-${oEnd - 1}] × destinations[${dStart}-${dEnd - 1}]`);
 
       const chunkResults = await getSingleDistanceMatrixChunk(originChunk, destChunk, departureTime);
 
@@ -169,7 +169,7 @@ async function getDistanceMatrix(
     }
   }
 
-  console.log('[Route Optimization] Distance matrix calculated successfully (batched)');
+  // console.log('[Route Optimization] Distance matrix calculated successfully (batched)');
   return results;
 }
 
@@ -197,40 +197,40 @@ function isEarlyEvent(eventStartTime?: string): boolean {
  * Debug helper: Logs a summary of all stops with equipment details
  */
 function debugStopSummary(stops: MorningRouteStop[]): void {
-  console.log('[DEBUG] ========== STOP SUMMARY ==========');
+  // console.log('[DEBUG] ========== STOP SUMMARY ==========');
   for (const stop of stops) {
     const equipIds = [...stop.equipmentIds].sort().join(', ') || '(none)';
-    console.log(`[DEBUG] Stop: ${stop.taskId}`);
-    console.log(`  - Type: ${stop.type}`);
-    console.log(`  - Address: ${stop.address}`);
-    console.log(`  - EquipmentIds: [${equipIds}]`);
-    console.log(`  - NumInflatables: ${stop.numInflatables ?? 0}`);
-    console.log(`  - EventStartTime: ${stop.eventStartTime ?? 'N/A'}`);
+    // console.log(`[DEBUG] Stop: ${stop.taskId}`);
+    // console.log(`  - Type: ${stop.type}`);
+    // console.log(`  - Address: ${stop.address}`);
+    // console.log(`  - EquipmentIds: [${equipIds}]`);
+    // console.log(`  - NumInflatables: ${stop.numInflatables ?? 0}`);
+    // console.log(`  - EventStartTime: ${stop.eventStartTime ?? 'N/A'}`);
   }
-  console.log('[DEBUG] ====================================');
+  // console.log('[DEBUG] ====================================');
 }
 
 /**
  * Debug helper: Logs the dependency graph with reverse mappings
  */
 function debugDependencyGraph(deps: Map<string, string[]>, stops: MorningRouteStop[]): void {
-  console.log('[DEBUG] ========== DEPENDENCY GRAPH ==========');
+  // console.log('[DEBUG] ========== DEPENDENCY GRAPH ==========');
 
   // Show drop-offs and their dependencies
-  console.log('[DEBUG] Drop-off dependencies:');
+  // console.log('[DEBUG] Drop-off dependencies:');
   for (const stop of stops) {
     if (stop.type === 'drop-off') {
       const dependencies = deps.get(stop.taskId) || [];
       if (dependencies.length > 0) {
-        console.log(`[DEBUG] DROP ${stop.taskId} depends on: [${dependencies.join(', ')}]`);
+        // console.log(`[DEBUG] DROP ${stop.taskId} depends on: [${dependencies.join(', ')}]`);
       } else {
-        console.log(`[DEBUG] DROP ${stop.taskId} has NO dependencies`);
+        // console.log(`[DEBUG] DROP ${stop.taskId} has NO dependencies`);
       }
     }
   }
 
   // Show reverse mapping per equipmentId
-  console.log('[DEBUG] Equipment ID mappings:');
+  // console.log('[DEBUG] Equipment ID mappings:');
   const equipmentToPickup = new Map<string, string>();
   const equipmentToDropoffs = new Map<string, string[]>();
 
@@ -257,12 +257,12 @@ function debugDependencyGraph(deps: Map<string, string[]>, stops: MorningRouteSt
   for (const equipId of allEquipIds) {
     const pickup = equipmentToPickup.get(equipId) || 'NONE';
     const dropoffs = equipmentToDropoffs.get(equipId) || [];
-    console.log(`[DEBUG] EquipmentId "${equipId}":`);
-    console.log(`  - Pickup: ${pickup}`);
-    console.log(`  - Drop-offs: [${dropoffs.join(', ') || 'NONE'}]`);
+    // console.log(`[DEBUG] EquipmentId "${equipId}":`);
+    // console.log(`  - Pickup: ${pickup}`);
+    // console.log(`  - Drop-offs: [${dropoffs.join(', ') || 'NONE'}]`);
   }
 
-  console.log('[DEBUG] =========================================');
+  // console.log('[DEBUG] =========================================');
 }
 
 /**
@@ -369,7 +369,7 @@ function validateRouteRespectsDependencies(route: OptimizedMorningStop[], depend
     completed.add(stop.taskId);
   }
 
-  console.log('[Route Validation] ✓ All dependencies satisfied in route order');
+  // console.log('[Route Validation] ✓ All dependencies satisfied in route order');
 }
 
 function buildDependencyGraph(stops: MorningRouteStop[]): Map<string, string[]> {
@@ -532,15 +532,15 @@ async function greedyRouteConstruction(
     if (!firstLegLogged) {
       firstLegLogged = true;
       const sorted = [...firstLegCandidates].sort((a, b) => a.score - b.score);
-      console.log('[Greedy Standard] First-leg candidate comparison (origin = matrix row 0):');
+      // console.log('[Greedy Standard] First-leg candidate comparison (origin = matrix row 0):');
       sorted.forEach((c, i) => {
         const marker = c.address === bestStop!.address ? ' <-- WINNER' : '';
         const eligStr = c.eligible ? '' : ' [SKIPPED: dependency]';
-        console.log(
-          `  ${i + 1}. "${c.address}"${eligStr}${marker}\n` +
-          `     drive: ${isFinite(c.driveMins) ? c.driveMins.toFixed(1) : 'Inf'} min, ` +
-          `lateness: ${c.lateness.toFixed(0)} min, score: ${c.score.toFixed(2)}`
-        );
+        // console.log(
+        //   `  ${i + 1}. "${c.address}"${eligStr}${marker}\n` +
+        //   `     drive: ${isFinite(c.driveMins) ? c.driveMins.toFixed(1) : 'Inf'} min, ` +
+        //   `lateness: ${c.lateness.toFixed(0)} min, score: ${c.score.toFixed(2)}`
+        // );
       });
     }
 
@@ -603,7 +603,7 @@ function sortStopsByAngle(
   homeBaseLng?: number
 ): MorningRouteStop[] {
   if (homeBaseLat === undefined || homeBaseLng === undefined) {
-    console.log('[Geographic Sweep] Sweep ordering skipped (missing home base coords)');
+    // console.log('[Geographic Sweep] Sweep ordering skipped (missing home base coords)');
     return stops;
   }
 
@@ -612,17 +612,17 @@ function sortStopsByAngle(
   );
 
   if (stopsWithCoords.length < 3) {
-    console.log(`[Geographic Sweep] Sweep ordering skipped (only ${stopsWithCoords.length} stops have coords, need at least 3)`);
+    // console.log(`[Geographic Sweep] Sweep ordering skipped (only ${stopsWithCoords.length} stops have coords, need at least 3)`);
     return stops;
   }
 
   if (stopsWithCoords.length !== stops.length) {
-    console.log(`[Geographic Sweep] Sweep ordering skipped (${stops.length - stopsWithCoords.length} stops missing coords)`);
+    // console.log(`[Geographic Sweep] Sweep ordering skipped (${stops.length - stopsWithCoords.length} stops missing coords)`);
     return stops;
   }
 
-  console.log('[Geographic Sweep] Sweep ordering applied (coords present)');
-  console.log('[Geographic Sweep] Home base:', { lat: homeBaseLat, lng: homeBaseLng });
+  // console.log('[Geographic Sweep] Sweep ordering applied (coords present)');
+  // console.log('[Geographic Sweep] Home base:', { lat: homeBaseLat, lng: homeBaseLng });
 
   const stopsWithAngles = stops.map((stop) => {
     const deltaLat = stop.lat! - homeBaseLat;
@@ -633,9 +633,9 @@ function sortStopsByAngle(
 
   stopsWithAngles.sort((a, b) => a.angle - b.angle);
 
-  console.log('[Geographic Sweep] Stops sorted by angle:',
-    stopsWithAngles.map(s => `${s.stop.address} (${(s.angle * 180 / Math.PI).toFixed(1)}°)`).join(', ')
-  );
+  // console.log('[Geographic Sweep] Stops sorted by angle:',
+  //   stopsWithAngles.map(s => `${s.stop.address} (${(s.angle * 180 / Math.PI).toFixed(1)}°)`).join(', ')
+  // );
 
   return stopsWithAngles.map(s => s.stop);
 }
@@ -647,7 +647,7 @@ async function generateMultipleGreedyRoutes(
   departureTime: Date,
   matrixIndexByTaskId: Map<string, number>
 ): Promise<OptimizedMorningStop[]> {
-  console.log('[Multi-Start Greedy] Generating multiple route candidates...');
+  // console.log('[Multi-Start Greedy] Generating multiple route candidates...');
 
   const maxStarts = Math.min(stops.length, 8);
   const routes: OptimizedMorningStop[][] = [];
@@ -657,7 +657,7 @@ async function generateMultipleGreedyRoutes(
 
     const scheduled = new Set<string>();
     if (canSchedule(startStop, scheduled, dependencies)) {
-      console.log(`[Multi-Start Greedy] Attempt ${startIdx + 1}/${maxStarts}: Starting with ${startStop.address}`);
+      // console.log(`[Multi-Start Greedy] Attempt ${startIdx + 1}/${maxStarts}: Starting with ${startStop.address}`);
 
       const route = await greedyRouteConstructionWithStart(
         stops,
@@ -670,7 +670,7 @@ async function generateMultipleGreedyRoutes(
 
       routes.push(route);
     } else {
-      console.log(`[Multi-Start Greedy] Skipping start ${startIdx + 1}: dependencies not satisfied`);
+      // console.log(`[Multi-Start Greedy] Skipping start ${startIdx + 1}: dependencies not satisfied`);
     }
   }
 
@@ -682,7 +682,7 @@ async function generateMultipleGreedyRoutes(
 
   for (let i = 1; i < routes.length; i++) {
     const score = evaluateRoute(routes[i], distanceMatrix, departureTime, matrixIndexByTaskId);
-    console.log(`[Multi-Start Greedy] Route ${i + 1} score: ${score.toFixed(2)}`);
+    // console.log(`[Multi-Start Greedy] Route ${i + 1} score: ${score.toFixed(2)}`);
 
     if (score < bestScore) {
       bestScore = score;
@@ -690,7 +690,7 @@ async function generateMultipleGreedyRoutes(
     }
   }
 
-  console.log(`[Multi-Start Greedy] Best route found with score: ${bestScore.toFixed(2)}`);
+  // console.log(`[Multi-Start Greedy] Best route found with score: ${bestScore.toFixed(2)}`);
   return bestRoute;
 }
 
@@ -718,10 +718,10 @@ async function greedyRouteConstructionWithStart(
     ? PICKUP_MINUTES
     : (firstStop.numInflatables || 1) * SETUP_MINUTES_PER_UNIT;
 
-  console.log(
-    `[Greedy With Start] First leg from origin (matrix row 0) to "${firstStop.address}": ` +
-    `${(driveDurationSeconds / 60).toFixed(1)} min drive`
-  );
+  // console.log(
+  //   `[Greedy With Start] First leg from origin (matrix row 0) to "${firstStop.address}": ` +
+  //   `${(driveDurationSeconds / 60).toFixed(1)} min drive`
+  // );
 
   route.push({
     ...firstStop,
@@ -814,7 +814,7 @@ function twoOptOptimizeRoute(
   departureTime: Date,
   matrixIndexByTaskId: Map<string, number>
 ): OptimizedMorningStop[] {
-  console.log('[2-Opt] Starting 2-opt optimization...');
+  // console.log('[2-Opt] Starting 2-opt optimization...');
 
   let improved = true;
   let currentRoute = [...route];
@@ -841,7 +841,7 @@ function twoOptOptimizeRoute(
         const testScore = evaluateRoute(testRoute, distanceMatrix, departureTime, matrixIndexByTaskId);
 
         if (testScore < currentScore) {
-          console.log(`[2-Opt] Improvement found: ${currentScore.toFixed(2)} → ${testScore.toFixed(2)}`);
+          // console.log(`[2-Opt] Improvement found: ${currentScore.toFixed(2)} → ${testScore.toFixed(2)}`);
           currentRoute = testRoute;
           improved = true;
           break;
@@ -852,7 +852,7 @@ function twoOptOptimizeRoute(
     }
   }
 
-  console.log(`[2-Opt] Completed after ${iterations} iterations`);
+  // console.log(`[2-Opt] Completed after ${iterations} iterations`);
 
   for (let i = 0; i < currentRoute.length; i++) {
     currentRoute[i].sortOrder = i + 1;
@@ -971,15 +971,15 @@ export async function optimizeMorningRoute(
   stops: MorningRouteStop[],
   originOverride?: RouteOriginOptions
 ): Promise<OptimizedMorningStop[]> {
-  console.log(`[Route Optimization] Starting optimization for ${stops.length} stops`);
+  // console.log(`[Route Optimization] Starting optimization for ${stops.length} stops`);
 
   if (stops.length === 0) {
-    console.log('[Route Optimization] No stops to optimize');
+    // console.log('[Route Optimization] No stops to optimize');
     return [];
   }
 
   if (stops.length === 1) {
-    console.log('[Route Optimization] Only 1 stop, no optimization needed');
+    // console.log('[Route Optimization] Only 1 stop, no optimization needed');
     return [{
       ...stops[0],
       sortOrder: 1,
@@ -991,7 +991,7 @@ export async function optimizeMorningRoute(
   }
 
   // Pre-validate addresses before calling any API
-  console.log('[Route Optimization] Pre-validating stop addresses...');
+  // console.log('[Route Optimization] Pre-validating stop addresses...');
   const addressValidation = preValidateStops(stops);
   if (addressValidation.warnings.length > 0) {
     addressValidation.warnings.forEach(w => console.warn(`[Route Optimization] Address warning: ${w}`));
@@ -1004,28 +1004,28 @@ export async function optimizeMorningRoute(
     );
   }
 
-  console.log('[Route Optimization] Getting home base address...');
+  // console.log('[Route Optimization] Getting home base address...');
   const { getHomeBaseAddress } = await import('./adminSettingsCache');
   const homeBase = await getHomeBaseAddress();
   const homeBaseAddress = homeBase.address;
-  console.log('[Route Optimization] Home base:', homeBaseAddress);
+  // console.log('[Route Optimization] Home base:', homeBaseAddress);
 
   const originAddress = originOverride?.address ?? homeBaseAddress;
   const originLabel = originOverride?.label ?? 'Home Base';
   if (originOverride) {
-    console.log(`[Route Optimization] Origin override provided: "${originLabel}" → ${originAddress}`);
+    // console.log(`[Route Optimization] Origin override provided: "${originLabel}" → ${originAddress}`);
   } else {
-    console.log(`[Route Optimization] Using default origin: Home Base → ${originAddress}`);
+    // console.log(`[Route Optimization] Using default origin: Home Base → ${originAddress}`);
   }
 
   const routeDateISO = stops[0]?.routeDateISO;
   let baseDate: Date;
   if (routeDateISO) {
     baseDate = new Date(routeDateISO + 'T00:00:00');
-    console.log('[Route Optimization] Route date from stops:', routeDateISO);
+    // console.log('[Route Optimization] Route date from stops:', routeDateISO);
   } else {
     baseDate = new Date();
-    console.log('[Route Optimization] No route date specified, using today');
+    // console.log('[Route Optimization] No route date specified, using today');
   }
 
   const [hours, minutes] = DEFAULT_DEPARTURE_TIME.split(':').map(Number);
@@ -1036,19 +1036,19 @@ export async function optimizeMorningRoute(
     hours,
     minutes
   );
-  console.log('[Route Optimization] Departure time:', departureTime.toLocaleString());
+  // console.log('[Route Optimization] Departure time:', departureTime.toLocaleString());
 
   // Check if departure time is in the past
   const now = new Date();
   const trafficDepartureTime = departureTime > now ? departureTime : undefined;
 
   if (!trafficDepartureTime) {
-    console.log('[Route Optimization] Departure time is in the past. Traffic information is only available for future and current times.');
+    // console.log('[Route Optimization] Departure time is in the past. Traffic information is only available for future and current times.');
   }
 
   const addresses = [originAddress, ...stops.map(s => s.address)];
-  console.log(`[Route Optimization] Origin (matrix row 0): "${originLabel}" → ${originAddress}`);
-  console.log('[Route Optimization] Stop addresses:', stops.map((s, i) => `${i + 1}. ${s.address}`).join('\n'));
+  // console.log(`[Route Optimization] Origin (matrix row 0): "${originLabel}" → ${originAddress}`);
+  // console.log('[Route Optimization] Stop addresses:', stops.map((s, i) => `${i + 1}. ${s.address}`).join('\n'));
 
   const distanceMatrix = await getDistanceMatrix(addresses, addresses, trafficDepartureTime);
 
@@ -1056,19 +1056,19 @@ export async function optimizeMorningRoute(
   const matrixLabels = [originLabel, ...stops.map(s => s.address)];
   auditDistanceMatrix(distanceMatrix, matrixLabels);
 
-  console.log('[Route Optimization] Building matrix index map...');
+  // console.log('[Route Optimization] Building matrix index map...');
   const matrixIndexByTaskId = new Map<string, number>();
   for (let i = 0; i < stops.length; i++) {
     matrixIndexByTaskId.set(stops[i].taskId, i + 1);
   }
-  console.log('[Route Optimization] Matrix index map created with', matrixIndexByTaskId.size, 'entries');
+  // console.log('[Route Optimization] Matrix index map created with', matrixIndexByTaskId.size, 'entries');
 
   // Debug: Show all stops with equipment details
   debugStopSummary(stops);
 
   // Build dependency graph
   const dependencies = buildDependencyGraph(stops);
-  console.log('[Route Optimization] Dependency graph built, dependencies:', dependencies.size);
+  // console.log('[Route Optimization] Dependency graph built, dependencies:', dependencies.size);
 
   // Debug: Show dependency graph details
   debugDependencyGraph(dependencies, stops);
@@ -1077,10 +1077,10 @@ export async function optimizeMorningRoute(
   const dropoffsWithNoDeps = stops
     .filter(s => s.type === 'drop-off' && !dependencies.has(s.taskId))
     .map(s => s.taskId);
-  console.log(`[Route Optimization] Drop-offs with NO dependencies: ${dropoffsWithNoDeps.length > 0 ? dropoffsWithNoDeps.join(', ') : '(none)'}`);
+  // console.log(`[Route Optimization] Drop-offs with NO dependencies: ${dropoffsWithNoDeps.length > 0 ? dropoffsWithNoDeps.join(', ') : '(none)'}`);
 
   // Preflight validation: Check equipment data integrity
-  console.log('[Route Optimization] Running preflight equipment validation...');
+  // console.log('[Route Optimization] Running preflight equipment validation...');
   const validation = validateEquipmentData(stops);
 
   // Log all warnings
@@ -1098,16 +1098,16 @@ export async function optimizeMorningRoute(
     );
   }
 
-  console.log('[Route Optimization] ✓ Preflight validation passed');
+  // console.log('[Route Optimization] ✓ Preflight validation passed');
 
-  console.log('[Route Optimization] ========================================');
-  console.log('[Route Optimization] Starting Enhanced Optimization Pipeline');
-  console.log('[Route Optimization] ========================================');
+  // console.log('[Route Optimization] ========================================');
+  // console.log('[Route Optimization] Starting Enhanced Optimization Pipeline');
+  // console.log('[Route Optimization] ========================================');
 
-  console.log('[Route Optimization] Step 1/3: Geographic sweep ordering (always relative to home base)...');
+  // console.log('[Route Optimization] Step 1/3: Geographic sweep ordering (always relative to home base)...');
   const sweepOrderedStops = sortStopsByAngle(stops, homeBase.lat, homeBase.lng);
 
-  console.log('[Route Optimization] Step 2/3: Multi-start greedy construction...');
+  // console.log('[Route Optimization] Step 2/3: Multi-start greedy construction...');
   const greedyRoute = await generateMultipleGreedyRoutes(
     sweepOrderedStops,
     distanceMatrix,
@@ -1116,27 +1116,27 @@ export async function optimizeMorningRoute(
     matrixIndexByTaskId
   );
   const greedyScore = evaluateRoute(greedyRoute, distanceMatrix, departureTime, matrixIndexByTaskId);
-  console.log('[Route Optimization] Best greedy route score:', greedyScore.toFixed(2));
-  console.log('[Route Optimization] Greedy route order:', greedyRoute.map(r => r.address).join(' → '));
+  // console.log('[Route Optimization] Best greedy route score:', greedyScore.toFixed(2));
+  // console.log('[Route Optimization] Greedy route order:', greedyRoute.map(r => r.address).join(' → '));
 
   // Post-route validation: Ensure greedy route respects dependencies
-  console.log('[Route Optimization] Validating greedy route dependencies...');
+  // console.log('[Route Optimization] Validating greedy route dependencies...');
   validateRouteRespectsDependencies(greedyRoute, dependencies);
 
-  console.log('[Route Optimization] Step 3/3: 2-opt route optimization...');
+  // console.log('[Route Optimization] Step 3/3: 2-opt route optimization...');
   const optimizedRoute = twoOptOptimizeRoute(greedyRoute, distanceMatrix, dependencies, departureTime, matrixIndexByTaskId);
   const finalScore = evaluateRoute(optimizedRoute, distanceMatrix, departureTime, matrixIndexByTaskId);
-  console.log('[Route Optimization] Final optimized score:', finalScore.toFixed(2));
-  console.log('[Route Optimization] Improvement from greedy:', ((greedyScore - finalScore) / greedyScore * 100).toFixed(1) + '%');
-  console.log('[Route Optimization] Final route order:', optimizedRoute.map((r, i) => `${i + 1}. ${r.address}`).join(' → '));
+  // console.log('[Route Optimization] Final optimized score:', finalScore.toFixed(2));
+  // console.log('[Route Optimization] Improvement from greedy:', ((greedyScore - finalScore) / greedyScore * 100).toFixed(1) + '%');
+  // console.log('[Route Optimization] Final route order:', optimizedRoute.map((r, i) => `${i + 1}. ${r.address}`).join(' → '));
 
   // Post-route validation: Ensure final route respects dependencies
-  console.log('[Route Optimization] Validating final route dependencies...');
+  // console.log('[Route Optimization] Validating final route dependencies...');
   validateRouteRespectsDependencies(optimizedRoute, dependencies);
 
-  console.log('[Route Optimization] ========================================');
-  console.log('[Route Optimization] Optimization Complete');
-  console.log('[Route Optimization] ========================================');
+  // console.log('[Route Optimization] ========================================');
+  // console.log('[Route Optimization] Optimization Complete');
+  // console.log('[Route Optimization] ========================================');
 
   return optimizedRoute;
 }

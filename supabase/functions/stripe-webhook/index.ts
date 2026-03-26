@@ -408,7 +408,7 @@ async function processWebhookEvent(
                 throw new Error(`apply_balance_payment_financials failed (23505 path): ${repairErr.message}`);
               }
               const r = Array.isArray(repairRows) ? repairRows[0] : repairRows;
-              console.log("[WEBHOOK] 23505 repair RPC result", { orderId, piId, applied: r?.applied, payment_row_found: r?.payment_row_found });
+              // console.log("[WEBHOOK] 23505 repair RPC result", { orderId, piId, applied: r?.applied, payment_row_found: r?.payment_row_found });
               // Send receipt email — the edge fn wrote the payment but never sends the email
               // (that's only done here in the webhook). Load order data and send now.
               try {
@@ -471,7 +471,7 @@ async function processWebhookEvent(
           }
 
           const applyResult = Array.isArray(applyRows) ? applyRows[0] : applyRows;
-          console.log("[WEBHOOK] apply_balance_payment_financials result", { orderId, piId, applied: applyResult?.applied, payment_row_found: applyResult?.payment_row_found });
+          // console.log("[WEBHOOK] apply_balance_payment_financials result", { orderId, piId, applied: applyResult?.applied, payment_row_found: applyResult?.payment_row_found });
 
           // Save card details to orders so the customer portal shows the correct card
           if (paymentBrand || paymentLast4 || expandedPaymentMethodId) {
@@ -722,9 +722,9 @@ async function processWebhookEvent(
             }
             const r = Array.isArray(piApplyRows) ? piApplyRows[0] : piApplyRows;
             if (!r?.payment_row_found) {
-              console.log("[WEBHOOK] pi.succeeded: no payment row yet — checkout.session.completed will apply", { orderId, piId: paymentIntent.id });
+              // console.log("[WEBHOOK] pi.succeeded: no payment row yet — checkout.session.completed will apply", { orderId, piId: paymentIntent.id });
             } else {
-              console.log("[WEBHOOK] pi.succeeded RPC result", { orderId, piId: paymentIntent.id, applied: r?.applied });
+              // console.log("[WEBHOOK] pi.succeeded RPC result", { orderId, piId: paymentIntent.id, applied: r?.applied });
             }
 
           } else if (paymentType === "deposit") {

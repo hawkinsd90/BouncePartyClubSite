@@ -12,7 +12,7 @@ let stripePromise: Promise<Stripe | null> | null = null;
 
 async function getStripeInstance(): Promise<Stripe | null> {
   if (!stripePromise) {
-    console.log('[getStripeInstance] Creating new Stripe promise');
+    // console.log('[getStripeInstance] Creating new Stripe promise');
     const publishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 
     if (!publishableKey) {
@@ -20,10 +20,10 @@ async function getStripeInstance(): Promise<Stripe | null> {
       return null;
     }
 
-    console.log('[getStripeInstance] Loading Stripe with publishable key from env...');
+    // console.log('[getStripeInstance] Loading Stripe with publishable key from env...');
     stripePromise = loadStripe(publishableKey);
   } else {
-    console.log('[getStripeInstance] Reusing existing Stripe promise');
+    // console.log('[getStripeInstance] Reusing existing Stripe promise');
   }
   return stripePromise;
 }
@@ -45,18 +45,18 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
   useEffect(() => {
     const now = Date.now();
     mountTimeRef.current = now;
-    console.log('[CheckoutForm] Component mounted at', now, ', stripe:', !!stripe, 'elements:', !!elements);
+    // console.log('[CheckoutForm] Component mounted at', now, ', stripe:', !!stripe, 'elements:', !!elements);
 
     if (stripe && elements) {
-      console.log('[CheckoutForm] Stripe and Elements available, rendering PaymentElement');
+      // console.log('[CheckoutForm] Stripe and Elements available, rendering PaymentElement');
       setCanRender(true);
     } else {
-      console.log('[CheckoutForm] Waiting for Stripe (', !!stripe, ') and Elements (', !!elements, ')');
+      // console.log('[CheckoutForm] Waiting for Stripe (', !!stripe, ') and Elements (', !!elements, ')');
       setCanRender(false);
     }
 
     return () => {
-      console.log('[CheckoutForm] Component unmounting (was mounted at', now, ')');
+      // console.log('[CheckoutForm] Component unmounting (was mounted at', now, ')');
       if (timerRef.current) {
         clearTimeout(timerRef.current);
         timerRef.current = null;
@@ -66,14 +66,14 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
 
   const handleLoaderStart = () => {
     const timeSinceMount = Date.now() - mountTimeRef.current;
-    console.log('[CheckoutForm] ⟳ PaymentElement loader started (', timeSinceMount, 'ms since mount)');
-    console.log('[CheckoutForm] Current stripe:', !!stripe, 'elements:', !!elements, 'canRender:', canRender);
+    // console.log('[CheckoutForm] ⟳ PaymentElement loader started (', timeSinceMount, 'ms since mount)');
+    // console.log('[CheckoutForm] Current stripe:', !!stripe, 'elements:', !!elements, 'canRender:', canRender);
   };
 
   const handleReady = () => {
     const timeSinceMount = Date.now() - mountTimeRef.current;
-    console.log('[CheckoutForm] ✓ PaymentElement is ready and can accept input (', timeSinceMount, 'ms since mount)');
-    console.log('[CheckoutForm] Setting isReady to true');
+    // console.log('[CheckoutForm] ✓ PaymentElement is ready and can accept input (', timeSinceMount, 'ms since mount)');
+    // console.log('[CheckoutForm] Setting isReady to true');
     setIsReady(true);
   };
 
@@ -87,7 +87,7 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
   };
 
   const handleChange = (event: any) => {
-    console.log('[CheckoutForm] PaymentElement changed:', event.elementType, 'complete:', event.complete);
+    // console.log('[CheckoutForm] PaymentElement changed:', event.elementType, 'complete:', event.complete);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -101,7 +101,7 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
     setProcessing(true);
 
     try {
-      console.log('Starting payment confirmation...');
+      // console.log('Starting payment confirmation...');
 
       const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
@@ -111,13 +111,13 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
         redirect: 'if_required',
       });
 
-      console.log('Payment confirmation result:', { error, paymentIntent });
+      // console.log('Payment confirmation result:', { error, paymentIntent });
 
       if (error) {
         console.error('Payment error:', error);
         onError(error.message || 'Payment failed');
       } else {
-        console.log('Payment successful:', paymentIntent);
+        // console.log('Payment successful:', paymentIntent);
         onSuccess();
       }
     } catch (err: any) {
@@ -129,7 +129,7 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
   };
 
   if (!stripe || !elements || !canRender) {
-    console.log('[CheckoutForm] Waiting - stripe:', !!stripe, 'elements:', !!elements, 'canRender:', canRender, 'mountTime:', mountTimeRef.current);
+    // console.log('[CheckoutForm] Waiting - stripe:', !!stripe, 'elements:', !!elements, 'canRender:', canRender, 'mountTime:', mountTimeRef.current);
     return (
       <div className="flex items-center justify-center py-8">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -138,7 +138,7 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
     );
   }
 
-  console.log('[CheckoutForm] >>> Rendering PaymentElement now. isReady:', isReady, 'canRender:', canRender, 'mountTime:', mountTimeRef.current);
+  // console.log('[CheckoutForm] >>> Rendering PaymentElement now. isReady:', isReady, 'canRender:', canRender, 'mountTime:', mountTimeRef.current);
 
   return (
     <form onSubmit={handleSubmit}>
@@ -208,17 +208,17 @@ export function StripeCheckoutForm({
     let mounted = true;
     mountCountRef.current += 1;
     const currentMount = mountCountRef.current;
-    console.log('[StripeCheckoutForm] Mount #', currentMount, '- Component mounting');
+    // console.log('[StripeCheckoutForm] Mount #', currentMount, '- Component mounting');
 
     const initialize = async () => {
-      console.log('[StripeCheckoutForm] Mount #', currentMount, '- Starting initialization');
+      // console.log('[StripeCheckoutForm] Mount #', currentMount, '- Starting initialization');
       setLoading(true);
       setOptions(null);
       setInitError(null);
       setReadyToRender(false);
 
       try {
-        console.log('[StripeCheckoutForm] Mount #', currentMount, '- Creating payment intent for order:', orderId);
+        // console.log('[StripeCheckoutForm] Mount #', currentMount, '- Creating payment intent for order:', orderId);
 
         const payload = {
           orderId,
@@ -241,7 +241,7 @@ export function StripeCheckoutForm({
         );
 
         if (!mounted || currentMount !== mountCountRef.current) {
-          console.log('[StripeCheckoutForm] Mount #', currentMount, '- Ignoring response (unmounted or stale)');
+          // console.log('[StripeCheckoutForm] Mount #', currentMount, '- Ignoring response (unmounted or stale)');
           return;
         }
 
@@ -251,19 +251,19 @@ export function StripeCheckoutForm({
         }
 
         const data = await paymentResponse.json();
-        console.log('[StripeCheckoutForm] Payment intent created, clientSecret:', !!data.clientSecret);
+        // console.log('[StripeCheckoutForm] Payment intent created, clientSecret:', !!data.clientSecret);
 
         if (!data.clientSecret) {
           throw new Error('No client secret returned from server');
         }
 
         if (mounted && currentMount === mountCountRef.current) {
-          console.log('[StripeCheckoutForm] Mount #', currentMount, '- Setting options with clientSecret');
+          // console.log('[StripeCheckoutForm] Mount #', currentMount, '- Setting options with clientSecret');
           setOptions({
             clientSecret: data.clientSecret,
           });
 
-          console.log('[StripeCheckoutForm] Mount #', currentMount, '- Ready to render Stripe components');
+          // console.log('[StripeCheckoutForm] Mount #', currentMount, '- Ready to render Stripe components');
           setReadyToRender(true);
         }
       } catch (err: any) {
@@ -281,7 +281,7 @@ export function StripeCheckoutForm({
     initialize();
 
     return () => {
-      console.log('[StripeCheckoutForm] Mount #', currentMount, '- Cleanup, unmounting');
+      // console.log('[StripeCheckoutForm] Mount #', currentMount, '- Cleanup, unmounting');
       mounted = false;
     };
   }, [orderId, depositCents, customerEmail, customerName]);
@@ -296,7 +296,7 @@ export function StripeCheckoutForm({
 
   if (!readyToRender || !options) {
     if (!loading) {
-      console.log('[StripeCheckoutForm] Waiting to render - options:', !!options, 'readyToRender:', readyToRender, 'initError:', !!initError, 'currentMount:', mountCountRef.current);
+      // console.log('[StripeCheckoutForm] Waiting to render - options:', !!options, 'readyToRender:', readyToRender, 'initError:', !!initError, 'currentMount:', mountCountRef.current);
     }
 
     if (initError) {
@@ -321,7 +321,7 @@ export function StripeCheckoutForm({
     );
   }
 
-  console.log('[StripeCheckoutForm] Mount #', mountCountRef.current, '- Rendering StripeElementsWrapper with clientSecret');
+  // console.log('[StripeCheckoutForm] Mount #', mountCountRef.current, '- Rendering StripeElementsWrapper with clientSecret');
   return (
     <StripeElementsWrapper
       options={options}
@@ -347,23 +347,23 @@ function StripeElementsWrapper({ options, onSuccess, onError }: StripeElementsWr
     let mounted = true;
     mountCountRef.current += 1;
     const currentMount = mountCountRef.current;
-    console.log('[StripeElementsWrapper] Starting Stripe initialization (mount #', currentMount, ')...');
+    // console.log('[StripeElementsWrapper] Starting Stripe initialization (mount #', currentMount, ')...');
 
     getStripeInstance()
       .then((stripeInstance) => {
         if (!mounted) {
-          console.log('[StripeElementsWrapper] Mount #', currentMount, '- Component unmounted, ignoring Stripe instance');
+          // console.log('[StripeElementsWrapper] Mount #', currentMount, '- Component unmounted, ignoring Stripe instance');
           return;
         }
         if (currentMount !== mountCountRef.current) {
-          console.log('[StripeElementsWrapper] Mount #', currentMount, '- Stale mount (now at', mountCountRef.current, '), ignoring');
+          // console.log('[StripeElementsWrapper] Mount #', currentMount, '- Stale mount (now at', mountCountRef.current, '), ignoring');
           return;
         }
         if (stripeInstance) {
-          console.log('[StripeElementsWrapper] Mount #', currentMount, '- Stripe instance loaded successfully');
+          // console.log('[StripeElementsWrapper] Mount #', currentMount, '- Stripe instance loaded successfully');
           setStripe(stripeInstance);
           setInitialized(true);
-          console.log('[StripeElementsWrapper] Mount #', currentMount, '- Marked as initialized');
+          // console.log('[StripeElementsWrapper] Mount #', currentMount, '- Marked as initialized');
         } else {
           console.error('[StripeElementsWrapper] Mount #', currentMount, '- Stripe instance is null');
           setError('Failed to load Stripe');
@@ -376,7 +376,7 @@ function StripeElementsWrapper({ options, onSuccess, onError }: StripeElementsWr
       });
 
     return () => {
-      console.log('[StripeElementsWrapper] Mount #', currentMount, '- Cleanup, component unmounting');
+      // console.log('[StripeElementsWrapper] Mount #', currentMount, '- Cleanup, component unmounting');
       mounted = false;
     };
   }, []);
@@ -396,7 +396,7 @@ function StripeElementsWrapper({ options, onSuccess, onError }: StripeElementsWr
   }
 
   if (!stripe || !initialized) {
-    console.log('[StripeElementsWrapper] Waiting for Stripe instance. stripe:', !!stripe, 'initialized:', initialized);
+    // console.log('[StripeElementsWrapper] Waiting for Stripe instance. stripe:', !!stripe, 'initialized:', initialized);
     return (
       <div className="flex items-center justify-center py-8">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -405,12 +405,12 @@ function StripeElementsWrapper({ options, onSuccess, onError }: StripeElementsWr
     );
   }
 
-  console.log('[StripeElementsWrapper] >>> Creating Elements component with:', {
-    hasStripe: !!stripe,
-    hasClientSecret: !!options.clientSecret,
-    clientSecretPrefix: options.clientSecret?.substring(0, 20) + '...',
-    appearance: options.appearance
-  });
+  // console.log('[StripeElementsWrapper] >>> Creating Elements component with:', {
+  //   hasStripe: !!stripe,
+  //   hasClientSecret: !!options.clientSecret,
+  //   clientSecretPrefix: options.clientSecret?.substring(0, 20) + '...',
+  //   appearance: options.appearance
+  // });
 
   return (
     <Elements

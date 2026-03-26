@@ -57,7 +57,7 @@ export function AddressAutocomplete({
         // Load the Places library
         const placesLib = await google.maps.importLibrary("places") as google.maps.PlacesLibrary;
 
-        console.log('[AddressAutocomplete] Creating Autocomplete instance...');
+        // console.log('[AddressAutocomplete] Creating Autocomplete instance...');
 
         // Create traditional Autocomplete on the input element
         const autocomplete = new placesLib.Autocomplete(inputRef.current, {
@@ -66,15 +66,15 @@ export function AddressAutocomplete({
         });
 
         autocompleteRef.current = autocomplete;
-        console.log('[AddressAutocomplete] Autocomplete instance created');
+        // console.log('[AddressAutocomplete] Autocomplete instance created');
 
         // Listen for place selection
         autocomplete.addListener('place_changed', () => {
-          console.log('[AddressAutocomplete] place_changed event fired!');
+          // console.log('[AddressAutocomplete] place_changed event fired!');
           isSelectingRef.current = true;
           const place = autocomplete.getPlace();
 
-          console.log('[AddressAutocomplete] Place object:', place);
+          // console.log('[AddressAutocomplete] Place object:', place);
 
           if (!place.geometry || !place.geometry.location) {
             console.error('[AddressAutocomplete] No geometry found for place');
@@ -107,14 +107,14 @@ export function AddressAutocomplete({
             lng: place.geometry.location.lng(),
           };
 
-          console.log('[AddressAutocomplete] Parsed address result:', result);
-          console.log('[AddressAutocomplete] Calling onSelect callback...');
+          // console.log('[AddressAutocomplete] Parsed address result:', result);
+          // console.log('[AddressAutocomplete] Calling onSelect callback...');
           setError('');
 
           // Call the callback
           try {
             onSelectRef.current(result);
-            console.log('[AddressAutocomplete] onSelect callback completed successfully');
+            // console.log('[AddressAutocomplete] onSelect callback completed successfully');
           } catch (error) {
             console.error('[AddressAutocomplete] Error in onSelect callback:', error);
           }
@@ -122,7 +122,7 @@ export function AddressAutocomplete({
           isSelectingRef.current = false;
         });
 
-        console.log('[AddressAutocomplete] Autocomplete initialized successfully');
+        // console.log('[AddressAutocomplete] Autocomplete initialized successfully');
       } catch (error) {
         console.error('[AddressAutocomplete] Error creating autocomplete:', error);
         setError(`Error initializing address autocomplete: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -132,24 +132,24 @@ export function AddressAutocomplete({
     // Wait for importLibrary to be available
     const waitForImportLibrary = (): Promise<void> => {
       return new Promise((resolve, reject) => {
-        console.log('[AddressAutocomplete] Checking if importLibrary is available...');
+        // console.log('[AddressAutocomplete] Checking if importLibrary is available...');
 
         if (typeof window.google?.maps?.importLibrary === 'function') {
-          console.log('[AddressAutocomplete] importLibrary already available!');
+          // console.log('[AddressAutocomplete] importLibrary already available!');
           resolve();
           return;
         }
 
-        console.log('[AddressAutocomplete] Starting polling for importLibrary...');
+        // console.log('[AddressAutocomplete] Starting polling for importLibrary...');
         let attempts = 0;
         const maxAttempts = 50; // 5 seconds max
         const checkInterval = setInterval(() => {
           attempts++;
-          console.log(`[AddressAutocomplete] Poll attempt ${attempts}/${maxAttempts}...`);
+          // console.log(`[AddressAutocomplete] Poll attempt ${attempts}/${maxAttempts}...`);
 
           if (typeof window.google?.maps?.importLibrary === 'function') {
             clearInterval(checkInterval);
-            console.log(`[AddressAutocomplete] ✅ importLibrary became available after ${attempts} attempts!`);
+            // console.log(`[AddressAutocomplete] ✅ importLibrary became available after ${attempts} attempts!`);
             resolve();
           } else if (attempts >= maxAttempts) {
             clearInterval(checkInterval);
@@ -162,15 +162,15 @@ export function AddressAutocomplete({
 
     // Check if API is loaded
     const checkAndInit = async () => {
-      console.log('[AddressAutocomplete] checkAndInit called');
+      // console.log('[AddressAutocomplete] checkAndInit called');
       const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
-      console.log('[AddressAutocomplete] Existing script found:', !!existingScript);
+      // console.log('[AddressAutocomplete] Existing script found:', !!existingScript);
 
       if (typeof window.google?.maps?.importLibrary === 'function') {
-        console.log('[AddressAutocomplete] importLibrary already available, initializing...');
+        // console.log('[AddressAutocomplete] importLibrary already available, initializing...');
         await initAutocomplete();
       } else if (existingScript) {
-        console.log('[AddressAutocomplete] Script exists but not loaded yet, waiting...');
+        // console.log('[AddressAutocomplete] Script exists but not loaded yet, waiting...');
         try {
           await waitForImportLibrary();
           await initAutocomplete();
@@ -179,15 +179,15 @@ export function AddressAutocomplete({
           setError('Failed to initialize address autocomplete');
         }
       } else {
-        console.log('[AddressAutocomplete] No existing script, loading new script...');
+        // console.log('[AddressAutocomplete] No existing script, loading new script...');
         // Load the script with the new API loader
         const script = document.createElement('script');
         script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&v=weekly&loading=async`;
-        console.log('[AddressAutocomplete] Script src:', script.src);
+        // console.log('[AddressAutocomplete] Script src:', script.src);
         script.async = true;
         script.defer = true;
         script.onload = async () => {
-          console.log('[AddressAutocomplete] Script onload fired!');
+          // console.log('[AddressAutocomplete] Script onload fired!');
           try {
             await waitForImportLibrary();
             await initAutocomplete();
@@ -201,7 +201,7 @@ export function AddressAutocomplete({
           setError('Failed to load address autocomplete');
         };
         document.head.appendChild(script);
-        console.log('[AddressAutocomplete] Script appended to head');
+        // console.log('[AddressAutocomplete] Script appended to head');
       }
     };
 

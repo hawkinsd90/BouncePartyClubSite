@@ -23,19 +23,19 @@ export async function calculateDrivingDistance(
   destLat: number,
   destLng: number
 ): Promise<number> {
-  console.log('[calculateDrivingDistance] Called with:', { originLat, originLng, destLat, destLng });
+  // console.log('[calculateDrivingDistance] Called with:', { originLat, originLng, destLat, destLng });
 
   // Use straight-line distance × 1.4 as fallback (approximates driving distance)
   const straightLine = calculateDistance(originLat, originLng, destLat, destLng);
   const fallbackDistance = straightLine * 1.4;
-  console.log('[calculateDrivingDistance] Calculated fallback distance:', {
-    straightLine: straightLine.toFixed(2),
-    fallback: fallbackDistance.toFixed(2),
-  });
+  // console.log('[calculateDrivingDistance] Calculated fallback distance:', {
+  //   straightLine: straightLine.toFixed(2),
+  //   fallback: fallbackDistance.toFixed(2),
+  // });
 
   // Wait for Google Maps to load (with 5 second timeout)
   try {
-    console.log('[calculateDrivingDistance] Waiting for Google Maps to load...');
+    // console.log('[calculateDrivingDistance] Waiting for Google Maps to load...');
     await Promise.race([
       (async () => {
         const { loadGoogleMapsAPI } = await import('./googleMaps');
@@ -50,11 +50,11 @@ export async function calculateDrivingDistance(
 
   // Check if Google Maps is available
   if (!window.google?.maps?.DistanceMatrixService) {
-    console.log('[calculateDrivingDistance] Google Maps not available after loading, using fallback');
+    // console.log('[calculateDrivingDistance] Google Maps not available after loading, using fallback');
     return fallbackDistance;
   }
 
-  console.log('[calculateDrivingDistance] Google Maps is available, attempting Distance Matrix API call');
+  // console.log('[calculateDrivingDistance] Google Maps is available, attempting Distance Matrix API call');
 
   try {
     const service = new google.maps.DistanceMatrixService();
@@ -70,14 +70,14 @@ export async function calculateDrivingDistance(
           unitSystem: google.maps.UnitSystem.IMPERIAL,
         },
         (response, status) => {
-          console.log('[calculateDrivingDistance] Distance Matrix API response:', { status, response });
+          // console.log('[calculateDrivingDistance] Distance Matrix API response:', { status, response });
 
           if (status === 'OK' && response?.rows?.[0]?.elements?.[0]?.status === 'OK') {
             const distanceMeters = response.rows[0].elements[0].distance?.value;
             if (distanceMeters) {
               // Convert meters to miles
               const distanceMiles = distanceMeters / 1609.34;
-              console.log(`[calculateDrivingDistance] Success! Driving distance: ${distanceMiles.toFixed(2)} miles`);
+              // console.log(`[calculateDrivingDistance] Success! Driving distance: ${distanceMiles.toFixed(2)} miles`);
               resolve(distanceMiles);
               return;
             }
@@ -91,7 +91,7 @@ export async function calculateDrivingDistance(
     });
   } catch (error) {
     console.error('[calculateDrivingDistance] Error calculating driving distance:', error);
-    console.log('[calculateDrivingDistance] Returning fallback due to error:', fallbackDistance.toFixed(2), 'miles');
+    // console.log('[calculateDrivingDistance] Returning fallback due to error:', fallbackDistance.toFixed(2), 'miles');
     return fallbackDistance;
   }
 }

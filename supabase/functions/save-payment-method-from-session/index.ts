@@ -51,7 +51,7 @@ Deno.serve(async (req: Request) => {
     // Retrieve the checkout session
     const session = await stripe.checkout.sessions.retrieve(sessionId);
 
-    console.log(`[SAVE-PM] Session mode: ${session.mode}, status: ${session.status}`);
+    // console.log(`[SAVE-PM] Session mode: ${session.mode}, status: ${session.status}`);
 
     const stripeCustomerId = typeof session.customer === "string"
       ? session.customer

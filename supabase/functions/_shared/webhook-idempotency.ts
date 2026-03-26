@@ -42,7 +42,7 @@ export async function beginWebhookProcessing(
 
     // Case 1: Event already succeeded
     if (existing && existing.status === 'succeeded') {
-      console.log(`[WebhookIdempotency] Event already succeeded: ${stripeEventId}`);
+      // console.log(`[WebhookIdempotency] Event already succeeded: ${stripeEventId}`);
       return { shouldProcess: false, alreadyProcessed: true, alreadyProcessing: false };
     }
 
@@ -54,12 +54,12 @@ export async function beginWebhookProcessing(
 
       // If processing started recently, don't retry yet
       if (age < STALE_PROCESSING_TIMEOUT_MS) {
-        console.log(`[WebhookIdempotency] Event currently processing (age: ${Math.round(age / 1000)}s): ${stripeEventId}`);
+        // console.log(`[WebhookIdempotency] Event currently processing (age: ${Math.round(age / 1000)}s): ${stripeEventId}`);
         return { shouldProcess: false, alreadyProcessed: false, alreadyProcessing: true };
       }
 
       // Processing is stale - allow retry
-      console.log(`[WebhookIdempotency] Stale processing detected (age: ${Math.round(age / 1000)}s), allowing retry: ${stripeEventId}`);
+      // console.log(`[WebhookIdempotency] Stale processing detected (age: ${Math.round(age / 1000)}s), allowing retry: ${stripeEventId}`);
 
       // Update to processing with incremented attempts
       const { error: updateError } = await supabaseClient
@@ -81,7 +81,7 @@ export async function beginWebhookProcessing(
 
     // Case 3: Event failed previously - allow retry
     if (existing && existing.status === 'failed') {
-      console.log(`[WebhookIdempotency] Failed event, allowing retry: ${stripeEventId}`);
+      // console.log(`[WebhookIdempotency] Failed event, allowing retry: ${stripeEventId}`);
 
       const { error: updateError } = await supabaseClient
         .from('stripe_webhook_events')
@@ -115,7 +115,7 @@ export async function beginWebhookProcessing(
     if (insertError) {
       // Check if it's a duplicate key error (race condition)
       if (insertError.code === '23505') {
-        console.log(`[WebhookIdempotency] Race condition detected, re-checking: ${stripeEventId}`);
+        // console.log(`[WebhookIdempotency] Race condition detected, re-checking: ${stripeEventId}`);
         // Recursive call to re-check (will hit one of the cases above)
         return await beginWebhookProcessing(supabaseClient, stripeEventId, eventType, payload);
       }
@@ -124,7 +124,7 @@ export async function beginWebhookProcessing(
       return { shouldProcess: false, alreadyProcessed: false, alreadyProcessing: false };
     }
 
-    console.log(`[WebhookIdempotency] New event, beginning processing: ${stripeEventId}`);
+    // console.log(`[WebhookIdempotency] New event, beginning processing: ${stripeEventId}`);
     return { shouldProcess: true, alreadyProcessed: false, alreadyProcessing: false };
 
   } catch (err) {
@@ -153,7 +153,7 @@ export async function finalizeWebhookSuccess(
     if (error) {
       console.error('[WebhookIdempotency] Error finalizing success:', error);
     } else {
-      console.log(`[WebhookIdempotency] Event succeeded: ${stripeEventId}`);
+      // console.log(`[WebhookIdempotency] Event succeeded: ${stripeEventId}`);
     }
   } catch (err) {
     console.error('[WebhookIdempotency] Exception finalizing success:', err);
@@ -180,7 +180,7 @@ export async function finalizeWebhookFailure(
     if (error) {
       console.error('[WebhookIdempotency] Error finalizing failure:', error);
     } else {
-      console.log(`[WebhookIdempotency] Event failed: ${stripeEventId} - ${errorMessage}`);
+      // console.log(`[WebhookIdempotency] Event failed: ${stripeEventId} - ${errorMessage}`);
     }
   } catch (err) {
     console.error('[WebhookIdempotency] Exception finalizing failure:', err);

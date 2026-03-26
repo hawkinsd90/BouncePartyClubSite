@@ -70,7 +70,7 @@ export async function saveOrderChanges({
     showToast('You must be logged in to save changes.', 'error');
     throw new Error('Authentication required');
   }
-  console.log('User authenticated:', user.id);
+  // console.log('User authenticated:', user.id);
 
   const changes: any = {};
   const logs = [];

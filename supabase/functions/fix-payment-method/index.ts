@@ -18,7 +18,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const { orderId } = await req.json();
-    console.log("[fix-payment-method] Fixing payment method for order:", orderId);
+    // console.log("[fix-payment-method] Fixing payment method for order:", orderId);
 
     if (!orderId) {
       return new Response(
@@ -83,14 +83,14 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log("[fix-payment-method] Looking for sessions for customer:", order.stripe_customer_id);
+    // console.log("[fix-payment-method] Looking for sessions for customer:", order.stripe_customer_id);
 
     const sessions = await stripe.checkout.sessions.list({
       customer: order.stripe_customer_id,
       limit: 20,
     });
 
-    console.log("[fix-payment-method] Found", sessions.data.length, "sessions");
+    // console.log("[fix-payment-method] Found", sessions.data.length, "sessions");
 
     const orderSession = sessions.data.find(
       (s: { metadata?: { order_id?: string } }) => s.metadata?.order_id === orderId
@@ -106,13 +106,13 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log("[fix-payment-method] Found session:", orderSession.id);
+    // console.log("[fix-payment-method] Found session:", orderSession.id);
 
     const fullSession = await stripe.checkout.sessions.retrieve(orderSession.id, {
       expand: ['payment_intent', 'payment_intent.payment_method'],
     });
 
-    console.log("[fix-payment-method] Full session payment_intent:", fullSession.payment_intent);
+    // console.log("[fix-payment-method] Full session payment_intent:", fullSession.payment_intent);
 
     let paymentMethodId: string | null = null;
 
@@ -133,7 +133,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    console.log("[fix-payment-method] Extracted payment method ID:", paymentMethodId);
+    // console.log("[fix-payment-method] Extracted payment method ID:", paymentMethodId);
 
     if (!paymentMethodId) {
       return new Response(
@@ -163,7 +163,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log("[fix-payment-method] Successfully updated payment method");
+    // console.log("[fix-payment-method] Successfully updated payment method");
 
     return new Response(
       JSON.stringify({ 

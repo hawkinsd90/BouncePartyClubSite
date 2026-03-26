@@ -88,7 +88,7 @@ export function TravelCalculator() {
   }
 
   const handleAddressChange = useCallback((addr: string) => {
-    console.log('[TravelCalculator] Address changed (user typing):', addr);
+    // console.log('[TravelCalculator] Address changed (user typing):', addr);
     // Clear the address string, keep selectedAddress for now
     setAddress(addr);
     // If user types something, we'll clear selectedAddress in the next effect
@@ -97,7 +97,7 @@ export function TravelCalculator() {
   }, []);
 
   const handleAddressSelect = useCallback((addr: any) => {
-    console.log('[TravelCalculator] Address selected with full data:', addr);
+    // console.log('[TravelCalculator] Address selected with full data:', addr);
     // Update both address and selectedAddress
     setAddress(addr.formatted_address);
     setSelectedAddress(addr);

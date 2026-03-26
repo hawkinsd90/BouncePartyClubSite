@@ -88,7 +88,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log(`Found ${payments.length} payments to backfill`);
+    // console.log(`Found ${payments.length} payments to backfill`);
 
     let successCount = 0;
     let failCount = 0;
@@ -144,7 +144,7 @@ Deno.serve(async (req: Request) => {
         }
 
         successCount++;
-        console.log(`✅ Updated payment ${payment.id} with method: ${paymentMethodType}`);
+        // console.log(`✅ Updated payment ${payment.id} with method: ${paymentMethodType}`);
       } catch (err: unknown) {
         failCount++;
         const message = err instanceof Error ? err.message : String(err);

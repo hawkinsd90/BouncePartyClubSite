@@ -140,9 +140,9 @@ Deno.serve(async (req: Request) => {
       event_date,
     } = result;
 
-    console.log("[record-cash-payment] RPC succeeded:", {
-      orderId, payment_id, payment_type, new_balance_due, caller: callerUser.id,
-    });
+    // console.log("[record-cash-payment] RPC succeeded:", {
+    //   orderId, payment_id, payment_type, new_balance_due, caller: callerUser.id,
+    // });
 
     // ── 4. Non-critical side effects (best-effort, non-atomic) ──────────────
 

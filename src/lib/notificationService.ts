@@ -39,7 +39,7 @@ export async function sendEmail(options: EmailOptions): Promise<NotificationResu
       return { success: false, error: errorText };
     }
 
-    console.log('[NOTIFICATION] Email sent successfully to:', options.to);
+    // console.log('[NOTIFICATION] Email sent successfully to:', options.to);
     return { success: true };
   } catch (error: any) {
     console.error('[NOTIFICATION] Email error:', error);
@@ -79,7 +79,7 @@ export async function sendSms(options: SmsOptions): Promise<NotificationResult> 
       return { success: false, error: errorMsg };
     }
 
-    console.log('[NOTIFICATION] SMS sent successfully to:', options.to);
+    // console.log('[NOTIFICATION] SMS sent successfully to:', options.to);
     return { success: true };
   } catch (error: any) {
     console.error('[NOTIFICATION] SMS error:', error);
@@ -131,7 +131,7 @@ export async function sendAdminSms(message: string, orderId?: string): Promise<N
   const adminPhone = await getAdminPhone();
 
   if (!adminPhone) {
-    console.log('[NOTIFICATION] No admin phone configured; skipping admin SMS.');
+    // console.log('[NOTIFICATION] No admin phone configured; skipping admin SMS.');
     return { success: false, error: 'Admin phone not configured' };
   }
 
@@ -149,7 +149,7 @@ export async function sendAdminEmail(
   const adminEmail = await getAdminEmail();
 
   if (!adminEmail) {
-    console.log('[NOTIFICATION] No admin email configured; skipping admin email.');
+    // console.log('[NOTIFICATION] No admin email configured; skipping admin email.');
     return { success: false, error: 'Admin email not configured' };
   }
 

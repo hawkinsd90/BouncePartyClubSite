@@ -56,7 +56,7 @@ export function loadGoogleMapsAPI(): Promise<void> {
     script.defer = true;
     script.onload = () => {
       script.dataset.loaded = 'true';
-      console.log('✅ Google Maps API loaded successfully with new loader');
+      // console.log('✅ Google Maps API loaded successfully with new loader');
       onReady();
     };
     script.onerror = (e) => {

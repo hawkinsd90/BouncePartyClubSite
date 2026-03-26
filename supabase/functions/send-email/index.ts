@@ -56,7 +56,7 @@ async function sendAdminSMSFallback(
       }),
     });
 
-    console.log('Admin SMS fallback sent');
+    // console.log('Admin SMS fallback sent');
   } catch (err) {
     console.error('Failed to send admin SMS fallback:', err);
   }
@@ -99,7 +99,7 @@ Deno.serve(async (req: Request) => {
 
     // If templateName is provided, fetch and populate the template
     if (templateName && orderId) {
-      console.log('[send-email] Looking up template:', templateName);
+      // console.log('[send-email] Looking up template:', templateName);
 
       const { data: template } = await supabase
         .from('email_templates')

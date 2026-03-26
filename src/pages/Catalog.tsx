@@ -86,7 +86,7 @@ export function Catalog() {
     // Handle page visibility changes (when user returns to the app)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && mounted && units.length > 0) {
-        console.log('Page became visible, data is already loaded');
+        // console.log('Page became visible, data is already loaded');
         // Data is already loaded, no need to reload
       }
     };
@@ -104,7 +104,7 @@ export function Catalog() {
     // Check for prefill data from home page
     const prefillData = SafeStorage.getItem<any>('bpc_quote_prefill');
     if (prefillData && prefillData.event_date) {
-      console.log('Prefill data loaded:', prefillData);
+      // console.log('Prefill data loaded:', prefillData);
       setEventDate(prefillData.event_date);
       return;
     }
@@ -112,7 +112,7 @@ export function Catalog() {
     // Check for saved form data from quote page (when coming back from cart)
     const formData = SafeStorage.getItem<any>('bpc_quote_form');
     if (formData && formData.event_date) {
-      console.log('Form data loaded:', formData);
+      // console.log('Form data loaded:', formData);
       setEventDate(formData.event_date);
     }
   }

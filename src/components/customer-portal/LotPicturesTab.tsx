@@ -25,7 +25,7 @@ async function notifyAdminOfPictureUpload(orderId: string, pictureCount: number)
 
     // Only notify if admin requested lot pictures
     if (!order.lot_pictures_requested) {
-      console.log('Lot pictures uploaded but not requested by admin, skipping notification');
+      // console.log('Lot pictures uploaded but not requested by admin, skipping notification');
       return;
     }
 

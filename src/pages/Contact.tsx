@@ -22,7 +22,7 @@ export function Contact() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    console.log('Inquiry submitted:', formData);
+    // console.log('Inquiry submitted:', formData);
     setSubmitted(true);
 
     setTimeout(() => {

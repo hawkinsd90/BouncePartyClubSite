@@ -231,7 +231,7 @@ Deno.serve(async (req: Request) => {
           // Restore only after a true dev/staging environment and explicit safe gating are in place.
           // Previously logged a Stripe payment method ID (pm_xxx) which is a sensitive payment token.
           // console.log(`[charge-deposit] Resolved missing payment method from Stripe customer: ${resolvedPaymentMethodId}`);
-          console.log("[charge-deposit] Resolved missing payment method from Stripe customer.");
+          // console.log("[charge-deposit] Resolved missing payment method from Stripe customer.");
         }
       } catch (pmLookupError) {
         console.error("[charge-deposit] Failed to look up payment methods:", pmLookupError);
@@ -936,7 +936,7 @@ Deno.serve(async (req: Request) => {
           },
         });
 
-        console.log("[charge-deposit] Rich booking confirmation email sent");
+        // console.log("[charge-deposit] Rich booking confirmation email sent");
       }
     } catch (emailError) {
       console.error("Failed to send booking confirmation email:", emailError);

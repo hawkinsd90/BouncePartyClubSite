@@ -383,7 +383,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    console.log(`[GCAL] Sync complete. ${results.length} dates processed.`);
+    // console.log(`[GCAL] Sync complete. ${results.length} dates processed.`);
 
     return new Response(
       JSON.stringify({ ok: true, processed: results.length, results }),

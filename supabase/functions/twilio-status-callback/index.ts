@@ -22,7 +22,7 @@ Deno.serve(async (req: Request) => {
     const messageStatus = formData.get("MessageStatus") as string;
     const errorCode = formData.get("ErrorCode") as string;
 
-    console.log("Status callback:", { messageSid, messageStatus, errorCode });
+    // console.log("Status callback:", { messageSid, messageStatus, errorCode });
 
     if (!messageSid || !messageStatus) {
       return new Response(

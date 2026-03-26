@@ -157,7 +157,7 @@ export function RouteManagementModal({
 
   async function resolveOrigin(): Promise<{ origin: RouteOriginOptions | undefined; label: string; fallback: boolean }> {
     if (startMode === 'home_base') {
-      console.log('[Route Start Mode] Selected: Home Base — no override, optimizer uses home base as matrix row 0');
+      // console.log('[Route Start Mode] Selected: Home Base — no override, optimizer uses home base as matrix row 0');
       return { origin: undefined, label: 'Home Base', fallback: false };
     }
 
@@ -171,20 +171,20 @@ export function RouteManagementModal({
           address: lastCompletedTask.address,
           label: `Last Completed Stop (${lastCompletedTask.customerName})`,
         };
-        console.log(
-          `[Route Start Mode] Selected: Last Completed Stop\n` +
-          `  Customer: ${lastCompletedTask.customerName}\n` +
-          `  Address: ${lastCompletedTask.address}\n` +
-          `  ${timestampInfo}`
-        );
+        // console.log(
+        //   `[Route Start Mode] Selected: Last Completed Stop\n` +
+        //   `  Customer: ${lastCompletedTask.customerName}\n` +
+        //   `  Address: ${lastCompletedTask.address}\n` +
+        //   `  ${timestampInfo}`
+        // );
         return { origin, label: origin.label, fallback: false };
       }
-      console.log('[Route Start Mode] Last Completed Stop selected but none found — falling back to Home Base');
+      // console.log('[Route Start Mode] Last Completed Stop selected but none found — falling back to Home Base');
       return { origin: undefined, label: 'Home Base (fallback: no completed stops)', fallback: true };
     }
 
     if (startMode === 'current_location') {
-      console.log('[Route Start Mode] Selected: Current Location — requesting browser geolocation...');
+      // console.log('[Route Start Mode] Selected: Current Location — requesting browser geolocation...');
       try {
         const position = await new Promise<GeolocationPosition>((resolve, reject) => {
           if (!navigator.geolocation) {
@@ -203,11 +203,11 @@ export function RouteManagementModal({
           address: coordsAddress,
           label: 'Current Location',
         };
-        console.log(
-          `[Route Start Mode] Current Location resolved successfully\n` +
-          `  lat=${latitude.toFixed(5)}, lng=${longitude.toFixed(5)}\n` +
-          `  Passing to Distance Matrix as: "${coordsAddress}"`
-        );
+        // console.log(
+        //   `[Route Start Mode] Current Location resolved successfully\n` +
+        //   `  lat=${latitude.toFixed(5)}, lng=${longitude.toFixed(5)}\n` +
+        //   `  Passing to Distance Matrix as: "${coordsAddress}"`
+        // );
         return { origin, label: 'Current Location', fallback: false };
       } catch (geoErr: any) {
         console.warn(`[Route Start Mode] Geolocation failed: ${geoErr.message} — checking fallback...`);
@@ -216,10 +216,10 @@ export function RouteManagementModal({
             address: lastCompletedTask.address,
             label: `Last Completed Stop (${lastCompletedTask.customerName})`,
           };
-          console.log(`[Route Start Mode] Fallback to Last Completed Stop: "${lastCompletedTask.address}"`);
+          // console.log(`[Route Start Mode] Fallback to Last Completed Stop: "${lastCompletedTask.address}"`);
           return { origin, label: `${origin.label} (fallback: geolocation denied)`, fallback: true };
         }
-        console.log('[Route Start Mode] No completed stops available — falling back to Home Base');
+        // console.log('[Route Start Mode] No completed stops available — falling back to Home Base');
         return { origin: undefined, label: 'Home Base (fallback: geolocation denied, no completed stops)', fallback: true };
       }
     }

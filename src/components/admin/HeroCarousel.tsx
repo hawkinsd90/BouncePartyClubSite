@@ -80,12 +80,12 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
     try {
       setLoading(true);
       setError(null);
-      console.log('[Carousel] Loading media...');
-      console.log('[Carousel] Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
-      console.log('[Carousel] Has anon key:', !!import.meta.env.VITE_SUPABASE_ANON_KEY);
+      // console.log('[Carousel] Loading media...');
+      // console.log('[Carousel] Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
+      // console.log('[Carousel] Has anon key:', !!import.meta.env.VITE_SUPABASE_ANON_KEY);
 
       const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/hero_carousel_images?is_active=eq.true&order=display_order`;
-      console.log('[Carousel] Trying direct fetch to:', url);
+      // console.log('[Carousel] Trying direct fetch to:', url);
 
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Query timeout after 10 seconds')), 10000)
@@ -97,7 +97,7 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
       }).then(async res => {
-        console.log('[Carousel] Fetch response status:', res.status);
+        // console.log('[Carousel] Fetch response status:', res.status);
         const data = await res.json();
 
         if (!res.ok) {
@@ -109,7 +109,7 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
 
       const data = await Promise.race([fetchPromise, timeoutPromise]) as any;
 
-      console.log('[Carousel] Query result:', { data });
+      // console.log('[Carousel] Query result:', { data });
 
       if (data && !Array.isArray(data)) {
         console.error('[Carousel] Response is not an array:', data);
@@ -120,7 +120,7 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
       }
 
       if (data && Array.isArray(data)) {
-        console.log(`[Carousel] Found ${data.length} items`);
+        // console.log(`[Carousel] Found ${data.length} items`);
         const mediaWithUrls = await Promise.all(
           data.map(async (item: any) => {
             if (item.storage_path) {
@@ -133,7 +133,7 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
           })
         );
         setMedia(mediaWithUrls);
-        console.log('[Carousel] Media loaded successfully');
+        // console.log('[Carousel] Media loaded successfully');
       } else {
         setMedia([]);
       }

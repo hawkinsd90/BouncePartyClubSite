@@ -156,8 +156,8 @@ Deno.serve(async (req: Request) => {
 
     const emailBody = createErrorNotificationEmail(errorData);
 
-    console.log(`Sending error notification to ${adminEmail}`);
-    console.log('Error details:', errorData);
+    // console.log(`Sending error notification to ${adminEmail}`);
+    // console.log('Error details:', errorData);
 
     const { error: sendEmailError } = await supabase.functions.invoke(
       'resend',
@@ -185,7 +185,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log('Error notification sent successfully');
+    // console.log('Error notification sent successfully');
 
     return new Response(
       JSON.stringify({ success: true, message: 'Error notification sent' }),

@@ -5,7 +5,7 @@ import { buildOrderSummaryDisplay } from './orderSummaryHelpers';
 
 async function estimateDistanceFromFee(travelFeeCents: number): Promise<number> {
   try {
-    console.log('[estimateDistanceFromFee] Estimating distance from fee:', travelFeeCents / 100);
+    // console.log('[estimateDistanceFromFee] Estimating distance from fee:', travelFeeCents / 100);
 
     const { data: pricingData } = await supabase
       .from('pricing_rules')
@@ -25,12 +25,12 @@ async function estimateDistanceFromFee(travelFeeCents: number): Promise<number> 
     const chargeableMiles = travelFeeCents / perMileCents;
     const estimatedDistance = baseRadius + chargeableMiles;
 
-    console.log('[estimateDistanceFromFee] Estimated distance:', {
-      baseRadius,
-      perMileCents,
-      chargeableMiles: chargeableMiles.toFixed(2),
-      estimatedDistance: estimatedDistance.toFixed(2),
-    });
+    // console.log('[estimateDistanceFromFee] Estimated distance:', {
+    //   baseRadius,
+    //   perMileCents,
+    //   chargeableMiles: chargeableMiles.toFixed(2),
+    //   estimatedDistance: estimatedDistance.toFixed(2),
+    // });
 
     return estimatedDistance;
   } catch (error) {
@@ -215,7 +215,7 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
     if (travelMiles === 0 && order.travel_fee_cents > 0) {
       // Strategy 1: Use stored travel_per_mile_cents if available
       if (order.travel_per_mile_cents && order.travel_per_mile_cents > 0) {
-        console.log('[OrderSummary] Estimating distance from stored per-mile rate');
+        // console.log('[OrderSummary] Estimating distance from stored per-mile rate');
         const { data: pricingData } = await supabase
           .from('pricing_rules')
           .select('base_radius_miles')
@@ -225,36 +225,36 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
         const chargeableMiles = order.travel_fee_cents / order.travel_per_mile_cents;
         travelMiles = baseRadius + chargeableMiles;
 
-        console.log('[OrderSummary] Estimated distance:', {
-          baseRadius,
-          chargeableMiles: chargeableMiles.toFixed(2),
-          totalMiles: travelMiles.toFixed(2),
-        });
+        // console.log('[OrderSummary] Estimated distance:', {
+        //   baseRadius,
+        //   chargeableMiles: chargeableMiles.toFixed(2),
+        //   totalMiles: travelMiles.toFixed(2),
+        // });
       }
       // Strategy 2: Try to calculate from coordinates
       else if (order.addresses) {
-        console.log('[OrderSummary] Attempting real-time travel distance calculation', {
-          orderId,
-          travelFeeCents: order.travel_fee_cents,
-          hasAddresses: !!order.addresses,
-          addressData: order.addresses,
-        });
+        // console.log('[OrderSummary] Attempting real-time travel distance calculation', {
+        //   orderId,
+        //   travelFeeCents: order.travel_fee_cents,
+        //   hasAddresses: !!order.addresses,
+        //   addressData: order.addresses,
+        // });
 
         try {
           const addr = order.addresses as any;
           const lat = parseFloat(addr.lat);
           const lng = parseFloat(addr.lng);
 
-          console.log('[OrderSummary] Parsed coordinates:', { lat, lng, isValid: !!(lat && lng) });
+          // console.log('[OrderSummary] Parsed coordinates:', { lat, lng, isValid: !!(lat && lng) });
 
           if (lat && lng) {
-            console.log('[OrderSummary] Calling calculateDrivingDistance...');
+            // console.log('[OrderSummary] Calling calculateDrivingDistance...');
             travelMiles = await calculateDrivingDistance(HOME_BASE.lat, HOME_BASE.lng, lat, lng);
-            console.log('[OrderSummary] Distance calculation result:', travelMiles, 'miles');
+            // console.log('[OrderSummary] Distance calculation result:', travelMiles, 'miles');
 
             // Optionally save it for next time (fire and forget, don't await)
             if (travelMiles > 0) {
-              console.log('[OrderSummary] Saving calculated distance to database');
+              // console.log('[OrderSummary] Saving calculated distance to database');
               supabase.from('orders').update({ travel_total_miles: travelMiles }).eq('id', orderId);
             } else {
               console.warn('[OrderSummary] Calculated distance was 0 or invalid, not saving');
@@ -275,15 +275,15 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
         }
       } else {
         // Strategy 3: Estimate from current pricing rules
-        console.log('[OrderSummary] No coordinates available, estimating from fee');
+        // console.log('[OrderSummary] No coordinates available, estimating from fee');
         travelMiles = await estimateDistanceFromFee(order.travel_fee_cents);
       }
     } else {
-      console.log('[OrderSummary] Skipping real-time distance calculation:', {
-        travelMiles,
-        travelFeeCents: order.travel_fee_cents,
-        hasAddresses: !!order.addresses,
-      });
+      // console.log('[OrderSummary] Skipping real-time distance calculation:', {
+      //   travelMiles,
+      //   travelFeeCents: order.travel_fee_cents,
+      //   hasAddresses: !!order.addresses,
+      // });
     }
 
     const discounts = (discountsRes.data || []) as unknown as OrderDiscount[];

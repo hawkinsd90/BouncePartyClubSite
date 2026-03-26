@@ -55,7 +55,7 @@ export async function logTransaction(
     }
 
     const receiptNumber = receipt.receipt_number;
-    console.log('[TransactionLogger] Transaction logged:', receiptNumber);
+    // console.log('[TransactionLogger] Transaction logged:', receiptNumber);
 
     // Send admin notification asynchronously (fire and forget)
     sendAdminNotification(supabaseClient, receiptNumber, data).catch(err => {
@@ -239,7 +239,7 @@ async function sendAdminNotification(
       })
       .eq('receipt_number', receiptNumber);
 
-    console.log('[TransactionLogger] Admin notification sent:', receiptNumber);
+    // console.log('[TransactionLogger] Admin notification sent:', receiptNumber);
   } catch (err) {
     console.error('[TransactionLogger] Exception sending admin notification:', err);
     throw err;

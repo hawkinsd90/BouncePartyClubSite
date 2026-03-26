@@ -8,7 +8,7 @@ export function useOrderDuplication() {
 
   async function duplicateOrder(orderId: string) {
     try {
-      console.log('[Duplicate Order] Starting duplication for order:', orderId);
+      // console.log('[Duplicate Order] Starting duplication for order:', orderId);
 
       const { data: orderDataRaw, error: orderError } = await supabase
         .from('orders')
@@ -34,7 +34,7 @@ export function useOrderDuplication() {
 
       const orderData = orderDataRaw as any;
 
-      console.log('[Duplicate Order] Order loaded, fetching items...');
+      // console.log('[Duplicate Order] Order loaded, fetching items...');
 
       const { data: itemsDataRaw, error: itemsError } = await supabase
         .from('order_items')
@@ -56,7 +56,7 @@ export function useOrderDuplication() {
 
       const itemsData = itemsDataRaw as any[];
 
-      console.log('[Duplicate Order] Loaded items:', itemsData.length);
+      // console.log('[Duplicate Order] Loaded items:', itemsData.length);
 
       if (itemsData.length === 0) {
         console.warn('[Duplicate Order] No items found in order');
@@ -70,7 +70,7 @@ export function useOrderDuplication() {
       itemsData.forEach((item: any) => {
         if (item.units && item.units.active !== false) {
           validItems.push(item);
-          console.log('[Duplicate Order] Valid item:', item.units.name);
+          // console.log('[Duplicate Order] Valid item:', item.units.name);
         } else {
           const unitName = item.units?.name || 'Unknown Item';
           unavailableItems.push(unitName);
@@ -78,7 +78,7 @@ export function useOrderDuplication() {
         }
       });
 
-      console.log('[Duplicate Order] Validation complete - Valid:', validItems.length, 'Unavailable:', unavailableItems.length);
+      // console.log('[Duplicate Order] Validation complete - Valid:', validItems.length, 'Unavailable:', unavailableItems.length);
 
       if (unavailableItems.length > 0 && validItems.length === 0) {
         notifyError(
@@ -144,10 +144,10 @@ export function useOrderDuplication() {
           business_name: orderData.customers.business_name || '',
         };
         SafeStorage.setItem('bpc_contact_data', contactData, { expirationDays: 7 });
-        console.log('[Duplicate Order] Contact data saved:', contactData);
+        // console.log('[Duplicate Order] Contact data saved:', contactData);
       }
 
-      console.log('[Duplicate Order] Cart, prefill data, and contact info saved, navigating to quote page');
+      // console.log('[Duplicate Order] Cart, prefill data, and contact info saved, navigating to quote page');
 
       navigate('/quote');
     } catch (error) {

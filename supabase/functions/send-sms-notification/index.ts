@@ -57,7 +57,7 @@ async function sendAdminEmailFallback(
       }),
     });
 
-    console.log('Admin email fallback sent');
+    // console.log('Admin email fallback sent');
   } catch (err) {
     console.error('Failed to send admin email fallback:', err);
   }
@@ -83,7 +83,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    console.log("[send-sms-notification] Request:", { ...requestBody, message: requestBody.message ? '[redacted]' : undefined });
+    // console.log("[send-sms-notification] Request:", { ...requestBody, message: requestBody.message ? '[redacted]' : undefined });
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -95,7 +95,7 @@ Deno.serve(async (req: Request) => {
     const templateKey = requestBody.templateKey;
 
     if (templateKey && orderId) {
-      console.log("[send-sms-notification] Looking up template:", templateKey);
+      // console.log("[send-sms-notification] Looking up template:", templateKey);
       
       const { data: template } = await supabase
         .from("sms_message_templates")
@@ -179,10 +179,10 @@ Deno.serve(async (req: Request) => {
 
     if (toPhone && !toPhone.startsWith('+')) {
       toPhone = '+1' + toPhone.replace(/\D/g, '');
-      console.log("[send-sms-notification] Added country code to phone:", toPhone);
+      // console.log("[send-sms-notification] Added country code to phone:", toPhone);
     }
 
-    console.log("[send-sms-notification] Sending to:", toPhone);
+    // console.log("[send-sms-notification] Sending to:", toPhone);
 
     const { data: settings } = await supabase
       .from("admin_settings")
@@ -274,10 +274,10 @@ Deno.serve(async (req: Request) => {
       requestBody.mediaUrls.forEach((url) => {
         formData.append("MediaUrl", url);
       });
-      console.log("[send-sms-notification] Attaching", requestBody.mediaUrls.length, "media files");
+      // console.log("[send-sms-notification] Attaching", requestBody.mediaUrls.length, "media files");
     }
 
-    console.log("[send-sms-notification] Calling Twilio API");
+    // console.log("[send-sms-notification] Calling Twilio API");
     const twilioResponse = await fetch(twilioUrl, {
       method: "POST",
       headers: {
@@ -315,7 +315,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const data = await twilioResponse.json();
-    console.log("[send-sms-notification] Twilio response:", { sid: data.sid, status: data.status });
+    // console.log("[send-sms-notification] Twilio response:", { sid: data.sid, status: data.status });
 
     await supabase.rpc('record_notification_success', { p_type: 'sms' });
 

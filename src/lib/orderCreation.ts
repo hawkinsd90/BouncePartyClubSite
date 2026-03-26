@@ -213,13 +213,13 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
 
   // 5. Create order items
   for (const item of cart) {
-    console.log('Creating order item:', {
-      order_id: order.id,
-      unit_id: item.unit_id,
-      wet_or_dry: item.wet_or_dry,
-      unit_price_cents: item.unit_price_cents,
-      qty: item.qty || 1
-    });
+    // console.log('Creating order item:', {
+    //   order_id: order.id,
+    //   unit_id: item.unit_id,
+    //   wet_or_dry: item.wet_or_dry,
+    //   unit_price_cents: item.unit_price_cents,
+    //   qty: item.qty || 1
+    // });
 
     const { error: itemError } = await supabase.from('order_items').insert({
       order_id: order.id,

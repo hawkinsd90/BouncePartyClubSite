@@ -82,13 +82,13 @@ export function useCheckoutData(userId?: string) {
       const validCart = savedCart.filter((item: any) => {
         const isValid = item.unit_id && typeof item.unit_id === 'string' && item.unit_id !== 'undefined';
         if (!isValid) {
-          console.log('Checkout: Filtering out invalid cart item:', item);
+          // console.log('Checkout: Filtering out invalid cart item:', item);
         }
         return isValid;
       });
 
       if (validCart.length !== savedCart.length) {
-        console.log(`Checkout: Removed ${savedCart.length - validCart.length} invalid cart items`);
+        // console.log(`Checkout: Removed ${savedCart.length - validCart.length} invalid cart items`);
         SafeStorage.setItem('bpc_cart', validCart, { expirationDays: 7 });
       }
 
@@ -97,7 +97,7 @@ export function useCheckoutData(userId?: string) {
       let contactInfoLoaded = false;
 
       if (savedContactData) {
-        console.log('Using contact info from localStorage (test booking or cart)');
+        // console.log('Using contact info from localStorage (test booking or cart)');
         setContactData({
           first_name: savedContactData.first_name || '',
           last_name: savedContactData.last_name || '',
@@ -117,7 +117,7 @@ export function useCheckoutData(userId?: string) {
           } else if (data && (data as any).length > 0) {
             const userData = (data as any)[0];
             if (userData.first_name && userData.email) {
-              console.log('Auto-filling contact info with user data from database');
+              // console.log('Auto-filling contact info with user data from database');
               setContactData({
                 first_name: userData.first_name || '',
                 last_name: userData.last_name || '',

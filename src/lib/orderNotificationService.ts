@@ -165,7 +165,7 @@ async function sendCustomerBookingEmail(order: BookingOrderDetails, generateEmai
 
 async function sendCustomerBookingSMS(order: BookingOrderDetails, generateSMS: (order: any) => string): Promise<void> {
   if (!order.customer.phone) {
-    console.log('[NOTIFICATION] No phone number on file; SMS not sent.');
+    // console.log('[NOTIFICATION] No phone number on file; SMS not sent.');
     return;
   }
 

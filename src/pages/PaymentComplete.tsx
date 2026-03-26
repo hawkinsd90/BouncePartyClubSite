@@ -30,15 +30,15 @@ export function PaymentComplete() {
   // console.log('[PAYMENT-COMPLETE-PAGE] Status:', status, 'Error:', error, 'OrderDetails:', orderDetails);
 
   if (status === 'loading') {
-    console.log('[PAYMENT-COMPLETE-PAGE] Showing loading state');
+    // console.log('[PAYMENT-COMPLETE-PAGE] Showing loading state');
     return <PaymentLoadingState />;
   }
 
   if (status === 'error') {
-    console.log('[PAYMENT-COMPLETE-PAGE] Showing error state:', error);
+    // console.log('[PAYMENT-COMPLETE-PAGE] Showing error state:', error);
     return <PaymentErrorState error={error} />;
   }
 
-  console.log('[PAYMENT-COMPLETE-PAGE] Showing success state');
+  // console.log('[PAYMENT-COMPLETE-PAGE] Showing success state');
   return <PaymentSuccessState orderDetails={orderDetails} isAdminInvoice={isAdminInvoice} sessionTipCents={sessionTipCents} />;
 }

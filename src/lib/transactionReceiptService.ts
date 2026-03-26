@@ -47,7 +47,7 @@ export async function logTransaction(data: TransactionReceiptData): Promise<stri
         .maybeSingle();
 
       if (existingReceipt) {
-        console.log('[TransactionReceipt] Receipt already exists for (PI, type):', existingReceipt.receipt_number);
+        // console.log('[TransactionReceipt] Receipt already exists for (PI, type):', existingReceipt.receipt_number);
         return existingReceipt.receipt_number;
       }
     }
@@ -62,7 +62,7 @@ export async function logTransaction(data: TransactionReceiptData): Promise<stri
         .maybeSingle();
 
       if (existingReceipt) {
-        console.log('[TransactionReceipt] Receipt already exists for (charge_id, type):', existingReceipt.receipt_number);
+        // console.log('[TransactionReceipt] Receipt already exists for (charge_id, type):', existingReceipt.receipt_number);
         return existingReceipt.receipt_number;
       }
     }
@@ -124,7 +124,7 @@ export async function logTransaction(data: TransactionReceiptData): Promise<stri
       return null;
     }
 
-    console.log('[TransactionReceipt] Transaction logged:', receipt.receipt_number);
+    // console.log('[TransactionReceipt] Transaction logged:', receipt.receipt_number);
     return receipt.receipt_number;
   } catch (err) {
     console.error('[TransactionReceipt] Exception logging transaction:', err);
@@ -179,7 +179,7 @@ export async function sendAdminTransactionReceipt(
       })
       .eq('receipt_number', receiptNumber);
 
-    console.log('[TransactionReceipt] Admin receipt email sent:', receiptNumber);
+    // console.log('[TransactionReceipt] Admin receipt email sent:', receiptNumber);
   } catch (err) {
     console.error('[TransactionReceipt] Exception sending admin email:', err);
   }
@@ -343,7 +343,7 @@ export async function logGroupedTransactions(
       customerData
     );
 
-    console.log(`[TransactionReceipt] Grouped transaction logged: ${receiptNumbers.length} receipts in group ${receiptGroupId}`);
+    // console.log(`[TransactionReceipt] Grouped transaction logged: ${receiptNumbers.length} receipts in group ${receiptGroupId}`);
 
     return { groupId: receiptGroupId, receiptNumbers };
   } catch (err) {
@@ -409,7 +409,7 @@ async function sendGroupedAdminNotification(
       })
       .in('receipt_number', receiptNumbers);
 
-    console.log('[TransactionReceipt] Grouped admin receipt email sent');
+    // console.log('[TransactionReceipt] Grouped admin receipt email sent');
   } catch (err) {
     console.error('[TransactionReceipt] Exception sending grouped admin email:', err);
   }

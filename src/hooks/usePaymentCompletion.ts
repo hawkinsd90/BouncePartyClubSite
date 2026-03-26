@@ -60,7 +60,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
     // console.log('[PAYMENT-COMPLETE] useEffect triggered with orderId:', orderId, 'sessionId:', sessionId);
 
     if (!orderId) {
-      console.log('[PAYMENT-COMPLETE] No order ID - setting error state');
+      // console.log('[PAYMENT-COMPLETE] No order ID - setting error state');
       setError('No order ID provided');
       setStatus('error');
       return;
@@ -72,7 +72,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
   async function processPayment() {
     try {
       setStatus('loading');
-      console.log('[PAYMENT-COMPLETE] Processing payment for order:', orderId);
+      // console.log('[PAYMENT-COMPLETE] Processing payment for order:', orderId);
 
       // Retrieve tip from Stripe session if available (for display purposes only - tip already saved to order)
       if (sessionId) {
@@ -108,7 +108,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
       const alreadyProcessed = SafeStorage.getItem(processedKey);
 
       if (alreadyProcessed) {
-        console.log('[PAYMENT-COMPLETE] Payment already processed, skipping notifications');
+        // console.log('[PAYMENT-COMPLETE] Payment already processed, skipping notifications');
       }
 
       // Check immediately first, then retry with delays if needed
@@ -129,22 +129,22 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
           // Restore only after a true dev/staging environment and explicit safe gating are in place.
           // Previously logged tip_cents (financial field) alongside order status.
           // console.log('[PAYMENT-COMPLETE] Attempt', retries + 1, '- Order status:', order.status, 'tip_cents:', order.tip_cents);
-          console.log('[PAYMENT-COMPLETE] Attempt', retries + 1, '- Order status:', order.status);
+          // console.log('[PAYMENT-COMPLETE] Attempt', retries + 1, '- Order status:', order.status);
 
           // Check if webhook has processed (status changed from draft)
           if (order.status !== 'draft') {
-            console.log('[PAYMENT-COMPLETE] Webhook has processed - order status:', order.status);
+            // console.log('[PAYMENT-COMPLETE] Webhook has processed - order status:', order.status);
             break;
           }
         }
 
         retries++;
         if (retries < maxRetries) {
-          console.log('[PAYMENT-COMPLETE] Webhook may not have processed yet, retrying...');
+          // console.log('[PAYMENT-COMPLETE] Webhook may not have processed yet, retrying...');
         }
       }
 
-      console.log('[PAYMENT-COMPLETE] Order fetch result:', order ? 'SUCCESS' : 'NULL');
+      // console.log('[PAYMENT-COMPLETE] Order fetch result:', order ? 'SUCCESS' : 'NULL');
 
       if (order) {
         // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
@@ -160,7 +160,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
 
         // If webhook still hasn't processed after retries, manually update the order
         if (order.status === 'draft' && sessionId) {
-          console.log('[PAYMENT-COMPLETE] Webhook failed to process, manually updating order status...');
+          // console.log('[PAYMENT-COMPLETE] Webhook failed to process, manually updating order status...');
 
           // First, save the payment method from the session
           try {
@@ -182,7 +182,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
               // Restore only after a true dev/staging environment and explicit safe gating are in place.
               // Previously logged a Stripe payment method ID (pm_xxx) in browser console.
               // console.log('[PAYMENT-COMPLETE] Payment method saved:', result.paymentMethodId);
-              console.log('[PAYMENT-COMPLETE] Payment method saved:', !!result.paymentMethodId);
+              // console.log('[PAYMENT-COMPLETE] Payment method saved:', !!result.paymentMethodId);
             } else {
               // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
               // Restore only after a true dev/staging environment and explicit safe gating are in place.
@@ -211,7 +211,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
             } else {
               await enterPendingReview(orderId!, 'webhook_fallback_standard');
             }
-            console.log(`[PAYMENT-COMPLETE] Lifecycle transition complete (isAdminInvoice=${isAdminInvoice})`);
+            // console.log(`[PAYMENT-COMPLETE] Lifecycle transition complete (isAdminInvoice=${isAdminInvoice})`);
           } catch (lifecycleErr) {
             console.error('[PAYMENT-COMPLETE] Lifecycle call failed in fallback path:', lifecycleErr);
           }
@@ -243,7 +243,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
   }
 
   async function fetchOrderDetails(): Promise<OrderDetails | null> {
-    console.log('[PAYMENT-COMPLETE] Fetching order details for:', orderId);
+    // console.log('[PAYMENT-COMPLETE] Fetching order details for:', orderId);
 
     const { data: order, error: orderError } = await supabase
       .from('orders')
@@ -289,7 +289,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
     // Restore only after a true dev/staging environment and explicit safe gating are in place.
     // Previously logged the full order object including customer PII (email, phone, address) and financial fields.
     // console.log('[PAYMENT-COMPLETE] Order fetched successfully:', order);
-    console.log('[PAYMENT-COMPLETE] Order fetched successfully.');
+    // console.log('[PAYMENT-COMPLETE] Order fetched successfully.');
     return order as unknown as OrderDetails;
   }
 
@@ -311,7 +311,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
       .maybeSingle();
 
     if (orderCheck?.booking_confirmation_sent) {
-      console.log('[PAYMENT-COMPLETE] Notifications already sent for this order. Skipping.');
+      // console.log('[PAYMENT-COMPLETE] Notifications already sent for this order. Skipping.');
       return;
     }
 
@@ -324,7 +324,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
   }
 
   function clearLocalStorage() {
-    console.log('[PAYMENT-COMPLETE] Clearing localStorage data...');
+    // console.log('[PAYMENT-COMPLETE] Clearing localStorage data...');
     SafeStorage.removeItem('bpc_cart');
     window.dispatchEvent(new CustomEvent('bpc-cart-updated'));
     SafeStorage.removeItem('bpc_quote_form');

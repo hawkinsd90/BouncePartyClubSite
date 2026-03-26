@@ -233,7 +233,7 @@ Deno.serve(async (req: Request) => {
           console.error("[reconcile-balance-payment] apply_balance_payment_financials failed on 23505 path", { orderId, piId, repairErr });
         } else {
           const r = Array.isArray(repairRows) ? repairRows[0] : repairRows;
-          console.log("[reconcile-balance-payment] 23505 RPC result", { orderId, piId, applied: r?.applied, payment_row_found: r?.payment_row_found });
+          // console.log("[reconcile-balance-payment] 23505 RPC result", { orderId, piId, applied: r?.applied, payment_row_found: r?.payment_row_found });
         }
         return new Response(
           JSON.stringify({ success: true, alreadyReconciled: true }),
@@ -275,7 +275,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const applyResult = Array.isArray(applyRows) ? applyRows[0] : applyRows;
-    console.log("[reconcile-balance-payment] RPC applied financials", { orderId, piId, applied: applyResult?.applied });
+    // console.log("[reconcile-balance-payment] RPC applied financials", { orderId, piId, applied: applyResult?.applied });
 
     // Fetch full order data for receipt logging and email
     const { data: currentOrder } = await supabaseClient
@@ -504,7 +504,7 @@ Deno.serve(async (req: Request) => {
       console.warn("[reconcile-balance-payment] Failed to send receipt email:", emailErr);
     }
 
-    console.log(`[reconcile-balance-payment] Reconciled payment for order ${orderId}, PI ${piId}`);
+    // console.log(`[reconcile-balance-payment] Reconciled payment for order ${orderId}, PI ${piId}`);
 
     return new Response(
       JSON.stringify({ success: true, alreadyReconciled: false }),
