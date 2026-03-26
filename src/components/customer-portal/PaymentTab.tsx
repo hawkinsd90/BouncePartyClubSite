@@ -143,8 +143,15 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
 
   const tipCents = calculateTipCents(tipAmount, customTipAmount, orderTotal);
   const totalDueNow = balanceDue + tipCents;
-  const cardLast4: string | null = order.payment_method_last_four || null;
-  const cardBrand: string | null = order.payment_method_brand || null;
+
+  // Prefer order-level fields; fall back to the most recent succeeded payment row.
+  const recentPayment = Array.isArray(order.payments)
+    ? [...order.payments]
+        .filter((p: any) => p.status === 'succeeded' && p.payment_last4)
+        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
+    : null;
+  const cardLast4: string | null = order.payment_method_last_four || recentPayment?.payment_last4 || null;
+  const cardBrand: string | null = order.payment_method_brand || recentPayment?.payment_brand || null;
   const canChargeSavedCard = !!(order.stripe_customer_id && order.stripe_payment_method_id);
   const isDisabled = totalDueNow <= 0 || loading;
 
