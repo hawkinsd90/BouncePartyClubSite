@@ -317,7 +317,11 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
               <span>
                 {cardBrand && cardLast4
                   ? `${cardBrand.charAt(0).toUpperCase() + cardBrand.slice(1)} \u2022\u2022\u2022\u2022 ${cardLast4} will be charged`
-                  : `Card \u2022\u2022\u2022\u2022 ${cardLast4} will be charged`}
+                  : cardLast4
+                  ? `Card \u2022\u2022\u2022\u2022 ${cardLast4} will be charged`
+                  : cardBrand
+                  ? `${cardBrand.charAt(0).toUpperCase() + cardBrand.slice(1)} card on file will be charged`
+                  : 'Saved card on file will be charged'}
               </span>
             </div>
             <button

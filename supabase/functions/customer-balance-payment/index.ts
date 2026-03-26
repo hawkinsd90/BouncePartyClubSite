@@ -230,16 +230,21 @@ Deno.serve(async (req: Request) => {
           .maybeSingle();
 
         if (paymentInsertError) {
-          // A 23505 here means the webhook already inserted this PI's row — the webhook's
-          // 23505 repair branch will call apply_balance_payment_financials to reconcile.
-          // Any other error is a hard failure: Stripe charged the customer but we could not
-          // record it. Return 500 so the caller knows payment did NOT fully record.
           if (paymentInsertError.code === "23505") {
-            console.warn("[customer-balance-payment] 23505 on payment insert — webhook will reconcile", { orderId, piId: paymentIntent.id });
-          } else {
-            console.error("[customer-balance-payment] CRITICAL: Failed to insert payment row", { orderId, piId: paymentIntent.id, paymentInsertError });
-            throw new Error(`Payment row insert failed: ${paymentInsertError.message}`);
+            // Another writer (webhook) already inserted this PI's payment row and is
+            // responsible for applying order financials via apply_balance_payment_financials.
+            // Do NOT continue into the hand-rolled orders.update — that would double-apply
+            // balance_paid_cents / tip_cents on top of what the webhook already wrote.
+            // Return success so the portal does not show an error to the customer;
+            // the webhook reconcile path will ensure financials are applied exactly once.
+            console.warn("[customer-balance-payment] 23505 on payment insert — webhook owns financials, returning success", { orderId, piId: paymentIntent.id });
+            return new Response(
+              JSON.stringify({ success: true }),
+              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
           }
+          console.error("[customer-balance-payment] CRITICAL: Failed to insert payment row", { orderId, piId: paymentIntent.id, paymentInsertError });
+          throw new Error(`Payment row insert failed: ${paymentInsertError.message}`);
         }
 
         // Write DB — accumulate balance fields and save card details on orders
