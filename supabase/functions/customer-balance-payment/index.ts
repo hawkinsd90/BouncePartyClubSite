@@ -330,28 +330,40 @@ Deno.serve(async (req: Request) => {
               .select("name, amount_cents, percentage")
               .eq("order_id", orderId);
 
-            const { error: sendEmailErr } = await supabaseClient.functions.invoke("send-email", {
-              body: {
-                to: customer.email,
-                subject: `Payment Received - Order #${formatOrderId(orderId)}`,
-                html: buildReceiptEmail({
-                  contactName: customer.first_name ? `${customer.first_name} ${customer.last_name || ""}`.trim() : "Customer",
-                  orderId,
-                  balanceCents,
-                  tipCents,
-                  totalChargeAmount,
-                  cardBrand: paymentBrand,
-                  cardLast4: paymentLast4,
-                  eventDate: order.event_date,
-                  order,
-                  biz,
-                  customFees: emailCustomFees || [],
-                  discounts: emailDiscounts || [],
-                }),
-              },
-            });
-            if (sendEmailErr) {
-              console.warn("[customer-balance-payment] send-email returned error (non-fatal):", sendEmailErr);
+            const emailPayload = {
+              to: customer.email,
+              subject: `Payment Received - Order #${formatOrderId(orderId)}`,
+              html: buildReceiptEmail({
+                contactName: customer.first_name ? `${customer.first_name} ${customer.last_name || ""}`.trim() : "Customer",
+                orderId,
+                balanceCents,
+                tipCents,
+                totalChargeAmount,
+                cardBrand: paymentBrand,
+                cardLast4: paymentLast4,
+                eventDate: order.event_date,
+                order,
+                biz,
+                customFees: emailCustomFees || [],
+                discounts: emailDiscounts || [],
+              }),
+            };
+
+            const emailResp = await fetch(
+              `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                  "Apikey": Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+                },
+                body: JSON.stringify(emailPayload),
+              }
+            );
+            if (!emailResp.ok) {
+              const emailErrText = await emailResp.text().catch(() => "");
+              console.warn("[customer-balance-payment] send-email returned error (non-fatal):", emailResp.status, emailErrText);
             }
           }
         } catch (emailErr) {
