@@ -1125,15 +1125,25 @@ async function sendCheckoutBalanceReceiptEmail(
 </body>
 </html>`;
 
-  const { error: sendEmailInvokeErr } = await supabaseClient.functions.invoke("send-email", {
-    body: {
-      to: customer.email,
-      subject: `Payment Received - Order #${shortId}`,
-      html: receiptHtml,
-    },
-  });
-  if (sendEmailInvokeErr) {
-    console.warn("[WEBHOOK] send-email returned error (non-fatal):", sendEmailInvokeErr);
+  const emailResp = await fetch(
+    `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        "Apikey": Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      },
+      body: JSON.stringify({
+        to: customer.email,
+        subject: `Payment Received - Order #${shortId}`,
+        html: receiptHtml,
+      }),
+    }
+  );
+  if (!emailResp.ok) {
+    const errText = await emailResp.text().catch(() => "");
+    console.warn("[WEBHOOK] send-email returned error (non-fatal):", emailResp.status, errText);
   }
 }
 
@@ -1283,15 +1293,25 @@ async function sendDepositReceiptEmail(
 </body>
 </html>`;
 
-  const { error: sendEmailInvokeErr } = await supabaseClient.functions.invoke("send-email", {
-    body: {
-      to: customer.email,
-      subject: `Deposit Received - Order #${shortId}`,
-      html: receiptHtml,
-    },
-  });
-  if (sendEmailInvokeErr) {
-    console.warn("[WEBHOOK] send-deposit-email returned error (non-fatal):", sendEmailInvokeErr);
+  const depositEmailResp = await fetch(
+    `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        "Apikey": Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      },
+      body: JSON.stringify({
+        to: customer.email,
+        subject: `Deposit Received - Order #${shortId}`,
+        html: receiptHtml,
+      }),
+    }
+  );
+  if (!depositEmailResp.ok) {
+    const errText = await depositEmailResp.text().catch(() => "");
+    console.warn("[WEBHOOK] send-deposit-email returned error (non-fatal):", depositEmailResp.status, errText);
   }
 }
 
