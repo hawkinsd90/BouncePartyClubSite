@@ -39,7 +39,6 @@ export function CustomerPortal() {
   } : undefined;
 
   const [approvalSuccess, setApprovalSuccess] = useState(false);
-  const [approvalProcessing, setApprovalProcessing] = useState(false);
   const [invoiceProcessing, setInvoiceProcessing] = useState(false);
 
   const { data, loading, loadOrder } = useOrderData();
@@ -47,14 +46,10 @@ export function CustomerPortal() {
   const resolvedOrderId = orderId || (data?.order?.id);
 
   const realtimeOrderId = resolvedOrderId;
-  const approvalSuccessRef = useRef(false);
-  approvalSuccessRef.current = approvalSuccess || approvalProcessing;
-
   const reloadRef = useRef<() => Promise<void>>();
   const isReloadingRef = useRef(false);
   const pendingRefreshRef = useRef(false);
   reloadRef.current = async () => {
-    if (approvalSuccessRef.current) return;
     if (isReloadingRef.current) {
       pendingRefreshRef.current = true;
       return;
@@ -181,11 +176,7 @@ export function CustomerPortal() {
     await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
   };
 
-  if (approvalSuccess) {
-    return <ApprovalSuccessView orderId={resolvedOrderId ?? orderId!} />;
-  }
-
-  if (loading || invoiceProcessing || approvalProcessing) {
+  if (loading || invoiceProcessing) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 flex items-center justify-center">
         <LoadingSpinner />
@@ -215,6 +206,9 @@ export function CustomerPortal() {
 
   const shouldShowRegularPortal = isActive;
 
+  if (approvalSuccess) {
+    return <ApprovalSuccessView orderId={order.id} />;
+  }
 
   if (!shouldShowRegularPortal && !needsApproval) {
     if (isDraft) {
@@ -242,10 +236,7 @@ export function CustomerPortal() {
         orderSummary={orderSummary}
         autoOpenApprovalModal={cardJustUpdated}
         restoredPaymentState={restoredPaymentState}
-        onApprovalProcessingStart={() => setApprovalProcessing(true)}
-        onApprovalProcessingCancel={() => setApprovalProcessing(false)}
         onApprovalSuccess={() => {
-          setApprovalProcessing(false);
           setApprovalSuccess(true);
         }}
         onRejectionSuccess={handleReload}

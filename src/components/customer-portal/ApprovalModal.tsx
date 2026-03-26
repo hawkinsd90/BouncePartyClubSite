@@ -18,8 +18,6 @@ interface ApprovalModalProps {
   isOpen: boolean;
   onClose: () => void;
   order: any;
-  onProcessingStart?: () => void;
-  onProcessingCancel?: () => void;
   onSuccess: () => void;
   selectedPaymentCents: number;
   selectedPaymentBaseCents: number;
@@ -34,8 +32,6 @@ export function ApprovalModal({
   isOpen,
   onClose,
   order,
-  onProcessingStart,
-  onProcessingCancel,
   onSuccess,
   selectedPaymentCents,
   selectedPaymentBaseCents,
@@ -118,13 +114,11 @@ export function ApprovalModal({
 
   async function handleConfirm() {
     setSubmitting(true);
-    onProcessingStart?.();
 
     try {
       const available = await checkAvailability();
       if (!available) {
         setSubmitting(false);
-        onProcessingCancel?.();
         return;
       }
 
@@ -316,7 +310,6 @@ export function ApprovalModal({
             setCardDeclined(true);
             setSubmitting(false);
           }
-          onProcessingCancel?.();
           return;
         }
 
@@ -340,7 +333,10 @@ export function ApprovalModal({
         setSubmitting(false);
       }
       onClose();
-      onSuccess();
+
+      setTimeout(() => {
+        onSuccess();
+      }, 100);
     } catch (error: any) {
       console.error('Error approving order:', error);
       showToast(error.message || 'Failed to approve order. Please try again.', 'error');
@@ -348,7 +344,6 @@ export function ApprovalModal({
       if (isMountedRef.current) {
         setSubmitting(false);
       }
-      onProcessingCancel?.();
     }
   }
 

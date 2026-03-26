@@ -23,8 +23,6 @@ interface OrderApprovalViewProps {
   orderSummary: any;
   autoOpenApprovalModal?: boolean;
   restoredPaymentState?: RestoredPaymentState;
-  onApprovalProcessingStart?: () => void;
-  onApprovalProcessingCancel?: () => void;
   onApprovalSuccess: () => void;
   onRejectionSuccess: () => void;
 }
@@ -35,8 +33,6 @@ export function OrderApprovalView({
   orderSummary,
   autoOpenApprovalModal = false,
   restoredPaymentState,
-  onApprovalProcessingStart,
-  onApprovalProcessingCancel,
   onApprovalSuccess,
   onRejectionSuccess,
 }: OrderApprovalViewProps) {
@@ -522,8 +518,6 @@ export function OrderApprovalView({
         isOpen={showApprovalModal}
         onClose={() => setShowApprovalModal(false)}
         order={order}
-        onProcessingStart={onApprovalProcessingStart}
-        onProcessingCancel={onApprovalProcessingCancel}
         onSuccess={onApprovalSuccess}
         selectedPaymentCents={selectedPaymentCents}
         selectedPaymentBaseCents={selectedPaymentBaseCents}
