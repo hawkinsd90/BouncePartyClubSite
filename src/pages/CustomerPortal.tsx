@@ -39,7 +39,6 @@ export function CustomerPortal() {
   } : undefined;
 
   const [approvalSuccess, setApprovalSuccess] = useState(false);
-  const [approvalProcessing, setApprovalProcessing] = useState(false);
   const [invoiceProcessing, setInvoiceProcessing] = useState(false);
 
   const { data, loading, loadOrder } = useOrderData();
@@ -48,7 +47,7 @@ export function CustomerPortal() {
 
   const realtimeOrderId = resolvedOrderId;
   const approvalSuccessRef = useRef(false);
-  approvalSuccessRef.current = approvalSuccess || approvalProcessing;
+  approvalSuccessRef.current = approvalSuccess;
 
   const reloadRef = useRef<() => Promise<void>>();
   const isReloadingRef = useRef(false);
@@ -185,7 +184,7 @@ export function CustomerPortal() {
     return <ApprovalSuccessView orderId={resolvedOrderId ?? orderId!} />;
   }
 
-  if (loading || invoiceProcessing || approvalProcessing) {
+  if (loading || invoiceProcessing) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 flex items-center justify-center">
         <LoadingSpinner />
@@ -242,10 +241,7 @@ export function CustomerPortal() {
         orderSummary={orderSummary}
         autoOpenApprovalModal={cardJustUpdated}
         restoredPaymentState={restoredPaymentState}
-        onApprovalProcessingStart={() => setApprovalProcessing(true)}
-        onApprovalProcessingCancel={() => setApprovalProcessing(false)}
         onApprovalSuccess={() => {
-          setApprovalProcessing(false);
           setApprovalSuccess(true);
         }}
         onRejectionSuccess={handleReload}
