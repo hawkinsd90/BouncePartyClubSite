@@ -46,10 +46,14 @@ export function CustomerPortal() {
   const resolvedOrderId = orderId || (data?.order?.id);
 
   const realtimeOrderId = resolvedOrderId;
+  const approvalSuccessRef = useRef(false);
+  approvalSuccessRef.current = approvalSuccess;
+
   const reloadRef = useRef<() => Promise<void>>();
   const isReloadingRef = useRef(false);
   const pendingRefreshRef = useRef(false);
   reloadRef.current = async () => {
+    if (approvalSuccessRef.current) return;
     if (isReloadingRef.current) {
       pendingRefreshRef.current = true;
       return;
@@ -176,6 +180,10 @@ export function CustomerPortal() {
     await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
   };
 
+  if (approvalSuccess) {
+    return <ApprovalSuccessView orderId={resolvedOrderId ?? orderId!} />;
+  }
+
   if (loading || invoiceProcessing) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 flex items-center justify-center">
@@ -206,9 +214,6 @@ export function CustomerPortal() {
 
   const shouldShowRegularPortal = isActive;
 
-  if (approvalSuccess) {
-    return <ApprovalSuccessView orderId={order.id} />;
-  }
 
   if (!shouldShowRegularPortal && !needsApproval) {
     if (isDraft) {
