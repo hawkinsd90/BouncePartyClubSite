@@ -43,7 +43,7 @@ function ConfirmChargeModal({
     ? `Card \u2022\u2022\u2022\u2022 ${cardLast4}`
     : brandName
     ? `${brandName} card on file`
-    : 'Saved card on file';
+    : 'Card on file';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -321,7 +321,7 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
                   ? `Card \u2022\u2022\u2022\u2022 ${cardLast4} will be charged`
                   : cardBrand
                   ? `${cardBrand.charAt(0).toUpperCase() + cardBrand.slice(1)} card on file will be charged`
-                  : 'Saved card on file will be charged'}
+                  : 'Card on file will be charged'}
               </span>
             </div>
             <button
