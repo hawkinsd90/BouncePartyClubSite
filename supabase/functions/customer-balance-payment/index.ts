@@ -231,13 +231,25 @@ Deno.serve(async (req: Request) => {
 
         if (paymentInsertError) {
           if (paymentInsertError.code === "23505") {
-            // Another writer (webhook) already inserted this PI's payment row and is
-            // responsible for applying order financials via apply_balance_payment_financials.
-            // Do NOT continue into the hand-rolled orders.update — that would double-apply
-            // balance_paid_cents / tip_cents on top of what the webhook already wrote.
-            // Return success so the portal does not show an error to the customer;
-            // the webhook reconcile path will ensure financials are applied exactly once.
-            console.warn("[customer-balance-payment] 23505 on payment insert — webhook owns financials, returning success", { orderId, piId: paymentIntent.id });
+            // Another writer (webhook) already inserted this PI's payment row.
+            // Call apply_balance_payment_financials so that if that row still has
+            // order_financials_applied=false (prior crash), financials are applied now.
+            // The RPC is idempotent — if already applied it returns applied=false and is a no-op.
+            // Do NOT fall through into the hand-rolled orders.update below.
+            console.warn("[customer-balance-payment] 23505 on payment insert — calling RPC to ensure financials applied", { orderId, piId: paymentIntent.id });
+            const { error: rpc23505Err } = await supabaseClient
+              .rpc("apply_balance_payment_financials", {
+                p_pi_id: paymentIntent.id,
+                p_order_id: orderId,
+                p_balance_cents: balanceCents,
+                p_tip_cents: tipCents,
+                p_pm_id: resolvedPaymentMethodId || null,
+                p_customer_id: stripeCustomerId || null,
+              });
+            if (rpc23505Err) {
+              console.error("[customer-balance-payment] apply_balance_payment_financials failed on 23505 path", { orderId, piId: paymentIntent.id, rpc23505Err });
+              throw new Error(`apply_balance_payment_financials failed (23505): ${rpc23505Err.message}`);
+            }
             return new Response(
               JSON.stringify({ success: true }),
               { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -274,14 +286,19 @@ Deno.serve(async (req: Request) => {
           throw new Error(`Order financials update failed: ${ordersUpdateError.message}`);
         }
 
-        // Mark payment row as financials applied (mirrors what the RPC does on other paths)
+        // Mark payment row as financials applied (mirrors what the RPC does on other paths).
+        // This MUST succeed — if it fails, order_financials_applied stays false, and the next
+        // webhook delivery or RPC retry will double-apply balance_paid_cents / tip_cents.
+        // Throw so the function returns 500, the portal shows an error, and Stripe re-delivers
+        // payment_intent.succeeded which will call the RPC and repair via idempotency check.
         if (paymentRecord) {
           const { error: appliedFlagError } = await supabaseClient
             .from("payments")
             .update({ order_financials_applied: true })
             .eq("id", paymentRecord.id);
           if (appliedFlagError) {
-            console.warn("[customer-balance-payment] Failed to mark payment row as applied — non-fatal", { paymentId: paymentRecord.id, appliedFlagError });
+            console.error("[customer-balance-payment] CRITICAL: Failed to mark payment row as applied — throwing to prevent double-apply on retry", { paymentId: paymentRecord.id, appliedFlagError });
+            throw new Error(`Failed to mark payment financials as applied: ${appliedFlagError.message}`);
           }
         }
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle, CreditCard, Loader2, AlertTriangle } from 'lucide-react';
+import { CheckCircle, CreditCard, Loader2 } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { TipSelector, calculateTipCents } from '../payment/TipSelector';
 import { showToast } from '../../lib/notifications';
