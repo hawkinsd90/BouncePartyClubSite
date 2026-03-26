@@ -259,47 +259,34 @@ Deno.serve(async (req: Request) => {
           throw new Error(`Payment row insert failed: ${paymentInsertError.message}`);
         }
 
-        // Write DB — accumulate balance fields and save card details on orders
-        const existingTip = order.tip_cents || 0;
-        const existingBalancePaid = order.balance_paid_cents || 0;
-        const existingBalanceDue = order.balance_due_cents || 0;
-        const newBalanceDue = Math.max(0, existingBalanceDue - balanceCents);
+        // Apply order financials through the atomic RPC — same path used by stripe-webhook
+        // and reconcile-balance-payment. The RPC holds a row lock on the payment row for
+        // the full read-apply-mark sequence, eliminating the double-apply race.
+        // It also writes stripe_payment_method_id / stripe_customer_id non-financially.
+        const { error: applyErr } = await supabaseClient
+          .rpc("apply_balance_payment_financials", {
+            p_pi_id: paymentIntent.id,
+            p_order_id: orderId,
+            p_balance_cents: balanceCents,
+            p_tip_cents: tipCents,
+            p_pm_id: resolvedPaymentMethodId || null,
+            p_customer_id: stripeCustomerId || null,
+          });
 
-        const { error: ordersUpdateError } = await supabaseClient
-          .from("orders")
-          .update({
-            balance_paid_cents: existingBalancePaid + balanceCents,
-            balance_due_cents: newBalanceDue,
-            ...(tipCents > 0 ? { tip_cents: existingTip + tipCents } : {}),
-            ...(resolvedPaymentMethodId ? { stripe_payment_method_id: resolvedPaymentMethodId, payment_method_id: resolvedPaymentMethodId } : {}),
-            ...(paymentBrand ? { payment_method_brand: paymentBrand } : {}),
-            ...(paymentLast4 ? { payment_method_last_four: paymentLast4 } : {}),
-          })
-          .eq("id", orderId);
-
-        if (ordersUpdateError) {
-          // Order financials failed to write. The payment row exists (Stripe was charged),
-          // so the webhook's 23505 + apply_balance_payment_financials path will repair
-          // balance_due_cents / balance_paid_cents on the next Stripe re-delivery.
-          // Return 500 so the customer portal shows an error rather than false success.
-          console.error("[customer-balance-payment] CRITICAL: Failed to update order financials", { orderId, ordersUpdateError });
-          throw new Error(`Order financials update failed: ${ordersUpdateError.message}`);
+        if (applyErr) {
+          console.error("[customer-balance-payment] CRITICAL: apply_balance_payment_financials failed on Path A happy path", { orderId, piId: paymentIntent.id, applyErr });
+          throw new Error(`apply_balance_payment_financials failed: ${applyErr.message}`);
         }
 
-        // Mark payment row as financials applied (mirrors what the RPC does on other paths).
-        // This MUST succeed — if it fails, order_financials_applied stays false, and the next
-        // webhook delivery or RPC retry will double-apply balance_paid_cents / tip_cents.
-        // Throw so the function returns 500, the portal shows an error, and Stripe re-delivers
-        // payment_intent.succeeded which will call the RPC and repair via idempotency check.
-        if (paymentRecord) {
-          const { error: appliedFlagError } = await supabaseClient
-            .from("payments")
-            .update({ order_financials_applied: true })
-            .eq("id", paymentRecord.id);
-          if (appliedFlagError) {
-            console.error("[customer-balance-payment] CRITICAL: Failed to mark payment row as applied — throwing to prevent double-apply on retry", { paymentId: paymentRecord.id, appliedFlagError });
-            throw new Error(`Failed to mark payment financials as applied: ${appliedFlagError.message}`);
-          }
+        // Save card brand/last4 to orders (non-financial; RPC handles pm_id + customer_id already)
+        if (paymentBrand || paymentLast4) {
+          await supabaseClient
+            .from("orders")
+            .update({
+              ...(paymentBrand ? { payment_method_brand: paymentBrand } : {}),
+              ...(paymentLast4 ? { payment_method_last_four: paymentLast4 } : {}),
+            })
+            .eq("id", orderId);
         }
 
         // Log transaction receipt
