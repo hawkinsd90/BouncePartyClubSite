@@ -177,6 +177,11 @@ function AdminDashboard() {
     }
   }
 
+  // Keep a ref to the latest pending orders so the scroll handler always reads
+  // the current list without being a dependency that would recreate the listener.
+  const pendingOrdersRef = useRef<typeof orders>([]);
+  pendingOrdersRef.current = orders.filter(o => o.status === 'pending_review');
+
   // Scroll detection for floating header
   useEffect(() => {
     if (activeTab !== 'pending') {
@@ -184,7 +189,6 @@ function AdminDashboard() {
       return;
     }
 
-    const pendingOrders = orders.filter(o => o.status === 'pending_review');
     let rafId: number | null = null;
 
     function computeVisibleOrder() {
@@ -206,7 +210,7 @@ function AdminDashboard() {
 
           if (distanceFromTop < closestDistance) {
             closestDistance = distanceFromTop;
-            const order = pendingOrders.find(o => o.id === orderId);
+            const order = pendingOrdersRef.current.find(o => o.id === orderId);
             if (order) {
               bestMatch = order;
             }
@@ -232,7 +236,7 @@ function AdminDashboard() {
       window.removeEventListener('scroll', handleScroll);
       if (rafId !== null) cancelAnimationFrame(rafId);
     };
-  }, [activeTab, orders]);
+  }, [activeTab]);
 
   function changeTab(tab: AdminTab) {
     setActiveTab(tab);

@@ -45,19 +45,17 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
         `);
 
       if (isPartialId) {
-        // For partial IDs, first fetch only order IDs to find match
-        const { data: orderIds, error: searchError } = await supabase
+        // Use server-side prefix match to avoid fetching all order IDs
+        const { data: matchRow, error: searchError } = await supabase
           .from('orders')
-          .select('id');
+          .select('id')
+          .ilike('id', `${orderId}%`)
+          .limit(1)
+          .maybeSingle();
 
         if (searchError) throw searchError;
 
-        // Filter to find matching order ID
-        const matchingId = orderIds?.find(o =>
-          o.id.toLowerCase().startsWith(orderId.toLowerCase())
-        )?.id;
-
-        if (!matchingId) {
+        if (!matchRow) {
           setError('Order not found');
           setLoading(false);
           return;
@@ -77,7 +75,7 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
             order_custom_fees (*),
             order_discounts (*)
           `)
-          .eq('id', matchingId)
+          .eq('id', matchRow.id)
           .maybeSingle();
 
         if (fullOrderError) throw fullOrderError;

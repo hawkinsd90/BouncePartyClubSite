@@ -409,6 +409,16 @@ async function processWebhookEvent(
               }
               const r = Array.isArray(repairRows) ? repairRows[0] : repairRows;
               // console.log("[WEBHOOK] 23505 repair RPC result", { orderId, piId, applied: r?.applied, payment_row_found: r?.payment_row_found });
+
+              // Fetch the existing payment row (inserted by the first writer) so we can
+              // log the transaction and send the admin notification email.
+              const { data: existingPayment23505 } = await supabaseClient
+                .from("payments")
+                .select("id, order_id")
+                .eq("stripe_payment_intent_id", piId)
+                .eq("order_id", orderId)
+                .maybeSingle();
+
               // Send receipt email — the edge fn wrote the payment but never sends the email
               // (that's only done here in the webhook). Load order data and send now.
               try {
@@ -427,6 +437,24 @@ async function processWebhookEvent(
                   `)
                   .eq("id", orderId)
                   .maybeSingle();
+
+                // Log the transaction — logTransaction uses maybeSingle on insert so a
+                // duplicate receipt row is silently ignored; admin email fires only once.
+                if (order23505 && existingPayment23505) {
+                  await logTransaction(supabaseClient, {
+                    transactionType: 'balance',
+                    orderId,
+                    customerId: order23505.customer_id,
+                    paymentId: existingPayment23505.id,
+                    amountCents: amountPaid,
+                    paymentMethod: paymentMethodType,
+                    paymentMethodBrand: paymentBrand,
+                    stripeChargeId: latestChargeId,
+                    stripePaymentIntentId: piId,
+                    notes: 'Customer portal balance payment',
+                  });
+                }
+
                 const customer23505 = Array.isArray(order23505?.customers) ? order23505.customers[0] : order23505?.customers;
                 if (customer23505?.email) {
                   const { data: bizSettings23505 } = await supabaseClient

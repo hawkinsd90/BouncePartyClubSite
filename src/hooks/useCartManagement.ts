@@ -18,8 +18,8 @@ export function useCartManagement() {
   function addItemToCart(unit: any, mode: 'dry' | 'water') {
     const price = mode === 'water' && unit.price_water_cents ? unit.price_water_cents : unit.price_dry_cents;
 
-    setCartItems([
-      ...cartItems,
+    setCartItems(prev => [
+      ...prev,
       {
         id: crypto.randomUUID(),
         unit_id: unit.id,
@@ -35,20 +35,20 @@ export function useCartManagement() {
   }
 
   function removeItemFromCart(index: number) {
-    setCartItems(cartItems.filter((_, i) => i !== index));
+    setCartItems(prev => prev.filter((_, i) => i !== index));
   }
 
   function updateItemQuantity(index: number, qty: number) {
-    setCartItems(
-      cartItems.map((item, i) =>
+    setCartItems(prev =>
+      prev.map((item, i) =>
         i === index ? { ...item, qty: Math.max(1, qty) } : item
       )
     );
   }
 
   function updateItemPrice(index: number, priceCents: number) {
-    setCartItems(
-      cartItems.map((item, i) =>
+    setCartItems(prev =>
+      prev.map((item, i) =>
         i === index ? { ...item, adjusted_price_cents: priceCents } : item
       )
     );

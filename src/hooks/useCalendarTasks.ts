@@ -91,20 +91,26 @@ export function useCalendarTasks(currentMonth: Date) {
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLoadingRef = useRef(false);
   const pendingRefreshRef = useRef(false);
+  // Always holds the latest currentMonth so realtime callbacks never capture a stale value
+  const currentMonthRef = useRef<Date>(currentMonth);
+  currentMonthRef.current = currentMonth;
+
+  // Stable debounced callback: created once, reads currentMonthRef at call time
+  const debouncedLoadTasksRef = useRef(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      debounceTimerRef.current = null;
+      loadTasksForMonth(currentMonthRef.current);
+    }, 1000);
+  });
 
   useEffect(() => {
-    loadTasks();
+    loadTasksForMonth(currentMonth);
+  }, [currentMonth]);
 
-    const debouncedLoadTasks = () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-      debounceTimerRef.current = setTimeout(() => {
-        debounceTimerRef.current = null;
-        loadTasks();
-      }, 1000);
-    };
-
+  useEffect(() => {
     const channel = supabase
       .channel('orders-changes')
       .on(
@@ -114,7 +120,7 @@ export function useCalendarTasks(currentMonth: Date) {
           schema: 'public',
           table: 'orders',
         },
-        debouncedLoadTasks
+        debouncedLoadTasksRef.current
       )
       .on(
         'postgres_changes',
@@ -123,7 +129,7 @@ export function useCalendarTasks(currentMonth: Date) {
           schema: 'public',
           table: 'task_status',
         },
-        debouncedLoadTasks
+        debouncedLoadTasksRef.current
       )
       .subscribe();
 
@@ -134,9 +140,9 @@ export function useCalendarTasks(currentMonth: Date) {
       }
       supabase.removeChannel(channel);
     };
-  }, [currentMonth]);
+  }, []);
 
-  async function loadTasks() {
+  async function loadTasksForMonth(month: Date) {
     if (isLoadingRef.current) {
       pendingRefreshRef.current = true;
       return;
@@ -145,8 +151,8 @@ export function useCalendarTasks(currentMonth: Date) {
     pendingRefreshRef.current = false;
     setLoading(true);
     try {
-      const monthStart = startOfMonth(currentMonth);
-      const monthEnd = endOfMonth(currentMonth);
+      const monthStart = startOfMonth(month);
+      const monthEnd = endOfMonth(month);
 
       // We need to fetch orders that have either:
       // 1. Event date within the month (for drop-offs)
@@ -335,10 +341,10 @@ export function useCalendarTasks(currentMonth: Date) {
       isLoadingRef.current = false;
       if (pendingRefreshRef.current) {
         pendingRefreshRef.current = false;
-        loadTasks();
+        loadTasksForMonth(currentMonthRef.current);
       }
     }
   }
 
-  return { tasks, loading, reload: loadTasks };
+  return { tasks, loading, reload: () => loadTasksForMonth(currentMonthRef.current) };
 }

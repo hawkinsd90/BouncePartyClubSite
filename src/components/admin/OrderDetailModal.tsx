@@ -168,7 +168,40 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     };
 
     if (orderItems.length > 0) {
-      loadCurrentSummary();
+      loadCurrentSummary().catch(err => {
+        console.error('Error loading current order summary:', err);
+        // Fallback: build summary from stored order fields without driving distance
+        const subtotal = order.subtotal_cents || 0;
+        const fees = (order.travel_fee_cents || 0) + (order.surface_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.generator_fee_cents || 0);
+        const totalCustomFees = customFees.filter((f: any) => !f.is_new).reduce((sum: number, f: any) => sum + (f.amount_cents || 0), 0);
+        const totalDiscounts = discounts.filter((d: any) => !d.is_new).reduce((sum: number, d: any) => {
+          if (d.percentage) return sum + Math.round(subtotal * (d.percentage / 100));
+          return sum + (d.amount_cents || 0);
+        }, 0);
+        const fallbackSummary: OrderSummaryData = {
+          items: orderItems,
+          discounts: discounts.filter(d => !d.is_new),
+          customFees: customFees.filter(f => !f.is_new),
+          subtotal_cents: subtotal,
+          travel_fee_cents: order.travel_fee_cents || 0,
+          travel_total_miles: parseFloat(order.travel_total_miles) || 0,
+          surface_fee_cents: order.surface_fee_cents || 0,
+          same_day_pickup_fee_cents: order.same_day_pickup_fee_cents || 0,
+          generator_fee_cents: order.generator_fee_cents || 0,
+          generator_qty: order.generator_qty || 0,
+          tax_cents: order.tax_cents || 0,
+          tip_cents: order.tip_cents || 0,
+          total_cents: subtotal + fees + totalCustomFees - totalDiscounts + (order.tax_cents || 0),
+          deposit_due_cents: order.deposit_due_cents,
+          deposit_paid_cents: order.deposit_paid_cents || 0,
+          balance_due_cents: order.balance_due_cents,
+          custom_deposit_cents: order.custom_deposit_cents,
+          pickup_preference: order.pickup_preference,
+          event_date: order.event_date,
+          event_end_date: order.event_end_date,
+        };
+        setCurrentOrderSummary(formatOrderSummary(fallbackSummary));
+      });
     }
   }, [orderItems, order, discounts, customFees]);
 
@@ -210,6 +243,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   }, [
     discounts,
     customFees,
+    customDepositCents,
     stagedItems,
     editedOrder.location_type,
     editedOrder.surface,

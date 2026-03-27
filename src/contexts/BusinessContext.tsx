@@ -30,49 +30,60 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<BusinessSettings>(defaultSettings);
 
   useEffect(() => {
-    loadBusinessSettings();
-  }, []);
+    let cancelled = false;
 
-  async function loadBusinessSettings() {
-    try {
-      const { data, error } = await supabase
-        .from('admin_settings')
-        .select('key, value')
-        .in('key', [
-          'business_name',
-          'business_name_short',
-          'business_legal_entity',
-          'business_address',
-          'business_phone',
-          'business_email',
-          'business_website',
-          'business_license_number',
-        ]);
+    async function loadBusinessSettings() {
+      try {
+        const { data, error } = await supabase
+          .from('admin_settings')
+          .select('key, value')
+          .in('key', [
+            'business_name',
+            'business_name_short',
+            'business_legal_entity',
+            'business_address',
+            'business_phone',
+            'business_email',
+            'business_website',
+            'business_license_number',
+          ]);
 
-      if (error) {
-        console.error('Error loading business settings:', error);
-        return;
+        if (cancelled) return;
+
+        if (error) {
+          console.error('Error loading business settings:', error);
+          return;
+        }
+
+        const newSettings = { ...defaultSettings };
+
+        if (data && data.length > 0) {
+          data.forEach(({ key, value }) => {
+            if (key in newSettings) {
+              newSettings[key as keyof BusinessSettings] = value || '';
+            }
+          });
+        }
+
+        // Load business address using the centralized helper
+        const businessAddress = await getBusinessAddressText();
+
+        if (cancelled) return;
+
+        newSettings.business_address = businessAddress;
+
+        setSettings(newSettings);
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Error loading business settings:', error);
+        }
       }
-
-      const newSettings = { ...defaultSettings };
-
-      if (data && data.length > 0) {
-        data.forEach(({ key, value }) => {
-          if (key in newSettings) {
-            newSettings[key as keyof BusinessSettings] = value || '';
-          }
-        });
-      }
-
-      // Load business address using the centralized helper
-      const businessAddress = await getBusinessAddressText();
-      newSettings.business_address = businessAddress;
-
-      setSettings(newSettings);
-    } catch (error) {
-      console.error('Error loading business settings:', error);
     }
-  }
+
+    loadBusinessSettings();
+
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <BusinessContext.Provider value={settings}>
