@@ -193,6 +193,10 @@ export function PaymentsTab({ orderId, customerName, payments, order, customFees
                           <span className="font-medium">Method:</span>{' '}
                           {payment.payment_brand && payment.payment_last4
                             ? `${payment.payment_brand} •••• ${payment.payment_last4}`
+                            : payment.payment_method === 'cash'
+                            ? 'Cash'
+                            : payment.payment_method === 'check'
+                            ? 'Check'
                             : payment.payment_method}
                         </div>
                       )}

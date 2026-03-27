@@ -33,6 +33,8 @@ export function OrderChangelogTab({ changelog }: OrderChangelogTabProps) {
                    change.change_type === 'field_update' ? 'Field Update' :
                    change.change_type === 'customer_approval' ? 'Customer Approval' :
                    change.change_type === 'payment_error' ? 'Payment Error' :
+                   change.change_type === 'cash_payment' ? 'Cash Payment' :
+                   change.change_type === 'check_payment' ? 'Check Payment' :
                    change.change_type}
                 </p>
                 <span className="text-xs text-slate-500">
