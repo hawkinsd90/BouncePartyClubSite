@@ -8,6 +8,45 @@ import { BlackoutDateForm } from './BlackoutDateForm';
 import { BlackoutDatesList } from './BlackoutDatesList';
 import type { BlackoutDate } from '../../types/index';
 
+function annualMatchesDay(bd: BlackoutDate, d: Date): boolean {
+  const bStart = new Date(bd.start_date + 'T00:00:00');
+  const bEnd   = new Date(bd.end_date   + 'T00:00:00');
+  const sm = bStart.getMonth();
+  const sd = bStart.getDate();
+  const em = bEnd.getMonth();
+  const ed = bEnd.getDate();
+  const y  = d.getFullYear();
+
+  const wraps = em < sm || (em === sm && ed < sd);
+
+  if (!wraps) {
+    const ps = new Date(y, sm, sd);
+    const pe = new Date(y, em, ed);
+    return d >= ps && d <= pe;
+  }
+
+  const curStart  = new Date(y,     sm, sd);
+  const curEnd    = new Date(y + 1, em, ed);
+  if (d >= curStart && d <= curEnd) return true;
+
+  const prevStart = new Date(y - 1, sm, sd);
+  const prevEnd   = new Date(y,     em, ed);
+  return d >= prevStart && d <= prevEnd;
+}
+
+function annualBlackoutMatchesDay(bd: BlackoutDate, d: Date): boolean {
+  if (bd.expires_at) {
+    const exp = new Date(bd.expires_at + 'T00:00:00');
+    if (d > exp) return false;
+  }
+  if (bd.recurrence === 'one_time') {
+    const start = new Date(bd.start_date + 'T00:00:00');
+    const end   = new Date(bd.end_date   + 'T00:00:00');
+    return d >= start && d <= end;
+  }
+  return annualMatchesDay(bd, d);
+}
+
 function getBlockedDaysInMonth(
   year: number,
   month: number,
@@ -19,33 +58,9 @@ function getBlockedDaysInMonth(
   for (let day = 1; day <= daysInMonth; day++) {
     const d = new Date(year, month, day);
     for (const bd of dates) {
-      if (bd.expires_at) {
-        const exp = new Date(bd.expires_at + 'T00:00:00');
-        if (d > exp) continue;
-      }
-
-      if (bd.recurrence === 'one_time') {
-        const start = new Date(bd.start_date + 'T00:00:00');
-        const end = new Date(bd.end_date + 'T00:00:00');
-        if (d >= start && d <= end) {
-          blocked.add(day);
-          break;
-        }
-      } else {
-        const bStart = new Date(bd.start_date + 'T00:00:00');
-        const bEnd = new Date(bd.end_date + 'T00:00:00');
-        const projStart = new Date(year, bStart.getMonth(), bStart.getDate());
-        const projEnd = new Date(year, bEnd.getMonth(), bEnd.getDate());
-        if (d >= projStart && d <= projEnd) {
-          blocked.add(day);
-          break;
-        }
-        const projStartNext = new Date(year + 1, bStart.getMonth(), bStart.getDate());
-        const projEndNext = new Date(year + 1, bEnd.getMonth(), bEnd.getDate());
-        if (d >= projStartNext && d <= projEndNext) {
-          blocked.add(day);
-          break;
-        }
+      if (bd.block_type === 'full' && annualBlackoutMatchesDay(bd, d)) {
+        blocked.add(day);
+        break;
       }
     }
   }
@@ -66,28 +81,7 @@ function getSameDayOnlyDaysInMonth(
     let hasSameDayBlock = false;
 
     for (const bd of dates) {
-      if (bd.expires_at) {
-        const exp = new Date(bd.expires_at + 'T00:00:00');
-        if (d > exp) continue;
-      }
-      let matches = false;
-      if (bd.recurrence === 'one_time') {
-        const start = new Date(bd.start_date + 'T00:00:00');
-        const end = new Date(bd.end_date + 'T00:00:00');
-        matches = d >= start && d <= end;
-      } else {
-        const bStart = new Date(bd.start_date + 'T00:00:00');
-        const bEnd = new Date(bd.end_date + 'T00:00:00');
-        const projStart = new Date(year, bStart.getMonth(), bStart.getDate());
-        const projEnd = new Date(year, bEnd.getMonth(), bEnd.getDate());
-        matches = d >= projStart && d <= projEnd;
-        if (!matches) {
-          const projStartNext = new Date(year + 1, bStart.getMonth(), bStart.getDate());
-          const projEndNext = new Date(year + 1, bEnd.getMonth(), bEnd.getDate());
-          matches = d >= projStartNext && d <= projEndNext;
-        }
-      }
-      if (matches) {
+      if (annualBlackoutMatchesDay(bd, d)) {
         if (bd.block_type === 'full') hasFullBlock = true;
         if (bd.block_type === 'same_day_pickup') hasSameDayBlock = true;
       }
