@@ -121,6 +121,17 @@ export function Quote() {
     const endDate = formData.event_end_date || formData.event_date;
     checkDateBlackout(formData.event_date, endDate).then((result) => {
       setSameDayPickupBlocked(result.is_same_day_pickup_blocked);
+      if (result.is_same_day_pickup_blocked) {
+        const overrides: Partial<typeof formData> = {};
+        if (formData.location_type === 'commercial') overrides.location_type = 'residential';
+        if (formData.pickup_preference === 'same_day') overrides.pickup_preference = 'next_day';
+        if (formData.location_type === 'commercial' || formData.pickup_preference === 'same_day') {
+          overrides.same_day_responsibility_accepted = false;
+        }
+        if (Object.keys(overrides).length > 0) {
+          setFormData({ ...formData, ...overrides });
+        }
+      }
     });
   }, [formData.event_date, formData.event_end_date]);
 
