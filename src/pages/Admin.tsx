@@ -245,13 +245,21 @@ function AdminDashboard() {
     };
   }, [activeTab]);
 
+  // Stable signature of pending-review IDs in render order — only changes when
+  // the set of pending_review orders materially changes, not on every refetch.
+  const pendingReviewSignature = orders
+    .filter(o => o.status === 'pending_review')
+    .map(o => o.id)
+    .join(',');
+
   // Re-run computeVisibleOrder whenever the pending orders list changes so the
   // floating header updates immediately after a data refresh without requiring scroll.
   useEffect(() => {
     if (activeTab === 'pending') {
       computeVisibleOrderRef.current();
     }
-  }, [orders, activeTab]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingReviewSignature, activeTab]);
 
   function changeTab(tab: AdminTab) {
     setActiveTab(tab);
