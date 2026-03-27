@@ -1,4 +1,5 @@
 import { Component, ReactNode } from 'react';
+import { reportError } from '../../lib/errorReporter';
 
 interface Props {
   children: ReactNode;
@@ -19,8 +20,13 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: any) {
+  componentDidCatch(error: Error, errorInfo: { componentStack: string }) {
     console.error('Error caught by boundary:', error, errorInfo);
+
+    reportError(error, {
+      type: 'ReactErrorBoundary',
+      componentStack: errorInfo.componentStack,
+    });
   }
 
   handleReset = () => {

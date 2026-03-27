@@ -1,4 +1,5 @@
 import { notifyError } from './notifications';
+import { reportError } from './errorReporter';
 
 export class AppError extends Error {
   constructor(
@@ -42,27 +43,36 @@ export function handleError(error: unknown, context?: string, silent = false): v
     return;
   }
 
-  if (error instanceof AppError) {
-    notifyError(error.message);
-    return;
-  }
-
+  const additionalInfo: Record<string, unknown> = {};
+  if (context) additionalInfo.context = context;
   if (isSupabaseError(error)) {
-    notifyError(formatSupabaseError(error));
-    return;
+    const e = error as any;
+    if (e.code) additionalInfo.supabaseCode = e.code;
+    if (e.hint) additionalInfo.supabaseHint = e.hint;
+    if (e.details) additionalInfo.supabaseDetails = e.details;
   }
 
   if (error instanceof Error) {
-    notifyError(error.message || 'An unexpected error occurred');
+    reportError(error, additionalInfo);
+    notifyError(
+      error instanceof AppError
+        ? error.message
+        : isSupabaseError(error)
+          ? formatSupabaseError(error)
+          : error.message || 'An unexpected error occurred'
+    );
     return;
   }
 
   if (typeof error === 'string') {
+    reportError(error, additionalInfo);
     notifyError(error);
     return;
   }
 
-  notifyError('An unexpected error occurred. Please try again.');
+  const message = 'An unexpected error occurred. Please try again.';
+  reportError(message, { ...additionalInfo, raw: String(error) });
+  notifyError(message);
 }
 
 export async function withErrorHandling<T>(
