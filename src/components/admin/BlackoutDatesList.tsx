@@ -1,4 +1,4 @@
-import { Calendar, Trash2 } from 'lucide-react';
+import { Calendar, Trash2, Ban, Clock } from 'lucide-react';
 
 interface BlackoutDate {
   id: string;
@@ -6,6 +6,7 @@ interface BlackoutDate {
   end_date: string;
   reason: string;
   notes: string | null;
+  block_type: 'full' | 'same_day_pickup';
   created_at: string;
 }
 
@@ -26,6 +27,17 @@ export function BlackoutDatesList({ dates, onDelete }: BlackoutDatesListProps) {
                 <span className="font-bold text-slate-900">
                   {new Date(date.start_date).toLocaleDateString()} - {new Date(date.end_date).toLocaleDateString()}
                 </span>
+                {date.block_type === 'full' ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                    <Ban className="w-3 h-3" />
+                    Full Block
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                    <Clock className="w-3 h-3" />
+                    Same-Day Pickup Block
+                  </span>
+                )}
               </div>
               <p className="text-slate-700"><strong>Reason:</strong> {date.reason}</p>
               {date.notes && <p className="text-sm text-slate-600 mt-1">{date.notes}</p>}

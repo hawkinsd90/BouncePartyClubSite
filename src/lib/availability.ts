@@ -1,5 +1,29 @@
 import { supabase } from './supabase';
 
+export interface BlackoutCheckResult {
+  is_full_blocked: boolean;
+  is_same_day_pickup_blocked: boolean;
+}
+
+export async function checkDateBlackout(
+  startDate: string,
+  endDate: string
+): Promise<BlackoutCheckResult> {
+  const { data, error } = await supabase
+    .rpc('check_date_blackout', {
+      p_start: startDate.substring(0, 10),
+      p_end: endDate.substring(0, 10),
+    })
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error checking blackout dates:', error);
+    return { is_full_blocked: false, is_same_day_pickup_blocked: false };
+  }
+
+  return data ?? { is_full_blocked: false, is_same_day_pickup_blocked: false };
+}
+
 export interface AvailabilityCheck {
   unitId: string;
   eventStartDate: string;
@@ -24,6 +48,11 @@ export async function checkUnitAvailability(
   check: AvailabilityCheck
 ): Promise<UnitAvailability> {
   const { unitId, eventStartDate, eventEndDate, excludeOrderId } = check;
+
+  const blackout = await checkDateBlackout(eventStartDate, eventEndDate);
+  if (blackout.is_full_blocked) {
+    return { unitId, isAvailable: false, conflictingOrders: [] };
+  }
 
   let query = supabase
     .from('order_items')

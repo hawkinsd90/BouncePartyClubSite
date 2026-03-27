@@ -77,7 +77,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: order, error: orderError } = await supabaseClient
       .from("orders")
-      .select("id, stripe_customer_id")
+      .select("id, stripe_customer_id, event_date, event_end_date")
       .eq("id", orderId)
       .maybeSingle();
 
@@ -86,6 +86,31 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({ success: false, error: "Order not found" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // TRUSTED ENFORCEMENT: Check blackout dates before creating any Stripe session.
+    // This gate cannot be bypassed — it runs server-side under the service role key.
+    // Only skip for setup mode (card-on-file updates), which have no event date context.
+    if (!setupMode && order.event_date) {
+      const startDate = order.event_date.substring(0, 10);
+      const endDate = (order.event_end_date || order.event_date).substring(0, 10);
+
+      const { data: blackoutResult, error: blackoutError } = await supabaseClient
+        .rpc("check_date_blackout", { p_start: startDate, p_end: endDate })
+        .maybeSingle();
+
+      if (blackoutError) {
+        console.error("stripe-checkout: blackout check error:", blackoutError);
+      } else if (blackoutResult?.is_full_blocked) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "This date is not available for booking. Please contact us or choose a different date.",
+            code: "DATE_BLACKED_OUT",
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // Create or retrieve Stripe customer

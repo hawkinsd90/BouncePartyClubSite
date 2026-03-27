@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { checkMultipleUnitsAvailability } from './availability';
+import { checkMultipleUnitsAvailability, checkDateBlackout } from './availability';
 import { formatOrderId } from './utils';
 import { upsertCanonicalAddress } from './addressService';
 
@@ -47,7 +47,15 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
 
   const applyTaxesByDefault = pricingRulesData?.apply_taxes_by_default ?? true;
 
-  // 0. CRITICAL SAFETY CHECK: Verify availability before creating order
+  // 0a. CLIENT-SIDE EARLY REJECTION: Check blackout dates before writing anything to the DB.
+  // NOTE: This is browser code and can be bypassed. The trusted enforcement gate is in
+  // the stripe-checkout edge function. This check exists only to reduce orphaned draft orders.
+  const blackout = await checkDateBlackout(quoteData.event_date, quoteData.event_end_date || quoteData.event_date);
+  if (blackout.is_full_blocked) {
+    throw new Error('This date is not available for booking. Please contact us or choose a different date.');
+  }
+
+  // 0b. CRITICAL SAFETY CHECK: Verify unit availability before creating order
   const availabilityChecks = cart.map(item => ({
     unitId: item.unit_id,
     eventStartDate: quoteData.event_date,

@@ -17,6 +17,7 @@ interface BlackoutDate {
   end_date: string;
   reason: string;
   notes: string | null;
+  block_type: 'full' | 'same_day_pickup';
   created_at: string;
 }
 
