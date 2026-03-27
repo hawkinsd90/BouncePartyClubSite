@@ -182,6 +182,10 @@ function AdminDashboard() {
   const pendingOrdersRef = useRef<typeof orders>([]);
   pendingOrdersRef.current = orders.filter(o => o.status === 'pending_review');
 
+  // Stable ref to computeVisibleOrder so it can be called both from the scroll
+  // handler and from the orders-change effect without recreating the listener.
+  const computeVisibleOrderRef = useRef<() => void>(() => {});
+
   // Scroll detection for floating header
   useEffect(() => {
     if (activeTab !== 'pending') {
@@ -221,6 +225,9 @@ function AdminDashboard() {
       setVisibleOrder(bestMatch);
     }
 
+    // Expose so the orders-update effect can re-run it without scroll
+    computeVisibleOrderRef.current = computeVisibleOrder;
+
     function handleScroll() {
       if (rafId !== null) return;
       rafId = requestAnimationFrame(() => {
@@ -237,6 +244,14 @@ function AdminDashboard() {
       if (rafId !== null) cancelAnimationFrame(rafId);
     };
   }, [activeTab]);
+
+  // Re-run computeVisibleOrder whenever the pending orders list changes so the
+  // floating header updates immediately after a data refresh without requiring scroll.
+  useEffect(() => {
+    if (activeTab === 'pending') {
+      computeVisibleOrderRef.current();
+    }
+  }, [orders, activeTab]);
 
   function changeTab(tab: AdminTab) {
     setActiveTab(tab);
