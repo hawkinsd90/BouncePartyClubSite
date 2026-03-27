@@ -15,6 +15,24 @@ function getSessionId(): string {
   return sessionId;
 }
 
+async function isAdminOrMaster(): Promise<boolean> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const { data } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .in('role', ['admin', 'master'])
+      .maybeSingle();
+
+    return data !== null;
+  } catch {
+    return false;
+  }
+}
+
 export type SiteEventName =
   | 'page_view'
   | 'unit_view'
@@ -39,6 +57,9 @@ export async function trackEvent(
   options: TrackEventOptions = {}
 ): Promise<void> {
   try {
+    const adminOrMaster = await isAdminOrMaster();
+    if (adminOrMaster) return;
+
     const pagePath = window.location.pathname;
     await supabase.from('site_events').insert({
       event_name: eventName,

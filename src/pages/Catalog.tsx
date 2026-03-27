@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
-import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { useEffect, useState, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { SafeStorage } from '../lib/safeStorage';
-import { Users, Maximize, Zap, Droplets, Download } from 'lucide-react';
+import { Users, Maximize, Zap, Droplets, Download, Search, XCircle, CheckCircle } from 'lucide-react';
 import { notifyError } from '../lib/notifications';
 import { DatePickerInput } from '../components/ui/DatePickerInput';
+import { checkUnitAvailability } from '../lib/availability';
 
 interface Unit {
   id: string;
@@ -24,11 +25,13 @@ interface Unit {
 
 export function Catalog() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState<string>('all');
   const [eventDate, setEventDate] = useState<string>('');
+  const [availabilityChecked, setAvailabilityChecked] = useState(false);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [unavailableUnitIds, setUnavailableUnitIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let mounted = true;
@@ -64,13 +67,11 @@ export function Catalog() {
           }),
         }));
 
-        // Only update state if component is still mounted
         if (mounted) {
           setUnits(unitsWithMedia as any);
         }
       } catch (error) {
         console.error('Error loading units:', error);
-        // Don't throw error - just show empty state
         if (mounted) {
           notifyError('Failed to load units. Please refresh the page.');
         }
@@ -83,17 +84,13 @@ export function Catalog() {
 
     loadUnitsAsync();
 
-    // Handle page visibility changes (when user returns to the app)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && mounted && units.length > 0) {
-        // console.log('Page became visible, data is already loaded');
-        // Data is already loaded, no need to reload
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Cleanup function to prevent state updates after unmount
     return () => {
       mounted = false;
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -101,23 +98,57 @@ export function Catalog() {
   }, []);
 
   function loadPrefillData() {
-    // Check for prefill data from home page
     const prefillData = SafeStorage.getItem<any>('bpc_quote_prefill');
     if (prefillData && prefillData.event_date) {
-      // console.log('Prefill data loaded:', prefillData);
       setEventDate(prefillData.event_date);
       return;
     }
 
-    // Check for saved form data from quote page (when coming back from cart)
     const formData = SafeStorage.getItem<any>('bpc_quote_form');
     if (formData && formData.event_date) {
-      // console.log('Form data loaded:', formData);
       setEventDate(formData.event_date);
     }
   }
 
-  const filteredUnits = units.filter((unit) => {
+  const handleCheckAvailability = useCallback(async () => {
+    if (!eventDate || units.length === 0) return;
+
+    setAvailabilityLoading(true);
+    setAvailabilityChecked(false);
+
+    try {
+      const results = await Promise.all(
+        units.map(unit =>
+          checkUnitAvailability({
+            unitId: unit.id,
+            eventStartDate: eventDate,
+            eventEndDate: eventDate,
+          })
+        )
+      );
+
+      const unavailable = new Set<string>();
+      results.forEach(result => {
+        if (!result.isAvailable) {
+          unavailable.add(result.unitId);
+        }
+      });
+
+      setUnavailableUnitIds(unavailable);
+      setAvailabilityChecked(true);
+    } catch {
+      notifyError('Failed to check availability. Please try again.');
+    } finally {
+      setAvailabilityLoading(false);
+    }
+  }, [eventDate, units]);
+
+  const handleClearAvailability = () => {
+    setAvailabilityChecked(false);
+    setUnavailableUnitIds(new Set());
+  };
+
+  const categoryFilteredUnits = units.filter((unit) => {
     if (filterType === 'all') return true;
     const unitTypes = unit.types || (unit.type ? [unit.type] : []);
     if (filterType === 'combo') return unitTypes.includes('Combo');
@@ -126,6 +157,14 @@ export function Catalog() {
     if (filterType === 'obstacle') return unitTypes.includes('Obstacle Course');
     return true;
   });
+
+  const filteredUnits = availabilityChecked
+    ? categoryFilteredUnits.filter(unit => !unavailableUnitIds.has(unit.id))
+    : categoryFilteredUnits;
+
+  const unavailableInCategory = availabilityChecked
+    ? categoryFilteredUnits.filter(unit => unavailableUnitIds.has(unit.id))
+    : [];
 
   const handleExportMenu = () => {
     if (units.length === 0) {
@@ -136,7 +175,7 @@ export function Catalog() {
     const menuData = {
       generatedAtIso: new Date().toISOString(),
       title: 'Bounce Party Club Menu',
-      units: filteredUnits, // respects current filter buttons
+      units: filteredUnits,
     };
 
     sessionStorage.setItem('menu-preview-data', JSON.stringify(menuData));
@@ -160,19 +199,23 @@ export function Catalog() {
 
   const handleDateChange = (newDate: string) => {
     setEventDate(newDate);
+    setAvailabilityChecked(false);
+    setUnavailableUnitIds(new Set());
 
-    // Update the prefill data if it exists
     const prefillData = SafeStorage.getItem<any>('bpc_quote_prefill');
     if (prefillData) {
       SafeStorage.setItem('bpc_quote_prefill', { ...prefillData, event_date: newDate }, { expirationDays: 7 });
     }
 
-    // Update the form data if it exists
     const formData = SafeStorage.getItem<any>('bpc_quote_form');
     if (formData) {
       SafeStorage.setItem('bpc_quote_form', { ...formData, event_date: newDate, event_end_date: newDate }, { expirationDays: 7 });
     }
   };
+
+  const formattedDate = eventDate
+    ? new Date(eventDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+    : '';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white">
@@ -192,90 +235,92 @@ export function Catalog() {
           </div>
 
           <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 border-2 border-blue-200 mb-6">
-            <div className="mb-3">
-              <label className="block text-sm sm:text-base font-semibold text-slate-700 mb-1">
-                Event Date
-              </label>
+            <label className="block text-sm sm:text-base font-semibold text-slate-700 mb-3">
+              Check Availability for a Date
+            </label>
+            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
+              <div className="w-full sm:max-w-xs">
+                <DatePickerInput
+                  value={eventDate}
+                  onChange={handleDateChange}
+                  min={new Date().toISOString().split('T')[0]}
+                  placeholder="Select event date"
+                  showIcon={true}
+                />
+              </div>
               {eventDate && (
-                <p className="text-xs sm:text-sm text-blue-600 font-medium">
-                  Filtering available units for this date
-                </p>
+                <button
+                  onClick={handleCheckAvailability}
+                  disabled={availabilityLoading}
+                  className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:opacity-60 text-white font-bold py-3 px-5 rounded-xl transition-all shadow-md hover:shadow-lg whitespace-nowrap"
+                >
+                  {availabilityLoading ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Search className="w-4 h-4" />
+                  )}
+                  {availabilityLoading ? 'Checking...' : 'Check Availability'}
+                </button>
+              )}
+              {availabilityChecked && (
+                <button
+                  onClick={handleClearAvailability}
+                  className="flex items-center gap-2 text-slate-600 hover:text-slate-800 font-semibold py-3 px-3 rounded-xl transition-all border-2 border-slate-300 hover:border-slate-400 bg-white whitespace-nowrap"
+                >
+                  <XCircle className="w-4 h-4" />
+                  Show All
+                </button>
               )}
             </div>
-            <div className="max-w-sm">
-              <DatePickerInput
-                value={eventDate}
-                onChange={handleDateChange}
-                min={new Date().toISOString().split('T')[0]}
-                placeholder="Select event date"
-                showIcon={true}
-              />
-            </div>
-            {eventDate && (
-              <p className="text-xs sm:text-sm text-slate-600 mt-2 break-words">
-                Showing inflatables available on <span className="font-bold text-slate-900">{new Date(eventDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-              </p>
+
+            {availabilityChecked && (
+              <div className="mt-3 flex flex-wrap gap-3">
+                <div className="flex items-center gap-2 text-sm font-semibold text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
+                  <CheckCircle className="w-4 h-4" />
+                  {filteredUnits.length} available on {formattedDate}
+                </div>
+                {unavailableInCategory.length > 0 && (
+                  <div className="flex items-center gap-2 text-sm font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
+                    <XCircle className="w-4 h-4" />
+                    {unavailableInCategory.length} already booked — hidden
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
 
         <div className="flex flex-wrap gap-3 sm:gap-4 mb-10 sm:mb-12">
-          <button
-            onClick={() => setFilterType('all')}
-            className={`px-5 py-3 rounded-xl font-bold transition-all shadow-sm hover:shadow-md text-sm sm:text-base ${
-              filterType === 'all'
-                ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg'
-                : 'bg-white text-slate-700 border-2 border-slate-300 hover:border-blue-600'
-            }`}
-          >
-            All Inflatables
-          </button>
-          <button
-            onClick={() => setFilterType('bounce')}
-            className={`px-5 py-3 rounded-xl font-bold transition-all shadow-sm hover:shadow-md text-sm sm:text-base ${
-              filterType === 'bounce'
-                ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg'
-                : 'bg-white text-slate-700 border-2 border-slate-300 hover:border-blue-600'
-            }`}
-          >
-            Bounce Houses
-          </button>
-          <button
-            onClick={() => setFilterType('combo')}
-            className={`px-5 py-3 rounded-xl font-bold transition-all shadow-sm hover:shadow-md text-sm sm:text-base ${
-              filterType === 'combo'
-                ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg'
-                : 'bg-white text-slate-700 border-2 border-slate-300 hover:border-blue-600'
-            }`}
-          >
-            Wet or Dry Units
-          </button>
-          <button
-            onClick={() => setFilterType('slide')}
-            className={`px-5 py-3 rounded-xl font-bold transition-all shadow-sm hover:shadow-md text-sm sm:text-base ${
-              filterType === 'slide'
-                ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg'
-                : 'bg-white text-slate-700 border-2 border-slate-300 hover:border-blue-600'
-            }`}
-          >
-            Water Slides
-          </button>
-          <button
-            onClick={() => setFilterType('obstacle')}
-            className={`px-5 py-3 rounded-xl font-bold transition-all shadow-sm hover:shadow-md text-sm sm:text-base ${
-              filterType === 'obstacle'
-                ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg'
-                : 'bg-white text-slate-700 border-2 border-slate-300 hover:border-blue-600'
-            }`}
-          >
-            Obstacle Courses
-          </button>
+          {(['all', 'bounce', 'combo', 'slide', 'obstacle'] as const).map((type) => {
+            const labels: Record<string, string> = {
+              all: 'All Inflatables',
+              bounce: 'Bounce Houses',
+              combo: 'Wet or Dry Units',
+              slide: 'Water Slides',
+              obstacle: 'Obstacle Courses',
+            };
+            return (
+              <button
+                key={type}
+                onClick={() => setFilterType(type)}
+                className={`px-5 py-3 rounded-xl font-bold transition-all shadow-sm hover:shadow-md text-sm sm:text-base ${
+                  filterType === type
+                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg'
+                    : 'bg-white text-slate-700 border-2 border-slate-300 hover:border-blue-600'
+                }`}
+              >
+                {labels[type]}
+              </button>
+            );
+          })}
         </div>
 
         {filteredUnits.length === 0 ? (
           <div className="text-center py-20">
             <p className="text-slate-600 text-lg sm:text-xl font-medium">
-              No inflatables found matching your criteria.
+              {availabilityChecked
+                ? `No inflatables are available on ${formattedDate} in this category.`
+                : 'No inflatables found matching your criteria.'}
             </p>
           </div>
         ) : (
