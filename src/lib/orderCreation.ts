@@ -120,25 +120,19 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     customer = newCustomer;
   }
 
-  // 2. Create or update contact
-  const { error: contactError } = await supabase.from('contacts').upsert(
-    {
-      first_name: contactData.first_name,
-      last_name: contactData.last_name,
-      email: contactData.email,
-      phone: contactData.phone,
-      business_name: contactData.business_name || null,
-      source: 'booking',
-      opt_in_email: true,
-      opt_in_sms: smsConsent,
-    },
-    {
-      onConflict: 'email',
-    }
-  );
+  // 2. Create or update contact via SECURITY DEFINER RPC so repeat-customer upserts
+  // succeed even when anon/authenticated RLS blocks the UPDATE path.
+  const { error: contactError } = await supabase.rpc('upsert_contact_from_checkout', {
+    p_first_name: contactData.first_name,
+    p_last_name: contactData.last_name,
+    p_email: contactData.email,
+    p_phone: contactData.phone,
+    p_business_name: contactData.business_name || null,
+    p_opt_in_sms: smsConsent,
+  });
 
   if (contactError) {
-    console.error('Error creating contact:', contactError);
+    console.error('Error upserting contact:', contactError);
   }
 
   // 3. Create or reuse canonical address

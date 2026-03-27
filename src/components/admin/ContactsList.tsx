@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Mail, Phone, Calendar, CreditCard as Edit2, X, Star, TrendingUp } from 'lucide-react';
+import { Mail, Phone, Calendar, CreditCard as Edit2, X, Star, TrendingUp, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatCurrency } from '../../lib/pricing';
 import { useSupabaseQuery, useMutation } from '../../hooks/useDataFetch';
@@ -24,6 +24,8 @@ interface Contact {
 export function ContactsList() {
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [deletingContact, setDeletingContact] = useState<Contact | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const fetchContacts = useCallback(async () => {
     const result = await supabase
@@ -41,7 +43,7 @@ export function ContactsList() {
   const contacts = contactsData || [];
 
   const updateContactFn = useCallback(async (contact: Contact) => {
-    const { data, error} = await supabase
+    const { data, error } = await supabase
       .from('contacts')
       .update({
         first_name: contact.first_name,
@@ -73,16 +75,49 @@ export function ContactsList() {
     }
   );
 
-  const filteredContacts = contacts;
+  const deleteContactFn = useCallback(async (contact: Contact) => {
+    const { error } = await supabase
+      .from('contacts')
+      .delete()
+      .eq('id', contact.id);
+
+    if (error) throw error;
+    return contact;
+  }, []);
+
+  const handleDeleteSuccess = useCallback(() => {
+    setShowDeleteModal(false);
+    setDeletingContact(null);
+    refetch();
+  }, [refetch]);
+
+  const { mutate: deleteContact, loading: deleting } = useMutation<Contact, Contact>(
+    deleteContactFn,
+    {
+      successMessage: 'Contact deleted.',
+      errorMessage: 'Failed to delete contact',
+      onSuccess: handleDeleteSuccess,
+    }
+  );
 
   function handleEditClick(contact: Contact) {
     setEditingContact({ ...contact });
     setShowEditModal(true);
   }
 
+  function handleDeleteClick(contact: Contact) {
+    setDeletingContact(contact);
+    setShowDeleteModal(true);
+  }
+
   function handleSaveContact() {
     if (!editingContact) return;
     updateContact(editingContact);
+  }
+
+  function handleConfirmDelete() {
+    if (!deletingContact) return;
+    deleteContact(deletingContact);
   }
 
   if (loading) {
@@ -125,7 +160,7 @@ export function ContactsList() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-slate-200">
-            {filteredContacts.map((contact: Contact) => (
+            {contacts.map((contact: Contact) => (
               <tr key={contact.id} className="hover:bg-slate-50">
                 <td className="px-3 sm:px-6 py-3 sm:py-4">
                   <div className="flex items-start gap-2">
@@ -183,13 +218,22 @@ export function ContactsList() {
                   </div>
                 </td>
                 <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
-                  <button
-                    onClick={() => handleEditClick(contact)}
-                    className="inline-flex items-center px-2 sm:px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs sm:text-sm"
-                  >
-                    <Edit2 className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
-                    <span className="hidden sm:inline">Edit</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleEditClick(contact)}
+                      className="inline-flex items-center px-2 sm:px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs sm:text-sm"
+                    >
+                      <Edit2 className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
+                      <span className="hidden sm:inline">Edit</span>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteClick(contact)}
+                      className="inline-flex items-center px-2 sm:px-3 py-1 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-colors text-xs sm:text-sm"
+                    >
+                      <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
+                      <span className="hidden sm:inline">Delete</span>
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -304,6 +348,50 @@ export function ContactsList() {
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
               >
                 {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteModal && deletingContact && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex items-start gap-4 mb-5">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Delete Contact</h3>
+                <p className="text-sm text-slate-600 mt-1">
+                  Are you sure you want to delete{' '}
+                  <span className="font-semibold text-slate-800">
+                    {deletingContact.first_name} {deletingContact.last_name}
+                  </span>
+                  {deletingContact.email && (
+                    <> ({deletingContact.email})</>
+                  )}
+                  ? This action cannot be undone.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeletingContact(null);
+                }}
+                disabled={deleting}
+                className="px-4 py-2 bg-white text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50 text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                disabled={deleting}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                {deleting ? 'Deleting...' : 'Delete Contact'}
               </button>
             </div>
           </div>
