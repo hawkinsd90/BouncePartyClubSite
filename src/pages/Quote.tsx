@@ -10,6 +10,7 @@ import { useQuotePricing } from '../hooks/useQuotePricing';
 import { useQuotePrefill } from '../hooks/useQuotePrefill';
 import { useDataFetch } from '../hooks/useDataFetch';
 import { supabase } from '../lib/supabase';
+import { checkDateBlackout } from '../lib/availability';
 import { validateQuote } from '../lib/quoteValidation';
 import type { PricingRules } from '../lib/pricing';
 import { trackEvent } from '../lib/siteEvents';
@@ -44,6 +45,7 @@ export function Quote() {
   const [validationErrorFieldId, setValidationErrorFieldId] = useState<string | null>(null);
   const [showBottomToast, setShowBottomToast] = useState(false);
   const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
+  const [sameDayPickupBlocked, setSameDayPickupBlocked] = useState(false);
 
   // Debug mode enabled via ?debug=1
   const debugMode = searchParams.get('debug') === '1' || import.meta.env.DEV;
@@ -110,6 +112,17 @@ export function Quote() {
       return () => clearTimeout(timer);
     }
   }, [formData.event_date, formData.event_end_date, cart.length]);
+
+  useEffect(() => {
+    if (!formData.event_date) {
+      setSameDayPickupBlocked(false);
+      return;
+    }
+    const endDate = formData.event_end_date || formData.event_date;
+    checkDateBlackout(formData.event_date, endDate).then((result) => {
+      setSameDayPickupBlocked(result.is_same_day_pickup_blocked);
+    });
+  }, [formData.event_date, formData.event_end_date]);
 
   const handleClearAll = () => {
     clearCart();
@@ -430,6 +443,7 @@ export function Quote() {
                   formData={formData}
                   onFormDataChange={(updates) => setFormData({ ...formData, ...updates })}
                   validationErrorFieldId={validationErrorFieldId}
+                  sameDayPickupBlocked={sameDayPickupBlocked}
                 />
               </div>
 

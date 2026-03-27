@@ -54,6 +54,11 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
   if (blackout.is_full_blocked) {
     throw new Error('This date is not available for booking. Please contact us or choose a different date.');
   }
+  const isSameDayOrder =
+    quoteData.pickup_preference === 'same_day' || quoteData.location_type === 'commercial';
+  if (blackout.is_same_day_pickup_blocked && isSameDayOrder) {
+    throw new Error('Same-day pickups are not available for this date. Please choose next-day pickup or select a different date.');
+  }
 
   // 0b. CRITICAL SAFETY CHECK: Verify unit availability before creating order
   const availabilityChecks = cart.map(item => ({

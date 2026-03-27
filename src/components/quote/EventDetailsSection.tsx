@@ -1,4 +1,4 @@
-import { Calendar, Home, Building2, Clock, AlertCircle } from 'lucide-react';
+import { Calendar, Home, Building2, Clock, AlertCircle, Ban } from 'lucide-react';
 import type { QuoteFormData } from '../../hooks/useQuoteForm';
 import { DatePickerInput } from '../ui/DatePickerInput';
 import { TimePickerInput } from '../ui/TimePickerInput';
@@ -7,9 +7,10 @@ interface EventDetailsSectionProps {
   formData: QuoteFormData;
   onFormDataChange: (updates: Partial<QuoteFormData>) => void;
   validationErrorFieldId?: string | null;
+  sameDayPickupBlocked?: boolean;
 }
 
-export function EventDetailsSection({ formData, onFormDataChange, validationErrorFieldId }: EventDetailsSectionProps) {
+export function EventDetailsSection({ formData, onFormDataChange, validationErrorFieldId, sameDayPickupBlocked = false }: EventDetailsSectionProps) {
   const isSameDayRestricted =
     (formData.location_type === 'residential' && formData.pickup_preference === 'same_day') ||
     formData.location_type === 'commercial';
@@ -51,21 +52,32 @@ export function EventDetailsSection({ formData, onFormDataChange, validationErro
           </button>
           <button
             type="button"
-            onClick={() => onFormDataChange({ location_type: 'commercial' })}
+            onClick={() => !sameDayPickupBlocked && onFormDataChange({ location_type: 'commercial' })}
+            disabled={sameDayPickupBlocked}
             className={`flex flex-col items-center p-3 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all ${
-              formData.location_type === 'commercial'
+              sameDayPickupBlocked
+                ? 'border-slate-200 bg-slate-50 opacity-50 cursor-not-allowed'
+                : formData.location_type === 'commercial'
                 ? 'border-blue-600 bg-blue-50 shadow-sm'
                 : 'border-slate-300 hover:border-blue-400 hover:bg-slate-50'
             }`}
           >
-            <Building2
-              className={`w-7 h-7 sm:w-8 sm:h-8 mb-2 ${
-                formData.location_type === 'commercial' ? 'text-blue-600' : 'text-slate-400'
-              }`}
-            />
+            {sameDayPickupBlocked ? (
+              <Ban className="w-7 h-7 sm:w-8 sm:h-8 mb-2 text-slate-400" />
+            ) : (
+              <Building2
+                className={`w-7 h-7 sm:w-8 sm:h-8 mb-2 ${
+                  formData.location_type === 'commercial' ? 'text-blue-600' : 'text-slate-400'
+                }`}
+              />
+            )}
             <span
               className={`font-semibold text-sm sm:text-base ${
-                formData.location_type === 'commercial' ? 'text-blue-900' : 'text-slate-700'
+                sameDayPickupBlocked
+                  ? 'text-slate-400'
+                  : formData.location_type === 'commercial'
+                  ? 'text-blue-900'
+                  : 'text-slate-700'
               }`}
             >
               Commercial
@@ -73,6 +85,14 @@ export function EventDetailsSection({ formData, onFormDataChange, validationErro
             <span className="text-xs text-slate-600 mt-1 text-center">School, park, church</span>
           </button>
         </div>
+        {sameDayPickupBlocked && (
+          <div className="mt-3 flex items-start gap-2 p-3 bg-amber-50 border border-amber-300 rounded-lg">
+            <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-800 font-medium">
+              Same-day pickups are not available for this date. Commercial bookings are unavailable.
+            </p>
+          </div>
+        )}
       </div>
 
       {formData.location_type === 'residential' && (
@@ -110,26 +130,39 @@ export function EventDetailsSection({ formData, onFormDataChange, validationErro
             </button>
             <button
               type="button"
-              onClick={() => onFormDataChange({ pickup_preference: 'same_day' })}
+              onClick={() => !sameDayPickupBlocked && onFormDataChange({ pickup_preference: 'same_day' })}
+              disabled={sameDayPickupBlocked}
               className={`flex flex-col items-center p-3 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all ${
-                formData.pickup_preference === 'same_day'
+                sameDayPickupBlocked
+                  ? 'border-slate-200 bg-slate-50 opacity-50 cursor-not-allowed'
+                  : formData.pickup_preference === 'same_day'
                   ? 'border-orange-600 bg-orange-50 shadow-sm'
                   : 'border-slate-300 hover:border-orange-400 hover:bg-slate-50'
               }`}
             >
-              <Clock
-                className={`w-7 h-7 sm:w-8 sm:h-8 mb-2 ${
-                  formData.pickup_preference === 'same_day' ? 'text-orange-600' : 'text-slate-400'
-                }`}
-              />
+              {sameDayPickupBlocked ? (
+                <Ban className="w-7 h-7 sm:w-8 sm:h-8 mb-2 text-slate-400" />
+              ) : (
+                <Clock
+                  className={`w-7 h-7 sm:w-8 sm:h-8 mb-2 ${
+                    formData.pickup_preference === 'same_day' ? 'text-orange-600' : 'text-slate-400'
+                  }`}
+                />
+              )}
               <span
                 className={`font-semibold text-center text-sm sm:text-base ${
-                  formData.pickup_preference === 'same_day' ? 'text-orange-900' : 'text-slate-700'
+                  sameDayPickupBlocked
+                    ? 'text-slate-400'
+                    : formData.pickup_preference === 'same_day'
+                    ? 'text-orange-900'
+                    : 'text-slate-700'
                 }`}
               >
                 Same Day
               </span>
-              <span className="text-xs text-slate-600 mt-1 text-center leading-tight">Additional fees apply</span>
+              <span className="text-xs text-slate-600 mt-1 text-center leading-tight">
+                {sameDayPickupBlocked ? 'Not available this date' : 'Additional fees apply'}
+              </span>
             </button>
           </div>
           {formData.pickup_preference === 'next_day' && (

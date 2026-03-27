@@ -8,7 +8,7 @@ interface BlackoutDateFormProps {
 }
 
 export function BlackoutDateForm({ onSuccess }: BlackoutDateFormProps) {
-  const [newDate, setNewDate] = useState({ start_date: '', end_date: '', reason: '', notes: '' });
+  const [newDate, setNewDate] = useState({ start_date: '', end_date: '', reason: '', notes: '', block_type: 'full' });
   const [adding, setAdding] = useState(false);
 
   async function handleAddDate() {
@@ -23,7 +23,7 @@ export function BlackoutDateForm({ onSuccess }: BlackoutDateFormProps) {
       if (error) throw error;
 
       notifySuccess('Blackout date added successfully');
-      setNewDate({ start_date: '', end_date: '', reason: '', notes: '' });
+      setNewDate({ start_date: '', end_date: '', reason: '', notes: '', block_type: 'full' });
       onSuccess();
     } catch (error: any) {
       notifyError(error.message);
@@ -63,6 +63,39 @@ export function BlackoutDateForm({ onSuccess }: BlackoutDateFormProps) {
             placeholder="e.g., Christmas Holiday, Maintenance Day"
             className="w-full px-4 py-2 border border-slate-300 rounded-lg"
           />
+        </div>
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-slate-700 mb-2">Block Type *</label>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setNewDate({ ...newDate, block_type: 'full' })}
+              className={`p-3 rounded-lg border-2 text-left transition-all ${
+                newDate.block_type === 'full'
+                  ? 'border-red-500 bg-red-50'
+                  : 'border-slate-300 hover:border-slate-400'
+              }`}
+            >
+              <p className={`text-sm font-semibold ${newDate.block_type === 'full' ? 'text-red-900' : 'text-slate-700'}`}>
+                Full Block
+              </p>
+              <p className="text-xs text-slate-500 mt-0.5">All bookings blocked</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setNewDate({ ...newDate, block_type: 'same_day_pickup' })}
+              className={`p-3 rounded-lg border-2 text-left transition-all ${
+                newDate.block_type === 'same_day_pickup'
+                  ? 'border-amber-500 bg-amber-50'
+                  : 'border-slate-300 hover:border-slate-400'
+              }`}
+            >
+              <p className={`text-sm font-semibold ${newDate.block_type === 'same_day_pickup' ? 'text-amber-900' : 'text-slate-700'}`}>
+                Same-Day Pickup Block
+              </p>
+              <p className="text-xs text-slate-500 mt-0.5">Blocks same-day & commercial only</p>
+            </button>
+          </div>
         </div>
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-slate-700 mb-2">Notes (Optional)</label>

@@ -77,7 +77,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: order, error: orderError } = await supabaseClient
       .from("orders")
-      .select("id, stripe_customer_id, event_date, event_end_date")
+      .select("id, stripe_customer_id, event_date, event_end_date, pickup_preference, location_type")
       .eq("id", orderId)
       .maybeSingle();
 
@@ -112,6 +112,19 @@ Deno.serve(async (req: Request) => {
             success: false,
             error: "This date is not available for booking. Please contact us or choose a different date.",
             code: "DATE_BLACKED_OUT",
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (
+        blackoutResult?.is_same_day_pickup_blocked &&
+        (order.pickup_preference === "same_day" || order.location_type === "commercial")
+      ) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Same-day pickups are not available for this date. Please choose next-day pickup or select a different date.",
+            code: "SAME_DAY_PICKUP_BLACKED_OUT",
           }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
