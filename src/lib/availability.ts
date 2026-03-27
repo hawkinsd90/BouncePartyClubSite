@@ -121,15 +121,25 @@ export async function checkMultipleUnitsAvailability(
 ): Promise<UnitAvailability[]> {
   if (checks.length === 0) return [];
 
-  // Single blackout RPC call for the combined date range, shared across all units.
-  const allStarts = checks.map(c => c.eventStartDate);
-  const allEnds = checks.map(c => c.eventEndDate);
-  const rangeStart = allStarts.reduce((a, b) => (a < b ? a : b));
-  const rangeEnd = allEnds.reduce((a, b) => (a > b ? a : b));
-  const sharedBlackout = await checkDateBlackout(rangeStart, rangeEnd);
+  // One blackout RPC call per unique (start, end) date range.
+  // All current callers pass the same range for every check (same event date),
+  // so this always reduces to exactly 1 RPC call in practice.
+  // Mixed-range callers (future) get correct per-range results without false positives.
+  const uniqueRanges = new Map<string, BlackoutCheckResult>();
+  await Promise.all(
+    Array.from(
+      new Set(checks.map(c => `${c.eventStartDate}|${c.eventEndDate}`))
+    ).map(async key => {
+      const [start, end] = key.split('|');
+      uniqueRanges.set(key, await checkDateBlackout(start, end));
+    })
+  );
 
   const results = await Promise.all(
-    checks.map(check => checkUnitAvailability(check, sharedBlackout))
+    checks.map(check => {
+      const key = `${check.eventStartDate}|${check.eventEndDate}`;
+      return checkUnitAvailability(check, uniqueRanges.get(key));
+    })
   );
   return results;
 }
