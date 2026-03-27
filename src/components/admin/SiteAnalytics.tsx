@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Activity, ShoppingCart, CreditCard, Users, TrendingUp, RefreshCw, BarChart2, Info } from 'lucide-react';
+import { Activity, ShoppingCart, CreditCard, Users, TrendingUp, RefreshCw, BarChart2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 
@@ -36,8 +36,8 @@ interface SiteMetrics {
 
 const EVENT_LABELS: Record<string, string> = {
   unit_view: 'Unit Views',
-  quote_started: 'Quotes Started',
-  quote_submitted: 'Quotes Submitted',
+  quote_started: 'Quote Requests Started',
+  quote_submitted: 'Cart Submitted (to Checkout)',
   checkout_started: 'Checkouts Started',
   checkout_completed: 'Checkouts Completed',
   customer_portal_viewed: 'Portal Views',
@@ -179,14 +179,6 @@ export function SiteAnalytics() {
             <span className="hidden sm:inline">Refresh</span>
           </button>
         </div>
-      </div>
-
-      {/* Quote Submitted Callout */}
-      <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-        <Info className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-        <p className="text-sm text-amber-800 leading-relaxed">
-          <span className="font-semibold">What does "Quotes Submitted" mean?</span> This tracks visitors who filled out the quote form and clicked through to checkout — it is a funnel milestone, not a quote request notification. It does <span className="font-semibold">not</span> generate an email or alert to you. A real booking only happens when a customer completes the checkout and payment step.
-        </p>
       </div>
 
       {/* Today Summary */}
