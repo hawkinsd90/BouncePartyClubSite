@@ -1,79 +1,186 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Calendar, UserX, MapPin, List, PartyPopper } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Ban, Clock, RefreshCw } from 'lucide-react';
 import { notifyError, notifySuccess } from '../../lib/notifications';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { showConfirm } from '../../lib/notifications';
 import { BlackoutDateForm } from './BlackoutDateForm';
 import { BlackoutDatesList } from './BlackoutDatesList';
-import { BlackoutContactForm } from './BlackoutContactForm';
-import { BlackoutContactsList } from './BlackoutContactsList';
-import { BlackoutAddressForm } from './BlackoutAddressForm';
-import { BlackoutAddressesList } from './BlackoutAddressesList';
+import type { BlackoutDate } from '../../types/index';
 
-interface BlackoutDate {
-  id: string;
-  start_date: string;
-  end_date: string;
-  reason: string;
-  notes: string | null;
-  block_type: 'full' | 'same_day_pickup';
-  created_at: string;
+function getBlockedDaysInMonth(
+  year: number,
+  month: number,
+  dates: BlackoutDate[],
+): Set<number> {
+  const blocked = new Set<number>();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const d = new Date(year, month, day);
+    for (const bd of dates) {
+      if (bd.expires_at) {
+        const exp = new Date(bd.expires_at + 'T00:00:00');
+        if (d > exp) continue;
+      }
+
+      if (bd.recurrence === 'one_time') {
+        const start = new Date(bd.start_date + 'T00:00:00');
+        const end = new Date(bd.end_date + 'T00:00:00');
+        if (d >= start && d <= end) {
+          blocked.add(day);
+          break;
+        }
+      } else {
+        const bStart = new Date(bd.start_date + 'T00:00:00');
+        const bEnd = new Date(bd.end_date + 'T00:00:00');
+        const projStart = new Date(year, bStart.getMonth(), bStart.getDate());
+        const projEnd = new Date(year, bEnd.getMonth(), bEnd.getDate());
+        if (d >= projStart && d <= projEnd) {
+          blocked.add(day);
+          break;
+        }
+        const projStartNext = new Date(year + 1, bStart.getMonth(), bStart.getDate());
+        const projEndNext = new Date(year + 1, bEnd.getMonth(), bEnd.getDate());
+        if (d >= projStartNext && d <= projEndNext) {
+          blocked.add(day);
+          break;
+        }
+      }
+    }
+  }
+  return blocked;
 }
 
-interface BlackoutContact {
-  id: string;
-  email: string | null;
-  phone: string | null;
-  customer_name: string | null;
-  reason: string;
-  notes: string | null;
-  created_at: string;
+function getSameDayOnlyDaysInMonth(
+  year: number,
+  month: number,
+  dates: BlackoutDate[],
+): Set<number> {
+  const sameDay = new Set<number>();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const d = new Date(year, month, day);
+    let hasFullBlock = false;
+    let hasSameDayBlock = false;
+
+    for (const bd of dates) {
+      if (bd.expires_at) {
+        const exp = new Date(bd.expires_at + 'T00:00:00');
+        if (d > exp) continue;
+      }
+      let matches = false;
+      if (bd.recurrence === 'one_time') {
+        const start = new Date(bd.start_date + 'T00:00:00');
+        const end = new Date(bd.end_date + 'T00:00:00');
+        matches = d >= start && d <= end;
+      } else {
+        const bStart = new Date(bd.start_date + 'T00:00:00');
+        const bEnd = new Date(bd.end_date + 'T00:00:00');
+        const projStart = new Date(year, bStart.getMonth(), bStart.getDate());
+        const projEnd = new Date(year, bEnd.getMonth(), bEnd.getDate());
+        matches = d >= projStart && d <= projEnd;
+        if (!matches) {
+          const projStartNext = new Date(year + 1, bStart.getMonth(), bStart.getDate());
+          const projEndNext = new Date(year + 1, bEnd.getMonth(), bEnd.getDate());
+          matches = d >= projStartNext && d <= projEndNext;
+        }
+      }
+      if (matches) {
+        if (bd.block_type === 'full') hasFullBlock = true;
+        if (bd.block_type === 'same_day_pickup') hasSameDayBlock = true;
+      }
+    }
+    if (!hasFullBlock && hasSameDayBlock) sameDay.add(day);
+  }
+  return sameDay;
 }
 
-interface BlackoutAddress {
-  id: string;
-  address_line1: string;
-  address_line2: string | null;
-  city: string;
-  state: string;
-  zip_code: string;
-  reason: string;
-  notes: string | null;
-  created_at: string;
+const MONTH_NAMES = [
+  'January','February','March','April','May','June',
+  'July','August','September','October','November','December',
+];
+const DAY_INITIALS = ['S','M','T','W','T','F','S'];
+
+interface MiniCalendarProps {
+  year: number;
+  month: number;
+  blockedDays: Set<number>;
+  sameDayOnlyDays: Set<number>;
+}
+
+function MiniCalendar({ year, month, blockedDays, sameDayOnlyDays }: MiniCalendarProps) {
+  const firstDow = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = new Date();
+  const todayYear = today.getFullYear();
+  const todayMonth = today.getMonth();
+  const todayDay = today.getDate();
+
+  const cells: (number | null)[] = [
+    ...Array(firstDow).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-3 text-center">
+      <p className="text-sm font-semibold text-slate-700 mb-2">
+        {MONTH_NAMES[month]} {year}
+      </p>
+      <div className="grid grid-cols-7 gap-0.5">
+        {DAY_INITIALS.map((d, i) => (
+          <div key={i} className="text-xs font-medium text-slate-400 py-0.5">{d}</div>
+        ))}
+        {cells.map((day, i) => {
+          if (!day) return <div key={i} />;
+          const isToday = year === todayYear && month === todayMonth && day === todayDay;
+          const isBlocked = blockedDays.has(day);
+          const isSameDay = sameDayOnlyDays.has(day);
+
+          let cellClass = 'text-xs rounded py-0.5 font-medium ';
+          if (isBlocked) {
+            cellClass += 'bg-red-500 text-white';
+          } else if (isSameDay) {
+            cellClass += 'bg-amber-400 text-white';
+          } else if (isToday) {
+            cellClass += 'bg-blue-100 text-blue-700 ring-1 ring-blue-400';
+          } else {
+            cellClass += 'text-slate-600';
+          }
+
+          return (
+            <div key={i} className={cellClass}>
+              {day}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export function BlackoutTab() {
-  const [activeTab, setActiveTab] = useState<'dates' | 'contacts' | 'addresses' | 'all' | 'holidays'>('all');
   const [dates, setDates] = useState<BlackoutDate[]>([]);
-  const [contacts, setContacts] = useState<BlackoutContact[]>([]);
-  const [addresses, setAddresses] = useState<BlackoutAddress[]>([]);
   const [loading, setLoading] = useState(true);
-  const [overnightHolidayOnly, setOvernightHolidayOnly] = useState(false);
-  const [savingHolidaySettings, setSavingHolidaySettings] = useState(false);
+  const today = new Date();
+  const [calYear, setCalYear] = useState(today.getFullYear());
+  const [calMonth, setCalMonth] = useState(today.getMonth());
 
   useEffect(() => {
-    fetchData();
+    fetchDates();
   }, []);
 
-  async function fetchData() {
+  async function fetchDates() {
     setLoading(true);
     try {
-      const [datesRes, contactsRes, addressesRes, pricingRes] = await Promise.all([
-        supabase.from('blackout_dates' as any).select('*').order('start_date', { ascending: false }),
-        supabase.from('blackout_contacts' as any).select('*').order('created_at', { ascending: false }),
-        supabase.from('blackout_addresses' as any).select('*').order('created_at', { ascending: false }),
-        supabase.from('pricing_rules').select('overnight_holiday_only').limit(1).maybeSingle(),
-      ]);
-
-      if (datesRes.error) throw datesRes.error;
-      if (contactsRes.error) throw contactsRes.error;
-      if (addressesRes.error) throw addressesRes.error;
-
-      setDates(datesRes.data as any || []);
-      setContacts(contactsRes.data as any || []);
-      setAddresses(addressesRes.data as any || []);
-      setOvernightHolidayOnly(pricingRes.data?.overnight_holiday_only || false);
+      const { data, error } = await supabase
+        .from('blackout_dates' as any)
+        .select('*')
+        .order('start_date', { ascending: false });
+      if (error) throw error;
+      setDates((data as any) || []);
     } catch (error: any) {
       notifyError(error.message);
     } finally {
@@ -81,54 +188,39 @@ export function BlackoutTab() {
     }
   }
 
-  async function handleDelete(type: string, id: string) {
+  async function handleDelete(id: string) {
     const confirmed = await showConfirm(
       'Are you sure you want to remove this blackout? This action cannot be undone.',
       { confirmText: 'Remove', type: 'warning' }
     );
-
     if (!confirmed) return;
 
     try {
-      let error;
-      if (type === 'dates') {
-        ({ error } = await supabase.from('blackout_dates' as any).delete().eq('id', id));
-      } else if (type === 'contacts') {
-        ({ error } = await supabase.from('blackout_contacts' as any).delete().eq('id', id));
-      } else {
-        ({ error } = await supabase.from('blackout_addresses' as any).delete().eq('id', id));
-      }
-
+      const { error } = await supabase.from('blackout_dates' as any).delete().eq('id', id);
       if (error) throw error;
-
       notifySuccess('Blackout removed successfully');
-      fetchData();
+      fetchDates();
     } catch (error: any) {
       notifyError(error.message);
     }
   }
 
-  async function handleSaveHolidaySettings() {
-    setSavingHolidaySettings(true);
-    try {
-      const { data: pricingRule } = await supabase.from('pricing_rules').select('id').limit(1).single();
+  const calMonths = useMemo(() => {
+    return Array.from({ length: 3 }, (_, i) => {
+      const d = new Date(calYear, calMonth + i, 1);
+      return { year: d.getFullYear(), month: d.getMonth() };
+    });
+  }, [calYear, calMonth]);
 
-      if (!pricingRule) throw new Error('Pricing rules not found');
-
-      const { error } = await supabase
-        .from('pricing_rules')
-        .update({ overnight_holiday_only: overnightHolidayOnly })
-        .eq('id', pricingRule.id);
-
-      if (error) throw error;
-
-      notifySuccess('Holiday settings updated successfully');
-      fetchData();
-    } catch (error: any) {
-      notifyError(error.message);
-    } finally {
-      setSavingHolidaySettings(false);
-    }
+  function prevMonth() {
+    const d = new Date(calYear, calMonth - 1, 1);
+    setCalYear(d.getFullYear());
+    setCalMonth(d.getMonth());
+  }
+  function nextMonth() {
+    const d = new Date(calYear, calMonth + 1, 1);
+    setCalYear(d.getFullYear());
+    setCalMonth(d.getMonth());
   }
 
   if (loading) {
@@ -139,207 +231,117 @@ export function BlackoutTab() {
     );
   }
 
+  const hasAnnual = dates.some((d) => d.recurrence === 'annual');
+  const hasFull = dates.some((d) => d.block_type === 'full');
+  const hasSameDay = dates.some((d) => d.block_type === 'same_day_pickup');
+
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100">
-        <h2 className="text-2xl font-bold text-slate-900 mb-4">Blackout Management</h2>
+        <div className="flex items-center gap-3 mb-2">
+          <Calendar className="w-6 h-6 text-blue-600" />
+          <h2 className="text-2xl font-bold text-slate-900">Blackout Dates</h2>
+        </div>
         <p className="text-slate-600 mb-6">
-          Block specific dates, contacts, or addresses from booking. This helps prevent bookings on holidays,
-          from problem customers, or at restricted locations.
+          Block specific date ranges from accepting bookings. Full blocks prevent all orders;
+          same-day pickup blocks restrict only same-day and commercial orders on those dates.
+          Annual blackouts repeat every year automatically.
         </p>
 
-        <div className="flex gap-2 border-b border-slate-200 mb-6 overflow-x-auto">
-          <button
-            onClick={() => setActiveTab('all')}
-            className={`flex items-center gap-2 px-4 py-2 font-medium transition-colors whitespace-nowrap ${
-              activeTab === 'all'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <List className="w-5 h-5" />
-            All Blackouts ({dates.length + contacts.length + addresses.length + (overnightHolidayOnly ? 1 : 0)})
-          </button>
-          <button
-            onClick={() => setActiveTab('dates')}
-            className={`flex items-center gap-2 px-4 py-2 font-medium transition-colors whitespace-nowrap ${
-              activeTab === 'dates'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Calendar className="w-5 h-5" />
-            Dates ({dates.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('contacts')}
-            className={`flex items-center gap-2 px-4 py-2 font-medium transition-colors whitespace-nowrap ${
-              activeTab === 'contacts'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <UserX className="w-5 h-5" />
-            Contacts ({contacts.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('addresses')}
-            className={`flex items-center gap-2 px-4 py-2 font-medium transition-colors whitespace-nowrap ${
-              activeTab === 'addresses'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <MapPin className="w-5 h-5" />
-            Addresses ({addresses.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('holidays')}
-            className={`flex items-center gap-2 px-4 py-2 font-medium transition-colors whitespace-nowrap ${
-              activeTab === 'holidays'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <PartyPopper className="w-5 h-5" />
-            Holiday Settings
-          </button>
-        </div>
-
-        {activeTab === 'dates' && (
-          <div className="space-y-6">
-            <BlackoutDateForm onSuccess={fetchData} />
-            <BlackoutDatesList dates={dates} onDelete={(id) => handleDelete('dates', id)} />
-          </div>
-        )}
-
-        {activeTab === 'contacts' && (
-          <div className="space-y-6">
-            <BlackoutContactForm onSuccess={fetchData} />
-            <BlackoutContactsList contacts={contacts} onDelete={(id) => handleDelete('contacts', id)} />
-          </div>
-        )}
-
-        {activeTab === 'addresses' && (
-          <div className="space-y-6">
-            <BlackoutAddressForm onSuccess={fetchData} />
-            <BlackoutAddressesList addresses={addresses} onDelete={(id) => handleDelete('addresses', id)} />
-          </div>
-        )}
-
-        {activeTab === 'all' && (
-          <div className="space-y-6">
-            <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-6">
-              <h3 className="font-bold text-blue-900 mb-2">All Active Blackouts</h3>
-              <p className="text-sm text-blue-800">
-                This view shows all currently active blackout situations across dates, contacts, and addresses.
-              </p>
-            </div>
-
-            {overnightHolidayOnly && (
-              <div className="border-2 border-amber-300 bg-amber-50 rounded-xl p-4">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-amber-200 rounded-lg">
-                    <PartyPopper className="w-5 h-5 text-amber-700" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-bold text-amber-900 mb-1">Holiday Restriction Active</h4>
-                    <p className="text-sm text-amber-800">
-                      Overnight rentals only on holidays - same-day pickup and return blocked for holiday dates
-                    </p>
-                  </div>
+        {dates.length > 0 && (
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-4">
+                <h3 className="text-sm font-semibold text-slate-700">Calendar Preview</h3>
+                <div className="flex items-center gap-3 text-xs text-slate-500">
+                  {hasFull && (
+                    <span className="flex items-center gap-1">
+                      <span className="w-3 h-3 rounded-sm bg-red-500 inline-block" />
+                      Full block
+                    </span>
+                  )}
+                  {hasSameDay && (
+                    <span className="flex items-center gap-1">
+                      <span className="w-3 h-3 rounded-sm bg-amber-400 inline-block" />
+                      Same-day only
+                    </span>
+                  )}
+                  {hasAnnual && (
+                    <span className="flex items-center gap-1">
+                      <RefreshCw className="w-3 h-3 text-blue-500" />
+                      Annual
+                    </span>
+                  )}
                 </div>
               </div>
-            )}
-
-            {dates.length > 0 && (
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center">
-                  <Calendar className="w-5 h-5 mr-2 text-blue-600" />
-                  Blackout Dates ({dates.length})
-                </h3>
-                <BlackoutDatesList dates={dates} onDelete={(id) => handleDelete('dates', id)} />
-              </div>
-            )}
-
-            {contacts.length > 0 && (
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center">
-                  <UserX className="w-5 h-5 mr-2 text-red-600" />
-                  Blocked Contacts ({contacts.length})
-                </h3>
-                <BlackoutContactsList contacts={contacts} onDelete={(id) => handleDelete('contacts', id)} />
-              </div>
-            )}
-
-            {addresses.length > 0 && (
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center">
-                  <MapPin className="w-5 h-5 mr-2 text-green-600" />
-                  Blocked Addresses ({addresses.length})
-                </h3>
-                <BlackoutAddressesList addresses={addresses} onDelete={(id) => handleDelete('addresses', id)} />
-              </div>
-            )}
-
-            {dates.length === 0 && contacts.length === 0 && addresses.length === 0 && !overnightHolidayOnly && (
-              <p className="text-center text-slate-500 py-8">No active blackouts</p>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'holidays' && (
-          <div className="space-y-6">
-            <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4 mb-6">
-              <h3 className="font-bold text-amber-900 mb-2">Holiday Booking Restrictions</h3>
-              <p className="text-sm text-amber-800">
-                Configure special restrictions for holiday bookings. These settings help manage availability during busy holiday periods.
-              </p>
-            </div>
-
-            <div className="bg-white border-2 border-slate-200 rounded-xl p-6">
-              <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center">
-                <PartyPopper className="w-5 h-5 mr-2 text-amber-600" />
-                Overnight Holiday Only
-              </h3>
-              <p className="text-slate-600 mb-4">
-                When enabled, only overnight rentals will be allowed on holidays. Same-day pickup and return will be blocked for holiday dates.
-              </p>
-              <div className="flex items-center gap-4">
-                <select
-                  value={overnightHolidayOnly ? 'yes' : 'no'}
-                  onChange={(e) => setOvernightHolidayOnly(e.target.value === 'yes')}
-                  className="px-4 py-2 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                >
-                  <option value="no">No - Allow same-day pickups on holidays</option>
-                  <option value="yes">Yes - Only allow overnight rentals on holidays</option>
-                </select>
+              <div className="flex items-center gap-1">
                 <button
-                  onClick={handleSaveHolidaySettings}
-                  disabled={savingHolidaySettings}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg disabled:opacity-50 transition-colors"
+                  onClick={prevMonth}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
                 >
-                  {savingHolidaySettings ? 'Saving...' : 'Save Settings'}
+                  <ChevronLeft className="w-4 h-4 text-slate-600" />
+                </button>
+                <button
+                  onClick={nextMonth}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4 text-slate-600" />
                 </button>
               </div>
-              {overnightHolidayOnly && (
-                <div className="mt-4 bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
-                  <p className="text-sm text-blue-900">
-                    <strong>Active:</strong> Only overnight rentals are currently allowed on holidays. Same-day pickups are blocked.
-                  </p>
-                </div>
-              )}
             </div>
-
-            <div className="bg-slate-50 border-2 border-slate-200 rounded-xl p-6">
-              <h3 className="text-lg font-bold text-slate-900 mb-2">Tip: Use Blackout Dates for Holidays</h3>
-              <p className="text-slate-600">
-                To completely block bookings on specific holidays (like Christmas or Thanksgiving), go to the <strong>Dates</strong> tab
-                and add blackout date ranges. For partial restrictions (like overnight-only), use the setting above instead.
-              </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {calMonths.map(({ year, month }) => (
+                <MiniCalendar
+                  key={`${year}-${month}`}
+                  year={year}
+                  month={month}
+                  blockedDays={getBlockedDaysInMonth(year, month, dates)}
+                  sameDayOnlyDays={getSameDayOnlyDaysInMonth(year, month, dates)}
+                />
+              ))}
             </div>
           </div>
         )}
+
+        <div className="space-y-6">
+          <BlackoutDateForm onSuccess={fetchDates} />
+
+          {dates.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className="text-lg font-bold text-slate-900">
+                  Active Blackouts
+                </h3>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+                  {dates.length}
+                </span>
+                {hasAnnual && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                    <RefreshCw className="w-3 h-3" />
+                    {dates.filter((d) => d.recurrence === 'annual').length} annual
+                  </span>
+                )}
+                {hasFull && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                    <Ban className="w-3 h-3" />
+                    {dates.filter((d) => d.block_type === 'full').length} full
+                  </span>
+                )}
+                {hasSameDay && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                    <Clock className="w-3 h-3" />
+                    {dates.filter((d) => d.block_type === 'same_day_pickup').length} same-day
+                  </span>
+                )}
+              </div>
+              <BlackoutDatesList dates={dates} onDelete={handleDelete} />
+            </div>
+          )}
+
+          {dates.length === 0 && (
+            <p className="text-center text-slate-500 py-8">No blackout dates configured</p>
+          )}
+        </div>
       </div>
     </div>
   );

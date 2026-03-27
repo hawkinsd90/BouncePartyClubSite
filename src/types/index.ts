@@ -114,6 +114,18 @@ export interface PricingRules {
   generator_price_cents: number;
 }
 
+export interface BlackoutDate {
+  id: string;
+  start_date: string;
+  end_date: string;
+  reason: string;
+  notes: string | null;
+  block_type: 'full' | 'same_day_pickup';
+  recurrence: 'one_time' | 'annual';
+  expires_at: string | null;
+  created_at: string;
+}
+
 export interface FormErrors {
   [key: string]: string | undefined;
 }
