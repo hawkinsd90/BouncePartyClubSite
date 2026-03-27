@@ -31,6 +31,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [refunding, setRefunding] = useState(false);
   const [recordingCash, setRecordingCash] = useState(false);
+  const [recordingCheck, setRecordingCheck] = useState(false);
   const [signingWaiver, setSigningWaiver] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [mileageLog, setMileageLog] = useState<any>(null);
@@ -329,7 +330,12 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const paymentMethods = [...new Set(
         (task.payments || [])
           .filter((p: any) => p.status === 'paid' || p.status === 'succeeded')
-          .map((p: any) => p.type === 'cash' ? 'Cash' : 'Card')
+          .map((p: any) => {
+            const method = (p.payment_method || '').toLowerCase();
+            if (method === 'cash') return 'Cash';
+            if (method === 'check') return 'Check';
+            return 'Card';
+          })
       )];
 
       const summary: CompletionSummaryData = {
@@ -405,6 +411,25 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       refresh();
     } catch (e: any) { console.error('Cash payment error:', e); showAlert('Failed to record payment: ' + e.message); }
     finally { setRecordingCash(false); }
+  }
+
+  async function handleCheckPayment(amountCents: number, checkNumber: string) {
+    const confirmed = await showConfirm(`Record check payment of ${formatCurrency(amountCents)} from ${task.customerName}?\n\nCheck #${checkNumber}\n\nThis will send a receipt email to the customer.`);
+    if (!confirmed) return;
+    setRecordingCheck(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-check-payment`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: task.orderId, amountCents, checkNumber }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Failed to record payment');
+      showAlert(`Check payment of ${formatCurrency(amountCents)} (Check #${checkNumber}) recorded successfully!`);
+      refresh();
+    } catch (e: any) { console.error('Check payment error:', e); showAlert('Failed to record payment: ' + e.message); }
+    finally { setRecordingCheck(false); }
   }
 
   async function handlePaperWaiver() {
@@ -594,9 +619,11 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
           <TaskDetailOrderManagement
             task={task}
             onCashPayment={handleCashPayment}
+            onCheckPayment={handleCheckPayment}
             onPaperWaiver={handlePaperWaiver}
             onCancelOrder={handleCancelOrder}
             recordingCash={recordingCash}
+            recordingCheck={recordingCheck}
             signingWaiver={signingWaiver}
             cancelling={cancelling}
           />
