@@ -180,7 +180,8 @@ function AdminDashboard() {
   // Keep a ref to the latest pending orders so the scroll handler always reads
   // the current list without being a dependency that would recreate the listener.
   const pendingOrdersRef = useRef<typeof orders>([]);
-  pendingOrdersRef.current = orders.filter(o => o.status === 'pending_review');
+  const pendingOrders = orders.filter(o => o.status === 'pending_review');
+  pendingOrdersRef.current = pendingOrders;
 
   // Stable ref to computeVisibleOrder so it can be called both from the scroll
   // handler and from the orders-change effect without recreating the listener.
@@ -247,10 +248,8 @@ function AdminDashboard() {
 
   // Stable signature of pending-review IDs in render order — only changes when
   // the set of pending_review orders materially changes, not on every refetch.
-  const pendingReviewSignature = orders
-    .filter(o => o.status === 'pending_review')
-    .map(o => o.id)
-    .join(',');
+  // Reuses the already-filtered array above to avoid a duplicate pass.
+  const pendingReviewSignature = pendingOrders.map(o => o.id).join(',');
 
   // Re-run computeVisibleOrder whenever the pending orders list changes so the
   // floating header updates immediately after a data refresh without requiring scroll.
