@@ -118,21 +118,25 @@ export function Quote() {
       setSameDayPickupBlocked(false);
       return;
     }
+    let cancelled = false;
     const endDate = formData.event_end_date || formData.event_date;
     checkDateBlackout(formData.event_date, endDate).then((result) => {
+      if (cancelled) return;
       setSameDayPickupBlocked(result.is_same_day_pickup_blocked);
       if (result.is_same_day_pickup_blocked) {
-        const overrides: Partial<typeof formData> = {};
-        if (formData.location_type === 'commercial') overrides.location_type = 'residential';
-        if (formData.pickup_preference === 'same_day') overrides.pickup_preference = 'next_day';
-        if (formData.location_type === 'commercial' || formData.pickup_preference === 'same_day') {
-          overrides.same_day_responsibility_accepted = false;
-        }
-        if (Object.keys(overrides).length > 0) {
-          setFormData({ ...formData, ...overrides });
-        }
+        setFormData((prev) => {
+          const overrides: Partial<typeof prev> = {};
+          if (prev.location_type === 'commercial') overrides.location_type = 'residential';
+          if (prev.pickup_preference === 'same_day') overrides.pickup_preference = 'next_day';
+          if (prev.location_type === 'commercial' || prev.pickup_preference === 'same_day') {
+            overrides.same_day_responsibility_accepted = false;
+          }
+          if (Object.keys(overrides).length === 0) return prev;
+          return { ...prev, ...overrides };
+        });
       }
     });
+    return () => { cancelled = true; };
   }, [formData.event_date, formData.event_end_date]);
 
   const handleClearAll = () => {
