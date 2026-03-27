@@ -101,7 +101,12 @@ Deno.serve(async (req: Request) => {
 
       if (blackoutError) {
         console.error("stripe-checkout: blackout check error:", blackoutError);
-      } else if (blackoutResult?.is_full_blocked) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Unable to verify date availability. Please try again." }),
+          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (blackoutResult?.is_full_blocked) {
         return new Response(
           JSON.stringify({
             success: false,

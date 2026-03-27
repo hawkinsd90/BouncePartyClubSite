@@ -45,11 +45,12 @@ export interface UnitAvailability {
 const BLOCKED_STATUSES = ['pending_review', 'awaiting_customer_approval', 'approved', 'confirmed', 'in_progress', 'completed'];
 
 export async function checkUnitAvailability(
-  check: AvailabilityCheck
+  check: AvailabilityCheck,
+  precomputedBlackout?: BlackoutCheckResult
 ): Promise<UnitAvailability> {
   const { unitId, eventStartDate, eventEndDate, excludeOrderId } = check;
 
-  const blackout = await checkDateBlackout(eventStartDate, eventEndDate);
+  const blackout = precomputedBlackout ?? await checkDateBlackout(eventStartDate, eventEndDate);
   if (blackout.is_full_blocked) {
     return { unitId, isAvailable: false, conflictingOrders: [] };
   }
@@ -118,8 +119,17 @@ export async function checkUnitAvailability(
 export async function checkMultipleUnitsAvailability(
   checks: AvailabilityCheck[]
 ): Promise<UnitAvailability[]> {
+  if (checks.length === 0) return [];
+
+  // Single blackout RPC call for the combined date range, shared across all units.
+  const allStarts = checks.map(c => c.eventStartDate);
+  const allEnds = checks.map(c => c.eventEndDate);
+  const rangeStart = allStarts.reduce((a, b) => (a < b ? a : b));
+  const rangeEnd = allEnds.reduce((a, b) => (a > b ? a : b));
+  const sharedBlackout = await checkDateBlackout(rangeStart, rangeEnd);
+
   const results = await Promise.all(
-    checks.map(check => checkUnitAvailability(check))
+    checks.map(check => checkUnitAvailability(check, sharedBlackout))
   );
   return results;
 }
