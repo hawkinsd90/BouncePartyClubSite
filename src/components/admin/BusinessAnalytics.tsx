@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { DollarSign, TrendingUp, TrendingDown, Users, ShoppingBag, CreditCard, Banknote, RotateCcw, Clock, Repeat, MapPin, Package, Star, AlertCircle, RefreshCw } from 'lucide-react';
-import { useAdminAnalytics } from '../../hooks/useAdminAnalytics';
+import { useAdminAnalytics, AnalyticsPeriod } from '../../hooks/useAdminAnalytics';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 
 function formatCents(cents: number): string {
@@ -64,7 +65,8 @@ function StatCard({ icon, label, value, sub, trendInfo, accent = 'blue' }: StatC
 }
 
 export function BusinessAnalytics() {
-  const { analytics: a, loading, error, reload } = useAdminAnalytics();
+  const [period, setPeriod] = useState<AnalyticsPeriod>('all_time');
+  const { analytics: a, loading, error, reload } = useAdminAnalytics(period);
 
   if (loading) {
     return (
@@ -97,18 +99,34 @@ export function BusinessAnalytics() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Business Analytics</h2>
-          <p className="text-sm text-slate-500 mt-0.5">All-time metrics from confirmed, active, and completed orders</p>
+          <p className="text-sm text-slate-500 mt-0.5">Metrics from confirmed, active, and completed orders</p>
         </div>
-        <button
-          onClick={reload}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <select
+            value={period}
+            onChange={e => setPeriod(e.target.value as AnalyticsPeriod)}
+            className="text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white text-slate-700"
+          >
+            <option value="all_time">All Time</option>
+            <option value="1d">Last 24 Hours</option>
+            <option value="7d">Last 7 Days</option>
+            <option value="30d">Last 30 Days</option>
+            <option value="90d">Last 90 Days</option>
+            <option value="this_month">This Month ({new Date().toLocaleString('default', { month: 'short' })})</option>
+            <option value="last_month">Last Month ({new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toLocaleString('default', { month: 'short' })})</option>
+            <option value="2mo_ago">2 Months Ago ({new Date(new Date().getFullYear(), new Date().getMonth() - 2, 1).toLocaleString('default', { month: 'short' })})</option>
+          </select>
+          <button
+            onClick={reload}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+        </div>
       </div>
 
       {/* Revenue Section */}
