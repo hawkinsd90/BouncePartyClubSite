@@ -52,39 +52,82 @@ const FUNNEL_EVENTS = [
   'checkout_completed',
 ];
 
+type PeriodKey = '1d' | '7d' | '30d' | '90d' | 'this_month' | 'last_month' | '2mo_ago';
+
+function getPeriodRange(period: PeriodKey): { since: string; until: string | null; label: string } {
+  const now = new Date();
+  if (period === '1d') {
+    return {
+      since: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      until: null,
+      label: 'Last 24 hours',
+    };
+  }
+  if (period === '7d') {
+    return {
+      since: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+      until: null,
+      label: 'Last 7 days',
+    };
+  }
+  if (period === '30d') {
+    return {
+      since: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+      until: null,
+      label: 'Last 30 days',
+    };
+  }
+  if (period === '90d') {
+    return {
+      since: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+      until: null,
+      label: 'Last 90 days',
+    };
+  }
+  if (period === 'this_month') {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { since: start.toISOString(), until: null, label: 'This Month' };
+  }
+  if (period === 'last_month') {
+    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const end = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { since: start.toISOString(), until: end.toISOString(), label: 'Last Month' };
+  }
+  // 2mo_ago
+  const start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+  const end = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  return { since: start.toISOString(), until: end.toISOString(), label: '2 Months Ago' };
+}
+
 export function SiteAnalytics() {
   const [metrics, setMetrics] = useState<SiteMetrics | null>(null);
   const [loading, setLoading] = useState(true);
-  const [days, setDays] = useState(30);
+  const [period, setPeriod] = useState<PeriodKey>('30d');
 
   useEffect(() => {
     load();
-  }, [days]);
+  }, [period]);
 
   async function load() {
     setLoading(true);
     try {
-      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+      const { since, until } = getPeriodRange(period);
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
 
+      let allEventsQuery = supabase.from('site_events').select('event_name').gte('created_at', since);
+      if (until) allEventsQuery = allEventsQuery.lt('created_at', until);
+
+      let unitsQuery = supabase.from('site_events').select('unit_id, units(name)').eq('event_name', 'unit_view').gte('created_at', since).not('unit_id', 'is', null);
+      if (until) unitsQuery = unitsQuery.lt('created_at', until);
+
+      let recentQuery = supabase.from('site_events').select('event_name, page_path, created_at, metadata').gte('created_at', since).order('created_at', { ascending: false }).limit(20);
+      if (until) recentQuery = recentQuery.lt('created_at', until);
+
       const [allEventsRes, unitsRes, recentRes, todayRes] = await Promise.all([
-        supabase
-          .from('site_events')
-          .select('event_name')
-          .gte('created_at', since),
-        supabase
-          .from('site_events')
-          .select('unit_id, units(name)')
-          .eq('event_name', 'unit_view')
-          .gte('created_at', since)
-          .not('unit_id', 'is', null),
-        supabase
-          .from('site_events')
-          .select('event_name, page_path, created_at, metadata')
-          .gte('created_at', since)
-          .order('created_at', { ascending: false })
-          .limit(20),
+        allEventsQuery,
+        unitsQuery,
+        recentQuery,
         supabase
           .from('site_events')
           .select('session_id, event_name')
@@ -163,13 +206,17 @@ export function SiteAnalytics() {
         </div>
         <div className="flex items-center gap-2">
           <select
-            value={days}
-            onChange={e => setDays(Number(e.target.value))}
+            value={period}
+            onChange={e => setPeriod(e.target.value as PeriodKey)}
             className="flex-1 sm:flex-none text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white text-slate-700"
           >
-            <option value={7}>Last 7 days</option>
-            <option value={30}>Last 30 days</option>
-            <option value={90}>Last 90 days</option>
+            <option value="1d">Last 24 Hours</option>
+            <option value="7d">Last 7 Days</option>
+            <option value="30d">Last 30 Days</option>
+            <option value="90d">Last 90 Days</option>
+            <option value="this_month">This Month</option>
+            <option value="last_month">Last Month</option>
+            <option value="2mo_ago">2 Months Ago</option>
           </select>
           <button
             onClick={load}
@@ -210,7 +257,7 @@ export function SiteAnalytics() {
         <div className="flex items-center gap-2 mb-1">
           <TrendingUp className="w-5 h-5 text-blue-600" />
           <h3 className="font-semibold text-slate-900">Conversion Funnel</h3>
-          <span className="text-xs text-slate-400 ml-1">({days}d)</span>
+          <span className="text-xs text-slate-400 ml-1">({getPeriodRange(period).label})</span>
         </div>
         <p className="text-xs text-slate-400 mb-4">
           Only tracked events are shown. Page views are not yet instrumented.
