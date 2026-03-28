@@ -214,9 +214,9 @@ export function SiteAnalytics() {
             <option value="7d">Last 7 Days</option>
             <option value="30d">Last 30 Days</option>
             <option value="90d">Last 90 Days</option>
-            <option value="this_month">This Month</option>
-            <option value="last_month">Last Month</option>
-            <option value="2mo_ago">2 Months Ago</option>
+            <option value="this_month">This Month ({new Date().toLocaleString('default', { month: 'short' })})</option>
+            <option value="last_month">Last Month ({new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toLocaleString('default', { month: 'short' })})</option>
+            <option value="2mo_ago">2 Months Ago ({new Date(new Date().getFullYear(), new Date().getMonth() - 2, 1).toLocaleString('default', { month: 'short' })})</option>
           </select>
           <button
             onClick={load}
