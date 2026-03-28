@@ -31,6 +31,11 @@ export function BlackoutDateForm({ onSuccess }: BlackoutDateFormProps) {
       return;
     }
 
+    if (form.end_date < form.start_date) {
+      notifyError('End date must be on or after the start date');
+      return;
+    }
+
     setAdding(true);
     try {
       const payload: Record<string, string | null> = {
@@ -60,22 +65,28 @@ export function BlackoutDateForm({ onSuccess }: BlackoutDateFormProps) {
       <h3 className="text-lg font-bold text-slate-900 mb-4">Add Blackout Date Range</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-        <div>
+        <div className="min-w-0">
           <label className="block text-sm font-medium text-slate-700 mb-2">Start Date *</label>
           <input
             type="date"
             value={form.start_date}
-            onChange={(e) => set('start_date', e.target.value)}
-            className="w-full px-4 py-2 border border-slate-300 rounded-lg"
+            onChange={(e) => {
+              set('start_date', e.target.value);
+              if (form.end_date && e.target.value > form.end_date) {
+                set('end_date', e.target.value);
+              }
+            }}
+            className="w-full px-4 py-2 border border-slate-300 rounded-lg min-w-0"
           />
         </div>
-        <div>
+        <div className="min-w-0">
           <label className="block text-sm font-medium text-slate-700 mb-2">End Date *</label>
           <input
             type="date"
             value={form.end_date}
+            min={form.start_date || undefined}
             onChange={(e) => set('end_date', e.target.value)}
-            className="w-full px-4 py-2 border border-slate-300 rounded-lg"
+            className="w-full px-4 py-2 border border-slate-300 rounded-lg min-w-0"
           />
         </div>
 

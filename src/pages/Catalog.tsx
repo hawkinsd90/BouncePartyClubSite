@@ -221,15 +221,16 @@ export function Catalog() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
         <div className="mb-10 sm:mb-12">
-          <div className="flex items-center justify-between mb-4 sm:mb-5">
+          <div className="flex items-start justify-between gap-4 mb-4 sm:mb-5">
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight">
               Browse Our Inflatables
             </h1>
             <button
               onClick={handleExportMenu}
-              className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg hover:shadow-xl"
+              className="flex-shrink-0 flex items-center gap-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-3 px-4 sm:px-6 rounded-xl transition-all shadow-lg hover:shadow-xl text-sm sm:text-base"
             >
-              <Download className="w-5 h-5" />
+              <Download className="w-5 h-5 flex-shrink-0" />
+              <span className="sm:hidden">Menu PDF</span>
               <span className="hidden sm:inline">Download Menu PDF</span>
             </button>
           </div>
