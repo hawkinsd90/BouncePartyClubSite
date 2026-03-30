@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { SafeStorage } from '../lib/safeStorage';
 import { Trash2, AlertCircle, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useCustomerProfile } from '../contexts/CustomerProfileContext';
@@ -103,6 +104,18 @@ export function Quote() {
   const { priceBreakdown, savePriceBreakdown } = useQuotePricing(cart, formData, pricingRules);
 
   useQuotePrefill(user, formData, { setAddressInput, updateFormData }, sessionData);
+
+  useEffect(() => {
+    const isDuplicate = SafeStorage.getItem<string>('bpc_duplicate_order') === 'true';
+    if (!isDuplicate) return;
+    const timer = setTimeout(() => {
+      const el = eventRef.current ?? document.getElementById('section-event');
+      if (!el) return;
+      const top = el.getBoundingClientRect().top + window.scrollY - 100;
+      window.scrollTo({ top, behavior: 'smooth' });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (cart.length > 0 && formData.event_date && formData.event_end_date) {
