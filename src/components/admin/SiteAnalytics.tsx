@@ -36,18 +36,26 @@ interface SiteMetrics {
 
 const EVENT_LABELS: Record<string, string> = {
   unit_view: 'Unit Views',
-  quote_started: 'Cart Requests Started',
-  quote_submitted: 'Cart Submitted (to Checkout)',
+  cart_started: 'Cart Started',
+  cart_submitted: 'Cart Submitted (to Checkout)',
+  cart_address_entered: 'Cart Address Entered',
+  cart_date_selected: 'Cart Date Selected',
+  cart_price_calculated: 'Cart Price Calculated',
   checkout_started: 'Checkouts Started',
   checkout_completed: 'Checkouts Completed',
   customer_portal_viewed: 'Portal Views',
   waiver_link_opened: 'Waiver Links Opened',
+  quote_started: 'Cart Started (legacy)',
+  quote_submitted: 'Cart Submitted (legacy)',
+  quote_address_entered: 'Cart Address Entered (legacy)',
+  quote_date_selected: 'Cart Date Selected (legacy)',
+  quote_price_calculated: 'Cart Price Calculated (legacy)',
 };
 
 const FUNNEL_EVENTS = [
   'unit_view',
-  'quote_started',
-  'quote_submitted',
+  'cart_started',
+  'cart_submitted',
   'checkout_started',
   'checkout_completed',
 ];

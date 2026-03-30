@@ -57,7 +57,7 @@ export function Quote() {
   const setupRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    trackEvent('quote_started');
+    trackEvent('cart_started');
   }, []);
 
   const { cart, updateCartItem, removeFromCart, clearCart, checkCartAvailability } = useQuoteCart();
@@ -119,7 +119,7 @@ export function Quote() {
       const sameAddressAsInit = formData.address_line1 === initialAddressRef.current;
       const initHadCoords = !!(initialLatLngRef.current?.lat && initialLatLngRef.current?.lng);
       if (sameAddressAsInit && !initHadCoords) return;
-      trackEventOnce('quote_address_entered');
+      trackEventOnce('cart_address_entered');
     }
   }, [formData.lat, formData.lng, formData.address_line1, isInitialized]);
 
@@ -130,13 +130,13 @@ export function Quote() {
       return;
     }
     if (formData.event_date) {
-      trackEventOnce('quote_date_selected');
+      trackEventOnce('cart_date_selected');
     }
   }, [formData.event_date, isInitialized]);
 
   useEffect(() => {
     if (priceBreakdown) {
-      trackEventOnce('quote_price_calculated');
+      trackEventOnce('cart_price_calculated');
     }
   }, [priceBreakdown]);
 
@@ -397,7 +397,7 @@ export function Quote() {
 
     saveFormData();
     savePriceBreakdown();
-    trackEvent('quote_submitted');
+    trackEvent('cart_submitted');
     navigate('/checkout');
   };
 

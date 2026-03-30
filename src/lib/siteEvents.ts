@@ -36,8 +36,8 @@ async function isAdminOrMaster(): Promise<boolean> {
 export type SiteEventName =
   | 'page_view'
   | 'unit_view'
-  | 'quote_started'
-  | 'quote_submitted'
+  | 'cart_started'
+  | 'cart_submitted'
   | 'checkout_started'
   | 'checkout_completed'
   | 'customer_portal_viewed'
@@ -46,9 +46,9 @@ export type SiteEventName =
   | 'cart_item_added'
   | 'cart_item_removed'
   | 'price_preview_shown'
-  | 'quote_address_entered'
-  | 'quote_date_selected'
-  | 'quote_price_calculated';
+  | 'cart_address_entered'
+  | 'cart_date_selected'
+  | 'cart_price_calculated';
 
 interface TrackEventOptions {
   unitId?: string;
