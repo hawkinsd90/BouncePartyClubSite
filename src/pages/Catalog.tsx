@@ -6,7 +6,7 @@ import { Users, Maximize, Zap, Droplets, Download, Search, XCircle, CheckCircle,
 import { notifyError } from '../lib/notifications';
 import { DatePickerInput } from '../components/ui/DatePickerInput';
 import { checkUnitAvailability } from '../lib/availability';
-import { trackEventOnce } from '../lib/siteEvents';
+
 
 interface Unit {
   id: string;
@@ -187,11 +187,6 @@ export function Catalog() {
     navigate('/menu-preview');
   };
 
-  useEffect(() => {
-    if (!loading && units.length > 0) {
-      trackEventOnce('price_preview_shown', { metadata: { context: 'catalog' } });
-    }
-  }, [loading, units.length]);
 
   function getStartingPriceCents(unit: Unit): number {
     if (unit.price_water_cents && unit.price_water_cents > 0) {

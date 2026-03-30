@@ -45,7 +45,6 @@ export type SiteEventName =
   | 'waiver_link_opened'
   | 'cart_item_added'
   | 'cart_item_removed'
-  | 'price_preview_shown'
   | 'cart_address_entered'
   | 'cart_date_selected'
   | 'cart_price_calculated';

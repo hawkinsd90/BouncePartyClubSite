@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { SafeStorage } from '../lib/safeStorage';
-import { trackEvent, trackEventOnce } from '../lib/siteEvents';
+import { trackEvent } from '../lib/siteEvents';
 import { notifyWarning } from '../lib/notifications';
 import {
   Users,
@@ -76,13 +76,6 @@ export function UnitDetail() {
       const loadedUnit = { ...unitData, media: (mediaData || []) as any } as any;
       setUnit(loadedUnit);
       trackEvent('unit_view', { unitId: unitData.id, metadata: { name: unitData.name, slug: unitData.slug } });
-      const startingPriceCents = unitData.price_water_cents && unitData.price_water_cents > 0
-        ? Math.min(unitData.price_dry_cents, unitData.price_water_cents)
-        : unitData.price_dry_cents;
-      trackEventOnce('price_preview_shown', {
-        unitId: unitData.id,
-        metadata: { context: 'unit_detail', price_cents: startingPriceCents },
-      });
       // Auto-select water mode for water slide units
       if ((loadedUnit.types || []).includes('Water Slide') && !(loadedUnit.types || []).includes('Combo')) {
         setWetOrDry('water');
