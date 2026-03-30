@@ -105,15 +105,20 @@ export function Quote() {
   useQuotePrefill(user, formData, { setAddressInput, updateFormData }, sessionData);
 
   const initialAddressRef = useRef<string | null>(null);
+  const initialLatLngRef = useRef<{ lat: number; lng: number } | null>(null);
   const initialDateRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isInitialized) return;
     if (initialAddressRef.current === null) {
       initialAddressRef.current = formData.address_line1;
+      initialLatLngRef.current = { lat: formData.lat, lng: formData.lng };
       return;
     }
     if (formData.lat && formData.lng && formData.address_line1) {
+      const sameAddressAsInit = formData.address_line1 === initialAddressRef.current;
+      const initHadCoords = !!(initialLatLngRef.current?.lat && initialLatLngRef.current?.lng);
+      if (sameAddressAsInit && !initHadCoords) return;
       trackEventOnce('quote_address_entered');
     }
   }, [formData.lat, formData.lng, formData.address_line1, isInitialized]);
