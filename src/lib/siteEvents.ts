@@ -44,12 +44,26 @@ export type SiteEventName =
   | 'payment_link_opened'
   | 'waiver_link_opened'
   | 'cart_item_added'
-  | 'cart_item_removed';
+  | 'cart_item_removed'
+  | 'price_preview_shown'
+  | 'quote_address_entered'
+  | 'quote_date_selected'
+  | 'quote_price_calculated';
 
 interface TrackEventOptions {
   unitId?: string;
   orderId?: string;
   metadata?: Record<string, unknown>;
+}
+
+export async function trackEventOnce(
+  eventName: SiteEventName,
+  options: TrackEventOptions = {}
+): Promise<void> {
+  const key = `bpc_tracked_${eventName}_${window.location.pathname}`;
+  if (sessionStorage.getItem(key)) return;
+  sessionStorage.setItem(key, '1');
+  await trackEvent(eventName, options);
 }
 
 export async function trackEvent(

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { SafeStorage } from '../lib/safeStorage';
-import { trackEvent } from '../lib/siteEvents';
+import { trackEvent, trackEventOnce } from '../lib/siteEvents';
 import { notifyWarning } from '../lib/notifications';
 import {
   Users,
@@ -76,6 +76,13 @@ export function UnitDetail() {
       const loadedUnit = { ...unitData, media: (mediaData || []) as any } as any;
       setUnit(loadedUnit);
       trackEvent('unit_view', { unitId: unitData.id, metadata: { name: unitData.name, slug: unitData.slug } });
+      const startingPriceCents = unitData.price_water_cents && unitData.price_water_cents > 0
+        ? Math.min(unitData.price_dry_cents, unitData.price_water_cents)
+        : unitData.price_dry_cents;
+      trackEventOnce('price_preview_shown', {
+        unitId: unitData.id,
+        metadata: { context: 'unit_detail', price_cents: startingPriceCents },
+      });
       // Auto-select water mode for water slide units
       if ((loadedUnit.types || []).includes('Water Slide') && !(loadedUnit.types || []).includes('Combo')) {
         setWetOrDry('water');
@@ -243,18 +250,49 @@ export function UnitDetail() {
             </div>
 
             <div className="bg-gradient-to-br from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-2xl p-6 sm:p-7 mb-8 shadow-lg">
-              <p className="text-xl sm:text-2xl text-blue-900 mb-3 font-bold flex items-center">
-                <span className="mr-2">💰</span> Get Your Custom Quote
-              </p>
-              <p className="text-sm sm:text-base text-blue-800 mb-3 leading-relaxed">
-                Pricing varies based on event date, location, setup preferences, and rental duration.
-              </p>
-              {((unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide')) && (
-                <p className="text-sm sm:text-base text-blue-800 flex items-center font-semibold">
-                  <Droplets className="w-5 h-5 mr-2 flex-shrink-0" />
-                  <span>Can be used wet or dry - choose your preferred mode when requesting your quote</span>
-                </p>
-              )}
+              {(() => {
+                const isCombo = (unit.types || []).includes('Combo');
+                const isWaterOnly = (unit.types || []).includes('Water Slide') && !isCombo;
+                const hasBothPrices = isCombo && unit.price_water_cents && unit.price_water_cents > 0;
+                const formatDollars = (c: number) =>
+                  `$${(c / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+
+                return (
+                  <>
+                    <div className="flex items-baseline gap-3 mb-3 flex-wrap">
+                      {hasBothPrices ? (
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className="text-3xl sm:text-4xl font-bold text-blue-900">
+                            {formatDollars(unit.price_dry_cents)}
+                          </span>
+                          <span className="text-base font-semibold text-blue-700">dry</span>
+                          <span className="text-slate-400 font-light mx-1">/</span>
+                          <span className="text-3xl sm:text-4xl font-bold text-blue-900">
+                            {formatDollars(unit.price_water_cents!)}
+                          </span>
+                          <span className="text-base font-semibold text-blue-700">water</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-sm font-semibold text-blue-700 uppercase tracking-wide">Starting at</span>
+                          <span className="text-3xl sm:text-4xl font-bold text-blue-900">
+                            {formatDollars(isWaterOnly && unit.price_water_cents ? unit.price_water_cents : unit.price_dry_cents)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs sm:text-sm text-blue-700 leading-relaxed mb-2">
+                      Base rental price. Final total may vary by delivery distance, surface type, and event duration.
+                    </p>
+                    {(isCombo || isWaterOnly) && (
+                      <p className="text-xs sm:text-sm text-blue-800 flex items-center font-semibold mt-2">
+                        <Droplets className="w-4 h-4 mr-2 flex-shrink-0" />
+                        {isCombo ? 'Can be used wet or dry — choose your mode below' : 'Water slide — always used wet'}
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             <div className="grid grid-cols-2 gap-4 sm:gap-5 mb-8">

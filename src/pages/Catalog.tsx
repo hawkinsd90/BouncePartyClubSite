@@ -2,10 +2,11 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { SafeStorage } from '../lib/safeStorage';
-import { Users, Maximize, Zap, Droplets, Download, Search, XCircle, CheckCircle } from 'lucide-react';
+import { Users, Maximize, Zap, Droplets, Download, Search, XCircle, CheckCircle, Tag } from 'lucide-react';
 import { notifyError } from '../lib/notifications';
 import { DatePickerInput } from '../components/ui/DatePickerInput';
 import { checkUnitAvailability } from '../lib/availability';
+import { trackEventOnce } from '../lib/siteEvents';
 
 interface Unit {
   id: string;
@@ -185,6 +186,23 @@ export function Catalog() {
 
     navigate('/menu-preview');
   };
+
+  useEffect(() => {
+    if (!loading && units.length > 0) {
+      trackEventOnce('price_preview_shown', { metadata: { context: 'catalog' } });
+    }
+  }, [loading, units.length]);
+
+  function getStartingPriceCents(unit: Unit): number {
+    if (unit.price_water_cents && unit.price_water_cents > 0) {
+      return Math.min(unit.price_dry_cents, unit.price_water_cents);
+    }
+    return unit.price_dry_cents;
+  }
+
+  function formatDollars(cents: number): string {
+    return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  }
 
   if (loading) {
     return (
@@ -396,6 +414,17 @@ export function Catalog() {
                   </div>
 
                   <div className="border-t border-slate-200 pt-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-1.5 text-green-700">
+                        <Tag className="w-4 h-4 flex-shrink-0" />
+                        <span className="text-sm font-semibold">
+                          Starting at{' '}
+                          <span className="text-base font-bold text-green-800">
+                            {formatDollars(getStartingPriceCents(unit))}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
                     <button
                       onClick={(e) => {
                         e.preventDefault();

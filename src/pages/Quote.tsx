@@ -13,7 +13,7 @@ import { supabase } from '../lib/supabase';
 import { checkDateBlackout } from '../lib/availability';
 import { validateQuote } from '../lib/quoteValidation';
 import type { PricingRules } from '../lib/pricing';
-import { trackEvent } from '../lib/siteEvents';
+import { trackEvent, trackEventOnce } from '../lib/siteEvents';
 import { CartSection } from '../components/quote/CartSection';
 import { AddressSection } from '../components/quote/AddressSection';
 import { EventDetailsSection } from '../components/quote/EventDetailsSection';
@@ -103,6 +103,24 @@ export function Quote() {
   const { priceBreakdown, savePriceBreakdown } = useQuotePricing(cart, formData, pricingRules);
 
   useQuotePrefill(user, formData, { setAddressInput, updateFormData }, sessionData);
+
+  useEffect(() => {
+    if (formData.lat && formData.lng && formData.address_line1) {
+      trackEventOnce('quote_address_entered');
+    }
+  }, [formData.lat, formData.lng, formData.address_line1]);
+
+  useEffect(() => {
+    if (formData.event_date) {
+      trackEventOnce('quote_date_selected');
+    }
+  }, [formData.event_date]);
+
+  useEffect(() => {
+    if (priceBreakdown) {
+      trackEventOnce('quote_price_calculated');
+    }
+  }, [priceBreakdown]);
 
   useEffect(() => {
     if (!isInitialized || !wasDuplicate) return;
