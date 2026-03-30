@@ -104,17 +104,30 @@ export function Quote() {
 
   useQuotePrefill(user, formData, { setAddressInput, updateFormData }, sessionData);
 
+  const initialAddressRef = useRef<string | null>(null);
+  const initialDateRef = useRef<string | null>(null);
+
   useEffect(() => {
+    if (!isInitialized) return;
+    if (initialAddressRef.current === null) {
+      initialAddressRef.current = formData.address_line1;
+      return;
+    }
     if (formData.lat && formData.lng && formData.address_line1) {
       trackEventOnce('quote_address_entered');
     }
-  }, [formData.lat, formData.lng, formData.address_line1]);
+  }, [formData.lat, formData.lng, formData.address_line1, isInitialized]);
 
   useEffect(() => {
+    if (!isInitialized) return;
+    if (initialDateRef.current === null) {
+      initialDateRef.current = formData.event_date;
+      return;
+    }
     if (formData.event_date) {
       trackEventOnce('quote_date_selected');
     }
-  }, [formData.event_date]);
+  }, [formData.event_date, isInitialized]);
 
   useEffect(() => {
     if (priceBreakdown) {
