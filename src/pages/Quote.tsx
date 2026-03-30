@@ -1,7 +1,6 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { SafeStorage } from '../lib/safeStorage';
 import { Trash2, AlertCircle, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useCustomerProfile } from '../contexts/CustomerProfileContext';
@@ -62,7 +61,7 @@ export function Quote() {
   }, []);
 
   const { cart, updateCartItem, removeFromCart, clearCart, checkCartAvailability } = useQuoteCart();
-  const { formData, setFormData, updateFormData, addressInput, setAddressInput, saveFormData, clearForm } =
+  const { formData, setFormData, updateFormData, addressInput, setAddressInput, saveFormData, clearForm, isInitialized, wasDuplicate } =
     useQuoteForm();
 
   const fetchPricingRules = useCallback(async () => {
@@ -106,8 +105,7 @@ export function Quote() {
   useQuotePrefill(user, formData, { setAddressInput, updateFormData }, sessionData);
 
   useEffect(() => {
-    const isDuplicate = SafeStorage.getItem<string>('bpc_duplicate_order') === 'true';
-    if (!isDuplicate) return;
+    if (!isInitialized || !wasDuplicate) return;
     const timer = setTimeout(() => {
       const el = eventRef.current ?? document.getElementById('section-event');
       if (!el) return;
@@ -115,7 +113,7 @@ export function Quote() {
       window.scrollTo({ top, behavior: 'smooth' });
     }, 400);
     return () => clearTimeout(timer);
-  }, []);
+  }, [isInitialized, wasDuplicate]);
 
   useEffect(() => {
     if (cart.length > 0 && formData.event_date && formData.event_end_date) {

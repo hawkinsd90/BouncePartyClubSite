@@ -55,6 +55,7 @@ export function useQuoteForm() {
   const [formData, setFormData] = useState<QuoteFormData>(initialFormData);
   const [addressInput, setAddressInput] = useState('');
   const [isInitialized, setIsInitialized] = useState(false);
+  const [wasDuplicate, setWasDuplicate] = useState(false);
 
   useEffect(() => {
     const prefillData = SafeStorage.getItem<any>('bpc_quote_prefill');
@@ -193,6 +194,7 @@ export function useQuoteForm() {
         end_window: prefillData.end_window || '17:00',
       }));
       SafeStorage.removeItem('bpc_duplicate_order');
+      setWasDuplicate(true);
     }
   }
 
@@ -247,5 +249,7 @@ export function useQuoteForm() {
     setAddressInput,
     saveFormData,
     clearForm,
+    isInitialized,
+    wasDuplicate,
   };
 }
