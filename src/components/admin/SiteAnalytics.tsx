@@ -36,7 +36,7 @@ interface SiteMetrics {
 
 const EVENT_LABELS: Record<string, string> = {
   unit_view: 'Unit Views',
-  quote_started: 'Quote Requests Started',
+  quote_started: 'Cart Requests Started',
   quote_submitted: 'Cart Submitted (to Checkout)',
   checkout_started: 'Checkouts Started',
   checkout_completed: 'Checkouts Completed',

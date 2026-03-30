@@ -121,7 +121,7 @@ export function useOrderDuplication() {
         } : null,
         location_type: orderData.location_type,
         pickup_preference: orderData.pickup_preference || 'next_day',
-        can_stake: orderData.can_stake,
+        can_stake: orderData.can_use_stakes,
         has_generator: orderData.generator_qty > 0,
         has_pets: orderData.has_pets,
         special_details: orderData.special_details || '',

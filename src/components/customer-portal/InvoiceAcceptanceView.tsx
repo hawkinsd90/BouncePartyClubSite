@@ -97,6 +97,11 @@ export function InvoiceAcceptanceView({
   const isNoCardRequired =
     order.require_card_on_file === false && order.deposit_due_cents === 0;
 
+  const isCardSetupOnly =
+    !isNoCardRequired &&
+    order.deposit_due_cents === 0 &&
+    order.require_card_on_file !== false;
+
   async function handleAcceptInvoice() {
     if (!smsConsent) {
       showToast('Please accept the SMS consent terms', 'error');
@@ -129,7 +134,7 @@ export function InvoiceAcceptanceView({
 
     const actualPaymentCents = getActualPaymentCents();
 
-    if (!isNoCardRequired && paymentAmount === 'custom' && customPaymentAmount) {
+    if (!isNoCardRequired && !isCardSetupOnly && paymentAmount === 'custom' && customPaymentAmount) {
       if (actualPaymentCents < order.deposit_due_cents) {
         showToast(
           `Payment amount must be at least ${formatCurrency(order.deposit_due_cents)}`,
@@ -141,6 +146,7 @@ export function InvoiceAcceptanceView({
 
     if (
       !isNoCardRequired &&
+      !isCardSetupOnly &&
       actualPaymentCents === 0 &&
       paymentAmount !== 'deposit'
     ) {
@@ -409,6 +415,48 @@ export function InvoiceAcceptanceView({
         return;
       }
 
+      // Card-setup-only path: $0 deposit but card is still required.
+      // Go to Stripe in setup mode — no charge today.
+      if (isCardSetupOnly) {
+        const effectiveEmailSetup = customerInfo.email || order.customers?.email;
+        const effectiveNameSetup = customerInfo.first_name
+          ? `${customerInfo.first_name} ${customerInfo.last_name}`
+          : `${order.customers?.first_name} ${order.customers?.last_name}`;
+
+        const setupResponse = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              orderId: order.id,
+              setupMode: true,
+              invoiceMode: true,
+              customerEmail: effectiveEmailSetup,
+              customerName: effectiveNameSetup,
+              origin: window.location.origin,
+              paymentState: {
+                paymentAmount: 'deposit',
+                customPaymentAmount: '',
+                newTipCents: tipCents,
+              },
+            }),
+          }
+        );
+
+        const setupData = await setupResponse.json();
+
+        if (!setupResponse.ok || !setupData.url) {
+          throw new Error(setupData.error || 'Failed to create checkout session');
+        }
+
+        window.location.href = setupData.url;
+        return;
+      }
+
       // Store the chosen payment amount so charge-deposit uses it
       const { error: paymentAmountError } = await supabase
         .from('orders')
@@ -547,6 +595,17 @@ export function InvoiceAcceptanceView({
                 due on the day of your event.
               </p>
             </div>
+          ) : isCardSetupOnly ? (
+            <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+              <Shield className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+              <p className="font-semibold text-blue-800">
+                No payment due today
+              </p>
+              <p className="text-sm text-blue-700 mt-1">
+                A card will be saved securely on file. The full balance of{' '}
+                {formatCurrency(order.balance_due_cents)} is due on the day of your event.
+              </p>
+            </div>
           ) : (
             <>
               <PaymentAmountSelector
@@ -679,6 +738,7 @@ export function InvoiceAcceptanceView({
               (order.pickup_preference === 'next_day' &&
                 !overnightResponsibilityAccepted) ||
               (!isNoCardRequired &&
+                !isCardSetupOnly &&
                 paymentAmount === 'custom' &&
                 !customPaymentAmount) ||
               (needsCustomerInfo &&
@@ -699,6 +759,11 @@ export function InvoiceAcceptanceView({
                 <CheckCircle className="w-5 h-5 mr-2" />
                 Accept & Confirm Booking
               </>
+            ) : isCardSetupOnly ? (
+              <>
+                <CreditCard className="w-5 h-5 mr-2" />
+                Accept & Save Card on File
+              </>
             ) : calculateTotalPayment() === 0 ? (
               <>
                 <CheckCircle className="w-5 h-5 mr-2" />
@@ -715,9 +780,11 @@ export function InvoiceAcceptanceView({
           <p className="text-xs text-slate-500 text-center mt-4">
             {isNoCardRequired
               ? 'By accepting, you confirm your booking. Full balance is due on event day.'
-              : order.deposit_due_cents === 0
-                ? 'By accepting, you acknowledge the order details above'
-                : 'Your payment information is secured with industry-standard encryption'}
+              : isCardSetupOnly
+                ? 'By accepting, your card will be saved on file. No charge is made today.'
+                : order.deposit_due_cents === 0
+                  ? 'By accepting, you acknowledge the order details above'
+                  : 'Your payment information is secured with industry-standard encryption'}
           </p>
 
           <button
