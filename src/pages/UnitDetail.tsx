@@ -169,11 +169,9 @@ export function UnitDetail() {
             {(() => {
               const isWetDryUnit = (unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide');
               let filteredMedia = isWetDryUnit
-                ? unit.media.filter((m: any) => m.mode === wetOrDry)
+                ? unit.media.filter((m: any) => m.mode === wetOrDry || m.visibility_mode === 'both')
                 : unit.media;
 
-              // If wet mode selected but no wet images exist, fall back to dry images
-              // (unit has "same as dry" checked in admin — no separate wet images stored)
               if (isWetDryUnit && wetOrDry === 'water' && filteredMedia.length === 0) {
                 filteredMedia = unit.media.filter((m: any) => m.mode === 'dry');
               }
@@ -410,7 +408,7 @@ export function UnitDetail() {
       {isImageModalOpen && (() => {
         const isWetDryUnitModal = (unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide');
         let filteredMedia = isWetDryUnitModal
-          ? unit.media.filter((m: any) => m.mode === wetOrDry)
+          ? unit.media.filter((m: any) => m.mode === wetOrDry || m.visibility_mode === 'both')
           : unit.media;
         if (isWetDryUnitModal && wetOrDry === 'water' && filteredMedia.length === 0) {
           filteredMedia = unit.media.filter((m: any) => m.mode === 'dry');

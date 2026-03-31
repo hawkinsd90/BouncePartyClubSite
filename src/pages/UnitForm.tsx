@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, Save, Upload, X } from 'lucide-react';
+import { ArrowLeft, Save, Upload, X, Layers } from 'lucide-react';
 import { notifyError, notifySuccess, showConfirm } from '../lib/notifications';
 
 export function UnitForm() {
@@ -28,8 +28,8 @@ export function UnitForm() {
   });
   const [priceInput, setPriceInput] = useState('0.00');
   const [priceWaterInput, setPriceWaterInput] = useState('');
-  const [dryImages, setDryImages] = useState<Array<{ id?: string; url: string; alt: string; file?: File; mode?: string; is_featured?: boolean }>>([]);
-  const [wetImages, setWetImages] = useState<Array<{ id?: string; url: string; alt: string; file?: File; mode?: string; is_featured?: boolean }>>([]);
+  const [dryImages, setDryImages] = useState<Array<{ id?: string; url: string; alt: string; file?: File; mode?: string; is_featured?: boolean; visibility_mode?: string }>>([]);
+  const [wetImages, setWetImages] = useState<Array<{ id?: string; url: string; alt: string; file?: File; mode?: string; is_featured?: boolean; visibility_mode?: string }>>([]);
   const [deletedImageIds, setDeletedImageIds] = useState<string[]>([]);
   const [useWetSameAsDry, setUseWetSameAsDry] = useState(true);
   const [uploadingImages, setUploadingImages] = useState(false);
@@ -86,6 +86,7 @@ export function UnitForm() {
         alt: img.alt,
         mode: img.mode,
         is_featured: img.is_featured || false,
+        visibility_mode: img.visibility_mode || 'dry',
       }));
       const wetMedia = mediaRes.data.filter((img: any) => img.mode === 'water').map((img: any) => ({
         id: img.id,
@@ -93,6 +94,7 @@ export function UnitForm() {
         alt: img.alt,
         mode: img.mode,
         is_featured: img.is_featured || false,
+        visibility_mode: img.visibility_mode || 'water',
       }));
       setDryImages(dryMedia);
       setWetImages(wetMedia);
@@ -174,7 +176,8 @@ export function UnitForm() {
       alt: formData.name || 'Unit image',
       file,
       mode: 'dry',
-      is_featured: !hasFeatured && index === 0, // First image is featured if no other image in the unit is featured
+      visibility_mode: 'dry',
+      is_featured: !hasFeatured && index === 0,
     }));
 
     setDryImages([...dryImages, ...newImages]);
@@ -191,7 +194,8 @@ export function UnitForm() {
       alt: formData.name || 'Unit image',
       file,
       mode: 'water',
-      is_featured: !hasFeatured && index === 0, // First image is featured if no other image in the unit is featured
+      visibility_mode: 'water',
+      is_featured: !hasFeatured && index === 0,
     }));
 
     setWetImages([...wetImages, ...newImages]);
@@ -236,7 +240,7 @@ export function UnitForm() {
   async function uploadImages(unitId: string) {
     const allImages = [...dryImages, ...(useWetSameAsDry ? [] : wetImages)];
     const imagesToUpload = allImages.filter(img => img.file);
-    const uploadedUrls: Array<{ url: string; alt: string; mode: string; is_featured: boolean }> = [];
+    const uploadedUrls: Array<{ url: string; alt: string; mode: string; visibility_mode: string; is_featured: boolean }> = [];
 
     for (const img of imagesToUpload) {
       if (!img.file) continue;
@@ -251,7 +255,7 @@ export function UnitForm() {
       if (uploadError) throw uploadError;
 
       const { data } = supabase.storage.from('unit-images').getPublicUrl(fileName);
-      uploadedUrls.push({ url: data.publicUrl, alt: img.alt, mode: img.mode || 'dry', is_featured: img.is_featured || false });
+      uploadedUrls.push({ url: data.publicUrl, alt: img.alt, mode: img.mode || 'dry', visibility_mode: img.visibility_mode || img.mode || 'dry', is_featured: img.is_featured || false });
     }
 
     return uploadedUrls;
@@ -327,6 +331,7 @@ export function UnitForm() {
           url: img.url,
           alt: img.alt,
           mode: img.mode || 'dry',
+          visibility_mode: img.visibility_mode || img.mode || 'dry',
           sort: existingCount + index,
           is_featured: img.is_featured || false,
         }));
@@ -348,7 +353,7 @@ export function UnitForm() {
           if (img.id) {
             await supabase
               .from('unit_media')
-              .update({ is_featured: img.is_featured || false })
+              .update({ is_featured: img.is_featured || false, visibility_mode: img.visibility_mode || img.mode || 'dry' })
               .eq('id', img.id);
           }
         }
@@ -368,7 +373,7 @@ export function UnitForm() {
   return (
     <div className="max-w-4xl mx-auto px-3 sm:px-4 lg:px-8 py-6 sm:py-8 md:py-12 pb-8 sm:pb-12">
       <button
-        onClick={() => navigate('/admin')}
+        onClick={() => navigate('/admin?tab=inventory')}
         className="flex items-center text-blue-600 hover:text-blue-700 font-semibold mb-4 sm:mb-6 transition-colors min-h-[44px]"
       >
         <ArrowLeft className="w-5 h-5 mr-2" />
@@ -612,65 +617,95 @@ export function UnitForm() {
             <label className="block text-sm font-medium text-slate-700 mb-2">
               Dry Mode Images * (Required)
             </label>
-            <p className="text-xs text-slate-600 mb-4">Click the star to set as main display picture for catalog and PDF menu (only one per unit)</p>
+            <p className="text-xs text-slate-600 mb-4">
+              Click the star to set as main display picture for catalog and PDF menu (only one per unit)
+              {!useWetSameAsDry && (formData.types.includes('Water Slide') || formData.types.includes('Combo')) && (
+                <span className="ml-1">— click <span className="inline-flex items-center gap-0.5 font-semibold text-teal-700"><Layers className="w-3 h-3" /> Both</span> to show an image in both dry and wet views</span>
+              )}
+            </p>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-              {dryImages.map((img, index) => (
-                <div key={index} className="relative group">
-                  <img
-                    src={img.url}
-                    alt={img.alt}
-                    className={`w-full h-32 object-cover rounded-lg transition-all ${
-                      img.is_featured
-                        ? 'border-4 border-yellow-400 shadow-lg'
-                        : 'border-2 border-slate-300'
-                    }`}
-                  />
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      // Set this dry image as featured
-                      const newDryImages = dryImages.map((im, i) => ({
-                        ...im,
-                        is_featured: i === index
-                      }));
-                      setDryImages(newDryImages);
-
-                      // Remove featured flag from all wet images (only one display picture allowed per unit)
-                      const newWetImages = wetImages.map(im => ({
-                        ...im,
-                        is_featured: false
-                      }));
-                      setWetImages(newWetImages);
-                    }}
-                    className={`absolute top-1 left-1 rounded-full p-2 shadow-lg transition-all z-10 ${
-                      img.is_featured
-                        ? 'bg-yellow-400 text-white'
-                        : 'bg-white text-slate-400 hover:bg-yellow-400 hover:text-white'
-                    }`}
-                    aria-label="Set as featured image"
-                    title="Set as main display picture"
-                  >
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      removeDryImage(index);
-                    }}
-                    className="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white rounded-full p-2.5 shadow-lg transition-all touch-manipulation active:scale-95 z-10 min-w-[44px] min-h-[44px] flex items-center justify-center"
-                    aria-label="Remove image"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              ))}
+              {dryImages.map((img, index) => {
+                const isBoth = img.visibility_mode === 'both';
+                const showBothToggle = !useWetSameAsDry && (formData.types.includes('Water Slide') || formData.types.includes('Combo'));
+                return (
+                  <div key={index} className="relative group">
+                    <img
+                      src={img.url}
+                      alt={img.alt}
+                      className={`w-full h-32 object-cover rounded-lg transition-all ${
+                        img.is_featured
+                          ? 'border-4 border-yellow-400 shadow-lg'
+                          : isBoth
+                          ? 'border-2 border-teal-400'
+                          : 'border-2 border-slate-300'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const newDryImages = dryImages.map((im, i) => ({
+                          ...im,
+                          is_featured: i === index
+                        }));
+                        setDryImages(newDryImages);
+                        const newWetImages = wetImages.map(im => ({
+                          ...im,
+                          is_featured: false
+                        }));
+                        setWetImages(newWetImages);
+                      }}
+                      className={`absolute top-1 left-1 rounded-full p-2 shadow-lg transition-all z-10 ${
+                        img.is_featured
+                          ? 'bg-yellow-400 text-white'
+                          : 'bg-white text-slate-400 hover:bg-yellow-400 hover:text-white'
+                      }`}
+                      aria-label="Set as featured image"
+                      title="Set as main display picture"
+                    >
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                    </button>
+                    {showBothToggle && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setDryImages(dryImages.map((im, i) => i === index
+                            ? { ...im, visibility_mode: isBoth ? 'dry' : 'both' }
+                            : im
+                          ));
+                        }}
+                        className={`absolute bottom-1 left-1 rounded-md px-1.5 py-1 shadow-lg transition-all z-10 flex items-center gap-1 text-xs font-semibold ${
+                          isBoth
+                            ? 'bg-teal-500 text-white'
+                            : 'bg-white text-slate-400 hover:bg-teal-500 hover:text-white'
+                        }`}
+                        title={isBoth ? 'Shown in both dry and wet views — click to restrict to dry only' : 'Show in dry view only — click to show in both views'}
+                      >
+                        <Layers className="w-3 h-3" />
+                        {isBoth ? 'Both' : 'Dry'}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        removeDryImage(index);
+                      }}
+                      className="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white rounded-full p-2.5 shadow-lg transition-all touch-manipulation active:scale-95 z-10 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                      aria-label="Remove image"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
 
             <div className="flex items-center justify-center w-full">
@@ -715,64 +750,86 @@ export function UnitForm() {
 
               {!useWetSameAsDry && (
                 <>
-                  <p className="text-xs text-slate-600 mb-4">Click the star to set as main display picture (only one per unit)</p>
+                  <p className="text-xs text-slate-600 mb-4">Click the star to set as main display picture (only one per unit) — click <span className="inline-flex items-center gap-0.5 font-semibold text-teal-700"><Layers className="w-3 h-3" /> Both</span> to show an image in both wet and dry views</p>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                    {wetImages.map((img, index) => (
-                      <div key={index} className="relative group">
-                        <img
-                          src={img.url}
-                          alt={img.alt}
-                          className={`w-full h-32 object-cover rounded-lg transition-all ${
-                            img.is_featured
-                              ? 'border-4 border-yellow-400 shadow-lg'
-                              : 'border-2 border-blue-300'
-                          }`}
-                        />
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            // Set this wet image as featured
-                            const newWetImages = wetImages.map((im, i) => ({
-                              ...im,
-                              is_featured: i === index
-                            }));
-                            setWetImages(newWetImages);
-
-                            // Remove featured flag from all dry images (only one display picture allowed per unit)
-                            const newDryImages = dryImages.map(im => ({
-                              ...im,
-                              is_featured: false
-                            }));
-                            setDryImages(newDryImages);
-                          }}
-                          className={`absolute top-1 left-1 rounded-full p-2 shadow-lg transition-all z-10 ${
-                            img.is_featured
-                              ? 'bg-yellow-400 text-white'
-                              : 'bg-white text-slate-400 hover:bg-yellow-400 hover:text-white'
-                          }`}
-                          aria-label="Set as featured image"
-                          title="Set as main display picture"
-                        >
-                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            removeWetImage(index);
-                          }}
-                          className="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white rounded-full p-2.5 shadow-lg transition-all touch-manipulation active:scale-95 z-10 min-w-[44px] min-h-[44px] flex items-center justify-center"
-                          aria-label="Remove image"
-                        >
-                          <X className="w-5 h-5" />
-                        </button>
-                      </div>
-                    ))}
+                    {wetImages.map((img, index) => {
+                      const isBoth = img.visibility_mode === 'both';
+                      return (
+                        <div key={index} className="relative group">
+                          <img
+                            src={img.url}
+                            alt={img.alt}
+                            className={`w-full h-32 object-cover rounded-lg transition-all ${
+                              img.is_featured
+                                ? 'border-4 border-yellow-400 shadow-lg'
+                                : isBoth
+                                ? 'border-2 border-teal-400'
+                                : 'border-2 border-blue-300'
+                            }`}
+                          />
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const newWetImages = wetImages.map((im, i) => ({
+                                ...im,
+                                is_featured: i === index
+                              }));
+                              setWetImages(newWetImages);
+                              const newDryImages = dryImages.map(im => ({
+                                ...im,
+                                is_featured: false
+                              }));
+                              setDryImages(newDryImages);
+                            }}
+                            className={`absolute top-1 left-1 rounded-full p-2 shadow-lg transition-all z-10 ${
+                              img.is_featured
+                                ? 'bg-yellow-400 text-white'
+                                : 'bg-white text-slate-400 hover:bg-yellow-400 hover:text-white'
+                            }`}
+                            aria-label="Set as featured image"
+                            title="Set as main display picture"
+                          >
+                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setWetImages(wetImages.map((im, i) => i === index
+                                ? { ...im, visibility_mode: isBoth ? 'water' : 'both' }
+                                : im
+                              ));
+                            }}
+                            className={`absolute bottom-1 left-1 rounded-md px-1.5 py-1 shadow-lg transition-all z-10 flex items-center gap-1 text-xs font-semibold ${
+                              isBoth
+                                ? 'bg-teal-500 text-white'
+                                : 'bg-white text-slate-400 hover:bg-teal-500 hover:text-white'
+                            }`}
+                            title={isBoth ? 'Shown in both wet and dry views — click to restrict to wet only' : 'Show in wet view only — click to show in both views'}
+                          >
+                            <Layers className="w-3 h-3" />
+                            {isBoth ? 'Both' : 'Wet'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              removeWetImage(index);
+                            }}
+                            className="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white rounded-full p-2.5 shadow-lg transition-all touch-manipulation active:scale-95 z-10 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                            aria-label="Remove image"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
 
                   <div className="flex items-center justify-center w-full">
