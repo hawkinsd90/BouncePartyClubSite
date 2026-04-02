@@ -165,6 +165,15 @@ export function generateCustomerBookingEmail(order: OrderEmailData): string {
   });
 
   content += `
+    <div style="background-color: #f0fdf4; border: 2px solid #16a34a; border-radius: 6px; padding: 18px; margin: 25px 0;">
+      <div style="display: flex; align-items: flex-start; gap: 12px;">
+        <div style="font-size: 20px; line-height: 1;">&#x1F6E1;</div>
+        <div>
+          <h3 style="margin: 0 0 6px; color: #14532d; font-size: 15px; font-weight: 700;">Your card has not been charged</h3>
+          <p style="margin: 0; color: #166534; font-size: 14px; line-height: 1.5;">Your payment information has been saved securely, but <strong>no charge will be made until admin reviews and approves your order</strong> — typically within 24 hours. You will receive a confirmation email once your booking is approved.</p>
+        </div>
+      </div>
+    </div>
     <div style="background-color: #fef3c7; border: 2px solid #f59e0b; border-radius: 6px; padding: 18px; margin: 25px 0;">
       <h3 style="margin: 0 0 12px; color: #92400e; font-size: 15px; font-weight: 600;">Next Steps</h3>
       ${createBulletList({

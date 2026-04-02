@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { DollarSign, CreditCard } from 'lucide-react';
+import { DollarSign, CreditCard, ShieldCheck } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { validateCustomAmount } from '../../lib/validation';
 
@@ -158,12 +158,19 @@ export function PaymentAmountSelector({
               !customAmount &&
               'Enter amount to see payment breakdown'}
           </p>
-          {showApprovalNote && (
-            <p className="text-xs text-blue-700 mt-1">
-              All bookings require admin approval before payment is processed
-            </p>
-          )}
         </div>
+
+        {showApprovalNote && (
+          <div className="flex items-start gap-3 bg-green-50 border border-green-300 rounded-lg p-3 sm:p-4">
+            <ShieldCheck className="w-5 h-5 text-green-700 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-green-900">Your card will not be charged yet</p>
+              <p className="text-xs text-green-800 mt-0.5">
+                All bookings require admin approval. Your payment information is saved securely, but no charge will be made until your order is reviewed and approved — typically within 24 hours.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

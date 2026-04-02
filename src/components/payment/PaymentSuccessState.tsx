@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Home } from 'lucide-react';
+import { Home, ShieldCheck } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
 
 interface OrderDetails {
@@ -55,7 +55,7 @@ export function PaymentSuccessState({ orderDetails, isAdminInvoice, sessionTipCe
             {isAdminInvoice ? 'Booking Confirmed!' : 'Request Received!'}
           </h1>
 
-          <p className="text-slate-600 mb-6">
+          <p className="text-slate-600 mb-4">
             {isAdminInvoice ? (
               <>
                 Thank you for choosing Bounce Party Club. Your order has been placed successfully!
@@ -63,12 +63,22 @@ export function PaymentSuccessState({ orderDetails, isAdminInvoice, sessionTipCe
               </>
             ) : (
               <>
-                Thank you for choosing Bounce Party Club. Your booking request has been submitted and is now
-                pending admin review for final confirmation. Your deposit will only be charged once your
-                booking is approved.
+                Thank you for choosing Bounce Party Club. Your booking request has been submitted and is now pending admin review.
               </>
             )}
           </p>
+
+          {!isAdminInvoice && (
+            <div className="flex items-start gap-3 bg-green-50 border border-green-300 rounded-lg p-4 mb-6 text-left">
+              <ShieldCheck className="w-5 h-5 text-green-700 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-green-900">Your card has not been charged</p>
+                <p className="text-xs text-green-800 mt-0.5">
+                  Your payment information has been saved securely. No charge will be made until admin reviews and approves your order — typically within 24 hours.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {orderDetails && (
