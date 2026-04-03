@@ -22,7 +22,13 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { orderId, depositCents, tipCents = 0, customerEmail, customerName, setupMode = false, invoiceMode = false, paymentState = null } = await req.json();
+    const body = await req.json();
+    const { orderId, depositCents, tipCents = 0, customerEmail, customerName, setupMode = false, invoiceMode = false, paymentState = null } = body;
+    const bodyOrigin: string | undefined = body.origin;
+
+    const headerOrigin = req.headers.get("origin");
+    const resolvedOrigin = headerOrigin || bodyOrigin || "https://bouncepartyclub.com";
+    console.log("stripe-checkout: origin — header:", headerOrigin ?? "null", "| body:", bodyOrigin ?? "null", "| resolved:", resolvedOrigin);
 
     const ip = getIdentifier(req);
     const identifier = buildRateLimitKey(ip, orderId, 'checkout');
@@ -157,7 +163,7 @@ Deno.serve(async (req: Request) => {
     if (setupMode) {
       let params: URLSearchParams;
       if (invoiceMode) {
-        successUrl = `${req.headers.get("origin")}/customer-portal/${orderId}?invoice_card_saved=true&session_id={CHECKOUT_SESSION_ID}`;
+        successUrl = `${resolvedOrigin}/customer-portal/${orderId}?invoice_card_saved=true&session_id={CHECKOUT_SESSION_ID}`;
       } else {
         params = new URLSearchParams({ card_updated: 'true' });
         if (paymentState) {
@@ -167,14 +173,16 @@ Deno.serve(async (req: Request) => {
           if (typeof paymentState.keepOriginalPayment === 'boolean') params.set('kop', paymentState.keepOriginalPayment ? '1' : '0');
           if (typeof paymentState.selectedPaymentBaseCents === 'number') params.set('spb', String(paymentState.selectedPaymentBaseCents));
         }
-        successUrl = `${req.headers.get("origin")}/customer-portal/${orderId}?${params.toString()}&session_id={CHECKOUT_SESSION_ID}`;
+        successUrl = `${resolvedOrigin}/customer-portal/${orderId}?${params.toString()}&session_id={CHECKOUT_SESSION_ID}`;
       }
     } else {
-      successUrl = `${req.headers.get("origin")}/payment-complete?session_id={CHECKOUT_SESSION_ID}&order_id=${orderId}`;
+      successUrl = `${resolvedOrigin}/payment-complete?session_id={CHECKOUT_SESSION_ID}&order_id=${orderId}`;
     }
     const cancelUrl = setupMode
-      ? `${req.headers.get("origin")}/customer-portal/${orderId}?card_update_canceled=true`
-      : `${req.headers.get("origin")}/payment-canceled?order_id=${orderId}`;
+      ? `${resolvedOrigin}/customer-portal/${orderId}?card_update_canceled=true`
+      : `${resolvedOrigin}/payment-canceled?order_id=${orderId}`;
+
+    console.log("stripe-checkout: urls — success:", successUrl, "| cancel:", cancelUrl);
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
