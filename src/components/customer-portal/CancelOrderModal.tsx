@@ -82,11 +82,7 @@ export function CancelOrderModal({ orderId, eventDate, onClose, onSuccess }: Can
         <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
           <div className="p-6">
             <div className="flex items-center justify-center mb-6">
-              {result.refundPolicy === 'full_refund' ? (
-                <CheckCircle className="w-16 h-16 text-green-500" />
-              ) : (
-                <AlertTriangle className="w-16 h-16 text-orange-500" />
-              )}
+              <CheckCircle className="w-16 h-16 text-green-500" />
             </div>
 
             <h2 className="text-2xl font-bold text-gray-900 mb-4 text-center">
@@ -95,56 +91,16 @@ export function CancelOrderModal({ orderId, eventDate, onClose, onSuccess }: Can
 
             <div className="bg-gray-50 rounded-lg p-4 mb-6">
               <p className="text-gray-700 mb-4">{result.refundMessage}</p>
-
-              {result.refundResult && (
-                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
-                  {result.refundResult.refunded ? (
-                    <div className="flex items-start gap-2">
-                      <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">Refund Processed</p>
-                        <p className="text-sm text-gray-700">
-                          ${(result.refundResult.amount / 100).toFixed(2)} has been refunded to your original payment method.
-                        </p>
-                        <p className="text-xs text-gray-600 mt-1">
-                          Reference ID: {result.refundResult.refundId}
-                        </p>
-                      </div>
-                    </div>
-                  ) : result.refundResult.error ? (
-                    <div className="flex items-start gap-2">
-                      <XCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">Refund Issue</p>
-                        <p className="text-sm text-gray-700">{result.refundResult.error}</p>
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              )}
-
-              {result.refundPolicy === 'reschedule_credit' && (
-                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
-                  <p className="text-sm font-semibold text-gray-900 mb-1">Reschedule Credit Available</p>
-                  <p className="text-sm text-gray-700">
-                    Contact us to reschedule your event within the next 12 months. Your payment will be applied to the new booking.
-                  </p>
-                </div>
-              )}
-
-              {result.refundPolicy === 'no_refund' && (
-                <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded">
-                  <p className="text-sm font-semibold text-gray-900 mb-1">Cancellation Policy</p>
-                  <p className="text-sm text-gray-700">
-                    Day-of cancellations are not eligible for refunds or credits. We understand emergencies happen - please contact us if you have extenuating circumstances.
-                  </p>
-                </div>
-              )}
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
+                <p className="text-sm font-semibold text-gray-900 mb-1">What happens next?</p>
+                <p className="text-sm text-gray-700">
+                  Our team will review your cancellation and reach out if any refund or credit applies. If you have questions, please contact us directly.
+                </p>
+              </div>
             </div>
 
             <div className="text-center text-sm text-gray-600 mb-6">
               <p>Event Date: {new Date(eventDate).toLocaleDateString()}</p>
-              <p>Hours Until Event: {result.hoursUntilEvent}</p>
             </div>
 
             <button
@@ -181,11 +137,9 @@ export function CancelOrderModal({ orderId, eventDate, onClose, onSuccess }: Can
             <AlertTriangle className="w-6 h-6 text-orange-600 flex-shrink-0 mt-0.5" />
             <div>
               <h3 className="font-semibold text-gray-900 mb-2">Cancellation Policy</h3>
-              <ul className="text-sm text-gray-700 space-y-1">
-                <li>• <strong>72+ hours before event:</strong> Full refund</li>
-                <li>• <strong>Less than 72 hours:</strong> Credit toward one-time reschedule within 12 months</li>
-                <li>• <strong>Day of event:</strong> No refund or credit</li>
-              </ul>
+              <p className="text-sm text-gray-700">
+                Once cancelled, our team will review your request. Any applicable refund or credit will be handled manually and we will reach out to you directly.
+              </p>
             </div>
           </div>
 
