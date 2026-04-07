@@ -11,6 +11,7 @@ const corsHeaders = {
 interface CancelRequest {
   orderId: string;
   cancellationReason: string;
+  adminOverrideRefund?: boolean;
 }
 
 Deno.serve(async (req: Request) => {
@@ -40,7 +41,7 @@ Deno.serve(async (req: Request) => {
       userId = user?.id || null;
     }
 
-    const { orderId, cancellationReason }: CancelRequest = await req.json();
+    const { orderId, cancellationReason, adminOverrideRefund }: CancelRequest = await req.json();
 
     if (!orderId || !cancellationReason || cancellationReason.trim().length < 10) {
       return new Response(
@@ -94,6 +95,7 @@ Deno.serve(async (req: Request) => {
         cancellation_reason: cancellationReason,
         cancelled_at: new Date().toISOString(),
         cancelled_by: userId,
+        refund_requested: adminOverrideRefund === true,
       })
       .eq("id", orderId);
 
@@ -101,10 +103,50 @@ Deno.serve(async (req: Request) => {
       throw new Error(`Failed to update order: ${updateError.message}`);
     }
 
-    await supabaseClient
-      .from("task_status")
-      .delete()
-      .eq("order_id", orderId);
+    // Write cancellation audit trail to order_changelog
+    try {
+      await supabaseClient.from("order_changelog").insert({
+        order_id: orderId,
+        user_id: userId,
+        change_type: "cancellation",
+        field_changed: "status",
+        old_value: order.status,
+        new_value: "cancelled",
+        notes: `Reason: ${cancellationReason}${adminOverrideRefund === true ? " | Refund requested: yes" : adminOverrideRefund === false ? " | Refund requested: no" : ""}`,
+      });
+    } catch (changelogError) {
+      console.error("Failed to write cancellation changelog:", changelogError);
+    }
+
+    // Delete task_status rows for this order (pre-event route assignments)
+    try {
+      const { error: taskDeleteError } = await supabaseClient
+        .from("task_status")
+        .delete()
+        .eq("order_id", orderId);
+      if (taskDeleteError) {
+        console.error("Failed to delete task_status rows:", taskDeleteError);
+      }
+    } catch (taskDeleteError) {
+      console.error("task_status delete threw:", taskDeleteError);
+    }
+
+    // Fetch admin email and app URL from settings for notifications
+    const [adminEmailSetting, adminPhoneSetting, appUrlSetting] = await Promise.all([
+      supabaseClient.from("admin_settings").select("value").eq("key", "admin_email").maybeSingle(),
+      supabaseClient.from("admin_settings").select("value").eq("key", "admin_phone").maybeSingle(),
+      supabaseClient.from("admin_settings").select("value").eq("key", "app_url").maybeSingle(),
+    ]);
+    const adminEmail = adminEmailSetting.data?.value || "admin@bouncepartyclub.com";
+    const adminPhone = adminPhoneSetting.data?.value;
+    const appUrl = appUrlSetting.data?.value || "";
+    const orderLink = appUrl ? `${appUrl}/admin?order=${orderId}` : `Order ID: ${formatOrderId(orderId)}`;
+
+    const refundNote = adminOverrideRefund === true
+      ? "Refund requested: YES — please issue refund from the Payments tab."
+      : adminOverrideRefund === false
+        ? "Refund requested: NO — no refund to be issued."
+        : "Refund status: not specified — please review manually.";
 
     try {
       await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
@@ -114,19 +156,22 @@ Deno.serve(async (req: Request) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          to: order.customers?.email || "admin@bouncepartyclub.com",
-          subject: `Order Cancelled: ${orderId}`,
+          to: adminEmail,
+          subject: `Order Cancelled: ${formatOrderId(orderId)}`,
           text: `
-Order ${orderId} has been cancelled by the customer.
+Order ${formatOrderId(orderId)} has been cancelled.
 
 Customer: ${order.customers?.first_name} ${order.customers?.last_name}
 Event Date: ${order.event_date}
 Hours Until Event: ${hoursUntilEvent.toFixed(1)}
+Cancelled By: ${userId ? `Admin (${userId})` : "Customer"}
 
 Cancellation Reason:
 ${cancellationReason}
 
-Please review and process any refund manually if applicable.
+${refundNote}
+
+Order Link: ${orderLink}
           `,
         }),
       });
@@ -135,13 +180,7 @@ Please review and process any refund manually if applicable.
     }
 
     try {
-      const { data: adminPhone } = await supabaseClient
-        .from("admin_settings")
-        .select("value")
-        .eq("key", "admin_phone")
-        .maybeSingle();
-
-      if (adminPhone?.value) {
+      if (adminPhone) {
         const { data: smsTemplate } = await supabaseClient
           .from("sms_message_templates")
           .select("message_template")
@@ -151,13 +190,12 @@ Please review and process any refund manually if applicable.
         if (smsTemplate) {
           const customerName = `${order.customers?.first_name || ''} ${order.customers?.last_name || ''}`.trim();
           const eventDateStr = new Date(order.event_date).toLocaleDateString();
-          const orderLink = `${Deno.env.get("SUPABASE_URL")?.replace('/functions/v1', '').replace('https://supabase.co', '').replace('.supabase.co', '')}/admin?order=${orderId}`;
 
           const message = smsTemplate.message_template
             .replace("{customer_name}", customerName)
             .replace("{order_id}", formatOrderId(orderId))
             .replace("{event_date}", eventDateStr)
-            .replace("{refund_policy}", "Pending Review")
+            .replace("{refund_policy}", adminOverrideRefund === true ? "Refund Requested" : adminOverrideRefund === false ? "No Refund" : "Pending Review")
             .replace("{order_link}", orderLink);
 
           await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-sms-notification`, {
@@ -167,7 +205,7 @@ Please review and process any refund manually if applicable.
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              to: adminPhone.value,
+              to: adminPhone,
               message: message,
               orderId: orderId,
             }),
@@ -183,7 +221,20 @@ Please review and process any refund manually if applicable.
         const customerName = `${order.customers?.first_name || ''} ${order.customers?.last_name || ''}`.trim();
         const eventDateStr = new Date(order.event_date).toLocaleDateString();
 
-        const customerMessage = `Hi ${customerName}, your order #${formatOrderId(orderId)} for ${eventDateStr} has been cancelled.\n\nIf a refund is applicable, our team will review and process it within 3-5 business days. If you have any questions, please contact us. Thank you for choosing Bounce Party Club!`;
+        // Only mention refund if there is a payment on this order
+        const { data: payments } = await supabaseClient
+          .from("payments")
+          .select("id")
+          .eq("order_id", orderId)
+          .eq("status", "succeeded")
+          .limit(1);
+        const hasPayment = payments && payments.length > 0;
+
+        const refundLine = hasPayment
+          ? "\n\nIf a refund is applicable, our team will review and process it within 3-5 business days."
+          : "";
+
+        const customerMessage = `Hi ${customerName}, your order #${formatOrderId(orderId)} for ${eventDateStr} has been cancelled.${refundLine} If you have any questions, please contact us. Thank you for choosing Bounce Party Club!`;
 
         await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-sms-notification`, {
           method: "POST",
@@ -202,12 +253,18 @@ Please review and process any refund manually if applicable.
       console.error("Failed to send SMS notification to customer:", smsError);
     }
 
+    const refundMessage = adminOverrideRefund === true
+      ? "Refund intent recorded. Please issue the refund manually from the Payments tab."
+      : adminOverrideRefund === false
+        ? "No refund will be issued per your selection."
+        : "Our team will review your cancellation and process any applicable refund within 3-5 business days.";
+
     return new Response(
       JSON.stringify({
         success: true,
         message: "Your order has been cancelled.",
-        refundPolicy: "pending_review",
-        refundMessage: "Our team will review your cancellation and process any applicable refund within 3-5 business days.",
+        refundPolicy: adminOverrideRefund === true ? "refund_requested" : adminOverrideRefund === false ? "no_refund" : "pending_review",
+        refundMessage,
         hoursUntilEvent: hoursUntilEvent.toFixed(1),
       }),
       {

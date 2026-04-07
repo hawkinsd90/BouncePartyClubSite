@@ -468,8 +468,9 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       showAlert('Please provide a cancellation reason (minimum 10 characters)');
       return;
     }
-    const shouldRefund = await showConfirm(`Would you like to issue a full refund to ${task.customerName}?\n\nClick OK to issue refund, or Cancel to skip refund.`);
-    const finalConfirm = await showConfirm(`Cancel order #${task.orderNumber} for ${task.customerName}?\n\nReason: ${cancelReason}\n${shouldRefund ? '\n✓ Full refund will be issued' : '\n✗ No refund will be issued'}\n\nCustomer will be notified via SMS.`);
+    const shouldRefund = await showConfirm(`Does this cancellation require a refund for ${task.customerName}?\n\nClick OK if a refund should be issued, or Cancel if no refund is needed.\n\nNote: No refund will be processed automatically. You will need to issue it manually from the Payments tab.`);
+    const refundLabel = shouldRefund ? '✓ Refund intent will be recorded — issue manually from Payments tab' : '✗ No refund';
+    const finalConfirm = await showConfirm(`Cancel order #${task.orderNumber} for ${task.customerName}?\n\nReason: ${cancelReason}\n\n${refundLabel}\n\nCustomer will be notified via SMS.`);
     if (!finalConfirm) return;
     setCancelling(true);
     try {
@@ -480,7 +481,10 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || 'Failed to cancel order');
-      showAlert(`Order cancelled successfully. ${data.refundMessage}`);
+      const alertMsg = shouldRefund
+        ? `Order cancelled. Refund intent recorded — please issue the refund from the Payments tab.`
+        : `Order cancelled. No refund will be issued.`;
+      showAlert(alertMsg);
       onClose(); onUpdate();
     } catch (e: any) { console.error('Cancel order error:', e); showAlert('Failed to cancel order: ' + e.message); }
     finally { setCancelling(false); }
