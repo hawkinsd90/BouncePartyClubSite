@@ -114,7 +114,7 @@ export function StatusChangeDialog({
       if (pendingStatus === 'cancelled') {
         updatePayload.cancelled_at = new Date().toISOString();
         const { data: { user } } = await supabase.auth.getUser();
-        if (user?.email) updatePayload.cancelled_by = user.email;
+        if (user?.id) updatePayload.cancelled_by = user.id;
         if (statusChangeReason.trim()) updatePayload.cancellation_reason = statusChangeReason.trim();
       }
       const { error: updateError } = await supabase.from('orders').update(updatePayload).eq('id', orderId);
