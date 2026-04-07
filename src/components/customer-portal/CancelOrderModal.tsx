@@ -4,6 +4,7 @@ import { X, AlertTriangle, Loader2, CheckCircle, XCircle } from 'lucide-react';
 interface CancelOrderModalProps {
   orderId: string;
   eventDate: string;
+  customerEmail: string;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -20,7 +21,7 @@ const CANCELLATION_REASONS = [
   { value: 'other', label: 'Other (please specify)' },
 ];
 
-export function CancelOrderModal({ orderId, eventDate, onClose, onSuccess }: CancelOrderModalProps) {
+export function CancelOrderModal({ orderId, eventDate, customerEmail, onClose, onSuccess }: CancelOrderModalProps) {
   const [selectedReason, setSelectedReason] = useState('');
   const [customReason, setCustomReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -57,6 +58,7 @@ export function CancelOrderModal({ orderId, eventDate, onClose, onSuccess }: Can
           body: JSON.stringify({
             orderId,
             cancellationReason: finalReason,
+            customerEmail,
           }),
         }
       );

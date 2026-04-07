@@ -777,6 +777,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
         <CancelOrderModal
           orderId={order.id}
           eventDate={order.event_date}
+          customerEmail={order.customers?.email ?? ''}
           onClose={() => setShowCancelModal(false)}
           onSuccess={() => {
             onReload();

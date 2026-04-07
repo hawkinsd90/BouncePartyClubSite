@@ -12,6 +12,7 @@ interface CancelRequest {
   orderId: string;
   cancellationReason: string;
   adminOverrideRefund?: boolean;
+  customerEmail?: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -41,7 +42,7 @@ Deno.serve(async (req: Request) => {
       userId = user?.id || null;
     }
 
-    const { orderId, cancellationReason, adminOverrideRefund }: CancelRequest = await req.json();
+    const { orderId, cancellationReason, adminOverrideRefund, customerEmail }: CancelRequest = await req.json();
 
     if (!orderId || !cancellationReason || cancellationReason.trim().length < 10) {
       return new Response(
@@ -69,6 +70,24 @@ Deno.serve(async (req: Request) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
+    }
+
+    // Ownership check: anon callers must prove they own the order via email match.
+    // Authenticated admins (userId != null) skip this check.
+    if (!userId) {
+      if (!customerEmail) {
+        return new Response(
+          JSON.stringify({ error: "Customer email is required to cancel this order" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const orderEmail = order.customers?.email ?? "";
+      if (orderEmail.trim().toLowerCase() !== customerEmail.trim().toLowerCase()) {
+        return new Response(
+          JSON.stringify({ error: "The email address provided does not match this order" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     const cancellableStatuses = ["draft", "pending_review", "awaiting_customer_approval", "confirmed"];
