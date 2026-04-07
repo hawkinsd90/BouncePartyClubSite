@@ -28,10 +28,11 @@ interface RegularPortalViewProps {
   orderId: string;
   orderItems: any[];
   orderSummary: any;
+  invoiceLinkToken?: string | null;
   onReload: () => void;
 }
 
-export function RegularPortalView({ order, orderId, orderItems, orderSummary, onReload }: RegularPortalViewProps) {
+export function RegularPortalView({ order, orderId, orderItems, orderSummary, invoiceLinkToken, onReload }: RegularPortalViewProps) {
   const navigate = useNavigate();
   const isPendingReview = order.status === 'pending_review';
   const lotPicturesRequested = order.lot_pictures_requested || false;
@@ -778,6 +779,7 @@ export function RegularPortalView({ order, orderId, orderItems, orderSummary, on
           orderId={order.id}
           eventDate={order.event_date}
           customerEmail={order.customers?.email ?? ''}
+          invoiceLinkToken={invoiceLinkToken}
           onClose={() => setShowCancelModal(false)}
           onSuccess={() => {
             onReload();

@@ -13,6 +13,7 @@ interface CancelRequest {
   cancellationReason: string;
   adminOverrideRefund?: boolean;
   customerEmail?: string;
+  invoiceLinkToken?: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -42,7 +43,7 @@ Deno.serve(async (req: Request) => {
       userId = user?.id || null;
     }
 
-    const { orderId, cancellationReason, adminOverrideRefund, customerEmail }: CancelRequest = await req.json();
+    const { orderId, cancellationReason, adminOverrideRefund, customerEmail, invoiceLinkToken }: CancelRequest = await req.json();
 
     if (!orderId || !cancellationReason || cancellationReason.trim().length < 10) {
       return new Response(
@@ -72,21 +73,46 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Ownership check: anon callers must prove they own the order via email match.
-    // Authenticated admins (userId != null) skip this check.
+    // Ownership check: anon callers must prove ownership.
+    // Authenticated admins (userId != null) skip this check entirely.
     if (!userId) {
-      if (!customerEmail) {
-        return new Response(
-          JSON.stringify({ error: "Customer email is required to cancel this order" }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      const orderEmail = order.customers?.email ?? "";
-      if (orderEmail.trim().toLowerCase() !== customerEmail.trim().toLowerCase()) {
-        return new Response(
-          JSON.stringify({ error: "The email address provided does not match this order" }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      if (invoiceLinkToken) {
+        // Strong path: verify the cryptographic invoice link token.
+        const { data: linkData, error: linkError } = await supabaseClient
+          .from("invoice_links")
+          .select("id, order_id, expires_at")
+          .eq("link_token", invoiceLinkToken)
+          .eq("order_id", orderId)
+          .maybeSingle();
+
+        if (linkError || !linkData) {
+          return new Response(
+            JSON.stringify({ error: "This cancellation link is not valid for this order" }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        if (linkData.expires_at && new Date(linkData.expires_at) < new Date()) {
+          return new Response(
+            JSON.stringify({ error: "This cancellation link has expired. Please contact us to cancel your order." }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      } else {
+        // Fallback path: email match for direct /customer-portal/:orderId sessions (no token issued).
+        if (!customerEmail) {
+          return new Response(
+            JSON.stringify({ error: "Customer email is required to cancel this order" }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        const orderEmail = order.customers?.email ?? "";
+        if (orderEmail.trim().toLowerCase() !== customerEmail.trim().toLowerCase()) {
+          return new Response(
+            JSON.stringify({ error: "The email address provided does not match this order" }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
       }
     }
 

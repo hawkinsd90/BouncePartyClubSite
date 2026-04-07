@@ -259,6 +259,7 @@ export function CustomerPortal() {
       orderId={resolvedOrderId ?? orderId!}
       orderItems={orderItems}
       orderSummary={orderSummary}
+      invoiceLinkToken={invoiceToken}
       onReload={handleReload}
     />
   );
