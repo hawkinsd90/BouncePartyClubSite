@@ -145,9 +145,29 @@ export async function approveOrder(
           .eq('id', orderId)
           .maybeSingle();
 
+        let declineUrl = `${window.location.origin}/customer-portal/${orderId}`;
+        try {
+          const { data: declineLink, error: declineLinkError } = await supabase
+            .from('invoice_links' as any)
+            .insert({
+              order_id: orderId,
+              deposit_cents: fullOrder?.deposit_due_cents ?? 0,
+              customer_filled: false,
+            })
+            .select('link_token')
+            .single();
+
+          if (!declineLinkError && declineLink?.link_token) {
+            declineUrl = `${window.location.origin}/invoice/${declineLink.link_token}`;
+          } else {
+            console.warn('[orderApprovalService] Failed to create decline invoice link, falling back to portal URL:', declineLinkError);
+          }
+        } catch (linkErr) {
+          console.warn('[orderApprovalService] Exception creating decline invoice link, falling back to portal URL:', linkErr);
+        }
+
         if (fullOrder?.customers?.email) {
-          const portalUrl = `${window.location.origin}/customer-portal/${orderId}`;
-          const declineEmailHtml = generateCardDeclinedEmail(fullOrder, portalUrl);
+          const declineEmailHtml = generateCardDeclinedEmail(fullOrder, declineUrl);
           await sendEmail({
             to: fullOrder.customers.email,
             subject: `Action Required: Payment Declined for Order #${formatOrderId(orderId)}`,
@@ -156,7 +176,7 @@ export async function approveOrder(
         }
 
         if (fullOrder?.customers?.first_name) {
-          const declineSms = `Bounce Party Club: Hi ${fullOrder.customers.first_name}, your card was declined for Order #${formatOrderId(orderId)}. Your booking could not be confirmed. Please update your payment method at: ${window.location.origin}/customer-portal/${orderId}`;
+          const declineSms = `Bounce Party Club: Hi ${fullOrder.customers.first_name}, your card was declined for Order #${formatOrderId(orderId)}. Your booking could not be confirmed. Please update your payment method at: ${declineUrl}`;
           try {
             await sendSms(declineSms);
           } catch (_smsErr) {
