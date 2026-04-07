@@ -109,8 +109,15 @@ export function StatusChangeDialog({
         }
       }
 
-      // Update order status
-      const { error: updateError } = await supabase.from('orders').update({ status: pendingStatus }).eq('id', orderId);
+      // Update order status; include cancellation metadata when cancelling
+      const updatePayload: Record<string, any> = { status: pendingStatus };
+      if (pendingStatus === 'cancelled') {
+        updatePayload.cancelled_at = new Date().toISOString();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.email) updatePayload.cancelled_by = user.email;
+        if (statusChangeReason.trim()) updatePayload.cancellation_reason = statusChangeReason.trim();
+      }
+      const { error: updateError } = await supabase.from('orders').update(updatePayload).eq('id', orderId);
       if (updateError) {
         throw updateError;
       }

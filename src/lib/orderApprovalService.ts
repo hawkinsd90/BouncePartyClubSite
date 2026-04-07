@@ -379,7 +379,11 @@ export async function rejectOrder(
   try {
     const { error } = await supabase
       .from('orders')
-      .update({ status: 'cancelled' })
+      .update({
+        status: 'cancelled',
+        cancelled_at: new Date().toISOString(),
+        cancellation_reason: reason?.trim() || 'Rejected by admin',
+      })
       .eq('id', order.id);
 
     if (error) throw error;
