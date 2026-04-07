@@ -74,7 +74,7 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SITE_URL') ||
       'https://bouncepartyclub.com';
 
-    const invoiceUrl = `${resolvedOrigin}/customer-portal/${order.id}`;
+    const invoiceUrl = `${resolvedOrigin}/invoice/${invoiceLink.link_token}`;
 
     // Update order with invoice sent timestamp
     await supabase
