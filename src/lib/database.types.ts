@@ -117,6 +117,10 @@ export interface Database {
           email: string
           phone: string
           business_name: string | null
+          oauth_provider: string | null
+          oauth_profile_data: Json | null
+          default_address_id: string | null
+          user_id: string | null
           created_at: string
         }
         Insert: Omit<Database['public']['Tables']['customers']['Row'], 'id' | 'created_at'>
@@ -282,6 +286,53 @@ export interface Database {
           waiver_signed_at: string | null
           e_signature_consent: boolean | null
           customer_selected_payment_cents: number | null
+          customer_selected_payment_type: string | null
+          stripe_customer_id: string | null
+          stripe_payment_method_id: string | null
+          stripe_payment_status: string | null
+          balance_paid_cents: number | null
+          damage_charged_cents: number | null
+          total_refunded_cents: number | null
+          deposit_required: boolean | null
+          payment_method_id: string | null
+          payment_method_last_four: string | null
+          payment_method_brand: string | null
+          payment_method_exp_month: number | null
+          payment_method_exp_year: number | null
+          payment_method_validated_at: string | null
+          card_on_file_consent_text: string | null
+          card_on_file_consented_at: string | null
+          special_details: string | null
+          has_pets: boolean | null
+          overnight_allowed: boolean | null
+          can_use_stakes: boolean | null
+          generator_selected: boolean | null
+          current_eta: string | null
+          waiver_signature_data: string | null
+          signed_waiver_url: string | null
+          signature_id: string | null
+          invoice_sent_at: string | null
+          invoice_accepted_at: string | null
+          awaiting_customer_approval: boolean | null
+          customer_approval_requested_at: string | null
+          customer_approved_at: string | null
+          edit_summary: string | null
+          sms_consent_text: string | null
+          sms_consented_at: string | null
+          surface_fee_waived: boolean | null
+          surface_fee_waive_reason: string | null
+          generator_fee_waived: boolean | null
+          generator_fee_waive_reason: string | null
+          event_start_time: string | null
+          pickup_time: string | null
+          event_end_time: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          clear_payment_info: boolean | null
+          require_card_on_file: boolean | null
+          archived_at: string | null
+          pending_review_admin_alerted: boolean
+          confirmed_admin_alerted: boolean
           created_at: string
           updated_at: string
         }
@@ -427,10 +478,15 @@ export interface Database {
           overnight_holiday_only: boolean
           extra_day_pct: number
           generator_price_cents: number
-          deposit_percentage: number
-          free_city_list_json: Json
+          deposit_percentage: number | null
+          deposit_per_unit_cents: number | null
+          free_city_list_json: Json | null
           same_day_pickup_fee_cents: number
-          tax_rate: number
+          tax_rate: number | null
+          generator_fee_single_cents: number | null
+          generator_fee_multiple_cents: number | null
+          apply_taxes_by_default: boolean | null
+          included_cities: string[] | null
           created_at: string
           updated_at: string
         }
@@ -587,6 +643,7 @@ export interface Database {
           old_role: string | null
           new_role: string | null
           changed_by_user_id: string | null
+          notes: string | null
           created_at: string
         }
         Insert: Omit<Database['public']['Tables']['user_permissions_changelog']['Row'], 'id' | 'created_at'>
@@ -689,6 +746,46 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['site_events']['Insert']>
         Relationships: []
       }
+      saved_discount_templates: {
+        Row: {
+          id: string
+          name: string
+          amount_cents: number
+          percentage: number
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['saved_discount_templates']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['saved_discount_templates']['Insert']>
+        Relationships: []
+      }
+      pending_signups_consent: {
+        Row: {
+          user_id: string
+          batch_id: string
+          consents: Json
+          source: string
+          user_agent_hint: string | null
+          created_at: string
+        }
+        Insert: Database['public']['Tables']['pending_signups_consent']['Row']
+        Update: Partial<Database['public']['Tables']['pending_signups_consent']['Insert']>
+        Relationships: []
+      }
+      invoice_links: {
+        Row: {
+          id: string
+          order_id: string
+          link_token: string
+          customer_filled: boolean | null
+          deposit_cents: number
+          expires_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['invoice_links']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Database['public']['Tables']['invoice_links']['Insert']>
+        Relationships: []
+      }
     }
     Views: {}
     Functions: {
@@ -750,7 +847,7 @@ export interface Database {
         Returns: number
       }
       get_admin_analytics: {
-        Args: { p_start_date?: string; p_end_date?: string }
+        Args: { p_start?: string; p_end?: string }
         Returns: Json
       }
     }

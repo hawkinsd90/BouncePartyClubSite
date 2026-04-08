@@ -85,7 +85,7 @@ export function useAdminAnalytics(period: AnalyticsPeriod = 'all_time') {
         p_end: end,
       });
       if (rpcError) throw rpcError;
-      setAnalytics(data as AdminAnalytics);
+      setAnalytics(data as unknown as AdminAnalytics);
     } catch (err) {
       console.error('Failed to load admin analytics:', err);
       setError('Failed to load analytics');

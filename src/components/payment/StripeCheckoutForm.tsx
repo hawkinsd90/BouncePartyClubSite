@@ -65,19 +65,17 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
   }, [stripe, elements]);
 
   const handleLoaderStart = () => {
-    const timeSinceMount = Date.now() - mountTimeRef.current;
-    // console.log('[CheckoutForm] ⟳ PaymentElement loader started (', timeSinceMount, 'ms since mount)');
+    // console.log('[CheckoutForm] ⟳ PaymentElement loader started (', Date.now() - mountTimeRef.current, 'ms since mount)');
     // console.log('[CheckoutForm] Current stripe:', !!stripe, 'elements:', !!elements, 'canRender:', canRender);
   };
 
   const handleReady = () => {
-    const timeSinceMount = Date.now() - mountTimeRef.current;
-    // console.log('[CheckoutForm] ✓ PaymentElement is ready and can accept input (', timeSinceMount, 'ms since mount)');
+    // console.log('[CheckoutForm] ✓ PaymentElement is ready and can accept input (', Date.now() - mountTimeRef.current, 'ms since mount)');
     // console.log('[CheckoutForm] Setting isReady to true');
     setIsReady(true);
   };
 
-  const handleLoadError = (event: any) => {
+  const handleLoadError = (_event: any) => {
     const timeSinceMount = Date.now() - mountTimeRef.current;
     console.error('[CheckoutForm] ✗ PaymentElement loader error after', timeSinceMount, 'ms:', event);
     console.error('[CheckoutForm] Error details:', JSON.stringify(event, null, 2));
@@ -86,8 +84,8 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
     onError('Failed to load payment form. Please refresh and try again.');
   };
 
-  const handleChange = (event: any) => {
-    // console.log('[CheckoutForm] PaymentElement changed:', event.elementType, 'complete:', event.complete);
+  const handleChange = (_event: any) => {
+    // console.log('[CheckoutForm] PaymentElement changed:', _event.elementType, 'complete:', _event.complete);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -103,7 +101,7 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
     try {
       // console.log('Starting payment confirmation...');
 
-      const { error, paymentIntent } = await stripe.confirmPayment({
+      const { error } = await stripe.confirmPayment({
         elements,
         confirmParams: {
           return_url: window.location.origin + '/checkout',

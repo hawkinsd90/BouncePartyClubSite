@@ -341,7 +341,6 @@ export function OrderDetailsTab({
         travelFeeWaived={travelFeeWaived}
         travelFeeWaiveReason={travelFeeWaiveReason}
         onToggle={onTravelFeeWaivedToggle}
-        applyTravelFeeByDefault={pricingRules?.apply_travel_fee_by_default ?? true}
         originalOrderTravelFeeCents={order.travel_fee_cents}
       />
 

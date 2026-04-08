@@ -51,7 +51,7 @@ export function StatusChangeDialog({
     try {
       const { data: currentOrder } = await supabase
         .from('orders')
-        .select('stripe_payment_method_id, payment_amount_due, balance_due_cents, balance_paid_cents')
+        .select('stripe_payment_method_id, balance_due_cents, balance_paid_cents')
         .eq('id', orderId)
         .single();
 
@@ -128,7 +128,10 @@ export function StatusChangeDialog({
       const { error: changelogError } = await supabase.from('order_changelog').insert({
         order_id: orderId,
         change_type: 'status_change',
+        field_name: 'status',
         field_changed: 'status',
+        changed_by: null,
+        notes: null,
         old_value: currentStatus,
         new_value: `${pendingStatus}${reasonSuffix}`,
         user_id: userId,
