@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "lib": ["esnext", "dom"],
+    "lib": ["esnext", "deno.ns", "deno.unstable"],
     "types": ["jsr:@supabase/functions-js/edge-runtime"]
   },
   "fmt": {
@@ -10,7 +10,12 @@
   },
   "lint": {
     "rules": {
-      "tags": ["recommended"]
+      "tags": ["recommended"],
+      "exclude": ["no-explicit-any", "require-await"]
     }
+  },
+  "imports": {
+    "npm:@supabase/supabase-js": "npm:@supabase/supabase-js",
+    "npm:stripe": "npm:stripe"
   }
 }

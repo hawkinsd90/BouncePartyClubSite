@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Printer, AlertTriangle, ArrowLeft, Download, Share2 } from 'lucide-react';
+import { Printer, AlertTriangle, ArrowLeft, Download } from 'lucide-react';
 import { SimpleInvoiceDisplay } from '../components/shared/SimpleInvoiceDisplay';
 import { buildOrderSummary } from '../lib/checkoutUtils';
 

@@ -214,7 +214,7 @@ function debugStopSummary(stops: MorningRouteStop[]): void {
 /**
  * Debug helper: Logs the dependency graph with reverse mappings
  */
-function debugDependencyGraph(deps: Map<string, string[]>, stops: MorningRouteStop[]): void {
+function debugDependencyGraph(_deps: Map<string, string[]>, stops: MorningRouteStop[]): void {
   // console.log('[DEBUG] ========== DEPENDENCY GRAPH ==========');
 
   // Show drop-offs and their dependencies
@@ -250,7 +250,7 @@ function debugDependencyGraph(deps: Map<string, string[]>, stops: MorningRouteSt
   }
 
   const allEquipIds = new Set([...equipmentToPickup.keys(), ...equipmentToDropoffs.keys()]);
-  for (const equipId of allEquipIds) {
+  for (const _equipId of allEquipIds) {
     // console.log(`[DEBUG] EquipmentId "${equipId}":`);
     // console.log(`  - Pickup: ${equipmentToPickup.get(equipId) || 'NONE'}`);
     // console.log(`  - Drop-offs: [${(equipmentToDropoffs.get(equipId) || []).join(', ') || 'NONE'}]`);
@@ -527,9 +527,9 @@ async function greedyRouteConstruction(
       firstLegLogged = true;
       const sorted = [...firstLegCandidates].sort((a, b) => a.score - b.score);
       // console.log('[Greedy Standard] First-leg candidate comparison (origin = matrix row 0):');
-      sorted.forEach((c, i) => {
-        const marker = c.address === bestStop!.address ? ' <-- WINNER' : '';
-        const eligStr = c.eligible ? '' : ' [SKIPPED: dependency]';
+      sorted.forEach((c, _i) => {
+        const _marker = c.address === bestStop!.address ? ' <-- WINNER' : '';
+        const _eligStr = c.eligible ? '' : ' [SKIPPED: dependency]';
         // console.log(
         //   `  ${i + 1}. "${c.address}"${eligStr}${marker}\n` +
         //   `     drive: ${isFinite(c.driveMins) ? c.driveMins.toFixed(1) : 'Inf'} min, ` +
@@ -1068,10 +1068,10 @@ export async function optimizeMorningRoute(
   debugDependencyGraph(dependencies, stops);
 
   // Count and log drop-offs with no dependencies
-  const dropoffsWithNoDeps = stops
+  void stops
     .filter(s => s.type === 'drop-off' && !dependencies.has(s.taskId))
     .map(s => s.taskId);
-  // console.log(`[Route Optimization] Drop-offs with NO dependencies: ${dropoffsWithNoDeps.length > 0 ? dropoffsWithNoDeps.join(', ') : '(none)'}`);
+  // console.log(`[Route Optimization] Drop-offs with NO dependencies: ...`);
 
   // Preflight validation: Check equipment data integrity
   // console.log('[Route Optimization] Running preflight equipment validation...');
@@ -1109,8 +1109,8 @@ export async function optimizeMorningRoute(
     departureTime,
     matrixIndexByTaskId
   );
-  const greedyScore = evaluateRoute(greedyRoute, distanceMatrix, departureTime, matrixIndexByTaskId);
-  // console.log('[Route Optimization] Best greedy route score:', greedyScore.toFixed(2));
+  void evaluateRoute(greedyRoute, distanceMatrix, departureTime, matrixIndexByTaskId);
+  // console.log('[Route Optimization] Best greedy route score:');
   // console.log('[Route Optimization] Greedy route order:', greedyRoute.map(r => r.address).join(' → '));
 
   // Post-route validation: Ensure greedy route respects dependencies
@@ -1119,9 +1119,8 @@ export async function optimizeMorningRoute(
 
   // console.log('[Route Optimization] Step 3/3: 2-opt route optimization...');
   const optimizedRoute = twoOptOptimizeRoute(greedyRoute, distanceMatrix, dependencies, departureTime, matrixIndexByTaskId);
-  const finalScore = evaluateRoute(optimizedRoute, distanceMatrix, departureTime, matrixIndexByTaskId);
-  // console.log('[Route Optimization] Final optimized score:', finalScore.toFixed(2));
-  // console.log('[Route Optimization] Improvement from greedy:', ((greedyScore - finalScore) / greedyScore * 100).toFixed(1) + '%');
+  void evaluateRoute(optimizedRoute, distanceMatrix, departureTime, matrixIndexByTaskId);
+  // console.log('[Route Optimization] Final optimized score:');
   // console.log('[Route Optimization] Final route order:', optimizedRoute.map((r, i) => `${i + 1}. ${r.address}`).join(' → '));
 
   // Post-route validation: Ensure final route respects dependencies

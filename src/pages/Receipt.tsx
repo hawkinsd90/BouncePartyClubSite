@@ -31,7 +31,7 @@ export function Receipt() {
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .select('*, customers(*), addresses(*)')
-        .eq('id', orderId)
+        .eq('id', orderId!)
         .single();
 
       if (orderError) throw orderError;
@@ -40,8 +40,8 @@ export function Receipt() {
       const { data: paymentData, error: paymentError } = await supabase
         .from('payments')
         .select('*')
-        .eq('id', paymentId)
-        .eq('order_id', orderId)
+        .eq('id', paymentId!)
+        .eq('order_id', orderId!)
         .single();
 
       if (paymentError) throw paymentError;
@@ -50,17 +50,17 @@ export function Receipt() {
       const { data: orderItems } = await supabase
         .from('order_items')
         .select('*, units(*)')
-        .eq('order_id', orderId);
+        .eq('order_id', orderId!);
 
       const { data: discounts } = await supabase
         .from('order_discounts')
         .select('*')
-        .eq('order_id', orderId);
+        .eq('order_id', orderId!);
 
       const { data: customFees } = await supabase
         .from('order_custom_fees')
         .select('*')
-        .eq('order_id', orderId);
+        .eq('order_id', orderId!);
 
       const summaryData = buildOrderSummaryDisplay({
         items: (orderItems || []).map((item: any) => ({
@@ -72,15 +72,15 @@ export function Receipt() {
         fees: {
           travel_fee_cents: orderData.travel_fee_cents,
           travel_total_miles: orderData.travel_total_miles,
-          travel_fee_display_name: orderData.travel_fee_display_name,
+          travel_fee_display_name: (orderData as any).travel_fee_display_name,
           surface_fee_cents: orderData.surface_fee_cents,
           same_day_pickup_fee_cents: orderData.same_day_pickup_fee_cents,
           generator_fee_cents: orderData.generator_fee_cents,
           generator_qty: orderData.generator_qty,
           travel_fee_waived: orderData.travel_fee_waived,
-          surface_fee_waived: orderData.surface_fee_waived,
+          surface_fee_waived: orderData.surface_fee_waived ?? undefined,
           same_day_pickup_fee_waived: orderData.same_day_pickup_fee_waived,
-          generator_fee_waived: orderData.generator_fee_waived,
+          generator_fee_waived: orderData.generator_fee_waived ?? undefined,
         },
         discounts: (discounts || []).map((d: any) => ({
           name: d.name,
@@ -109,7 +109,7 @@ export function Receipt() {
         deposit_paid_cents: orderData.deposit_paid_cents || 0,
         balance_due_cents: orderData.balance_due_cents || 0,
         event_date: orderData.event_date,
-        event_end_date: orderData.event_end_date,
+        event_end_date: orderData.event_end_date ?? undefined,
         pickup_preference: orderData.pickup_preference,
       });
 
@@ -243,7 +243,7 @@ export function Receipt() {
                       if (method === 'us_bank_account') return 'Bank Account';
                       if (method === 'cash') return 'Cash';
                       if (method === 'check') return 'Check';
-                      return method.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                      return method.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
                     })()}
                   </span>
                 </div>

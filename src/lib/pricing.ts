@@ -22,6 +22,7 @@ export interface PricingRules {
   generator_fee_single_cents?: number;
   generator_fee_multiple_cents?: number;
   apply_taxes_by_default?: boolean;
+  same_day_matrix_json?: Array<{ units: number; generator: boolean; subtotal_ge_cents: number; fee_cents: number }> | null;
 }
 
 export interface CartItem {

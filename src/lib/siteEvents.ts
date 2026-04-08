@@ -80,7 +80,7 @@ export async function trackEvent(
       unit_id: options.unitId || null,
       order_id: options.orderId || null,
       page_path: pagePath,
-      metadata: options.metadata || {},
+      metadata: (options.metadata || {}) as Record<string, unknown>,
     });
   } catch {
     // Tracking failures must never break the user experience

@@ -272,7 +272,7 @@ export function Quote() {
     // Try ref first, then getElementById as fallback
     let element = refs[section].current;
     if (!element) {
-      element = document.getElementById(sectionIds[section]);
+      element = document.getElementById(sectionIds[section]) as HTMLDivElement | null;
     }
 
     const debug: Partial<DebugInfo> = {

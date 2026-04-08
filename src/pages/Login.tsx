@@ -53,12 +53,12 @@ const ERROR_MESSAGES: Record<AuthErrorKind, string> = {
 export function Login() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signIn, signInWithGoogle, signInWithApple } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
+  // const [isIOS, setIsIOS] = useState(false);
 
   // Inline error string for generic/credential/rate-limit failures
   const [error, setError] = useState('');
@@ -78,7 +78,7 @@ export function Login() {
   const prefillEmail = (location.state as any)?.prefillEmail || '';
 
   useEffect(() => {
-    setIsIOS(isIOSDevice());
+    // setIsIOS(isIOSDevice());
     if (prefillEmail) setEmail(prefillEmail);
   }, []);
 
@@ -184,18 +184,18 @@ export function Login() {
     }
   };
 
-  const handleAppleSignIn = async () => {
-    log.info('Apple sign-in button clicked');
-    clearAuthState();
-    setLoading(true);
-    try {
-      await signInWithApple(from !== '/' ? from : undefined);
-    } catch (err: any) {
-      log.error('Apple sign-in failed', err);
-      setError(err.message || 'Failed to sign in with Apple');
-      setLoading(false);
-    }
-  };
+  // const handleAppleSignIn = async () => {
+  //   log.info('Apple sign-in button clicked');
+  //   clearAuthState();
+  //   setLoading(true);
+  //   try {
+  //     await signInWithApple(from !== '/' ? from : undefined);
+  //   } catch (err: any) {
+  //     log.error('Apple sign-in failed', err);
+  //     setError(err.message || 'Failed to sign in with Apple');
+  //     setLoading(false);
+  //   }
+  // };
 
   const submitDisabled = loading || isCoolingDown;
 

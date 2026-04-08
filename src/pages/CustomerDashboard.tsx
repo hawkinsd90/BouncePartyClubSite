@@ -169,6 +169,7 @@ export function CustomerDashboard() {
         <CancelOrderModal
           orderId={cancelOrderId}
           eventDate={cancelOrderDate}
+          customerEmail={user?.email || ''}
           onClose={() => {
             setCancelOrderId(null);
             setCancelOrderDate(null);

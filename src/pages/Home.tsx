@@ -22,10 +22,7 @@ import { useCustomerProfile } from '../contexts/CustomerProfileContext';
 // Restore only after a true dev/staging environment and explicit safe gating are in place.
 // import { createTestBooking } from '../lib/testBooking';
 import { notifyError } from '../lib/notifications';
-import { createLogger } from '../lib/logger';
 import { supabase } from '../lib/supabase';
-
-const log = createLogger('Home');
 
 interface GoogleReview {
   id: string;
@@ -40,7 +37,7 @@ interface GoogleReview {
 
 export function Home() {
   const navigate = useNavigate();
-  const { isAdmin, user } = useAuth();
+  const { user } = useAuth();
   const { sessionData, loading: profileLoading } = useCustomerProfile();
 
   const [eventDate, setEventDate] = useState('');
@@ -87,8 +84,9 @@ export function Home() {
       if (error) throw error;
 
       if (data && data.length > 0) {
-        setReviews(data);
-        const avg = data.reduce((sum, review) => sum + review.rating, 0) / data.length;
+        const typedData = data as unknown as GoogleReview[];
+        setReviews(typedData);
+        const avg = typedData.reduce((sum, review) => sum + review.rating, 0) / typedData.length;
         setAverageRating(Math.round(avg * 10) / 10);
       }
     } catch (error) {

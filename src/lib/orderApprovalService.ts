@@ -158,8 +158,8 @@ export async function approveOrder(
             .select('link_token')
             .single();
 
-          if (!declineLinkError && declineLink?.link_token) {
-            declineUrl = `${window.location.origin}/invoice/${declineLink.link_token}`;
+          if (!declineLinkError && (declineLink as any)?.link_token) {
+            declineUrl = `${window.location.origin}/invoice/${(declineLink as any).link_token}`;
           } else {
             console.warn('[orderApprovalService] Failed to create decline invoice link, falling back to portal URL:', declineLinkError);
           }
@@ -204,7 +204,7 @@ export async function approveOrder(
     const { data: customerData } = await supabase
       .from('customers')
       .select('*')
-      .eq('id', orderData.customer_id)
+      .eq('id', orderData.customer_id ?? '')
       .maybeSingle();
 
     // Use Stripe's actual charge amount as the source of truth for receipts and invoice
@@ -223,7 +223,7 @@ export async function approveOrder(
     // Log deposit transaction and notify admin with grouped receipts
     if (customerData && orderData.customer_id) {
       // Build array of transactions to log (grouped)
-      const transactions = [
+      const transactions: Array<{ transactionType: 'deposit' | 'balance' | 'refund' | 'tip' | 'full_payment'; orderId: string; customerId: string; paymentId?: string; amountCents: number; paymentMethod?: string; paymentMethodBrand?: string; stripeChargeId?: string; stripePaymentIntentId?: string; notes?: string }> = [
         {
           transactionType: 'deposit' as const,
           orderId,

@@ -33,8 +33,8 @@ export async function sendOrderEditNotifications({
       .select('link_token')
       .single();
 
-    if (!linkError && invoiceLink?.link_token) {
-      customerPortalUrl = `${window.location.origin}/invoice/${invoiceLink.link_token}`;
+    if (!linkError && (invoiceLink as any)?.link_token) {
+      customerPortalUrl = `${window.location.origin}/invoice/${(invoiceLink as any).link_token}`;
     } else {
       console.warn('[sendOrderEditNotifications] Failed to create invoice link, falling back to portal URL:', linkError);
     }

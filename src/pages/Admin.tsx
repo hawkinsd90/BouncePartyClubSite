@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { formatCurrency } from '../lib/pricing';
-import { Package, DollarSign, FileText } from 'lucide-react';
+import { Package, FileText } from 'lucide-react';
 import { ContactsList } from '../components/admin/ContactsList';
 import { InvoicesList } from '../components/admin/InvoicesList';
 import { OrdersManager } from '../components/admin/OrdersManager';
@@ -140,7 +139,7 @@ function AdminDashboard() {
     });
 
     return {
-      units: unitsWithImages || [],
+      units: (unitsWithImages || []) as UnitWithMedia[],
       orders: ordersRes.data || [],
       pricingRules: pricingRes.data,
     };
