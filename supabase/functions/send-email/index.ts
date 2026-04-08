@@ -144,7 +144,7 @@ Deno.serve(async (req: Request) => {
         .replace('{customer_first_name}', order.customers?.first_name || '')
         .replace('{customer_full_name}', `${order.customers?.first_name || ''} ${order.customers?.last_name || ''}`);
 
-      let contentHtml = template.content_template
+      const contentHtml = template.content_template
         .replace(/{customer_first_name}/g, order.customers?.first_name || '')
         .replace(/{customer_full_name}/g, `${order.customers?.first_name || ''} ${order.customers?.last_name || ''}`)
         .replace(/{order_id}/g, formattedOrderId)

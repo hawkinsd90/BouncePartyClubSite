@@ -416,8 +416,8 @@ Deno.serve(async (req: Request) => {
 
 async function createCheckoutSession(
   stripe: Stripe,
-  supabaseClient: any,
-  order: any,
+  _supabaseClient: any,
+  _order: any,
   customerId: string,
   balanceCents: number,
   tipCents: number,

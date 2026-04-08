@@ -121,11 +121,6 @@ Deno.serve(async (req: Request) => {
             if ('type' in pm.wallet) {
               paymentMethodType = pm.wallet.type || paymentMethodType;
             }
-            // If it's a wallet payment with card details
-            if (pm.type === 'card' && pm.card) {
-              paymentBrand = pm.card.brand || null;
-              paymentLast4 = pm.card.last4 || null;
-            }
           }
         }
 

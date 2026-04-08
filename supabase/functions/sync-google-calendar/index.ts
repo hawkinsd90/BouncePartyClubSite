@@ -351,7 +351,7 @@ Deno.serve(async (req: Request) => {
 
         // Deduplicate dates from queue
         const uniqueDates = new Set(queueRows.map((r: any) => r.event_date));
-        datesToSync = Array.from(uniqueDates);
+        datesToSync = Array.from(uniqueDates) as string[];
 
         // Mark all these queue rows as processed
         const queueIds = queueRows.map((r: any) => r.id);

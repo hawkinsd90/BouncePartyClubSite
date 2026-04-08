@@ -1,4 +1,5 @@
 {
+  "nodeModulesDir": "auto",
   "compilerOptions": {
     "lib": ["esnext", "dom", "deno.ns"],
     "types": ["jsr:@supabase/functions-js/edge-runtime"]

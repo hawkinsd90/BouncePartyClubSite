@@ -288,15 +288,15 @@ async function processWebhookEvent(
               // Extract payment method details from expanded payment_method
               const pm = pi.payment_method;
               if (pm && typeof pm === 'object') {
-                // @ts-ignore (pm is expanded PaymentMethod)
+                // @ts-ignore -- pm is expanded PaymentMethod, Stripe types vary in edge runtime
                 paymentMethodType = pm.type || null;
-                // @ts-ignore
+                // @ts-ignore -- pm is expanded PaymentMethod
                 expandedPaymentMethodId = pm.id || null;
-                // @ts-ignore
+                // @ts-ignore -- pm is expanded PaymentMethod
                 if (pm.card) {
-                  // @ts-ignore
+                  // @ts-ignore -- pm is expanded PaymentMethod
                   paymentBrand = pm.card.brand || null;
-                  // @ts-ignore
+                  // @ts-ignore -- pm is expanded PaymentMethod
                   paymentLast4 = pm.card.last4 || null;
                 }
               }
@@ -322,9 +322,9 @@ async function processWebhookEvent(
               const balanceTx = charge.balance_transaction;
               if (balanceTx && typeof balanceTx === 'object') {
                 // balanceTx is Stripe.BalanceTransaction when expanded
-                // @ts-ignore (Stripe types may vary in edge runtime)
+                // @ts-ignore -- balanceTx is expanded BalanceTransaction, Stripe types vary in edge runtime
                 stripeFee = balanceTx.fee || 0;
-                // @ts-ignore
+                // @ts-ignore -- balanceTx is expanded BalanceTransaction
                 stripeNet = balanceTx.net || amountPaid;
               } else {
                 console.warn('[WEBHOOK] balance_transaction was not expanded; fee tracking may be inaccurate', {
@@ -407,8 +407,8 @@ async function processWebhookEvent(
                 console.error("[WEBHOOK] apply_balance_payment_financials failed on 23505 path", { orderId, piId, repairErr });
                 throw new Error(`apply_balance_payment_financials failed (23505 path): ${repairErr.message}`);
               }
-              const r = Array.isArray(repairRows) ? repairRows[0] : repairRows;
-              // console.log("[WEBHOOK] 23505 repair RPC result", { orderId, piId, applied: r?.applied, payment_row_found: r?.payment_row_found });
+              const _r = Array.isArray(repairRows) ? repairRows[0] : repairRows;
+              // console.log("[WEBHOOK] 23505 repair RPC result", { orderId, piId, applied: _r?.applied, payment_row_found: _r?.payment_row_found });
 
               // Fetch the existing payment row (inserted by the first writer) so we can
               // log the transaction and send the admin notification email.
@@ -498,8 +498,8 @@ async function processWebhookEvent(
             throw new Error(`apply_balance_payment_financials failed: ${applyErr.message}`);
           }
 
-          const applyResult = Array.isArray(applyRows) ? applyRows[0] : applyRows;
-          // console.log("[WEBHOOK] apply_balance_payment_financials result", { orderId, piId, applied: applyResult?.applied, payment_row_found: applyResult?.payment_row_found });
+          const _applyResult = Array.isArray(applyRows) ? applyRows[0] : applyRows;
+          // console.log("[WEBHOOK] apply_balance_payment_financials result", { orderId, piId, applied: _applyResult?.applied, payment_row_found: _applyResult?.payment_row_found });
 
           // Save card details to orders so the customer portal shows the correct card
           if (paymentBrand || paymentLast4 || expandedPaymentMethodId) {
