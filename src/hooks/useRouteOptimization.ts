@@ -26,7 +26,7 @@ export function useRouteOptimization() {
         lng: task.lng,
       }));
 
-      const stopsWithCoords = routeStops.filter(s => s.lat != null && s.lng != null).length;
+      const _stopsWithCoords = routeStops.filter(s => s.lat != null && s.lng != null).length;
       // console.log(`[useRouteOptimization] ${stopsWithCoords}/${routeStops.length} stops have lat/lng coords`);
 
       if (originOverride) {
@@ -40,7 +40,7 @@ export function useRouteOptimization() {
       // console.log('[useRouteOptimization] Optimized stops order:',
       //   optimizedStops.map((s, i) => `${i + 1}. ${s.address}`).join('\n'));
 
-      const optimizedTasks = optimizedStops.map((stop, index) => {
+      const optimizedTasks = optimizedStops.map((stop, _index) => {
         const task = tasks.find(t => t.id === stop.taskId);
         if (!task) throw new Error('Task not found');
         // console.log(`[useRouteOptimization] Position ${index + 1}: ${task.customerName} at ${task.address}`);

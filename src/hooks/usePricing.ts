@@ -266,7 +266,7 @@ export function usePricing() {
       }
 
       // Store calculated tax for display
-      const originalTaxCents = calculatedTaxCents;
+      const _originalTaxCents = calculatedTaxCents;
 
       // Calculate total with all waivers applied
       const finalTotalCents = priceBreakdown.subtotal_cents + finalTravelFeeCents + finalSurfaceFeeCents + finalSameDayPickupFeeCents + finalGeneratorFeeCents + customFeesTotalCents - discountTotalCents + finalTaxCents;

@@ -99,14 +99,35 @@ export interface Database {
       crew_location_history: {
         Row: {
           id: string
-          user_id: string
-          lat: number
-          lng: number
+          order_id: string | null
+          stop_id: string | null
+          latitude: number
+          longitude: number
           accuracy: number | null
-          recorded_at: string
+          speed: number | null
+          heading: number | null
+          checkpoint: string | null
+          created_at: string
         }
-        Insert: Omit<Database['public']['Tables']['crew_location_history']['Row'], 'id' | 'recorded_at'> & { accuracy?: number | null }
+        Insert: Omit<Database['public']['Tables']['crew_location_history']['Row'], 'id' | 'created_at'>
         Update: Partial<Database['public']['Tables']['crew_location_history']['Insert']>
+        Relationships: []
+      }
+      customer_profiles: {
+        Row: {
+          id: string
+          user_id: string
+          contact_id: string | null
+          phone: string | null
+          email_notifications: boolean | null
+          sms_notifications: boolean | null
+          first_name: string | null
+          last_name: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['customer_profiles']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Database['public']['Tables']['customer_profiles']['Insert']>
         Relationships: []
       }
       customers: {
@@ -123,7 +144,7 @@ export interface Database {
           user_id: string | null
           created_at: string
         }
-        Insert: Omit<Database['public']['Tables']['customers']['Row'], 'id' | 'created_at'>
+        Insert: Omit<Database['public']['Tables']['customers']['Row'], 'id' | 'created_at' | 'oauth_provider' | 'oauth_profile_data' | 'default_address_id' | 'user_id'> & { oauth_provider?: string | null; oauth_profile_data?: Json | null; default_address_id?: string | null; user_id?: string | null }
         Update: Partial<Database['public']['Tables']['customers']['Insert']>
         Relationships: []
       }
@@ -467,21 +488,21 @@ export interface Database {
       pricing_rules: {
         Row: {
           id: string
-          base_radius_miles: number
-          included_city_list_json: Json
-          per_mile_after_base_cents: number
-          zone_overrides_json: Json
-          surface_sandbag_fee_cents: number
-          residential_multiplier: number
-          commercial_multiplier: number
-          same_day_matrix_json: Json
-          overnight_holiday_only: boolean
-          extra_day_pct: number
-          generator_price_cents: number
+          base_radius_miles: number | null
+          included_city_list_json: Json | null
+          per_mile_after_base_cents: number | null
+          zone_overrides_json: Json | null
+          surface_sandbag_fee_cents: number | null
+          residential_multiplier: number | null
+          commercial_multiplier: number | null
+          same_day_matrix_json: Json | null
+          overnight_holiday_only: boolean | null
+          extra_day_pct: number | null
+          generator_price_cents: number | null
           deposit_percentage: number | null
           deposit_per_unit_cents: number | null
           free_city_list_json: Json | null
-          same_day_pickup_fee_cents: number
+          same_day_pickup_fee_cents: number | null
           tax_rate: number | null
           generator_fee_single_cents: number | null
           generator_fee_multiple_cents: number | null

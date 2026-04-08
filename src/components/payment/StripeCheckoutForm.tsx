@@ -77,9 +77,9 @@ function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
 
   const handleLoadError = (_event: any) => {
     const timeSinceMount = Date.now() - mountTimeRef.current;
-    console.error('[CheckoutForm] ✗ PaymentElement loader error after', timeSinceMount, 'ms:', event);
-    console.error('[CheckoutForm] Error details:', JSON.stringify(event, null, 2));
-    console.error('[CheckoutForm] Error elementType:', event?.elementType);
+    console.error('[CheckoutForm] ✗ PaymentElement loader error after', timeSinceMount, 'ms:', _event);
+    console.error('[CheckoutForm] Error details:', JSON.stringify(_event, null, 2));
+    console.error('[CheckoutForm] Error elementType:', _event?.elementType);
     console.error('[CheckoutForm] Current state - mountTime:', mountTimeRef.current, 'canRender:', canRender, 'stripe:', !!stripe, 'elements:', !!elements);
     onError('Failed to load payment form. Please refresh and try again.');
   };

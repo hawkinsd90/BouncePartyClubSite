@@ -163,7 +163,7 @@ export function RouteManagementModal({
 
     if (startMode === 'last_completed') {
       if (lastCompletedTask) {
-        const ts = lastCompletedTask.taskStatus?.completedTime;
+        const _ts = lastCompletedTask.taskStatus?.completedTime;
         const origin: RouteOriginOptions = {
           address: lastCompletedTask.address,
           label: `Last Completed Stop (${lastCompletedTask.customerName})`,

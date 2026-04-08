@@ -134,7 +134,7 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
           : Promise.resolve({ data: null }),
         supabase
           .from('orders')
-          .select('address_id, addresses(*)')
+          .select('address_id, addresses!orders_address_id_fkey(*)')
           .eq('customer_id', customerData.id)
           .order('created_at', { ascending: false })
           .limit(1)
@@ -150,14 +150,15 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
           state: addressResult.data.state,
           zip: addressResult.data.zip,
         };
-      } else if (lastOrderResult.data?.addresses) {
+      } else if ((lastOrderResult.data as any)?.addresses) {
+        const addr = (lastOrderResult.data as any).addresses;
         defaultAddress = {
-          id: lastOrderResult.data.addresses.id,
-          line1: lastOrderResult.data.addresses.line1,
-          line2: lastOrderResult.data.addresses.line2,
-          city: lastOrderResult.data.addresses.city,
-          state: lastOrderResult.data.addresses.state,
-          zip: lastOrderResult.data.addresses.zip,
+          id: addr.id,
+          line1: addr.line1,
+          line2: addr.line2,
+          city: addr.city,
+          state: addr.state,
+          zip: addr.zip,
         };
       }
 

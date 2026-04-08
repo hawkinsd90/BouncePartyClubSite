@@ -132,8 +132,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         gpsLat = loc.lat; gpsLng = loc.lng;
         const eta = await calculateETA(loc, task.address);
         etaMinutes = eta.durationMinutes; etaDistance = eta.distanceText;
-        const { data: { user: locUser } } = await supabase.auth.getUser();
-        const { error: locErr } = await supabase.from('crew_location_history').insert({ lat: loc.lat, lng: loc.lng, user_id: locUser?.id || '' });
+        const { error: locErr } = await supabase.from('crew_location_history').insert({ latitude: loc.lat, longitude: loc.lng });
         if (locErr) console.warn('crew_location_history insert failed:', locErr.message);
       } catch (e: any) { console.warn('ETA calc failed:', e); etaCalcErr = e.message; }
 

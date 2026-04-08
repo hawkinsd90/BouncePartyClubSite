@@ -34,7 +34,6 @@ interface RegularPortalViewProps {
 
 export function RegularPortalView({ order, orderId, orderItems: _orderItems, orderSummary, invoiceLinkToken, onReload }: RegularPortalViewProps) {
   const navigate = useNavigate();
-  const _isPendingReview = order.status === 'pending_review';
   const lotPicturesRequested = order.lot_pictures_requested || false;
   const [activeTab, setActiveTab] = useState<'details' | 'lot-pictures' | 'waiver' | 'payment' | 'pictures' | 'delivery'>('details');
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -614,7 +613,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                       </span>
                     </div>
                     {orderSummary
-                      ? orderSummary.fees.map((fee, i) => (
+                      ? orderSummary.fees.map((fee: any, i: number) => (
                           <div key={i} className="flex justify-between text-sm">
                             <span className="text-slate-600">{fee.name}:</span>
                             <span className="font-semibold text-slate-900">{formatCurrency(fee.amount)}</span>
@@ -641,13 +640,13 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                           )}
                         </>
                     }
-                    {orderSummary && orderSummary.customFees.length > 0 && orderSummary.customFees.map((fee, i) => (
+                    {orderSummary && orderSummary.customFees.length > 0 && orderSummary.customFees.map((fee: any, i: number) => (
                       <div key={i} className="flex justify-between text-sm">
                         <span className="text-slate-600">{fee.name}:</span>
                         <span className="font-semibold text-slate-900">{formatCurrency(fee.amount)}</span>
                       </div>
                     ))}
-                    {orderSummary && orderSummary.discounts.length > 0 && orderSummary.discounts.map((d, i) => (
+                    {orderSummary && orderSummary.discounts.length > 0 && orderSummary.discounts.map((d: any, i: number) => (
                       <div key={i} className="flex justify-between text-sm">
                         <span className="text-green-700">{d.name}:</span>
                         <span className="font-semibold text-green-700">-{formatCurrency(d.amount)}</span>

@@ -56,8 +56,9 @@ export function useOrders(userId: string | undefined, userEmail: string | undefi
 
       let customerIds: string[] = [];
 
-      if (profileData?.contacts && (profileData.contacts as any)?.customer_id) {
-        customerIds.push((profileData.contacts as any).customer_id);
+      const profileAny = profileData as any;
+      if (profileAny?.contacts?.customer_id) {
+        customerIds.push(profileAny.contacts.customer_id);
       }
 
       if (emailCustomers) {

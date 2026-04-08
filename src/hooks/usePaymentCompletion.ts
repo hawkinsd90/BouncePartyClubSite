@@ -177,7 +177,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
             );
 
             if (savePaymentMethodResponse.ok) {
-              const result = await savePaymentMethodResponse.json();
+              await savePaymentMethodResponse.json();
               // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
               // Restore only after a true dev/staging environment and explicit safe gating are in place.
               // Previously logged a Stripe payment method ID (pm_xxx) in browser console.
@@ -224,7 +224,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
         await checkIfAdminInvoice();
 
         // Only send notifications if we haven't processed this payment before
-        if (!alreadyProcessed) {
+        if (!alreadyProcessed && order) {
           await sendNotificationsIfNeeded(order);
           SafeStorage.setItem(processedKey, 'true');
         }

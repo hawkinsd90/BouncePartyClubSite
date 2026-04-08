@@ -81,8 +81,8 @@ export function useAdminAnalytics(period: AnalyticsPeriod = 'all_time') {
     try {
       const { start, end } = getPeriodRange(period);
       const { data, error: rpcError } = await supabase.rpc('get_admin_analytics', {
-        p_start: start,
-        p_end: end,
+        p_start: start ?? undefined,
+        p_end: end ?? undefined,
       });
       if (rpcError) throw rpcError;
       setAnalytics(data as unknown as AdminAnalytics);
