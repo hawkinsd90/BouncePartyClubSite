@@ -434,7 +434,7 @@ export function Home() {
 
           <div className="text-center">
             <a
-              href="https://www.google.com/maps/place/Bounce+Party+Club/@42.280800,-83.386300,15z/data=!4m6!3m5!1s0x0:0x0!8m2!3d42.280800!4d-83.386300!16s%2Fg%2F11y3g7k9qy"
+              href="https://g.page/r/CcALHMmxBHPSEBM/review"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center text-blue-600 hover:text-blue-700 font-semibold text-lg transition-colors"
