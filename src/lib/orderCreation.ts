@@ -1,6 +1,5 @@
 import { supabase } from './supabase';
 import { checkMultipleUnitsAvailability, checkDateBlackout } from './availability';
-import { formatOrderId } from './utils';
 import { upsertCanonicalAddress } from './addressService';
 
 interface OrderData {

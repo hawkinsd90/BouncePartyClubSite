@@ -26,8 +26,7 @@ export function useRouteOptimization() {
         lng: task.lng,
       }));
 
-      const _stopsWithCoords = routeStops.filter(s => s.lat != null && s.lng != null).length;
-      // console.log(`[useRouteOptimization] ${stopsWithCoords}/${routeStops.length} stops have lat/lng coords`);
+      // console.log(`[useRouteOptimization] ${routeStops.filter(s => s.lat != null && s.lng != null).length}/${routeStops.length} stops have lat/lng coords`);
 
       if (originOverride) {
         // console.log(`[useRouteOptimization] Start mode: custom origin "${originOverride.label}" → ${originOverride.address}`);

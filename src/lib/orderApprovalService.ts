@@ -139,11 +139,12 @@ export async function approveOrder(
       console.error('Charge deposit failed:', data?.error || '(no error message)');
       // Send decline notification to customer
       try {
-        const { data: fullOrder } = await supabase
+        const { data: fullOrderRaw } = await supabase
           .from('orders')
           .select('*, customers(*), addresses(*)')
           .eq('id', orderId)
           .maybeSingle();
+        const fullOrder = fullOrderRaw as any;
 
         let declineUrl = `${window.location.origin}/customer-portal/${orderId}`;
         try {
@@ -220,13 +221,13 @@ export async function approveOrder(
         : (depositAmountCents + tipAmountCents);
 
     // Log deposit transaction and notify admin with grouped receipts
-    if (customerData) {
+    if (customerData && orderData.customer_id) {
       // Build array of transactions to log (grouped)
       const transactions = [
         {
           transactionType: 'deposit' as const,
           orderId,
-          customerId: orderData.customer_id,
+          customerId: orderData.customer_id as string,
           paymentId: paymentRecord?.id,
           amountCents: depositAmountCents,
           paymentMethod: data.paymentDetails?.paymentMethod,
@@ -242,7 +243,7 @@ export async function approveOrder(
         transactions.push({
           transactionType: 'tip' as const,
           orderId,
-          customerId: orderData.customer_id,
+          customerId: orderData.customer_id as string,
           paymentId: paymentRecord?.id,
           amountCents: tipAmountCents,
           paymentMethod: data.paymentDetails?.paymentMethod,

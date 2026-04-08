@@ -1,10 +1,10 @@
 import { supabase } from './supabase';
 
 interface PricingRules {
-  deposit_percentage: number;
-  deposit_per_unit_cents: number;
-  generator_fee_single_cents: number;
-  generator_fee_multiple_cents: number;
+  deposit_percentage: number | null;
+  deposit_per_unit_cents: number | null;
+  generator_fee_single_cents: number | null;
+  generator_fee_multiple_cents: number | null;
 }
 
 let cachedPricingRules: PricingRules | null = null;
@@ -32,7 +32,7 @@ async function fetchPricingRules(): Promise<PricingRules | null> {
 export async function getDepositPercentage(): Promise<number> {
   // If we already have cached data, return it
   if (cachedPricingRules) {
-    return cachedPricingRules.deposit_percentage;
+    return cachedPricingRules.deposit_percentage ?? 0.25;
   }
 
   // If a fetch is already in progress, wait for it

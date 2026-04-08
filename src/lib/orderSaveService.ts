@@ -417,7 +417,7 @@ export async function saveOrderChanges({
     if (adminOverrideApproval) {
       try {
         const { enterConfirmed } = await import('./orderLifecycle');
-        const lcResult = await enterConfirmed(order.id, 'admin_override_approval', 'waived', oldStatus);
+        const lcResult = await enterConfirmed(order.id, 'admin_override_approval', 'waived', oldStatus) as { success: boolean; error?: string; alreadySent?: boolean };
         if (!lcResult.success && !lcResult.alreadySent) {
           console.error('[orderSaveService] enterConfirmed (admin-override) returned success=false:', lcResult.error);
         }

@@ -109,7 +109,7 @@ export interface Database {
           checkpoint: string | null
           created_at: string
         }
-        Insert: Omit<Database['public']['Tables']['crew_location_history']['Row'], 'id' | 'created_at'>
+        Insert: { latitude: number; longitude: number; order_id?: string | null; stop_id?: string | null; accuracy?: number | null; speed?: number | null; heading?: number | null; checkpoint?: string | null }
         Update: Partial<Database['public']['Tables']['crew_location_history']['Insert']>
         Relationships: []
       }
@@ -216,6 +216,15 @@ export interface Database {
           due_date: string | null
           paid_at: string | null
           created_at: string
+          customer_id?: string | null
+          status?: string | null
+          subtotal_cents?: number | null
+          tax_cents?: number | null
+          travel_fee_cents?: number | null
+          surface_fee_cents?: number | null
+          same_day_pickup_fee_cents?: number | null
+          total_cents?: number | null
+          paid_amount_cents?: number | null
         }
         Insert: Omit<Database['public']['Tables']['invoices']['Row'], 'id' | 'created_at'>
         Update: Partial<Database['public']['Tables']['invoices']['Insert']>
@@ -357,7 +366,7 @@ export interface Database {
           created_at: string
           updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['orders']['Row'], 'id' | 'order_number' | 'created_at' | 'updated_at'>
+        Insert: Omit<Database['public']['Tables']['orders']['Row'], 'id' | 'order_number' | 'created_at' | 'updated_at' | 'until_end_of_day' | 'location_type' | 'surface' | 'pickup_preference' | 'same_day_responsibility_accepted' | 'overnight_responsibility_accepted' | 'subtotal_cents' | 'travel_fee_cents' | 'travel_total_miles' | 'travel_base_radius_miles' | 'travel_chargeable_miles' | 'travel_per_mile_cents' | 'travel_is_flat_fee' | 'surface_fee_cents' | 'same_day_pickup_fee_cents' | 'generator_fee_cents' | 'generator_qty' | 'tax_cents' | 'tax_waived' | 'travel_fee_waived' | 'same_day_pickup_fee_waived' | 'tip_cents' | 'total_cents' | 'deposit_due_cents' | 'deposit_paid_cents' | 'balance_due_cents' | 'card_on_file_consent' | 'sms_consent' | 'booking_confirmation_sent' | 'pending_review_admin_alerted' | 'confirmed_admin_alerted'> & { until_end_of_day?: boolean; location_type?: string; surface?: string; pickup_preference?: string; same_day_responsibility_accepted?: boolean; overnight_responsibility_accepted?: boolean; subtotal_cents?: number; travel_fee_cents?: number; travel_total_miles?: number; travel_base_radius_miles?: number; travel_chargeable_miles?: number; travel_per_mile_cents?: number; travel_is_flat_fee?: boolean; surface_fee_cents?: number; same_day_pickup_fee_cents?: number; generator_fee_cents?: number; generator_qty?: number; tax_cents?: number; tax_waived?: boolean; travel_fee_waived?: boolean; same_day_pickup_fee_waived?: boolean; tip_cents?: number; total_cents?: number; deposit_due_cents?: number; deposit_paid_cents?: number; balance_due_cents?: number; card_on_file_consent?: boolean; sms_consent?: boolean; booking_confirmation_sent?: boolean; pending_review_admin_alerted?: boolean; confirmed_admin_alerted?: boolean }
         Update: Partial<Database['public']['Tables']['orders']['Insert']>
         Relationships: []
       }
@@ -760,10 +769,11 @@ export interface Database {
           page_path: string | null
           session_id: string | null
           unit_id: string | null
+          order_id: string | null
           metadata: Json | null
           created_at: string
         }
-        Insert: Omit<Database['public']['Tables']['site_events']['Row'], 'id' | 'created_at'>
+        Insert: Omit<Database['public']['Tables']['site_events']['Row'], 'id' | 'created_at'> & { metadata?: Record<string, unknown> | Json | null }
         Update: Partial<Database['public']['Tables']['site_events']['Insert']>
         Relationships: []
       }
@@ -805,6 +815,29 @@ export interface Database {
         }
         Insert: Omit<Database['public']['Tables']['invoice_links']['Row'], 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Database['public']['Tables']['invoice_links']['Insert']>
+        Relationships: []
+      }
+      transaction_receipts: {
+        Row: {
+          id: string
+          receipt_number: string
+          transaction_type: string
+          order_id: string
+          customer_id: string
+          payment_id: string | null
+          amount_cents: number
+          payment_method: string | null
+          payment_method_brand: string | null
+          stripe_charge_id: string | null
+          stripe_payment_intent_id: string | null
+          notes: string | null
+          receipt_group_id: string | null
+          receipt_sent_to_admin: boolean | null
+          admin_notified_at: string | null
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['transaction_receipts']['Row'], 'id' | 'receipt_number' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['transaction_receipts']['Insert']>
         Relationships: []
       }
     }
@@ -870,6 +903,25 @@ export interface Database {
       get_admin_analytics: {
         Args: { p_start?: string; p_end?: string }
         Returns: Json
+      }
+      check_date_blackout: {
+        Args: { p_start: string; p_end: string }
+        Returns: { is_full_blocked: boolean; is_same_day_pickup_blocked: boolean }
+      }
+      upsert_contact_from_checkout: {
+        Args: {
+          p_first_name: string
+          p_last_name: string
+          p_email: string
+          p_phone: string
+          p_business_name: string | null
+          p_opt_in_sms: boolean
+        }
+        Returns: void
+      }
+      approve_order: {
+        Args: { p_order_id: string; p_user_id: string }
+        Returns: boolean
       }
     }
     Enums: {}

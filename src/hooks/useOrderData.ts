@@ -52,7 +52,8 @@ export function useOrderData() {
         return null;
       }
 
-      const { data: orderData, error } = await getOrderById(orderIdToLoad);
+      const { data: orderDataRaw, error } = await getOrderById(orderIdToLoad);
+      const orderData = orderDataRaw as any;
 
       if (error || !orderData) {
         console.error('Error loading order:', error);

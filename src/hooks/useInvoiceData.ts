@@ -23,28 +23,29 @@ export function useInvoiceData() {
       if (customersRes.data) setCustomers(customersRes.data);
       if (unitsRes.data) setUnits(unitsRes.data);
       if (rulesRes.data) {
+        const r = rulesRes.data as any;
         setPricingRules({
-          base_radius_miles: rulesRes.data.base_radius_miles,
-          included_city_list_json: rulesRes.data.included_city_list_json as string[],
-          per_mile_after_base_cents: rulesRes.data.per_mile_after_base_cents,
-          zone_overrides_json: rulesRes.data.zone_overrides_json as Array<{ zip: string; flat_cents: number }>,
-          surface_sandbag_fee_cents: rulesRes.data.surface_sandbag_fee_cents,
-          residential_multiplier: rulesRes.data.residential_multiplier,
-          commercial_multiplier: rulesRes.data.commercial_multiplier,
-          same_day_matrix_json: rulesRes.data.same_day_matrix_json as Array<{
+          base_radius_miles: r.base_radius_miles,
+          included_city_list_json: r.included_city_list_json as string[],
+          per_mile_after_base_cents: r.per_mile_after_base_cents,
+          zone_overrides_json: r.zone_overrides_json as Array<{ zip: string; flat_cents: number }>,
+          surface_sandbag_fee_cents: r.surface_sandbag_fee_cents,
+          residential_multiplier: r.residential_multiplier,
+          commercial_multiplier: r.commercial_multiplier,
+          same_day_matrix_json: r.same_day_matrix_json as Array<{
             units: number;
             generator: boolean;
             subtotal_ge_cents: number;
             fee_cents: number;
           }>,
-          overnight_holiday_only: rulesRes.data.overnight_holiday_only,
-          extra_day_pct: rulesRes.data.extra_day_pct,
-          generator_price_cents: rulesRes.data.generator_price_cents,
-          deposit_per_unit_cents: rulesRes.data.deposit_per_unit_cents,
-          same_day_pickup_fee_cents: rulesRes.data.same_day_pickup_fee_cents,
-          generator_fee_single_cents: rulesRes.data.generator_fee_single_cents,
-          generator_fee_multiple_cents: rulesRes.data.generator_fee_multiple_cents,
-          apply_taxes_by_default: rulesRes.data.apply_taxes_by_default,
+          overnight_holiday_only: r.overnight_holiday_only,
+          extra_day_pct: r.extra_day_pct,
+          generator_price_cents: r.generator_price_cents,
+          deposit_per_unit_cents: r.deposit_per_unit_cents,
+          same_day_pickup_fee_cents: r.same_day_pickup_fee_cents,
+          generator_fee_single_cents: r.generator_fee_single_cents,
+          generator_fee_multiple_cents: r.generator_fee_multiple_cents,
+          apply_taxes_by_default: r.apply_taxes_by_default,
         });
       }
     } finally {

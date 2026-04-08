@@ -67,18 +67,19 @@ async function getSingleDistanceMatrixChunk(
     }
 
     service.getDistanceMatrix(request, (response, status) => {
-      if (status !== 'OK') {
-        console.error('[Route Optimization] Distance Matrix API error:', status);
+      const statusStr = status as unknown as string;
+      if (statusStr !== 'OK') {
+        console.error('[Route Optimization] Distance Matrix API error:', statusStr);
         const readable =
-          status === 'INVALID_REQUEST'
+          statusStr === 'INVALID_REQUEST'
             ? 'One or more addresses could not be understood by Google Maps. Please verify all addresses are complete and valid.'
-            : status === 'MAX_ELEMENTS_EXCEEDED'
+            : statusStr === 'MAX_ELEMENTS_EXCEEDED'
             ? 'Too many stops for a single Distance Matrix request. This is a bug — please report it.'
-            : status === 'OVER_DAILY_LIMIT' || status === 'OVER_QUERY_LIMIT'
+            : statusStr === 'OVER_DAILY_LIMIT' || statusStr === 'OVER_QUERY_LIMIT'
             ? 'Google Maps API quota exceeded. Please try again later or contact support.'
-            : status === 'REQUEST_DENIED'
+            : statusStr === 'REQUEST_DENIED'
             ? 'Google Maps API access denied. Please check the API key configuration.'
-            : `Google Maps Distance Matrix error: ${status}. Please check addresses and try again.`;
+            : `Google Maps Distance Matrix error: ${statusStr}. Please check addresses and try again.`;
         reject(new Error(readable));
         return;
       }
@@ -199,11 +200,11 @@ function isEarlyEvent(eventStartTime?: string): boolean {
 function debugStopSummary(stops: MorningRouteStop[]): void {
   // console.log('[DEBUG] ========== STOP SUMMARY ==========');
   for (const stop of stops) {
-    const equipIds = [...stop.equipmentIds].sort().join(', ') || '(none)';
+    void stop.taskId;
     // console.log(`[DEBUG] Stop: ${stop.taskId}`);
     // console.log(`  - Type: ${stop.type}`);
     // console.log(`  - Address: ${stop.address}`);
-    // console.log(`  - EquipmentIds: [${equipIds}]`);
+    // console.log(`  - EquipmentIds: [${[...stop.equipmentIds].sort().join(', ')}]`);
     // console.log(`  - NumInflatables: ${stop.numInflatables ?? 0}`);
     // console.log(`  - EventStartTime: ${stop.eventStartTime ?? 'N/A'}`);
   }
@@ -220,12 +221,7 @@ function debugDependencyGraph(deps: Map<string, string[]>, stops: MorningRouteSt
   // console.log('[DEBUG] Drop-off dependencies:');
   for (const stop of stops) {
     if (stop.type === 'drop-off') {
-      const dependencies = deps.get(stop.taskId) || [];
-      if (dependencies.length > 0) {
-        // console.log(`[DEBUG] DROP ${stop.taskId} depends on: [${dependencies.join(', ')}]`);
-      } else {
-        // console.log(`[DEBUG] DROP ${stop.taskId} has NO dependencies`);
-      }
+      // console.log(`[DEBUG] DROP ${stop.taskId} depends on: [${(deps.get(stop.taskId) || []).join(', ')}]`);
     }
   }
 
@@ -255,11 +251,9 @@ function debugDependencyGraph(deps: Map<string, string[]>, stops: MorningRouteSt
 
   const allEquipIds = new Set([...equipmentToPickup.keys(), ...equipmentToDropoffs.keys()]);
   for (const equipId of allEquipIds) {
-    const pickup = equipmentToPickup.get(equipId) || 'NONE';
-    const dropoffs = equipmentToDropoffs.get(equipId) || [];
     // console.log(`[DEBUG] EquipmentId "${equipId}":`);
-    // console.log(`  - Pickup: ${pickup}`);
-    // console.log(`  - Drop-offs: [${dropoffs.join(', ') || 'NONE'}]`);
+    // console.log(`  - Pickup: ${equipmentToPickup.get(equipId) || 'NONE'}`);
+    // console.log(`  - Drop-offs: [${(equipmentToDropoffs.get(equipId) || []).join(', ') || 'NONE'}]`);
   }
 
   // console.log('[DEBUG] =========================================');
