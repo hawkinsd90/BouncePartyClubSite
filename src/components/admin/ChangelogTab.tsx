@@ -9,11 +9,13 @@ interface OrderChange {
   id: string;
   order_id: string;
   field_changed: string | null;
+  field_name: string | null;
   old_value: string | null;
   new_value: string | null;
   change_type: string;
   created_at: string;
   user_id: string | null;
+  changed_by: string | null;
 }
 
 interface GroupedOrderChange {

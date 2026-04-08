@@ -36,7 +36,7 @@ export function ContactsList() {
   }, []);
 
   const { data: contactsData, loading, refetch } = useSupabaseQuery<Contact[]>(
-    fetchContacts,
+    fetchContacts as () => Promise<{ data: Contact[] | null; error: any }>,
     { errorMessage: 'Failed to load contacts' }
   );
 
@@ -67,7 +67,7 @@ export function ContactsList() {
   }, [refetch]);
 
   const { mutate: updateContact, loading: saving } = useMutation<Contact, Contact>(
-    updateContactFn,
+    updateContactFn as (contact: Contact) => Promise<Contact>,
     {
       successMessage: 'Contact updated successfully!',
       errorMessage: 'Failed to update contact',

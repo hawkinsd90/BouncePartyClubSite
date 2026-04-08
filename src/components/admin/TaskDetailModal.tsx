@@ -109,7 +109,8 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         gpsLat = loc.lat; gpsLng = loc.lng;
         const eta = await calculateETA(loc, task.address);
         etaMinutes = eta.durationMinutes; etaDistance = eta.distanceText;
-        const { error: locErr } = await supabase.from('crew_location_history').insert({ latitude: loc.lat, longitude: loc.lng, order_id: task.orderId });
+        const { data: { user: locUser } } = await supabase.auth.getUser();
+        const { error: locErr } = await supabase.from('crew_location_history').insert({ lat: loc.lat, lng: loc.lng, user_id: locUser?.id || '' });
         if (locErr) console.warn('crew_location_history insert failed:', locErr.message);
       } catch (e: any) { console.warn('ETA calc failed:', e); etaCalcErr = e.message; }
 
@@ -367,8 +368,8 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const cur = tasksOfSameType[idx]; const swap = tasksOfSameType[swapIdx];
       const curOrder = cur.taskStatus?.sortOrder || idx; const swapOrder = swap.taskStatus?.sortOrder || swapIdx;
       const updates: Promise<{ error: any }>[] = [];
-      if (cur.taskStatus?.id) updates.push(supabase.from('task_status').update({ sort_order: swapOrder }).eq('id', cur.taskStatus.id));
-      if (swap.taskStatus?.id) updates.push(supabase.from('task_status').update({ sort_order: curOrder }).eq('id', swap.taskStatus.id));
+      if (cur.taskStatus?.id) updates.push(supabase.from('task_status').update({ sort_order: swapOrder }).eq('id', cur.taskStatus.id) as unknown as Promise<{ error: any }>);
+      if (swap.taskStatus?.id) updates.push(supabase.from('task_status').update({ sort_order: curOrder }).eq('id', swap.taskStatus.id) as unknown as Promise<{ error: any }>);
       const results = await Promise.all(updates);
       const err = results.find(r => r.error)?.error;
       if (err) throw new Error('Failed to reorder: ' + err.message);
@@ -571,8 +572,8 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
                 </p>
                 <p className="text-green-100 text-sm mt-0.5">
                   This task has been marked as completed.
-                  {task.taskStatus?.completed_time && (
-                    <span> Completed at {new Date(task.taskStatus.completed_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}.</span>
+                  {task.taskStatus?.completedTime && (
+                    <span> Completed at {new Date(task.taskStatus.completedTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}.</span>
                   )}
                 </p>
               </div>

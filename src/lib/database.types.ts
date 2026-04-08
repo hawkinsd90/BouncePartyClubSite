@@ -69,9 +69,17 @@ export interface Database {
         Row: {
           id: string
           name: string
+          first_name: string | null
+          last_name: string | null
           email: string | null
           phone: string | null
           business_name: string | null
+          total_bookings: number
+          total_spent_cents: number
+          completed_bookings_count: number
+          is_repeat_customer: boolean
+          last_completed_booking_date: string | null
+          first_completed_booking_date: string | null
           created_at: string
         }
         Insert: Omit<Database['public']['Tables']['contacts']['Row'], 'id' | 'created_at'>
@@ -115,6 +123,21 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['customers']['Insert']>
         Relationships: []
       }
+      daily_mileage_logs: {
+        Row: {
+          id: string
+          user_id: string
+          date: string
+          start_mileage: number | null
+          end_mileage: number | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['daily_mileage_logs']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Database['public']['Tables']['daily_mileage_logs']['Insert']>
+        Relationships: []
+      }
       documents: {
         Row: {
           id: string
@@ -125,6 +148,22 @@ export interface Database {
         }
         Insert: Omit<Database['public']['Tables']['documents']['Row'], 'id' | 'created_at'>
         Update: Partial<Database['public']['Tables']['documents']['Insert']>
+        Relationships: []
+      }
+      hero_carousel_images: {
+        Row: {
+          id: string
+          image_url: string
+          storage_path: string | null
+          media_type: string
+          title: string | null
+          description: string | null
+          display_order: number
+          is_active: boolean
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['hero_carousel_images']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['hero_carousel_images']['Insert']>
         Relationships: []
       }
       hero_carousel_slides: {
@@ -237,6 +276,11 @@ export interface Database {
           admin_message: string | null
           booking_confirmation_sent: boolean
           cancellation_reason: string | null
+          lot_pictures_requested: boolean | null
+          lot_pictures_requested_at: string | null
+          workflow_status: string | null
+          waiver_signed_at: string | null
+          e_signature_consent: boolean | null
           created_at: string
           updated_at: string
         }
@@ -249,8 +293,10 @@ export interface Database {
           id: string
           order_id: string
           changed_by: string | null
+          user_id: string | null
           change_type: string
           field_name: string | null
+          field_changed: string | null
           old_value: string | null
           new_value: string | null
           notes: string | null
@@ -299,6 +345,19 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['order_items']['Insert']>
         Relationships: []
       }
+      order_lot_pictures: {
+        Row: {
+          id: string
+          order_id: string
+          image_url: string
+          uploaded_by: string | null
+          notes: string | null
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['order_lot_pictures']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['order_lot_pictures']['Insert']>
+        Relationships: []
+      }
       order_pictures: {
         Row: {
           id: string
@@ -321,8 +380,14 @@ export interface Database {
           renter_name: string
           renter_phone: string
           renter_email: string | null
+          signer_name: string | null
+          signer_phone: string | null
+          signer_email: string | null
+          typed_name: string | null
           ip_address: string | null
           user_agent: string | null
+          waiver_version: string | null
+          electronic_consent_given: boolean | null
           signed_at: string
         }
         Insert: Omit<Database['public']['Tables']['order_signatures']['Row'], 'id' | 'signed_at'>
@@ -443,7 +508,19 @@ export interface Database {
           crew_notes: string | null
           admin_notes: string | null
           completed_at: string | null
+          completed_time: string | null
           estimated_arrival: string | null
+          sort_order: number | null
+          task_type: string | null
+          task_date: string | null
+          en_route_time: string | null
+          eta_sent: boolean | null
+          waiver_reminder_sent: boolean | null
+          payment_reminder_sent: boolean | null
+          calculated_eta_minutes: number | null
+          gps_lat: number | null
+          gps_lng: number | null
+          eta_calculation_error: string | null
           created_at: string
           updated_at: string
         }
@@ -496,6 +573,20 @@ export interface Database {
         }
         Insert: Omit<Database['public']['Tables']['user_roles']['Row'], 'id' | 'created_at'>
         Update: Partial<Database['public']['Tables']['user_roles']['Insert']>
+        Relationships: []
+      }
+      user_permissions_changelog: {
+        Row: {
+          id: string
+          target_user_id: string
+          action: string
+          old_role: string | null
+          new_role: string | null
+          changed_by_user_id: string | null
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['user_permissions_changelog']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['user_permissions_changelog']['Insert']>
         Relationships: []
       }
       auth_trigger_logs: {
@@ -616,6 +707,22 @@ export interface Database {
       get_unresolved_failures_count: {
         Args: Record<string, never>
         Returns: number
+      }
+      get_all_role_users: {
+        Args: Record<string, never>
+        Returns: Array<{ user_id: string; user_role: string | null; email: string; created_at: string }>
+      }
+      assign_role_by_email: {
+        Args: { p_email: string; p_role: string }
+        Returns: boolean
+      }
+      archive_old_orders: {
+        Args: Record<string, never>
+        Returns: number
+      }
+      get_admin_analytics: {
+        Args: { p_start_date?: string; p_end_date?: string }
+        Returns: Json
       }
     }
     Enums: {}
