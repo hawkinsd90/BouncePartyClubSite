@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import type { Json } from './database.types';
 
 let sessionId: string | null = null;
 
@@ -80,7 +81,7 @@ export async function trackEvent(
       unit_id: options.unitId || null,
       order_id: options.orderId || null,
       page_path: pagePath,
-      metadata: (options.metadata || {}) as Record<string, unknown>,
+      metadata: (options.metadata as Json) || null,
     });
   } catch {
     // Tracking failures must never break the user experience

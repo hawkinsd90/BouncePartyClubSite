@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "lib": ["esnext", "deno.ns", "deno.unstable"],
+    "lib": ["esnext", "dom", "deno.ns"],
     "types": ["jsr:@supabase/functions-js/edge-runtime"]
   },
   "fmt": {

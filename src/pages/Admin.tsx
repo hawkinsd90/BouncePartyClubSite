@@ -140,7 +140,7 @@ function AdminDashboard() {
 
     return {
       units: (unitsWithImages || []) as UnitWithMedia[],
-      orders: ordersRes.data || [],
+      orders: (ordersRes.data || []) as OrderWithRelations[],
       pricingRules: pricingRes.data,
     };
   }, []);

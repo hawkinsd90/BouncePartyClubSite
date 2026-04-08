@@ -12,9 +12,9 @@ const log = createLogger('Login');
 const FAILED_ATTEMPT_THRESHOLD = 3;
 const COOLDOWN_SECONDS = 30;
 
-function isIOSDevice() {
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-}
+// function isIOSDevice() {
+//   return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+// }
 
 // Map raw Supabase/auth error messages to clear user-facing strings.
 // Supabase does not return typed error codes for most auth errors, so we match on message text.

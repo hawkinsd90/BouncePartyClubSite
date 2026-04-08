@@ -110,7 +110,7 @@ Deno.serve(async (req: Request) => {
 
         // Extract payment method details
         if (paymentIntent.payment_method) {
-          const pm = paymentIntent.payment_method as unknown as { type?: string; card?: { brand?: string; last4?: string } };
+          const pm = paymentIntent.payment_method as unknown as { type?: string; card?: { brand?: string; last4?: string }; wallet?: { type?: string } };
           paymentMethodType = pm.type || null;
 
           if (pm.card) {

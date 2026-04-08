@@ -528,8 +528,6 @@ async function greedyRouteConstruction(
       const sorted = [...firstLegCandidates].sort((a, b) => a.score - b.score);
       // console.log('[Greedy Standard] First-leg candidate comparison (origin = matrix row 0):');
       sorted.forEach((c, _i) => {
-        const _marker = c.address === bestStop!.address ? ' <-- WINNER' : '';
-        const _eligStr = c.eligible ? '' : ' [SKIPPED: dependency]';
         // console.log(
         //   `  ${i + 1}. "${c.address}"${eligStr}${marker}\n` +
         //   `     drive: ${isFinite(c.driveMins) ? c.driveMins.toFixed(1) : 'Inf'} min, ` +

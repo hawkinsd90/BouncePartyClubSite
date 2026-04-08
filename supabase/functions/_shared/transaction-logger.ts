@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.57.4";
+import { SupabaseClient } from "npm:@supabase/supabase-js@2.57.4";
 import { formatOrderId } from "./format-order-id.ts";
 
 interface TransactionLogData {

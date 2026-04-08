@@ -73,14 +73,14 @@ export async function logTransaction(data: TransactionReceiptData): Promise<stri
         transaction_type: data.transactionType,
         order_id: data.orderId,
         customer_id: data.customerId,
-        payment_id: data.paymentId,
+        payment_id: data.paymentId ?? null,
         amount_cents: data.amountCents,
-        payment_method: data.paymentMethod,
-        payment_method_brand: data.paymentMethodBrand,
-        stripe_charge_id: data.stripeChargeId,
-        stripe_payment_intent_id: data.stripePaymentIntentId,
-        notes: data.notes,
-        receipt_group_id: data.receiptGroupId,
+        payment_method: data.paymentMethod ?? null,
+        payment_method_brand: data.paymentMethodBrand ?? null,
+        stripe_charge_id: data.stripeChargeId ?? null,
+        stripe_payment_intent_id: data.stripePaymentIntentId ?? null,
+        notes: data.notes ?? null,
+        receipt_group_id: data.receiptGroupId ?? null,
       })
       .select('receipt_number')
       .single();
