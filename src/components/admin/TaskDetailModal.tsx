@@ -60,7 +60,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         if (!user) return;
         const dateStr = task.date.toISOString().split('T')[0];
         const { data } = await supabase
-          .from('daily_mileage_logs' as any).select('*')
+          .from('daily_mileage_logs').select('*')
           .eq('date', dateStr).eq('user_id', user.id).maybeSingle();
         setMileageLog(data);
       } catch (error) { console.error('Error loading mileage log:', error); }
@@ -109,7 +109,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         gpsLat = loc.lat; gpsLng = loc.lng;
         const eta = await calculateETA(loc, task.address);
         etaMinutes = eta.durationMinutes; etaDistance = eta.distanceText;
-        const { error: locErr } = await supabase.from('crew_location_history').insert({ lat: loc.lat, lng: loc.lng, user_id: task.orderId });
+        const { error: locErr } = await supabase.from('crew_location_history').insert({ latitude: loc.lat, longitude: loc.lng, order_id: task.orderId });
         if (locErr) console.warn('crew_location_history insert failed:', locErr.message);
       } catch (e: any) { console.warn('ETA calc failed:', e); etaCalcErr = e.message; }
 
@@ -366,7 +366,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       if (swapIdx < 0 || swapIdx >= tasksOfSameType.length) return;
       const cur = tasksOfSameType[idx]; const swap = tasksOfSameType[swapIdx];
       const curOrder = cur.taskStatus?.sortOrder || idx; const swapOrder = swap.taskStatus?.sortOrder || swapIdx;
-      const updates: PromiseLike<{ error: any }>[] = [];
+      const updates: Promise<{ error: any }>[] = [];
       if (cur.taskStatus?.id) updates.push(supabase.from('task_status').update({ sort_order: swapOrder }).eq('id', cur.taskStatus.id));
       if (swap.taskStatus?.id) updates.push(supabase.from('task_status').update({ sort_order: curOrder }).eq('id', swap.taskStatus.id));
       const results = await Promise.all(updates);
@@ -571,7 +571,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
                 </p>
                 <p className="text-green-100 text-sm mt-0.5">
                   This task has been marked as completed.
-                  {task.taskStatus?.completedTime && (
+                  {task.taskStatus?.completed_time && (
                     <span> Completed at {new Date(task.taskStatus.completed_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}.</span>
                   )}
                 </p>

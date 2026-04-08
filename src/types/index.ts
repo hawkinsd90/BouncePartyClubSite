@@ -74,21 +74,13 @@ export interface Address {
 
 export interface Contact {
   id: string;
-  customer_id?: string | null;
-  first_name: string;
-  last_name: string;
-  email?: string | null;
-  phone?: string | null;
-  business_name?: string | null;
-  opt_in_email?: boolean;
-  opt_in_sms?: boolean;
-  source?: string | null;
-  tags?: string[] | null;
-  last_contact_date?: string | null;
-  total_bookings: number;
+  name: string;
+  email?: string;
+  phone?: string;
+  business_name?: string;
+  bookings_count: number;
   total_spent_cents: number;
   created_at: string;
-  updated_at?: string;
 }
 
 export interface CartItem {

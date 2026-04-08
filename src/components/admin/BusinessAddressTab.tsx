@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MapPin, Save, CreditCard as Edit2, X } from 'lucide-react';
+import { MapPin, Save, Edit2, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { notifyError, notifySuccess } from '../../lib/notifications';
 import { AddressAutocomplete } from '../order/AddressAutocomplete';
@@ -96,15 +96,25 @@ export function BusinessAddressTab({ onAddressUpdate }: BusinessAddressTabProps)
     }
   };
 
-  const handleAddressSelect = (result: { street: string; city: string; state: string; zip: string; lat: number; lng: number }) => {
+  const handleAddressSelect = (result: google.maps.places.PlaceResult) => {
+    if (!result.geometry?.location) return;
+
+    const addressComponents = result.address_components || [];
+    const getComponent = (type: string) =>
+      addressComponents.find((c) => c.types.includes(type))?.long_name || '';
+
+    const streetNumber = getComponent('street_number');
+    const route = getComponent('route');
+    const line1 = `${streetNumber} ${route}`.trim();
+
     setEditedAddress({
-      line1: result.street,
+      line1,
       line2: '',
-      city: result.city,
-      state: result.state,
-      zip: result.zip,
-      lat: result.lat,
-      lng: result.lng,
+      city: getComponent('locality') || getComponent('sublocality'),
+      state: getComponent('administrative_area_level_1'),
+      zip: getComponent('postal_code'),
+      lat: result.geometry.location.lat(),
+      lng: result.geometry.location.lng(),
     });
   };
 

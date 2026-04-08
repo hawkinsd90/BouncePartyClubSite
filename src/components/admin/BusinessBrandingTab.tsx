@@ -209,15 +209,25 @@ export function BusinessBrandingTab() {
     return descriptions[key] || '';
   }
 
-  function handleAddressSelect(result: { street: string; city: string; state: string; zip: string; lat: number; lng: number }) {
+  function handleAddressSelect(result: google.maps.places.PlaceResult) {
+    if (!result.geometry?.location) return;
+
+    const addressComponents = result.address_components || [];
+    const getComponent = (type: string) =>
+      addressComponents.find((c) => c.types.includes(type))?.long_name || '';
+
+    const streetNumber = getComponent('street_number');
+    const route = getComponent('route');
+    const line1 = `${streetNumber} ${route}`.trim();
+
     setTravelAddress({
-      line1: result.street,
+      line1,
       line2: '',
-      city: result.city,
-      state: result.state,
-      zip: result.zip,
-      lat: result.lat,
-      lng: result.lng,
+      city: getComponent('locality') || getComponent('sublocality'),
+      state: getComponent('administrative_area_level_1'),
+      zip: getComponent('postal_code'),
+      lat: result.geometry.location.lat(),
+      lng: result.geometry.location.lng(),
     });
   }
 
@@ -296,16 +306,26 @@ export function BusinessBrandingTab() {
                 <AddressAutocomplete
                   value=""
                   onSelect={(result) => {
-                    const formatted = result.formatted_address || result.street;
+                    if (!result.geometry?.location) return;
+                    const formatted = result.formatted_address || '';
                     setSettings({ ...settings, business_address: formatted });
+
+                    // Update travel address with parsed components
+                    const addressComponents = result.address_components || [];
+                    const getComponent = (type: string) =>
+                      addressComponents.find((c) => c.types.includes(type))?.long_name || '';
+                    const streetNumber = getComponent('street_number');
+                    const route = getComponent('route');
+                    const line1 = `${streetNumber} ${route}`.trim();
+
                     setTravelAddress({
-                      line1: result.street,
+                      line1,
                       line2: '',
-                      city: result.city,
-                      state: result.state,
-                      zip: result.zip,
-                      lat: result.lat,
-                      lng: result.lng,
+                      city: getComponent('locality') || getComponent('sublocality'),
+                      state: getComponent('administrative_area_level_1'),
+                      zip: getComponent('postal_code'),
+                      lat: result.geometry.location.lat(),
+                      lng: result.geometry.location.lng(),
                     });
                   }}
                 />
