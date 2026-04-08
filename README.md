@@ -88,12 +88,12 @@ supabase/
 | File | Contents |
 |---|---|
 | `README.md` | This file — project overview and local setup |
-| `ARCHITECTURE.md` | Data layer, routing, context stack, query patterns, migrations |
-| `AUTH_AND_ROLES.md` | Role hierarchy, auth flow, OAuth, protected routes |
-| `PAYMENTS_AND_RECEIPTS.md` | Stripe integration, payment types, receipt logging, webhooks |
-| `FEATURES.md` | Contacts, invoices, e-signatures, Google integrations, day-of workflow |
-| `EMAIL_SYSTEM.md` | Email template system, notification service, SMS fallback |
-| `DEPLOYMENT_AND_SECURITY.md` | Netlify config, environment variables, secrets management, RLS |
+| `docs/ARCHITECTURE.md` | Data layer, routing, context stack, query patterns, migrations |
+| `docs/AUTH_AND_ROLES.md` | Role hierarchy, auth flow, OAuth, protected routes |
+| `docs/PAYMENTS_AND_RECEIPTS.md` | Stripe integration, payment types, receipt logging, webhooks |
+| `docs/FEATURES.md` | Contacts, invoices, e-signatures, Google integrations, day-of workflow |
+| `docs/EMAIL_SYSTEM.md` | Email template system, notification service, SMS fallback |
+| `docs/DEPLOYMENT_AND_SECURITY.md` | Netlify config, environment variables, secrets management, RLS |
 
 ## Build
 

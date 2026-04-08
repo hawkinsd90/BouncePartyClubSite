@@ -52,6 +52,54 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['admin_settings_changelog']['Insert']>
         Relationships: []
       }
+      auth_trigger_logs: {
+        Row: {
+          id: string
+          event_type: string
+          user_id: string | null
+          user_email: string | null
+          metadata: Json | null
+          error: string | null
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['auth_trigger_logs']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['auth_trigger_logs']['Insert']>
+        Relationships: []
+      }
+      blackout_addresses: {
+        Row: {
+          id: string
+          address_pattern: string
+          reason: string | null
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['blackout_addresses']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['blackout_addresses']['Insert']>
+        Relationships: []
+      }
+      blackout_contacts: {
+        Row: {
+          id: string
+          contact_id: string
+          reason: string | null
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['blackout_contacts']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['blackout_contacts']['Insert']>
+        Relationships: []
+      }
+      blackout_dates: {
+        Row: {
+          id: string
+          start_date: string
+          end_date: string
+          reason: string | null
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['blackout_dates']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['blackout_dates']['Insert']>
+        Relationships: []
+      }
       consent_records: {
         Row: {
           id: string
@@ -68,13 +116,23 @@ export interface Database {
       contacts: {
         Row: {
           id: string
-          name: string
+          customer_id: string | null
+          first_name: string
+          last_name: string
           email: string | null
           phone: string | null
           business_name: string | null
+          opt_in_email: boolean
+          opt_in_sms: boolean
+          source: string | null
+          tags: string[] | null
+          last_contact_date: string | null
+          total_bookings: number
+          total_spent_cents: number
           created_at: string
+          updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['contacts']['Row'], 'id' | 'created_at'>
+        Insert: Omit<Database['public']['Tables']['contacts']['Row'], 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Database['public']['Tables']['contacts']['Insert']>
         Relationships: []
       }
@@ -115,6 +173,18 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['customers']['Insert']>
         Relationships: []
       }
+      discount_templates: {
+        Row: {
+          id: string
+          name: string
+          amount_cents: number
+          percentage: number
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['discount_templates']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['discount_templates']['Insert']>
+        Relationships: []
+      }
       documents: {
         Row: {
           id: string
@@ -127,21 +197,45 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['documents']['Insert']>
         Relationships: []
       }
-      hero_carousel_slides: {
+      fee_templates: {
         Row: {
           id: string
-          media_url: string
-          media_type: string
-          title: string | null
-          subtitle: string | null
-          button_text: string | null
-          button_link: string | null
-          sort_order: number
-          is_active: boolean
+          name: string
+          amount_cents: number
           created_at: string
         }
-        Insert: Omit<Database['public']['Tables']['hero_carousel_slides']['Row'], 'id' | 'created_at'>
-        Update: Partial<Database['public']['Tables']['hero_carousel_slides']['Insert']>
+        Insert: Omit<Database['public']['Tables']['fee_templates']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['fee_templates']['Insert']>
+        Relationships: []
+      }
+      hero_carousel_images: {
+        Row: {
+          id: string
+          image_url: string
+          title: string | null
+          description: string | null
+          display_order: number
+          is_active: boolean
+          media_type: string
+          storage_path: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['hero_carousel_images']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Database['public']['Tables']['hero_carousel_images']['Insert']>
+        Relationships: []
+      }
+      invoice_links: {
+        Row: {
+          id: string
+          invoice_id: string
+          token: string
+          expires_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['invoice_links']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Database['public']['Tables']['invoice_links']['Insert']>
         Relationships: []
       }
       invoices: {
@@ -155,6 +249,23 @@ export interface Database {
         }
         Insert: Omit<Database['public']['Tables']['invoices']['Row'], 'id' | 'created_at'>
         Update: Partial<Database['public']['Tables']['invoices']['Insert']>
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          id: string
+          conversation_id: string | null
+          order_id: string | null
+          direction: string
+          body: string
+          from_number: string | null
+          to_number: string | null
+          twilio_sid: string | null
+          status: string | null
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['messages']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['messages']['Insert']>
         Relationships: []
       }
       notification_failures: {
@@ -191,68 +302,15 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['notification_system_status']['Insert']>
         Relationships: []
       }
-      orders: {
-        Row: {
-          id: string
-          order_number: string
-          customer_id: string | null
-          address_id: string
-          status: string
-          event_date: string
-          event_end_date: string | null
-          start_window: string | null
-          end_window: string | null
-          until_end_of_day: boolean
-          location_type: string
-          surface: string
-          pickup_preference: string
-          same_day_responsibility_accepted: boolean
-          overnight_responsibility_accepted: boolean
-          subtotal_cents: number
-          travel_fee_cents: number
-          travel_total_miles: number
-          travel_base_radius_miles: number
-          travel_chargeable_miles: number
-          travel_per_mile_cents: number
-          travel_is_flat_fee: boolean
-          surface_fee_cents: number
-          same_day_pickup_fee_cents: number
-          generator_fee_cents: number
-          generator_qty: number
-          tax_cents: number
-          tax_waived: boolean
-          tax_waive_reason: string | null
-          travel_fee_waived: boolean
-          travel_fee_waive_reason: string | null
-          same_day_pickup_fee_waived: boolean
-          same_day_pickup_fee_waive_reason: string | null
-          tip_cents: number
-          total_cents: number
-          deposit_due_cents: number
-          deposit_paid_cents: number
-          balance_due_cents: number
-          custom_deposit_cents: number | null
-          card_on_file_consent: boolean
-          sms_consent: boolean
-          admin_message: string | null
-          booking_confirmation_sent: boolean
-          cancellation_reason: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: Omit<Database['public']['Tables']['orders']['Row'], 'id' | 'order_number' | 'created_at' | 'updated_at'>
-        Update: Partial<Database['public']['Tables']['orders']['Insert']>
-        Relationships: []
-      }
       order_changelog: {
         Row: {
           id: string
           order_id: string
-          changed_by: string | null
-          change_type: string
-          field_name: string | null
+          user_id: string | null
+          field_changed: string | null
           old_value: string | null
           new_value: string | null
+          change_type: string
           notes: string | null
           created_at: string
         }
@@ -299,6 +357,20 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['order_items']['Insert']>
         Relationships: []
       }
+      order_lot_pictures: {
+        Row: {
+          id: string
+          order_id: string
+          image_url: string
+          storage_path: string | null
+          uploaded_by: string | null
+          notes: string | null
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['order_lot_pictures']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['order_lot_pictures']['Insert']>
+        Relationships: []
+      }
       order_pictures: {
         Row: {
           id: string
@@ -317,16 +389,128 @@ export interface Database {
         Row: {
           id: string
           order_id: string
-          signature_data_url: string
-          renter_name: string
-          renter_phone: string
-          renter_email: string | null
+          customer_id: string | null
+          signer_name: string
+          signer_email: string | null
+          signer_phone: string | null
+          signature_image_url: string | null
+          initials_data: Json | null
+          typed_name: string | null
+          pdf_url: string | null
+          pdf_generated_at: string | null
+          signed_at: string
           ip_address: string | null
           user_agent: string | null
-          signed_at: string
+          device_info: Json | null
+          waiver_version: string | null
+          waiver_text_snapshot: string | null
+          electronic_consent_given: boolean
+          electronic_consent_text: string | null
+          event_date: string | null
+          event_end_date: string | null
+          event_address_line1: string | null
+          event_address_line2: string | null
+          event_city: string | null
+          event_state: string | null
+          event_zip: string | null
+          home_address_line1: string | null
+          home_address_line2: string | null
+          home_city: string | null
+          home_state: string | null
+          home_zip: string | null
+          created_at: string
+          updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['order_signatures']['Row'], 'id' | 'signed_at'>
+        Insert: Omit<Database['public']['Tables']['order_signatures']['Row'], 'id' | 'signed_at' | 'created_at' | 'updated_at'>
         Update: Partial<Database['public']['Tables']['order_signatures']['Insert']>
+        Relationships: []
+      }
+      orders: {
+        Row: {
+          id: string
+          customer_id: string | null
+          status: string
+          location_type: string
+          surface: string
+          event_date: string
+          start_window: string | null
+          end_window: string | null
+          address_id: string
+          subtotal_cents: number
+          travel_fee_cents: number
+          surface_fee_cents: number
+          same_day_pickup_fee_cents: number
+          tax_cents: number
+          deposit_due_cents: number
+          deposit_paid_cents: number
+          balance_due_cents: number
+          balance_paid_cents: number
+          payment_method_id: string | null
+          card_on_file_consent_text: string | null
+          card_on_file_consented_at: string | null
+          created_at: string
+          start_date: string | null
+          end_date: string | null
+          overnight_allowed: boolean | null
+          can_use_stakes: boolean | null
+          generator_selected: boolean | null
+          special_details: string | null
+          has_pets: boolean | null
+          sms_consent_text: string | null
+          sms_consented_at: string | null
+          travel_total_miles: number | null
+          travel_base_radius_miles: number | null
+          travel_chargeable_miles: number | null
+          travel_per_mile_cents: number | null
+          travel_is_flat_fee: boolean | null
+          stripe_customer_id: string | null
+          stripe_payment_method_id: string | null
+          damage_charged_cents: number | null
+          total_refunded_cents: number | null
+          deposit_required: boolean | null
+          stripe_payment_status: string | null
+          workflow_status: string | null
+          current_eta: string | null
+          waiver_signed_at: string | null
+          waiver_signature_data: string | null
+          tip_cents: number
+          event_end_date: string | null
+          pickup_preference: string | null
+          generator_fee_cents: number
+          admin_message: string | null
+          generator_qty: number
+          signed_waiver_url: string | null
+          signature_id: string | null
+          e_signature_consent: boolean | null
+          sms_consent: boolean
+          card_on_file_consent: boolean
+          invoice_sent_at: string | null
+          invoice_accepted_at: string | null
+          custom_deposit_cents: number | null
+          until_end_of_day: boolean
+          same_day_responsibility_accepted: boolean
+          overnight_responsibility_accepted: boolean
+          event_start_time: string | null
+          pickup_time: string | null
+          event_end_time: string | null
+          refund_requested: boolean | null
+          lot_pictures_requested: boolean | null
+          lot_pictures_requested_at: string | null
+          tax_waived: boolean | null
+          tax_waive_reason: string | null
+          travel_fee_waived: boolean | null
+          travel_fee_waive_reason: string | null
+          same_day_pickup_fee_waived: boolean | null
+          same_day_pickup_fee_waive_reason: string | null
+          total_cents: number
+          booking_confirmation_sent: boolean
+          cancellation_reason: string | null
+          require_card_on_file: boolean | null
+          updated_at: string | null
+          order_number: string | null
+        }
+        Insert: Omit<Database['public']['Tables']['orders']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['orders']['Insert']>
         Relationships: []
       }
       payments: {
@@ -421,34 +605,45 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['sms_message_templates']['Insert']>
         Relationships: []
       }
-      tasks: {
-        Row: {
-          id: string
-          task_type: string
-          task_date: string
-          assigned_to: string | null
-          notes: string | null
-          created_at: string
-        }
-        Insert: Omit<Database['public']['Tables']['tasks']['Row'], 'id' | 'created_at'>
-        Update: Partial<Database['public']['Tables']['tasks']['Insert']>
-        Relationships: []
-      }
       task_status: {
         Row: {
           id: string
-          task_id: string
           order_id: string
+          task_type: string
+          task_date: string
           status: string
-          crew_notes: string | null
-          admin_notes: string | null
-          completed_at: string | null
-          estimated_arrival: string | null
+          en_route_time: string | null
+          arrived_time: string | null
+          completed_time: string | null
+          eta_sent: boolean
+          waiver_reminder_sent: boolean
+          payment_reminder_sent: boolean
+          sort_order: number | null
+          delivery_images: Json | null
+          damage_images: Json | null
+          notes: string | null
+          calculated_eta_minutes: number | null
+          gps_lat: number | null
+          gps_lng: number | null
+          eta_calculation_error: string | null
           created_at: string
           updated_at: string
         }
         Insert: Omit<Database['public']['Tables']['task_status']['Row'], 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Database['public']['Tables']['task_status']['Insert']>
+        Relationships: []
+      }
+      unit_media: {
+        Row: {
+          id: string
+          unit_id: string
+          url: string
+          mode: string
+          sort: number
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['unit_media']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['unit_media']['Insert']>
         Relationships: []
       }
       units: {
@@ -474,17 +669,20 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['units']['Insert']>
         Relationships: []
       }
-      unit_media: {
+      user_permissions_changelog: {
         Row: {
           id: string
-          unit_id: string
-          url: string
-          mode: string
-          sort: number
+          target_user_id: string
+          target_user_email: string | null
+          action: string
+          old_role: string | null
+          new_role: string | null
+          changed_by_user_id: string | null
+          changed_by_email: string | null
           created_at: string
         }
-        Insert: Omit<Database['public']['Tables']['unit_media']['Row'], 'id' | 'created_at'>
-        Update: Partial<Database['public']['Tables']['unit_media']['Insert']>
+        Insert: Omit<Database['public']['Tables']['user_permissions_changelog']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['user_permissions_changelog']['Insert']>
         Relationships: []
       }
       user_roles: {
@@ -498,82 +696,23 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['user_roles']['Insert']>
         Relationships: []
       }
-      auth_trigger_logs: {
-        Row: {
-          id: string
-          event_type: string
-          user_id: string | null
-          user_email: string | null
-          metadata: Json | null
-          error: string | null
-          created_at: string
-        }
-        Insert: Omit<Database['public']['Tables']['auth_trigger_logs']['Row'], 'id' | 'created_at'>
-        Update: Partial<Database['public']['Tables']['auth_trigger_logs']['Insert']>
-        Relationships: []
-      }
-      blackout_dates: {
-        Row: {
-          id: string
-          start_date: string
-          end_date: string
-          reason: string | null
-          created_at: string
-        }
-        Insert: Omit<Database['public']['Tables']['blackout_dates']['Row'], 'id' | 'created_at'>
-        Update: Partial<Database['public']['Tables']['blackout_dates']['Insert']>
-        Relationships: []
-      }
-      blackout_addresses: {
-        Row: {
-          id: string
-          address_pattern: string
-          reason: string | null
-          created_at: string
-        }
-        Insert: Omit<Database['public']['Tables']['blackout_addresses']['Row'], 'id' | 'created_at'>
-        Update: Partial<Database['public']['Tables']['blackout_addresses']['Insert']>
-        Relationships: []
-      }
-      blackout_contacts: {
-        Row: {
-          id: string
-          contact_id: string
-          reason: string | null
-          created_at: string
-        }
-        Insert: Omit<Database['public']['Tables']['blackout_contacts']['Row'], 'id' | 'created_at'>
-        Update: Partial<Database['public']['Tables']['blackout_contacts']['Insert']>
-        Relationships: []
-      }
-      discount_templates: {
-        Row: {
-          id: string
-          name: string
-          amount_cents: number
-          percentage: number
-          created_at: string
-        }
-        Insert: Omit<Database['public']['Tables']['discount_templates']['Row'], 'id' | 'created_at'>
-        Update: Partial<Database['public']['Tables']['discount_templates']['Insert']>
-        Relationships: []
-      }
-      fee_templates: {
-        Row: {
-          id: string
-          name: string
-          amount_cents: number
-          created_at: string
-        }
-        Insert: Omit<Database['public']['Tables']['fee_templates']['Row'], 'id' | 'created_at'>
-        Update: Partial<Database['public']['Tables']['fee_templates']['Insert']>
-        Relationships: []
-      }
     }
     Views: {}
     Functions: {
-      is_admin: {
-        Args: { user_id: string }
+      archive_old_orders: {
+        Args: { threshold_days: number }
+        Returns: void
+      }
+      assign_role_by_email: {
+        Args: { p_email: string; p_role: string }
+        Returns: boolean
+      }
+      check_unit_availability: {
+        Args: {
+          unit_id: string
+          start_date: string
+          end_date: string
+        }
         Returns: boolean
       }
       generate_invoice_number: {
@@ -584,17 +723,21 @@ export interface Database {
         Args: Record<string, never>
         Returns: Array<{ id: string; email: string; role: string }>
       }
-      check_unit_availability: {
-        Args: {
-          unit_id: string
-          start_date: string
-          end_date: string
-        }
-        Returns: boolean
+      get_all_role_users: {
+        Args: Record<string, never>
+        Returns: Array<{ user_id: string; user_role: string; email: string; created_at: string }>
+      }
+      get_unresolved_failures_count: {
+        Args: Record<string, never>
+        Returns: number
       }
       get_user_order_prefill: {
         Args: { user_id: string }
         Returns: Json
+      }
+      is_admin: {
+        Args: { user_id: string }
+        Returns: boolean
       }
       record_notification_failure: {
         Args: {
@@ -612,10 +755,6 @@ export interface Database {
           p_notification_type: string
         }
         Returns: void
-      }
-      get_unresolved_failures_count: {
-        Args: Record<string, never>
-        Returns: number
       }
     }
     Enums: {}
