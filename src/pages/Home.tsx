@@ -47,6 +47,7 @@ export function Home() {
   // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
   // const [creatingTestBooking, setCreatingTestBooking] = useState(false);
   const [reviews, setReviews] = useState<GoogleReview[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
   const [averageRating, setAverageRating] = useState(5.0);
   const [addressAutofilled, setAddressAutofilled] = useState(false);
 
@@ -91,6 +92,8 @@ export function Home() {
       }
     } catch (error) {
       console.error('Error loading reviews:', error);
+    } finally {
+      setReviewsLoading(false);
     }
   }
 
@@ -390,7 +393,11 @@ export function Home() {
             <span className="ml-2 text-lg sm:text-xl text-slate-600">on Google</span>
           </div>
 
-          {reviews.length > 0 ? (
+          {reviewsLoading ? (
+            <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 sm:p-8 lg:p-10 shadow-lg max-w-3xl mx-auto mb-8 sm:mb-10">
+              <p className="text-center text-slate-600">Loading reviews...</p>
+            </div>
+          ) : reviews.length > 0 ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 sm:mb-10 max-w-6xl mx-auto">
               {reviews.map((review) => (
                 <div key={review.id} className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 sm:p-8 shadow-lg">
@@ -423,11 +430,7 @@ export function Home() {
                 </div>
               ))}
             </div>
-          ) : (
-            <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 sm:p-8 lg:p-10 shadow-lg max-w-3xl mx-auto mb-8 sm:mb-10">
-              <p className="text-center text-slate-600">Loading reviews...</p>
-            </div>
-          )}
+          ) : null}
 
           <div className="text-center">
             <a
