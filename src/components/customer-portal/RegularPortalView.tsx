@@ -32,9 +32,9 @@ interface RegularPortalViewProps {
   onReload: () => void;
 }
 
-export function RegularPortalView({ order, orderId, orderItems, orderSummary, invoiceLinkToken, onReload }: RegularPortalViewProps) {
+export function RegularPortalView({ order, orderId, orderItems: _orderItems, orderSummary, invoiceLinkToken, onReload }: RegularPortalViewProps) {
   const navigate = useNavigate();
-  const isPendingReview = order.status === 'pending_review';
+  const _isPendingReview = order.status === 'pending_review';
   const lotPicturesRequested = order.lot_pictures_requested || false;
   const [activeTab, setActiveTab] = useState<'details' | 'lot-pictures' | 'waiver' | 'payment' | 'pictures' | 'delivery'>('details');
   const [showCancelModal, setShowCancelModal] = useState(false);

@@ -1,4 +1,4 @@
-import { X, ClipboardList, Package as PackageIcon, Anchor, Zap } from 'lucide-react';
+import { X, ClipboardList, Package as PackageIcon, Anchor } from 'lucide-react';
 import { Task } from '../../hooks/useCalendarTasks';
 
 interface EquipmentChecklistModalProps {

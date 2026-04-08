@@ -65,18 +65,18 @@ export function ReceiptModal({ order, payment, summary, loading, onClose }: Rece
             <div className="bg-green-50 p-4 rounded-lg border-2 border-green-200">
               <div className="space-y-2">
                 {/* Show breakdown if tip was included */}
-                {order.tip_cents > 0 && payment.type === 'deposit' && (
+                {(order.tip_cents ?? 0) > 0 && payment.type === 'deposit' && (
                   <>
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-gray-700">Order Amount:</span>
                       <span className="font-medium text-gray-900">
-                        {formatCurrency(payment.amount_cents - (order.tip_cents || 0))}
+                        {formatCurrency(payment.amount_cents - (order.tip_cents ?? 0))}
                       </span>
                     </div>
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-gray-700">Crew Tip:</span>
                       <span className="font-medium text-green-600">
-                        {formatCurrency(order.tip_cents)}
+                        {formatCurrency(order.tip_cents ?? 0)}
                       </span>
                     </div>
                     <div className="pt-2 border-t border-green-200"></div>

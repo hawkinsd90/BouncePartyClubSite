@@ -14,7 +14,7 @@ interface Props {
 }
 
 export function TaskDetailActions({
-  isDropOff, isToday, currentStatus, processing, uploadingImages,
+  isDropOff, isToday, currentStatus: _currentStatus, processing, uploadingImages,
   onEnRoute, onArrived, onImageUpload, onDropOffComplete, onPickupComplete,
 }: Props) {
   return (

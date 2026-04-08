@@ -15,11 +15,11 @@ interface LotPicturesTabProps {
 async function notifyAdminOfPictureUpload(orderId: string, pictureCount: number) {
   try {
     // Get order details
-    const { data: order } = await supabase
+    const { data: order } = await (supabase
       .from('orders')
       .select('*, customers(first_name, last_name, email), addresses(line1, city, state)')
       .eq('id', orderId)
-      .single();
+      .single() as any);
 
     if (!order) return;
 

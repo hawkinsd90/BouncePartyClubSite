@@ -29,7 +29,7 @@ export function AddressAutocomplete({
 }: AddressAutocompleteProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState('');
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const autocompleteRef = useRef<any>(null);
   const onSelectRef = useRef(onSelect);
   const isSelectingRef = useRef(false);
 
@@ -55,7 +55,7 @@ export function AddressAutocomplete({
 
       try {
         // Load the Places library
-        const placesLib = await google.maps.importLibrary("places") as google.maps.PlacesLibrary;
+        const placesLib = await (window as any).google.maps.importLibrary("places") as any;
 
         // console.log('[AddressAutocomplete] Creating Autocomplete instance...');
 
@@ -210,7 +210,7 @@ export function AddressAutocomplete({
     return () => {
       // Clean up autocomplete listeners
       if (autocompleteRef.current) {
-        google.maps.event.clearInstanceListeners(autocompleteRef.current);
+        (window as any).google.maps.event.clearInstanceListeners(autocompleteRef.current);
       }
     };
   }, [placeholder]);

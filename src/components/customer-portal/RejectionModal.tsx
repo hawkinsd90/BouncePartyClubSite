@@ -50,7 +50,10 @@ export function RejectionModal({ isOpen, onClose, order, onSuccess }: RejectionM
       const { error: logError } = await supabase.from('order_changelog').insert({
         order_id: order.id,
         user_id: null,
+        changed_by: null,
+        notes: null,
         change_type: 'status_change',
+        field_name: 'status',
         field_changed: 'status',
         old_value: order.status,
         new_value: cancellationReason ? `cancelled - ${cancellationReason}` : 'cancelled',

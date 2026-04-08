@@ -79,7 +79,30 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     if (task.taskStatus?.id) return task.taskStatus.id;
     const { data, error } = await supabase
       .from('task_status')
-      .insert({ order_id: task.orderId, task_type: task.type, task_date: task.date.toISOString().split('T')[0], status: 'pending', notes: null })
+      .insert({
+        order_id: task.orderId,
+        task_type: task.type,
+        task_date: task.date.toISOString().split('T')[0],
+        status: 'pending',
+        task_id: null,
+        crew_notes: null,
+        admin_notes: null,
+        notes: null,
+        completed_at: null,
+        completed_time: null,
+        estimated_arrival: null,
+        sort_order: null,
+        en_route_time: null,
+        eta_sent: false,
+        waiver_reminder_sent: false,
+        payment_reminder_sent: false,
+        calculated_eta_minutes: null,
+        gps_lat: null,
+        gps_lng: null,
+        eta_calculation_error: null,
+        delivery_images: null,
+        damage_images: null,
+      })
       .select().single();
     if (error) throw error;
     return data.id;
@@ -442,6 +465,10 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const now = new Date().toISOString();
       const { error: sigError } = await supabase.from('order_signatures').insert({
         order_id: task.orderId,
+        signature_data_url: '',
+        renter_name: task.customerName || 'Unknown',
+        renter_phone: task.customerPhone || '',
+        renter_email: task.customerEmail || null,
         signer_name: task.customerName || 'Unknown',
         signer_phone: task.customerPhone || '',
         signer_email: task.customerEmail || null,
@@ -450,7 +477,6 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         user_agent: 'Admin - Paper Waiver Signed On-Site',
         waiver_version: 'paper',
         electronic_consent_given: false,
-        signed_at: now,
       });
       if (sigError) throw sigError;
       const { error: orderError } = await supabase.from('orders').update({

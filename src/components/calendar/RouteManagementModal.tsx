@@ -164,9 +164,6 @@ export function RouteManagementModal({
     if (startMode === 'last_completed') {
       if (lastCompletedTask) {
         const ts = lastCompletedTask.taskStatus?.completedTime;
-        const timestampInfo = ts
-          ? `completed_time=${ts}`
-          : 'completed_time=null (using sort order fallback)';
         const origin: RouteOriginOptions = {
           address: lastCompletedTask.address,
           label: `Last Completed Stop (${lastCompletedTask.customerName})`,
@@ -241,6 +238,24 @@ export function RouteManagementModal({
             task_type: task.type,
             task_date: task.date.toISOString().split('T')[0],
             status: 'pending',
+            task_id: null,
+            crew_notes: null,
+            admin_notes: null,
+            notes: null,
+            completed_at: null,
+            completed_time: null,
+            estimated_arrival: null,
+            sort_order: null,
+            en_route_time: null,
+            eta_sent: false,
+            waiver_reminder_sent: false,
+            payment_reminder_sent: false,
+            calculated_eta_minutes: null,
+            gps_lat: null,
+            gps_lng: null,
+            eta_calculation_error: null,
+            delivery_images: null,
+            damage_images: null,
           })
           .select()
           .single();

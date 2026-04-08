@@ -105,7 +105,7 @@ export interface Database {
           accuracy: number | null
           recorded_at: string
         }
-        Insert: Omit<Database['public']['Tables']['crew_location_history']['Row'], 'id' | 'recorded_at'>
+        Insert: Omit<Database['public']['Tables']['crew_location_history']['Row'], 'id' | 'recorded_at'> & { accuracy?: number | null }
         Update: Partial<Database['public']['Tables']['crew_location_history']['Insert']>
         Relationships: []
       }
@@ -281,6 +281,7 @@ export interface Database {
           workflow_status: string | null
           waiver_signed_at: string | null
           e_signature_consent: boolean | null
+          customer_selected_payment_cents: number | null
           created_at: string
           updated_at: string
         }
@@ -502,11 +503,12 @@ export interface Database {
       task_status: {
         Row: {
           id: string
-          task_id: string
+          task_id: string | null
           order_id: string
           status: string
           crew_notes: string | null
           admin_notes: string | null
+          notes: string | null
           completed_at: string | null
           completed_time: string | null
           estimated_arrival: string | null
@@ -521,6 +523,8 @@ export interface Database {
           gps_lat: number | null
           gps_lng: number | null
           eta_calculation_error: string | null
+          delivery_images: string[] | null
+          damage_images: string[] | null
           created_at: string
           updated_at: string
         }
@@ -660,6 +664,31 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['fee_templates']['Insert']>
         Relationships: []
       }
+      saved_fee_templates: {
+        Row: {
+          id: string
+          name: string
+          amount_cents: number
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['saved_fee_templates']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['saved_fee_templates']['Insert']>
+        Relationships: []
+      }
+      site_events: {
+        Row: {
+          id: string
+          event_name: string
+          page_path: string | null
+          session_id: string | null
+          unit_id: string | null
+          metadata: Json | null
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['site_events']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['site_events']['Insert']>
+        Relationships: []
+      }
     }
     Views: {}
     Functions: {
@@ -717,7 +746,7 @@ export interface Database {
         Returns: boolean
       }
       archive_old_orders: {
-        Args: Record<string, never>
+        Args: { threshold_days?: number }
         Returns: number
       }
       get_admin_analytics: {
