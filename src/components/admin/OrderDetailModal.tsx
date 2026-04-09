@@ -422,10 +422,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       await supabase.from('order_changelog').insert({
         order_id: order.id,
         user_id: user?.id || null,
-        changed_by: null,
         field_changed: field,
-        field_name: field,
-        notes: null,
         old_value: oldValue !== null && oldValue !== undefined ? String(oldValue) : null,
         new_value: newValue !== null && newValue !== undefined ? String(newValue) : null,
         change_type: action === 'update' ? 'edit' : action === 'add' ? 'add' : 'remove',
