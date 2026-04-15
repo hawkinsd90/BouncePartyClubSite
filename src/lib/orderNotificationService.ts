@@ -8,7 +8,7 @@ import {
   createContactInfo,
   EMAIL_THEMES,
 } from './emailTemplateBase';
-import { formatOrderId } from './utils';
+import { formatOrderId, createShortPortalLink } from './utils';
 import { supabase } from './supabase';
 
 interface SendOrderEditNotificationsParams {
@@ -21,23 +21,7 @@ export async function sendOrderEditNotifications({
   adminMessage,
 }: SendOrderEditNotificationsParams): Promise<void> {
   try {
-    let customerPortalUrl = `${window.location.origin}/customer-portal/${order.id}`;
-
-    const { data: invoiceLink, error: linkError } = await supabase
-      .from('invoice_links' as any)
-      .insert({
-        order_id: order.id,
-        deposit_cents: order.deposit_due_cents ?? 0,
-        customer_filled: false,
-      })
-      .select('link_token')
-      .single();
-
-    if (!linkError && (invoiceLink as any)?.link_token) {
-      customerPortalUrl = `${window.location.origin}/customer-portal/${order.id}?t=${(invoiceLink as any).link_token}`;
-    } else {
-      console.warn('[sendOrderEditNotifications] Failed to create invoice link, falling back to portal URL:', linkError);
-    }
+    const customerPortalUrl = await createShortPortalLink(order.id, supabase, order.event_date);
 
     let content = createGreeting(order.customers?.first_name);
     content += createParagraph(

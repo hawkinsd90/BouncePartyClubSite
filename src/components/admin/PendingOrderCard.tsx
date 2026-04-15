@@ -5,7 +5,7 @@ import { usePendingOrderData } from '../../hooks/usePendingOrderData';
 import { useSmsHandling } from '../../hooks/useSmsHandling';
 import { approveOrder, forceApproveOrder, rejectOrder } from '../../lib/orderApprovalService';
 import { generatePaymentLinkSmsMessage } from '../../lib/orderEmailTemplates';
-import { formatOrderId } from '../../lib/utils';
+import { formatOrderId, createShortPortalLink } from '../../lib/utils';
 import { supabase } from '../../lib/supabase';
 import { OrderInfoSection } from '../pending-order/OrderInfoSection';
 import { SmsConversation } from '../pending-order/SmsConversation';
@@ -180,6 +180,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
     if (result.success) {
       alert('Booking rejected and customer notified via SMS.');
       setShowRejectionModal(false);
+      onUpdate();
     } else {
       alert(`Error rejecting order: ${result.error}`);
     }
@@ -277,7 +278,8 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
 
               if (error) throw error;
 
-              const message = `Bounce Party Club - Hi! We're reviewing your order #${formatOrderId(order.id)}. Could you please upload pictures of the event location through your customer portal? This helps us prepare better for your event. Link: ${window.location.origin}/customer-portal/${order.id}`;
+              const portalUrl = await createShortPortalLink(order.id, supabase, order.event_date);
+              const message = `Bounce Party Club - Hi! We're reviewing your order #${formatOrderId(order.id)}. Could you please upload pictures of the event location through your customer portal? This helps us prepare better for your event. Link: ${portalUrl}`;
               await sendSms(message);
 
               setLotPicturesRequestedLocal(true);

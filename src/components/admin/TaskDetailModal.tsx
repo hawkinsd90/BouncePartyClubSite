@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { X, ChevronUp, ChevronDown, AlertTriangle, RefreshCw, ExternalLink, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
+import { createShortPortalLink } from '../../lib/utils';
 import { showAlert, showConfirm } from '../common/CustomModal';
 import { getCurrentLocation, calculateETA } from '../../lib/googleMaps';
 import { Task } from '../../hooks/useCalendarTasks';
@@ -149,7 +150,8 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
           msg += '\n\n';
           if (!task.waiverSigned) msg += '⚠️ IMPORTANT: Your waiver is not signed yet. ';
           if (task.balanceDue > 0) msg += `⚠️ IMPORTANT: Balance due: ${formatCurrency(task.balanceDue)}. `;
-          msg += `\n\nPlease complete these before we arrive: ${window.location.origin}/customer-portal/${task.orderId}`;
+          const enRoutePortalUrl = await createShortPortalLink(task.orderId, supabase, task.date?.toISOString());
+          msg += `\n\nPlease complete these before we arrive: ${enRoutePortalUrl}`;
         }
         msg += '\n\nPlease ensure there is a clear path for delivery and setup. See you soon!';
       }
@@ -202,7 +204,8 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
           msg += '\n\n⚠️ Before we unload:\n';
           if (!task.waiverSigned) msg += '• Please sign the waiver\n';
           if (task.balanceDue > 0) msg += `• Complete payment (${formatCurrency(task.balanceDue)})\n`;
-          msg += `\nComplete at: ${window.location.origin}/customer-portal/${task.orderId}\n\n`;
+          const arrivedPortalUrl = await createShortPortalLink(task.orderId, supabase, task.date?.toISOString());
+          msg += `\nComplete at: ${arrivedPortalUrl}\n\n`;
         }
         msg += 'Please:\n• Put up any animals\n• Be ready to inspect the equipment\n• Approve the setup location';
       } else {

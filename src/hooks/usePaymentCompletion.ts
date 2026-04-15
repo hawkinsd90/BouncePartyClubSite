@@ -208,7 +208,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
           try {
             const { enterPendingReview, enterConfirmed } = await import('../lib/orderLifecycle');
             if (isAdminInvoice) {
-              await enterConfirmed(orderId!, 'webhook_fallback_admin_invoice', 'zero_due_with_card');
+              await enterConfirmed(orderId!, 'webhook_fallback_admin_invoice', 'charged_now');
             } else {
               await enterPendingReview(orderId!, 'webhook_fallback_standard');
             }
@@ -224,8 +224,8 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
         setOrderDetails(order);
         const adminInvoice = await checkIfAdminInvoice();
 
-        // Only send notifications if we haven't processed this payment before
-        if (!alreadyProcessed && order) {
+        // Only send booking request notifications for standard (non-admin-invoice) orders
+        if (!alreadyProcessed && order && !adminInvoice) {
           await sendNotificationsIfNeeded(order);
           SafeStorage.setItem(processedKey, 'true');
         }

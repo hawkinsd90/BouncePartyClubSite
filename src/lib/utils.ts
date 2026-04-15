@@ -105,3 +105,45 @@ export function debounce<T extends (...args: any[]) => any>(
 export function formatOrderId(orderId: string): string {
   return orderId.slice(0, 8).toUpperCase();
 }
+
+const SHORT_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+
+function generateShortCode(): string {
+  let code = '';
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  for (let i = 0; i < 8; i++) {
+    code += SHORT_CODE_CHARS[bytes[i] % SHORT_CODE_CHARS.length];
+  }
+  return code;
+}
+
+export async function createShortPortalLink(
+  orderId: string,
+  supabaseClient: any,
+  eventDate?: string | null
+): Promise<string> {
+  try {
+    const shortCode = generateShortCode();
+
+    const expiresAt = eventDate
+      ? new Date(new Date(eventDate).getTime() + 3 * 24 * 60 * 60 * 1000)
+      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+    const { error } = await supabaseClient
+      .from('invoice_links')
+      .insert({
+        order_id: orderId,
+        deposit_cents: 0,
+        customer_filled: true,
+        expires_at: expiresAt.toISOString(),
+        short_code: shortCode,
+      });
+
+    if (!error) {
+      return `${window.location.origin}/i/${shortCode}`;
+    }
+  } catch {
+  }
+  return `${window.location.origin}/customer-portal/${orderId}`;
+}

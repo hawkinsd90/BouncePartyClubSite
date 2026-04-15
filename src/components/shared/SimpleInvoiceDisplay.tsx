@@ -1,4 +1,5 @@
 import { Printer } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../../lib/pricing';
 import { OrderSummary } from '../order/OrderSummary';
 import { OrderSummaryDisplay } from '../../lib/orderSummary';
@@ -70,6 +71,7 @@ export function SimpleInvoiceDisplay({
   contactData,
   onPrint,
 }: SimpleInvoiceDisplayProps) {
+  const navigate = useNavigate();
   return (
     <div className="bg-white rounded-lg shadow-md p-8 print-container">
       {/* PRINT: fixed header repeated on every printed page */}
@@ -84,11 +86,13 @@ export function SimpleInvoiceDisplay({
 
       {/* SCREEN: normal header */}
       <div className="screen-only text-center mb-8 print-header">
-        <img
-          src="/bounce party club logo.png"
-          alt="Bounce Party Club"
-          className="h-20 w-auto mx-auto mb-4 print-logo"
-        />
+        <button onClick={() => navigate('/')} className="focus:outline-none inline-block">
+          <img
+            src="/bounce party club logo.png"
+            alt="Bounce Party Club"
+            className="h-20 w-auto mx-auto mb-4 print-logo hover:opacity-80 transition-opacity cursor-pointer"
+          />
+        </button>
         <h1 className="text-3xl font-bold text-slate-900 mb-2 print-title">
           Invoice from Bounce Party Club
         </h1>

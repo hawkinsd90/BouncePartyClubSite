@@ -148,16 +148,23 @@ export function PaymentSuccessState({ orderDetails, sessionTipCents = 0 }: Payme
           </p>
         </div>
 
-        <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-          {orderId && (
+        {orderId && (
+          <div className="mt-6 border border-green-200 bg-green-50 rounded-lg p-5">
+            <h3 className="font-semibold text-slate-900 mb-1">Track Your Order</h3>
+            <p className="text-sm text-slate-600 mb-4">
+              View live updates, check order status, and manage your booking through your customer portal:
+            </p>
             <button
               onClick={() => navigate(`/customer-portal/${orderId}`)}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors"
             >
-              Track Your Order
-              <ArrowRight className="w-5 h-5" />
+              View Customer Portal
+              <ArrowRight className="w-4 h-4" />
             </button>
-          )}
+          </div>
+        )}
+
+        <div className="mt-6 text-center">
           <button
             onClick={() => navigate('/')}
             className="inline-flex items-center gap-2 px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition-colors"
