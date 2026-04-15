@@ -23,7 +23,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json();
-    const { orderId, depositCents, tipCents = 0, customerEmail, customerName, setupMode = false, invoiceMode = false, invoiceLinkToken = null, paymentState = null } = body;
+    const { orderId, depositCents, tipCents = 0, customerEmail, customerName, setupMode = false, invoiceMode = false, invoiceLinkToken = null, paymentState = null, bookingMode = false } = body;
     const bodyOrigin: string | undefined = body.origin;
 
     const headerOrigin = req.headers.get("origin");
@@ -52,7 +52,7 @@ Deno.serve(async (req: Request) => {
       return createRateLimitResponse(rateLimitResult, corsHeaders);
     }
 
-    if (!orderId || (!depositCents && !setupMode)) {
+    if (!orderId || (!depositCents && !setupMode && !bookingMode)) {
       return new Response(
         JSON.stringify({ success: false, error: "Missing required fields" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -160,7 +160,9 @@ Deno.serve(async (req: Request) => {
     // If setupMode (card update), redirect back to customer portal with approval modal trigger
     // Encode payment state in URL so it survives the Stripe redirect
     let successUrl: string;
-    if (setupMode) {
+    if (bookingMode) {
+      successUrl = `${resolvedOrigin}/payment-complete?session_id={CHECKOUT_SESSION_ID}&order_id=${orderId}`;
+    } else if (setupMode) {
       let params: URLSearchParams;
       if (invoiceMode) {
         const tokenParam = invoiceLinkToken ? `&t=${invoiceLinkToken}` : '';
@@ -180,13 +182,27 @@ Deno.serve(async (req: Request) => {
       successUrl = `${resolvedOrigin}/payment-complete?session_id={CHECKOUT_SESSION_ID}&order_id=${orderId}`;
     }
     const cancelTokenParam = (setupMode && invoiceMode && invoiceLinkToken) ? `&t=${invoiceLinkToken}` : '';
-    const cancelUrl = setupMode
+    const cancelUrl = (setupMode && !bookingMode)
       ? `${resolvedOrigin}/customer-portal/${orderId}?card_update_canceled=true${cancelTokenParam}`
       : `${resolvedOrigin}/payment-canceled?order_id=${orderId}`;
 
     console.log("stripe-checkout: urls — success:", successUrl, "| cancel:", cancelUrl);
 
-    const sessionParams: Stripe.Checkout.SessionCreateParams = setupMode
+    const sessionParams: Stripe.Checkout.SessionCreateParams = bookingMode
+      ? {
+          payment_method_types: ["card"],
+          mode: "setup",
+          customer: customerId,
+          success_url: successUrl,
+          cancel_url: cancelUrl,
+          metadata: {
+            order_id: orderId,
+            payment_type: "booking_request",
+            deposit_amount: depositCents ? depositCents.toString() : "0",
+            tip_cents: tipCents.toString(),
+          },
+        }
+      : setupMode
       ? {
           payment_method_types: ["card"],
           mode: "setup",

@@ -143,6 +143,7 @@ export function Checkout() {
               customerEmail: contactData.email,
               customerName: `${contactData.first_name} ${contactData.last_name}`,
               origin: window.location.origin,
+              bookingMode: true,
             }),
           }
         );
