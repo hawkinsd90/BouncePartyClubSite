@@ -2,18 +2,6 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
-const TERMINAL_STATUSES = ['cancelled', 'void', 'completed'];
-const POST_TERMINAL_GRACE_DAYS = 30;
-
-function isLinkStillValid(orderStatus: string, cancelledAt: string | null, completedAt: string | null): boolean {
-  if (!TERMINAL_STATUSES.includes(orderStatus)) return true;
-  const terminalAt = cancelledAt || completedAt;
-  if (!terminalAt) return true;
-  const graceCutoff = new Date(terminalAt);
-  graceCutoff.setDate(graceCutoff.getDate() + POST_TERMINAL_GRACE_DAYS);
-  return new Date() <= graceCutoff;
-}
-
 export function ShortLink() {
   const { shortCode } = useParams<{ shortCode: string }>();
   const [error, setError] = useState(false);
@@ -27,27 +15,11 @@ export function ShortLink() {
     (async () => {
       const { data, error: dbError } = await supabase
         .from('invoice_links' as any)
-        .select('order_id, link_token, expires_at')
+        .select('order_id, link_token')
         .eq('short_code', shortCode)
         .maybeSingle();
 
       if (dbError || !data) {
-        setError(true);
-        return;
-      }
-
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .select('status, cancelled_at, completed_at')
-        .eq('id', data.order_id)
-        .maybeSingle();
-
-      if (orderError || !order) {
-        setError(true);
-        return;
-      }
-
-      if (!isLinkStillValid(order.status, order.cancelled_at, order.completed_at)) {
         setError(true);
         return;
       }

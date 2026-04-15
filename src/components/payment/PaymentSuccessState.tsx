@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Home, ShieldCheck } from 'lucide-react';
+import { Home } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
 
 interface OrderDetails {
@@ -21,14 +21,12 @@ interface OrderDetails {
 
 interface PaymentSuccessStateProps {
   orderDetails: OrderDetails | null;
-  isAdminInvoice: boolean;
   sessionTipCents?: number;
 }
 
-export function PaymentSuccessState({ orderDetails, isAdminInvoice, sessionTipCents = 0 }: PaymentSuccessStateProps) {
+export function PaymentSuccessState({ orderDetails, sessionTipCents = 0 }: PaymentSuccessStateProps) {
   const navigate = useNavigate();
 
-  // Use sessionTipCents if webhook hasn't processed yet, otherwise use orderDetails.tip_cents
   const displayTipCents = orderDetails?.tip_cents || sessionTipCents;
 
   return (
@@ -51,34 +49,23 @@ export function PaymentSuccessState({ orderDetails, isAdminInvoice, sessionTipCe
             </svg>
           </div>
 
-          <h1 className="text-3xl font-bold text-slate-900 mb-4">
-            {isAdminInvoice ? 'Booking Confirmed!' : 'Request Received!'}
-          </h1>
+          <h1 className="text-3xl font-bold text-slate-900 mb-4">Request Received!</h1>
 
           <p className="text-slate-600 mb-4">
-            {isAdminInvoice ? (
-              <>
-                Thank you for choosing Bounce Party Club. Your order has been placed successfully!
-                We'll confirm your drop-off time shortly.
-              </>
-            ) : (
-              <>
-                Thank you for choosing Bounce Party Club. Your booking request has been submitted and is now pending admin review.
-              </>
-            )}
+            Thank you for choosing Bounce Party Club. Your booking request has been submitted and is now pending admin review.
           </p>
 
-          {!isAdminInvoice && (
-            <div className="flex items-start gap-3 bg-green-50 border border-green-300 rounded-lg p-4 mb-6 text-left">
-              <ShieldCheck className="w-5 h-5 text-green-700 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-green-900">Your card has not been charged</p>
-                <p className="text-xs text-green-800 mt-0.5">
-                  Your payment information has been saved securely. No charge will be made until admin reviews and approves your order — typically within 24 hours.
-                </p>
-              </div>
+          <div className="flex items-start gap-3 bg-green-50 border border-green-300 rounded-lg p-4 mb-6 text-left">
+            <svg className="w-5 h-5 text-green-700 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+            <div>
+              <p className="text-sm font-semibold text-green-900">Your card has not been charged</p>
+              <p className="text-xs text-green-800 mt-0.5">
+                Your payment information has been saved securely. No charge will be made until admin reviews and approves your order — typically within 24 hours.
+              </p>
             </div>
-          )}
+          </div>
         </div>
 
         {orderDetails && (
@@ -101,7 +88,7 @@ export function PaymentSuccessState({ orderDetails, isAdminInvoice, sessionTipCe
                 </p>
               </div>
               <div>
-                <p className="text-sm text-slate-600 mb-1">{isAdminInvoice ? 'Payment Made:' : 'Deposit Amount:'}</p>
+                <p className="text-sm text-slate-600 mb-1">Deposit Amount:</p>
                 <p className="font-semibold text-green-600">
                   ${((orderDetails.customer_selected_payment_cents || orderDetails.deposit_due_cents) / 100).toFixed(2)}
                 </p>
@@ -116,7 +103,7 @@ export function PaymentSuccessState({ orderDetails, isAdminInvoice, sessionTipCe
               )}
               {displayTipCents > 0 && (
                 <div className="col-span-2">
-                  <p className="text-sm text-slate-600 mb-1">{isAdminInvoice ? 'Total Payment (including tip):' : 'Total After Approval (including tip):'}</p>
+                  <p className="text-sm text-slate-600 mb-1">Total After Approval (including tip):</p>
                   <p className="font-semibold text-green-600 text-lg">
                     ${(((orderDetails.customer_selected_payment_cents || orderDetails.deposit_due_cents) + displayTipCents) / 100).toFixed(2)}
                   </p>
@@ -138,34 +125,10 @@ export function PaymentSuccessState({ orderDetails, isAdminInvoice, sessionTipCe
               </p>
             </div>
 
-            {orderDetails && (
-              <div className="p-6 bg-green-50 rounded-lg border border-green-200">
-                <p className="text-sm font-semibold text-green-900 mb-2">Track Your Order</p>
-                <p className="text-sm text-green-800 leading-relaxed mb-3">
-                  View live updates, check order status, and manage your booking through your customer portal:
-                </p>
-                <a
-                  href={`/customer-portal/${orderDetails.id}`}
-                  className="inline-block px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors"
-                >
-                  View Customer Portal
-                </a>
-              </div>
-            )}
-
             <div className="p-6 bg-slate-50 rounded-lg">
               <p className="text-sm text-slate-700 leading-relaxed mb-3">
-                {isAdminInvoice ? (
-                  <>
-                    Your order is confirmed and we're preparing for your event. We'll contact you to confirm
-                    the drop-off time.
-                  </>
-                ) : (
-                  <>
-                    Our admin team will review your booking request and contact you within 24 hours to
-                    confirm your delivery time window and finalize your reservation details.
-                  </>
-                )}
+                Our admin team will review your booking request and contact you within 24 hours to
+                confirm your delivery time window and finalize your reservation details.
               </p>
               <p className="text-sm text-slate-600">
                 If you have any questions, contact us at{' '}

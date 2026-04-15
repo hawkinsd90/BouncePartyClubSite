@@ -72,8 +72,10 @@ Deno.serve(async (req: Request) => {
 
     const shortCode = await generateUniqueShortCode(supabase);
 
-    const twoYearsFromNow = new Date();
-    twoYearsFromNow.setFullYear(twoYearsFromNow.getFullYear() + 2);
+    const eventDate = order.event_date ? new Date(order.event_date) : null;
+    const expiresAt = eventDate
+      ? new Date(eventDate.getTime() + 3 * 24 * 60 * 60 * 1000)
+      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
     const { data: invoiceLink, error: linkError } = await supabase
       .from('invoice_links')
@@ -81,7 +83,7 @@ Deno.serve(async (req: Request) => {
         order_id: orderId,
         deposit_cents: depositCents || 0,
         customer_filled: customerEmail ? true : false,
-        expires_at: twoYearsFromNow.toISOString(),
+        expires_at: expiresAt.toISOString(),
         ...(shortCode ? { short_code: shortCode } : {}),
       })
       .select()

@@ -116,17 +116,13 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
     (async () => {
       const { data } = await supabase
         .from('invoice_links' as any)
-        .select('link_token, expires_at')
+        .select('link_token')
         .eq('order_id', order.id)
+        .gt('expires_at', new Date().toISOString())
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (data && data.link_token) {
-        const expired = data.expires_at && new Date(data.expires_at) < new Date();
-        setPortalToken(expired ? null : data.link_token);
-      } else {
-        setPortalToken(null);
-      }
+      setPortalToken(data?.link_token ?? null);
     })();
   }, [order?.id, order?.status]);
 

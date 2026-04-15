@@ -34,5 +34,5 @@ export function PaymentComplete() {
     return <PaymentErrorState error={error} />;
   }
 
-  return <PaymentSuccessState orderDetails={orderDetails} isAdminInvoice={isAdminInvoice} sessionTipCents={sessionTipCents} />;
+  return <PaymentSuccessState orderDetails={orderDetails} sessionTipCents={sessionTipCents} />;
 }
