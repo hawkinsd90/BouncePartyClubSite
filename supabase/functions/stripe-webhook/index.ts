@@ -217,11 +217,12 @@ async function processWebhookEvent(
             }
           }
 
-          // Check if this is an admin invoice
+          // Check if this is an admin invoice (portal_shortlinks must NOT count)
           const { data: invoiceLink } = await supabaseClient
             .from("invoice_links")
             .select("id")
             .eq("order_id", orderId)
+            .eq("link_type", "invoice")
             .maybeSingle();
 
           const isAdminInvoice = !!invoiceLink;
@@ -592,6 +593,7 @@ async function processWebhookEvent(
             .from("invoice_links")
             .select("id")
             .eq("order_id", orderId)
+            .eq("link_type", "invoice")
             .maybeSingle();
 
           const isAdminInvoice = !!invoiceLink;
@@ -774,6 +776,7 @@ async function processWebhookEvent(
               .from("invoice_links")
               .select("id")
               .eq("order_id", orderId)
+              .eq("link_type", "invoice")
               .maybeSingle();
 
             const isAdminInvoice = !!invoiceLink;
@@ -952,11 +955,12 @@ async function processWebhookEvent(
           }
         }
 
-        // Check if this is an admin invoice
+        // Check if this is an admin invoice (portal_shortlinks must NOT count)
         const { data: invoiceLink } = await supabaseClient
           .from("invoice_links")
           .select("id")
           .eq("order_id", orderId)
+          .eq("link_type", "invoice")
           .maybeSingle();
 
         const isAdminInvoice = !!invoiceLink;

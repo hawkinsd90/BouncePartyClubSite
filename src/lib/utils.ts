@@ -138,6 +138,7 @@ export async function createShortPortalLink(
         customer_filled: true,
         expires_at: expiresAt.toISOString(),
         short_code: shortCode,
+        link_type: 'portal_shortlink',
       });
 
     if (!error) {

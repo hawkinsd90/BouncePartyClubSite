@@ -84,6 +84,7 @@ Deno.serve(async (req: Request) => {
         deposit_cents: depositCents || 0,
         customer_filled: customerEmail ? true : false,
         expires_at: expiresAt.toISOString(),
+        link_type: 'invoice',
         ...(shortCode ? { short_code: shortCode } : {}),
       })
       .select()

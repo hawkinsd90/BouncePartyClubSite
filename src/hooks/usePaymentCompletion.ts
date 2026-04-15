@@ -195,11 +195,12 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
             console.error('[PAYMENT-COMPLETE] Error saving payment method:', err);
           }
 
-          // Check if this is an admin invoice
+          // Check if this is an admin invoice (portal_shortlinks must NOT count)
           const { data: invoiceLink } = await supabase
             .from('invoice_links' as any)
             .select('id')
             .eq('order_id', orderId!)
+            .eq('link_type', 'invoice')
             .maybeSingle();
 
           const isAdminInvoice = !!invoiceLink;
@@ -303,6 +304,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
       .from('invoice_links' as any)
       .select('id')
       .eq('order_id', orderId!)
+      .eq('link_type', 'invoice')
       .maybeSingle();
 
     const result = !!invoiceLink;
