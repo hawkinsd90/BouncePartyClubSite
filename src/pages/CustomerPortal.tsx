@@ -29,6 +29,7 @@ export function CustomerPortal() {
   const invoiceCardSaved = searchParams.get('invoice_card_saved') === 'true';
   const returnSessionId = searchParams.get('session_id') || null;
   const paymentSuccess = searchParams.get('payment') === 'success';
+  const invoicePaid = searchParams.get('invoice_paid') === 'true';
 
   const restoredPaymentState = cardJustUpdated ? {
     paymentAmount: (searchParams.get('pa') || 'deposit') as 'deposit' | 'full' | 'custom',
@@ -38,7 +39,7 @@ export function CustomerPortal() {
     selectedPaymentBaseCents: searchParams.get('spb') ? parseInt(searchParams.get('spb')!) : undefined,
   } : undefined;
 
-  const [approvalSuccess, setApprovalSuccess] = useState(false);
+  const [approvalSuccess, setApprovalSuccess] = useState(invoicePaid);
   const [approvalProcessing, setApprovalProcessing] = useState(false);
   const [invoiceProcessing, setInvoiceProcessing] = useState(false);
 

@@ -17,6 +17,7 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
   const [error, setError] = useState<string | null>(null);
   const [showFloatingHeader, setShowFloatingHeader] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [portalToken, setPortalToken] = useState<string | null>(null);
   const cardRef = useRef<{ card: HTMLElement, actionButtons: HTMLElement | null, openEdit: () => void } | null>(null);
 
   useEffect(() => {
@@ -106,6 +107,28 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
     loadOrder();
     onUpdate();
   }
+
+  useEffect(() => {
+    if (!order || order.status !== 'draft') {
+      setPortalToken(null);
+      return;
+    }
+    (async () => {
+      const { data } = await supabase
+        .from('invoice_links' as any)
+        .select('link_token, expires_at')
+        .eq('order_id', order.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data && data.link_token) {
+        const expired = data.expires_at && new Date(data.expires_at) < new Date();
+        setPortalToken(expired ? null : data.link_token);
+      } else {
+        setPortalToken(null);
+      }
+    })();
+  }, [order?.id, order?.status]);
 
   async function handleCopyUUID() {
     if (!order?.id) return;
@@ -236,7 +259,7 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
             </div>
 
             <a
-              href={`/customer-portal/${order.id}`}
+              href={portalToken ? `/customer-portal/${order.id}?t=${portalToken}` : `/customer-portal/${order.id}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:border-blue-400 hover:bg-blue-50 text-slate-700 hover:text-blue-700 text-sm font-medium rounded-lg transition-colors"

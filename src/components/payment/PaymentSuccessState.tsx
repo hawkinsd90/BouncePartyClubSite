@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Home, ShieldCheck, FileText } from 'lucide-react';
+import { Home, ShieldCheck } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
 
 interface OrderDetails {
@@ -183,23 +183,14 @@ export function PaymentSuccessState({ orderDetails, isAdminInvoice, sessionTipCe
           </p>
         </div>
 
-        <div className="mt-8 flex gap-4 justify-center flex-wrap">
+        <div className="mt-8 text-center">
           <button
             onClick={() => navigate('/')}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-slate-600 hover:bg-slate-700 text-white font-semibold rounded-lg transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
           >
             <Home className="w-5 h-5" />
-            Return Home
+            Back to Home
           </button>
-          {orderDetails && (
-            <a
-              href={`/customer-portal/${orderDetails.id}`}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors"
-            >
-              <FileText className="w-5 h-5" />
-              View Order Details
-            </a>
-          )}
         </div>
       </div>
     </div>

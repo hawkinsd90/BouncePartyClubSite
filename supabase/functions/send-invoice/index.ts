@@ -72,12 +72,16 @@ Deno.serve(async (req: Request) => {
 
     const shortCode = await generateUniqueShortCode(supabase);
 
+    const twoYearsFromNow = new Date();
+    twoYearsFromNow.setFullYear(twoYearsFromNow.getFullYear() + 2);
+
     const { data: invoiceLink, error: linkError } = await supabase
       .from('invoice_links')
       .insert({
         order_id: orderId,
         deposit_cents: depositCents || 0,
         customer_filled: customerEmail ? true : false,
+        expires_at: twoYearsFromNow.toISOString(),
         ...(shortCode ? { short_code: shortCode } : {}),
       })
       .select()
@@ -130,7 +134,6 @@ Deno.serve(async (req: Request) => {
                     <p><strong>Total Amount:</strong> $${(((order.subtotal_cents || 0) + (order.travel_fee_cents || 0) + (order.surface_fee_cents || 0) + (order.generator_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.tax_cents || 0)) / 100).toFixed(2)}</p>
                     <p><strong>Deposit Due:</strong> $${(depositCents / 100).toFixed(2)}</p>
                     <p><a href="${shortInvoiceUrl}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:white;text-decoration:none;border-radius:8px;margin:16px 0;">View & Accept Invoice</a></p>
-                    <p>This link will expire in 7 days.</p>
                     <p>Questions? Call us at (313) 889-3860</p>
                   `,
                 }),

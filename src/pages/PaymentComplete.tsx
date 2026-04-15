@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { usePaymentCompletion } from '../hooks/usePaymentCompletion';
 import { PaymentLoadingState } from '../components/payment/PaymentLoadingState';
 import { PaymentErrorState } from '../components/payment/PaymentErrorState';
@@ -8,15 +8,11 @@ import { trackEvent } from '../lib/siteEvents';
 
 export function PaymentComplete() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const orderId = searchParams.get('order_id');
   const sessionId = searchParams.get('session_id');
 
-  // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
-  // Restore only after a true dev/staging environment and explicit safe gating are in place.
-  // Previously logged Stripe Checkout Session ID (cs_xxx) and full orderDetails object (financial + PII).
-  // console.log('[PAYMENT-COMPLETE-PAGE] Rendering with orderId:', orderId, 'sessionId:', sessionId);
-
-  const { status, error, orderDetails, isAdminInvoice, sessionTipCents } = usePaymentCompletion(orderId, sessionId);
+  const { status, error, orderDetails, isAdminInvoice, sessionTipCents, shouldRedirectToPortal } = usePaymentCompletion(orderId, sessionId);
 
   useEffect(() => {
     if (status === 'success' && orderId) {
@@ -24,21 +20,19 @@ export function PaymentComplete() {
     }
   }, [status, orderId]);
 
-  // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
-  // Restore only after a true dev/staging environment and explicit safe gating are in place.
-  // Previously logged full orderDetails object including financial fields and customer data.
-  // console.log('[PAYMENT-COMPLETE-PAGE] Status:', status, 'Error:', error, 'OrderDetails:', orderDetails);
+  useEffect(() => {
+    if (status === 'success' && shouldRedirectToPortal && orderId) {
+      navigate(`/customer-portal/${orderId}?invoice_paid=true`, { replace: true });
+    }
+  }, [status, shouldRedirectToPortal, orderId, navigate]);
 
-  if (status === 'loading') {
-    // console.log('[PAYMENT-COMPLETE-PAGE] Showing loading state');
+  if (status === 'loading' || (status === 'success' && shouldRedirectToPortal)) {
     return <PaymentLoadingState />;
   }
 
   if (status === 'error') {
-    // console.log('[PAYMENT-COMPLETE-PAGE] Showing error state:', error);
     return <PaymentErrorState error={error} />;
   }
 
-  // console.log('[PAYMENT-COMPLETE-PAGE] Showing success state');
   return <PaymentSuccessState orderDetails={orderDetails} isAdminInvoice={isAdminInvoice} sessionTipCents={sessionTipCents} />;
 }

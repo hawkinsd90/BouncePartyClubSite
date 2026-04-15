@@ -52,6 +52,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
   const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
   const [isAdminInvoice, setIsAdminInvoice] = useState(false);
   const [sessionTipCents, setSessionTipCents] = useState<number>(0);
+  const [shouldRedirectToPortal, setShouldRedirectToPortal] = useState(false);
 
   useEffect(() => {
     // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
@@ -221,12 +222,16 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
         }
 
         setOrderDetails(order);
-        await checkIfAdminInvoice();
+        const adminInvoice = await checkIfAdminInvoice();
 
         // Only send notifications if we haven't processed this payment before
         if (!alreadyProcessed && order) {
           await sendNotificationsIfNeeded(order);
           SafeStorage.setItem(processedKey, 'true');
+        }
+
+        if (adminInvoice) {
+          setShouldRedirectToPortal(true);
         }
       } else {
         console.error('[PAYMENT-COMPLETE] Order is null, setting error state');
@@ -293,14 +298,16 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
     return order as unknown as OrderDetails;
   }
 
-  async function checkIfAdminInvoice() {
+  async function checkIfAdminInvoice(): Promise<boolean> {
     const { data: invoiceLink } = await supabase
       .from('invoice_links' as any)
       .select('id')
       .eq('order_id', orderId!)
       .maybeSingle();
 
-    setIsAdminInvoice(!!invoiceLink);
+    const result = !!invoiceLink;
+    setIsAdminInvoice(result);
+    return result;
   }
 
   async function sendNotificationsIfNeeded(order: OrderDetails) {
@@ -339,5 +346,6 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
     orderDetails,
     isAdminInvoice,
     sessionTipCents,
+    shouldRedirectToPortal,
   };
 }
