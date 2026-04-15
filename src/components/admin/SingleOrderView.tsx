@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Copy, Check, ExternalLink } from 'lucide-react';
 import { PendingOrderCard } from './PendingOrderCard';
 import { AdminFloatingOrderHeader } from './AdminFloatingOrderHeader';
 import { supabase } from '../../lib/supabase';
@@ -16,6 +16,7 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showFloatingHeader, setShowFloatingHeader] = useState(false);
+  const [copied, setCopied] = useState(false);
   const cardRef = useRef<{ card: HTMLElement, actionButtons: HTMLElement | null, openEdit: () => void } | null>(null);
 
   useEffect(() => {
@@ -27,7 +28,6 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
       setLoading(true);
       setError(null);
 
-      // Check if the orderId looks like a partial ID (8 chars or less) or full UUID
       const isPartialId = orderId.length <= 8;
 
       let query = supabase
@@ -45,7 +45,6 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
         `);
 
       if (isPartialId) {
-        // Use server-side prefix match to avoid fetching all order IDs
         const { data: matchRow, error: searchError } = await supabase
           .from('orders')
           .select('id')
@@ -61,7 +60,6 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
           return;
         }
 
-        // Now fetch the full order data with relations
         const { data: fullOrder, error: fullOrderError } = await supabase
           .from('orders')
           .select(`
@@ -84,7 +82,6 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
         setLoading(false);
         return;
       } else {
-        // For full UUIDs, do exact match
         query = query.eq('id', orderId);
       }
 
@@ -108,6 +105,24 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
   function handleUpdate() {
     loadOrder();
     onUpdate();
+  }
+
+  async function handleCopyUUID() {
+    if (!order?.id) return;
+    try {
+      await navigator.clipboard.writeText(order.id);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      const el = document.createElement('textarea');
+      el.value = order.id;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   }
 
   useEffect(() => {
@@ -194,13 +209,43 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
       />
 
       <div className="space-y-4">
-        <button
-          onClick={onBack}
-          className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Orders
-        </button>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <button
+            onClick={onBack}
+            className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Orders
+          </button>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 rounded-lg px-3 py-1.5">
+              <span className="text-xs text-slate-500 font-medium select-none">UUID</span>
+              <span className="font-mono text-xs text-slate-700 select-all">{order.id}</span>
+              <button
+                onClick={handleCopyUUID}
+                title="Copy UUID"
+                className="ml-1 p-0.5 rounded text-slate-400 hover:text-slate-700 transition-colors"
+              >
+                {copied ? (
+                  <Check className="w-3.5 h-3.5 text-green-600" />
+                ) : (
+                  <Copy className="w-3.5 h-3.5" />
+                )}
+              </button>
+            </div>
+
+            <a
+              href={`/customer-portal/${order.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:border-blue-400 hover:bg-blue-50 text-slate-700 hover:text-blue-700 text-sm font-medium rounded-lg transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Customer Portal
+            </a>
+          </div>
+        </div>
 
         <PendingOrderCard
           ref={cardRef}

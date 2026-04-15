@@ -32,6 +32,7 @@ const SignUp = lazy(() => import('./pages/SignUp').then(m => ({ default: m.SignU
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword').then(m => ({ default: m.ForgotPassword })));
 const ResetPassword = lazy(() => import('./pages/ResetPassword').then(m => ({ default: m.ResetPassword })));
 const Receipt = lazy(() => import('./pages/Receipt').then(m => ({ default: m.Receipt })));
+const ShortLink = lazy(() => import('./pages/ShortLink').then(m => ({ default: m.ShortLink })));
 
 
 function OAuthRedirectHandler() {
@@ -79,6 +80,7 @@ function App() {
           <Route path="/invoice-preview" element={<InvoicePreview />} />
           <Route path="/menu-preview" element={<MenuPreview />} />
           <Route path="/sign/:orderId" element={<Sign />} />
+          <Route path="/i/:shortCode" element={<ShortLink />} />
           <Route path="/customer-portal/:orderId" element={<CustomerPortal />} />
           <Route path="/customer-portal" element={<CustomerPortal />} />
           <Route path="/receipt/:orderId/:paymentId" element={<Receipt />} />

@@ -6,6 +6,32 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
 };
 
+const SHORT_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+const SHORT_CODE_LENGTH = 8;
+
+function generateShortCode(): string {
+  let code = '';
+  const bytes = new Uint8Array(SHORT_CODE_LENGTH);
+  crypto.getRandomValues(bytes);
+  for (let i = 0; i < SHORT_CODE_LENGTH; i++) {
+    code += SHORT_CODE_CHARS[bytes[i] % SHORT_CODE_CHARS.length];
+  }
+  return code;
+}
+
+async function generateUniqueShortCode(supabase: any): Promise<string | null> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = generateShortCode();
+    const { data: existing } = await supabase
+      .from('invoice_links')
+      .select('id')
+      .eq('short_code', code)
+      .maybeSingle();
+    if (!existing) return code;
+  }
+  return null;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -31,7 +57,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Get order details
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .select('*, customers(*), addresses(*)')
@@ -45,13 +70,15 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Create invoice link
+    const shortCode = await generateUniqueShortCode(supabase);
+
     const { data: invoiceLink, error: linkError } = await supabase
       .from('invoice_links')
       .insert({
         order_id: orderId,
         deposit_cents: depositCents || 0,
         customer_filled: customerEmail ? true : false,
+        ...(shortCode ? { short_code: shortCode } : {}),
       })
       .select()
       .single();
@@ -63,10 +90,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Resolve the public origin: prefer the request's origin header, fall back to
-    // the SITE_URL env var (set in Supabase dashboard), then a hard-coded production URL.
-    // req.headers.get('origin') is null when the fetch comes from within another
-    // edge function or when the browser omits it on same-site requests.
     const resolvedOrigin =
       (req.headers.get('origin') && req.headers.get('origin') !== 'null'
         ? req.headers.get('origin')
@@ -74,17 +97,16 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SITE_URL') ||
       'https://bouncepartyclub.com';
 
-    const invoiceUrl = `${resolvedOrigin}/customer-portal/${orderId}?t=${invoiceLink.link_token}`;
+    const fullInvoiceUrl = `${resolvedOrigin}/customer-portal/${orderId}?t=${invoiceLink.link_token}`;
+    const shortInvoiceUrl = shortCode
+      ? `${resolvedOrigin}/i/${shortCode}`
+      : fullInvoiceUrl;
 
-    // Update order with invoice sent timestamp
     await supabase
       .from('orders')
       .update({ invoice_sent_at: new Date().toISOString() })
       .eq('id', orderId);
 
-    // Send email and SMS fire-and-forget so they never block the response.
-    // EdgeRuntime.waitUntil keeps the function alive long enough for them to
-    // complete, but the 200 response is returned immediately to the caller.
     if (customerEmail || customerPhone) {
       const notificationTasks: Promise<any>[] = [];
 
@@ -107,7 +129,7 @@ Deno.serve(async (req: Request) => {
                     <p>Your invoice is ready for review and acceptance.</p>
                     <p><strong>Total Amount:</strong> $${(((order.subtotal_cents || 0) + (order.travel_fee_cents || 0) + (order.surface_fee_cents || 0) + (order.generator_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.tax_cents || 0)) / 100).toFixed(2)}</p>
                     <p><strong>Deposit Due:</strong> $${(depositCents / 100).toFixed(2)}</p>
-                    <p><a href="${invoiceUrl}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:white;text-decoration:none;border-radius:8px;margin:16px 0;">View & Accept Invoice</a></p>
+                    <p><a href="${shortInvoiceUrl}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:white;text-decoration:none;border-radius:8px;margin:16px 0;">View & Accept Invoice</a></p>
                     <p>This link will expire in 7 days.</p>
                     <p>Questions? Call us at (313) 889-3860</p>
                   `,
@@ -135,7 +157,7 @@ Deno.serve(async (req: Request) => {
                 },
                 body: JSON.stringify({
                   to: customerPhone,
-                  message: `Your Bounce Party Club invoice is ready! View and accept: ${invoiceUrl}`,
+                  message: `Your Bounce Party Club invoice is ready! View and accept: ${shortInvoiceUrl}`,
                 }),
               });
               if (!res.ok) {
@@ -148,15 +170,15 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      // Fire-and-forget: keeps the Deno runtime alive to finish sending
-      // but does NOT block returning the success response to the admin.
       EdgeRuntime.waitUntil(Promise.all(notificationTasks));
     }
 
     return new Response(
       JSON.stringify({
         success: true,
-        invoiceUrl,
+        invoiceUrl: fullInvoiceUrl,
+        shortInvoiceUrl,
+        shortCode: shortCode ?? null,
         linkToken: invoiceLink.link_token,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
