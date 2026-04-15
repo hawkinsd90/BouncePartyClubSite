@@ -9,7 +9,6 @@ import { ApprovalSuccessView } from '../components/customer-portal/ApprovalSucce
 import { OrderStatusView } from '../components/customer-portal/OrderStatusView';
 import { RegularPortalView } from '../components/customer-portal/RegularPortalView';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
-import { approveOrder } from '../lib/orderApprovalService';
 import { showToast } from '../lib/notifications';
 import { trackEvent } from '../lib/siteEvents';
 
@@ -22,8 +21,9 @@ export function CustomerPortal() {
     trackEvent('customer_portal_viewed', { orderId: orderId || undefined });
   }, [orderId]);
 
-  const isInvoiceLink = location.pathname.startsWith('/invoice/');
-  const invoiceToken = isInvoiceLink ? token : null;
+  const tokenFromQuery = searchParams.get('t');
+  const isInvoiceLink = !!(tokenFromQuery || location.pathname.startsWith('/invoice/'));
+  const invoiceToken = tokenFromQuery || (location.pathname.startsWith('/invoice/') ? token : null);
 
   const cardJustUpdated = searchParams.get('card_updated') === 'true';
   const invoiceCardSaved = searchParams.get('invoice_card_saved') === 'true';
@@ -126,7 +126,6 @@ export function CustomerPortal() {
             body: { sessionId: returnSessionId, orderId },
           });
           if (pmError || !pmData?.success) {
-            // BPC-SECURITY-HARDENING: raw error object removed — could expose payment API internals in browser console.
             console.error('[CustomerPortal] invoice save-pm failed.');
             showToast('Failed to save payment method. Please try again.', 'error');
             setInvoiceProcessing(false);
@@ -134,20 +133,27 @@ export function CustomerPortal() {
             return;
           }
 
-          const result = await approveOrder(orderId, async () => false);
-          if (!result.success) {
-            showToast(result.error || 'Payment failed. Please try again.', 'error');
-            setInvoiceProcessing(false);
+          // The webhook handles status transition to confirmed for admin invoices.
+          // As a client-side fallback only (webhook may not have fired yet), call
+          // order-lifecycle directly with the anon key — no admin session required.
+          const orderResult = await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
+          const currentStatus = orderResult?.order?.status;
+
+          if (currentStatus !== 'confirmed' && currentStatus !== 'cancelled' && currentStatus !== 'void') {
+            try {
+              await supabase.functions.invoke('order-lifecycle', {
+                body: { action: 'enter_confirmed', orderId, source: 'invoice_card_saved_fallback', paymentOutcome: 'zero_due_with_card' },
+              });
+            } catch (lifecycleErr) {
+              console.error('[CustomerPortal] order-lifecycle fallback failed (non-fatal):', lifecycleErr instanceof Error ? lifecycleErr.message : 'unknown');
+            }
             await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
-            return;
           }
 
-          await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
           setInvoiceProcessing(false);
           setApprovalSuccess(true);
         } catch (err: any) {
-          // BPC-SECURITY-HARDENING: raw error object removed — could expose payment/approval internals in browser console.
-          console.error('[CustomerPortal] invoice approval error:', err instanceof Error ? err.message : 'unknown');
+          console.error('[CustomerPortal] invoice card-saved error:', err instanceof Error ? err.message : 'unknown');
           showToast('Something went wrong. Please contact us.', 'error');
           setInvoiceProcessing(false);
           await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);

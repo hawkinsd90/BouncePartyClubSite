@@ -75,7 +75,6 @@ function App() {
           <Route path="/signup" element={<SignUp />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/invoice/:token" element={<CustomerPortal />} />
           <Route path="/invoice/view/:orderId" element={<Invoice />} />
           <Route path="/invoice-preview" element={<InvoicePreview />} />
           <Route path="/menu-preview" element={<MenuPreview />} />

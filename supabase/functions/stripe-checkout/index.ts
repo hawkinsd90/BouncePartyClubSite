@@ -23,7 +23,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json();
-    const { orderId, depositCents, tipCents = 0, customerEmail, customerName, setupMode = false, invoiceMode = false, paymentState = null } = body;
+    const { orderId, depositCents, tipCents = 0, customerEmail, customerName, setupMode = false, invoiceMode = false, invoiceLinkToken = null, paymentState = null } = body;
     const bodyOrigin: string | undefined = body.origin;
 
     const headerOrigin = req.headers.get("origin");
@@ -163,7 +163,8 @@ Deno.serve(async (req: Request) => {
     if (setupMode) {
       let params: URLSearchParams;
       if (invoiceMode) {
-        successUrl = `${resolvedOrigin}/customer-portal/${orderId}?invoice_card_saved=true&session_id={CHECKOUT_SESSION_ID}`;
+        const tokenParam = invoiceLinkToken ? `&t=${invoiceLinkToken}` : '';
+        successUrl = `${resolvedOrigin}/customer-portal/${orderId}?invoice_card_saved=true&session_id={CHECKOUT_SESSION_ID}${tokenParam}`;
       } else {
         params = new URLSearchParams({ card_updated: 'true' });
         if (paymentState) {
@@ -178,8 +179,9 @@ Deno.serve(async (req: Request) => {
     } else {
       successUrl = `${resolvedOrigin}/payment-complete?session_id={CHECKOUT_SESSION_ID}&order_id=${orderId}`;
     }
+    const cancelTokenParam = (setupMode && invoiceMode && invoiceLinkToken) ? `&t=${invoiceLinkToken}` : '';
     const cancelUrl = setupMode
-      ? `${resolvedOrigin}/customer-portal/${orderId}?card_update_canceled=true`
+      ? `${resolvedOrigin}/customer-portal/${orderId}?card_update_canceled=true${cancelTokenParam}`
       : `${resolvedOrigin}/payment-canceled?order_id=${orderId}`;
 
     console.log("stripe-checkout: urls — success:", successUrl, "| cancel:", cancelUrl);

@@ -159,7 +159,7 @@ export async function approveOrder(
             .single();
 
           if (!declineLinkError && (declineLink as any)?.link_token) {
-            declineUrl = `${window.location.origin}/invoice/${(declineLink as any).link_token}`;
+            declineUrl = `${window.location.origin}/customer-portal/${orderId}?t=${(declineLink as any).link_token}`;
           } else {
             console.warn('[orderApprovalService] Failed to create decline invoice link, falling back to portal URL:', declineLinkError);
           }
