@@ -4,6 +4,14 @@ import { OrderSummary } from '../order/OrderSummary';
 import { OrderSummaryDisplay } from '../../lib/orderSummary';
 import { RentalTerms } from '../waiver/RentalTerms';
 
+interface ContactData {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  phone?: string;
+  business_name?: string;
+}
+
 interface SimpleInvoiceDisplayProps {
   eventDate: string;
   startWindow: string;
@@ -33,6 +41,7 @@ interface SimpleInvoiceDisplayProps {
   sameDayPickupFeeWaived?: boolean;
   showTip?: boolean;
   showPricingNotice?: boolean;
+  contactData?: ContactData;
   onPrint: () => void;
 }
 
@@ -58,6 +67,7 @@ export function SimpleInvoiceDisplay({
   sameDayPickupFeeWaived = false,
   showTip = false,
   showPricingNotice = true,
+  contactData,
   onPrint,
 }: SimpleInvoiceDisplayProps) {
   return (
@@ -90,6 +100,24 @@ export function SimpleInvoiceDisplay({
       <div className="mb-8 screen-only print-section print-terms">
         <RentalTerms />
       </div>
+
+      {contactData && (contactData.first_name || contactData.email) && (
+        <div className="mb-8 p-6 bg-slate-50 rounded-lg print-section">
+          <h2 className="text-xl font-bold text-slate-900 mb-4 print-section-title">Bill To</h2>
+          <div className="space-y-1 text-sm">
+            {contactData.business_name && (
+              <p className="font-bold text-base text-slate-900">{contactData.business_name}</p>
+            )}
+            {(contactData.first_name || contactData.last_name) && (
+              <p className="font-semibold text-slate-900">
+                {contactData.first_name} {contactData.last_name}
+              </p>
+            )}
+            {contactData.email && <p className="text-slate-700">{contactData.email}</p>}
+            {contactData.phone && <p className="text-slate-700">{contactData.phone}</p>}
+          </div>
+        </div>
+      )}
 
       <div className="mb-8 p-6 bg-slate-50 rounded-lg print-section">
         <h2 className="text-xl font-bold text-slate-900 mb-4 print-section-title">Event Details</h2>

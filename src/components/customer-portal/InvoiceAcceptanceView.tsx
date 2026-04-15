@@ -582,6 +582,13 @@ export function InvoiceAcceptanceView({
           sameDayPickupFeeWaived={order.same_day_pickup_fee_waived || false}
           showTip={orderSummary ? orderSummary.tip > 0 : false}
           showPricingNotice={false}
+          contactData={{
+            first_name: customerInfo.first_name || order.customers?.first_name || '',
+            last_name: customerInfo.last_name || order.customers?.last_name || '',
+            email: customerInfo.email || order.customers?.email || '',
+            phone: customerInfo.phone || order.customers?.phone || '',
+            business_name: customerInfo.business_name || order.customers?.business_name || '',
+          }}
           onPrint={handlePrintInvoice}
         />
 
