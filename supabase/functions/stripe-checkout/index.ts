@@ -186,19 +186,47 @@ Deno.serve(async (req: Request) => {
 
     console.log("stripe-checkout: urls — success:", successUrl, "| cancel:", cancelUrl);
 
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
-      mode: "setup",
-      customer: customerId,
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      metadata: {
-        order_id: orderId,
-        payment_type: setupMode ? "card_update" : "deposit",
-        deposit_amount: depositCents ? depositCents.toString() : "0",
-        tip_cents: tipCents.toString(),
-      },
-    });
+    const sessionParams: Stripe.Checkout.SessionCreateParams = setupMode
+      ? {
+          payment_method_types: ["card"],
+          mode: "setup",
+          customer: customerId,
+          success_url: successUrl,
+          cancel_url: cancelUrl,
+          metadata: {
+            order_id: orderId,
+            payment_type: "card_update",
+            deposit_amount: "0",
+            tip_cents: tipCents.toString(),
+          },
+        }
+      : {
+          payment_method_types: ["card"],
+          mode: "payment",
+          customer: customerId,
+          line_items: [
+            {
+              price_data: {
+                currency: "usd",
+                product_data: {
+                  name: tipCents > 0 ? "Deposit + Tip" : "Deposit",
+                },
+                unit_amount: (depositCents ?? 0) + tipCents,
+              },
+              quantity: 1,
+            },
+          ],
+          success_url: successUrl,
+          cancel_url: cancelUrl,
+          metadata: {
+            order_id: orderId,
+            payment_type: "deposit",
+            deposit_amount: depositCents ? depositCents.toString() : "0",
+            tip_cents: tipCents.toString(),
+          },
+        };
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
 
     return new Response(
       JSON.stringify({ url: session.url, sessionId: session.id }),

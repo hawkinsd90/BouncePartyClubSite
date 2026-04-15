@@ -147,11 +147,11 @@ export function CustomerPortal() {
               // deposit_due_cents is the authoritative value: it already reflects any admin
               // overrides (zero-out, partial, or full-payment overrides are encoded there).
               try {
-                const { error: chargeErr } = await supabase.functions.invoke('charge-deposit', {
+                const { data: chargeData, error: chargeErr } = await supabase.functions.invoke('charge-deposit', {
                   body: { orderId },
                 });
-                if (chargeErr) {
-                  console.error('[CustomerPortal] charge-deposit failed:', chargeErr.message ?? 'unknown');
+                if (chargeErr || !chargeData?.success) {
+                  console.error('[CustomerPortal] charge-deposit failed:', chargeErr?.message ?? chargeData?.error ?? 'unknown');
                   showToast('Payment could not be processed. Please try again or contact us.', 'error');
                   setInvoiceProcessing(false);
                   await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);

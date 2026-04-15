@@ -204,7 +204,7 @@ async function enterConfirmed(
   const depositDue = order.deposit_due_cents ?? 0;
   const depositPaid = order.deposit_paid_cents ?? 0;
   if (depositDue > 0 && depositPaid < depositDue) {
-    const bypassOutcomes = ["waived", "already_paid", "cash"];
+    const bypassOutcomes = ["waived", "already_paid", "cash", "charged_now"];
     if (!bypassOutcomes.includes(paymentOutcome)) {
       return {
         success: false,
