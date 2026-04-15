@@ -1,5 +1,5 @@
-import { useNavigate } from 'react-router-dom';
-import { Home } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Home, ArrowRight } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
 
 interface OrderDetails {
@@ -26,6 +26,8 @@ interface PaymentSuccessStateProps {
 
 export function PaymentSuccessState({ orderDetails, sessionTipCents = 0 }: PaymentSuccessStateProps) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const orderId = searchParams.get('order_id') || orderDetails?.id;
 
   const displayTipCents = orderDetails?.tip_cents || sessionTipCents;
 
@@ -146,10 +148,19 @@ export function PaymentSuccessState({ orderDetails, sessionTipCents = 0 }: Payme
           </p>
         </div>
 
-        <div className="mt-8 text-center">
+        <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+          {orderId && (
+            <button
+              onClick={() => navigate(`/customer-portal/${orderId}`)}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors"
+            >
+              Track Your Order
+              <ArrowRight className="w-5 h-5" />
+            </button>
+          )}
           <button
             onClick={() => navigate('/')}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition-colors"
           >
             <Home className="w-5 h-5" />
             Back to Home
