@@ -458,19 +458,6 @@ export function InvoiceAcceptanceView({
         return;
       }
 
-      // Store the chosen payment amount so charge-deposit uses it
-      const { error: paymentAmountError } = await supabase
-        .from('orders')
-        .update({ customer_selected_payment_cents: actualPaymentCents })
-        .eq('id', order.id);
-
-      if (paymentAmountError) {
-        console.error('Failed to save payment selection:', paymentAmountError);
-        showToast('Failed to save payment selection. Please try again.', 'error');
-        setProcessing(false);
-        return;
-      }
-
       const effectiveEmail = customerInfo.email || order.customers?.email;
       const effectiveName = customerInfo.first_name
         ? `${customerInfo.first_name} ${customerInfo.last_name}`
@@ -486,17 +473,12 @@ export function InvoiceAcceptanceView({
           },
           body: JSON.stringify({
             orderId: order.id,
-            setupMode: true,
-            invoiceMode: true,
-            invoiceLinkToken: invoiceLink?.link_token ?? null,
+            setupMode: false,
+            depositCents: actualPaymentCents,
+            tipCents,
             customerEmail: effectiveEmail,
             customerName: effectiveName,
             origin: window.location.origin,
-            paymentState: {
-              paymentAmount,
-              customPaymentAmount,
-              newTipCents: tipCents,
-            },
           }),
         }
       );

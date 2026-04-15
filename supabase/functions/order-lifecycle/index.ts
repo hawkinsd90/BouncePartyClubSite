@@ -188,6 +188,31 @@ async function enterConfirmed(
     };
   }
 
+  // Safety guard: never confirm an order that still has an uncollected deposit.
+  // Uses the actual deposit_due_cents on the order row as the source of truth so
+  // that all admin overrides are respected:
+  //   - Admin zeroed out the deposit → deposit_due_cents === 0 → guard skips, confirm proceeds
+  //   - Admin set a partial deposit → deposit_due_cents is the partial amount → guard checks that exact amount
+  //   - Admin set full payment as deposit → deposit_due_cents equals total → same check
+  //   - Standard deposit rule → deposit_due_cents is whatever was computed → same check
+  // The guard only fires when deposit_paid_cents is genuinely less than deposit_due_cents.
+  // paymentOutcome values that legitimately bypass charging ("waived", "zero_due_with_card",
+  // "already_paid") are still allowed through because deposit_paid_cents reflects them:
+  //   - "waived": admin explicitly set deposit_due_cents to 0 before calling this
+  //   - "zero_due_with_card": deposit_due_cents === 0 by definition
+  //   - "already_paid": deposit_paid_cents >= deposit_due_cents already
+  const depositDue = order.deposit_due_cents ?? 0;
+  const depositPaid = order.deposit_paid_cents ?? 0;
+  if (depositDue > 0 && depositPaid < depositDue) {
+    const bypassOutcomes = ["waived", "already_paid", "cash"];
+    if (!bypassOutcomes.includes(paymentOutcome)) {
+      return {
+        success: false,
+        error: `Cannot confirm: deposit of $${(depositDue / 100).toFixed(2)} has not been collected (paid: $${(depositPaid / 100).toFixed(2)})`,
+      };
+    }
+  }
+
   // Short-circuit only when the admin has already been alerted — full idempotency.
   if (order.confirmed_admin_alerted) {
     return { success: true, alreadySent: true };

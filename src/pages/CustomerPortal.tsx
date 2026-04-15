@@ -138,14 +138,42 @@ export function CustomerPortal() {
           // order-lifecycle directly with the anon key — no admin session required.
           const orderResult = await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
           const currentStatus = orderResult?.order?.status;
+          const depositDue = orderResult?.order?.deposit_due_cents ?? 0;
+          const depositPaid = orderResult?.order?.deposit_paid_cents ?? 0;
 
           if (currentStatus !== 'confirmed' && currentStatus !== 'cancelled' && currentStatus !== 'void') {
-            try {
-              await supabase.functions.invoke('order-lifecycle', {
-                body: { action: 'enter_confirmed', orderId, source: 'invoice_card_saved_fallback', paymentOutcome: 'zero_due_with_card' },
-              });
-            } catch (lifecycleErr) {
-              console.error('[CustomerPortal] order-lifecycle fallback failed (non-fatal):', lifecycleErr instanceof Error ? lifecycleErr.message : 'unknown');
+            if (depositDue > 0 && depositPaid < depositDue) {
+              // Card was saved but deposit_due_cents > 0 — charge the actual amount now.
+              // deposit_due_cents is the authoritative value: it already reflects any admin
+              // overrides (zero-out, partial, or full-payment overrides are encoded there).
+              try {
+                const { error: chargeErr } = await supabase.functions.invoke('charge-deposit', {
+                  body: { orderId },
+                });
+                if (chargeErr) {
+                  console.error('[CustomerPortal] charge-deposit failed:', chargeErr.message ?? 'unknown');
+                  showToast('Payment could not be processed. Please try again or contact us.', 'error');
+                  setInvoiceProcessing(false);
+                  await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
+                  return;
+                }
+              } catch (chargeEx) {
+                console.error('[CustomerPortal] charge-deposit threw:', chargeEx instanceof Error ? chargeEx.message : 'unknown');
+                showToast('Payment could not be processed. Please try again or contact us.', 'error');
+                setInvoiceProcessing(false);
+                await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
+                return;
+              }
+            } else {
+              // Genuinely zero deposit (deposit_due_cents === 0): card saved for future
+              // balance collection only. Safe to confirm without any charge.
+              try {
+                await supabase.functions.invoke('order-lifecycle', {
+                  body: { action: 'enter_confirmed', orderId, source: 'invoice_card_saved_fallback', paymentOutcome: 'zero_due_with_card' },
+                });
+              } catch (lifecycleErr) {
+                console.error('[CustomerPortal] order-lifecycle fallback failed (non-fatal):', lifecycleErr instanceof Error ? lifecycleErr.message : 'unknown');
+              }
             }
             await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
           }
