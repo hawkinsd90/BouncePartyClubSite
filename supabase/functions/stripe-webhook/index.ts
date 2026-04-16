@@ -148,4 +148,3 @@ async function processWebhookEvent(
   }
 }
 
-export { invokeLifecycle };

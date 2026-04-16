@@ -19,6 +19,7 @@ import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { formatOrderId } from "../_shared/format-order-id.ts";
 import { logTransaction } from "../_shared/transaction-logger.ts";
+import { formatCurrency, LOGO_URL, DEFAULT_PHONE } from "../_shared/fmt.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -91,9 +92,6 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── 3. Execute all critical accounting writes atomically via DB RPC ─────
-    //   The RPC: locks the order row, validates amount vs balance, inserts
-    //   payment, updates orders fields, and inserts order_changelog.
-    //   If anything fails inside the RPC, Postgres rolls the whole thing back.
     const { data: rpcResult, error: rpcError } = await supabaseAdmin.rpc(
       "record_cash_payment",
       {
@@ -140,10 +138,6 @@ Deno.serve(async (req: Request) => {
       event_date: _event_date,
     } = result;
 
-    // console.log("[record-cash-payment] RPC succeeded:", {
-    //   orderId, payment_id, payment_type, new_balance_due, caller: callerUser.id,
-    // });
-
     // ── 4. Non-critical side effects (best-effort, non-atomic) ──────────────
 
     // 4a. Log transaction receipt + trigger admin notification email
@@ -151,7 +145,7 @@ Deno.serve(async (req: Request) => {
     if (payment_id && customer_id) {
       try {
         const notesArr: string[] = ["Cash payment recorded by admin"];
-        if (tipCents > 0) notesArr.push(`includes tip $${(tipCents / 100).toFixed(2)}`);
+        if (tipCents > 0) notesArr.push(`includes tip ${formatCurrency(tipCents)}`);
         receiptNumber = await logTransaction(supabaseAdmin, {
           transactionType: payment_type,
           orderId,
@@ -187,6 +181,13 @@ Deno.serve(async (req: Request) => {
       if (orderRow?.customers?.email) {
         const firstName = orderRow.customers.first_name || "Customer";
 
+        const { data: phoneSetting } = await supabaseAdmin
+          .from("admin_settings")
+          .select("value")
+          .eq("key", "business_phone")
+          .maybeSingle();
+        const businessPhone = phoneSetting?.value || DEFAULT_PHONE;
+
         await supabaseAdmin.functions.invoke("send-email", {
           body: {
             to: orderRow.customers.email,
@@ -200,6 +201,7 @@ Deno.serve(async (req: Request) => {
               paymentType: payment_type,
               newBalanceDue: new_balance_due,
               order: orderRow,
+              businessPhone,
             }),
           },
         });
@@ -238,13 +240,11 @@ function buildCashReceiptEmail(opts: {
   paymentType: "deposit" | "balance";
   newBalanceDue: number;
   order: any;
+  businessPhone: string;
 }): string {
-  const { firstName, orderId, amountCents, tipCents, totalCents, paymentType, newBalanceDue, order } = opts;
+  const { firstName, orderId, amountCents, tipCents, totalCents, paymentType, newBalanceDue, order, businessPhone } = opts;
   const orderNum = formatOrderId(orderId);
-  const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
-  const LOGO_URL = "https://qaagfafagdpgzcijnfbw.supabase.co/storage/v1/object/public/public-assets/bounce-party-club-logo.png";
-  const PHONE = "(313) 889-3860";
-  // Success theme — matches booking confirmed email exactly
+  const fmt = formatCurrency;
   const BORDER = "#10b981";
   const ACCENT = "#15803d";
   const BG = "#f0fdf4";
@@ -261,7 +261,6 @@ function buildCashReceiptEmail(opts: {
     ? `${order.addresses.line1}, ${order.addresses.city}, ${order.addresses.state}`
     : "";
 
-  // ── Event Details info box (matches createInfoBox with success theme) ─────
   const eventDetailRows = [
     { label: "Order #", value: orderNum },
     ...(eventDateStr ? [{ label: "Date", value: eventDateStr }] : []),
@@ -281,7 +280,6 @@ function buildCashReceiptEmail(opts: {
       <table width="100%" cellpadding="6" cellspacing="0">${eventDetailRows}</table>
     </div>`;
 
-  // ── Order Items (matches createItemsTable) ────────────────────────────────
   const items: any[] = order.order_items || [];
   const itemRowsHtml = items.map((item: any) => `
     <tr>
@@ -297,7 +295,6 @@ function buildCashReceiptEmail(opts: {
       <table width="100%" cellpadding="0" cellspacing="0">${itemRowsHtml}</table>
     </div>` : "";
 
-  // ── Pricing summary (matches createPricingSummary) ────────────────────────
   const customFees: any[] = order.order_custom_fees || [];
   const discounts: any[] = order.order_discounts || [];
 
@@ -331,7 +328,6 @@ function buildCashReceiptEmail(opts: {
       <table width="100%" cellpadding="6" cellspacing="0">${pricingRowsHtml}</table>
     </div>`;
 
-  // ── This payment receipt (success info box) ───────────────────────────────
   const paymentLabel = paymentType === "deposit" ? "Deposit Payment" : "Balance Payment";
   const tipRow = tipCents > 0 ? `
       <tr>
@@ -359,7 +355,6 @@ function buildCashReceiptEmail(opts: {
       </table>
     </div>`;
 
-  // ── CASH PAYMENT bold banner (only for cash payments) ─────────────────────
   const cashBanner = `
     <div style="background-color:#fef3c7;border:2px solid #f59e0b;border-radius:6px;padding:16px 20px;margin:25px 0;text-align:center;">
       <p style="margin:0;font-size:18px;font-weight:900;color:#92400e;letter-spacing:0.5px;">PAID IN CASH</p>
@@ -374,10 +369,9 @@ function buildCashReceiptEmail(opts: {
     ${itemsSection}
     ${pricingSection}
     ${paymentReceiptBox}
-    <p style="margin:25px 0 0;color:#475569;font-size:14px;line-height:1.6;">Questions? Call us at <strong style="color:#1e293b;">${PHONE}</strong></p>
+    <p style="margin:25px 0 0;color:#475569;font-size:14px;line-height:1.6;">Questions? Call us at <strong style="color:#1e293b;">${businessPhone}</strong></p>
   `;
 
-  // Wrap in the same outer shell as emailTemplateBase.createEmailWrapper (success theme)
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Payment Received</title></head>
@@ -394,7 +388,7 @@ function buildCashReceiptEmail(opts: {
         <tr><td style="padding:30px;">${content}</td></tr>
         <tr>
           <td style="background-color:#f8fafc;padding:25px;text-align:center;border-top:2px solid ${BORDER};">
-            <p style="margin:0 0 5px;color:#64748b;font-size:13px;">Bounce Party Club | ${PHONE}</p>
+            <p style="margin:0 0 5px;color:#64748b;font-size:13px;">Bounce Party Club | ${businessPhone}</p>
           </td>
         </tr>
       </table>

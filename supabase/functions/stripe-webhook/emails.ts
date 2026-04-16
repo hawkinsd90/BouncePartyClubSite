@@ -1,3 +1,5 @@
+import { formatCurrency, DEFAULT_PHONE } from "../_shared/fmt.ts";
+
 export async function sendCheckoutBalanceReceiptEmail(
   supabaseClient: any,
   orderId: string,
@@ -11,9 +13,9 @@ export async function sendCheckoutBalanceReceiptEmail(
   paymentLast4: string | null,
 ): Promise<void> {
   const shortId = orderId.substring(0, 8).toUpperCase();
-  const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
+  const fmt = formatCurrency;
   const businessName = biz.business_name || "Bounce Party Club";
-  const businessPhone = biz.business_phone || "(313) 889-3860";
+  const businessPhone = biz.business_phone || DEFAULT_PHONE;
   const logoHtml = biz.logo_url
     ? `<img src="${biz.logo_url}" alt="${businessName}" style="height:60px;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto;">`
     : "";
@@ -187,9 +189,9 @@ export async function sendDepositReceiptEmail(
   cardLast4: string | null,
 ): Promise<void> {
   const shortId = orderId.substring(0, 8).toUpperCase();
-  const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
+  const fmt = formatCurrency;
   const businessName = biz.business_name || "Bounce Party Club";
-  const businessPhone = biz.business_phone || "(313) 889-3860";
+  const businessPhone = biz.business_phone || DEFAULT_PHONE;
   const logoHtml = biz.logo_url
     ? `<img src="${biz.logo_url}" alt="${businessName}" style="height:60px;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto;">`
     : "";

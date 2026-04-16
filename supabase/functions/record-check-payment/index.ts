@@ -20,6 +20,7 @@ import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { formatOrderId } from "../_shared/format-order-id.ts";
 import { logTransaction } from "../_shared/transaction-logger.ts";
+import { formatCurrency, LOGO_URL, DEFAULT_PHONE } from "../_shared/fmt.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -145,12 +146,12 @@ Deno.serve(async (req: Request) => {
 
     // ── 4. Non-critical side effects (best-effort, non-atomic) ──────────────
 
-    // 4a. Log transaction receipt + trigger admin notification email
+    // 4a. Log transaction receipt
     let receiptNumber: string | null = null;
     if (payment_id && customer_id) {
       try {
         const notesArr: string[] = [`Check payment recorded by admin | Check #${checkNumber}`];
-        if (tipCents > 0) notesArr.push(`includes tip $${(tipCents / 100).toFixed(2)}`);
+        if (tipCents > 0) notesArr.push(`includes tip ${formatCurrency(tipCents)}`);
         receiptNumber = await logTransaction(supabaseAdmin, {
           transactionType: payment_type,
           orderId,
@@ -186,6 +187,13 @@ Deno.serve(async (req: Request) => {
       if (orderRow?.customers?.email) {
         const firstName = orderRow.customers.first_name || "Customer";
 
+        const { data: phoneSetting } = await supabaseAdmin
+          .from("admin_settings")
+          .select("value")
+          .eq("key", "business_phone")
+          .maybeSingle();
+        const businessPhone = phoneSetting?.value || DEFAULT_PHONE;
+
         await supabaseAdmin.functions.invoke("send-email", {
           body: {
             to: orderRow.customers.email,
@@ -200,6 +208,7 @@ Deno.serve(async (req: Request) => {
               newBalanceDue: new_balance_due,
               checkNumber,
               order: orderRow,
+              businessPhone,
             }),
           },
         });
@@ -239,12 +248,11 @@ function buildCheckReceiptEmail(opts: {
   newBalanceDue: number;
   checkNumber: string;
   order: any;
+  businessPhone: string;
 }): string {
-  const { firstName, orderId, amountCents, tipCents, totalCents, paymentType, newBalanceDue, checkNumber, order } = opts;
+  const { firstName, orderId, amountCents, tipCents, totalCents, paymentType, newBalanceDue, checkNumber, order, businessPhone } = opts;
   const orderNum = formatOrderId(orderId);
-  const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
-  const LOGO_URL = "https://qaagfafagdpgzcijnfbw.supabase.co/storage/v1/object/public/public-assets/bounce-party-club-logo.png";
-  const PHONE = "(313) 889-3860";
+  const fmt = formatCurrency;
   const BORDER = "#10b981";
   const ACCENT = "#15803d";
   const BG = "#f0fdf4";
@@ -369,7 +377,7 @@ function buildCheckReceiptEmail(opts: {
     ${itemsSection}
     ${pricingSection}
     ${paymentReceiptBox}
-    <p style="margin:25px 0 0;color:#475569;font-size:14px;line-height:1.6;">Questions? Call us at <strong style="color:#1e293b;">${PHONE}</strong></p>
+    <p style="margin:25px 0 0;color:#475569;font-size:14px;line-height:1.6;">Questions? Call us at <strong style="color:#1e293b;">${businessPhone}</strong></p>
   `;
 
   return `<!DOCTYPE html>
@@ -388,7 +396,7 @@ function buildCheckReceiptEmail(opts: {
         <tr><td style="padding:30px;">${content}</td></tr>
         <tr>
           <td style="background-color:#f8fafc;padding:25px;text-align:center;border-top:2px solid ${BORDER};">
-            <p style="margin:0 0 5px;color:#64748b;font-size:13px;">Bounce Party Club | ${PHONE}</p>
+            <p style="margin:0 0 5px;color:#64748b;font-size:13px;">Bounce Party Club | ${businessPhone}</p>
           </td>
         </tr>
       </table>

@@ -208,13 +208,19 @@ Deno.serve(async (req: Request) => {
       emailText = contentHtml.replace(/<[^>]*>/g, ''); // Strip HTML for plain text version
     }
 
-    const { data: settings } = await supabase
+    const { data: emailSettings } = await supabase
       .from('admin_settings')
-      .select('value')
-      .eq('key', 'resend_api_key')
-      .maybeSingle();
+      .select('key, value')
+      .in('key', ['resend_api_key', 'business_name', 'business_email']);
 
-    const resendApiKey = settings?.value;
+    const emailSettingsMap: Record<string, string> = {};
+    emailSettings?.forEach((s: { key: string; value: string | null }) => {
+      if (s.value) emailSettingsMap[s.key] = s.value;
+    });
+
+    const resendApiKey = emailSettingsMap['resend_api_key'];
+    const businessName = emailSettingsMap['business_name'] || 'Bounce Party Club';
+    const businessEmail = emailSettingsMap['business_email'] || 'admin@bouncepartyclub.com';
 
     if (!resendApiKey) {
       const errorMsg = 'Resend API key not configured';
@@ -252,7 +258,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const emailPayload: Record<string, unknown> = {
-      from: from || 'Bounce Party Club <admin@bouncepartyclub.com>',
+      from: from || `${businessName} <${businessEmail}>`,
       to: [emailTo],
       subject: emailSubject,
     };

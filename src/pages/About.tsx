@@ -1,9 +1,11 @@
 import { MapPin, Phone, Mail, Clock, Users, Award, Heart } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getBusinessAddressText } from '../lib/adminSettingsCache';
+import { useBusinessSettings } from '../contexts/BusinessContext';
 
 export function About() {
   const [businessAddress, setBusinessAddress] = useState('');
+  const business = useBusinessSettings();
 
   useEffect(() => {
     getBusinessAddressText().then(setBusinessAddress);
@@ -116,8 +118,8 @@ export function About() {
               </div>
               <h3 className="font-semibold text-slate-900 mb-1">Phone</h3>
               <p className="text-sm text-slate-600">
-                <a href="tel:+13138893860" className="text-blue-600 hover:text-blue-700 font-medium">
-                  (313) 889-3860
+                <a href={`tel:${business.business_phone.replace(/\D/g, '')}`} className="text-blue-600 hover:text-blue-700 font-medium">
+                  {business.business_phone}
                 </a>
               </p>
             </div>
@@ -128,8 +130,8 @@ export function About() {
               </div>
               <h3 className="font-semibold text-slate-900 mb-1">Email</h3>
               <p className="text-sm text-slate-600">
-                <a href="mailto:info@bouncepartyclub.com" className="text-blue-600 hover:text-blue-700 font-medium">
-                  info@bouncepartyclub.com
+                <a href={`mailto:${business.business_email}`} className="text-blue-600 hover:text-blue-700 font-medium">
+                  {business.business_email}
                 </a>
               </p>
             </div>
