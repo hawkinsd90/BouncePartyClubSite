@@ -201,9 +201,9 @@ export function generateConfirmationReceiptEmail(data: OrderEmailData): string {
   });
 }
 
-export function generateConfirmationSmsMessage(order: any, customerFirstName: string): string {
-  const portalUrl = `${window.location.origin}/customer-portal/${order.id}`;
-  return `Hi ${customerFirstName}, your booking for ${format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')} is confirmed! Order #${formatOrderId(order.id)}. Track your order: ${portalUrl}. We'll contact you closer to your event date.`;
+export function generateConfirmationSmsMessage(order: any, customerFirstName: string, portalUrl?: string): string {
+  const url = portalUrl ?? `${window.location.origin}/customer-portal/${order.id}`;
+  return `Hi ${customerFirstName}, your booking for ${format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')} is confirmed! Order #${formatOrderId(order.id)}. Track your order: ${url}. We'll contact you closer to your event date.`;
 }
 
 export function generateRejectionSmsMessage(

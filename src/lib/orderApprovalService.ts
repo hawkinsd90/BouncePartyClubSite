@@ -6,7 +6,7 @@ import {
   generateRejectionSmsMessage,
 } from './orderEmailTemplates';
 import { checkMultipleUnitsAvailability } from './availability';
-import { formatOrderId } from './utils';
+import { formatOrderId, createShortPortalLink } from './utils';
 import { logGroupedTransactions } from './transactionReceiptService';
 import { enterConfirmed } from './orderLifecycle';
 
@@ -97,7 +97,8 @@ export async function approveOrder(
         ((orderData as any).tip_cents ?? 0);
 
       if (customerNoDeposit) {
-        const confirmMsg = generateConfirmationSmsMessage(orderData, customerNoDeposit.first_name);
+        const portalUrlNoDeposit = await createShortPortalLink(orderId, supabase, orderData.event_date);
+        const confirmMsg = generateConfirmationSmsMessage(orderData, customerNoDeposit.first_name, portalUrlNoDeposit);
         try { await sendSms(confirmMsg); } catch { /* non-fatal */ }
         await sendConfirmationEmail(orderWithRelationsNoDeposit, totalCentsNoDeposit);
       }
@@ -297,7 +298,8 @@ export async function approveOrder(
     const customer = orderWithRelations?.customers as any;
 
     if (customer) {
-      const confirmationMessage = generateConfirmationSmsMessage(orderData, customer.first_name);
+      const portalUrl = await createShortPortalLink(orderId, supabase, orderData.event_date);
+      const confirmationMessage = generateConfirmationSmsMessage(orderData, customer.first_name, portalUrl);
       try {
         await sendSms(confirmationMessage);
       } catch (smsError) {
