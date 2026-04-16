@@ -116,11 +116,17 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const cancellableStatuses = ["draft", "pending_review", "awaiting_customer_approval", "confirmed"];
+    const customerCancellableStatuses = ["draft", "pending_review", "awaiting_customer_approval", "confirmed"];
+    const adminCancellableStatuses = [...customerCancellableStatuses, "in_progress"];
+    const cancellableStatuses = userId ? adminCancellableStatuses : customerCancellableStatuses;
+
     if (!cancellableStatuses.includes(order.status)) {
+      const isAdmin = !!userId;
       return new Response(
         JSON.stringify({
-          error: "This order cannot be cancelled. It has already been delivered or is in progress."
+          error: isAdmin
+            ? `This order cannot be cancelled because it has status "${order.status}". Only orders that are not yet completed or already cancelled can be cancelled.`
+            : "This order cannot be cancelled. It has already been delivered or is in progress."
         }),
         {
           status: 400,
