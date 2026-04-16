@@ -13,6 +13,8 @@ import { handleError } from '../../lib/errorHandling';
 import { formatOrderId } from '../../lib/utils';
 import { getAllOrdersWithContacts } from '../../lib/queries/orders';
 import { showConfirm } from '../common/CustomModal';
+import { ORDER_STATUS } from '../../lib/constants/statuses';
+import { OrderStatusBadge } from '../dashboard/OrderStatusBadge';
 
 
 type OrderTab = 'draft' | 'pending_review' | 'awaiting_customer_approval' | 'current' | 'upcoming' | 'all' | 'past' | 'cancelled' | 'single_order';
@@ -147,22 +149,22 @@ export function OrdersManager() {
       const eventDate = new Date(order.event_date);
 
       // Add to status-specific categories
-      if (order.status === 'draft') {
+      if (order.status === ORDER_STATUS.DRAFT) {
         categories.draft.push(order);
-      } else if (order.status === 'pending_review') {
+      } else if (order.status === ORDER_STATUS.PENDING) {
         categories.pending_review.push(order);
-      } else if (order.status === 'awaiting_customer_approval') {
+      } else if (order.status === ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL) {
         categories.awaiting_customer_approval.push(order);
-      } else if (order.status === 'cancelled') {
+      } else if (order.status === ORDER_STATUS.CANCELLED) {
         categories.cancelled.push(order);
       }
 
       // Add to time-based categories (exclude certain statuses)
       const isExcludedStatus =
-        order.status === 'cancelled' ||
-        order.status === 'pending_review' ||
-        order.status === 'awaiting_customer_approval' ||
-        order.status === 'draft';
+        order.status === ORDER_STATUS.CANCELLED ||
+        order.status === ORDER_STATUS.PENDING ||
+        order.status === ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL ||
+        order.status === ORDER_STATUS.DRAFT;
 
       if (!isExcludedStatus) {
         if (eventDate >= todayStart && eventDate < todayEnd) {
@@ -585,21 +587,13 @@ export function OrdersManager() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex flex-col gap-1">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      order.status === 'confirmed' ? 'bg-green-100 text-green-800' :
-                      order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                      order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                      order.status === 'completed' ? 'bg-blue-100 text-blue-800' :
-                      'bg-slate-100 text-slate-800'
-                    }`}>
-                      {order.status.replace('_', ' ')}
-                    </span>
-                    {order.archived_at && (
-                      <span className="inline-flex items-center gap-0.5 px-2 py-0.5 text-xs font-medium rounded-full bg-slate-100 text-slate-500">
-                        <Archive className="w-3 h-3" />
-                        Archived
-                      </span>
-                    )}
+                      <OrderStatusBadge order={order} />
+                      {order.archived_at && (
+                        <span className="inline-flex items-center gap-0.5 px-2 py-0.5 text-xs font-medium rounded-full bg-slate-100 text-slate-500">
+                          <Archive className="w-3 h-3" />
+                          Archived
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">

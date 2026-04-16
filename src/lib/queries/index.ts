@@ -6,5 +6,4 @@ export * from './units';
 export * from './pricing';
 export * from './invoices';
 export * from './tasks';
-export * from './admin-settings';
 export * from './payments';
