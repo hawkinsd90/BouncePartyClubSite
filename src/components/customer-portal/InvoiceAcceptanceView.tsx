@@ -463,6 +463,31 @@ export function InvoiceAcceptanceView({
         ? `${customerInfo.first_name} ${customerInfo.last_name}`
         : `${order.customers?.first_name} ${order.customers?.last_name}`;
 
+      // Persist the customer's chosen payment amount before redirecting so that
+      // charge-deposit (called via the invoice_card_saved return path) reads the
+      // correct value from order.customer_selected_payment_cents rather than
+      // falling back to the raw deposit_due_cents.
+      const resolvedPaymentType =
+        paymentAmount === 'full' ? 'full' : paymentAmount === 'custom' ? 'custom' : 'deposit';
+
+      const { error: paymentSelectionError } = await supabase
+        .from('orders')
+        .update({
+          customer_selected_payment_cents: actualPaymentCents,
+          customer_selected_payment_type: resolvedPaymentType,
+        })
+        .eq('id', order.id);
+
+      if (paymentSelectionError) {
+        console.error('Failed to save payment selection:', paymentSelectionError);
+        showToast('Failed to save payment selection. Please try again.', 'error');
+        setProcessing(false);
+        return;
+      }
+
+      // Use setup mode so Stripe saves the card, then the invoice_card_saved
+      // return path in CustomerPortal calls charge-deposit atomically — identical
+      // to the working order-approval flow.
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`,
         {
@@ -473,9 +498,9 @@ export function InvoiceAcceptanceView({
           },
           body: JSON.stringify({
             orderId: order.id,
-            setupMode: false,
-            depositCents: actualPaymentCents,
-            tipCents,
+            setupMode: true,
+            invoiceMode: true,
+            invoiceLinkToken: invoiceLink?.link_token ?? null,
             customerEmail: effectiveEmail,
             customerName: effectiveName,
             origin: window.location.origin,
