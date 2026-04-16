@@ -32,6 +32,9 @@ export interface Task {
   surface?: string;
   lat?: number;
   lng?: number;
+  stripePaymentMethodId?: string | null;
+  paymentMethodBrand?: string | null;
+  paymentMethodLastFour?: string | null;
   payments?: Array<{
     id: string;
     amount_cents: number;
@@ -258,6 +261,9 @@ export function useCalendarTasks(currentMonth: Date) {
           tipCents: order.tip_cents || 0,
           waiverSigned: !!order.waiver_signed_at,
           balanceDue,
+          stripePaymentMethodId: order.stripe_payment_method_id || null,
+          paymentMethodBrand: order.payment_method_brand || null,
+          paymentMethodLastFour: order.payment_method_last_four || null,
           pickupPreference: order.pickup_preference,
           surface: order.surface,
           lat,
@@ -314,6 +320,9 @@ export function useCalendarTasks(currentMonth: Date) {
           tipCents: order.tip_cents || 0,
           waiverSigned: !!order.waiver_signed_at,
           balanceDue,
+          stripePaymentMethodId: order.stripe_payment_method_id || null,
+          paymentMethodBrand: order.payment_method_brand || null,
+          paymentMethodLastFour: order.payment_method_last_four || null,
           pickupPreference: order.pickup_preference,
           surface: order.surface,
           lat,

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { DollarSign, FileCheck, Ban } from 'lucide-react';
+import { DollarSign, FileCheck, Ban, CreditCard } from 'lucide-react';
 import { formatCurrency } from '../../../lib/pricing';
 import { Task } from '../../../hooks/useCalendarTasks';
 
@@ -9,15 +9,17 @@ interface Props {
   onCheckPayment: (amountCents: number, checkNumber: string) => Promise<void>;
   onPaperWaiver: () => Promise<void>;
   onCancelOrder: (reason: string) => Promise<void>;
+  onChargeCard: (amountCents: number) => Promise<void>;
   recordingCash: boolean;
   recordingCheck: boolean;
   signingWaiver: boolean;
   cancelling: boolean;
+  chargingCard: boolean;
 }
 
 export function TaskDetailOrderManagement({
-  task, onCashPayment, onCheckPayment, onPaperWaiver, onCancelOrder,
-  recordingCash, recordingCheck, signingWaiver, cancelling,
+  task, onCashPayment, onCheckPayment, onPaperWaiver, onCancelOrder, onChargeCard,
+  recordingCash, recordingCheck, signingWaiver, cancelling, chargingCard,
 }: Props) {
   const [showCashPayment, setShowCashPayment] = useState(false);
   const [cashAmount, setCashAmount] = useState('');
@@ -154,6 +156,28 @@ export function TaskDetailOrderManagement({
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {task.balanceDue > 0 && task.stripePaymentMethodId && (
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
+          <div className="flex items-center gap-2 mb-1">
+            <CreditCard className="w-4 h-4 text-blue-700" />
+            <span className="text-xs font-semibold text-blue-800">
+              Card on File:{' '}
+              {task.paymentMethodBrand && task.paymentMethodLastFour
+                ? `${task.paymentMethodBrand.charAt(0).toUpperCase()}${task.paymentMethodBrand.slice(1)} •••• ${task.paymentMethodLastFour}`
+                : 'Saved card'}
+            </span>
+          </div>
+          <button
+            onClick={() => onChargeCard(task.balanceDue)}
+            disabled={chargingCard}
+            className="w-full flex items-center justify-center gap-2 bg-blue-700 hover:bg-blue-800 disabled:bg-slate-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+          >
+            <CreditCard className="w-4 h-4" />
+            {chargingCard ? 'Charging...' : `Charge ${formatCurrency(task.balanceDue)} to Card`}
+          </button>
         </div>
       )}
 

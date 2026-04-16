@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { X, ChevronUp, ChevronDown, AlertTriangle, RefreshCw, ExternalLink, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { createShortPortalLink } from '../../lib/utils';
-import { showAlert, showConfirm } from '../common/CustomModal';
+import { showAlert, showConfirm, showModal } from '../common/CustomModal';
 import { getCurrentLocation, calculateETA } from '../../lib/googleMaps';
 import { Task } from '../../hooks/useCalendarTasks';
 import { TaskDetailCustomerInfo } from './task-detail/TaskDetailCustomerInfo';
@@ -31,6 +31,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [refunding, setRefunding] = useState(false);
+  const [chargingCard, setChargingCard] = useState(false);
   const [recordingCash, setRecordingCash] = useState(false);
   const [recordingCheck, setRecordingCheck] = useState(false);
   const [signingWaiver, setSigningWaiver] = useState(false);
@@ -492,12 +493,41 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     finally { setSigningWaiver(false); }
   }
 
+  async function handleChargeCard(amountCents: number) {
+    const cardLabel = task.paymentMethodBrand && task.paymentMethodLastFour
+      ? `${task.paymentMethodBrand} •••• ${task.paymentMethodLastFour}`
+      : 'card on file';
+    const confirmed = await showConfirm(
+      `Charge ${formatCurrency(amountCents)} to ${cardLabel} for ${task.customerName}?\n\nThis will charge the card immediately and send a receipt email to the customer.`
+    );
+    if (!confirmed) return;
+    setChargingCard(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/charge-deposit`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: task.orderId, paymentAmountCents: amountCents, tipCents: 0, selectedPaymentType: 'balance' }),
+      });
+      const data = await r.json();
+      if (!r.ok || !data.success) throw new Error(data.error || 'Failed to charge card');
+      showAlert(`Successfully charged ${formatCurrency(amountCents)} to ${cardLabel}. A receipt has been sent to the customer.`);
+      refresh();
+    } catch (e: any) { console.error('Charge card error:', e); showAlert('Failed to charge card: ' + e.message); }
+    finally { setChargingCard(false); }
+  }
+
   async function handleCancelOrder(cancelReason: string) {
     if (!cancelReason.trim() || cancelReason.trim().length < 10) {
       showAlert('Please provide a cancellation reason (minimum 10 characters)');
       return;
     }
-    const shouldRefund = await showConfirm(`Does this cancellation require a refund for ${task.customerName}?\n\nClick OK if a refund should be issued, or Cancel if no refund is needed.\n\nNote: No refund will be processed automatically. You will need to issue it manually from the Payments tab.`);
+    const shouldRefund = await showModal({
+      message: `Does this cancellation require a refund for ${task.customerName}?\n\nNote: No refund will be processed automatically. You will need to issue it manually from the Payments tab.`,
+      type: 'confirm',
+      confirmText: 'Yes, Refund Needed',
+      cancelText: 'No Refund',
+    });
     const refundLabel = shouldRefund ? '✓ Refund intent will be recorded — issue manually from Payments tab' : '✗ No refund';
     const finalConfirm = await showConfirm(`Cancel order #${task.orderNumber} for ${task.customerName}?\n\nReason: ${cancelReason}\n\n${refundLabel}\n\nCustomer will be notified via SMS.`);
     if (!finalConfirm) return;
@@ -669,10 +699,12 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
             onCheckPayment={handleCheckPayment}
             onPaperWaiver={handlePaperWaiver}
             onCancelOrder={handleCancelOrder}
+            onChargeCard={handleChargeCard}
             recordingCash={recordingCash}
             recordingCheck={recordingCheck}
             signingWaiver={signingWaiver}
             cancelling={cancelling}
+            chargingCard={chargingCard}
           />
 
           <TaskDetailActions
