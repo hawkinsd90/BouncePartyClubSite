@@ -125,16 +125,13 @@ export function showModal(options: ModalOptions): Promise<boolean> {
     };
 
     const cleanup = () => {
-      wrapper.style.animation = 'fadeOut 0.2s ease-in';
-      setTimeout(() => {
-        root.unmount();
-        if (document.body.contains(wrapper)) {
-          document.body.removeChild(wrapper);
-        }
-        if (activeModal?.wrapper === wrapper) {
-          activeModal = null;
-        }
-      }, 200);
+      if (activeModal?.wrapper === wrapper) {
+        activeModal = null;
+      }
+      root.unmount();
+      if (document.body.contains(wrapper)) {
+        document.body.removeChild(wrapper);
+      }
     };
 
     root.render(

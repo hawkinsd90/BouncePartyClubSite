@@ -26,6 +26,7 @@ export function TaskDetailOrderManagement({
   const [checkNumber, setCheckNumber] = useState('');
   const [showCancelForm, setShowCancelForm] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+  const [cancelReasonError, setCancelReasonError] = useState('');
 
   async function handleCash() {
     const amountCents = Math.round(parseFloat(cashAmount) * 100);
@@ -45,8 +46,13 @@ export function TaskDetailOrderManagement({
   }
 
   async function handleCancel() {
-    if (!cancelReason.trim() || cancelReason.trim().length < 10) return;
-    await onCancelOrder(cancelReason);
+    const trimmed = cancelReason.trim();
+    if (!trimmed || trimmed.length < 10) {
+      setCancelReasonError(`Please provide a reason (minimum 10 characters, currently ${trimmed.length})`);
+      return;
+    }
+    setCancelReasonError('');
+    await onCancelOrder(trimmed);
   }
 
   return (
@@ -178,11 +184,14 @@ export function TaskDetailOrderManagement({
               </label>
               <textarea
                 value={cancelReason}
-                onChange={e => setCancelReason(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded"
+                onChange={e => { setCancelReason(e.target.value); setCancelReasonError(''); }}
+                className={`w-full px-3 py-2 text-sm border rounded ${cancelReasonError ? 'border-red-500' : 'border-slate-300'}`}
                 rows={3}
                 placeholder="e.g., Weather cancellation, Customer request, Equipment failure"
               />
+              {cancelReasonError && (
+                <p className="text-xs text-red-600 mt-1">{cancelReasonError}</p>
+              )}
             </div>
             <div className="flex gap-2">
               <button
