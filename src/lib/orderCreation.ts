@@ -305,6 +305,7 @@ export async function completeOrderAfterPayment(orderId: string, _paymentIntentI
     .from('invoice_links' as any)
     .select('id')
     .eq('order_id', orderId)
+    .eq('link_type', 'invoice')
     .maybeSingle();
   const isAdminSent = !!invoiceLink;
 

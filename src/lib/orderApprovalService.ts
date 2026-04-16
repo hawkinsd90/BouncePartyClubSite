@@ -154,6 +154,7 @@ export async function approveOrder(
               order_id: orderId,
               deposit_cents: fullOrder?.deposit_due_cents ?? 0,
               customer_filled: false,
+              link_type: 'portal_shortlink',
             })
             .select('link_token')
             .single();
