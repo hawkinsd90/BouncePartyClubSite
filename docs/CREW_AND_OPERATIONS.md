@@ -243,6 +243,22 @@ After pickup is complete, an SMS is sent to the customer requesting a Google Rev
 
 ---
 
+## Task Detail Order Management
+
+From the Task Detail Modal, admins have direct order management controls without leaving the calendar view. The Order Management section (`TaskDetailOrderManagement`) surfaces actions that are relevant on the day of the event:
+
+| Action | When Available | What It Does |
+|---|---|---|
+| **Record Cash Payment** | Balance due > $0 | Calls `record-cash-payment` edge function; atomically creates payment record, updates `balance_paid_cents`, logs to changelog, sends receipt email |
+| **Record Check Payment** | Balance due > $0 | Calls `record-check-payment` edge function; requires check number; same atomic flow as cash |
+| **Charge Card on File** | Balance due > $0 AND Stripe card saved | Calls `charge-deposit` edge function with `selectedPaymentType: 'balance'`; charges off-session, sends receipt, updates `balance_due_cents` |
+| **Mark Waiver Signed (Paper)** | Waiver not yet signed | Creates `order_signatures` record marking it as paper-signed; sets `waiver_signed_at` on order |
+| **Cancel Order** | Order not in terminal state | Opens reason form → refund-intent confirmation modal ("Yes, Refund Needed" / "No Refund") → calls cancellation flow; refund flag is informational only, no automatic charge |
+
+The card details (brand and last four digits) displayed on the "Charge Card on File" button come from `payment_method_brand` and `payment_method_last_four` on the order, populated from the `Task` object's `paymentMethodBrand` and `paymentMethodLastFour` fields.
+
+---
+
 ## Crew Invoice Builder (`CrewInvoiceBuilder`)
 
 Crew members can generate simplified invoices for on-site payment collection. Accessible from the crew task detail view. Provides a stripped-down invoice interface focused on collecting balance payments without exposing full admin functionality.

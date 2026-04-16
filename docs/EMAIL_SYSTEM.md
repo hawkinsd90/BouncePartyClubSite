@@ -145,6 +145,16 @@ export function generateMyEmail(customerName: string, actionUrl: string): string
 | `orderEmailTemplates.ts` | Order status changes, admin notifications |
 | `transactionReceiptService.ts` | Admin receipt on each payment event |
 
+### Invoice Email (`send-invoice` edge function)
+
+The `send-invoice` edge function builds its own inline HTML email (not using `emailTemplateBase.ts`) and sends it directly to the `send-email` edge function. The email includes:
+- Order total amount
+- Deposit due amount
+- A styled "View & Accept Invoice" button linking to the full token URL (`/customer-portal/:orderId?t=:token`)
+- Contact phone number
+
+The companion SMS uses the short URL (`/i/:shortCode`) to keep the message concise and within SMS character limits. Email and SMS are sent in parallel via `EdgeRuntime.waitUntil`, so a failure of one does not block the other or the API response.
+
 ---
 
 ## Notification Reliability (`src/lib/notificationReliability.ts`)

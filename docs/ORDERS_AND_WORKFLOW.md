@@ -288,12 +288,34 @@ An invoice is created automatically when an order is approved. It captures a sna
 | `paid` | Fully paid |
 | `void` | Invoice voided |
 
-### Invoice Links
+### Invoice Links and Short URLs
 
-Each invoice has a secure link (`invoice_links` table) with a 64-character hex token. The link:
-- Does not require login
-- Expires after 7 days
-- Renders a complete invoice view at `/invoice/:token`
+The `invoice_links` table is the access control layer for all unauthenticated customer-facing order links. Every record has:
+
+- `link_token` — a 64-character hex token used in full URLs (e.g., `/customer-portal/:orderId?t=:token`)
+- `short_code` — an 8-character URL-safe code used in compact URLs (e.g., `/i/:shortCode`)
+- `link_type` — distinguishes the purpose of the link:
+  - `invoice` — created by `send-invoice` edge function when admin sends an invoice
+  - `portal_shortlink` — created by `createShortPortalLink()` for crew ETA SMS messages
+- `expires_at` — links expire 3 days after the event date (or 30 days from creation if no event date)
+- `deposit_cents` — the deposit amount at time the invoice link was created
+
+**Short URL Route (`/i/:shortCode`):** The `ShortLink` component handles the `/i/:shortCode` route. It looks up the short code in `invoice_links`, extracts the `order_id` and `link_token`, and immediately redirects to `/customer-portal/:orderId?t=:token`. This allows compact SMS-friendly links to resolve to the full customer portal.
+
+### Admin Invoice Sending (`send-invoice` edge function)
+
+Admins send invoices from the Invoice Builder or from an order's detail view. The `send-invoice` edge function:
+
+1. Creates an `invoice_links` record with `link_type: 'invoice'`
+2. Generates a unique `short_code` (8 characters, up to 5 collision retry attempts)
+3. Sets expiry 3 days after the event date (or 30 days if no event date)
+4. Updates `invoice_sent_at` on the order
+5. Sends both email and SMS in parallel (fire-and-forget via `EdgeRuntime.waitUntil`):
+   - **Email** — calls `send-email` edge function with a full HTML invoice summary including total amount, deposit due, and a styled "View & Accept Invoice" button linking to the full token URL
+   - **SMS** — calls `send-sms-notification` with the compact short URL (e.g., `https://bouncepartyclub.com/i/AbCdEfGh`)
+6. Returns `invoiceUrl` (full token URL), `shortInvoiceUrl` (short URL), `shortCode`, and `linkToken` to the caller
+
+The full token URL is used in emails; the short URL is used in SMS messages to stay within character limits.
 
 ### Invoice Builder
 

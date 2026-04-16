@@ -59,6 +59,29 @@ Admin-only (requires `admin` or `master` role). Accepts `orderId`, `amountCents`
 
 ---
 
+## Admin Direct Card Charge from Task Detail
+
+Admins (and crew with admin/master role) can charge the saved card on file directly from the Calendar Task Detail Modal without going through the order approval flow.
+
+**When available:** The "Charge Card on File" button appears in the Order Management section of the Task Detail Modal when:
+- `balance_due_cents > 0` (balance is outstanding)
+- `stripe_payment_method_id` is set on the order (a card is saved)
+
+**How it works:**
+1. Admin clicks "Charge Card on File" — shows a confirmation modal with card brand, last four digits, and the exact amount
+2. On confirmation, calls the `charge-deposit` edge function with:
+   - `orderId`
+   - `paymentAmountCents` = current `balance_due_cents`
+   - `tipCents` = 0
+   - `selectedPaymentType` = `'balance'`
+3. The edge function charges the card off-session, records the payment, and sends the customer a receipt email
+4. `balance_due_cents` is updated on the order
+5. Admin sees a success alert; the task refreshes to reflect the new payment state
+
+This provides a shortcut for common day-of balance collection without navigating to the full Order Detail Modal.
+
+---
+
 ## Order Approval and Deposit Charging (`src/lib/orderApprovalService.ts`)
 
 When an admin approves an order:

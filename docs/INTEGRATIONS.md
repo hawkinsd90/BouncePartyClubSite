@@ -45,12 +45,18 @@ For admin-initiated charges outside the checkout flow. Used for balance collecti
 
 #### Deposit Charge (`charge-deposit`)
 
-Called by `orderApprovalService` when admin approves an order with a positive deposit:
+Called in two contexts:
+1. **Order approval** — by `orderApprovalService` when admin approves an order with a positive deposit
+2. **Day-of balance collection** — by the Task Detail Modal's "Charge Card on File" button when admin charges the remaining balance on event day
+
+Flow:
 1. Reads `stripe_customer_id` and `stripe_payment_method_id` from the order
-2. Creates a PaymentIntent for the deposit amount
+2. Creates a PaymentIntent for the specified amount
 3. Confirms the PaymentIntent immediately (off-session charge)
-4. On success: logs payment, records transaction receipt, confirms order
+4. On success: logs payment to `payments`, records transaction receipt, updates `balance_paid_cents` or `deposit_paid_cents` on order, sends customer receipt email
 5. On failure: sends decline notification to customer, logs failure
+
+When called from task detail, `selectedPaymentType` is `'balance'` and `tipCents` is `0`.
 
 #### Customer Balance Payment (`customer-balance-payment`)
 
@@ -147,6 +153,19 @@ Twilio calls the `twilio-webhook` edge function when a customer texts the busine
 
 4. **Admin Notification** — forwards the message to the admin via SMS and email so they know a customer replied.
 
+### Short URLs in SMS (`invoice_links` table)
+
+SMS messages have strict character limits. To keep links short, the system uses 8-character short codes that resolve to full URLs:
+
+- **Route:** `/i/:shortCode` → handled by `ShortLink` component → redirects to `/customer-portal/:orderId?t=:token`
+- **`link_type` field** distinguishes the purpose of each record:
+  - `invoice` — created by `send-invoice` edge function when admin sends an invoice
+  - `portal_shortlink` — created by `createShortPortalLink()` (`src/lib/utils.ts`) for crew ETA messages and other SMS use cases
+- **`short_code`** is 8 characters using an unambiguous character set (no `0`, `O`, `1`, `I`, `l`) to avoid misreading
+- **Expiry** is set to 3 days after the event date (or 30 days from creation if no event date)
+
+`createShortPortalLink(orderId, supabaseClient, eventDate?)` returns the full short URL (e.g., `https://bouncepartyclub.com/i/AbCdEfGh`) and falls back to the full portal URL if short code generation fails.
+
 ### Delivery Status Callback (`twilio-status-callback`)
 
 Twilio calls this endpoint with delivery status updates for outbound messages:
@@ -178,8 +197,8 @@ Variable substitution is performed at send time. Supported variables:
 - `{{customer_name}}` — customer first name
 - `{{order_id}}` — formatted order ID (e.g., `BPC-1234`)
 - `{{event_date}}` — event date in readable format
-- `{{portal_link}}` — customer portal URL
-- `{{invoice_link}}` — invoice URL
+- `{{portal_link}}` — customer portal URL (short `/i/:shortCode` URL when available, otherwise full token URL)
+- `{{invoice_link}}` — invoice URL (short `/i/:shortCode` URL when available)
 - `{{signing_link}}` — waiver signing URL
 - `{{google_review_url}}` — Google Review URL from admin settings
 - `{{eta_time}}` — estimated arrival time

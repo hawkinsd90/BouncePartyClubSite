@@ -101,7 +101,20 @@ Invoice statuses: `draft`, `sent`, `paid`, `partial`, `void`
 
 When an admin approves an order, an invoice is created automatically with the appropriate status based on what was collected.
 
-**Invoice Links** (`invoice_links` table) provide secure tokenized public URLs for customers to view their invoice without logging in. Each link contains a 64-character hex token and expires after 7 days. The `/invoice/:token` route resolves the token and renders the invoice.
+**Invoice Links** (`invoice_links` table) provide secure tokenized public URLs for customers to view their invoice and access their customer portal without logging in. Each link has two access paths:
+
+- **Full token URL** (`/customer-portal/:orderId?t=:token`) — 64-character hex token; used for email links where length is not a concern.
+- **Short URL** (`/i/:shortCode`) — 8-character alphanumeric code; used in SMS messages to keep character counts low.
+
+The `link_type` column on `invoice_links` distinguishes between `invoice` links (created by the `send-invoice` edge function during admin invoice distribution) and `portal_shortlink` links (created by `createShortPortalLink()` in the frontend for crew ETA SMS messages). Both types resolve via the `/i/:shortCode` route (`ShortLink.tsx`) which looks up the short code and redirects to the appropriate customer portal URL.
+
+Links expire via the `expires_at` field. Invoice links default to 3 days after the event date (or 30 days from creation if no event date). Portal shortlinks default to 30 days.
+
+**Admin Invoice Sending** (`send-invoice` edge function) — Admins send invoices to customers by triggering the `send-invoice` edge function from the admin panel (Invoice Builder or order detail workflow). The function:
+1. Creates or updates an `invoice_links` record with both a full token and a short code.
+2. Dispatches a formatted invoice email with a "View Invoice" button linked to the full token URL.
+3. Sends an SMS with the short URL (`/i/:shortCode`) to reduce character count.
+Both email and SMS are sent in parallel; a failure of one does not block the other.
 
 Admins can also use the **Invoice Builder** to manually construct invoices with custom line items, fees, and discounts, then send them directly to a customer by email/SMS.
 
@@ -237,6 +250,7 @@ The Order Detail Modal is the primary admin interface for managing a single orde
 - Record cash or check payments
 - Initiate Stripe refund
 - Send customer balance payment link
+- Issue Stripe refund with reason (admin/master only)
 
 ### Workflow Tab
 - Status progression controls
@@ -293,6 +307,20 @@ Frequently-used fees and discounts can be saved as templates (`saved_fee_templat
 ---
 
 ## Day-of Workflow
+
+### Task Order Management
+
+From the Task Detail Modal (accessible from both the admin Calendar tab and the `/crew` page), admins have direct order management controls that do not require navigating to the full order detail:
+
+| Action | When Available | What It Does |
+|---|---|---|
+| **Record Cash Payment** | Balance due > $0 | Calls `record-cash-payment` edge function; sends receipt email to customer |
+| **Record Check Payment** | Balance due > $0 | Calls `record-check-payment` with check number; sends receipt email |
+| **Charge Card on File** | Balance due > $0 AND a Stripe card is saved | Charges the saved card for the full remaining balance via `charge-deposit` edge function; sends receipt and booking confirmation email; updates `balance_due_cents` on the order |
+| **Mark Waiver Signed (Paper)** | Waiver not yet signed | Creates an `order_signatures` record flagged as paper waiver; sets `waiver_signed_at` on order |
+| **Cancel Order** | Order not in terminal state | Shows reason form → refund intent confirmation dialog (with "Yes, Refund Needed" / "No Refund" buttons) → calls `customer-cancel-order` edge function |
+
+The "Charge Card on File" button displays the saved card brand and last four digits (e.g., "Mastercard •••• 1840") so the admin can confirm the correct card before charging.
 
 ### Task Cards (`task_status` table)
 
@@ -357,6 +385,10 @@ The admin can request lot pictures from a confirmed order (sets `lot_pictures_re
 ## Customer Portal (`/customer-portal`)
 
 The customer portal is a public-facing, tokenized view that does not require login. Customers access it via a unique link sent in their confirmation email/SMS.
+
+### Short Link Access (`/i/:shortCode`)
+
+The portal can also be reached via a compact short URL (`/i/:shortCode`). The `ShortLink` page resolves the 8-character code by querying the `invoice_links` table and redirects to `/customer-portal/:orderId?t=:token`. This URL form is used in SMS messages to stay within character limits. Short links expire after the `expires_at` date stored on the `invoice_links` record.
 
 ### Regular Portal View
 

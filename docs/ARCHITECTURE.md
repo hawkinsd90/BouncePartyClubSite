@@ -83,6 +83,7 @@ Routes are defined in `App.tsx` using React Router v6. Components are lazy-loade
 | `/payment-canceled` | Payment canceled |
 | `/invoice/:token` | Customer invoice view (tokenized, no login required) |
 | `/customer-portal` | Customer self-service portal (tokenized, no login required) |
+| `/i/:shortCode` | Short link redirect — resolves `short_code` from `invoice_links` table and redirects to `/customer-portal/:orderId?t=:token` |
 | `/receipt/:orderId/:paymentId` | Payment receipt |
 | `/sign/:orderId` | Electronic waiver signing |
 | `/menu-preview` | Unit menu (printable) |
@@ -133,7 +134,7 @@ All tables in the `public` schema:
 | `google_calendar_sync_queue` | Queue of pending calendar sync operations triggered by order status changes |
 | `google_reviews` | Admin-managed customer review records displayed on the homepage |
 | `hero_carousel_images` | Homepage carousel media entries (images and videos) with display order |
-| `invoice_links` | Secure tokenized links for customer invoice access (expire after 7 days) |
+| `invoice_links` | Secure tokenized links for customer invoice/portal access. Each link has a 64-character hex `link_token` for direct URL access, and an optional 8-character alphanumeric `short_code` for compact SMS links. The `link_type` column distinguishes between `invoice` links (sent via `send-invoice` edge function) and `portal_shortlink` links (created in-app by `createShortPortalLink()` for crew ETA messages). Links expire via `expires_at`; invoice links default to event date + 3 days; portal shortlinks default to 30 days. |
 | `invoices` | Invoice records with status and payment tracking |
 | `messages` | All SMS messages (inbound and outbound) per customer phone number |
 | `notification_failures` | Log of email/SMS send failures with fallback tracking |
@@ -302,7 +303,7 @@ All edge functions handle CORS preflight (`OPTIONS`) and include CORS headers on
 | `auth-email-hook` | No | Sends branded signup/password-reset emails via Resend (Supabase auth hook) |
 | `backfill-oauth-customers` | Yes | Data migration: ensures all Google OAuth users have customer records |
 | `backfill-payment-methods` | Yes | Data migration: reconciles Stripe payment method records |
-| `backfill-card-details` | Yes | Data migration: fills payment brand/last4 from Stripe |
+| `backfill-payment-methods` | Yes | Data migration: reconciles Stripe payment method records and fills payment brand/last4 from Stripe |
 | `calculate-route-mileage` | Yes | Computes total miles for a day's route from `route_stops` |
 | `charge-deposit` | Yes | Charges saved payment method for deposit amount during order approval |
 | `checkout-bridge` | No | Orchestration layer between checkout and order lifecycle |
@@ -327,7 +328,7 @@ All edge functions handle CORS preflight (`OPTIONS`) and include CORS headers on
 | `save-signup-address` | No | Saves customer's home address submitted during signup |
 | `send-email` | Yes | Sends email via Resend with fallback SMS to admin on failure |
 | `send-error-notification` | No | Sends admin alert for application errors |
-| `send-invoice` | Yes | Generates and distributes invoice to customer via email/SMS |
+| `send-invoice` | Yes | Generates and distributes invoice to customer via email/SMS. Creates an `invoice_links` record with both a 64-char `link_token` and an 8-char `short_code`. Sends both a full URL and a short URL (`/i/:shortCode`) to reduce SMS character count. |
 | `send-sms-notification` | Yes | Sends SMS via Twilio; logs to `messages` table if order ID provided |
 | `stripe-charge` | Yes | Direct Stripe charge (admin-initiated, outside checkout flow) |
 | `stripe-checkout` | Yes | Creates Stripe Checkout Session or Payment Intent |
