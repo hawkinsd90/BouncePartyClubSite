@@ -1,44 +1,37 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { supabase } from '../../lib/supabase';
-import { ChevronLeft, ChevronRight, Plus, Trash2, CreditCard as Edit2, Save, X, MoveUp, MoveDown, Upload, Link as LinkIcon } from 'lucide-react';
+import { Plus, CreditCard as Edit2, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { notifyError, showConfirm } from '../../lib/notifications';
-
-interface CarouselMedia {
-  id: string;
-  image_url: string;
-  media_type: 'image' | 'video';
-  storage_path: string | null;
-  title: string | null;
-  description: string | null;
-  display_order: number;
-  is_active: boolean;
-}
+import { notifyError } from '../../lib/notifications';
+import { useCarouselData } from './carousel/useCarouselData';
+import { CarouselDisplay } from './carousel/CarouselDisplay';
+import { CarouselEditMode } from './carousel/CarouselEditMode';
+import { CarouselAddForm } from './carousel/CarouselAddForm';
+import { CarouselEditForm } from './carousel/CarouselEditForm';
+import type { CarouselMedia, NewMediaState } from './carousel/carouselTypes';
 
 interface HeroCarouselProps {
   adminControls?: React.ReactNode;
 }
 
+const EMPTY_NEW_MEDIA: NewMediaState = {
+  file: null,
+  url: '',
+  title: '',
+  description: '',
+  mediaType: 'image',
+};
+
 export function HeroCarousel({ adminControls }: HeroCarouselProps) {
   const { isAdmin } = useAuth();
-  const [media, setMedia] = useState<CarouselMedia[]>([]);
+  const { media, loading, error, loadMedia, handleFileUpload, addMediaToDatabase, updateMedia, deleteMedia, moveMedia } = useCarouselData();
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingMedia, setEditingMedia] = useState<CarouselMedia | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [uploadMethod, setUploadMethod] = useState<'file' | 'url'>('file');
   const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const [newMedia, setNewMedia] = useState({
-    file: null as File | null,
-    url: '',
-    title: '',
-    description: '',
-    mediaType: 'image' as 'image' | 'video',
-  });
+  const [newMedia, setNewMedia] = useState<NewMediaState>(EMPTY_NEW_MEDIA);
 
   const touchStartX = useRef<number | null>(null);
   const touchEndX = useRef<number | null>(null);
@@ -76,254 +69,6 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
     };
   }, [media.length]);
 
-  async function loadMedia() {
-    try {
-      setLoading(true);
-      setError(null);
-      // console.log('[Carousel] Loading media...');
-      // console.log('[Carousel] Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
-      // console.log('[Carousel] Has anon key:', !!import.meta.env.VITE_SUPABASE_ANON_KEY);
-
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/hero_carousel_images?is_active=eq.true&order=display_order`;
-      // console.log('[Carousel] Trying direct fetch to:', url);
-
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Query timeout after 10 seconds')), 10000)
-      );
-
-      const fetchPromise = fetch(url, {
-        headers: {
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-      }).then(async res => {
-        // console.log('[Carousel] Fetch response status:', res.status);
-        const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data?.message || `HTTP ${res.status}`);
-        }
-
-        return data;
-      });
-
-      const data = await Promise.race([fetchPromise, timeoutPromise]) as any;
-
-      // console.log('[Carousel] Query result:', { data });
-
-      if (data && !Array.isArray(data)) {
-        console.error('[Carousel] Response is not an array:', data);
-        setError(`Error: ${data?.message || 'Invalid response format'}`);
-        setMedia([]);
-        setLoading(false);
-        return;
-      }
-
-      if (data && Array.isArray(data)) {
-        // console.log(`[Carousel] Found ${data.length} items`);
-        const mediaWithUrls = await Promise.all(
-          data.map(async (item: any) => {
-            if (item.storage_path) {
-              const { data: urlData } = supabase.storage
-                .from('carousel-media')
-                .getPublicUrl(item.storage_path);
-              return { ...item, image_url: urlData.publicUrl };
-            }
-            return item;
-          })
-        );
-        setMedia(mediaWithUrls);
-        // console.log('[Carousel] Media loaded successfully');
-      } else {
-        setMedia([]);
-      }
-      setLoading(false);
-    } catch (err) {
-      console.error('[Carousel] Exception loading carousel:', err);
-      setError(`Exception: ${err instanceof Error ? err.message : String(err)}`);
-      setMedia([]);
-      setLoading(false);
-    }
-  }
-
-  async function handleFileUpload() {
-    if (!newMedia.file) return;
-
-    setUploading(true);
-    const fileExt = newMedia.file.name.split('.').pop();
-    const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
-    const filePath = `${fileName}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from('carousel-media')
-      .upload(filePath, newMedia.file);
-
-    if (uploadError) {
-      notifyError('Failed to upload file: ' + uploadError.message);
-      setUploading(false);
-      return;
-    }
-
-    const { data: urlData } = supabase.storage
-      .from('carousel-media')
-      .getPublicUrl(filePath);
-
-    await addMediaToDatabase(urlData.publicUrl, filePath);
-    setUploading(false);
-  }
-
-  async function addMediaToDatabase(url: string, filePath?: string) {
-    const maxOrder = media.length > 0 ? Math.max(...media.map(m => m.display_order)) : 0;
-
-    const { error } = await supabase
-      .from('hero_carousel_images')
-      .insert({
-        image_url: url,
-        storage_path: filePath || null,
-        media_type: newMedia.mediaType,
-        title: newMedia.title || null,
-        description: newMedia.description || null,
-        display_order: maxOrder + 1,
-        is_active: true,
-      });
-
-    if (!error) {
-      setNewMedia({ file: null, url: '', title: '', description: '', mediaType: 'image' });
-      setShowAddForm(false);
-      loadMedia();
-    } else {
-      notifyError('Failed to add media: ' + error.message);
-    }
-  }
-
-  async function handleAddMedia() {
-    if (uploadMethod === 'file') {
-      await handleFileUpload();
-    } else {
-      if (!newMedia.url.trim()) {
-        notifyError('Please enter a URL');
-        return;
-      }
-      await addMediaToDatabase(newMedia.url);
-    }
-  }
-
-  async function updateMedia() {
-    if (!editingMedia) return;
-
-    let imageUrl = editingMedia.image_url;
-    let storagePath = editingMedia.storage_path;
-
-    // Check if user is replacing the media
-    if (newMedia.file || newMedia.url) {
-      setUploading(true);
-
-      // Delete old file from storage if it exists
-      if (editingMedia.storage_path) {
-        await supabase.storage
-          .from('carousel-media')
-          .remove([editingMedia.storage_path]);
-      }
-
-      // Upload new file or use new URL
-      if (newMedia.file) {
-        const fileExt = newMedia.file.name.split('.').pop();
-        const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
-        const filePath = `${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('carousel-media')
-          .upload(filePath, newMedia.file);
-
-        if (uploadError) {
-          notifyError('Failed to upload file: ' + uploadError.message);
-          setUploading(false);
-          return;
-        }
-
-        const { data: urlData } = supabase.storage
-          .from('carousel-media')
-          .getPublicUrl(filePath);
-
-        imageUrl = urlData.publicUrl;
-        storagePath = filePath;
-      } else if (newMedia.url) {
-        imageUrl = newMedia.url;
-        storagePath = null;
-      }
-
-      setUploading(false);
-    }
-
-    const { error } = await supabase
-      .from('hero_carousel_images')
-      .update({
-        image_url: imageUrl,
-        storage_path: storagePath,
-        media_type: newMedia.file || newMedia.url ? newMedia.mediaType : editingMedia.media_type,
-        title: editingMedia.title || null,
-        description: editingMedia.description || null,
-      })
-      .eq('id', editingMedia.id);
-
-    if (!error) {
-      setEditingMedia(null);
-      setNewMedia({ file: null, url: '', title: '', description: '', mediaType: 'image' });
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      loadMedia();
-    }
-  }
-
-  async function deleteMedia(id: string, storagePath: string | null) {
-    if (!await showConfirm('Are you sure you want to delete this media?')) return;
-
-    if (storagePath) {
-      await supabase.storage
-        .from('carousel-media')
-        .remove([storagePath]);
-    }
-
-    const { error } = await supabase
-      .from('hero_carousel_images')
-      .delete()
-      .eq('id', id);
-
-    if (!error) {
-      loadMedia();
-      if (currentIndex >= media.length - 1) {
-        setCurrentIndex(0);
-      }
-    }
-  }
-
-  async function moveMedia(id: string, direction: 'up' | 'down') {
-    const currentMedia = media.find(m => m.id === id);
-    if (!currentMedia) return;
-
-    const targetOrder = direction === 'up'
-      ? currentMedia.display_order - 1
-      : currentMedia.display_order + 1;
-
-    const targetMedia = media.find(m => m.display_order === targetOrder);
-    if (!targetMedia) return;
-
-    await supabase
-      .from('hero_carousel_images')
-      .update({ display_order: targetOrder })
-      .eq('id', currentMedia.id);
-
-    await supabase
-      .from('hero_carousel_images')
-      .update({ display_order: currentMedia.display_order })
-      .eq('id', targetMedia.id);
-
-    loadMedia();
-  }
-
-  const goToSlide = (index: number) => {
-    setCurrentIndex(index);
-  };
-
   const goToPrevious = useCallback(() => {
     setCurrentIndex((prev) => (prev === 0 ? media.length - 1 : prev - 1));
   }, [media.length]);
@@ -355,16 +100,39 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
     touchEndX.current = null;
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleAddMedia = async () => {
+    setUploading(true);
+    if (uploadMethod === 'file') {
+      await handleFileUpload(newMedia, () => {
+        setNewMedia(EMPTY_NEW_MEDIA);
+        setShowAddForm(false);
+      });
+    } else {
+      if (!newMedia.url.trim()) {
+        notifyError('Please enter a URL');
+        setUploading(false);
+        return;
+      }
+      await addMediaToDatabase(newMedia, newMedia.url);
+      setNewMedia(EMPTY_NEW_MEDIA);
+      setShowAddForm(false);
+    }
+    setUploading(false);
+  };
 
-    const isVideo = file.type.startsWith('video/');
-    setNewMedia({
-      ...newMedia,
-      file,
-      mediaType: isVideo ? 'video' : 'image',
-    });
+  const handleSaveEdit = async () => {
+    if (!editingMedia) return;
+    setUploading(true);
+    const success = await updateMedia(editingMedia, newMedia);
+    setUploading(false);
+    if (success) {
+      setEditingMedia(null);
+      setNewMedia(EMPTY_NEW_MEDIA);
+    }
+  };
+
+  const handleDeleteMedia = (id: string, storagePath: string | null) => {
+    deleteMedia(id, storagePath, currentIndex, () => setCurrentIndex(0));
   };
 
   if (loading) {
@@ -406,6 +174,17 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
               Add First Media
             </button>
           </div>
+          {showAddForm && (
+            <CarouselAddForm
+              newMedia={newMedia}
+              uploadMethod={uploadMethod}
+              uploading={uploading}
+              onNewMediaChange={setNewMedia}
+              onUploadMethodChange={setUploadMethod}
+              onSubmit={handleAddMedia}
+              onCancel={() => { setShowAddForm(false); setNewMedia(EMPTY_NEW_MEDIA); }}
+            />
+          )}
         </section>
       );
     }
@@ -437,474 +216,51 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
           </div>
         )}
 
-        <div className="relative sm:rounded-xl overflow-hidden shadow-none sm:shadow-2xl">
-          <div
-            className="relative w-full"
-            style={{ aspectRatio: '16/9', maxHeight: '600px' }}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-          >
-            {media.map((item, index) => (
-              <div
-                key={item.id}
-                className={`absolute inset-0 transition-opacity duration-1000 ${
-                  index === currentIndex ? 'opacity-100' : 'opacity-0'
-                }`}
-              >
-                {item.media_type === 'video' ? (
-                  <video
-                    src={item.image_url}
-                    className="w-full h-full object-cover"
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                  />
-                ) : (
-                  <img
-                    src={item.image_url}
-                    alt={item.title || 'Carousel media'}
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                  />
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                {(item.title || item.description) && (
-                  <div className="absolute bottom-0 left-0 right-0 pb-10 sm:pb-12 px-4 sm:px-8 text-white">
-                    {item.title && (
-                      <h3 className="text-xl sm:text-3xl lg:text-4xl font-bold mb-1 sm:mb-2 drop-shadow-md">{item.title}</h3>
-                    )}
-                    {item.description && (
-                      <p className="text-sm sm:text-lg lg:text-xl text-white/90 drop-shadow">{item.description}</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {media.length > 1 && (
-            <>
-              <button
-                onClick={goToPrevious}
-                className="hidden sm:flex absolute left-4 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-2.5 rounded-full transition-all backdrop-blur-sm items-center justify-center"
-                aria-label="Previous slide"
-              >
-                <ChevronLeft className="w-6 h-6" />
-              </button>
-              <button
-                onClick={goToNext}
-                className="hidden sm:flex absolute right-4 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-2.5 rounded-full transition-all backdrop-blur-sm items-center justify-center"
-                aria-label="Next slide"
-              >
-                <ChevronRight className="w-6 h-6" />
-              </button>
-
-              <div className="absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 sm:gap-2">
-                {media.map((_, index) => (
-                  <button
-                    key={index}
-                    onClick={() => goToSlide(index)}
-                    className={`h-1.5 sm:h-2 rounded-full transition-all duration-300 ${
-                      index === currentIndex
-                        ? 'bg-white w-6 sm:w-8'
-                        : 'bg-white/50 hover:bg-white/75 w-1.5 sm:w-2'
-                    }`}
-                    aria-label={`Go to slide ${index + 1}`}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+        <CarouselDisplay
+          media={media}
+          currentIndex={currentIndex}
+          onPrevious={goToPrevious}
+          onNext={goToNext}
+          onGoToSlide={setCurrentIndex}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        />
 
         {isEditMode && (
-          <div className="mt-4 space-y-2">
-            {media.map((item, index) => (
-              <div key={item.id} className="bg-white border border-slate-200 rounded-lg p-3 sm:p-4">
-                <div className="flex items-start gap-3 sm:gap-4">
-                  {item.media_type === 'video' ? (
-                    <video
-                      src={item.image_url}
-                      className="w-16 h-12 sm:w-24 sm:h-16 object-cover rounded flex-shrink-0"
-                      muted
-                    />
-                  ) : (
-                    <img
-                      src={item.image_url}
-                      alt={item.title || 'Carousel media'}
-                      className="w-16 h-12 sm:w-24 sm:h-16 object-cover rounded flex-shrink-0"
-                    />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-medium text-sm sm:text-base truncate">{item.title || 'Untitled'}</p>
-                      <span className="text-xs px-2 py-0.5 bg-slate-100 rounded flex-shrink-0">
-                        {item.media_type}
-                      </span>
-                    </div>
-                    <p className="text-xs sm:text-sm text-slate-500 line-clamp-2">{item.description || 'No description'}</p>
-
-                    {/* Mobile button layout */}
-                    <div className="flex sm:hidden items-center gap-1 mt-2">
-                      <button
-                        onClick={() => moveMedia(item.id, 'up')}
-                        disabled={index === 0}
-                        className="p-1.5 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
-                        aria-label="Move up"
-                      >
-                        <MoveUp className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => moveMedia(item.id, 'down')}
-                        disabled={index === media.length - 1}
-                        className="p-1.5 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
-                        aria-label="Move down"
-                      >
-                        <MoveDown className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setEditingMedia(item)}
-                        className="inline-flex items-center px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs"
-                        aria-label="Edit"
-                      >
-                        <Edit2 className="w-3 h-3 mr-1" />
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => deleteMedia(item.id, item.storage_path)}
-                        className="inline-flex items-center px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors text-xs"
-                        aria-label="Delete"
-                      >
-                        <Trash2 className="w-3 h-3 mr-1" />
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Desktop button layout */}
-                  <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => moveMedia(item.id, 'up')}
-                      disabled={index === 0}
-                      className="p-2 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
-                      aria-label="Move up"
-                    >
-                      <MoveUp className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => moveMedia(item.id, 'down')}
-                      disabled={index === media.length - 1}
-                      className="p-2 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
-                      aria-label="Move down"
-                    >
-                      <MoveDown className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setEditingMedia(item)}
-                      className="inline-flex items-center px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs"
-                      aria-label="Edit"
-                    >
-                      <Edit2 className="w-3 h-3 mr-1" />
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => deleteMedia(item.id, item.storage_path)}
-                      className="inline-flex items-center px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors text-xs"
-                      aria-label="Delete"
-                    >
-                      <Trash2 className="w-3 h-3 mr-1" />
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <CarouselEditMode
+            media={media}
+            onEdit={(item) => { setEditingMedia(item); setNewMedia(EMPTY_NEW_MEDIA); }}
+            onDelete={handleDeleteMedia}
+            onMove={moveMedia}
+          />
         )}
       </div>
 
       {showAddForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-4">Add Carousel Media</h3>
-            <div className="space-y-4">
-              <div className="flex gap-2 mb-4">
-                <button
-                  onClick={() => setUploadMethod('file')}
-                  className={`flex-1 py-2 px-4 rounded-lg flex items-center justify-center gap-2 ${
-                    uploadMethod === 'file'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  <Upload className="w-4 h-4" />
-                  Upload File
-                </button>
-                <button
-                  onClick={() => setUploadMethod('url')}
-                  className={`flex-1 py-2 px-4 rounded-lg flex items-center justify-center gap-2 ${
-                    uploadMethod === 'url'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  <LinkIcon className="w-4 h-4" />
-                  Use URL
-                </button>
-              </div>
-
-              {uploadMethod === 'file' ? (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Upload Image or Video
-                  </label>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*,video/*"
-                    onChange={handleFileSelect}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                  />
-                  {newMedia.file && (
-                    <p className="text-sm text-slate-600 mt-2">
-                      Selected: {newMedia.file.name} ({newMedia.mediaType})
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Media Type
-                    </label>
-                    <select
-                      value={newMedia.mediaType}
-                      onChange={(e) => setNewMedia({ ...newMedia, mediaType: e.target.value as 'image' | 'video' })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                    >
-                      <option value="image">Image</option>
-                      <option value="video">Video</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      {newMedia.mediaType === 'video' ? 'Video URL' : 'Image URL'}
-                    </label>
-                    <input
-                      type="text"
-                      value={newMedia.url}
-                      onChange={(e) => setNewMedia({ ...newMedia, url: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                      placeholder={
-                        newMedia.mediaType === 'video'
-                          ? 'https://example.com/video.mp4'
-                          : 'https://images.pexels.com/...'
-                      }
-                    />
-                  </div>
-                </>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Title (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={newMedia.title}
-                  onChange={(e) => setNewMedia({ ...newMedia, title: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                  placeholder="Birthday Parties"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Description (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={newMedia.description}
-                  onChange={(e) => setNewMedia({ ...newMedia, description: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                  placeholder="Make your celebration unforgettable"
-                />
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleAddMedia}
-                  disabled={uploading || (uploadMethod === 'file' && !newMedia.file) || (uploadMethod === 'url' && !newMedia.url)}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-4 py-2 rounded-lg"
-                >
-                  {uploading ? 'Uploading...' : 'Add Media'}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowAddForm(false);
-                    setNewMedia({ file: null, url: '', title: '', description: '', mediaType: 'image' });
-                    if (fileInputRef.current) fileInputRef.current.value = '';
-                  }}
-                  className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-lg"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <CarouselAddForm
+          newMedia={newMedia}
+          uploadMethod={uploadMethod}
+          uploading={uploading}
+          onNewMediaChange={setNewMedia}
+          onUploadMethodChange={setUploadMethod}
+          onSubmit={handleAddMedia}
+          onCancel={() => { setShowAddForm(false); setNewMedia(EMPTY_NEW_MEDIA); }}
+        />
       )}
 
       {editingMedia && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-4">Edit Carousel Media</h3>
-            <div className="space-y-4">
-              {/* Current Media Preview */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Current Media
-                </label>
-                {editingMedia.media_type === 'video' ? (
-                  <video
-                    src={editingMedia.image_url}
-                    className="w-full h-32 object-cover rounded-lg"
-                    muted
-                  />
-                ) : (
-                  <img
-                    src={editingMedia.image_url}
-                    alt={editingMedia.title || 'Current media'}
-                    className="w-full h-32 object-cover rounded-lg"
-                  />
-                )}
-              </div>
-
-              {/* Replace Media Section */}
-              <div className="border-t pt-4">
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Replace Media (Optional)
-                </label>
-                <div className="flex gap-2 mb-3">
-                  <button
-                    onClick={() => setUploadMethod('file')}
-                    className={`flex-1 py-2 px-3 rounded-lg flex items-center justify-center gap-2 text-sm ${
-                      uploadMethod === 'file'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    <Upload className="w-4 h-4" />
-                    Upload File
-                  </button>
-                  <button
-                    onClick={() => setUploadMethod('url')}
-                    className={`flex-1 py-2 px-3 rounded-lg flex items-center justify-center gap-2 text-sm ${
-                      uploadMethod === 'url'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    <LinkIcon className="w-4 h-4" />
-                    Use URL
-                  </button>
-                </div>
-
-                {uploadMethod === 'file' ? (
-                  <div>
-                    <input
-                      type="file"
-                      accept="image/*,video/*"
-                      onChange={handleFileSelect}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                    />
-                    {newMedia.file && (
-                      <p className="text-sm text-slate-600 mt-2">
-                        Selected: {newMedia.file.name} ({newMedia.mediaType})
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <>
-                    <div className="mb-2">
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Media Type
-                      </label>
-                      <select
-                        value={newMedia.mediaType}
-                        onChange={(e) => setNewMedia({ ...newMedia, mediaType: e.target.value as 'image' | 'video' })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                      >
-                        <option value="image">Image</option>
-                        <option value="video">Video</option>
-                      </select>
-                    </div>
-                    <div>
-                      <input
-                        type="text"
-                        value={newMedia.url}
-                        onChange={(e) => setNewMedia({ ...newMedia, url: e.target.value })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                        placeholder={
-                          newMedia.mediaType === 'video'
-                            ? 'https://example.com/video.mp4'
-                            : 'https://images.pexels.com/...'
-                        }
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Title and Description */}
-              <div className="border-t pt-4">
-                <div className="mb-3">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Title (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={editingMedia.title || ''}
-                    onChange={(e) => setEditingMedia({ ...editingMedia, title: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Description (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={editingMedia.description || ''}
-                    onChange={(e) => setEditingMedia({ ...editingMedia, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  onClick={updateMedia}
-                  disabled={uploading}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-4 py-2 rounded-lg inline-flex items-center justify-center gap-2"
-                >
-                  <Save className="w-4 h-4" />
-                  {uploading ? 'Saving...' : 'Save Changes'}
-                </button>
-                <button
-                  onClick={() => {
-                    setEditingMedia(null);
-                    setNewMedia({ file: null, url: '', title: '', description: '', mediaType: 'image' });
-                    if (fileInputRef.current) fileInputRef.current.value = '';
-                  }}
-                  className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-lg"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <CarouselEditForm
+          editingMedia={editingMedia}
+          newMedia={newMedia}
+          uploadMethod={uploadMethod}
+          uploading={uploading}
+          onEditingMediaChange={setEditingMedia}
+          onNewMediaChange={setNewMedia}
+          onUploadMethodChange={setUploadMethod}
+          onSave={handleSaveEdit}
+          onCancel={() => { setEditingMedia(null); setNewMedia(EMPTY_NEW_MEDIA); }}
+        />
       )}
     </section>
   );
