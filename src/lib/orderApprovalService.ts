@@ -147,27 +147,7 @@ export async function approveOrder(
           .maybeSingle();
         const fullOrder = fullOrderRaw as any;
 
-        let declineUrl = `${window.location.origin}/customer-portal/${orderId}`;
-        try {
-          const { data: declineLink, error: declineLinkError } = await supabase
-            .from('invoice_links' as any)
-            .insert({
-              order_id: orderId,
-              deposit_cents: fullOrder?.deposit_due_cents ?? 0,
-              customer_filled: false,
-              link_type: 'portal_shortlink',
-            })
-            .select('link_token')
-            .single();
-
-          if (!declineLinkError && (declineLink as any)?.link_token) {
-            declineUrl = `${window.location.origin}/customer-portal/${orderId}?t=${(declineLink as any).link_token}`;
-          } else {
-            console.warn('[orderApprovalService] Failed to create decline invoice link, falling back to portal URL:', declineLinkError);
-          }
-        } catch (linkErr) {
-          console.warn('[orderApprovalService] Exception creating decline invoice link, falling back to portal URL:', linkErr);
-        }
+        const declineUrl = await createShortPortalLink(orderId, supabase, fullOrder?.event_date);
 
         if (fullOrder?.customers?.email) {
           const declineEmailHtml = generateCardDeclinedEmail(fullOrder, declineUrl);
