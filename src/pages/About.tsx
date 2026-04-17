@@ -1,15 +1,8 @@
 import { MapPin, Phone, Mail, Clock, Users, Award, Heart } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { getBusinessAddressText } from '../lib/adminSettingsCache';
 import { useBusinessSettings } from '../contexts/BusinessContext';
 
 export function About() {
-  const [businessAddress, setBusinessAddress] = useState('');
   const business = useBusinessSettings();
-
-  useEffect(() => {
-    getBusinessAddressText().then(setBusinessAddress);
-  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-slate-50 to-blue-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -108,7 +101,7 @@ export function About() {
               </div>
               <h3 className="font-semibold text-slate-900 mb-1">Address</h3>
               <p className="text-sm text-slate-600">
-                {businessAddress}
+                {business.business_address}
               </p>
             </div>
 
@@ -118,9 +111,11 @@ export function About() {
               </div>
               <h3 className="font-semibold text-slate-900 mb-1">Phone</h3>
               <p className="text-sm text-slate-600">
-                <a href={`tel:${business.business_phone.replace(/\D/g, '')}`} className="text-blue-600 hover:text-blue-700 font-medium">
-                  {business.business_phone}
-                </a>
+                {business.business_phone ? (
+                  <a href={`tel:${business.business_phone.replace(/\D/g, '')}`} className="text-blue-600 hover:text-blue-700 font-medium">
+                    {business.business_phone}
+                  </a>
+                ) : null}
               </p>
             </div>
 
@@ -130,9 +125,11 @@ export function About() {
               </div>
               <h3 className="font-semibold text-slate-900 mb-1">Email</h3>
               <p className="text-sm text-slate-600">
-                <a href={`mailto:${business.business_email}`} className="text-blue-600 hover:text-blue-700 font-medium">
-                  {business.business_email}
-                </a>
+                {business.business_email ? (
+                  <a href={`mailto:${business.business_email}`} className="text-blue-600 hover:text-blue-700 font-medium">
+                    {business.business_email}
+                  </a>
+                ) : null}
               </p>
             </div>
           </div>

@@ -3,6 +3,7 @@ import { ArrowLeft, Copy, Check, ExternalLink } from 'lucide-react';
 import { PendingOrderCard } from './PendingOrderCard';
 import { AdminFloatingOrderHeader } from './AdminFloatingOrderHeader';
 import { supabase } from '../../lib/supabase';
+import { ORDER_STATUS } from '../../lib/constants/statuses';
 
 interface SingleOrderViewProps {
   orderId: string;
@@ -109,7 +110,7 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
   }
 
   useEffect(() => {
-    if (!order || order.status !== 'draft') {
+    if (!order || order.status !== ORDER_STATUS.DRAFT) {
       setPortalToken(null);
       return;
     }

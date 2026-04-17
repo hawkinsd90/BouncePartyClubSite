@@ -20,7 +20,7 @@ import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { formatOrderId } from "../_shared/format-order-id.ts";
 import { logTransaction } from "../_shared/transaction-logger.ts";
-import { formatCurrency, LOGO_URL, DEFAULT_PHONE } from "../_shared/fmt.ts";
+import { formatCurrency, DEFAULT_PHONE, buildPaymentReceiptEmail } from "../_shared/fmt.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -194,21 +194,29 @@ Deno.serve(async (req: Request) => {
           .maybeSingle();
         const businessPhone = phoneSetting?.value || DEFAULT_PHONE;
 
+        const checkBanner = `
+    <div style="background-color:#eff6ff;border:2px solid #3b82f6;border-radius:6px;padding:16px 20px;margin:25px 0;text-align:center;">
+      <p style="margin:0;font-size:18px;font-weight:900;color:#1e40af;letter-spacing:0.5px;">PAID BY CHECK</p>
+      <p style="margin:6px 0 0;font-size:13px;color:#1d4ed8;font-weight:600;">Check #${checkNumber} — received and recorded by staff</p>
+    </div>`;
+
         await supabaseAdmin.functions.invoke("send-email", {
           body: {
             to: orderRow.customers.email,
             subject: `Payment Received - Order #${formatOrderId(orderId)}`,
-            html: buildCheckReceiptEmail({
+            html: buildPaymentReceiptEmail({
               firstName,
               orderId,
+              orderNum: formatOrderId(orderId),
               amountCents,
               tipCents,
               totalCents: amountCents + tipCents,
               paymentType: payment_type,
               newBalanceDue: new_balance_due,
-              checkNumber,
               order: orderRow,
               businessPhone,
+              paymentBanner: checkBanner,
+              paymentMethodLabel: payment_type === "deposit" ? "Deposit Payment" : "Balance Payment",
             }),
           },
         });
@@ -237,171 +245,3 @@ Deno.serve(async (req: Request) => {
     );
   }
 });
-
-function buildCheckReceiptEmail(opts: {
-  firstName: string;
-  orderId: string;
-  amountCents: number;
-  tipCents: number;
-  totalCents: number;
-  paymentType: "deposit" | "balance";
-  newBalanceDue: number;
-  checkNumber: string;
-  order: any;
-  businessPhone: string;
-}): string {
-  const { firstName, orderId, amountCents, tipCents, totalCents, paymentType, newBalanceDue, checkNumber, order, businessPhone } = opts;
-  const orderNum = formatOrderId(orderId);
-  const fmt = formatCurrency;
-  const BORDER = "#10b981";
-  const ACCENT = "#15803d";
-  const BG = "#f0fdf4";
-
-  const eventDateStr = order.event_date
-    ? new Date(order.event_date + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
-    : "";
-
-  const timeStr = order.start_window && order.end_window
-    ? `${order.start_window} - ${order.end_window}`
-    : "";
-
-  const addressStr = order.addresses
-    ? `${order.addresses.line1}, ${order.addresses.city}, ${order.addresses.state}`
-    : "";
-
-  const eventDetailRows = [
-    { label: "Order #", value: orderNum },
-    ...(eventDateStr ? [{ label: "Date", value: eventDateStr }] : []),
-    ...(timeStr ? [{ label: "Time", value: timeStr }] : []),
-    ...(addressStr ? [{ label: "Location", value: addressStr }] : []),
-    ...(order.location_type ? [{ label: "Location Type", value: order.location_type }] : []),
-    ...(order.surface ? [{ label: "Surface", value: order.surface }] : []),
-  ].map(r => `
-      <tr>
-        <td style="color:#64748b;font-size:14px;">${r.label}:</td>
-        <td style="color:#1e293b;font-size:14px;font-weight:600;text-align:right;">${r.value}</td>
-      </tr>`).join("");
-
-  const eventInfoBox = `
-    <div style="background-color:${BG};border:2px solid ${BORDER};border-radius:6px;padding:20px;margin:25px 0;">
-      <h3 style="margin:0 0 15px;color:${ACCENT};font-size:16px;font-weight:600;">Event Details</h3>
-      <table width="100%" cellpadding="6" cellspacing="0">${eventDetailRows}</table>
-    </div>`;
-
-  const items: any[] = order.order_items || [];
-  const itemRowsHtml = items.map((item: any) => `
-    <tr>
-      <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;color:#1e293b;">
-        ${item.qty}x ${item.units?.name} <span style="color:#64748b;font-size:13px;">(${item.wet_or_dry === "water" ? "Wet" : "Dry"})</span>
-      </td>
-      <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;text-align:right;color:#1e293b;">${fmt(item.unit_price_cents * item.qty)}</td>
-    </tr>`).join("");
-
-  const itemsSection = items.length > 0 ? `
-    <div style="margin:25px 0;">
-      <h3 style="margin:0 0 15px;color:#1e293b;font-size:16px;font-weight:600;">Order Items</h3>
-      <table width="100%" cellpadding="0" cellspacing="0">${itemRowsHtml}</table>
-    </div>` : "";
-
-  const customFees: any[] = order.order_custom_fees || [];
-  const discounts: any[] = order.order_discounts || [];
-
-  type PricingRow = { label: string; value: string; bold?: boolean; highlight?: boolean };
-  const pricingRows: PricingRow[] = [
-    { label: "Subtotal", value: fmt(order.subtotal_cents || 0) },
-  ];
-  if ((order.travel_fee_cents || 0) > 0) pricingRows.push({ label: "Travel Fee", value: fmt(order.travel_fee_cents) });
-  if ((order.surface_fee_cents || 0) > 0) pricingRows.push({ label: "Surface Fee", value: fmt(order.surface_fee_cents) });
-  if ((order.generator_fee_cents || 0) > 0) pricingRows.push({ label: "Generator Fee", value: fmt(order.generator_fee_cents) });
-  if ((order.same_day_pickup_fee_cents || 0) > 0) pricingRows.push({ label: "Same Day Pickup", value: fmt(order.same_day_pickup_fee_cents) });
-  customFees.forEach((f: any) => pricingRows.push({ label: f.name || "Additional Fee", value: fmt(f.amount_cents) }));
-  discounts.forEach((d: any) => pricingRows.push({ label: d.name || "Discount", value: `-${fmt(d.amount_cents)}` }));
-  if ((order.tax_cents || 0) > 0) pricingRows.push({ label: "Tax", value: fmt(order.tax_cents) });
-  const orderTotal = (order.subtotal_cents || 0) + (order.travel_fee_cents || 0) + (order.surface_fee_cents || 0) +
-    (order.generator_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.tax_cents || 0) +
-    customFees.reduce((s: number, f: any) => s + f.amount_cents, 0) - discounts.reduce((s: number, d: any) => s + d.amount_cents, 0);
-  pricingRows.push({ label: "Total", value: fmt(orderTotal), bold: true });
-  if ((order.deposit_paid_cents || 0) > 0) pricingRows.push({ label: "Deposit Paid", value: fmt(order.deposit_paid_cents), highlight: true });
-  if ((order.balance_paid_cents || 0) > 0) pricingRows.push({ label: "Balance Paid", value: fmt(order.balance_paid_cents), highlight: true });
-
-  const pricingRowsHtml = pricingRows.map(r => `
-    <tr${r.bold ? ' style="border-top:2px solid #e2e8f0;"' : ''}>
-      <td style="color:${r.bold ? "#1e293b" : "#64748b"};font-size:${r.bold ? "15px" : "14px"};font-weight:${r.bold ? "600" : "normal"};${r.bold ? "padding-top:10px;" : ""}">${r.label}:</td>
-      <td style="color:${r.highlight ? "#10b981" : r.bold ? "#1e293b" : "#1e293b"};font-size:${r.bold ? "15px" : "14px"};font-weight:${r.bold ? "700" : "normal"};text-align:right;${r.bold ? "padding-top:10px;" : ""}">${r.value}</td>
-    </tr>`).join("");
-
-  const pricingSection = `
-    <div style="background-color:#f8fafc;border-radius:6px;padding:20px;margin:25px 0;">
-      <h3 style="margin:0 0 15px;color:#1e293b;font-size:16px;font-weight:600;">Payment Summary</h3>
-      <table width="100%" cellpadding="6" cellspacing="0">${pricingRowsHtml}</table>
-    </div>`;
-
-  const paymentLabel = paymentType === "deposit" ? "Deposit Payment" : "Balance Payment";
-  const tipRow = tipCents > 0 ? `
-      <tr>
-        <td style="color:#64748b;font-size:14px;">Crew Tip:</td>
-        <td style="color:#16a34a;font-size:14px;font-weight:600;text-align:right;">+${fmt(tipCents)}</td>
-      </tr>` : "";
-  const balanceRow = newBalanceDue > 0
-    ? `<tr style="border-top:2px solid #e2e8f0;"><td style="color:#1e293b;font-size:15px;font-weight:600;padding-top:10px;">Remaining Balance Due:</td><td style="color:#dc2626;font-size:15px;font-weight:700;text-align:right;padding-top:10px;">${fmt(newBalanceDue)}</td></tr>`
-    : `<tr style="border-top:2px solid #e2e8f0;"><td style="color:#1e293b;font-size:15px;font-weight:600;padding-top:10px;">Remaining Balance Due:</td><td style="color:#16a34a;font-size:15px;font-weight:700;text-align:right;padding-top:10px;">PAID IN FULL</td></tr>`;
-
-  const paymentReceiptBox = `
-    <div style="background-color:${BG};border:2px solid ${BORDER};border-radius:6px;padding:20px;margin:25px 0;">
-      <h3 style="margin:0 0 15px;color:${ACCENT};font-size:16px;font-weight:600;">Payment Receipt</h3>
-      <table width="100%" cellpadding="6" cellspacing="0">
-        <tr>
-          <td style="color:#64748b;font-size:14px;">${paymentLabel}:</td>
-          <td style="color:#1e293b;font-size:14px;font-weight:600;text-align:right;">${fmt(amountCents)}</td>
-        </tr>
-        ${tipRow}
-        <tr style="border-top:2px solid #d1fae5;">
-          <td style="color:${ACCENT};font-size:15px;font-weight:700;padding-top:10px;">Total Received:</td>
-          <td style="color:${ACCENT};font-size:18px;font-weight:800;text-align:right;padding-top:10px;">${fmt(totalCents)}</td>
-        </tr>
-        ${balanceRow}
-      </table>
-    </div>`;
-
-  const checkBanner = `
-    <div style="background-color:#eff6ff;border:2px solid #3b82f6;border-radius:6px;padding:16px 20px;margin:25px 0;text-align:center;">
-      <p style="margin:0;font-size:18px;font-weight:900;color:#1e40af;letter-spacing:0.5px;">PAID BY CHECK</p>
-      <p style="margin:6px 0 0;font-size:13px;color:#1d4ed8;font-weight:600;">Check #${checkNumber} — received and recorded by staff</p>
-    </div>`;
-
-  const content = `
-    <p style="margin:0 0 20px;color:#1e293b;font-size:16px;">Hi ${firstName},</p>
-    <p style="margin:0 0 20px;color:#475569;font-size:15px;line-height:1.6;">We've received your check payment. Here is your receipt and order summary.</p>
-    ${checkBanner}
-    ${eventInfoBox}
-    ${itemsSection}
-    ${pricingSection}
-    ${paymentReceiptBox}
-    <p style="margin:25px 0 0;color:#475569;font-size:14px;line-height:1.6;">Questions? Call us at <strong style="color:#1e293b;">${businessPhone}</strong></p>
-  `;
-
-  return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Payment Received</title></head>
-<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#f8fafc;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;padding:40px 20px;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.1);border:2px solid ${BORDER};">
-        <tr>
-          <td style="background-color:#ffffff;padding:30px;text-align:center;border-bottom:2px solid ${BORDER};">
-            <img src="${LOGO_URL}" alt="Bounce Party Club" style="height:80px;width:auto;" />
-            <h1 style="margin:15px 0 0;color:${BORDER};font-size:24px;font-weight:bold;">Payment Received!</h1>
-          </td>
-        </tr>
-        <tr><td style="padding:30px;">${content}</td></tr>
-        <tr>
-          <td style="background-color:#f8fafc;padding:25px;text-align:center;border-top:2px solid ${BORDER};">
-            <p style="margin:0 0 5px;color:#64748b;font-size:13px;">Bounce Party Club | ${businessPhone}</p>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
-}

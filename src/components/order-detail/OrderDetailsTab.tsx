@@ -386,7 +386,7 @@ export function OrderDetailsTab({
       <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
         <h3 className="font-semibold text-slate-900 mb-3">Order Status</h3>
         <div className="flex flex-wrap gap-2">
-          {['pending', 'awaiting_customer_approval', 'confirmed', 'in_progress', 'completed', 'cancelled', 'void'].map(status => (
+          {[ORDER_STATUS.PENDING, ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL, ORDER_STATUS.CONFIRMED, ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.COMPLETED, ORDER_STATUS.CANCELLED, ORDER_STATUS.VOID].map(status => (
             <button
               key={status}
               onClick={() => onStatusChange(status)}

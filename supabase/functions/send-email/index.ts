@@ -220,7 +220,9 @@ Deno.serve(async (req: Request) => {
 
     const resendApiKey = emailSettingsMap['resend_api_key'];
     const businessName = emailSettingsMap['business_name'] || 'Bounce Party Club';
-    const businessEmail = emailSettingsMap['business_email'] || 'admin@bouncepartyclub.com';
+    const businessEmail = emailSettingsMap['business_email'];
+
+    const VERIFIED_SENDER = 'noreply@bouncepartyclub.com';
 
     if (!resendApiKey) {
       const errorMsg = 'Resend API key not configured';
@@ -258,9 +260,10 @@ Deno.serve(async (req: Request) => {
     }
 
     const emailPayload: Record<string, unknown> = {
-      from: from || `${businessName} <${businessEmail}>`,
+      from: from || `${businessName} <${VERIFIED_SENDER}>`,
       to: [emailTo],
       subject: emailSubject,
+      ...(businessEmail ? { reply_to: businessEmail } : {}),
     };
 
     if (emailHtml) emailPayload.html = emailHtml;

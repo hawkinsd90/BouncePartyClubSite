@@ -5,6 +5,7 @@ import { checkMultipleUnitsAvailability } from '../../lib/availability';
 import { showToast } from '../../lib/notifications';
 import { validateStatusTransition } from '../../lib/orderStateMachine';
 import { showConfirm } from '../common/CustomModal';
+import { ORDER_STATUS } from '../../lib/constants/statuses';
 
 interface StatusChangeDialogProps {
   isOpen: boolean;
@@ -62,7 +63,7 @@ export function StatusChangeDialog({
         return;
       }
 
-      if (pendingStatus === 'completed' && currentOrder) {
+      if (pendingStatus === ORDER_STATUS.COMPLETED && currentOrder) {
         const remaining = Math.max(0, (currentOrder.balance_due_cents || 0) - (currentOrder.balance_paid_cents || 0));
         if (remaining > 0) {
           const dollars = (remaining / 100).toFixed(2);
@@ -77,7 +78,7 @@ export function StatusChangeDialog({
         }
       }
 
-      if (pendingStatus === 'confirmed') {
+      if (pendingStatus === ORDER_STATUS.CONFIRMED) {
         const activeItems = stagedItems.filter(item => !item.is_deleted);
         const checks = activeItems.map(item => ({
           unitId: item.unit_id,
@@ -111,7 +112,7 @@ export function StatusChangeDialog({
 
       // Update order status; include cancellation metadata when cancelling
       const updatePayload: Record<string, any> = { status: pendingStatus };
-      if (pendingStatus === 'cancelled') {
+      if (pendingStatus === ORDER_STATUS.CANCELLED) {
         updatePayload.cancelled_at = new Date().toISOString();
         const { data: { user } } = await supabase.auth.getUser();
         if (user?.id) updatePayload.cancelled_by = user.id;

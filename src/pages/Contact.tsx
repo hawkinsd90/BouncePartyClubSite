@@ -1,11 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { MessageSquare, Send, Phone, Mail, MapPin, Clock } from 'lucide-react';
-import { getBusinessAddressText } from '../lib/adminSettingsCache';
 import { DatePickerInput } from '../components/ui/DatePickerInput';
 import { useBusinessSettings } from '../contexts/BusinessContext';
 
 export function Contact() {
-  const [businessAddress, setBusinessAddress] = useState('');
   const business = useBusinessSettings();
   const [formData, setFormData] = useState({
     name: '',
@@ -16,10 +14,6 @@ export function Contact() {
     message: '',
   });
   const [submitted, setSubmitted] = useState(false);
-
-  useEffect(() => {
-    getBusinessAddressText().then(setBusinessAddress);
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,9 +47,11 @@ export function Contact() {
           </p>
           <p className="text-sm text-slate-500">
             For immediate assistance, call us at{' '}
-            <a href={`tel:${business.business_phone.replace(/\D/g, '')}`} className="text-blue-600 hover:underline font-medium">
-              {business.business_phone}
-            </a>
+            {business.business_phone ? (
+              <a href={`tel:${business.business_phone.replace(/\D/g, '')}`} className="text-blue-600 hover:underline font-medium">
+                {business.business_phone}
+              </a>
+            ) : null}
           </p>
         </div>
       </div>
@@ -193,7 +189,7 @@ export function Contact() {
 
               <div className="space-y-4">
                 <a
-                  href={`tel:${business.business_phone.replace(/\D/g, '')}`}
+                  href={business.business_phone ? `tel:${business.business_phone.replace(/\D/g, '')}` : '#'}
                   className="flex items-start space-x-3 text-slate-700 hover:text-blue-600 transition-colors group"
                 >
                   <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
@@ -201,12 +197,12 @@ export function Contact() {
                   </div>
                   <div>
                     <div className="font-medium text-sm text-slate-500">Call Us</div>
-                    <div className="font-semibold">{business.business_phone}</div>
+                    <div className="font-semibold">{business.business_phone || ''}</div>
                   </div>
                 </a>
 
                 <a
-                  href={`mailto:${business.business_email}`}
+                  href={business.business_email ? `mailto:${business.business_email}` : '#'}
                   className="flex items-start space-x-3 text-slate-700 hover:text-blue-600 transition-colors group"
                 >
                   <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
@@ -214,7 +210,7 @@ export function Contact() {
                   </div>
                   <div>
                     <div className="font-medium text-sm text-slate-500">Email Us</div>
-                    <div className="font-semibold text-sm">{business.business_email}</div>
+                    <div className="font-semibold text-sm">{business.business_email || ''}</div>
                   </div>
                 </a>
 
@@ -225,7 +221,7 @@ export function Contact() {
                   <div>
                     <div className="font-medium text-sm text-slate-500">Location</div>
                     <div className="font-semibold text-sm">
-                      {businessAddress}
+                      {business.business_address}
                     </div>
                   </div>
                 </div>

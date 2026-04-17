@@ -31,7 +31,7 @@ const workflowOverrides: Partial<Record<string, StatusConfig>> = {
 };
 
 export function OrderStatusBadge({ order }: OrderStatusBadgeProps) {
-  const workflowOverride = order.status === 'in_progress' && order.workflow_status
+  const workflowOverride = order.status === ORDER_STATUS.IN_PROGRESS && order.workflow_status
     ? workflowOverrides[order.workflow_status]
     : undefined;
   const config = workflowOverride || statusConfigs[order.status as OrderStatus] || { label: order.status, className: 'bg-gray-100 text-gray-700', icon: Clock };
