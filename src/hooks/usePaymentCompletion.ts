@@ -134,7 +134,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
           // console.log('[PAYMENT-COMPLETE] Attempt', retries + 1, '- Order status:', order.status);
 
           // Check if webhook has processed (status changed from draft)
-          if (order.status !== 'draft') {
+          if (order.status !== ORDER_STATUS.DRAFT) {
             // console.log('[PAYMENT-COMPLETE] Webhook has processed - order status:', order.status);
             break;
           }

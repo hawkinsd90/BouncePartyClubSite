@@ -260,7 +260,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const emailPayload: Record<string, unknown> = {
-      from: from || `${businessName} <${VERIFIED_SENDER}>`,
+      from: `${businessName} <${VERIFIED_SENDER}>`,
       to: [emailTo],
       subject: emailSubject,
       ...(businessEmail ? { reply_to: businessEmail } : {}),

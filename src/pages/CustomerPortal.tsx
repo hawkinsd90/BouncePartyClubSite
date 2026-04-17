@@ -143,7 +143,7 @@ export function CustomerPortal() {
           const depositDue = orderResult?.order?.deposit_due_cents ?? 0;
           const depositPaid = orderResult?.order?.deposit_paid_cents ?? 0;
 
-          if (currentStatus !== 'confirmed' && currentStatus !== 'cancelled' && currentStatus !== 'void') {
+          if (currentStatus !== ORDER_STATUS.CONFIRMED && currentStatus !== ORDER_STATUS.CANCELLED && currentStatus !== ORDER_STATUS.VOID) {
             if (depositDue > 0 && depositPaid < depositDue) {
               // Card was saved but deposit_due_cents > 0 — charge the actual amount now.
               // deposit_due_cents is the authoritative value: it already reflects any admin

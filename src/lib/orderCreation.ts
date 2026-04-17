@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { checkMultipleUnitsAvailability, checkDateBlackout } from './availability';
 import { upsertCanonicalAddress } from './addressService';
+import { ORDER_STATUS } from './constants/statuses';
 
 interface OrderData {
   contactData: {
@@ -163,7 +164,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     .from('orders')
     .insert({
       customer_id: customer.id,
-      status: 'draft',
+      status: ORDER_STATUS.DRAFT,
       location_type: quoteData.location_type,
       surface: quoteData.can_stake ? 'grass' : 'cement',
       event_date: quoteData.event_date,

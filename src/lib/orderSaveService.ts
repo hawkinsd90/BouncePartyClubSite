@@ -403,9 +403,9 @@ export async function saveOrderChanges({
   if (hasTrackedChanges || hasFieldChanges) {
     const oldStatus = order.status;
     if (adminOverrideApproval) {
-      changes.status = 'confirmed';
+      changes.status = ORDER_STATUS.CONFIRMED;
     } else {
-      changes.status = 'awaiting_customer_approval';
+      changes.status = ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL;
     }
 
     const { error: updateError } = await supabase.from('orders').update(changes).eq('id', order.id);

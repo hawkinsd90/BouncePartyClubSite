@@ -120,7 +120,7 @@ export function Invoice() {
         await supabase
           .from('orders')
           .update({
-            status: 'cancelled',
+            status: ORDER_STATUS.CANCELLED,
             cancelled_at: new Date().toISOString(),
             cancellation_reason: `Auto-cancelled: units no longer available (${unitNames})`,
           })

@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { ORDER_STATUS } from './constants/statuses';
 import { sendEmail } from './notificationService';
 import {
   generateConfirmationReceiptEmail,
@@ -32,7 +33,7 @@ export async function approveOrder(
     }
 
     // Idempotency guard: if already confirmed/cancelled/void, abort gracefully
-    if (['confirmed', 'cancelled', 'void'].includes(orderData.status)) {
+    if ([ORDER_STATUS.CONFIRMED, ORDER_STATUS.CANCELLED, ORDER_STATUS.VOID].includes(orderData.status)) {
       throw new Error('This order has already been confirmed or cancelled. Refresh the page to see the current status.');
     }
 
@@ -71,7 +72,7 @@ export async function approveOrder(
     if (effectiveDeposit <= 0) {
       const { data: claimedRows, error: confirmError } = await supabase
         .from('orders')
-        .update({ status: 'confirmed', stripe_payment_status: 'paid' })
+        .update({ status: ORDER_STATUS.CONFIRMED, stripe_payment_status: 'paid' })
         .eq('id', orderId)
         .not('status', 'in', '("confirmed","cancelled","void")')
         .select('id');
@@ -316,7 +317,7 @@ export async function forceApproveOrder(orderId: string): Promise<ApprovalResult
     }
 
     // Idempotency guard: abort if already confirmed/cancelled/void
-    if (['confirmed', 'cancelled', 'void'].includes(orderData.status)) {
+    if ([ORDER_STATUS.CONFIRMED, ORDER_STATUS.CANCELLED, ORDER_STATUS.VOID].includes(orderData.status)) {
       throw new Error('This order has already been confirmed or cancelled. Refresh the page to see the current status.');
     }
 
@@ -352,7 +353,7 @@ export async function forceApproveOrder(orderId: string): Promise<ApprovalResult
     // Proceed with force approval — predicated on status to guard against races
     const { data: claimedRows, error } = await supabase
       .from('orders')
-      .update({ status: 'confirmed' })
+      .update({ status: ORDER_STATUS.CONFIRMED })
       .eq('id', orderId)
       .not('status', 'in', '("confirmed","cancelled","void")')
       .select('id');
@@ -384,7 +385,7 @@ export async function rejectOrder(
     const { error } = await supabase
       .from('orders')
       .update({
-        status: 'cancelled',
+        status: ORDER_STATUS.CANCELLED,
         cancelled_at: new Date().toISOString(),
         cancellation_reason: reason?.trim() || 'Rejected by admin',
       })

@@ -1,5 +1,6 @@
 import { isSameDay } from 'date-fns';
 import { Task } from '../hooks/useCalendarTasks';
+import { ORDER_STATUS } from './constants/statuses';
 
 export function getTasksForDate(tasks: Task[], date: Date): Task[] {
   return tasks.filter(task => isSameDay(task.date, date));
@@ -43,13 +44,13 @@ export function sortTasksByOrder(tasks: Task[]): Task[] {
 }
 
 export function isDropOffPlanningOnly(task: Task): boolean {
-  return task.type === 'drop-off' && task.status === 'pending_review';
+  return task.type === 'drop-off' && task.status === ORDER_STATUS.PENDING;
 }
 
 export function isTaskActiveRouteStop(task: Task): boolean {
   if (task.type === 'drop-off') {
     // pending_review orders are unconfirmed — visible for planning but not actionable
-    if (task.status === 'pending_review') return false;
+    if (task.status === ORDER_STATUS.PENDING) return false;
     return task.taskStatus?.status !== 'completed';
   }
   return task.pickupReadiness === 'ready';

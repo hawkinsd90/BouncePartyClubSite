@@ -10,7 +10,7 @@ export interface Order {
   id: string;
   order_number: string;
   customer_id: string;
-  status: 'draft' | 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'void';
+  status: 'draft' | 'pending_review' | 'awaiting_customer_approval' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'void';
   event_date: string;
   event_end_date?: string;
   location_type: 'residential' | 'commercial';

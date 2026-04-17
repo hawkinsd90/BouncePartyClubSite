@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import type { PriceBreakdown } from './pricing';
 import { upsertCanonicalAddress } from './addressService';
+import { ORDER_STATUS } from './constants/statuses';
 
 interface CartItem {
   unit_id: string;
@@ -148,7 +149,7 @@ async function createOrder(
       deposit_paid_cents: 0,
       booking_confirmation_sent: false,
       cancellation_reason: null,
-      status: 'draft',
+      status: ORDER_STATUS.DRAFT,
       card_on_file_consent: false,
       sms_consent: false,
       admin_message: adminMessage || null,

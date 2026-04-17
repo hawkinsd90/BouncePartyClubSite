@@ -110,7 +110,7 @@ function AdminDashboard() {
         *,
         customers (first_name, last_name, email, phone),
         addresses (line1, city, state, zip)
-      `).in('status', ['pending_review', 'draft', 'confirmed']).order('created_at', { ascending: false }).limit(50),
+      `).in('status', [ORDER_STATUS.PENDING, ORDER_STATUS.DRAFT, ORDER_STATUS.CONFIRMED]).order('created_at', { ascending: false }).limit(50),
       supabase.from('pricing_rules').select('*').limit(1).maybeSingle(),
     ]);
 

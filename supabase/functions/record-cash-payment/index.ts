@@ -19,7 +19,8 @@ import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { formatOrderId } from "../_shared/format-order-id.ts";
 import { logTransaction } from "../_shared/transaction-logger.ts";
-import { formatCurrency, DEFAULT_PHONE, buildPaymentReceiptEmail } from "../_shared/fmt.ts";
+import { formatCurrency, DEFAULT_PHONE } from "../_shared/fmt.ts";
+import { buildPaymentReceiptEmail } from "../_shared/payment-receipt-email.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -181,12 +182,14 @@ Deno.serve(async (req: Request) => {
       if (orderRow?.customers?.email) {
         const firstName = orderRow.customers.first_name || "Customer";
 
-        const { data: phoneSetting } = await supabaseAdmin
+        const { data: bizSettings } = await supabaseAdmin
           .from("admin_settings")
-          .select("value")
-          .eq("key", "business_phone")
-          .maybeSingle();
-        const businessPhone = phoneSetting?.value || DEFAULT_PHONE;
+          .select("key, value")
+          .in("key", ["business_phone", "logo_url"]);
+        const bizMap: Record<string, string> = {};
+        bizSettings?.forEach((s: { key: string; value: string | null }) => { if (s.value) bizMap[s.key] = s.value; });
+        const businessPhone = bizMap["business_phone"] || DEFAULT_PHONE;
+        const logoUrl = bizMap["logo_url"] || undefined;
 
         const cashBanner = `
     <div style="background-color:#fef3c7;border:2px solid #f59e0b;border-radius:6px;padding:16px 20px;margin:25px 0;text-align:center;">
@@ -211,6 +214,7 @@ Deno.serve(async (req: Request) => {
               businessPhone,
               paymentBanner: cashBanner,
               paymentMethodLabel: payment_type === "deposit" ? "Deposit Payment" : "Balance Payment",
+              logoUrl,
             }),
           },
         });

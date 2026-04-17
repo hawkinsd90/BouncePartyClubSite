@@ -188,31 +188,55 @@ export function Contact() {
               <h3 className="text-xl font-bold text-slate-900 mb-6 tracking-tight">Quick Contact</h3>
 
               <div className="space-y-4">
-                <a
-                  href={business.business_phone ? `tel:${business.business_phone.replace(/\D/g, '')}` : '#'}
-                  className="flex items-start space-x-3 text-slate-700 hover:text-blue-600 transition-colors group"
-                >
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
-                    <Phone className="w-5 h-5 text-white" />
+                {business.business_phone ? (
+                  <a
+                    href={`tel:${business.business_phone.replace(/\D/g, '')}`}
+                    className="flex items-start space-x-3 text-slate-700 hover:text-blue-600 transition-colors group"
+                  >
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
+                      <Phone className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm text-slate-500">Call Us</div>
+                      <div className="font-semibold">{business.business_phone}</div>
+                    </div>
+                  </a>
+                ) : (
+                  <div className="flex items-start space-x-3 text-slate-700">
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
+                      <Phone className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm text-slate-500">Call Us</div>
+                      <div className="font-semibold text-slate-400">—</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="font-medium text-sm text-slate-500">Call Us</div>
-                    <div className="font-semibold">{business.business_phone || ''}</div>
-                  </div>
-                </a>
+                )}
 
-                <a
-                  href={business.business_email ? `mailto:${business.business_email}` : '#'}
-                  className="flex items-start space-x-3 text-slate-700 hover:text-blue-600 transition-colors group"
-                >
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
-                    <Mail className="w-5 h-5 text-white" />
+                {business.business_email ? (
+                  <a
+                    href={`mailto:${business.business_email}`}
+                    className="flex items-start space-x-3 text-slate-700 hover:text-blue-600 transition-colors group"
+                  >
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
+                      <Mail className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm text-slate-500">Email Us</div>
+                      <div className="font-semibold text-sm">{business.business_email}</div>
+                    </div>
+                  </a>
+                ) : (
+                  <div className="flex items-start space-x-3 text-slate-700">
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
+                      <Mail className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm text-slate-500">Email Us</div>
+                      <div className="font-semibold text-sm text-slate-400">—</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="font-medium text-sm text-slate-500">Email Us</div>
-                    <div className="font-semibold text-sm">{business.business_email || ''}</div>
-                  </div>
-                </a>
+                )}
 
                 <div className="flex items-start space-x-3 text-slate-700">
                   <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">

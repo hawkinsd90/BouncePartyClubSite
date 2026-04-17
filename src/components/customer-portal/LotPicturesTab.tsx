@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { notifyError, notifySuccess } from '../../lib/notifications';
 import { formatOrderId } from '../../lib/utils';
 import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
+import { ORDER_STATUS } from '../../lib/constants/statuses';
 
 interface LotPicturesTabProps {
   orderId: string;
@@ -116,7 +117,7 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete }: LotPi
   const [pictureToDelete, setPictureToDelete] = useState<LotPicture | null>(null);
 
   // Can only delete if order is in pending_review or awaiting_customer_approval
-  const canDelete = ['pending_review', 'awaiting_customer_approval'].includes(orderStatus || '');
+  const canDelete = [ORDER_STATUS.PENDING, ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL].includes(orderStatus as any || '');
 
   useEffect(() => {
     loadPictures();

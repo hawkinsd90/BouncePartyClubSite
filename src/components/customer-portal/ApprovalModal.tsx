@@ -13,6 +13,7 @@ import { format } from 'date-fns';
 import { formatCurrency } from '../../lib/pricing';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
 import { enterConfirmed } from '../../lib/orderLifecycle';
+import { ORDER_STATUS } from '../../lib/constants/statuses';
 
 interface ApprovalModalProps {
   isOpen: boolean;
@@ -143,7 +144,7 @@ export function ApprovalModal({
         const updatePayload: Record<string, unknown> = {
           customer_selected_payment_cents: selectedPaymentBaseCents,
           customer_selected_payment_type: resolvedPaymentType,
-          status: 'confirmed',
+          status: ORDER_STATUS.CONFIRMED,
         };
 
         if (!keepOriginalPayment && newTipCents > 0) {
@@ -187,7 +188,7 @@ export function ApprovalModal({
         const updatePayload: Record<string, unknown> = {
           customer_selected_payment_cents: 0,
           customer_selected_payment_type: resolvedPaymentType,
-          status: 'confirmed',
+          status: ORDER_STATUS.CONFIRMED,
         };
 
         if (!keepOriginalPayment && newTipCents > 0) {

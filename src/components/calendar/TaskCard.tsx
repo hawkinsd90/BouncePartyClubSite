@@ -1,5 +1,6 @@
 import { User, MapPin, Clock, AlertTriangle, CheckCircle, Navigation, ArrowRight, History } from 'lucide-react';
 import { Task } from '../../hooks/useCalendarTasks';
+import { ORDER_STATUS } from '../../lib/constants/statuses';
 
 export type TaskPosition = 'current' | 'next' | 'previous' | null;
 
@@ -16,7 +17,7 @@ export function TaskCard({ task, stopNumber, taskPosition = null, onClick }: Tas
   const isProjected = !isDropOff && readiness === 'projected';
   const isBlocked = !isDropOff && readiness === 'blocked';
   const isCompletedTask = task.taskStatus?.status === 'completed' || (!isDropOff && readiness === 'completed');
-  const isPlanningOnlyDropOff = isDropOff && task.status === 'pending_review';
+  const isPlanningOnlyDropOff = isDropOff && task.status === ORDER_STATUS.PENDING;
 
   function getCardStyle(): string {
     if (isCompletedTask) return 'bg-slate-50 border-slate-200 hover:bg-slate-100 opacity-60';

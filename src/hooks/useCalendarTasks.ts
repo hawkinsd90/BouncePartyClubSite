@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { formatOrderId } from '../lib/utils';
 import { format, startOfMonth, endOfMonth, parseISO, addDays } from 'date-fns';
+import { ORDER_STATUS } from '../lib/constants/statuses';
 
 export type PickupReadiness = 'projected' | 'blocked' | 'ready' | 'completed';
 
@@ -63,7 +64,7 @@ export function derivePickupReadiness(
 ): PickupReadiness {
   if (pickUpTaskStatus === 'completed') return 'completed';
   // pending_review orders are not yet confirmed — treat pickup as planning-only
-  if (orderStatus === 'pending_review') return 'projected';
+  if (orderStatus === ORDER_STATUS.PENDING) return 'projected';
   if (dropOffTaskStatus !== 'completed') return 'projected';
   if (balanceDue > 0) return 'blocked';
   return 'ready';
@@ -76,7 +77,7 @@ export function derivePickupBlockReason(
   orderStatus?: string
 ): string | undefined {
   if (readiness === 'projected') {
-    if (orderStatus === 'pending_review') return 'Order not yet confirmed';
+    if (orderStatus === ORDER_STATUS.PENDING) return 'Order not yet confirmed';
     if (!dropOffTaskStatus || dropOffTaskStatus === 'pending') return 'Drop-off not yet started';
     if (dropOffTaskStatus === 'en_route') return 'Drop-off in progress';
     if (dropOffTaskStatus === 'arrived') return 'Drop-off in progress';
@@ -173,7 +174,7 @@ export function useCalendarTasks(currentMonth: Date) {
         `)
         .gte('event_date', format(queryStart, 'yyyy-MM-dd'))
         .lte('event_date', format(monthEnd, 'yyyy-MM-dd'))
-        .in('status', ['confirmed', 'in_progress', 'completed', 'pending_review'])
+        .in('status', [ORDER_STATUS.CONFIRMED, ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.COMPLETED, ORDER_STATUS.PENDING])
         .order('event_date', { ascending: true });
 
       if (error) throw error;

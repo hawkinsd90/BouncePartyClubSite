@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { ORDER_STATUS } from './constants/statuses';
 
 export interface BlackoutCheckResult {
   is_full_blocked: boolean;
@@ -42,7 +43,7 @@ export interface UnitAvailability {
   }[];
 }
 
-const BLOCKED_STATUSES = ['pending_review', 'awaiting_customer_approval', 'approved', 'confirmed', 'in_progress', 'completed'];
+const BLOCKED_STATUSES = [ORDER_STATUS.PENDING, ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL, 'approved', ORDER_STATUS.CONFIRMED, ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.COMPLETED];
 
 export async function checkUnitAvailability(
   check: AvailabilityCheck,

@@ -18,6 +18,7 @@ import { showToast } from '../../lib/notifications';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
 import { sendNotificationToCustomer } from '../../lib/notificationService';
 import { enterConfirmed } from '../../lib/orderLifecycle';
+import { ORDER_STATUS } from '../../lib/constants/statuses';
 import {
   generateConfirmationReceiptEmail,
   generateConfirmationSmsMessage,
@@ -295,7 +296,7 @@ export function InvoiceAcceptanceView({
           .from('orders')
           .update({
             [fieldToUpdate]: true,
-            status: 'confirmed',
+            status: ORDER_STATUS.CONFIRMED,
             invoice_accepted_at: new Date().toISOString(),
           })
           .eq('id', order.id);

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
+import { ORDER_STATUS } from '../../lib/constants/statuses';
 
 interface RejectionModalProps {
   isOpen: boolean;
@@ -40,7 +41,7 @@ export function RejectionModal({ isOpen, onClose, order, onSuccess }: RejectionM
       const { error: updateError } = await supabase
         .from('orders')
         .update({
-          status: 'cancelled',
+          status: ORDER_STATUS.CANCELLED,
           cancellation_reason: cancellationReason,
         })
         .eq('id', order.id);
