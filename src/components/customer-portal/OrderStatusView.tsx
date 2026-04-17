@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
+import { useBusinessSettings } from '../../contexts/BusinessContext';
 
 interface OrderStatusViewProps {
   order: any;
@@ -9,6 +10,7 @@ interface OrderStatusViewProps {
 
 export function OrderStatusView({ order }: OrderStatusViewProps) {
   const navigate = useNavigate();
+  const business = useBusinessSettings();
   const statusMessages: Record<string, { title: string; message: string }> = {
     draft: {
       title: 'Invoice Pending',
@@ -88,12 +90,14 @@ export function OrderStatusView({ order }: OrderStatusViewProps) {
 
           <div className="mt-8 pt-6 border-t border-slate-200">
             <p className="text-slate-600 text-sm mb-4">Questions about your order?</p>
-            <a
-              href="tel:+13138893860"
-              className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-            >
-              Call (313) 889-3860
-            </a>
+            {business.business_phone ? (
+              <a
+                href={`tel:${business.business_phone.replace(/\D/g, '')}`}
+                className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+              >
+                Call {business.business_phone}
+              </a>
+            ) : null}
           </div>
         </div>
       </div>

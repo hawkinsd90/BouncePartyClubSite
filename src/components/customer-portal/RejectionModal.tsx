@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/notifications';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
+import { useBusinessSettings } from '../../contexts/BusinessContext';
 
 interface RejectionModalProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ export function RejectionModal({ isOpen, onClose, order, onSuccess }: RejectionM
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const isMountedRef = useRef(true);
+  const business = useBusinessSettings();
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -90,9 +92,11 @@ export function RejectionModal({ isOpen, onClose, order, onSuccess }: RejectionM
           </p>
           <p className="text-sm text-slate-600 mb-4">
             If you have questions, please call us at{' '}
-            <a href="tel:+13138893860" className="text-blue-600 font-semibold">
-              (313) 889-3860
-            </a>{' '}
+            {business.business_phone ? (
+              <a href={`tel:${business.business_phone.replace(/\D/g, '')}`} className="text-blue-600 font-semibold">
+                {business.business_phone}
+              </a>
+            ) : 'us'}{' '}
             instead.
           </p>
 

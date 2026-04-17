@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Home, FileText } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
+import { useBusinessSettings } from '../../contexts/BusinessContext';
 
 interface ApprovalSuccessViewProps {
   orderId: string;
@@ -8,6 +9,7 @@ interface ApprovalSuccessViewProps {
 
 export function ApprovalSuccessView({ orderId }: ApprovalSuccessViewProps) {
   const navigate = useNavigate();
+  const business = useBusinessSettings();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 flex items-center justify-center py-12 px-4">
@@ -54,7 +56,7 @@ export function ApprovalSuccessView({ orderId }: ApprovalSuccessViewProps) {
               <li>
                 • We'll be in touch closer to your event date with final details
               </li>
-              <li>• Contact us at (313) 889-3860 if you have any questions</li>
+              <li>• Contact us at {business.business_phone} if you have any questions</li>
             </ul>
           </div>
 

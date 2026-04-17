@@ -10,6 +10,7 @@ import { checkMultipleUnitsAvailability } from './availability';
 import { formatOrderId, createShortPortalLink } from './utils';
 import { logGroupedTransactions } from './transactionReceiptService';
 import { enterConfirmed } from './orderLifecycle';
+import { COMPANY_PHONE } from './emailTemplateBase';
 
 interface ApprovalResult {
   success: boolean;
@@ -151,7 +152,13 @@ export async function approveOrder(
         const declineUrl = await createShortPortalLink(orderId, supabase, fullOrder?.event_date);
 
         if (fullOrder?.customers?.email) {
-          const declineEmailHtml = generateCardDeclinedEmail(fullOrder, declineUrl);
+          const { data: phoneSetting } = await supabase
+            .from('admin_settings')
+            .select('value')
+            .eq('key', 'business_phone')
+            .maybeSingle();
+          const businessPhone = phoneSetting?.value || COMPANY_PHONE;
+          const declineEmailHtml = generateCardDeclinedEmail(fullOrder, declineUrl, businessPhone);
           await sendEmail({
             to: fullOrder.customers.email,
             subject: `Action Required: Payment Declined for Order #${formatOrderId(orderId)}`,
@@ -415,7 +422,7 @@ export async function rejectOrder(
   }
 }
 
-function generateCardDeclinedEmail(order: any, portalUrl: string): string {
+function generateCardDeclinedEmail(order: any, portalUrl: string, businessPhone: string): string {
   const firstName = order.customers?.first_name || 'Customer';
   const shortId = order.id.replace(/-/g, '').toUpperCase().slice(0, 8);
   return `<!DOCTYPE html>
@@ -442,7 +449,7 @@ function generateCardDeclinedEmail(order: any, portalUrl: string): string {
       <div style="text-align:center;margin-bottom:24px;">
         <a href="${portalUrl}" style="display:inline-block;background-color:#2563eb;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:14px 36px;border-radius:6px;">Update Payment Method</a>
       </div>
-      <p style="margin:0;color:#6b7280;font-size:13px;text-align:center;">If you have questions, please call us at (313) 889-3860.</p>
+      <p style="margin:0;color:#6b7280;font-size:13px;text-align:center;">If you have questions, please call us at ${businessPhone}.</p>
     </td>
   </tr>
 </table>

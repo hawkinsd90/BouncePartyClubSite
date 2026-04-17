@@ -14,6 +14,7 @@ import { formatCurrency } from '../../lib/pricing';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
 import { enterConfirmed } from '../../lib/orderLifecycle';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
+import { COMPANY_PHONE } from '../../lib/emailTemplateBase';
 
 interface ApprovalModalProps {
   isOpen: boolean;
@@ -246,7 +247,7 @@ export function ApprovalModal({
       ${eventDateStr ? `<p style="margin:0 0 8px;color:#374151;font-size:15px;"><strong>Event Date:</strong> ${eventDateStr}</p>` : ''}
       ${addressStr ? `<p style="margin:0 0 16px;color:#374151;font-size:15px;"><strong>Location:</strong> ${addressStr}</p>` : ''}
       ${newTipCents > 0 ? `<p style="margin:0 0 16px;color:#374151;font-size:15px;">A crew tip of <strong>$${(newTipCents / 100).toFixed(2)}</strong> will be collected with the final payment.</p>` : ''}
-      <p style="margin:0;color:#6b7280;font-size:13px;text-align:center;">Questions? Call us at (313) 889-3860.</p>
+      <p style="margin:0;color:#6b7280;font-size:13px;text-align:center;">Questions? Call us at ${COMPANY_PHONE}.</p>
     </td>
   </tr>
 </table>
