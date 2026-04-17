@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import { Calendar, MapPin, User, Hash, CreditCard as Edit } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
+import { ORDER_STATUS } from '../../lib/constants/statuses';
 
 interface AdminFloatingOrderHeaderProps {
   order: any | null;
@@ -58,19 +59,19 @@ export function AdminFloatingOrderHeader({ order, isVisible, onEditClick }: Admi
                   </button>
                 )}
                 <span className={`inline-flex px-3 py-1 text-xs font-bold rounded-full ${
-                  order.status === 'pending_review'
+                  order.status === ORDER_STATUS.PENDING
                     ? 'bg-orange-600 text-white'
-                    : order.status === 'awaiting_customer_approval'
+                    : order.status === ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL
                     ? 'bg-amber-600 text-white'
-                    : order.status === 'draft'
+                    : order.status === ORDER_STATUS.DRAFT
                     ? 'bg-orange-600 text-white'
-                    : order.status === 'confirmed'
+                    : order.status === ORDER_STATUS.CONFIRMED
                     ? 'bg-green-600 text-white'
-                    : order.status === 'in_progress'
+                    : order.status === ORDER_STATUS.IN_PROGRESS
                     ? 'bg-blue-600 text-white'
-                    : order.status === 'completed'
+                    : order.status === ORDER_STATUS.COMPLETED
                     ? 'bg-green-700 text-white'
-                    : order.status === 'cancelled'
+                    : order.status === ORDER_STATUS.CANCELLED
                     ? 'bg-red-600 text-white'
                     : 'bg-slate-500 text-white'
                 }`}>

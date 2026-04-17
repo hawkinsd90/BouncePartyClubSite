@@ -24,6 +24,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { validatePaymentMethod } from "../_shared/payment-validation.ts";
 import { formatOrderId } from "../_shared/format-order-id.ts";
 import { logTransaction } from "../_shared/transaction-logger.ts";
+import { formatCurrency } from "../_shared/fmt.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -509,7 +510,7 @@ function buildReceiptEmail(opts: {
 }): string {
   const { contactName, orderId, balanceCents, tipCents, totalChargeAmount, cardBrand, cardLast4, eventDate, order, biz, customFees, discounts } = opts;
   const orderNum = formatOrderId(orderId);
-  const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+  const fmt = formatCurrency;
 
   const businessName = biz.business_name || "Bounce Party Club";
   const businessPhone = biz.business_phone || "(313) 889-3860";

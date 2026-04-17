@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Package, FileText } from 'lucide-react';
+import { ORDER_STATUS } from '../lib/constants/statuses';
 import { ContactsList } from '../components/admin/ContactsList';
 import { InvoicesList } from '../components/admin/InvoicesList';
 import { OrdersManager } from '../components/admin/OrdersManager';
@@ -179,7 +180,7 @@ function AdminDashboard() {
   // Keep a ref to the latest pending orders so the scroll handler always reads
   // the current list without being a dependency that would recreate the listener.
   const pendingOrdersRef = useRef<typeof orders>([]);
-  const pendingOrders = orders.filter(o => o.status === 'pending_review');
+  const pendingOrders = orders.filter(o => o.status === ORDER_STATUS.PENDING);
   pendingOrdersRef.current = pendingOrders;
 
   // Stable ref to computeVisibleOrder so it can be called both from the scroll
@@ -281,7 +282,7 @@ function AdminDashboard() {
       <TabNavigation
         activeTab={activeTab}
         onTabChange={changeTab}
-        pendingCount={orders.filter(o => o.status === 'pending_review').length}
+        pendingCount={orders.filter(o => o.status === ORDER_STATUS.PENDING).length}
       />
 
       <NotificationFailuresAlert />
@@ -331,7 +332,7 @@ function AdminDashboard() {
               </button>
             </div>
 
-            {orders.filter(o => o.status === 'pending_review').length === 0 ? (
+            {orders.filter(o => o.status === ORDER_STATUS.PENDING).length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-slate-600 mb-2">No pending bookings</p>
                 <p className="text-sm text-slate-500">New bookings will appear here for review</p>
@@ -339,7 +340,7 @@ function AdminDashboard() {
             ) : (
               <div className="space-y-4">
                 {orders
-                  .filter(o => o.status === 'pending_review')
+                  .filter(o => o.status === ORDER_STATUS.PENDING)
                   .map((order) => (
                     <PendingOrderCard
                       key={order.id}

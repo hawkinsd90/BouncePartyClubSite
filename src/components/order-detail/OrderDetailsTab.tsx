@@ -1,5 +1,6 @@
 import { CreditCard as Edit2, AlertTriangle, CheckCircle } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
+import { ORDER_STATUS } from '../../lib/constants/statuses';
 import { OrderSummary } from '../order/OrderSummary';
 import { EventDetailsEditor } from './EventDetailsEditor';
 import { ItemsEditor } from '../shared/ItemsEditor';
@@ -107,7 +108,7 @@ export function OrderDetailsTab({
   onMarkChanges,
 }: OrderDetailsTabProps) {
   const depositAlreadyCapturedCents = order.deposit_paid_cents || 0;
-  const isConfirmedWithPayment = (order.status === 'confirmed' || order.status === 'in_progress') && depositAlreadyCapturedCents > 0;
+  const isConfirmedWithPayment = (order.status === ORDER_STATUS.CONFIRMED || order.status === ORDER_STATUS.IN_PROGRESS) && depositAlreadyCapturedCents > 0;
   const newDepositDueCents = customDepositCents !== null ? customDepositCents : (calculatedPricing?.deposit_due_cents ?? order.deposit_due_cents ?? 0);
   const depositDifferenceCents = Math.max(0, newDepositDueCents - depositAlreadyCapturedCents);
   const showCatchupPanel = isConfirmedWithPayment && hasChanges && depositDifferenceCents > 0;

@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { formatCurrency } from "../_shared/fmt.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -271,9 +272,7 @@ function formatOrderId(id: string): string {
   return id.replace(/-/g, "").toUpperCase().slice(0, 8);
 }
 
-function fmt(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
-}
+const fmt = formatCurrency;
 
 async function getAdminSettings(supabase: any): Promise<{
   phone: string | null;

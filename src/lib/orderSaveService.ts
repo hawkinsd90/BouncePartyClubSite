@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { showToast } from './notifications';
 import { upsertCanonicalAddress } from './addressService';
+import { ORDER_STATUS } from './constants/statuses';
 
 interface SaveOrderChangesParams {
   order: any;
@@ -172,7 +173,7 @@ export async function saveOrderChanges({
 
     // Deposit catch-up for confirmed orders that already have payments captured
     const depositAlreadyCapturedCents = order.deposit_paid_cents || 0;
-    const isConfirmedWithPayment = (order.status === 'confirmed' || order.status === 'in_progress') && depositAlreadyCapturedCents > 0;
+    const isConfirmedWithPayment = (order.status === ORDER_STATUS.CONFIRMED || order.status === ORDER_STATUS.IN_PROGRESS) && depositAlreadyCapturedCents > 0;
     const depositDifferenceCents = Math.max(0, finalDepositCents - depositAlreadyCapturedCents);
 
     if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'require') {

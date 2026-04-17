@@ -4,6 +4,7 @@ import { calculateDrivingDistance } from '../lib/pricing';
 import { HOME_BASE } from '../lib/constants';
 import { loadOrderSummary, formatOrderSummary, OrderSummaryDisplay } from '../lib/orderSummary';
 import { getOrderById } from '../lib/queries/orders';
+import { ORDER_STATUS } from '../lib/constants/statuses';
 
 export interface OrderData {
   order: any;
@@ -75,8 +76,8 @@ export function useOrderData() {
       }
 
       const needsChangelog =
-        orderData.status === 'awaiting_customer_approval' ||
-        orderData.status === 'pending_review';
+        orderData.status === ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL ||
+        orderData.status === ORDER_STATUS.PENDING;
 
       const [changelogResult, summaryData] = await Promise.all([
         needsChangelog

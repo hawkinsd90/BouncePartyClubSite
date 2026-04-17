@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Order } from '../types/orders';
+import { ORDER_STATUS } from '../lib/constants/statuses';
 
 export function useOrders(userId: string | undefined, userEmail: string | undefined) {
   const [upcomingOrders, setUpcomingOrders] = useState<Order[]>([]);
@@ -108,10 +109,10 @@ export function useOrders(userId: string | undefined, userEmail: string | undefi
 
           if (
             (eventDate <= today && eventEndDate >= today) ||
-            order.status === 'in_progress'
+            order.status === ORDER_STATUS.IN_PROGRESS
           ) {
             active.push(order);
-          } else if (eventDate > today && !['completed', 'cancelled', 'void'].includes(order.status)) {
+          } else if (eventDate > today && !([ORDER_STATUS.COMPLETED, ORDER_STATUS.CANCELLED, ORDER_STATUS.VOID] as string[]).includes(order.status)) {
             upcoming.push(order);
           } else {
             past.push(order);

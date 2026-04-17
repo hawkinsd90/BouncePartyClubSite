@@ -8,6 +8,7 @@ import {
   buildRateLimitKey,
 } from "../_shared/rate-limit.ts";
 import { validatePaymentMethod } from "../_shared/payment-validation.ts";
+import { formatCurrency } from "../_shared/fmt.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -697,7 +698,7 @@ Deno.serve(async (req: Request) => {
           if (s.value) biz[s.key] = s.value;
         });
 
-        const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+        const fmt = formatCurrency;
         const firstName = fullOrder.customers.first_name || "";
         const addr = fullOrder.addresses;
         const addressStr = addr

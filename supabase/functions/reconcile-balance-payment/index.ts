@@ -24,6 +24,7 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import Stripe from "npm:stripe@20.0.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { formatCurrency } from "../_shared/fmt.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -335,7 +336,7 @@ Deno.serve(async (req: Request) => {
         });
 
         const shortId = orderId.substring(0, 8).toUpperCase();
-        const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
+        const fmt = formatCurrency;
         const businessName = biz.business_name || "Bounce Party Club";
         const businessPhone = biz.business_phone || "(313) 889-3860";
         const logoHtml = biz.logo_url

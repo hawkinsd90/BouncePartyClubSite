@@ -7,6 +7,7 @@ import { approveOrder, forceApproveOrder, rejectOrder } from '../../lib/orderApp
 import { generatePaymentLinkSmsMessage } from '../../lib/orderEmailTemplates';
 import { formatOrderId, createShortPortalLink } from '../../lib/utils';
 import { supabase } from '../../lib/supabase';
+import { ORDER_STATUS } from '../../lib/constants/statuses';
 import { OrderInfoSection } from '../pending-order/OrderInfoSection';
 import { SmsConversation } from '../pending-order/SmsConversation';
 import { PaymentManagementSection } from '../pending-order/PaymentManagementSection';
@@ -186,8 +187,8 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
     }
   }
 
-  const isDraft = order.status === 'draft';
-  const isAwaitingApproval = order.status === 'awaiting_customer_approval';
+  const isDraft = order.status === ORDER_STATUS.DRAFT;
+  const isAwaitingApproval = order.status === ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL;
   const paymentUrl = `${window.location.origin}/checkout/${order.id}`;
 
   async function handleCopyPaymentLink() {

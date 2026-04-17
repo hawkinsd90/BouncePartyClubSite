@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useLocation, useSearchParams } from 'react-router-dom';
 import { AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { ORDER_STATUS } from '../lib/constants/statuses';
 import { useOrderData } from '../hooks/useOrderData';
 import { InvoiceAcceptanceView } from '../components/customer-portal/InvoiceAcceptanceView';
 import { OrderApprovalView } from '../components/customer-portal/OrderApprovalView';
@@ -244,9 +245,9 @@ export function CustomerPortal() {
 
   const { order, changelog, orderItems, discounts, customFees, invoiceLink, orderSummary } = data;
 
-  const needsApproval = order.status === 'awaiting_customer_approval';
-  const isDraft = order.status === 'draft';
-  const isActive = ['pending_review', 'confirmed', 'in_progress', 'completed'].includes(order.status);
+  const needsApproval = order.status === ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL;
+  const isDraft = order.status === ORDER_STATUS.DRAFT;
+  const isActive = ([ORDER_STATUS.PENDING, ORDER_STATUS.CONFIRMED, ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.COMPLETED] as string[]).includes(order.status);
 
   const shouldShowRegularPortal = isActive;
 

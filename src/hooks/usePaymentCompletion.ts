@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { SafeStorage } from '../lib/safeStorage';
 import { sendCustomerBookingConfirmationNotifications } from '../lib/orderNotificationService';
+import { ORDER_STATUS } from '../lib/constants/statuses';
 
 interface OrderDetails {
   id: string;
@@ -160,7 +161,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
         // });
 
         // If webhook still hasn't processed after retries, manually update the order
-        if (order.status === 'draft' && sessionId) {
+        if (order.status === ORDER_STATUS.DRAFT && sessionId) {
           // console.log('[PAYMENT-COMPLETE] Webhook failed to process, manually updating order status...');
 
           // First, save the payment method from the session
