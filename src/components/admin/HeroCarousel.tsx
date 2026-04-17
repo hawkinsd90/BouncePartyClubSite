@@ -113,9 +113,11 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
         setUploading(false);
         return;
       }
-      await addMediaToDatabase(newMedia, newMedia.url);
-      setNewMedia(EMPTY_NEW_MEDIA);
-      setShowAddForm(false);
+      const inserted = await addMediaToDatabase(newMedia, newMedia.url);
+      if (inserted) {
+        setNewMedia(EMPTY_NEW_MEDIA);
+        setShowAddForm(false);
+      }
     }
     setUploading(false);
   };

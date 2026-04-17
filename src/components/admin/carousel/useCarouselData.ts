@@ -95,11 +95,15 @@ export function useCarouselData() {
       .from('carousel-media')
       .getPublicUrl(filePath);
 
-    await addMediaToDatabase(newMedia, urlData.publicUrl, filePath);
-    onSuccess();
+    const inserted = await addMediaToDatabase(newMedia, urlData.publicUrl, filePath);
+    if (inserted) {
+      onSuccess();
+    } else {
+      await supabase.storage.from('carousel-media').remove([filePath]);
+    }
   }
 
-  async function addMediaToDatabase(newMedia: NewMediaState, url: string, filePath?: string) {
+  async function addMediaToDatabase(newMedia: NewMediaState, url: string, filePath?: string): Promise<boolean> {
     const maxOrder = media.length > 0 ? Math.max(...media.map(m => m.display_order)) : 0;
 
     const { error } = await supabase
@@ -116,8 +120,10 @@ export function useCarouselData() {
 
     if (!error) {
       loadMedia();
+      return true;
     } else {
       notifyError('Failed to add media: ' + error.message);
+      return false;
     }
   }
 
