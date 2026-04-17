@@ -130,14 +130,9 @@ export function useCarouselData() {
   async function updateMedia(editingMedia: CarouselMedia, newMedia: NewMediaState) {
     let imageUrl = editingMedia.image_url;
     let storagePath = editingMedia.storage_path;
+    let newlyUploadedPath: string | null = null;
 
     if (newMedia.file || newMedia.url) {
-      if (editingMedia.storage_path) {
-        await supabase.storage
-          .from('carousel-media')
-          .remove([editingMedia.storage_path]);
-      }
-
       if (newMedia.file) {
         const fileExt = newMedia.file.name.split('.').pop();
         const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
@@ -158,6 +153,7 @@ export function useCarouselData() {
 
         imageUrl = urlData.publicUrl;
         storagePath = filePath;
+        newlyUploadedPath = filePath;
       } else if (newMedia.url) {
         imageUrl = newMedia.url;
         storagePath = null;
@@ -175,11 +171,21 @@ export function useCarouselData() {
       })
       .eq('id', editingMedia.id);
 
-    if (!error) {
-      loadMedia();
-      return true;
+    if (error) {
+      if (newlyUploadedPath) {
+        await supabase.storage.from('carousel-media').remove([newlyUploadedPath]);
+      }
+      return false;
     }
-    return false;
+
+    if (editingMedia.storage_path && editingMedia.storage_path !== storagePath) {
+      await supabase.storage
+        .from('carousel-media')
+        .remove([editingMedia.storage_path]);
+    }
+
+    loadMedia();
+    return true;
   }
 
   async function deleteMedia(id: string, storagePath: string | null, currentIndex: number, onIndexReset: () => void) {
