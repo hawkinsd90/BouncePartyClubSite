@@ -130,9 +130,14 @@ export function useCarouselData() {
   async function updateMedia(editingMedia: CarouselMedia, newMedia: NewMediaState) {
     let imageUrl = editingMedia.image_url;
     let storagePath = editingMedia.storage_path;
-    let newUploadPath: string | null = null;
 
     if (newMedia.file || newMedia.url) {
+      if (editingMedia.storage_path) {
+        await supabase.storage
+          .from('carousel-media')
+          .remove([editingMedia.storage_path]);
+      }
+
       if (newMedia.file) {
         const fileExt = newMedia.file.name.split('.').pop();
         const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
@@ -153,7 +158,6 @@ export function useCarouselData() {
 
         imageUrl = urlData.publicUrl;
         storagePath = filePath;
-        newUploadPath = filePath;
       } else if (newMedia.url) {
         imageUrl = newMedia.url;
         storagePath = null;
@@ -172,15 +176,8 @@ export function useCarouselData() {
       .eq('id', editingMedia.id);
 
     if (!error) {
-      if (editingMedia.storage_path && editingMedia.storage_path !== newUploadPath && (newMedia.file || newMedia.url)) {
-        await supabase.storage.from('carousel-media').remove([editingMedia.storage_path]);
-      }
       loadMedia();
       return true;
-    }
-
-    if (newUploadPath) {
-      await supabase.storage.from('carousel-media').remove([newUploadPath]);
     }
     return false;
   }
