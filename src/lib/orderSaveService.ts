@@ -3,6 +3,7 @@ import { showToast } from './notifications';
 import { upsertCanonicalAddress } from './addressService';
 import { ORDER_STATUS } from './constants/statuses';
 import { calculateStoredOrderTotal } from './orderUtils';
+import { calculateTotalFromOrder } from './orderSummary';
 
 interface SaveOrderChangesParams {
   order: any;
@@ -172,23 +173,31 @@ export async function saveOrderChanges({
     const finalDepositCents = customDepositCents !== null ? customDepositCents : calculatedPricing.deposit_due_cents;
     changes.deposit_due_cents = finalDepositCents;
 
+    // Effective total: scalar pricing engine base + relational custom fees - relational discounts.
+    // discounts and customFees are the relational rows being saved in this same call.
+    // Using calculateTotalFromOrder here keeps balance_due_cents consistent with displayed totals.
+    const effectiveTotalCents = calculateTotalFromOrder(
+      { ...order, ...calculatedPricing },
+      discounts.filter(d => !d.is_deleted),
+      customFees.filter(f => !f.is_deleted),
+    );
+
     // Deposit catch-up for confirmed orders that already have payments captured
     const depositAlreadyCapturedCents = order.deposit_paid_cents || 0;
     const isConfirmedWithPayment = (order.status === ORDER_STATUS.CONFIRMED || order.status === ORDER_STATUS.IN_PROGRESS) && depositAlreadyCapturedCents > 0;
     const depositDifferenceCents = Math.max(0, finalDepositCents - depositAlreadyCapturedCents);
 
     if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'require') {
-      // Require additional deposit: new balance = total - already captured - difference required now
-      // The difference is a separate charge; once paid: total - (captured + difference) = total - newDeposit
-      changes.balance_due_cents = Math.max(0, calculatedPricing.total_cents - finalDepositCents);
+      // Require additional deposit: new balance = effectiveTotal - newDeposit
+      changes.balance_due_cents = Math.max(0, effectiveTotalCents - finalDepositCents);
       changes.deposit_catchup_cents = depositDifferenceCents;
       logs.push(['deposit_catchup', 0, depositDifferenceCents]);
     } else if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'waive') {
-      // Waive: roll difference into balance. Balance = total - already captured
-      changes.balance_due_cents = Math.max(0, calculatedPricing.total_cents - depositAlreadyCapturedCents);
+      // Waive: roll difference into balance. Balance = effectiveTotal - already captured
+      changes.balance_due_cents = Math.max(0, effectiveTotalCents - depositAlreadyCapturedCents);
       changes.deposit_catchup_cents = 0;
     } else {
-      changes.balance_due_cents = Math.max(0, calculatedPricing.total_cents - finalDepositCents);
+      changes.balance_due_cents = Math.max(0, effectiveTotalCents - finalDepositCents);
     }
 
     // Log pricing changes
@@ -218,7 +227,7 @@ export async function saveOrderChanges({
       logs.push(['balance_due', order.balance_due_cents, changes.balance_due_cents]);
     }
 
-    const newTotal = calculatedPricing.total_cents;
+    const newTotal = effectiveTotalCents;
     const oldTotal = calculateStoredOrderTotal(order);
     if (newTotal !== oldTotal) {
       logs.push(['total', oldTotal, newTotal]);

@@ -208,6 +208,14 @@ export function Invoice() {
   }
 
   if (paymentSuccess && order) {
+    const psDiscounts = (order as any).order_discounts || [];
+    const psCustomFees = (order as any).order_custom_fees || [];
+    const psTotalCents = psDiscounts.length > 0 || psCustomFees.length > 0
+      ? calculateTotalFromOrder(order, psDiscounts, psCustomFees)
+      : (order.total_cents as number);
+    const psDepositPaidCents = (order.deposit_paid_cents || 0) + (order.balance_paid_cents || 0);
+    const psBalanceDueCents = Math.max(0, psTotalCents - psDepositPaidCents);
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-slate-100 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-2xl p-10 max-w-2xl w-full border-2 border-slate-100">
@@ -246,13 +254,13 @@ export function Invoice() {
               <div>
                 <span className="text-slate-600">Balance Due:</span>
                 <p className="font-semibold text-slate-900">
-                  {formatCurrency(order.balance_due_cents)}
+                  {formatCurrency(psBalanceDueCents)}
                 </p>
               </div>
               <div>
                 <span className="text-slate-600">Deposit Paid:</span>
                 <p className="font-semibold text-green-600">
-                  {formatCurrency(order.deposit_due_cents)}
+                  {formatCurrency(order.deposit_paid_cents || 0)}
                 </p>
               </div>
             </div>
@@ -269,7 +277,7 @@ export function Invoice() {
                   ✅ Your booking is confirmed! We'll contact you 24-48 hours before your event to coordinate delivery details.
                 </p>
                 <p>
-                  The remaining balance of {formatCurrency(order.balance_due_cents)} is due on the day of your event.
+                  The remaining balance of {formatCurrency(psBalanceDueCents)} is due on the day of your event.
                 </p>
               </>
             ) : (
@@ -328,6 +336,10 @@ export function Invoice() {
     generator_qty: order.generator_qty || 0,
   };
 
+  // Derive balance due from effective total minus deposit, keeping the three numbers consistent:
+  // total = deposit_due + balance_due  (within rounding, before any payments)
+  const effectiveBalanceDueCents = Math.max(0, totalCents - (order.deposit_due_cents || 0));
+
   const transformedPriceBreakdown = {
     subtotal_cents: order.subtotal_cents,
     travel_fee_cents: order.travel_fee_cents,
@@ -340,7 +352,7 @@ export function Invoice() {
     tax_cents: order.tax_cents,
     total_cents: totalCents,
     deposit_due_cents: order.deposit_due_cents,
-    balance_due_cents: order.balance_due_cents,
+    balance_due_cents: effectiveBalanceDueCents,
   };
 
   const transformedCart = orderItems.map((item: any) => ({
@@ -393,7 +405,7 @@ export function Invoice() {
               </div>
               <div className="flex justify-between text-sm text-slate-600">
                 <span>Balance Due at Event</span>
-                <span className="font-semibold">{formatCurrency(order.balance_due_cents)}</span>
+                <span className="font-semibold">{formatCurrency(effectiveBalanceDueCents)}</span>
               </div>
             </div>
 
