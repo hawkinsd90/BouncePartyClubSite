@@ -8,11 +8,6 @@ interface OrderDetails {
   deposit_due_cents: number;
   balance_due_cents: number;
   customer_selected_payment_cents?: number;
-  subtotal_cents: number;
-  travel_fee_cents: number;
-  surface_fee_cents: number;
-  same_day_pickup_fee_cents: number;
-  tax_cents: number;
   tip_cents: number;
   customer?: {
     email: string;
@@ -114,7 +109,7 @@ export function PaymentSuccessState({ orderDetails, sessionTipCents = 0 }: Payme
               <div className={displayTipCents > 0 ? 'col-span-2' : ''}>
                 <p className="text-sm text-slate-600 mb-1">Balance Due Day of Event:</p>
                 <p className="font-semibold text-slate-900">
-                  ${(Math.max(0, (orderDetails.subtotal_cents + orderDetails.travel_fee_cents + orderDetails.surface_fee_cents + (orderDetails.same_day_pickup_fee_cents || 0) + orderDetails.tax_cents - (orderDetails.customer_selected_payment_cents || orderDetails.deposit_due_cents))) / 100).toFixed(2)}
+                  ${(orderDetails.balance_due_cents / 100).toFixed(2)}
                 </p>
               </div>
             </div>

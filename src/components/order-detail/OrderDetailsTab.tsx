@@ -1,6 +1,7 @@
 import { CreditCard as Edit2, AlertTriangle, CheckCircle } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
+import { calculateStoredOrderTotal } from '../../lib/orderUtils';
 import { OrderSummary } from '../order/OrderSummary';
 import { EventDetailsEditor } from './EventDetailsEditor';
 import { ItemsEditor } from '../shared/ItemsEditor';
@@ -165,7 +166,7 @@ export function OrderDetailsTab({
         const itemsChanged = stagedItems.some(item => item.is_new || item.is_deleted);
         const finalDepositCents = customDepositCents !== null ? customDepositCents : (calculatedPricing?.deposit_due_cents || order.deposit_due_cents);
         const currentPaidAmount = order.stripe_amount_paid_cents || 0;
-        const originalTotal = order.subtotal_cents + (order.generator_fee_cents || 0) + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents;
+        const originalTotal = calculateStoredOrderTotal(order);
         const newTotal = calculatedPricing?.total_cents || originalTotal;
 
         const willClearPayment = itemsChanged ||

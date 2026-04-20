@@ -304,7 +304,10 @@ export function Invoice() {
     );
   }
 
-  const totalCents = order.subtotal_cents + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents;
+  // Use the DB-stored total_cents written by the pricing engine — it is the
+  // authoritative sum including all fees. Avoids re-deriving a total that could
+  // silently omit fields (generator fee, future fees, etc.).
+  const totalCents = order.total_cents as number;
 
   const transformedQuoteData = {
     event_date: order.event_date,

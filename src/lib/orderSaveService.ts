@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { showToast } from './notifications';
 import { upsertCanonicalAddress } from './addressService';
 import { ORDER_STATUS } from './constants/statuses';
+import { calculateStoredOrderTotal } from './orderUtils';
 
 interface SaveOrderChangesParams {
   order: any;
@@ -218,7 +219,7 @@ export async function saveOrderChanges({
     }
 
     const newTotal = calculatedPricing.total_cents;
-    const oldTotal = order.subtotal_cents + (order.generator_fee_cents || 0) + order.travel_fee_cents + order.surface_fee_cents + (order.same_day_pickup_fee_cents || 0) + order.tax_cents;
+    const oldTotal = calculateStoredOrderTotal(order);
     if (newTotal !== oldTotal) {
       logs.push(['total', oldTotal, newTotal]);
     }
@@ -298,7 +299,7 @@ export async function saveOrderChanges({
     if (finalDepositCents > currentPaidAmount) {
       shouldClearPayment = true;
       logs.push(['payment_method', 'cleared', `deposit increased from ${currentPaidAmount} to ${finalDepositCents}`]);
-    } else if (currentPaidAmount >= (order.subtotal_cents + (order.generator_fee_cents || 0) + order.travel_fee_cents + order.surface_fee_cents + order.same_day_pickup_fee_cents + order.tax_cents)) {
+    } else if (currentPaidAmount >= calculateStoredOrderTotal(order)) {
       const newTotal = calculatedPricing.total_cents;
       if (newTotal > currentPaidAmount) {
         shouldClearPayment = true;
