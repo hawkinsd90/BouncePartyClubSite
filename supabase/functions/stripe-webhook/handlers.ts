@@ -681,7 +681,7 @@ export async function handleChargeRefunded(
       order_id: originalPayment.order_id,
       stripe_payment_intent_id: paymentIntentId,
       amount_cents: refundAmountSigned,
-      type: "refund",
+      type: "incidental",
       status: "succeeded",
       paid_at: new Date().toISOString(),
       payment_method: originalPayment.payment_method,

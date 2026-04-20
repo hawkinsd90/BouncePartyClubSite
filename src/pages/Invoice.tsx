@@ -210,9 +210,7 @@ export function Invoice() {
   if (paymentSuccess && order) {
     const psDiscounts = (order as any).order_discounts || [];
     const psCustomFees = (order as any).order_custom_fees || [];
-    const psTotalCents = psDiscounts.length > 0 || psCustomFees.length > 0
-      ? calculateTotalFromOrder(order, psDiscounts, psCustomFees)
-      : (order.total_cents as number);
+    const psTotalCents = calculateTotalFromOrder(order, psDiscounts, psCustomFees);
     const psDepositPaidCents = (order.deposit_paid_cents || 0) + (order.balance_paid_cents || 0);
     const psBalanceDueCents = Math.max(0, psTotalCents - psDepositPaidCents);
 
@@ -313,14 +311,9 @@ export function Invoice() {
     );
   }
 
-  // Compute the effective total including relational custom fees and discounts.
-  // order_discounts and order_custom_fees are loaded by STANDARD_ORDER_SELECT.
-  // Falls back to order.total_cents if relational data is unexpectedly absent.
   const orderDiscounts = (order as any).order_discounts || [];
   const orderCustomFees = (order as any).order_custom_fees || [];
-  const totalCents = orderDiscounts.length > 0 || orderCustomFees.length > 0
-    ? calculateTotalFromOrder(order, orderDiscounts, orderCustomFees)
-    : (order.total_cents as number);
+  const totalCents = calculateTotalFromOrder(order, orderDiscounts, orderCustomFees);
 
   const transformedQuoteData = {
     event_date: order.event_date,
