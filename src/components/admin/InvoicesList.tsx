@@ -70,11 +70,28 @@ export function InvoicesList() {
       const { data: invoiceNumberData } = await supabase.rpc('generate_invoice_number');
       const invoiceNumber = invoiceNumberData || `INV-${Date.now()}`;
 
-      const { data, error} = await supabase.from('invoices').insert({
+      const subtotalCents = order.subtotal_cents ?? 0;
+      const taxCents = order.tax_cents ?? 0;
+      const travelFeeCents = order.travel_fee_cents ?? 0;
+      const surfaceFeeCents = (order as any).surface_fee_cents ?? 0;
+      const sameDayPickupFeeCents = (order as any).same_day_pickup_fee_cents ?? 0;
+      const generatorFeeCents = (order as any).generator_fee_cents ?? 0;
+      const totalCents = subtotalCents + taxCents + travelFeeCents + surfaceFeeCents + sameDayPickupFeeCents + generatorFeeCents;
+
+      const { data, error } = await supabase.from('invoices').insert({
         invoice_number: invoiceNumber,
         order_id: order.id,
+        customer_id: order.customer_id ?? null,
         due_date: order.event_date,
-        paid_at: null,
+        status: 'draft',
+        subtotal_cents: subtotalCents,
+        tax_cents: taxCents,
+        travel_fee_cents: travelFeeCents,
+        surface_fee_cents: surfaceFeeCents,
+        same_day_pickup_fee_cents: sameDayPickupFeeCents,
+        generator_fee_cents: generatorFeeCents,
+        total_cents: totalCents,
+        paid_amount_cents: 0,
       }).select().single();
 
       if (error) throw error;

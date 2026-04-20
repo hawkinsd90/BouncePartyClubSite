@@ -213,6 +213,7 @@ export interface Database {
           id: string
           order_id: string
           invoice_number: string
+          invoice_date?: string | null
           due_date: string | null
           paid_at: string | null
           created_at: string

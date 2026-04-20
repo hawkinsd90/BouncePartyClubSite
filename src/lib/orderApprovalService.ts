@@ -58,7 +58,7 @@ export async function approveOrder(
     }
 
     // Idempotency guard: if already confirmed/cancelled/void, abort gracefully
-    if ([ORDER_STATUS.CONFIRMED, ORDER_STATUS.CANCELLED, ORDER_STATUS.VOID].includes(orderData.status)) {
+    if ([ORDER_STATUS.CONFIRMED, ORDER_STATUS.CANCELLED, ORDER_STATUS.VOID].includes(orderData.status as typeof ORDER_STATUS.CONFIRMED)) {
       throw new Error('This order has already been confirmed or cancelled. Refresh the page to see the current status.');
     }
 
@@ -338,7 +338,7 @@ export async function forceApproveOrder(orderId: string): Promise<ApprovalResult
     }
 
     // Idempotency guard: abort if already confirmed/cancelled/void
-    if ([ORDER_STATUS.CONFIRMED, ORDER_STATUS.CANCELLED, ORDER_STATUS.VOID].includes(orderData.status)) {
+    if ([ORDER_STATUS.CONFIRMED, ORDER_STATUS.CANCELLED, ORDER_STATUS.VOID].includes(orderData.status as typeof ORDER_STATUS.CONFIRMED)) {
       throw new Error('This order has already been confirmed or cancelled. Refresh the page to see the current status.');
     }
 
