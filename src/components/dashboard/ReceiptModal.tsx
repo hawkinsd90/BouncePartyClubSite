@@ -204,11 +204,7 @@ export function ReceiptModal({ order, payment, summary, loading, onClose }: Rece
                   <span className="text-gray-900">Remaining Balance:</span>
                   <span className="text-blue-700">
                     {formatCurrency(
-                      summary
-                        ? summary.total - order.deposit_paid_cents - order.balance_paid_cents
-                        // Fallback: order.total_cents is the engine-stored authoritative total.
-                        // summary is always available in normal flow; this path is defensive only.
-                        : (order as any).total_cents - order.deposit_paid_cents - order.balance_paid_cents
+                      (summary ? summary.total : 0) - order.deposit_paid_cents - order.balance_paid_cents
                     )}
                   </span>
                 </div>

@@ -205,8 +205,8 @@ export async function approveOrder(
         : (orderData.customer_selected_payment_cents ?? orderData.deposit_due_cents);
     const paidAmountCents =
       stripeGrossCents != null
-        ? stripeGrossCents
-        : (depositAmountCents + tipAmountCents);
+        ? Math.max(0, stripeGrossCents - tipAmountCents)
+        : depositAmountCents;
 
     // Log deposit transaction and notify admin with grouped receipts
     if (customerData && orderData.customer_id) {

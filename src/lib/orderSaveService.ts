@@ -2,7 +2,6 @@ import { supabase } from './supabase';
 import { showToast } from './notifications';
 import { upsertCanonicalAddress } from './addressService';
 import { ORDER_STATUS } from './constants/statuses';
-import { calculateStoredOrderTotal } from './orderUtils';
 import { calculateTotalFromOrder } from './orderSummary';
 
 interface SaveOrderChangesParams {
@@ -241,10 +240,9 @@ export async function saveOrderChanges({
       logs.push(['balance_due', order.balance_due_cents, newBalanceDueCents]);
     }
 
-    const newTotal = effectiveTotalCents;
-    const oldTotal = calculateStoredOrderTotal(order);
-    if (newTotal !== oldTotal) {
-      logs.push(['total', oldTotal, newTotal]);
+    const oldTotal = calculateTotalFromOrder(order, discounts.filter(d => !d.is_deleted), customFees.filter(f => !f.is_deleted));
+    if (effectiveTotalCents !== oldTotal) {
+      logs.push(['total', oldTotal, effectiveTotalCents]);
     }
   }
 
@@ -317,16 +315,15 @@ export async function saveOrderChanges({
     logs.push(['payment_method', 'cleared', 'items changed']);
   } else if (calculatedPricing && order.stripe_payment_intent_id) {
     const finalDepositCents = customDepositCents !== null ? customDepositCents : calculatedPricing.deposit_due_cents;
-    const currentPaidAmount = order.stripe_amount_paid_cents || 0;
+    const depositAlreadyCaptured = order.deposit_paid_cents || 0;
 
-    if (finalDepositCents > currentPaidAmount) {
+    if (finalDepositCents > depositAlreadyCaptured) {
       shouldClearPayment = true;
-      logs.push(['payment_method', 'cleared', `deposit increased from ${currentPaidAmount} to ${finalDepositCents}`]);
-    } else if (currentPaidAmount >= calculateStoredOrderTotal(order)) {
-      const newTotal = effectiveTotalCents;
-      if (newTotal > currentPaidAmount) {
+      logs.push(['payment_method', 'cleared', `deposit increased from ${depositAlreadyCaptured} to ${finalDepositCents}`]);
+    } else if (depositAlreadyCaptured >= calculateTotalFromOrder(order, discounts.filter(d => !d.is_deleted), customFees.filter(f => !f.is_deleted))) {
+      if (effectiveTotalCents > depositAlreadyCaptured) {
         shouldClearPayment = true;
-        logs.push(['payment_method', 'cleared', `paid in full but total increased from ${currentPaidAmount} to ${newTotal}`]);
+        logs.push(['payment_method', 'cleared', `paid in full but total increased from ${depositAlreadyCaptured} to ${effectiveTotalCents}`]);
       }
     }
   }
