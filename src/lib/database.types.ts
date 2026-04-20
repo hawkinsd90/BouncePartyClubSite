@@ -223,6 +223,7 @@ export interface Database {
           travel_fee_cents?: number | null
           surface_fee_cents?: number | null
           same_day_pickup_fee_cents?: number | null
+          generator_fee_cents?: number | null
           total_cents?: number | null
           paid_amount_cents?: number | null
         }

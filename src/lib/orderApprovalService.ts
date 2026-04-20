@@ -283,6 +283,7 @@ export async function approveOrder(
       travel_fee_cents: orderData.travel_fee_cents ?? 0,
       surface_fee_cents: (orderData as any).surface_fee_cents ?? 0,
       same_day_pickup_fee_cents: (orderData as any).same_day_pickup_fee_cents ?? 0,
+      generator_fee_cents: (orderData as any).generator_fee_cents ?? 0,
       total_cents: totalCents,
       paid_amount_cents: paidAmountCents,
     });

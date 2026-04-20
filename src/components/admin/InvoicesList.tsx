@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { FileText, Calendar, Eye, Edit } from 'lucide-react';
+import { FileText, Calendar, Eye, CreditCard as Edit } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatCurrency } from '../../lib/pricing';
 import { useSupabaseQuery, useMutation } from '../../hooks/useDataFetch';
@@ -18,6 +18,7 @@ interface Invoice {
   travel_fee_cents: number;
   surface_fee_cents: number;
   same_day_pickup_fee_cents: number;
+  generator_fee_cents: number;
   total_cents: number;
   paid_amount_cents: number;
   travel_total_miles: number | string;
@@ -95,6 +96,9 @@ export function InvoicesList() {
   }
 
   async function handleViewInvoice(invoice: Invoice) {
+    const generatorLine = (invoice.generator_fee_cents || 0) > 0
+      ? `\nGenerator Rental: ${formatCurrency(invoice.generator_fee_cents)}`
+      : '';
     const invoiceDetails = `
 BOUNCE PARTY CLUB
 Invoice: ${invoice.invoice_number}
@@ -108,7 +112,7 @@ CHARGES:
 Subtotal: ${formatCurrency(invoice.subtotal_cents)}
 Travel Fee${Number(invoice.travel_total_miles) > 0 ? ` (${parseFloat(String(invoice.travel_total_miles)).toFixed(1)} mi)` : ''}: ${formatCurrency(invoice.travel_fee_cents)}
 Surface Fee: ${formatCurrency(invoice.surface_fee_cents)}
-Same Day Pickup: ${formatCurrency(invoice.same_day_pickup_fee_cents)}
+Same Day Pickup: ${formatCurrency(invoice.same_day_pickup_fee_cents)}${generatorLine}
 Tax: ${formatCurrency(invoice.tax_cents)}
 
 TOTAL: ${formatCurrency(invoice.total_cents)}
