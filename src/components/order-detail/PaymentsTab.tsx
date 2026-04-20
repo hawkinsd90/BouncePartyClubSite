@@ -3,6 +3,7 @@ import { RotateCcw } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { showToast } from '../../lib/notifications';
 import { supabase } from '../../lib/supabase';
+import { calculateStoredOrderTotal } from '../../lib/orderUtils';
 
 interface PaymentsTabProps {
   orderId: string;
@@ -24,10 +25,8 @@ export function PaymentsTab({ orderId, customerName, payments, order, customFees
     if (d.percentage && d.percentage > 0) return sum + Math.round(subtotalCents * (d.percentage / 100));
     return sum + (d.amount_cents || 0);
   }, 0);
-  // order.total_cents is the pricing-engine scalar total (no custom fees, no discounts).
-  // Add relational custom fees and subtract relational discounts for the effective total.
   const orderTotalCents = order
-    ? (order.total_cents || 0) + customFeesCents - discountCents
+    ? calculateStoredOrderTotal(order) + customFeesCents - discountCents
     : 0;
 
   const remainingAfterCapturedCents = order ? Math.max(0, orderTotalCents - totalCapturedCents) : 0;

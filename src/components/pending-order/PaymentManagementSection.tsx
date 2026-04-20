@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import { CreditCard } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
+import { calculateStoredOrderTotal } from '../../lib/orderUtils';
 
 interface Payment {
   id: string;
@@ -43,10 +44,7 @@ export function PaymentManagementSection({ order, payments, customFees = [], dis
     if (d.percentage && d.percentage > 0) return sum + Math.round(subtotalCents * (d.percentage / 100));
     return sum + (d.amount_cents || 0);
   }, 0);
-  // order.total_cents is the pricing-engine total (subtotal + all fees + tax).
-  // Custom fees are relational rows added on top; discounts subtracted.
-  // No scalar discount_cents column exists on orders.
-  const orderTotalCents = (order.total_cents || 0) + customFeesCents - discountCents;
+  const orderTotalCents = calculateStoredOrderTotal(order) + customFeesCents - discountCents;
 
   const tipCents = order.tip_cents || 0;
   const remainingAfterCapturedCents = Math.max(0, orderTotalCents - totalCapturedCents);
