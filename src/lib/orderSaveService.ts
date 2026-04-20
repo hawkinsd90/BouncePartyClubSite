@@ -444,9 +444,6 @@ export async function saveOrderChanges({
     if (hasTrackedChanges && !adminOverrideApproval) {
       await sendNotificationsFn();
     }
-  } else if (hasFieldChanges) {
-    const { error: updateError } = await supabase.from('orders').update(changes).eq('id', order.id);
-    if (updateError) throw new Error(`Failed to update order: ${updateError.message}`);
   }
 
   onComplete();
