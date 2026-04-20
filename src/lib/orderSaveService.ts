@@ -161,22 +161,55 @@ export async function saveOrderChanges({
   // branch below can reference the same value.
   let effectiveTotalCents = 0;
 
-  // Apply calculated pricing
+  // Apply calculated pricing — only write a field into `changes` when the
+  // recomputed value actually differs from what is stored on the order row.
+  // This prevents a no-change save from touching the order row at all.
   if (calculatedPricing) {
-    changes.subtotal_cents = calculatedPricing.subtotal_cents;
-    changes.generator_fee_cents = calculatedPricing.generator_fee_cents;
-    changes.travel_fee_cents = calculatedPricing.travel_fee_cents;
-    changes.travel_total_miles = calculatedPricing.travel_total_miles;
-    changes.travel_base_radius_miles = calculatedPricing.travel_base_radius_miles;
-    changes.travel_chargeable_miles = calculatedPricing.travel_chargeable_miles;
-    changes.travel_per_mile_cents = calculatedPricing.travel_per_mile_cents;
-    changes.travel_is_flat_fee = calculatedPricing.travel_is_flat_fee;
-    changes.surface_fee_cents = calculatedPricing.surface_fee_cents;
-    changes.same_day_pickup_fee_cents = calculatedPricing.same_day_pickup_fee_cents;
-    changes.tax_cents = calculatedPricing.tax_cents;
+    if (calculatedPricing.subtotal_cents !== order.subtotal_cents) {
+      changes.subtotal_cents = calculatedPricing.subtotal_cents;
+      logs.push(['subtotal', order.subtotal_cents, calculatedPricing.subtotal_cents]);
+    }
+    if (calculatedPricing.generator_fee_cents !== (order.generator_fee_cents || 0)) {
+      changes.generator_fee_cents = calculatedPricing.generator_fee_cents;
+      logs.push(['generator_fee', order.generator_fee_cents || 0, calculatedPricing.generator_fee_cents]);
+    }
+    if (calculatedPricing.travel_fee_cents !== (order.travel_fee_cents || 0)) {
+      changes.travel_fee_cents = calculatedPricing.travel_fee_cents;
+      logs.push(['travel_fee', order.travel_fee_cents, calculatedPricing.travel_fee_cents]);
+    }
+    if (calculatedPricing.travel_total_miles !== (parseFloat(order.travel_total_miles) || 0)) {
+      changes.travel_total_miles = calculatedPricing.travel_total_miles;
+    }
+    if (calculatedPricing.travel_base_radius_miles !== (parseFloat(order.travel_base_radius_miles) || null)) {
+      changes.travel_base_radius_miles = calculatedPricing.travel_base_radius_miles;
+    }
+    if (calculatedPricing.travel_chargeable_miles !== (parseFloat(order.travel_chargeable_miles) || null)) {
+      changes.travel_chargeable_miles = calculatedPricing.travel_chargeable_miles;
+    }
+    if (calculatedPricing.travel_per_mile_cents !== (order.travel_per_mile_cents || null)) {
+      changes.travel_per_mile_cents = calculatedPricing.travel_per_mile_cents;
+    }
+    if (calculatedPricing.travel_is_flat_fee !== (order.travel_is_flat_fee || false)) {
+      changes.travel_is_flat_fee = calculatedPricing.travel_is_flat_fee;
+    }
+    if (calculatedPricing.surface_fee_cents !== (order.surface_fee_cents || 0)) {
+      changes.surface_fee_cents = calculatedPricing.surface_fee_cents;
+      logs.push(['surface_fee', order.surface_fee_cents, calculatedPricing.surface_fee_cents]);
+    }
+    if (calculatedPricing.same_day_pickup_fee_cents !== (order.same_day_pickup_fee_cents || 0)) {
+      changes.same_day_pickup_fee_cents = calculatedPricing.same_day_pickup_fee_cents;
+      logs.push(['same_day_pickup_fee', order.same_day_pickup_fee_cents || 0, calculatedPricing.same_day_pickup_fee_cents]);
+    }
+    if (calculatedPricing.tax_cents !== (order.tax_cents || 0)) {
+      changes.tax_cents = calculatedPricing.tax_cents;
+      logs.push(['tax', order.tax_cents, calculatedPricing.tax_cents]);
+    }
 
     const finalDepositCents = customDepositCents !== null ? customDepositCents : calculatedPricing.deposit_due_cents;
-    changes.deposit_due_cents = finalDepositCents;
+    if (finalDepositCents !== order.deposit_due_cents) {
+      changes.deposit_due_cents = finalDepositCents;
+      logs.push(['deposit_due', order.deposit_due_cents, finalDepositCents]);
+    }
 
     // discounts and customFees are the relational rows being saved in this same call.
     // Using calculateTotalFromOrder here keeps balance_due_cents consistent with displayed totals.
@@ -191,44 +224,21 @@ export async function saveOrderChanges({
     const isConfirmedWithPayment = (order.status === ORDER_STATUS.CONFIRMED || order.status === ORDER_STATUS.IN_PROGRESS) && depositAlreadyCapturedCents > 0;
     const depositDifferenceCents = Math.max(0, finalDepositCents - depositAlreadyCapturedCents);
 
+    let newBalanceDueCents: number;
     if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'require') {
-      // Require additional deposit: new balance = effectiveTotal - newDeposit
-      changes.balance_due_cents = Math.max(0, effectiveTotalCents - finalDepositCents);
+      newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents);
       changes.deposit_catchup_cents = depositDifferenceCents;
       logs.push(['deposit_catchup', 0, depositDifferenceCents]);
     } else if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'waive') {
-      // Waive: roll difference into balance. Balance = effectiveTotal - already captured
-      changes.balance_due_cents = Math.max(0, effectiveTotalCents - depositAlreadyCapturedCents);
+      newBalanceDueCents = Math.max(0, effectiveTotalCents - depositAlreadyCapturedCents);
       changes.deposit_catchup_cents = 0;
     } else {
-      changes.balance_due_cents = Math.max(0, effectiveTotalCents - finalDepositCents);
+      newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents);
     }
 
-    // Log pricing changes
-    if (calculatedPricing.subtotal_cents !== order.subtotal_cents) {
-      logs.push(['subtotal', order.subtotal_cents, calculatedPricing.subtotal_cents]);
-    }
-    if (calculatedPricing.generator_fee_cents !== (order.generator_fee_cents || 0)) {
-      logs.push(['generator_fee', order.generator_fee_cents || 0, calculatedPricing.generator_fee_cents]);
-    }
-    if (calculatedPricing.travel_fee_cents !== order.travel_fee_cents) {
-      logs.push(['travel_fee', order.travel_fee_cents, calculatedPricing.travel_fee_cents]);
-    }
-    if (calculatedPricing.surface_fee_cents !== order.surface_fee_cents) {
-      logs.push(['surface_fee', order.surface_fee_cents, calculatedPricing.surface_fee_cents]);
-    }
-    if (calculatedPricing.same_day_pickup_fee_cents !== (order.same_day_pickup_fee_cents || 0)) {
-      logs.push(['same_day_pickup_fee', order.same_day_pickup_fee_cents || 0, calculatedPricing.same_day_pickup_fee_cents]);
-    }
-    if (calculatedPricing.tax_cents !== order.tax_cents) {
-      logs.push(['tax', order.tax_cents, calculatedPricing.tax_cents]);
-    }
-    if (finalDepositCents !== order.deposit_due_cents) {
-      logs.push(['deposit_due', order.deposit_due_cents, finalDepositCents]);
-    }
-
-    if (changes.balance_due_cents !== order.balance_due_cents) {
-      logs.push(['balance_due', order.balance_due_cents, changes.balance_due_cents]);
+    if (newBalanceDueCents !== order.balance_due_cents) {
+      changes.balance_due_cents = newBalanceDueCents;
+      logs.push(['balance_due', order.balance_due_cents, newBalanceDueCents]);
     }
 
     const newTotal = effectiveTotalCents;
@@ -362,6 +372,7 @@ export async function saveOrderChanges({
 
   const originalDiscounts = await supabase.from('order_discounts').select('*').eq('order_id', order.id);
   let deletedDiscountCount = 0;
+  let updatedDiscountCount = 0;
   if (originalDiscounts.data) {
     const currentDiscountIds = [
       ...discounts.filter(d => !d.is_new).map(d => d.id),
@@ -372,6 +383,24 @@ export async function saveOrderChanges({
     for (const deleted of deletedDiscounts) {
       await supabase.from('order_discounts').delete().eq('id', deleted.id);
       await logChangeFn('discounts', deleted.name, '', 'remove');
+    }
+
+    // UPDATE existing rows whose name/amount/percentage changed
+    for (const discount of discounts.filter(d => !d.is_new)) {
+      const original = originalDiscounts.data.find(od => od.id === discount.id);
+      if (!original) continue;
+      const nameChanged = discount.name !== original.name;
+      const amountChanged = (discount.amount_cents || 0) !== (original.amount_cents || 0);
+      const percentageChanged = (discount.percentage || 0) !== (original.percentage || 0);
+      if (nameChanged || amountChanged || percentageChanged) {
+        await supabase.from('order_discounts').update({
+          name: discount.name,
+          amount_cents: discount.amount_cents || 0,
+          percentage: discount.percentage || 0,
+        }).eq('id', discount.id);
+        await logChangeFn('discounts', original.name, discount.name, 'update');
+        updatedDiscountCount++;
+      }
     }
   }
 
@@ -393,6 +422,7 @@ export async function saveOrderChanges({
 
   const originalCustomFees = await supabase.from('order_custom_fees').select('*').eq('order_id', order.id);
   let deletedFeeCount = 0;
+  let updatedFeeCount = 0;
   if (originalCustomFees.data) {
     const currentFeeIds = [
       ...customFees.filter(f => !f.is_new).map(f => f.id),
@@ -404,6 +434,22 @@ export async function saveOrderChanges({
       await supabase.from('order_custom_fees').delete().eq('id', deleted.id);
       await logChangeFn('custom_fees', deleted.name, '', 'remove');
     }
+
+    // UPDATE existing rows whose name or amount changed
+    for (const fee of customFees.filter(f => !f.is_new)) {
+      const original = originalCustomFees.data.find(of => of.id === fee.id);
+      if (!original) continue;
+      const nameChanged = fee.name !== original.name;
+      const amountChanged = (fee.amount_cents || 0) !== (original.amount_cents || 0);
+      if (nameChanged || amountChanged) {
+        await supabase.from('order_custom_fees').update({
+          name: fee.name,
+          amount_cents: fee.amount_cents || 0,
+        }).eq('id', fee.id);
+        await logChangeFn('custom_fees', original.name, fee.name, 'update');
+        updatedFeeCount++;
+      }
+    }
   }
 
   // Save admin message
@@ -414,10 +460,16 @@ export async function saveOrderChanges({
     }
   }
 
-  // Check if there are any changes.
-  // Existing discount/fee deletions are real pricing changes and must count as tracked
-  // so that notifications and status transitions fire correctly.
-  const hasTrackedChanges = logs.length > 0 || stagedItems.some(item => item.is_new || item.is_deleted) || discounts.some(d => d.is_new) || customFees.some(f => f.is_new) || deletedDiscountCount > 0 || deletedFeeCount > 0;
+  // Check if there are any real changes.
+  // Pricing fields, discount/fee add/delete/update, and field edits all count.
+  const hasTrackedChanges = logs.length > 0
+    || stagedItems.some(item => item.is_new || item.is_deleted)
+    || discounts.some(d => d.is_new)
+    || customFees.some(f => f.is_new)
+    || deletedDiscountCount > 0
+    || deletedFeeCount > 0
+    || updatedDiscountCount > 0
+    || updatedFeeCount > 0;
   const hasFieldChanges = Object.keys(changes).length > 0;
 
   if (hasTrackedChanges || hasFieldChanges) {
