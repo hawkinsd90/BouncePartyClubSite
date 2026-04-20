@@ -30,15 +30,9 @@ export function PaymentManagementSection({ order, payments, customFees = [] }: P
   const totalCapturedCents = succeededPayments.reduce((sum, p) => sum + p.amount_cents, 0);
 
   const customFeesCents = customFees.reduce((sum, f) => sum + (f.amount_cents || 0), 0);
-  const orderTotalCents =
-    (order.subtotal_cents || 0) +
-    (order.generator_fee_cents || 0) +
-    (order.travel_fee_cents || 0) +
-    (order.surface_fee_cents || 0) +
-    (order.same_day_pickup_fee_cents || 0) +
-    (order.tax_cents || 0) +
-    customFeesCents -
-    (order.discount_cents || 0);
+  // order.total_cents is the pricing-engine total (subtotal + all fees + tax).
+  // Custom fees are relational rows added on top. No scalar discount_cents column exists.
+  const orderTotalCents = (order.total_cents || 0) + customFeesCents;
 
   const tipCents = order.tip_cents || 0;
   const remainingAfterCapturedCents = Math.max(0, orderTotalCents - totalCapturedCents);

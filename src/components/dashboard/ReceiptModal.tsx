@@ -5,7 +5,7 @@ import { OrderSummaryDisplay } from '../../lib/orderSummary';
 import { PrintModal } from '../common/PrintModal';
 import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
-import { calculateOrderTotal, formatTime } from '../../lib/orderUtils';
+import { formatTime } from '../../lib/orderUtils';
 
 interface ReceiptModalProps {
   order: Order;
@@ -203,10 +203,13 @@ export function ReceiptModal({ order, payment, summary, loading, onClose }: Rece
                 <div className="flex justify-between pt-2 border-t border-gray-200 font-semibold text-lg">
                   <span className="text-gray-900">Remaining Balance:</span>
                   <span className="text-blue-700">
-                    {summary
-                      ? formatCurrency(summary.total - order.deposit_paid_cents - order.balance_paid_cents)
-                      : formatCurrency(calculateOrderTotal(order) - order.deposit_paid_cents - order.balance_paid_cents)
-                    }
+                    {formatCurrency(
+                      summary
+                        ? summary.total - order.deposit_paid_cents - order.balance_paid_cents
+                        // Fallback: order.total_cents is the engine-stored authoritative total.
+                        // summary is always available in normal flow; this path is defensive only.
+                        : (order as any).total_cents - order.deposit_paid_cents - order.balance_paid_cents
+                    )}
                   </span>
                 </div>
               </div>

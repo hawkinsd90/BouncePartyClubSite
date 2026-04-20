@@ -76,7 +76,9 @@ export function InvoicesList() {
       const surfaceFeeCents = (order as any).surface_fee_cents ?? 0;
       const sameDayPickupFeeCents = (order as any).same_day_pickup_fee_cents ?? 0;
       const generatorFeeCents = (order as any).generator_fee_cents ?? 0;
-      const totalCents = subtotalCents + taxCents + travelFeeCents + surfaceFeeCents + sameDayPickupFeeCents + generatorFeeCents;
+      // Use the DB-stored total_cents (written by pricing engine) rather than
+      // re-deriving from individual columns, which risks omitting fees added later.
+      const totalCents = (order as any).total_cents ?? (subtotalCents + taxCents + travelFeeCents + surfaceFeeCents + sameDayPickupFeeCents + generatorFeeCents);
 
       const { data, error } = await supabase.from('invoices').insert({
         invoice_number: invoiceNumber,

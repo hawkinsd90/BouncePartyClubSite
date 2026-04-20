@@ -662,14 +662,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                     <div className="flex justify-between pt-2 border-t border-slate-300">
                       <span className="font-semibold text-slate-900">Total:</span>
                       <span className="text-lg font-bold text-slate-900">
-                        {formatCurrency(orderSummary ? orderSummary.total : (
-                          order.subtotal_cents +
-                          order.travel_fee_cents +
-                          order.surface_fee_cents +
-                          order.same_day_pickup_fee_cents +
-                          (order.generator_fee_cents || 0) +
-                          order.tax_cents
-                        ))}
+                        {formatCurrency(orderSummary ? orderSummary.total : (order.total_cents || 0))}
                       </span>
                     </div>
                     {order.tip_cents > 0 && (

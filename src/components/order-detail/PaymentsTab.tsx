@@ -18,15 +18,13 @@ export function PaymentsTab({ orderId, customerName, payments, order, customFees
   const totalCapturedCents = succeededPayments.reduce((sum, p) => sum + p.amount_cents, 0);
 
   const customFeesCents = customFees.reduce((sum, f) => sum + (f.amount_cents || 0), 0);
+  // order.total_cents is written by the pricing engine at save time and is the
+  // authoritative scalar total (subtotal + all fees + tax, no tip/discounts).
+  // Custom fees are relational rows passed in as props and added on top.
+  // Discounts are already reflected in the stored order fields via the pricing
+  // engine recalculation on every save — there is no scalar discount_cents column.
   const orderTotalCents = order
-    ? (order.subtotal_cents || 0) +
-      (order.generator_fee_cents || 0) +
-      (order.travel_fee_cents || 0) +
-      (order.surface_fee_cents || 0) +
-      (order.same_day_pickup_fee_cents || 0) +
-      (order.tax_cents || 0) +
-      customFeesCents -
-      (order.discount_cents || 0)
+    ? (order.total_cents || 0) + customFeesCents
     : 0;
 
   const remainingAfterCapturedCents = order ? Math.max(0, orderTotalCents - totalCapturedCents) : 0;

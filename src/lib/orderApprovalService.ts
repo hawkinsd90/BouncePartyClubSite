@@ -14,28 +14,6 @@ import { getAdminSetting, ADMIN_SETTING_KEYS } from './adminSettingsCache';
 
 const BUSINESS_PHONE_FALLBACK = '(313) 889-3860';
 
-interface OrderTotalFields {
-  subtotal_cents: number | null;
-  travel_fee_cents: number | null;
-  surface_fee_cents?: number | null;
-  same_day_pickup_fee_cents?: number | null;
-  generator_fee_cents?: number | null;
-  tax_cents?: number | null;
-  tip_cents?: number | null;
-}
-
-function calcApprovalTotalCents(order: OrderTotalFields): number {
-  return (
-    (order.subtotal_cents ?? 0) +
-    (order.travel_fee_cents ?? 0) +
-    (order.surface_fee_cents ?? 0) +
-    (order.same_day_pickup_fee_cents ?? 0) +
-    (order.generator_fee_cents ?? 0) +
-    (order.tax_cents ?? 0) +
-    (order.tip_cents ?? 0)
-  );
-}
-
 interface ApprovalResult {
   success: boolean;
   error?: string;
@@ -117,7 +95,8 @@ export async function approveOrder(
         .maybeSingle();
 
       const customerNoDeposit = orderWithRelationsNoDeposit?.customers as any;
-      const totalCentsNoDeposit = calcApprovalTotalCents(orderData as OrderTotalFields);
+      // Use the DB-stored total_cents — authoritative value written by pricing engine.
+      const totalCentsNoDeposit = (orderData as any).total_cents ?? 0;
 
       if (customerNoDeposit) {
         const portalUrlNoDeposit = await createShortPortalLink(orderId, supabase, orderData.event_date);
@@ -267,7 +246,11 @@ export async function approveOrder(
     const { data: invoiceNumberData } = await supabase.rpc('generate_invoice_number');
     const invoiceNumber = invoiceNumberData || `INV-${Date.now()}`;
 
-    const totalCents = calcApprovalTotalCents(orderData as OrderTotalFields);
+    // Use the DB-stored total_cents — authoritative value written by pricing engine at
+    // every save. This correctly reflects generator fees and all scalar fees.
+    // Custom fees and discounts are not yet reflected in total_cents (engine limitation),
+    // but they are stored as relational rows and displayed separately in the invoice UI.
+    const totalCents = (orderData as any).total_cents ?? 0;
 
     // Determine invoice status based on payment amount vs total
     const invoiceStatus = paidAmountCents >= totalCents ? 'paid' : (paidAmountCents > 0 ? 'partial' : 'sent');
