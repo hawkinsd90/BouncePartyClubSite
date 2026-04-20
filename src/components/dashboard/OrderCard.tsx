@@ -8,6 +8,7 @@ import { OrderPaymentStatus } from './OrderPaymentStatus';
 import { formatCurrency } from '../../lib/pricing';
 import { formatTime } from '../../lib/orderUtils';
 import { isOrderCancellable } from '../../lib/constants/statuses';
+import { calculateTotalFromOrder } from '../../lib/orderSummary';
 
 interface OrderCardProps {
   order: Order;
@@ -92,7 +93,11 @@ export function OrderCard({ order, onViewReceipt, onDuplicateOrder, onCancelOrde
             <div>
               <span className="text-gray-600">Total: </span>
               <span className="font-semibold text-gray-900">
-                {formatCurrency((order as any).total_cents || 0)}
+                {formatCurrency(calculateTotalFromOrder(
+                  order,
+                  (order as any).order_discounts || [],
+                  (order as any).order_custom_fees || []
+                ))}
               </span>
             </div>
             <span className="text-gray-400 hidden sm:inline">•</span>

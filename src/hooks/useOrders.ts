@@ -84,7 +84,9 @@ export function useOrders(userId: string | undefined, userEmail: string | undefi
             units (
               name
             )
-          )
+          ),
+          order_discounts (*),
+          order_custom_fees (*)
         `)
         .in('customer_id', customerIds)
         .order('event_date', { ascending: false })

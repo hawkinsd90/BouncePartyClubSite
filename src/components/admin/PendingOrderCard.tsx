@@ -58,12 +58,14 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
     contact,
     orderSummary,
     customFees,
+    discounts,
     customerDamageRecords,
     loadSmsConversations,
     loadContact,
     loadPayments,
     loadSummary,
     loadCustomFees,
+    loadDiscounts,
     loadCustomerDamageHistory,
   } = usePendingOrderData(order.id);
 
@@ -82,6 +84,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
     loadContact(order.customers?.email);
     loadSummary();
     loadCustomFees();
+    loadDiscounts();
     if (order.customer_id) {
       loadCustomerDamageHistory(order.customer_id);
     }
@@ -311,7 +314,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
         isSending={sendingSms}
       />
 
-      <PaymentManagementSection order={order} payments={payments} customFees={customFees} />
+      <PaymentManagementSection order={order} payments={payments} customFees={customFees} discounts={discounts} />
 
       {isDraft ? (
         <div ref={actionButtonsRef} className="space-y-3">
