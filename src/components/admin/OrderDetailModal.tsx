@@ -722,6 +722,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               payments={payments}
               order={order}
               customFees={customFees}
+              discounts={discounts.filter((d: any) => !d.is_new)}
               onPaymentsUpdate={() => {
                 reloadOrderData();
                 onUpdate();

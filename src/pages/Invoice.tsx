@@ -11,6 +11,7 @@ import { PrintableInvoice } from '../components/invoice/PrintableInvoice';
 import { PrintModal } from '../components/common/PrintModal';
 import { ORDER_STATUS } from '../lib/constants/statuses';
 import { getOrderById } from '../lib/queries/orders';
+import { calculateTotalFromOrder } from '../lib/orderSummary';
 
 export function Invoice() {
   const { orderId } = useParams<{ orderId: string }>();
@@ -304,10 +305,14 @@ export function Invoice() {
     );
   }
 
-  // Use the DB-stored total_cents written by the pricing engine — it is the
-  // authoritative sum including all fees. Avoids re-deriving a total that could
-  // silently omit fields (generator fee, future fees, etc.).
-  const totalCents = order.total_cents as number;
+  // Compute the effective total including relational custom fees and discounts.
+  // order_discounts and order_custom_fees are loaded by STANDARD_ORDER_SELECT.
+  // Falls back to order.total_cents if relational data is unexpectedly absent.
+  const orderDiscounts = (order as any).order_discounts || [];
+  const orderCustomFees = (order as any).order_custom_fees || [];
+  const totalCents = orderDiscounts.length > 0 || orderCustomFees.length > 0
+    ? calculateTotalFromOrder(order, orderDiscounts, orderCustomFees)
+    : (order.total_cents as number);
 
   const transformedQuoteData = {
     event_date: order.event_date,

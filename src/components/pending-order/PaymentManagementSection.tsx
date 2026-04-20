@@ -17,22 +17,36 @@ interface CustomFee {
   name?: string;
 }
 
+interface Discount {
+  id?: string;
+  amount_cents?: number;
+  percentage?: number;
+  name: string;
+}
+
 interface PaymentManagementSectionProps {
   order: any;
   payments: Payment[];
   customFees?: CustomFee[];
+  discounts?: Discount[];
 }
 
-export function PaymentManagementSection({ order, payments, customFees = [] }: PaymentManagementSectionProps) {
+export function PaymentManagementSection({ order, payments, customFees = [], discounts = [] }: PaymentManagementSectionProps) {
   const hasPaymentMethod = order.stripe_customer_id && order.stripe_payment_method_id;
 
   const succeededPayments = payments.filter(p => p.status === 'succeeded');
   const totalCapturedCents = succeededPayments.reduce((sum, p) => sum + p.amount_cents, 0);
 
   const customFeesCents = customFees.reduce((sum, f) => sum + (f.amount_cents || 0), 0);
+  const subtotalCents = order.subtotal_cents || 0;
+  const discountCents = discounts.reduce((sum, d) => {
+    if (d.percentage && d.percentage > 0) return sum + Math.round(subtotalCents * (d.percentage / 100));
+    return sum + (d.amount_cents || 0);
+  }, 0);
   // order.total_cents is the pricing-engine total (subtotal + all fees + tax).
-  // Custom fees are relational rows added on top. No scalar discount_cents column exists.
-  const orderTotalCents = (order.total_cents || 0) + customFeesCents;
+  // Custom fees are relational rows added on top; discounts subtracted.
+  // No scalar discount_cents column exists on orders.
+  const orderTotalCents = (order.total_cents || 0) + customFeesCents - discountCents;
 
   const tipCents = order.tip_cents || 0;
   const remainingAfterCapturedCents = Math.max(0, orderTotalCents - totalCapturedCents);

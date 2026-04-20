@@ -11,6 +11,7 @@ import { formatOrderId, createShortPortalLink } from './utils';
 import { logGroupedTransactions } from './transactionReceiptService';
 import { enterConfirmed } from './orderLifecycle';
 import { getAdminSetting, ADMIN_SETTING_KEYS } from './adminSettingsCache';
+import { calculateTotalFromOrder } from './orderSummary';
 
 const BUSINESS_PHONE_FALLBACK = '(313) 889-3860';
 
@@ -27,7 +28,7 @@ export async function approveOrder(
     // First, fetch the order and check availability
     const { data: orderData } = await supabase
       .from('orders')
-      .select('*, order_items (*)')
+      .select('*, order_items (*), order_custom_fees (*), order_discounts (*)')
       .eq('id', orderId)
       .maybeSingle();
 
@@ -95,8 +96,10 @@ export async function approveOrder(
         .maybeSingle();
 
       const customerNoDeposit = orderWithRelationsNoDeposit?.customers as any;
-      // Use the DB-stored total_cents — authoritative value written by pricing engine.
-      const totalCentsNoDeposit = (orderData as any).total_cents ?? 0;
+      // Use effective total including relational custom fees and discounts.
+      const orderCustomFeesNoDeposit = (orderData as any).order_custom_fees || [];
+      const orderDiscountsNoDeposit = (orderData as any).order_discounts || [];
+      const totalCentsNoDeposit = calculateTotalFromOrder(orderData, orderDiscountsNoDeposit, orderCustomFeesNoDeposit);
 
       if (customerNoDeposit) {
         const portalUrlNoDeposit = await createShortPortalLink(orderId, supabase, orderData.event_date);
@@ -246,11 +249,11 @@ export async function approveOrder(
     const { data: invoiceNumberData } = await supabase.rpc('generate_invoice_number');
     const invoiceNumber = invoiceNumberData || `INV-${Date.now()}`;
 
-    // Use the DB-stored total_cents — authoritative value written by pricing engine at
-    // every save. This correctly reflects generator fees and all scalar fees.
-    // Custom fees and discounts are not yet reflected in total_cents (engine limitation),
-    // but they are stored as relational rows and displayed separately in the invoice UI.
-    const totalCents = (orderData as any).total_cents ?? 0;
+    // Use effective total including relational custom fees and discounts.
+    // order_custom_fees and order_discounts are fetched at the top of this function.
+    const orderCustomFees = (orderData as any).order_custom_fees || [];
+    const orderDiscounts = (orderData as any).order_discounts || [];
+    const totalCents = calculateTotalFromOrder(orderData, orderDiscounts, orderCustomFees);
 
     // Determine invoice status based on payment amount vs total
     const invoiceStatus = paidAmountCents >= totalCents ? 'paid' : (paidAmountCents > 0 ? 'partial' : 'sent');

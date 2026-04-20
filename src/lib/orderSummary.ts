@@ -321,7 +321,7 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
   }
 }
 
-function calculateTotalFromOrder(order: any, discounts: OrderDiscount[], customFees: OrderCustomFee[]): number {
+export function calculateTotalFromOrder(order: any, discounts: OrderDiscount[], customFees: OrderCustomFee[]): number {
   const subtotal = order.subtotal_cents || 0;
   const travelFee = order.travel_fee_cents || 0;
   const surfaceFee = order.surface_fee_cents || 0;

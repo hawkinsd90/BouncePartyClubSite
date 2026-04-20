@@ -10,21 +10,24 @@ interface PaymentsTabProps {
   payments: any[];
   order?: any;
   customFees?: { id: string; amount_cents: number; name?: string }[];
+  discounts?: { id?: string; amount_cents?: number; percentage?: number; name: string }[];
   onPaymentsUpdate: () => void;
 }
 
-export function PaymentsTab({ orderId, customerName, payments, order, customFees = [], onPaymentsUpdate }: PaymentsTabProps) {
+export function PaymentsTab({ orderId, customerName, payments, order, customFees = [], discounts = [], onPaymentsUpdate }: PaymentsTabProps) {
   const succeededPayments = payments.filter(p => p.status === 'succeeded');
   const totalCapturedCents = succeededPayments.reduce((sum, p) => sum + p.amount_cents, 0);
 
   const customFeesCents = customFees.reduce((sum, f) => sum + (f.amount_cents || 0), 0);
-  // order.total_cents is written by the pricing engine at save time and is the
-  // authoritative scalar total (subtotal + all fees + tax, no tip/discounts).
-  // Custom fees are relational rows passed in as props and added on top.
-  // Discounts are already reflected in the stored order fields via the pricing
-  // engine recalculation on every save — there is no scalar discount_cents column.
+  const subtotalCents = order?.subtotal_cents || 0;
+  const discountCents = discounts.reduce((sum, d) => {
+    if (d.percentage && d.percentage > 0) return sum + Math.round(subtotalCents * (d.percentage / 100));
+    return sum + (d.amount_cents || 0);
+  }, 0);
+  // order.total_cents is the pricing-engine scalar total (no custom fees, no discounts).
+  // Add relational custom fees and subtract relational discounts for the effective total.
   const orderTotalCents = order
-    ? (order.total_cents || 0) + customFeesCents
+    ? (order.total_cents || 0) + customFeesCents - discountCents
     : 0;
 
   const remainingAfterCapturedCents = order ? Math.max(0, orderTotalCents - totalCapturedCents) : 0;
