@@ -361,12 +361,14 @@ export async function saveOrderChanges({
   }
 
   const originalDiscounts = await supabase.from('order_discounts').select('*').eq('order_id', order.id);
+  let deletedDiscountCount = 0;
   if (originalDiscounts.data) {
     const currentDiscountIds = [
       ...discounts.filter(d => !d.is_new).map(d => d.id),
       ...insertedDiscountIds
     ];
     const deletedDiscounts = originalDiscounts.data.filter(od => !currentDiscountIds.includes(od.id));
+    deletedDiscountCount = deletedDiscounts.length;
     for (const deleted of deletedDiscounts) {
       await supabase.from('order_discounts').delete().eq('id', deleted.id);
       await logChangeFn('discounts', deleted.name, '', 'remove');
@@ -390,12 +392,14 @@ export async function saveOrderChanges({
   }
 
   const originalCustomFees = await supabase.from('order_custom_fees').select('*').eq('order_id', order.id);
+  let deletedFeeCount = 0;
   if (originalCustomFees.data) {
     const currentFeeIds = [
       ...customFees.filter(f => !f.is_new).map(f => f.id),
       ...insertedFeeIds
     ];
     const deletedFees = originalCustomFees.data.filter(of => !currentFeeIds.includes(of.id));
+    deletedFeeCount = deletedFees.length;
     for (const deleted of deletedFees) {
       await supabase.from('order_custom_fees').delete().eq('id', deleted.id);
       await logChangeFn('custom_fees', deleted.name, '', 'remove');
@@ -410,8 +414,10 @@ export async function saveOrderChanges({
     }
   }
 
-  // Check if there are any changes
-  const hasTrackedChanges = logs.length > 0 || stagedItems.some(item => item.is_new || item.is_deleted) || discounts.some(d => d.is_new) || customFees.some(f => f.is_new);
+  // Check if there are any changes.
+  // Existing discount/fee deletions are real pricing changes and must count as tracked
+  // so that notifications and status transitions fire correctly.
+  const hasTrackedChanges = logs.length > 0 || stagedItems.some(item => item.is_new || item.is_deleted) || discounts.some(d => d.is_new) || customFees.some(f => f.is_new) || deletedDiscountCount > 0 || deletedFeeCount > 0;
   const hasFieldChanges = Object.keys(changes).length > 0;
 
   if (hasTrackedChanges || hasFieldChanges) {
