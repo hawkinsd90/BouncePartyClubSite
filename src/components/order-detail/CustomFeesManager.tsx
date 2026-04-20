@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Pencil, Check, X } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { showToast } from '../../lib/notifications';
 import { supabase } from '../../lib/supabase';
@@ -12,6 +12,11 @@ interface CustomFeesManagerProps {
   onMarkChanges: () => void;
 }
 
+interface FeeDraft {
+  name: string;
+  amountInput: string;
+}
+
 export function CustomFeesManager({
   customFees,
   onFeeChange,
@@ -22,6 +27,46 @@ export function CustomFeesManager({
   const [customFeeInput, setCustomFeeInput] = useState('0.00');
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
+
+  // Inline edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<FeeDraft>({ name: '', amountInput: '0.00' });
+
+  function startEdit(fee: any) {
+    setEditingId(fee.id);
+    setEditDraft({
+      name: fee.name,
+      amountInput: (fee.amount_cents / 100).toFixed(2),
+    });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditDraft({ name: '', amountInput: '0.00' });
+  }
+
+  function saveEdit(feeId: string) {
+    const name = editDraft.name.trim();
+    if (!name) {
+      showToast('Fee name cannot be blank', 'error');
+      return;
+    }
+
+    const amount = dollarsToCents(editDraft.amountInput);
+    if (amount <= 0) {
+      showToast('Please enter a valid fee amount greater than zero', 'error');
+      return;
+    }
+
+    // Preserve the real DB id; keep is_new falsy so save layer runs UPDATE
+    const updated = customFees.map(f =>
+      f.id === feeId ? { ...f, name, amount_cents: amount } : f
+    );
+
+    onFeeChange(updated);
+    onMarkChanges();
+    cancelEdit();
+  }
 
   async function handleAddFee() {
     if (!newCustomFee.name.trim()) {
@@ -77,6 +122,7 @@ export function CustomFeesManager({
 
   function handleRemoveFee(feeId: string) {
     if (!confirm('Remove this fee?')) return;
+    if (editingId === feeId) cancelEdit();
     onFeeChange(customFees.filter(f => f.id !== feeId));
     onMarkChanges();
   }
@@ -126,19 +172,72 @@ export function CustomFeesManager({
       {customFees.length > 0 && (
         <div className="space-y-2 mb-4">
           {customFees.map(fee => (
-            <div key={fee.id} className="flex justify-between items-center bg-white rounded p-2">
-              <div>
-                <p className="font-medium text-sm">{fee.name}</p>
-                <p className="text-xs text-slate-600">
-                  {formatCurrency(fee.amount_cents)}
-                </p>
-              </div>
-              <button
-                onClick={() => handleRemoveFee(fee.id)}
-                className="text-red-600 hover:text-red-800"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+            <div key={fee.id} className="bg-white rounded border border-slate-200">
+              {editingId === fee.id ? (
+                // ── Inline edit form ──────────────────────────────────────────
+                <div className="p-3 space-y-2">
+                  <input
+                    type="text"
+                    value={editDraft.name}
+                    onChange={e => setEditDraft(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="Fee name"
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm"
+                    autoFocus
+                  />
+                  <div>
+                    <label className="block text-xs text-slate-600 mb-1">Fee Amount</label>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={editDraft.amountInput}
+                        onChange={e => setEditDraft(prev => ({ ...prev, amountInput: e.target.value }))}
+                        className="w-full pl-6 pr-2 py-1.5 border border-slate-300 rounded text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      onClick={() => saveEdit(fee.id)}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium"
+                    >
+                      <Check className="w-3 h-3" /> Save
+                    </button>
+                    <button
+                      onClick={cancelEdit}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded text-xs font-medium"
+                    >
+                      <X className="w-3 h-3" /> Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                // ── Read-only row ─────────────────────────────────────────────
+                <div className="flex justify-between items-center p-2">
+                  <div>
+                    <p className="font-medium text-sm">{fee.name}</p>
+                    <p className="text-xs text-slate-600">{formatCurrency(fee.amount_cents)}</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => startEdit(fee)}
+                      className="p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded"
+                      title="Edit fee"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleRemoveFee(fee.id)}
+                      className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
+                      title="Remove fee"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
