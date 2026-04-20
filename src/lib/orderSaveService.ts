@@ -156,6 +156,11 @@ export async function saveOrderChanges({
     ]);
   }
 
+  // Effective total: scalar pricing engine base + relational custom fees - relational discounts.
+  // Declared at function scope so both the balance_due_cents write and the shouldClearPayment
+  // branch below can reference the same value.
+  let effectiveTotalCents = 0;
+
   // Apply calculated pricing
   if (calculatedPricing) {
     changes.subtotal_cents = calculatedPricing.subtotal_cents;
@@ -173,10 +178,9 @@ export async function saveOrderChanges({
     const finalDepositCents = customDepositCents !== null ? customDepositCents : calculatedPricing.deposit_due_cents;
     changes.deposit_due_cents = finalDepositCents;
 
-    // Effective total: scalar pricing engine base + relational custom fees - relational discounts.
     // discounts and customFees are the relational rows being saved in this same call.
     // Using calculateTotalFromOrder here keeps balance_due_cents consistent with displayed totals.
-    const effectiveTotalCents = calculateTotalFromOrder(
+    effectiveTotalCents = calculateTotalFromOrder(
       { ...order, ...calculatedPricing },
       discounts.filter(d => !d.is_deleted),
       customFees.filter(f => !f.is_deleted),
