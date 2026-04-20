@@ -309,7 +309,7 @@ export async function saveOrderChanges({
       shouldClearPayment = true;
       logs.push(['payment_method', 'cleared', `deposit increased from ${currentPaidAmount} to ${finalDepositCents}`]);
     } else if (currentPaidAmount >= calculateStoredOrderTotal(order)) {
-      const newTotal = calculatedPricing.total_cents;
+      const newTotal = effectiveTotalCents;
       if (newTotal > currentPaidAmount) {
         shouldClearPayment = true;
         logs.push(['payment_method', 'cleared', `paid in full but total increased from ${currentPaidAmount} to ${newTotal}`]);
