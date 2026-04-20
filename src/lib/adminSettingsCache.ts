@@ -105,6 +105,7 @@ export const ADMIN_SETTING_KEYS = {
   TAX_RATE: 'tax_rate',
   GENERATOR_BASE_PRICE: 'generator_base_price_cents',
   GENERATOR_MULTI_DAY_FEE: 'generator_multi_day_fee_cents',
+  BUSINESS_PHONE: 'business_phone',
 } as const;
 
 export type AdminSettingKey = typeof ADMIN_SETTING_KEYS[keyof typeof ADMIN_SETTING_KEYS];

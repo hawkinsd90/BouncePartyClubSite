@@ -10,7 +10,31 @@ import { checkMultipleUnitsAvailability } from './availability';
 import { formatOrderId, createShortPortalLink } from './utils';
 import { logGroupedTransactions } from './transactionReceiptService';
 import { enterConfirmed } from './orderLifecycle';
-import { COMPANY_PHONE } from './emailTemplateBase';
+import { getAdminSetting, ADMIN_SETTING_KEYS } from './adminSettingsCache';
+
+const BUSINESS_PHONE_FALLBACK = '(313) 889-3860';
+
+interface OrderTotalFields {
+  subtotal_cents: number | null;
+  travel_fee_cents: number | null;
+  surface_fee_cents?: number | null;
+  same_day_pickup_fee_cents?: number | null;
+  generator_fee_cents?: number | null;
+  tax_cents?: number | null;
+  tip_cents?: number | null;
+}
+
+function calcApprovalTotalCents(order: OrderTotalFields): number {
+  return (
+    (order.subtotal_cents ?? 0) +
+    (order.travel_fee_cents ?? 0) +
+    (order.surface_fee_cents ?? 0) +
+    (order.same_day_pickup_fee_cents ?? 0) +
+    (order.generator_fee_cents ?? 0) +
+    (order.tax_cents ?? 0) +
+    (order.tip_cents ?? 0)
+  );
+}
 
 interface ApprovalResult {
   success: boolean;
@@ -73,6 +97,9 @@ export async function approveOrder(
     if (effectiveDeposit <= 0) {
       const { data: claimedRows, error: confirmError } = await supabase
         .from('orders')
+        // stripe_payment_status: 'paid' here means the deposit obligation is satisfied
+        // by admin waiver — no Stripe charge occurred. This signals to the customer portal
+        // that no payment is required to proceed.
         .update({ status: ORDER_STATUS.CONFIRMED, stripe_payment_status: 'paid' })
         .eq('id', orderId)
         .not('status', 'in', '("confirmed","cancelled","void")')
@@ -90,13 +117,7 @@ export async function approveOrder(
         .maybeSingle();
 
       const customerNoDeposit = orderWithRelationsNoDeposit?.customers as any;
-      const totalCentsNoDeposit =
-        (orderData.subtotal_cents || 0) +
-        (orderData.travel_fee_cents || 0) +
-        ((orderData as any).surface_fee_cents ?? 0) +
-        ((orderData as any).same_day_pickup_fee_cents ?? 0) +
-        ((orderData as any).tax_cents ?? 0) +
-        ((orderData as any).tip_cents ?? 0);
+      const totalCentsNoDeposit = calcApprovalTotalCents(orderData as OrderTotalFields);
 
       if (customerNoDeposit) {
         const portalUrlNoDeposit = await createShortPortalLink(orderId, supabase, orderData.event_date);
@@ -152,12 +173,7 @@ export async function approveOrder(
         const declineUrl = await createShortPortalLink(orderId, supabase, fullOrder?.event_date);
 
         if (fullOrder?.customers?.email) {
-          const { data: phoneSetting } = await supabase
-            .from('admin_settings')
-            .select('value')
-            .eq('key', 'business_phone')
-            .maybeSingle();
-          const businessPhone = phoneSetting?.value || COMPANY_PHONE;
+          const businessPhone = (await getAdminSetting(ADMIN_SETTING_KEYS.BUSINESS_PHONE)) ?? BUSINESS_PHONE_FALLBACK;
           const declineEmailHtml = generateCardDeclinedEmail(fullOrder, declineUrl, businessPhone);
           await sendEmail({
             to: fullOrder.customers.email,
@@ -251,31 +267,28 @@ export async function approveOrder(
     const { data: invoiceNumberData } = await supabase.rpc('generate_invoice_number');
     const invoiceNumber = invoiceNumberData || `INV-${Date.now()}`;
 
-    const totalCents =
-      orderData.subtotal_cents +
-      orderData.travel_fee_cents +
-      (orderData.surface_fee_cents ?? 0) +
-      (orderData.same_day_pickup_fee_cents ?? 0) +
-      (orderData.tax_cents ?? 0) +
-      (orderData.tip_cents ?? 0);
+    const totalCents = calcApprovalTotalCents(orderData as OrderTotalFields);
 
     // Determine invoice status based on payment amount vs total
     const invoiceStatus = paidAmountCents >= totalCents ? 'paid' : (paidAmountCents > 0 ? 'partial' : 'sent');
 
-    await supabase.from('invoices').insert({
+    const { error: invoiceError } = await supabase.from('invoices').insert({
       invoice_number: invoiceNumber,
       order_id: orderId,
       customer_id: orderData.customer_id,
       due_date: orderData.event_date,
       status: invoiceStatus,
-      subtotal_cents: orderData.subtotal_cents,
+      subtotal_cents: orderData.subtotal_cents ?? 0,
       tax_cents: orderData.tax_cents ?? 0,
       travel_fee_cents: orderData.travel_fee_cents ?? 0,
-      surface_fee_cents: orderData.surface_fee_cents ?? 0,
-      same_day_pickup_fee_cents: orderData.same_day_pickup_fee_cents ?? 0,
+      surface_fee_cents: (orderData as any).surface_fee_cents ?? 0,
+      same_day_pickup_fee_cents: (orderData as any).same_day_pickup_fee_cents ?? 0,
       total_cents: totalCents,
       paid_amount_cents: paidAmountCents,
     });
+    if (invoiceError) {
+      console.error('[orderApprovalService] Invoice insert failed (non-fatal, order already confirmed):', invoiceError);
+    }
 
     const { data: orderWithRelations } = await supabase
       .from('orders')
@@ -298,7 +311,7 @@ export async function approveOrder(
     }
 
     try {
-      await enterConfirmed(orderId, 'admin_approve_charge_deposit', 'charged_now');
+      await enterConfirmed(orderId, 'admin_approve_charge_deposit', 'charged_now', orderData.status);
     } catch (lifecycleErr) {
       console.error('[orderApprovalService] enterConfirmed (charge-deposit) failed (non-fatal):', lifecycleErr);
     }
