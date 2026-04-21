@@ -200,14 +200,16 @@ export function ReceiptModal({ order, payment, summary, loading, onClose }: Rece
                   <span className="text-gray-700">Balance Paid:</span>
                   <span className="font-medium text-green-600">{formatCurrency(order.balance_paid_cents)}</span>
                 </div>
-                <div className="flex justify-between pt-2 border-t border-gray-200 font-semibold text-lg">
-                  <span className="text-gray-900">Remaining Balance:</span>
-                  <span className="text-blue-700">
-                    {formatCurrency(
-                      (summary ? summary.total : 0) - order.deposit_paid_cents - order.balance_paid_cents
-                    )}
-                  </span>
-                </div>
+                {summary && (
+                  <div className="flex justify-between pt-2 border-t border-gray-200 font-semibold text-lg">
+                    <span className="text-gray-900">Remaining Balance:</span>
+                    <span className="text-blue-700">
+                      {formatCurrency(
+                        Math.max(0, summary.total - order.deposit_paid_cents - order.balance_paid_cents)
+                      )}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 

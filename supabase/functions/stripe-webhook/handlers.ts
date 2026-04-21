@@ -675,28 +675,43 @@ export async function handleChargeRefunded(
     .eq("id", originalPayment.order_id)
     .single();
 
-  const { data: refundPayment, error: paymentInsertError } = await supabaseClient
+  // Idempotency guard: if this webhook is retried after a partial success, the
+  // refund payment row may already exist. Detect by refunded_payment_id + type.
+  const { data: existingRefundPayment } = await supabaseClient
     .from("payments")
-    .insert({
-      order_id: originalPayment.order_id,
-      stripe_payment_intent_id: paymentIntentId,
-      amount_cents: refundAmountSigned,
-      type: "incidental",
-      status: "succeeded",
-      paid_at: new Date().toISOString(),
-      payment_method: originalPayment.payment_method,
-      payment_brand: originalPayment.payment_brand,
-      refunded_payment_id: originalPayment.id,
-      stripe_fee_amount: 0,
-      stripe_net_amount: refundAmountSigned,
-      currency: 'usd',
-    })
-    .select('id')
+    .select("id")
+    .eq("refunded_payment_id", originalPayment.id)
+    .eq("type", "incidental")
     .maybeSingle();
 
-  if (paymentInsertError) {
-    console.error("[handleChargeRefunded] payments.insert failed:", paymentInsertError);
-    throw new Error(`Refund ledger insert failed: ${paymentInsertError.message}`);
+  let refundPayment = existingRefundPayment;
+
+  if (!existingRefundPayment) {
+    const { data: insertedPayment, error: paymentInsertError } = await supabaseClient
+      .from("payments")
+      .insert({
+        order_id: originalPayment.order_id,
+        stripe_payment_intent_id: paymentIntentId,
+        amount_cents: refundAmountSigned,
+        type: "incidental",
+        status: "succeeded",
+        paid_at: new Date().toISOString(),
+        payment_method: originalPayment.payment_method,
+        payment_brand: originalPayment.payment_brand,
+        refunded_payment_id: originalPayment.id,
+        stripe_fee_amount: 0,
+        stripe_net_amount: refundAmountSigned,
+        currency: 'usd',
+      })
+      .select('id')
+      .maybeSingle();
+
+    if (paymentInsertError) {
+      console.error("[handleChargeRefunded] payments.insert failed:", paymentInsertError);
+      throw new Error(`Refund ledger insert failed: ${paymentInsertError.message}`);
+    }
+
+    refundPayment = insertedPayment;
   }
 
   if (order && refundPayment) {
@@ -714,18 +729,43 @@ export async function handleChargeRefunded(
     });
   }
 
-  const { error: refundInsertError } = await supabaseClient.from("order_refunds").insert({
-    order_id: originalPayment.order_id,
-    amount_cents: refundAmountCents,
-    reason: charge.refund_reason || "refund",
-    stripe_refund_id: refundId,
-    refunded_by: null,
-    status: charge.refunded ? "succeeded" : "pending",
-  });
+  // Idempotency guard for order_refunds: skip insert if stripe_refund_id already recorded.
+  if (refundId) {
+    const { data: existingRefundRow } = await supabaseClient
+      .from("order_refunds")
+      .select("id")
+      .eq("stripe_refund_id", refundId)
+      .maybeSingle();
 
-  if (refundInsertError) {
-    console.error("[handleChargeRefunded] order_refunds.insert failed:", refundInsertError);
-    throw new Error(`order_refunds insert failed: ${refundInsertError.message}`);
+    if (!existingRefundRow) {
+      const { error: refundInsertError } = await supabaseClient.from("order_refunds").insert({
+        order_id: originalPayment.order_id,
+        amount_cents: refundAmountCents,
+        reason: charge.refund_reason || "refund",
+        stripe_refund_id: refundId,
+        refunded_by: null,
+        status: charge.refunded ? "succeeded" : "pending",
+      });
+
+      if (refundInsertError) {
+        console.error("[handleChargeRefunded] order_refunds.insert failed:", refundInsertError);
+        throw new Error(`order_refunds insert failed: ${refundInsertError.message}`);
+      }
+    }
+  } else {
+    const { error: refundInsertError } = await supabaseClient.from("order_refunds").insert({
+      order_id: originalPayment.order_id,
+      amount_cents: refundAmountCents,
+      reason: charge.refund_reason || "refund",
+      stripe_refund_id: null,
+      refunded_by: null,
+      status: charge.refunded ? "succeeded" : "pending",
+    });
+
+    if (refundInsertError) {
+      console.error("[handleChargeRefunded] order_refunds.insert failed:", refundInsertError);
+      throw new Error(`order_refunds insert failed: ${refundInsertError.message}`);
+    }
   }
 }
 

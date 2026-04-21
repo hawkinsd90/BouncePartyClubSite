@@ -177,10 +177,10 @@ Deno.serve(async (req: Request) => {
 
       discountCents = (orderDiscounts || []).reduce(
         (sum: number, d: { amount_cents: number; percentage: number }) => {
-          if (d.amount_cents > 0) return sum + d.amount_cents;
           if (d.percentage > 0) {
             return sum + Math.round((order.subtotal_cents || 0) * (d.percentage / 100));
           }
+          if (d.amount_cents > 0) return sum + d.amount_cents;
           return sum;
         },
         0
