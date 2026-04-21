@@ -675,7 +675,7 @@ export async function handleChargeRefunded(
     .eq("id", originalPayment.order_id)
     .single();
 
-  const { data: refundPayment } = await supabaseClient
+  const { data: refundPayment, error: paymentInsertError } = await supabaseClient
     .from("payments")
     .insert({
       order_id: originalPayment.order_id,
@@ -694,6 +694,11 @@ export async function handleChargeRefunded(
     .select('id')
     .maybeSingle();
 
+  if (paymentInsertError) {
+    console.error("[handleChargeRefunded] payments.insert failed:", paymentInsertError);
+    throw new Error(`Refund ledger insert failed: ${paymentInsertError.message}`);
+  }
+
   if (order && refundPayment) {
     await logTransaction(supabaseClient, {
       transactionType: 'refund',
@@ -709,7 +714,7 @@ export async function handleChargeRefunded(
     });
   }
 
-  await supabaseClient.from("order_refunds").insert({
+  const { error: refundInsertError } = await supabaseClient.from("order_refunds").insert({
     order_id: originalPayment.order_id,
     amount_cents: refundAmountCents,
     reason: charge.refund_reason || "refund",
@@ -717,6 +722,11 @@ export async function handleChargeRefunded(
     refunded_by: null,
     status: charge.refunded ? "succeeded" : "pending",
   });
+
+  if (refundInsertError) {
+    console.error("[handleChargeRefunded] order_refunds.insert failed:", refundInsertError);
+    throw new Error(`order_refunds insert failed: ${refundInsertError.message}`);
+  }
 }
 
 export async function handleSetupIntentSucceeded(

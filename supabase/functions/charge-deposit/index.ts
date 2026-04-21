@@ -179,12 +179,7 @@ Deno.serve(async (req: Request) => {
         (sum: number, d: { amount_cents: number; percentage: number }) => {
           if (d.amount_cents > 0) return sum + d.amount_cents;
           if (d.percentage > 0) {
-            const base =
-              (order.subtotal_cents || 0) +
-              (order.generator_fee_cents || 0) +
-              (order.travel_fee_cents || 0) +
-              (order.surface_fee_cents || 0);
-            return sum + Math.round(base * (d.percentage / 100));
+            return sum + Math.round((order.subtotal_cents || 0) * (d.percentage / 100));
           }
           return sum;
         },

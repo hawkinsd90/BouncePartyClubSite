@@ -13,7 +13,7 @@ export interface OrderRow {
   surface?: string | null;
   order_items?: Array<{ qty: number; wet_or_dry: string; unit_price_cents: number; units?: { name: string } | null }>;
   order_custom_fees?: Array<{ name?: string | null; amount_cents: number }>;
-  order_discounts?: Array<{ name?: string | null; amount_cents: number }>;
+  order_discounts?: Array<{ name?: string | null; amount_cents: number; percentage?: number | null }>;
   subtotal_cents?: number | null;
   travel_fee_cents?: number | null;
   surface_fee_cents?: number | null;
@@ -105,11 +105,20 @@ export function buildPaymentReceiptEmail(opts: PaymentReceiptEmailOpts): string 
   if ((order.generator_fee_cents || 0) > 0) pricingRows.push({ label: "Generator Fee", value: fmt(order.generator_fee_cents!) });
   if ((order.same_day_pickup_fee_cents || 0) > 0) pricingRows.push({ label: "Same Day Pickup", value: fmt(order.same_day_pickup_fee_cents!) });
   customFees.forEach(f => pricingRows.push({ label: f.name || "Additional Fee", value: fmt(f.amount_cents) }));
-  discounts.forEach(d => pricingRows.push({ label: d.name || "Discount", value: `-${fmt(d.amount_cents)}` }));
+  discounts.forEach(d => {
+    const discountAmt = (d.percentage && d.percentage > 0)
+      ? Math.round((order.subtotal_cents || 0) * (d.percentage / 100))
+      : (d.amount_cents || 0);
+    pricingRows.push({ label: d.name || "Discount", value: `-${fmt(discountAmt)}` });
+  });
   if ((order.tax_cents || 0) > 0) pricingRows.push({ label: "Tax", value: fmt(order.tax_cents!) });
   const orderTotal = (order.subtotal_cents || 0) + (order.travel_fee_cents || 0) + (order.surface_fee_cents || 0) +
     (order.generator_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.tax_cents || 0) +
-    customFees.reduce((s, f) => s + f.amount_cents, 0) - discounts.reduce((s, d) => s + d.amount_cents, 0);
+    customFees.reduce((s, f) => s + f.amount_cents, 0) -
+    discounts.reduce((s, d) => {
+      if (d.percentage && d.percentage > 0) return s + Math.round((order.subtotal_cents || 0) * (d.percentage / 100));
+      return s + (d.amount_cents || 0);
+    }, 0);
   pricingRows.push({ label: "Total", value: fmt(orderTotal), bold: true });
   if ((order.deposit_paid_cents || 0) > 0) pricingRows.push({ label: "Deposit Paid", value: fmt(order.deposit_paid_cents!), highlight: true });
   if ((order.balance_paid_cents || 0) > 0) pricingRows.push({ label: "Balance Paid", value: fmt(order.balance_paid_cents!), highlight: true });
