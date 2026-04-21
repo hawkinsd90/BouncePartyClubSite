@@ -1,5 +1,7 @@
 import { formatCurrency } from '../../lib/pricing';
 import { format } from 'date-fns';
+import { useState, useEffect } from 'react';
+import { getMultipleAdminSettings } from '../../lib/adminSettingsCache';
 
 interface PrintableInvoiceProps {
   quoteData: any;
@@ -39,6 +41,15 @@ export function PrintableInvoice({
   discounts = [],
 }: PrintableInvoiceProps) {
   const today = format(new Date(), 'MMMM d, yyyy');
+  const [bizPhone, setBizPhone] = useState('(313) 889-3860');
+  const [bizEmail, setBizEmail] = useState('admin@bouncepartyclub.com');
+
+  useEffect(() => {
+    getMultipleAdminSettings(['business_phone', 'business_email']).then(settings => {
+      if (settings['business_phone']) setBizPhone(settings['business_phone']);
+      if (settings['business_email']) setBizEmail(settings['business_email']);
+    });
+  }, []);
 
   // Use the deposit from priceBreakdown instead of fetching from database
   const depositAmount = formatCurrency(priceBreakdown?.deposit_due_cents || 5000);
@@ -79,8 +90,8 @@ export function PrintableInvoice({
                   BOUNCE PARTY CLUB
                 </h1>
                 <p className="text-blue-100 text-sm">Wayne, Michigan</p>
-                <p className="text-blue-100 text-sm">Phone: (313) 889-3860</p>
-                <p className="text-blue-100 text-sm">Email: bouncepartyclubllc@gmail.com</p>
+                <p className="text-blue-100 text-sm">Phone: {bizPhone}</p>
+                <p className="text-blue-100 text-sm">Email: {bizEmail}</p>
               </div>
             </div>
             <div className="text-right">
@@ -390,7 +401,7 @@ export function PrintableInvoice({
 
           <div className="mt-8 text-center border-t border-slate-200 pt-6">
             <p className="text-slate-900 font-semibold mb-1">Thank you for your business!</p>
-            <p className="text-sm text-slate-600">For questions, please contact us at (313) 889-3860 or bouncepartyclubllc@gmail.com</p>
+            <p className="text-sm text-slate-600">For questions, please contact us at {bizPhone} or {bizEmail}</p>
           </div>
         </div>
       </div>

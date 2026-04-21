@@ -24,7 +24,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { validatePaymentMethod } from "../_shared/payment-validation.ts";
 import { formatOrderId } from "../_shared/format-order-id.ts";
 import { logTransaction } from "../_shared/transaction-logger.ts";
-import { formatCurrency } from "../_shared/fmt.ts";
+import { formatCurrency, formatPaymentMethodLabel } from "../_shared/fmt.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -515,11 +515,7 @@ function buildReceiptEmail(opts: {
   const businessName = biz.business_name || "Bounce Party Club";
   const businessPhone = biz.business_phone || "(313) 889-3860";
 
-  const cardText = cardBrand && cardLast4
-    ? `${cardBrand.charAt(0).toUpperCase() + cardBrand.slice(1)} \u2022\u2022\u2022\u2022 ${cardLast4}`
-    : cardLast4
-    ? `Card \u2022\u2022\u2022\u2022 ${cardLast4}`
-    : "Card on file";
+  const cardText = formatPaymentMethodLabel(cardBrand || cardLast4 ? "card" : null, cardBrand, cardLast4);
 
   const eventDateStr = eventDate
     ? new Date(eventDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })

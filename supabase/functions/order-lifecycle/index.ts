@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { formatCurrency } from "../_shared/fmt.ts";
+import { formatOrderId } from "../_shared/format-order-id.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -271,10 +272,6 @@ async function enterConfirmed(
 // ============================================================
 // SHARED: Admin notification helpers
 // ============================================================
-
-function formatOrderId(id: string): string {
-  return id.replace(/-/g, "").toUpperCase().slice(0, 8);
-}
 
 const fmt = formatCurrency;
 

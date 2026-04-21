@@ -1,6 +1,8 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Home, ArrowRight } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
+import { useState, useEffect } from 'react';
+import { getAdminSetting } from '../../lib/adminSettingsCache';
 
 interface OrderDetails {
   id: string;
@@ -23,6 +25,13 @@ export function PaymentSuccessState({ orderDetails, sessionTipCents = 0 }: Payme
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get('order_id') || orderDetails?.id;
+  const [businessPhone, setBusinessPhone] = useState('(313) 889-3860');
+
+  useEffect(() => {
+    getAdminSetting('business_phone').then(val => {
+      if (val) setBusinessPhone(val);
+    });
+  }, []);
 
   const displayTipCents = orderDetails?.tip_cents || sessionTipCents;
 
@@ -129,7 +138,7 @@ export function PaymentSuccessState({ orderDetails, sessionTipCents = 0 }: Payme
               </p>
               <p className="text-sm text-slate-600">
                 If you have any questions, contact us at{' '}
-                <span className="font-semibold">(313) 889-3860</span>.
+                <span className="font-semibold">{businessPhone}</span>.
               </p>
             </div>
           </div>
@@ -139,7 +148,7 @@ export function PaymentSuccessState({ orderDetails, sessionTipCents = 0 }: Payme
           <p className="text-lg font-semibold text-slate-900 mb-6">Thank You!</p>
           <p className="text-sm text-slate-500 italic">
             Thank you for choosing Bounce Party Club to bring energy and excitement to your event.
-            If you have any questions, contact us at (313) 889-3860.
+            If you have any questions, contact us at {businessPhone}.
           </p>
         </div>
 

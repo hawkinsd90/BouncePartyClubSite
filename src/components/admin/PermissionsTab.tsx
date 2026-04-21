@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { Shield, Trash2, History, UserPlus } from 'lucide-react';
 import { notifyError, notifySuccess, showConfirm } from '../../lib/notifications';
 import { LoadingSpinner } from '../common/LoadingSpinner';
+import { getAdminSetting } from '../../lib/adminSettingsCache';
 
 interface UserRole {
   user_id: string;
@@ -207,7 +208,7 @@ export function PermissionsTab() {
             Authorization: `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
-            to: import.meta.env.VITE_ADMIN_EMAIL || 'admin@bouncepartyclub.com',
+            to: (await getAdminSetting('admin_email')) || 'admin@bouncepartyclub.com',
             subject,
             html: `<p>${message}</p><p>This is an automated notification for security and audit purposes.</p>`,
           }),

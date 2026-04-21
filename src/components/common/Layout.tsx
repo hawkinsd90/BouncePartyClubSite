@@ -4,8 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { SafeStorage } from '../../lib/safeStorage';
 import { useState, useEffect } from 'react';
 import { notifyError } from '../../lib/notifications';
-import { getBusinessAddressText } from '../../lib/adminSettingsCache';
-import { supabase } from '../../lib/supabase';
+import { getBusinessAddressText, getMultipleAdminSettings } from '../../lib/adminSettingsCache';
 
 export function Layout() {
   const { user, isAdmin, hasRole, signOut } = useAuth();
@@ -13,36 +12,27 @@ export function Layout() {
   const [cartCount, setCartCount] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [businessAddress, setBusinessAddress] = useState('');
+  const [businessPhone, setBusinessPhone] = useState('(313) 889-3860');
+  const [businessEmail, setBusinessEmail] = useState('admin@bouncepartyclub.com');
   const [instagramUrl, setInstagramUrl] = useState('');
   const [facebookUrl, setFacebookUrl] = useState('');
 
   useEffect(() => {
     getBusinessAddressText().then(setBusinessAddress);
 
-    const loadSocialLinks = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('admin_settings')
-          .select('key, value')
-          .in('key', ['instagram_url', 'facebook_url']);
-
-        if (error) {
-          console.error('Error loading social links:', error);
-          return;
-        }
-
-        if (data) {
-          const instagram = data.find(s => s.key === 'instagram_url')?.value || '';
-          const facebook = data.find(s => s.key === 'facebook_url')?.value || '';
-          setInstagramUrl(instagram);
-          setFacebookUrl(facebook);
-        }
-      } catch (err) {
-        console.error('Exception loading social links:', err);
-      }
-    };
-
-    loadSocialLinks();
+    getMultipleAdminSettings([
+      'business_phone',
+      'business_email',
+      'instagram_url',
+      'facebook_url',
+    ]).then(settings => {
+      if (settings['business_phone']) setBusinessPhone(settings['business_phone']);
+      if (settings['business_email']) setBusinessEmail(settings['business_email']);
+      if (settings['instagram_url']) setInstagramUrl(settings['instagram_url']);
+      if (settings['facebook_url']) setFacebookUrl(settings['facebook_url']);
+    }).catch(err => {
+      console.error('Exception loading business settings:', err);
+    });
   }, []);
 
   useEffect(() => {
@@ -146,11 +136,11 @@ export function Layout() {
 
             <div className="flex items-center space-x-2 sm:space-x-4">
               <a
-                href="tel:+13138893860"
+                href={`tel:${businessPhone.replace(/\D/g, '')}`}
                 className="hidden lg:flex items-center text-slate-600 hover:text-blue-600 transition-colors min-h-[44px]"
               >
                 <Phone className="w-5 h-5 mr-2" />
-                <span className="font-medium">(313) 889-3860</span>
+                <span className="font-medium">{businessPhone}</span>
               </a>
               <div className="hidden md:flex items-center space-x-4">
                 {user ? (
@@ -254,11 +244,11 @@ export function Layout() {
               )}
               <div className="border-t border-slate-200 pt-3 mt-3 space-y-1">
                 <a
-                  href="tel:+13138893860"
+                  href={`tel:${businessPhone.replace(/\D/g, '')}`}
                   className="flex items-center text-slate-600 hover:text-blue-600 py-3 px-2 transition-colors min-h-[44px] rounded-lg hover:bg-blue-50"
                 >
                   <Phone className="w-5 h-5 mr-3" />
-                  <span className="font-medium">(313) 889-3860</span>
+                  <span className="font-medium">{businessPhone}</span>
                 </a>
                 {user ? (
                   <>
@@ -340,17 +330,17 @@ export function Layout() {
               <ul className="space-y-2 text-sm text-slate-400">
                 <li className="flex items-center">
                   <Phone className="w-4 h-4 mr-2" />
-                  <a href="tel:+13138893860" className="hover:text-white transition-colors">
-                    (313) 889-3860
+                  <a href={`tel:${businessPhone.replace(/\D/g, '')}`} className="hover:text-white transition-colors">
+                    {businessPhone}
                   </a>
                 </li>
                 <li className="flex items-center">
                   <Mail className="w-4 h-4 mr-2" />
                   <a
-                    href="mailto:admin@bouncepartyclub.com"
+                    href={`mailto:${businessEmail}`}
                     className="hover:text-white transition-colors"
                   >
-                    admin@bouncepartyclub.com
+                    {businessEmail}
                   </a>
                 </li>
               </ul>

@@ -24,7 +24,7 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import Stripe from "npm:stripe@20.0.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
-import { formatCurrency } from "../_shared/fmt.ts";
+import { formatCurrency, formatPaymentMethodLabel } from "../_shared/fmt.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -345,9 +345,7 @@ Deno.serve(async (req: Request) => {
         const contactName = customer.first_name
           ? `${customer.first_name} ${customer.last_name || ""}`.trim()
           : "Customer";
-        const cardText = paymentBrand && paymentLast4
-          ? `${paymentBrand.charAt(0).toUpperCase() + paymentBrand.slice(1)} \u2022\u2022\u2022\u2022 ${paymentLast4}`
-          : paymentLast4 ? `Card \u2022\u2022\u2022\u2022 ${paymentLast4}` : "Card on file";
+        const cardText = formatPaymentMethodLabel(paymentMethodType, paymentBrand, paymentLast4);
 
         const eventDateStr = currentOrder?.event_date
           ? new Date(currentOrder.event_date + "T12:00:00").toLocaleDateString("en-US", {
