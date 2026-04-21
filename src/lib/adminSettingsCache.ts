@@ -1,10 +1,75 @@
 import { supabase } from './supabase';
 
+const CACHE_DURATION_MS = 5 * 60 * 1000;
+
+export interface PublicBusinessSettings {
+  business_name: string | null;
+  business_phone: string | null;
+  business_email: string | null;
+  logo_url: string | null;
+  instagram_url: string | null;
+  facebook_url: string | null;
+  business_address: string | null;
+  home_address_line1: string | null;
+  home_address_line2: string | null;
+  home_address_city: string | null;
+  home_address_state: string | null;
+  home_address_zip: string | null;
+}
+
+let publicSettingsCache: { data: PublicBusinessSettings; timestamp: number } | null = null;
+
+export async function getPublicBusinessSettings(useCache = true): Promise<PublicBusinessSettings> {
+  const now = Date.now();
+  if (useCache && publicSettingsCache && now - publicSettingsCache.timestamp < CACHE_DURATION_MS) {
+    return publicSettingsCache.data;
+  }
+
+  const { data, error } = await supabase.rpc('get_public_business_settings');
+
+  const defaults: PublicBusinessSettings = {
+    business_name: 'Bounce Party Club',
+    business_phone: '(313) 889-3860',
+    business_email: 'admin@bouncepartyclub.com',
+    logo_url: null,
+    instagram_url: null,
+    facebook_url: null,
+    business_address: '4426 Woodward St, Wayne, MI 48184',
+    home_address_line1: '4426 Woodward St',
+    home_address_line2: null,
+    home_address_city: 'Wayne',
+    home_address_state: 'MI',
+    home_address_zip: '48184',
+  };
+
+  if (error || !data) {
+    console.error('Error fetching public business settings:', error);
+    return defaults;
+  }
+
+  const result: PublicBusinessSettings = {
+    business_name: data.business_name ?? defaults.business_name,
+    business_phone: data.business_phone ?? defaults.business_phone,
+    business_email: data.business_email ?? defaults.business_email,
+    logo_url: data.logo_url ?? defaults.logo_url,
+    instagram_url: data.instagram_url ?? defaults.instagram_url,
+    facebook_url: data.facebook_url ?? defaults.facebook_url,
+    business_address: data.business_address ?? defaults.business_address,
+    home_address_line1: data.home_address_line1 ?? defaults.home_address_line1,
+    home_address_line2: data.home_address_line2 ?? defaults.home_address_line2,
+    home_address_city: data.home_address_city ?? defaults.home_address_city,
+    home_address_state: data.home_address_state ?? defaults.home_address_state,
+    home_address_zip: data.home_address_zip ?? defaults.home_address_zip,
+  };
+
+  publicSettingsCache = { data: result, timestamp: now };
+  return result;
+}
+
 interface AdminSettingsCache {
   [key: string]: { value: string | null; timestamp: number };
 }
 
-const CACHE_DURATION_MS = 5 * 60 * 1000;
 const cache: AdminSettingsCache = {};
 
 export async function getAdminSetting(key: string, useCache = true): Promise<string | null> {

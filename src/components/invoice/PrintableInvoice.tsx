@@ -1,7 +1,7 @@
 import { formatCurrency } from '../../lib/pricing';
 import { format } from 'date-fns';
 import { useState, useEffect } from 'react';
-import { getMultipleAdminSettings } from '../../lib/adminSettingsCache';
+import { getPublicBusinessSettings } from '../../lib/adminSettingsCache';
 
 interface PrintableInvoiceProps {
   quoteData: any;
@@ -45,9 +45,9 @@ export function PrintableInvoice({
   const [bizEmail, setBizEmail] = useState('admin@bouncepartyclub.com');
 
   useEffect(() => {
-    getMultipleAdminSettings(['business_phone', 'business_email']).then(settings => {
-      if (settings['business_phone']) setBizPhone(settings['business_phone']);
-      if (settings['business_email']) setBizEmail(settings['business_email']);
+    getPublicBusinessSettings().then(settings => {
+      if (settings.business_phone) setBizPhone(settings.business_phone);
+      if (settings.business_email) setBizEmail(settings.business_email);
     });
   }, []);
 

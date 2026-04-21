@@ -2,7 +2,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Home, ArrowRight } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
 import { useState, useEffect } from 'react';
-import { getAdminSetting } from '../../lib/adminSettingsCache';
+import { getPublicBusinessSettings } from '../../lib/adminSettingsCache';
 
 interface OrderDetails {
   id: string;
@@ -28,8 +28,8 @@ export function PaymentSuccessState({ orderDetails, sessionTipCents = 0 }: Payme
   const [businessPhone, setBusinessPhone] = useState('(313) 889-3860');
 
   useEffect(() => {
-    getAdminSetting('business_phone').then(val => {
-      if (val) setBusinessPhone(val);
+    getPublicBusinessSettings().then(settings => {
+      if (settings.business_phone) setBusinessPhone(settings.business_phone);
     });
   }, []);
 

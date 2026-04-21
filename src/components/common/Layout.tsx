@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { SafeStorage } from '../../lib/safeStorage';
 import { useState, useEffect } from 'react';
 import { notifyError } from '../../lib/notifications';
-import { getBusinessAddressText, getMultipleAdminSettings } from '../../lib/adminSettingsCache';
+import { getPublicBusinessSettings } from '../../lib/adminSettingsCache';
 
 export function Layout() {
   const { user, isAdmin, hasRole, signOut } = useAuth();
@@ -18,18 +18,12 @@ export function Layout() {
   const [facebookUrl, setFacebookUrl] = useState('');
 
   useEffect(() => {
-    getBusinessAddressText().then(setBusinessAddress);
-
-    getMultipleAdminSettings([
-      'business_phone',
-      'business_email',
-      'instagram_url',
-      'facebook_url',
-    ]).then(settings => {
-      if (settings['business_phone']) setBusinessPhone(settings['business_phone']);
-      if (settings['business_email']) setBusinessEmail(settings['business_email']);
-      if (settings['instagram_url']) setInstagramUrl(settings['instagram_url']);
-      if (settings['facebook_url']) setFacebookUrl(settings['facebook_url']);
+    getPublicBusinessSettings().then(settings => {
+      if (settings.business_address) setBusinessAddress(settings.business_address);
+      if (settings.business_phone) setBusinessPhone(settings.business_phone);
+      if (settings.business_email) setBusinessEmail(settings.business_email);
+      if (settings.instagram_url) setInstagramUrl(settings.instagram_url);
+      if (settings.facebook_url) setFacebookUrl(settings.facebook_url);
     }).catch(err => {
       console.error('Exception loading business settings:', err);
     });
