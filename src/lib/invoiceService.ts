@@ -288,6 +288,6 @@ export async function generateInvoice(invoiceData: InvoiceData, customer: Custom
 
   return {
     order,
-    invoiceUrl: result.invoiceUrl,
+    invoiceUrl: result.shortInvoiceUrl || result.invoiceUrl,
   };
 }
