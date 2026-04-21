@@ -21,6 +21,7 @@ interface OrderApprovalViewProps {
   order: any;
   changelog: any[];
   orderSummary: any;
+  invoiceLinkToken?: string | null;
   autoOpenApprovalModal?: boolean;
   restoredPaymentState?: RestoredPaymentState;
   onApprovalProcessingStart?: () => void;
@@ -33,6 +34,7 @@ export function OrderApprovalView({
   order,
   changelog,
   orderSummary,
+  invoiceLinkToken,
   autoOpenApprovalModal = false,
   restoredPaymentState,
   onApprovalProcessingStart,
@@ -532,6 +534,7 @@ export function OrderApprovalView({
         paymentAmount={paymentAmount}
         customPaymentAmount={customPaymentAmount}
         orderTotalCents={currentTotalCents}
+        invoiceLinkToken={invoiceLinkToken}
       />
 
       <RejectionModal

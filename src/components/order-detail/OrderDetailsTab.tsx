@@ -165,7 +165,7 @@ export function OrderDetailsTab({
       {(() => {
         const itemsChanged = stagedItems.some(item => item.is_new || item.is_deleted);
         const finalDepositCents = customDepositCents !== null ? customDepositCents : (calculatedPricing?.deposit_due_cents || order.deposit_due_cents);
-        const currentPaidAmount = order.stripe_amount_paid_cents || 0;
+        const currentPaidAmount = order.deposit_paid_cents || 0;
         const originalTotal = calculateStoredOrderTotal(order);
         const newTotal = calculatedPricing?.total_cents || originalTotal;
 

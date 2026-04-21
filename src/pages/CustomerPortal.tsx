@@ -276,6 +276,7 @@ export function CustomerPortal() {
         order={order}
         changelog={changelog}
         orderSummary={orderSummary}
+        invoiceLinkToken={invoiceToken}
         autoOpenApprovalModal={cardJustUpdated}
         restoredPaymentState={restoredPaymentState}
         onApprovalProcessingStart={() => setApprovalProcessing(true)}

@@ -30,6 +30,7 @@ interface ApprovalModalProps {
   paymentAmount: 'deposit' | 'full' | 'custom';
   customPaymentAmount?: string;
   orderTotalCents?: number;
+  invoiceLinkToken?: string | null;
 }
 
 export function ApprovalModal({
@@ -46,6 +47,7 @@ export function ApprovalModal({
   paymentAmount,
   customPaymentAmount = '',
   orderTotalCents,
+  invoiceLinkToken,
 }: ApprovalModalProps) {
   const [submitting, setSubmitting] = useState(false);
   const [updatingCard, setUpdatingCard] = useState(false);
@@ -142,23 +144,34 @@ export function ApprovalModal({
         // Already paid — persist payment selection and confirm without charging.
         // Only write tip_cents when the customer has actively selected a positive tip.
         // Do not overwrite an existing stored tip with 0 through this flow.
-        const updatePayload: Record<string, unknown> = {
-          customer_selected_payment_cents: selectedPaymentBaseCents,
-          customer_selected_payment_type: resolvedPaymentType,
-          status: ORDER_STATUS.CONFIRMED,
-        };
-
-        if (!keepOriginalPayment && newTipCents > 0) {
-          updatePayload.tip_cents = newTipCents;
-        }
-
-        const { error: statusError } = await supabase
-          .from('orders')
-          .update(updatePayload)
-          .eq('id', order.id);
-
-        if (statusError) {
-          throw new Error(statusError.message || 'Failed to update order status');
+        if (invoiceLinkToken) {
+          const { data: rpcResult, error: rpcError } = await supabase.rpc('approve_order_changes', {
+            p_order_id: order.id,
+            p_token: invoiceLinkToken,
+            p_customer_selected_payment_cents: selectedPaymentBaseCents,
+            p_customer_selected_payment_type: resolvedPaymentType,
+            p_tip_cents: (!keepOriginalPayment && newTipCents > 0) ? newTipCents : null,
+            p_confirm_status: true,
+          });
+          if (rpcError || !rpcResult?.success) {
+            throw new Error(rpcError?.message || rpcResult?.error || 'Failed to update order status');
+          }
+        } else {
+          const updatePayload: Record<string, unknown> = {
+            customer_selected_payment_cents: selectedPaymentBaseCents,
+            customer_selected_payment_type: resolvedPaymentType,
+            status: ORDER_STATUS.CONFIRMED,
+          };
+          if (!keepOriginalPayment && newTipCents > 0) {
+            updatePayload.tip_cents = newTipCents;
+          }
+          const { error: statusError } = await supabase
+            .from('orders')
+            .update(updatePayload)
+            .eq('id', order.id);
+          if (statusError) {
+            throw new Error(statusError.message || 'Failed to update order status');
+          }
         }
 
         try {
@@ -186,23 +199,34 @@ export function ApprovalModal({
 
         // Tip deferred: store tip_cents on the order so it can be collected at
         // final payment. UI already explains "tip collected at your event".
-        const updatePayload: Record<string, unknown> = {
-          customer_selected_payment_cents: 0,
-          customer_selected_payment_type: resolvedPaymentType,
-          status: ORDER_STATUS.CONFIRMED,
-        };
-
-        if (!keepOriginalPayment && newTipCents > 0) {
-          updatePayload.tip_cents = newTipCents;
-        }
-
-        const { error: zeroDepositError } = await supabase
-          .from('orders')
-          .update(updatePayload)
-          .eq('id', order.id);
-
-        if (zeroDepositError) {
-          throw new Error(zeroDepositError.message || 'Failed to confirm order');
+        if (invoiceLinkToken) {
+          const { data: rpcResult, error: rpcError } = await supabase.rpc('approve_order_changes', {
+            p_order_id: order.id,
+            p_token: invoiceLinkToken,
+            p_customer_selected_payment_cents: 0,
+            p_customer_selected_payment_type: resolvedPaymentType,
+            p_tip_cents: (!keepOriginalPayment && newTipCents > 0) ? newTipCents : null,
+            p_confirm_status: true,
+          });
+          if (rpcError || !rpcResult?.success) {
+            throw new Error(rpcError?.message || rpcResult?.error || 'Failed to confirm order');
+          }
+        } else {
+          const updatePayload: Record<string, unknown> = {
+            customer_selected_payment_cents: 0,
+            customer_selected_payment_type: resolvedPaymentType,
+            status: ORDER_STATUS.CONFIRMED,
+          };
+          if (!keepOriginalPayment && newTipCents > 0) {
+            updatePayload.tip_cents = newTipCents;
+          }
+          const { error: zeroDepositError } = await supabase
+            .from('orders')
+            .update(updatePayload)
+            .eq('id', order.id);
+          if (zeroDepositError) {
+            throw new Error(zeroDepositError.message || 'Failed to confirm order');
+          }
         }
 
         // Send confirmation notification via edge function (fire-and-forget — non-fatal)

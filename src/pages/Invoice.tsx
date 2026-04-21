@@ -485,6 +485,8 @@ export function Invoice() {
             contactData={transformedContactData}
             invoiceNumber={formatOrderId(orderId)}
             isPaid={false}
+            discounts={orderDiscounts}
+            customFees={orderCustomFees}
           />
         </PrintModal>
       )}

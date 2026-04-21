@@ -57,11 +57,13 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .select('*, customers(*), addresses(*)')
-      .eq('id', orderId)
-      .maybeSingle();
+    const [orderResult, customFeesResult, discountsResult] = await Promise.all([
+      supabase.from('orders').select('*, customers(*), addresses(*)').eq('id', orderId).maybeSingle(),
+      supabase.from('order_custom_fees').select('amount_cents').eq('order_id', orderId),
+      supabase.from('order_discounts').select('amount_cents, percentage').eq('order_id', orderId),
+    ]);
+
+    const { data: order, error: orderError } = orderResult;
 
     if (orderError || !order) {
       return new Response(
@@ -69,6 +71,25 @@ Deno.serve(async (req: Request) => {
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const customFeesCents = (customFeesResult.data || []).reduce(
+      (sum: number, f: { amount_cents: number }) => sum + (f.amount_cents || 0), 0
+    );
+    const subtotal = order.subtotal_cents || 0;
+    const discountCents = (discountsResult.data || []).reduce(
+      (sum: number, d: { amount_cents: number | null; percentage: number | null }) => {
+        if (d.percentage && d.percentage > 0) return sum + Math.round(subtotal * (d.percentage / 100));
+        return sum + (d.amount_cents || 0);
+      }, 0
+    );
+    const orderTotalCents = subtotal
+      + (order.travel_fee_waived ? 0 : (order.travel_fee_cents || 0))
+      + (order.surface_fee_waived ? 0 : (order.surface_fee_cents || 0))
+      + (order.generator_fee_waived ? 0 : (order.generator_fee_cents || 0))
+      + (order.same_day_pickup_fee_waived ? 0 : (order.same_day_pickup_fee_cents || 0))
+      + (order.tax_waived ? 0 : (order.tax_cents || 0))
+      + customFeesCents
+      - discountCents;
 
     const shortCode = await generateUniqueShortCode(supabase);
 
@@ -134,7 +155,7 @@ Deno.serve(async (req: Request) => {
                     <h2>Invoice Ready for Review</h2>
                     <p>Hi ${customerName || 'there'},</p>
                     <p>Your invoice is ready for review and acceptance.</p>
-                    <p><strong>Total Amount:</strong> $${(((order.subtotal_cents || 0) + (order.travel_fee_cents || 0) + (order.surface_fee_cents || 0) + (order.generator_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.tax_cents || 0)) / 100).toFixed(2)}</p>
+                    <p><strong>Total Amount:</strong> $${(orderTotalCents / 100).toFixed(2)}</p>
                     <p><strong>Deposit Due:</strong> $${(depositCents / 100).toFixed(2)}</p>
                     <p><a href="${shortInvoiceUrl}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:white;text-decoration:none;border-radius:8px;margin:16px 0;">View & Accept Invoice</a></p>
                     <p>Questions? Call us at (313) 889-3860</p>

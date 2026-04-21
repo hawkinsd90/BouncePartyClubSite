@@ -19,6 +19,8 @@ interface PrintableInvoiceProps {
   paymentLast4?: string;
   taxWaived?: boolean;
   travelFeeWaived?: boolean;
+  customFees?: Array<{ label?: string; description?: string; amount_cents: number }>;
+  discounts?: Array<{ label?: string; description?: string; amount_cents?: number; percentage?: number }>;
 }
 
 export function PrintableInvoice({
@@ -33,6 +35,8 @@ export function PrintableInvoice({
   paymentLast4,
   taxWaived = false,
   travelFeeWaived = false,
+  customFees = [],
+  discounts = [],
 }: PrintableInvoiceProps) {
   const today = format(new Date(), 'MMMM d, yyyy');
 
@@ -236,6 +240,32 @@ export function PrintableInvoice({
                   </div>
                 </div>
               )}
+
+              {discounts.map((d, index) => {
+                const subtotalCents = priceBreakdown.subtotal_cents || 0;
+                const discountCents = d.percentage && d.percentage > 0
+                  ? Math.round(subtotalCents * (d.percentage / 100))
+                  : (d.amount_cents || 0);
+                const label = d.label || d.description || 'Discount';
+                const suffix = d.percentage && d.percentage > 0 ? ` (${d.percentage}%)` : '';
+                return (
+                  <div key={index} className="grid grid-cols-2 py-3 px-6 border-b border-slate-100">
+                    <div className="text-green-700">{label}{suffix}</div>
+                    <div className="text-right text-green-700 font-medium">
+                      -{formatCurrency(discountCents)}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {customFees.map((f, index) => (
+                <div key={index} className="grid grid-cols-2 py-3 px-6 border-b border-slate-100">
+                  <div className="text-slate-700">{f.label || f.description || 'Additional Fee'}</div>
+                  <div className="text-right text-slate-900 font-medium">
+                    {formatCurrency(f.amount_cents)}
+                  </div>
+                </div>
+              ))}
 
               {(priceBreakdown.tax_cents > 0 || taxWaived) && (
                 <div className="grid grid-cols-2 py-3 px-6 border-b border-slate-100">
