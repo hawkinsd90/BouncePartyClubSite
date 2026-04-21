@@ -11,6 +11,9 @@ export type PaymentOutcome =
   | 'cash';
 
 async function callLifecycle(body: object): Promise<{ success: boolean; error?: string; alreadySent?: boolean }> {
+  const { action, orderId } = body as { action?: string; orderId?: string };
+  const logPrefix = `[orderLifecycle] action=${action ?? '?'} orderId=${orderId ?? '?'}`;
+
   try {
     const response = await fetch(LIFECYCLE_URL, {
       method: 'POST',
@@ -21,10 +24,23 @@ async function callLifecycle(body: object): Promise<{ success: boolean; error?: 
       body: JSON.stringify(body),
     });
 
-    const data = await response.json();
+    let data: { success: boolean; error?: string; alreadySent?: boolean };
+    try {
+      data = await response.json();
+    } catch {
+      console.error(`${logPrefix} — response was non-JSON, status=${response.status}`);
+      return { success: false, error: `Non-JSON response from lifecycle (status ${response.status})` };
+    }
+
+    if (!response.ok || !data.success) {
+      console.error(`${logPrefix} — lifecycle returned failure: status=${response.status} error=${data.error ?? '(none)'} alreadySent=${data.alreadySent ?? false}`);
+    } else {
+      console.log(`${logPrefix} — lifecycle success alreadySent=${data.alreadySent ?? false}`);
+    }
+
     return data;
   } catch (err: any) {
-    console.error('[orderLifecycle] Network error:', err);
+    console.error(`${logPrefix} — network error: ${err.message ?? err}`);
     return { success: false, error: err.message || 'Network error calling lifecycle function' };
   }
 }

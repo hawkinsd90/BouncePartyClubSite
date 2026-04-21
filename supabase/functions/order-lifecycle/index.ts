@@ -38,7 +38,9 @@ Deno.serve(async (req: Request) => {
     );
 
     if (action === "enter_pending_review") {
+      console.log(`[order-lifecycle] enter_pending_review — orderId=${orderId} source=${source ?? "(none)"}`);
       const result = await enterPendingReview(supabase, orderId, source || "standard_checkout");
+      console.log(`[order-lifecycle] enter_pending_review result — success=${result.success} alreadySent=${result.alreadySent ?? false} error=${result.error ?? "(none)"}`);
       return new Response(JSON.stringify(result), {
         status: result.success ? 200 : 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -46,7 +48,9 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "enter_confirmed") {
+      console.log(`[order-lifecycle] enter_confirmed — orderId=${orderId} source=${source ?? "(none)"} paymentOutcome=${paymentOutcome ?? "(none)"}`);
       const result = await enterConfirmed(supabase, orderId, source || "unknown", paymentOutcome || "already_paid", oldStatusHint || null);
+      console.log(`[order-lifecycle] enter_confirmed result — success=${result.success} alreadySent=${result.alreadySent ?? false} error=${result.error ?? "(none)"}`);
       return new Response(JSON.stringify(result), {
         status: result.success ? 200 : 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -94,11 +98,15 @@ async function enterPendingReview(
     .maybeSingle();
 
   if (fetchError || !order) {
-    return { success: false, error: "Order not found" };
+    console.error(`[order-lifecycle] enterPendingReview — order fetch failed: orderId=${orderId} fetchError=${fetchError?.message ?? "(no error, order null)"}`);
+    return { success: false, error: fetchError ? `DB fetch error: ${fetchError.message}` : "Order not found" };
   }
+
+  console.log(`[order-lifecycle] enterPendingReview — order found: status=${order.status} pending_review_admin_alerted=${order.pending_review_admin_alerted}`);
 
   const allowedFromStatuses = ["draft", "pending_review"];
   if (!allowedFromStatuses.includes(order.status)) {
+    console.error(`[order-lifecycle] enterPendingReview — invalid status transition: ${order.status} -> pending_review`);
     return {
       success: false,
       error: `Cannot enter pending_review from status: ${order.status}`,
@@ -112,6 +120,7 @@ async function enterPendingReview(
     const oldStatus = order.status === "pending_review" ? "draft" : order.status;
 
     if (order.status === "draft") {
+      console.log(`[order-lifecycle] enterPendingReview — updating status: draft -> pending_review`);
       const { error: updateError } = await supabase
         .from("orders")
         .update({ status: "pending_review" })
@@ -119,10 +128,13 @@ async function enterPendingReview(
         .eq("status", "draft");
 
       if (updateError) {
+        console.error(`[order-lifecycle] enterPendingReview — status UPDATE failed: ${updateError.message}`);
         return { success: false, error: `Failed to update status: ${updateError.message}` };
       }
+      console.log(`[order-lifecycle] enterPendingReview — status updated to pending_review`);
     }
 
+    console.log(`[order-lifecycle] enterPendingReview — inserting changelog entry`);
     try {
       await supabase.from("order_changelog").insert({
         order_id: orderId,
@@ -133,13 +145,16 @@ async function enterPendingReview(
         new_value: "pending_review",
         notes: `Booking request submitted via ${source}`,
       });
+      console.log(`[order-lifecycle] enterPendingReview — changelog inserted`);
     } catch (e) {
-      console.warn("[order-lifecycle] Changelog insert failed (non-fatal):", e);
+      console.warn("[order-lifecycle] enterPendingReview — changelog insert failed (non-fatal):", e);
     }
   } else {
+    console.log(`[order-lifecycle] enterPendingReview — already alerted, skipping`);
     return { success: true, alreadySent: true };
   }
 
+  console.log(`[order-lifecycle] enterPendingReview — sending admin alert`);
   const customer = Array.isArray(order.customers) ? order.customers[0] : order.customers;
   const address = Array.isArray(order.addresses) ? order.addresses[0] : order.addresses;
 
@@ -150,6 +165,7 @@ async function enterPendingReview(
     .update({ pending_review_admin_alerted: true })
     .eq("id", orderId);
 
+  console.log(`[order-lifecycle] enterPendingReview — complete, pending_review_admin_alerted set`);
   return { success: true };
 }
 
