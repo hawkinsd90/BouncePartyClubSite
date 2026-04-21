@@ -56,24 +56,17 @@ export function useOrderData() {
       let orderData: any;
 
       if (isInvoiceLink && invoiceLink?.link_token) {
-        // Use the token-validated RPC for public invoice/portal reads — avoids relying on open RLS
-        const { data: rpcRows, error: rpcError } = await supabase.rpc('get_order_by_token', {
-          p_token: invoiceLink.link_token,
-        });
-        if (rpcError || !rpcRows || rpcRows.length === 0) {
+        // Single token-validated RPC returns full joined order data without open RLS
+        const { data: fullOrderJson, error: rpcError } = await supabase.rpc(
+          'get_order_with_relations_by_token',
+          { p_token: invoiceLink.link_token }
+        );
+        if (rpcError || !fullOrderJson) {
           console.error('Error loading order via token:', rpcError);
           setLoading(false);
           return null;
         }
-        // Fetch related data (customers, addresses, order_items, payments, discounts, custom fees)
-        // that the RPC doesn't join — use a service-free authenticated read on the known order id
-        const { data: fullOrderRaw, error: fullOrderError } = await getOrderById(orderIdToLoad!);
-        if (fullOrderError || !fullOrderRaw) {
-          // Fallback: use bare RPC row if the full join fails (e.g. unauthenticated portal)
-          orderData = rpcRows[0] as any;
-        } else {
-          orderData = fullOrderRaw as any;
-        }
+        orderData = fullOrderJson as any;
       } else {
         const { data: orderDataRaw, error } = await getOrderById(orderIdToLoad);
         orderData = orderDataRaw as any;
