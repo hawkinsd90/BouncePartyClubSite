@@ -87,8 +87,7 @@ A contact record is upserted automatically whenever a new order is submitted (ma
 - `opt_in_sms`, `opt_in_email` — communication preferences
 - `tags` — admin-assigned labels
 - `business_name` — for commercial customers
-- `loyalty_points` — accumulated loyalty points from completed orders
-- `loyalty_tier_override` — admin-set tier that overrides the computed tier
+- `loyalty_tier` — derived from booking history
 
 Contacts are viewable, searchable, and filterable from the admin Contacts tab. Each contact shows their full order history and allows sending an SMS directly from the conversation thread.
 

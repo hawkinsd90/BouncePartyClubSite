@@ -21,22 +21,15 @@ ErrorBoundary
 
 ### BusinessProvider (`src/contexts/BusinessContext.tsx`)
 
-Loaded once on app mount. Reads the `admin_settings` table directly (requires authenticated admin access or silently falls back to defaults) and exposes the `BusinessSettings` interface:
+Loaded once on app mount. Reads the `admin_settings` table and exposes:
+- `businessName`, `businessNameShort`, `businessLegalEntity`
+- `businessAddress`, `businessPhone`, `businessEmail`, `businessWebsite`
+- `businessLicenseNumber`
+- `logoUrl`, `faviconUrl`, `brandPrimaryColor`
+- Social media URLs (Facebook, Instagram, TikTok, YouTube, Yelp)
+- `googleReviewUrl`, `googleMapsUrl`
 
-```typescript
-interface BusinessSettings {
-  business_name: string;
-  business_name_short: string;
-  business_legal_entity: string;
-  business_address: string;
-  business_phone: string;
-  business_email: string;
-  business_website: string;
-  business_license_number: string;
-}
-```
-
-Used in the waiver text and admin-facing views. **Note:** Because `admin_settings` is protected by RLS, this context falls back to hardcoded defaults for unauthenticated users. Public-facing components (Layout, PrintableInvoice, PaymentSuccessState) use `getPublicBusinessSettings()` instead — see Admin Settings Cache section below.
+Used throughout for display, email templates, and dynamically generated waiver text.
 
 ### AuthProvider (`src/contexts/AuthContext.tsx`)
 
@@ -60,8 +53,6 @@ Manages authentication state and exposes:
 ```
 
 On every auth state change to `SIGNED_IN`, AuthProvider also runs the consent draining flow (see AUTH_AND_ROLES.md).
-
-**Role loading:** AuthProvider loads the user's role from `user_roles` using `.maybeSingle()` — it loads a single role record per user. The `roles: string[]` array in the context is derived from that single record (the value is wrapped in an array if present). Users have one effective role at a time in the `user_roles` table.
 
 ### CustomerProfileProvider (`src/contexts/CustomerProfileContext.tsx`)
 
@@ -90,7 +81,7 @@ Routes are defined in `App.tsx` using React Router v6. Components are lazy-loade
 | `/checkout/:orderId` | Checkout (Stripe payment) |
 | `/payment-complete` | Post-payment confirmation |
 | `/payment-canceled` | Payment canceled |
-| `/invoice-preview` | Customer invoice view (tokenized, no login required) |
+| `/invoice/:token` | Customer invoice view (tokenized, no login required) |
 | `/customer-portal` | Customer self-service portal (tokenized, no login required) |
 | `/i/:shortCode` | Short link redirect — resolves `short_code` from `invoice_links` table and redirects to `/customer-portal/:orderId?t=:token` |
 | `/receipt/:orderId/:paymentId` | Payment receipt |
@@ -311,10 +302,11 @@ All edge functions handle CORS preflight (`OPTIONS`) and include CORS headers on
 |---|---|---|
 | `auth-email-hook` | No | Sends branded signup/password-reset emails via Resend (Supabase auth hook) |
 | `backfill-oauth-customers` | Yes | Data migration: ensures all Google OAuth users have customer records |
+| `backfill-payment-methods` | Yes | Data migration: reconciles Stripe payment method records |
 | `backfill-payment-methods` | Yes | Data migration: reconciles Stripe payment method records and fills payment brand/last4 from Stripe |
 | `calculate-route-mileage` | Yes | Computes total miles for a day's route from `route_stops` |
 | `charge-deposit` | Yes | Charges saved payment method for deposit amount during order approval |
-| `checkout-bridge` | No | postMessage relay bridge: receives Stripe's redirect after payment, extracts `orderId` and `session_id` from URL params, sends a `BPC_CHECKOUT_COMPLETE` message to `window.opener`, then closes itself. Does not update order status or call the lifecycle function — that is handled by `order-lifecycle` from the main checkout window. |
+| `checkout-bridge` | No | Orchestration layer between checkout and order lifecycle |
 | `create-admin-user` | Yes | Bootstraps the first master user during initial setup |
 | `customer-balance-payment` | No | Allows customers to pay remaining balance via saved card on file |
 | `customer-cancel-order` | Yes | Handles customer-initiated cancellation with reason and refund flag |
@@ -361,8 +353,8 @@ Pricing is computed in `src/lib/pricing.ts` using rules fetched from the `pricin
 4. Surface fee (cement or unstaked grass — sandbag surcharge)
 5. Same-day pickup fee (commercial bookings or non-overnight returns)
 6. Generator fee (single unit rate vs. multiple unit rate)
-7. Tax (6% of subtotal + travel + surface + generator, if enabled; controlled by `apply_taxes_by_default` setting; same-day pickup fee is explicitly excluded from the tax base)
-8. Deposit calculation: `deposit_per_unit_cents × number of units`. The `deposit_percentage` column exists in `pricing_rules` but is not used by the pricing engine.
+7. Tax (6% of subtotal + travel + surface + generator, if enabled; controlled by `apply_taxes_by_default` setting)
+8. Deposit / balance split (percentage-based or per-unit, per `deposit_percentage` and `deposit_per_unit_cents`)
 
 Any fee can be administratively waived with a documented reason. Waived fees are stored as boolean flags + reason text on the `orders` record.
 
@@ -424,26 +416,7 @@ Each event optionally carries a `session_id`, `unit_id`, `order_id`, and arbitra
 
 ## Admin Settings Cache
 
-`src/lib/adminSettingsCache.ts` provides two caching helpers for the `admin_settings` table:
-
-### `getAdminSetting(key)` / `getMultipleAdminSettings(keys[])`
-
-Direct reads from `admin_settings`. Require an authenticated admin session — unauthenticated callers receive `null` due to RLS. Used only in admin-only components (e.g., `PermissionsTab`).
-
-### `getPublicBusinessSettings(useCache?)` — **Public-safe**
-
-Calls the `get_public_business_settings()` SECURITY DEFINER PostgreSQL function, which bypasses RLS and returns a hardcoded whitelist of 12 non-secret keys:
-
-```
-business_name, business_phone, business_email, logo_url,
-instagram_url, facebook_url, business_address,
-home_address_line1, home_address_line2,
-home_address_city, home_address_state, home_address_zip
-```
-
-Returns a `PublicBusinessSettings` typed object with fallback defaults. Maintains a separate `publicSettingsCache` with a 5-minute TTL. Used by `Layout.tsx`, `PaymentSuccessState.tsx`, and `PrintableInvoice.tsx` so public/unauthenticated users see live business settings rather than hardcoded defaults.
-
-Both caches use a 5-minute TTL (`CACHE_DURATION_MS = 5 * 60 * 1000`).
+`src/lib/adminSettingsCache.ts` provides a lightweight in-memory cache for the `admin_settings` table. Frequently-read values like business address text are cached to avoid repeated database queries during the same session.
 
 ---
 
@@ -459,4 +432,3 @@ Both caches use a 5-minute TTL (`CACHE_DURATION_MS = 5 * 60 * 1000`).
 | `src/lib/pricingCache.ts` | In-memory cache for `pricing_rules` to avoid redundant fetches during a session |
 | `src/lib/calendarUtils.ts` | Date/time manipulation utilities for the calendar view |
 | `src/lib/styles.ts` | Shared Tailwind class string helpers |
-| `src/lib/orderLifecycle.ts` | Client-side wrapper that calls the `order-lifecycle` edge function; used throughout the frontend to trigger order status transitions without duplicating the HTTP call logic |

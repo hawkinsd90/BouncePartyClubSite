@@ -145,7 +145,7 @@ Payment status is derived (not stored) using `getPaymentStatus(order)` from `src
 
 At checkout, customers can optionally pay a custom amount rather than the full deposit. The `orders` table tracks:
 
-- `customer_selected_payment_cents` — what the customer said they would pay
+- `customer_payment_amount_cents` — what the customer said they would pay
 - `customer_selected_payment_type` — "deposit", "balance", or "custom"
 
 This is used to pre-fill the payment amount selector in the checkout UI and is reconciled against actual Stripe charges when the webhook fires.
@@ -155,26 +155,6 @@ This is used to pre-fill the payment amount selector in the checkout UI and is r
 ## Notification Reliability (`src/lib/notificationReliability.ts`)
 
 The system tracks email and SMS notification failures in a `notification_failures` table. If three or more consecutive failures occur for the same notification type, the admin is alerted. Failures can be marked as resolved from the admin dashboard's Notification Failures panel.
-
----
-
-## Balance Payment Atomic RPCs
-
-Customer balance payments (paid through the Customer Portal's "Pay Now" flow) use a two-step atomic pattern to prevent double-application:
-
-### `claim_balance_payment_financials(payment_id)`
-
-Called immediately after a Stripe PaymentIntent succeeds for a balance payment. Sets `order_financials_applied = false` (a claimed-but-not-yet-applied flag) as a lock so no other process applies this payment concurrently.
-
-### `apply_balance_payment_financials(payment_id, amount_cents, order_id)`
-
-Called after claiming. Atomically updates the order's `balance_paid_cents`, links the invoice status, and sets `order_financials_applied = true` on the payment record to mark it as permanently applied.
-
-The `order_financials_applied` column on the `payments` table is the idempotency flag that prevents a balance payment from being double-applied if the webhook fires more than once.
-
-### `reconcile-balance-payment` Edge Function
-
-Handles the full flow: verifies the Stripe session, calls `claim_balance_payment_financials`, then `apply_balance_payment_financials`, logs the transaction receipt, and sends the customer a receipt email.
 
 ---
 
