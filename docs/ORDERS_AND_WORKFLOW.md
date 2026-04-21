@@ -53,13 +53,15 @@ awaiting_customer_approval
   → cancelled            (customer or admin rejects)
 
 confirmed
-  → in_progress          (crew marks en-route on event day)
-  → cancelled            (admin cancels)
-  → void                 (admin voids)
+  → in_progress                    (crew marks en-route on event day)
+  → awaiting_customer_approval     (admin sends modified order for customer review)
+  → cancelled                      (admin cancels)
+  → void                           (admin voids)
 
 in_progress
   → completed            (event done, pickup complete)
   → cancelled            (rare edge case)
+  → void                 (rare administrative void)
 
 completed
   → (terminal, no transitions)
@@ -328,14 +330,22 @@ Admins can manually build invoices from the Invoices tab with:
 
 ---
 
+## Customer Portal Order Access
+
+The customer portal loads order data through the `get_order_with_relations_by_token` SECURITY DEFINER RPC. This allows unauthenticated customers to load their full order (with items, payments, signatures, lot pictures) using their `invoice_links` token — without exposing any admin RLS policies to the public.
+
+---
+
 ## Checkout Bridge (`checkout-bridge` edge function)
 
-The `checkout-bridge` edge function orchestrates the handoff between checkout completion and order lifecycle progression. After Stripe redirects the customer to `/payment-complete`, this function:
-1. Receives the Stripe session ID
-2. Verifies payment status
-3. Updates order status from `draft` to `pending_review`
-4. Triggers admin notification
-5. Returns the updated order for display on the success page
+The `checkout-bridge` edge function is a **postMessage relay bridge** — not an order lifecycle handler. After Stripe completes a payment, it redirects to the `checkout-bridge` URL with `orderId` and `session_id` as query parameters. The function:
+
+1. Extracts `orderId` and `session_id` from the URL query params
+2. Builds a minimal HTML page with inline JavaScript
+3. The JavaScript sends a `BPC_CHECKOUT_COMPLETE` postMessage to `window.opener` (the original checkout tab)
+4. The JavaScript calls `window.close()` to close itself
+
+The actual order status transition (draft → pending_review) and admin notifications are handled on the receiving side in the main checkout window (`/payment-complete`), not inside this edge function.
 
 ---
 

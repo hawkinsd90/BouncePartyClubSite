@@ -144,6 +144,7 @@ export function generateMyEmail(customerName: string, actionUrl: string): string
 | `bookingEmailTemplates.ts` | Customer booking confirmation (order submitted) |
 | `orderEmailTemplates.ts` | Order status changes, admin notifications |
 | `transactionReceiptService.ts` | Admin receipt on each payment event |
+| Inline in `orderApprovalService.ts` | Card-declined notification to customer (HTML built inline, not in a shared template file) |
 
 ### Invoice Email (`send-invoice` edge function)
 

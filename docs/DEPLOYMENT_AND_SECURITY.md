@@ -33,7 +33,8 @@ These are public values embedded in the compiled JavaScript bundle. They are saf
 | `VITE_SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Supabase public anon key |
 | `VITE_GOOGLE_MAPS_API_KEY` | Google Maps API key |
-| `VITE_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key |
+
+**Note:** The Stripe publishable key is NOT stored in env vars. It is read at runtime from `admin_settings` via the `get-stripe-publishable-key` edge function. Do not add `VITE_STRIPE_PUBLISHABLE_KEY` to the environment.
 
 ### Backend Secrets — Stored in `admin_settings` Table (NEVER in env vars)
 
@@ -112,14 +113,23 @@ The `admin_settings_changelog` table logs every change to settings. Secret value
 
 ## Storage Buckets
 
-| Bucket | Access |
-|---|---|
-| `public-assets` | Public read, admin write (logo, branding) |
-| `carousel-media` | Public read, admin write (homepage carousel) |
-| `unit-images` | Public read, admin write (rental unit photos) |
-| `signed-waivers` | Admin read only (stored waiver PDFs) |
-| `order-pictures` | Public read, crew write (lot setup photos) |
-| `lot-pictures` | Crew write, admin read (pre-event lot photos) |
+| Bucket | Public | Write Access | Purpose |
+|---|---|---|---|
+| `public-assets` | Yes | Admin/master only | Logo, branding assets |
+| `carousel-media` | Yes | Admin/master only | Homepage carousel images and videos |
+| `unit-images` | Yes | Admin/master only | Rental unit photos |
+| `signed-waivers` | Yes | Edge function (`save-signature`) | Signed waiver PDFs |
+| `order-pictures` | Yes | Crew (authenticated) | Delivery and damage photos |
+| `lot-pictures` | No | Crew (authenticated + anonymous with order token) | Pre-event lot condition photos |
+| `signatures` | Yes | Edge function (`save-signature`) | Signature pad images |
+
+All buckets except `lot-pictures` are public (no auth required to view). The `lot-pictures` bucket requires authenticated access or a valid anonymous upload token.
+
+---
+
+## Public Settings RPC
+
+The `get_public_business_settings()` SECURITY DEFINER function is the safe mechanism for reading a whitelisted subset of `admin_settings` without admin credentials. It runs as the `postgres` role, bypassing RLS, and returns only 12 non-secret keys (business name, phone, email, address, social URLs). This is called by public-facing components (`Layout`, `PrintableInvoice`, `PaymentSuccessState`) to display live business settings to unauthenticated users.
 
 ---
 

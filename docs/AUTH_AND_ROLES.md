@@ -17,12 +17,12 @@ There are four roles, stored as lowercase strings in the `user_roles` table:
 | `crew` | Crew-only access — calendar, task cards, day-of operations |
 | `customer` | Customer access — order history, portal, waiver signing |
 
-A user may hold multiple roles simultaneously. The `AuthContext` loads all assigned roles into a `roles[]` array.
+Each user has one role record in `user_roles`. The `AuthContext` loads the single role using `.maybeSingle()` and exposes it via `role` (string) and `roles` (single-element array). The `roles[]` array exists for API compatibility but will contain at most one entry.
 
 Helper flags available from `useAuth()`:
-- `isAdmin` — true if user has `admin` or `master` role
-- `isMaster` — true if user has `master` role
-- `hasRole(role)` — checks for a specific role in the roles array
+- `isAdmin` — true if `role` is `admin` or `master`
+- `isMaster` — true if `role` is `master`
+- `hasRole(role)` — checks whether the user's single role string matches the given value
 
 ---
 
@@ -47,7 +47,7 @@ The `AuthProvider` wraps the entire app and exposes:
 }
 ```
 
-On session load and on every auth state change, `AuthContext` fetches the user's roles from `user_roles` using the authenticated user's ID.
+On session load and on every auth state change, `AuthContext` fetches the user's role from `user_roles` using `.maybeSingle()` on a query filtered by `user_id`.
 
 **Important:** `onAuthStateChange` callbacks use an async IIFE pattern to avoid deadlocking the Supabase client:
 ```typescript
@@ -177,7 +177,7 @@ Google OAuth is triggered via `signInWithGoogle()`:
 ## Protected Routes (`src/components/common/ProtectedRoute.tsx`)
 
 ```tsx
-<ProtectedRoute roles={['admin', 'master']}>
+<ProtectedRoute allowedRoles={['admin', 'master']}>
   <AdminPage />
 </ProtectedRoute>
 ```
@@ -212,16 +212,9 @@ The actor's email is embedded at trigger time. This provides an immutable audit 
 
 ## Business Context and Admin Settings
 
-Business-wide configuration is loaded by `BusinessProvider` (`src/contexts/BusinessContext.tsx`) from the `admin_settings` table on app mount:
+Business-wide configuration is loaded by `BusinessProvider` (`src/contexts/BusinessContext.tsx`) from the `admin_settings` table on app mount. It reads 8 keys: `business_name`, `business_name_short`, `business_legal_entity`, `business_address`, `business_phone`, `business_email`, `business_website`, `business_license_number`.
 
-- `business_name`, `business_name_short`, `business_legal_entity`
-- `business_address`, `business_phone`, `business_email`, `business_website`
-- `business_license_number`
-- `logo_url`, `favicon_url`, `brand_primary_color`
-- Social media URLs
-- `google_review_url`, `google_maps_url`
-
-This data is used for display, email template branding, and the dynamic waiver text.
+Because `admin_settings` is RLS-protected, this context falls back to hardcoded defaults for unauthenticated users. Public-facing components use `getPublicBusinessSettings()` (which calls the `get_public_business_settings` SECURITY DEFINER RPC) to safely load live settings without admin access.
 
 ---
 
@@ -242,11 +235,10 @@ The `/setup` route renders `Setup.tsx`, which calls the `create-admin-user` edge
 
 ## Branded Auth Emails (`auth-email-hook`)
 
-Supabase's default auth emails (signup confirmation, password reset) are replaced with branded versions via the `auth-email-hook` edge function. This hook is registered in Supabase as a custom auth email handler and:
+Supabase's default auth emails are replaced with branded versions via the `auth-email-hook` edge function. This hook is registered in Supabase as a custom auth email handler and handles four event types: `signup`, `magic_link`, `recovery` (password reset), and `email_change`. For each event it:
 
-1. Receives the auth event (signup, password reset, etc.) from Supabase
-2. Generates a branded HTML email using `emailTemplateBase.ts` (business logo, colors, footer)
-3. Sends via Resend
+1. Generates a branded HTML email using `emailTemplateBase.ts` (business logo, colors, footer)
+2. Sends via Resend
 
 This ensures all auth emails match the business branding rather than using Supabase's generic templates.
 
