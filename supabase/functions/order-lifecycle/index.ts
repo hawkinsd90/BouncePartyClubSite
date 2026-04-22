@@ -92,7 +92,7 @@ async function enterPendingReview(
       addresses(line1, city, state, zip),
       order_items(qty, wet_or_dry, unit_price_cents, units(name)),
       order_custom_fees(amount_cents),
-      order_discounts(amount_cents, discount_type, percentage)
+      order_discounts(amount_cents)
     `)
     .eq("id", orderId)
     .maybeSingle();
@@ -192,7 +192,7 @@ async function enterConfirmed(
       addresses(line1, city, state, zip),
       order_items(qty, wet_or_dry, unit_price_cents, units(name)),
       order_custom_fees(amount_cents),
-      order_discounts(amount_cents, discount_type, percentage)
+      order_discounts(amount_cents)
     `)
     .eq("id", orderId)
     .maybeSingle();
@@ -365,12 +365,9 @@ async function sendAdminPendingReviewAlert(
 
   if (settings.email) {
     const customFees: Array<{ amount_cents: number }> = Array.isArray(order.order_custom_fees) ? order.order_custom_fees : [];
-    const discounts: Array<{ amount_cents: number; discount_type: string; percentage: number }> = Array.isArray(order.order_discounts) ? order.order_discounts : [];
+    const discounts: Array<{ amount_cents: number }> = Array.isArray(order.order_discounts) ? order.order_discounts : [];
     const customFeesTotal = customFees.reduce((sum: number, f: { amount_cents: number }) => sum + (f.amount_cents || 0), 0);
-    const discountsTotal = discounts.reduce((sum: number, d: { amount_cents: number; discount_type: string; percentage: number }) => {
-      if (d.discount_type === 'percentage') return sum + Math.round((order.subtotal_cents || 0) * ((d.percentage || 0) / 100));
-      return sum + (d.amount_cents || 0);
-    }, 0);
+    const discountsTotal = discounts.reduce((sum: number, d: { amount_cents: number }) => sum + (d.amount_cents || 0), 0);
     const totalCents =
       (order.subtotal_cents || 0) +
       (order.travel_fee_cents || 0) +
@@ -486,12 +483,9 @@ async function sendAdminConfirmedAlert(
 
   if (settings.email) {
     const customFees: Array<{ amount_cents: number }> = Array.isArray(order.order_custom_fees) ? order.order_custom_fees : [];
-    const discounts: Array<{ amount_cents: number; discount_type: string; percentage: number }> = Array.isArray(order.order_discounts) ? order.order_discounts : [];
+    const discounts: Array<{ amount_cents: number }> = Array.isArray(order.order_discounts) ? order.order_discounts : [];
     const customFeesTotal = customFees.reduce((sum: number, f: { amount_cents: number }) => sum + (f.amount_cents || 0), 0);
-    const discountsTotal = discounts.reduce((sum: number, d: { amount_cents: number; discount_type: string; percentage: number }) => {
-      if (d.discount_type === 'percentage') return sum + Math.round((order.subtotal_cents || 0) * ((d.percentage || 0) / 100));
-      return sum + (d.amount_cents || 0);
-    }, 0);
+    const discountsTotal = discounts.reduce((sum: number, d: { amount_cents: number }) => sum + (d.amount_cents || 0), 0);
     const totalCents =
       (order.subtotal_cents || 0) +
       (order.travel_fee_cents || 0) +
