@@ -239,7 +239,7 @@ Deno.serve(async (req: Request) => {
       const resp = await fetch(url);
       if (!resp.ok) {
         return new Response(
-          JSON.stringify({ error: `Google Maps API request failed for segment ${i + 1}` }),
+          JSON.stringify({ error: `Google Maps API request failed for segment ${i + 1}: HTTP ${resp.status}` }),
           { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -247,10 +247,15 @@ Deno.serve(async (req: Request) => {
       const data = await resp.json();
       const element = data?.rows?.[0]?.elements?.[0];
 
+      // Log full response for debugging
+      console.log(`[segment ${i + 1}] waypoints: ${allWaypoints[i].waypoint} → ${allWaypoints[i + 1].waypoint}`);
+      console.log(`[segment ${i + 1}] API status: ${data?.status}, element status: ${element?.status}`);
+      console.log(`[segment ${i + 1}] full response:`, JSON.stringify(data));
+
       if (!element || element.status !== "OK") {
         return new Response(
           JSON.stringify({
-            error: `Could not calculate distance for segment ${i + 1}: ${allWaypoints[i].label} → ${allWaypoints[i + 1].label}. Status: ${element?.status ?? "unknown"}`,
+            error: `Could not calculate distance for segment ${i + 1}: ${allWaypoints[i].label} → ${allWaypoints[i + 1].label}. API status: ${data?.status ?? "unknown"}, Element status: ${element?.status ?? "unknown"}. Waypoints used: ${allWaypoints[i].waypoint} → ${allWaypoints[i + 1].waypoint}`,
           }),
           { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
