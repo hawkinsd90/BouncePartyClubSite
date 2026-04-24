@@ -42,7 +42,7 @@ export function Home() {
 
   const [eventDate, setEventDate] = useState('');
   const [addressData, setAddressData] = useState<any>(null);
-  const [locationType, setLocationType] = useState<'residential' | 'commercial'>('residential');
+  const [locationType, setLocationType] = useState<'residential' | 'commercial' | null>(null);
   const [addressInput, setAddressInput] = useState('');
   // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
   // const [creatingTestBooking, setCreatingTestBooking] = useState(false);
@@ -99,6 +99,11 @@ export function Home() {
 
   const handleCheckAvailability = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!locationType) {
+      notifyError('Please select an event type (Residential or Commercial)');
+      return;
+    }
 
     if (!eventDate) {
       notifyError('Please select an event date');
@@ -257,6 +262,9 @@ export function Home() {
                       School, park, church
                     </span>
                   </button>
+                  {locationType === null && (
+                    <p className="col-span-2 text-xs text-slate-500 text-center -mt-1">Select an event type to continue</p>
+                  )}
                 </div>
               </div>
 

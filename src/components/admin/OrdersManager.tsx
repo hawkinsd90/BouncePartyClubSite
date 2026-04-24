@@ -529,13 +529,20 @@ export function OrdersManager() {
               {filteredOrders.map(order => (
                 <tr
                   key={order.id}
-                  onClick={() => setSelectedOrder(order)}
-                  className="hover:bg-slate-50 cursor-pointer transition-colors"
+                  className="hover:bg-slate-50 transition-colors"
                 >
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-mono font-semibold text-blue-600">
+                    <button
+                      onClick={() => {
+                        const params = new URLSearchParams(searchParams);
+                        params.set('subtab', 'single_order');
+                        params.set('orderId', order.id);
+                        setSearchParams(params);
+                      }}
+                      className="text-sm font-mono font-semibold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                    >
                       {formatOrderId(order.id).toUpperCase()}
-                    </div>
+                    </button>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-slate-900">

@@ -208,7 +208,14 @@ export function useQuoteForm() {
     });
 
     if (parsedFormData) {
-      const { same_day_responsibility_accepted, overnight_responsibility_accepted, ...safeFormData } = parsedFormData;
+      const {
+        same_day_responsibility_accepted,
+        overnight_responsibility_accepted,
+        location_type: _lt,
+        pickup_preference: _pp,
+        can_stake: _cs,
+        ...safeFormData
+      } = parsedFormData;
       setFormData(prev => ({
         ...prev,
         ...safeFormData,
