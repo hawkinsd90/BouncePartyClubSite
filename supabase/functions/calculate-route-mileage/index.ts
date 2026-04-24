@@ -7,6 +7,60 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
+const DRIVEABLE_STATUSES = new Set(["confirmed", "in_progress", "completed"]);
+
+/** Fetch task rows for a specific date and return only those with driveable addresses. */
+async function getTaskAddressesForDate(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  date: string
+): Promise<{ addresses: string[]; allRows: number; allStatuses: string[] }> {
+  const { data: taskRows, error } = await supabaseAdmin
+    .from("task_status")
+    .select(`
+      order_id,
+      sort_order,
+      orders (
+        status,
+        addresses ( line1, city, state, zip )
+      )
+    `)
+    .eq("task_date", date)
+    .order("sort_order", { ascending: true, nullsFirst: false })
+    .order("order_id", { ascending: true });
+
+  if (error || !taskRows) return { addresses: [], allRows: 0, allStatuses: [] };
+
+  const allStatuses = taskRows
+    .map((r: any) => r.orders?.status)
+    .filter(Boolean) as string[];
+
+  const seenOrderIds = new Set<string>();
+  const addresses: string[] = [];
+
+  for (const row of taskRows) {
+    const order = row.orders as any;
+    if (!order || !DRIVEABLE_STATUSES.has(order.status)) continue;
+
+    const orderId = row.order_id as string;
+    if (seenOrderIds.has(orderId)) continue;
+    seenOrderIds.add(orderId);
+
+    const addr = order.addresses;
+    if (addr?.line1 && addr?.city && addr?.state) {
+      addresses.push(`${addr.line1}, ${addr.city}, ${addr.state} ${addr.zip || ""}`.trim());
+    }
+  }
+
+  return { addresses, allRows: taskRows.length, allStatuses };
+}
+
+/** Offset a YYYY-MM-DD string by `days` days. */
+function offsetDate(dateStr: string, days: number): string {
+  const d = new Date(dateStr + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().split("T")[0];
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -76,83 +130,43 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Fetch all task_status rows for this date, ordered by saved route sort_order
-    // (nulls last), then order_id for deterministic tiebreaking.
-    // We pull order_id and the linked order's status so we can:
-    //   1. Filter to only driveable order statuses (see DRIVEABLE_STATUSES below).
-    //   2. Deduplicate by order_id so same-day pickup + drop-off for one address
-    //      count as a single route stop, not two.
-    const { data: taskRows, error: taskError } = await supabaseAdmin
-      .from("task_status")
-      .select(`
-        order_id,
-        sort_order,
-        orders (
-          status,
-          addresses ( line1, city, state, zip )
-        )
-      `)
-      .eq("task_date", date)
-      .order("sort_order", { ascending: true, nullsFirst: false })
-      .order("order_id", { ascending: true });
+    // Try the requested date first, then search ±1, ±2, ±3 days if no tasks are found.
+    // This handles the common case where a mileage log is recorded the day after a job.
+    const searchOffsets = [0, -1, 1, -2, 2, -3, 3];
+    let taskAddresses: string[] = [];
+    let resolvedDate = date;
+    let lastDiagnostic = "";
 
-    if (taskError) {
-      console.error("task_status fetch error:", taskError);
-      return new Response(
-        JSON.stringify({ error: "Failed to fetch tasks: " + taskError.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    for (const offset of searchOffsets) {
+      const candidateDate = offsetDate(date, offset);
+      const result = await getTaskAddressesForDate(supabaseAdmin, candidateDate);
 
-    // Build deduplicated, ordered list of addresses.
-    // Rules:
-    //   - Only include orders with a driveable status (confirmed, in_progress, completed).
-    //     cancelled, draft, pending_review, awaiting_customer_approval are all excluded —
-    //     they are either unconfirmed or never actually driven to.
-    //   - One address per order_id (first occurrence in sort-order wins), because each
-    //     order has exactly one address_id and both its drop-off and pick-up task_status
-    //     rows point to the same physical stop.
-    //   - Skip rows with no usable address.
-    const DRIVEABLE_STATUSES = new Set(["confirmed", "in_progress", "completed"]);
-    const seenOrderIds = new Set<string>();
-    const taskAddresses: string[] = [];
+      if (result.addresses.length > 0) {
+        taskAddresses = result.addresses;
+        resolvedDate = candidateDate;
+        break;
+      }
 
-    for (const row of (taskRows ?? [])) {
-      const order = row.orders as any;
-      if (!order) continue;
-      if (!DRIVEABLE_STATUSES.has(order.status)) continue;
-
-      const orderId = row.order_id as string;
-      if (seenOrderIds.has(orderId)) continue;
-      seenOrderIds.add(orderId);
-
-      const addr = order.addresses;
-      if (addr?.line1 && addr?.city && addr?.state) {
-        const full = `${addr.line1}, ${addr.city}, ${addr.state} ${addr.zip || ""}`.trim();
-        taskAddresses.push(full);
+      if (offset === 0) {
+        // Build diagnostic for the originally requested date for use in the final error
+        if (result.allRows === 0) {
+          lastDiagnostic = `No tasks scheduled on ${date}.`;
+        } else {
+          const uniqueStatuses = [...new Set(result.allStatuses)];
+          lastDiagnostic =
+            `${result.allRows} task(s) on ${date} but none qualify — statuses found: ${uniqueStatuses.join(", ")}.`;
+        }
       }
     }
 
     if (taskAddresses.length === 0) {
-      // Help the user understand why — show what statuses were found on this date
-      const allStatuses = (taskRows ?? [])
-        .map((r: any) => r.orders?.status)
-        .filter(Boolean) as string[];
-      const uniqueStatuses = [...new Set(allStatuses)];
-      const totalRows = (taskRows ?? []).length;
-
-      let detail = "";
-      if (totalRows === 0) {
-        detail = `No tasks exist in the system for ${date}. The mileage log date and task date must match.`;
-      } else {
-        detail = `${totalRows} task row(s) found for ${date} but none qualify for route calculation. ` +
-          `Order statuses found: ${uniqueStatuses.join(", ") || "none"}. ` +
-          `Only confirmed, in_progress, or completed orders are included. ` +
-          `Check that the mileage date (${date}) matches the date your tasks are scheduled.`;
-      }
-
       return new Response(
-        JSON.stringify({ error: detail }),
+        JSON.stringify({
+          error:
+            `No qualifying tasks found within ±3 days of ${date}. ` +
+            lastDiagnostic +
+            ` Only confirmed, in_progress, or completed orders are included.`,
+        }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -216,6 +230,7 @@ Deno.serve(async (req: Request) => {
     const totalMiles = totalMeters * 0.000621371;
     const calculatedEndMileage = mileageLog.start_mileage + totalMiles;
 
+    // Include resolvedDate so the client can inform the user if a nearby date was used
     return new Response(
       JSON.stringify({
         success: true,
@@ -224,6 +239,8 @@ Deno.serve(async (req: Request) => {
         startMileage: mileageLog.start_mileage,
         stopCount: taskAddresses.length,
         segments: segmentResults,
+        resolvedDate,
+        usedNearbyDate: resolvedDate !== date,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

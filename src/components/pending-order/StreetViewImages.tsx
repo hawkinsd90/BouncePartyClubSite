@@ -1,11 +1,14 @@
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { X, Star } from 'lucide-react';
+import { X, Star, Loader } from 'lucide-react';
 
 interface Address {
   line1: string;
   city: string;
   state: string;
   zip: string;
+  lat?: number | null;
+  lng?: number | null;
 }
 
 interface StreetViewImagesProps {
@@ -15,17 +18,54 @@ interface StreetViewImagesProps {
   onSelectImage: (image: { url: string; label: string } | null) => void;
 }
 
-const streetViewAngles = [
-  { heading: 0, label: 'North View', primary: true },
-  { heading: 90, label: 'East View', primary: false },
-  { heading: 180, label: 'South View', primary: false },
-  { heading: 270, label: 'West View', primary: false },
+const CARDINAL_ANGLES = [
+  { heading: 0, label: 'North View' },
+  { heading: 90, label: 'East View' },
+  { heading: 180, label: 'South View' },
+  { heading: 270, label: 'West View' },
 ];
 
-function getStreetViewUrl(address: Address, heading: number = 0, size = '600x400'): string {
+function getStreetViewUrl(address: Address, heading: number, size = '600x400'): string {
   const addressStr = `${address.line1}, ${address.city}, ${address.state} ${address.zip}`;
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   return `https://maps.googleapis.com/maps/api/streetview?size=${size}&location=${encodeURIComponent(addressStr)}&heading=${heading}&key=${apiKey}`;
+}
+
+function nearestCardinal(heading: number): { heading: number; label: string } {
+  // Normalize to 0–360
+  const h = ((heading % 360) + 360) % 360;
+  // Find the cardinal that is closest
+  return CARDINAL_ANGLES.reduce((best, candidate) => {
+    const diff = Math.abs(((candidate.heading - h + 540) % 360) - 180);
+    const bestDiff = Math.abs(((best.heading - h + 540) % 360) - 180);
+    return diff < bestDiff ? candidate : best;
+  });
+}
+
+async function fetchFacingHeading(address: Address): Promise<number | null> {
+  if (!address.lat || !address.lng) return null;
+
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  try {
+    const metaUrl = `https://maps.googleapis.com/maps/api/streetview/metadata?location=${address.lat},${address.lng}&key=${apiKey}`;
+    const res = await fetch(metaUrl);
+    if (!res.ok) return null;
+    const meta = await res.json();
+    if (meta.status !== 'OK' || !meta.location) return null;
+
+    const { lat: panoLat, lng: panoLng } = meta.location;
+
+    // Use google.maps.geometry to compute the bearing from the panorama position
+    // toward the building's geocoded position.
+    if (typeof google === 'undefined' || !google.maps?.geometry) return null;
+
+    const from = new google.maps.LatLng(panoLat, panoLng);
+    const to = new google.maps.LatLng(address.lat, address.lng);
+    const heading = google.maps.geometry.spherical.computeHeading(from, to);
+    return heading;
+  } catch {
+    return null;
+  }
 }
 
 export function StreetViewImages({
@@ -34,8 +74,23 @@ export function StreetViewImages({
   selectedImage,
   onSelectImage,
 }: StreetViewImagesProps) {
-  const primaryAngle = streetViewAngles.find(a => a.primary)!;
-  const secondaryAngles = streetViewAngles.filter(a => !a.primary);
+  const [primaryHeading, setPrimaryHeading] = useState<number | null>(null);
+  const [loadingHeading, setLoadingHeading] = useState(true);
+
+  useEffect(() => {
+    setLoadingHeading(true);
+    fetchFacingHeading(address).then((heading) => {
+      setPrimaryHeading(heading);
+      setLoadingHeading(false);
+    });
+  }, [address.lat, address.lng]);
+
+  // The primary angle is the one most facing the building; secondary are the other three.
+  const primaryAngle = primaryHeading !== null
+    ? nearestCardinal(primaryHeading)
+    : CARDINAL_ANGLES[0];
+
+  const secondaryAngles = CARDINAL_ANGLES.filter(a => a.heading !== primaryAngle.heading);
 
   return (
     <>
@@ -60,7 +115,9 @@ export function StreetViewImages({
           className="mb-3 border-2 border-amber-400 rounded-lg overflow-hidden cursor-pointer group relative"
           onClick={() =>
             onSelectImage({
-              url: getStreetViewUrl(address, primaryAngle.heading, '1200x800'),
+              url: loadingHeading
+                ? getStreetViewUrl(address, primaryAngle.heading, '1200x800')
+                : getStreetViewUrl(address, primaryHeading ?? primaryAngle.heading, '1200x800'),
               label: primaryAngle.label,
             })
           }
@@ -68,12 +125,22 @@ export function StreetViewImages({
           <div className="flex items-center gap-1.5 bg-amber-400 px-3 py-1.5">
             <Star className="w-3.5 h-3.5 text-white fill-white" />
             <span className="text-xs font-semibold text-white tracking-wide">
-              Primary View — {primaryAngle.label}
+              {loadingHeading ? (
+                <span className="flex items-center gap-1.5">
+                  <Loader className="w-3 h-3 animate-spin" />
+                  Detecting facing direction...
+                </span>
+              ) : (
+                `Front-Facing View — ${primaryAngle.label}`
+              )}
             </span>
           </div>
           <div className="relative">
+            {/* Use exact computed heading for primary so it truly faces the building */}
             <img
-              src={getStreetViewUrl(address, primaryAngle.heading, '1200x400')}
+              src={loadingHeading
+                ? getStreetViewUrl(address, primaryAngle.heading, '1200x400')
+                : getStreetViewUrl(address, primaryHeading ?? primaryAngle.heading, '1200x400')}
               alt={primaryAngle.label}
               className="w-full h-40 sm:h-56 md:h-64 object-cover group-hover:opacity-95 transition-opacity"
             />
@@ -85,7 +152,7 @@ export function StreetViewImages({
           </div>
         </div>
 
-        {/* Secondary views */}
+        {/* Secondary cardinal views */}
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
           {secondaryAngles.map((angle) => (
             <div

@@ -85,8 +85,11 @@ export function MileageModal({ isOpen, date, type, onClose, onSuccess }: Mileage
       }
 
       setMileage(data.calculatedEndMileage.toFixed(1));
+      const nearbyNote = data.usedNearbyDate
+        ? ` (tasks found on ${data.resolvedDate})`
+        : '';
       showToast(
-        `Calculated ${data.totalMiles.toFixed(1)} miles for today's route (${data.stopCount} stop${data.stopCount !== 1 ? 's' : ''})`,
+        `Calculated ${data.totalMiles.toFixed(1)} miles for ${data.stopCount} stop${data.stopCount !== 1 ? 's' : ''}${nearbyNote}`,
         'success'
       );
     } catch (error: any) {
