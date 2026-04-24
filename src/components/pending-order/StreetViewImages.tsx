@@ -32,9 +32,7 @@ function getStreetViewUrl(address: Address, heading: number, size = '600x400'): 
 }
 
 function nearestCardinal(heading: number): { heading: number; label: string } {
-  // Normalize to 0–360
   const h = ((heading % 360) + 360) % 360;
-  // Find the cardinal that is closest
   return CARDINAL_ANGLES.reduce((best, candidate) => {
     const diff = Math.abs(((candidate.heading - h + 540) % 360) - 180);
     const bestDiff = Math.abs(((best.heading - h + 540) % 360) - 180);
@@ -44,7 +42,6 @@ function nearestCardinal(heading: number): { heading: number; label: string } {
 
 async function fetchFacingHeading(address: Address): Promise<number | null> {
   if (!address.lat || !address.lng) return null;
-
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   try {
     const metaUrl = `https://maps.googleapis.com/maps/api/streetview/metadata?location=${address.lat},${address.lng}&key=${apiKey}`;
@@ -52,17 +49,11 @@ async function fetchFacingHeading(address: Address): Promise<number | null> {
     if (!res.ok) return null;
     const meta = await res.json();
     if (meta.status !== 'OK' || !meta.location) return null;
-
     const { lat: panoLat, lng: panoLng } = meta.location;
-
-    // Use google.maps.geometry to compute the bearing from the panorama position
-    // toward the building's geocoded position.
     if (typeof google === 'undefined' || !google.maps?.geometry) return null;
-
     const from = new google.maps.LatLng(panoLat, panoLng);
     const to = new google.maps.LatLng(address.lat, address.lng);
-    const heading = google.maps.geometry.spherical.computeHeading(from, to);
-    return heading;
+    return google.maps.geometry.spherical.computeHeading(from, to);
   } catch {
     return null;
   }
@@ -85,12 +76,12 @@ export function StreetViewImages({
     });
   }, [address.lat, address.lng]);
 
-  // The primary angle is the one most facing the building; secondary are the other three.
-  const primaryAngle = primaryHeading !== null
+  const primaryCardinal = primaryHeading !== null
     ? nearestCardinal(primaryHeading)
     : CARDINAL_ANGLES[0];
 
-  const secondaryAngles = CARDINAL_ANGLES.filter(a => a.heading !== primaryAngle.heading);
+  // All 4 angles in fixed order — primary one gets highlighted treatment
+  const orderedAngles = CARDINAL_ANGLES;
 
   return (
     <>
@@ -110,78 +101,56 @@ export function StreetViewImages({
           Tap any image to view full screen
         </div>
 
-        {/* Primary / highlighted view */}
-        <div
-          className="mb-3 border-2 border-amber-400 rounded-lg overflow-hidden cursor-pointer group relative"
-          onClick={() =>
-            onSelectImage({
-              url: loadingHeading
-                ? getStreetViewUrl(address, primaryAngle.heading, '1200x800')
-                : getStreetViewUrl(address, primaryHeading ?? primaryAngle.heading, '1200x800'),
-              label: primaryAngle.label,
-            })
-          }
-        >
-          <div className="flex items-center gap-1.5 bg-amber-400 px-3 py-1.5">
-            <Star className="w-3.5 h-3.5 text-white fill-white" />
-            <span className="text-xs font-semibold text-white tracking-wide">
-              {loadingHeading ? (
-                <span className="flex items-center gap-1.5">
-                  <Loader className="w-3 h-3 animate-spin" />
-                  Detecting facing direction...
-                </span>
-              ) : (
-                `Front-Facing View — ${primaryAngle.label}`
-              )}
-            </span>
-          </div>
-          <div className="relative">
-            {/* Use exact computed heading for primary so it truly faces the building */}
-            <img
-              src={loadingHeading
-                ? getStreetViewUrl(address, primaryAngle.heading, '1200x400')
-                : getStreetViewUrl(address, primaryHeading ?? primaryAngle.heading, '1200x400')}
-              alt={primaryAngle.label}
-              className="w-full h-40 sm:h-56 md:h-64 object-cover group-hover:opacity-95 transition-opacity"
-            />
-            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-              <span className="bg-black bg-opacity-60 text-white text-xs px-3 py-1.5 rounded-full font-medium">
-                Click to enlarge
-              </span>
-            </div>
-          </div>
-        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+          {orderedAngles.map((angle) => {
+            const isPrimary = angle.heading === primaryCardinal.heading && !loadingHeading;
+            const imgHeading = isPrimary && primaryHeading !== null ? primaryHeading : angle.heading;
 
-        {/* Secondary cardinal views */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          {secondaryAngles.map((angle) => (
-            <div
-              key={angle.heading}
-              className="border border-slate-200 rounded overflow-hidden cursor-pointer group relative"
-              onClick={() =>
-                onSelectImage({
-                  url: getStreetViewUrl(address, angle.heading, '1200x800'),
-                  label: angle.label,
-                })
-              }
-            >
-              <div className="bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 text-center">
-                {angle.label}
-              </div>
-              <div className="relative">
-                <img
-                  src={getStreetViewUrl(address, angle.heading)}
-                  alt={angle.label}
-                  className="w-full h-28 sm:h-36 md:h-44 object-cover group-hover:opacity-90 transition-opacity"
-                />
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span className="bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded-full">
-                    Enlarge
-                  </span>
+            return (
+              <div
+                key={angle.heading}
+                className={`rounded overflow-hidden cursor-pointer group relative transition-all ${
+                  isPrimary
+                    ? 'border-2 border-amber-400 ring-2 ring-amber-200'
+                    : 'border border-slate-200'
+                }`}
+                onClick={() =>
+                  onSelectImage({
+                    url: getStreetViewUrl(address, imgHeading, '1200x800'),
+                    label: isPrimary ? `Front-Facing View — ${angle.label}` : angle.label,
+                  })
+                }
+              >
+                {/* Label bar */}
+                <div className={`px-2 py-1 text-xs font-medium text-center flex items-center justify-center gap-1 ${
+                  isPrimary ? 'bg-amber-400 text-white' : 'bg-slate-100 text-slate-700'
+                }`}>
+                  {isPrimary && <Star className="w-3 h-3 fill-white flex-shrink-0" />}
+                  {loadingHeading && angle.heading === CARDINAL_ANGLES[0].heading ? (
+                    <span className="flex items-center gap-1">
+                      <Loader className="w-3 h-3 animate-spin" />
+                      Detecting...
+                    </span>
+                  ) : (
+                    isPrimary ? `Front View` : angle.label
+                  )}
+                </div>
+
+                <div className="relative">
+                  <img
+                    src={getStreetViewUrl(address, imgHeading)}
+                    alt={angle.label}
+                    className="w-full h-32 sm:h-40 md:h-48 object-cover group-hover:opacity-90 transition-opacity"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded-full">
+                      Enlarge
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

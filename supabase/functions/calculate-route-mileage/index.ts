@@ -171,13 +171,33 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { data: homeBaseSetting } = await supabaseAdmin
+    // Prefer the explicit home_base_address key; fall back to business_address;
+    // last resort to the individual home_address_* fields.
+    const { data: homeBaseSettings } = await supabaseAdmin
       .from("admin_settings")
-      .select("value")
-      .eq("key", "home_base_address")
-      .maybeSingle();
+      .select("key, value")
+      .in("key", ["home_base_address", "business_address", "home_address_line1", "home_address_city", "home_address_state", "home_address_zip"]);
 
-    const homeBase: string = homeBaseSetting?.value || "Wayne, MI 48184";
+    const settingsMap: Record<string, string> = {};
+    for (const row of homeBaseSettings ?? []) {
+      settingsMap[row.key] = row.value;
+    }
+
+    let homeBase =
+      settingsMap["home_base_address"] ||
+      settingsMap["business_address"] ||
+      "";
+
+    if (!homeBase && settingsMap["home_address_line1"]) {
+      homeBase = [
+        settingsMap["home_address_line1"],
+        settingsMap["home_address_city"],
+        settingsMap["home_address_state"],
+        settingsMap["home_address_zip"],
+      ].filter(Boolean).join(", ");
+    }
+
+    if (!homeBase) homeBase = "Wayne, MI 48184";
 
     const allAddresses = [homeBase, ...taskAddresses, homeBase];
 
