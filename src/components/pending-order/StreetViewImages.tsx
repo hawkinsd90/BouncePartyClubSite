@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { X } from 'lucide-react';
+import { X, Star } from 'lucide-react';
 
 interface Address {
   line1: string;
@@ -16,16 +16,16 @@ interface StreetViewImagesProps {
 }
 
 const streetViewAngles = [
-  { heading: 0, label: 'North View' },
-  { heading: 90, label: 'East View' },
-  { heading: 180, label: 'South View' },
-  { heading: 270, label: 'West View' },
+  { heading: 0, label: 'North View', primary: true },
+  { heading: 90, label: 'East View', primary: false },
+  { heading: 180, label: 'South View', primary: false },
+  { heading: 270, label: 'West View', primary: false },
 ];
 
-function getStreetViewUrl(address: Address, heading: number = 0): string {
+function getStreetViewUrl(address: Address, heading: number = 0, size = '600x400'): string {
   const addressStr = `${address.line1}, ${address.city}, ${address.state} ${address.zip}`;
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-  return `https://maps.googleapis.com/maps/api/streetview?size=600x400&location=${encodeURIComponent(addressStr)}&heading=${heading}&key=${apiKey}`;
+  return `https://maps.googleapis.com/maps/api/streetview?size=${size}&location=${encodeURIComponent(addressStr)}&heading=${heading}&key=${apiKey}`;
 }
 
 export function StreetViewImages({
@@ -34,6 +34,9 @@ export function StreetViewImages({
   selectedImage,
   onSelectImage,
 }: StreetViewImagesProps) {
+  const primaryAngle = streetViewAngles.find(a => a.primary)!;
+  const secondaryAngles = streetViewAngles.filter(a => !a.primary);
+
   return (
     <>
       <div className="mb-4 p-3 md:p-4 bg-white rounded-lg">
@@ -51,20 +54,65 @@ export function StreetViewImages({
         <div className="text-xs text-slate-600 mb-3 sm:hidden">
           Tap any image to view full screen
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
-          {streetViewAngles.map((angle) => (
-            <div key={angle.heading} className="border border-slate-200 rounded overflow-hidden">
+
+        {/* Primary / highlighted view */}
+        <div
+          className="mb-3 border-2 border-amber-400 rounded-lg overflow-hidden cursor-pointer group relative"
+          onClick={() =>
+            onSelectImage({
+              url: getStreetViewUrl(address, primaryAngle.heading, '1200x800'),
+              label: primaryAngle.label,
+            })
+          }
+        >
+          <div className="flex items-center gap-1.5 bg-amber-400 px-3 py-1.5">
+            <Star className="w-3.5 h-3.5 text-white fill-white" />
+            <span className="text-xs font-semibold text-white tracking-wide">
+              Primary View — {primaryAngle.label}
+            </span>
+          </div>
+          <div className="relative">
+            <img
+              src={getStreetViewUrl(address, primaryAngle.heading, '1200x400')}
+              alt={primaryAngle.label}
+              className="w-full h-40 sm:h-56 md:h-64 object-cover group-hover:opacity-95 transition-opacity"
+            />
+            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <span className="bg-black bg-opacity-60 text-white text-xs px-3 py-1.5 rounded-full font-medium">
+                Click to enlarge
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Secondary views */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          {secondaryAngles.map((angle) => (
+            <div
+              key={angle.heading}
+              className="border border-slate-200 rounded overflow-hidden cursor-pointer group relative"
+              onClick={() =>
+                onSelectImage({
+                  url: getStreetViewUrl(address, angle.heading, '1200x800'),
+                  label: angle.label,
+                })
+              }
+            >
               <div className="bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 text-center">
                 {angle.label}
               </div>
-              <img
-                src={getStreetViewUrl(address, angle.heading)}
-                alt={angle.label}
-                className="w-full h-32 sm:h-40 md:h-48 object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                onClick={() =>
-                  onSelectImage({ url: getStreetViewUrl(address, angle.heading), label: angle.label })
-                }
-              />
+              <div className="relative">
+                <img
+                  src={getStreetViewUrl(address, angle.heading)}
+                  alt={angle.label}
+                  className="w-full h-28 sm:h-36 md:h-44 object-cover group-hover:opacity-90 transition-opacity"
+                />
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded-full">
+                    Enlarge
+                  </span>
+                </div>
+              </div>
             </div>
           ))}
         </div>

@@ -134,8 +134,25 @@ Deno.serve(async (req: Request) => {
     }
 
     if (taskAddresses.length === 0) {
+      // Help the user understand why — show what statuses were found on this date
+      const allStatuses = (taskRows ?? [])
+        .map((r: any) => r.orders?.status)
+        .filter(Boolean) as string[];
+      const uniqueStatuses = [...new Set(allStatuses)];
+      const totalRows = (taskRows ?? []).length;
+
+      let detail = "";
+      if (totalRows === 0) {
+        detail = `No tasks exist in the system for ${date}. The mileage log date and task date must match.`;
+      } else {
+        detail = `${totalRows} task row(s) found for ${date} but none qualify for route calculation. ` +
+          `Order statuses found: ${uniqueStatuses.join(", ") || "none"}. ` +
+          `Only confirmed, in_progress, or completed orders are included. ` +
+          `Check that the mileage date (${date}) matches the date your tasks are scheduled.`;
+      }
+
       return new Response(
-        JSON.stringify({ error: "No confirmed task addresses found for this date. Make sure tasks are assigned to confirmed orders with delivery addresses." }),
+        JSON.stringify({ error: detail }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
