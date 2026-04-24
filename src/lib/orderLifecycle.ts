@@ -28,19 +28,19 @@ async function callLifecycle(body: object): Promise<{ success: boolean; error?: 
     try {
       data = await response.json();
     } catch {
-      console.error(`${logPrefix} — response was non-JSON, status=${response.status}`);
+      // console.error(`${logPrefix} — response was non-JSON, status=${response.status}`);
       return { success: false, error: `Non-JSON response from lifecycle (status ${response.status})` };
     }
 
-    if (!response.ok || !data.success) {
-      console.error(`${logPrefix} — lifecycle returned failure: status=${response.status} error=${data.error ?? '(none)'} alreadySent=${data.alreadySent ?? false}`);
-    } else {
-      console.log(`${logPrefix} — lifecycle success alreadySent=${data.alreadySent ?? false}`);
-    }
+    // if (!response.ok || !data.success) {
+    //   console.error(`${logPrefix} — lifecycle returned failure: status=${response.status} error=${data.error ?? '(none)'} alreadySent=${data.alreadySent ?? false}`);
+    // } else {
+    //   console.log(`${logPrefix} — lifecycle success alreadySent=${data.alreadySent ?? false}`);
+    // }
 
     return data;
   } catch (err: any) {
-    console.error(`${logPrefix} — network error: ${err.message ?? err}`);
+    // console.error(`${logPrefix} — network error: ${err.message ?? err}`);
     return { success: false, error: err.message || 'Network error calling lifecycle function' };
   }
 }

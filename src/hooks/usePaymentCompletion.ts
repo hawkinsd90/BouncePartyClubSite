@@ -127,11 +127,11 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
         order = await fetchOrderDetails();
 
         if (order) {
-          console.log(`[PAYMENT-COMPLETE] Attempt ${retries + 1} — order status: ${order.status}`);
+          // console.log(`[PAYMENT-COMPLETE] Attempt ${retries + 1} — order status: ${order.status}`);
 
           // Check if webhook has processed (status changed from draft)
           if (order.status !== ORDER_STATUS.DRAFT) {
-            console.log(`[PAYMENT-COMPLETE] Order already advanced by primary path — status: ${order.status}`);
+            // console.log(`[PAYMENT-COMPLETE] Order already advanced by primary path — status: ${order.status}`);
             break;
           }
         }
@@ -176,7 +176,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
 
             if (savePaymentMethodResponse.ok) {
               await savePaymentMethodResponse.json();
-              console.log('[PAYMENT-COMPLETE] Payment method saved successfully.');
+              // console.log('[PAYMENT-COMPLETE] Payment method saved successfully.');
             } else {
               // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
               // Restore only after a true dev/staging environment and explicit safe gating are in place.
@@ -209,13 +209,13 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
               lifecycleResult = await enterPendingReview(orderId!, 'webhook_fallback_standard');
             }
             lifecycleOk = lifecycleResult.success === true;
-            console.log(`[PAYMENT-COMPLETE] Lifecycle result: success=${lifecycleOk} alreadySent=${lifecycleResult.alreadySent ?? false} error=${lifecycleResult.error ?? '(none)'} isAdminInvoice=${isAdminInvoice}`);
+            // console.log(`[PAYMENT-COMPLETE] Lifecycle result: success=${lifecycleOk} alreadySent=${lifecycleResult.alreadySent ?? false} error=${lifecycleResult.error ?? '(none)'} isAdminInvoice=${isAdminInvoice}`);
           } catch (lifecycleErr) {
             console.error('[PAYMENT-COMPLETE] Lifecycle call threw unexpectedly:', lifecycleErr);
           }
 
           if (!lifecycleOk) {
-            console.error(`[PAYMENT-COMPLETE] Lifecycle advancement failed for order ${orderId} — not proceeding as success`);
+            // console.error(`[PAYMENT-COMPLETE] Lifecycle advancement failed for order ${orderId} — not proceeding as success`);
             setError('Your card was saved but we could not complete the booking request. Please contact us to confirm your booking.');
             clearLocalStorage();
             setStatus('error');
@@ -241,6 +241,8 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
       } else {
         console.error('[PAYMENT-COMPLETE] Order is null, setting error state');
         setError('Unable to load order details');
+        setStatus('error');
+        return;
       }
 
       clearLocalStorage();
