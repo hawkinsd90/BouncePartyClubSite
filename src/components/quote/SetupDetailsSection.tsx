@@ -27,19 +27,19 @@ export function SetupDetailsSection({ formData, onFormDataChange }: SetupDetails
             type="button"
             onClick={() => onFormDataChange({ can_stake: true })}
             className={`p-4 rounded-lg border-2 transition-all ${
-              formData.can_stake
+              formData.can_stake === true
                 ? 'border-green-600 bg-green-50'
                 : 'border-slate-300 hover:border-green-400'
             }`}
           >
             <CheckCircle2
               className={`w-8 h-8 mx-auto mb-2 ${
-                formData.can_stake ? 'text-green-600' : 'text-slate-400'
+                formData.can_stake === true ? 'text-green-600' : 'text-slate-400'
               }`}
             />
             <p
               className={`font-semibold text-center ${
-                formData.can_stake ? 'text-green-900' : 'text-slate-700'
+                formData.can_stake === true ? 'text-green-900' : 'text-slate-700'
               }`}
             >
               Yes
@@ -50,19 +50,19 @@ export function SetupDetailsSection({ formData, onFormDataChange }: SetupDetails
             type="button"
             onClick={() => onFormDataChange({ can_stake: false })}
             className={`p-4 rounded-lg border-2 transition-all ${
-              !formData.can_stake
+              formData.can_stake === false
                 ? 'border-orange-600 bg-orange-50'
                 : 'border-slate-300 hover:border-orange-400'
             }`}
           >
             <AlertCircle
               className={`w-8 h-8 mx-auto mb-2 ${
-                !formData.can_stake ? 'text-orange-600' : 'text-slate-400'
+                formData.can_stake === false ? 'text-orange-600' : 'text-slate-400'
               }`}
             />
             <p
               className={`font-semibold text-center ${
-                !formData.can_stake ? 'text-orange-900' : 'text-slate-700'
+                formData.can_stake === false ? 'text-orange-900' : 'text-slate-700'
               }`}
             >
               No

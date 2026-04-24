@@ -72,7 +72,32 @@ export function validateQuote(
     };
   }
 
-  // 3. Event details validation
+  // 3. Event type / setup required selections
+  if (formData.location_type == null) {
+    return {
+      isValid: false,
+      errorMessage: 'Please select an event type (Residential or Commercial).',
+      errorSection: 'event',
+    };
+  }
+
+  if (formData.location_type === 'residential' && formData.pickup_preference == null) {
+    return {
+      isValid: false,
+      errorMessage: 'Please select when you need pickup (Next Morning or Same Day).',
+      errorSection: 'event',
+    };
+  }
+
+  if (formData.can_stake == null) {
+    return {
+      isValid: false,
+      errorMessage: 'Please indicate whether we can anchor the inflatable with stakes.',
+      errorSection: 'setup',
+    };
+  }
+
+  // 4. Event date/time validation
   if (!formData.event_date) {
     return {
       isValid: false,
@@ -109,7 +134,7 @@ export function validateQuote(
     };
   }
 
-  // 4. Responsibility agreement validation (last, after user inputs)
+  // 5. Responsibility agreement validation (last, after user inputs)
   if (
     formData.location_type === 'residential' &&
     formData.pickup_preference === 'next_day' &&

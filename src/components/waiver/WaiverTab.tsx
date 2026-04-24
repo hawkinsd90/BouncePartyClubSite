@@ -151,15 +151,21 @@ export default function WaiverTab({ orderId }: WaiverTabProps) {
           {signatureData.initials_data &&
             Object.keys(signatureData.initials_data).length > 0 && (
               <div className="border-t pt-4">
-                <p className="text-gray-600 mb-2 text-sm">Initials Provided</p>
-                <div className="flex flex-wrap gap-2">
+                <p className="text-gray-600 mb-3 text-sm font-medium">Section Initials</p>
+                <div className="space-y-2">
                   {Object.entries(signatureData.initials_data).map(([section, initial]) => (
-                    <span
+                    <div
                       key={section}
-                      className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-medium"
+                      className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-4 py-2.5"
                     >
-                      {section}: {initial as string}
-                    </span>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+                        <span className="text-sm text-gray-800">{section}</span>
+                      </div>
+                      <span className="font-bold text-green-800 bg-green-100 border border-green-300 rounded px-2 py-0.5 text-sm tracking-widest">
+                        {initial as string}
+                      </span>
+                    </div>
                   ))}
                 </div>
               </div>

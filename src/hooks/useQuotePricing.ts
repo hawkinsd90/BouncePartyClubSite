@@ -57,9 +57,9 @@ export function useQuotePricing(cart: CartItem[], formData: QuoteFormData, prici
 
     const breakdown = calculatePrice({
       items: cart,
-      location_type: formData.location_type,
-      surface: formData.can_stake ? 'grass' : 'cement',
-      can_use_stakes: formData.can_stake,
+      location_type: formData.location_type ?? 'residential',
+      surface: formData.can_stake === true ? 'grass' : 'cement',
+      can_use_stakes: formData.can_stake ?? true,
       overnight_allowed: formData.pickup_preference === 'next_day',
       num_days,
       distance_miles,

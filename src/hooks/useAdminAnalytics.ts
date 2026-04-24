@@ -66,6 +66,73 @@ function getPeriodRange(period: AnalyticsPeriod): { start: string | null; end: s
   return { start: null, end: null };
 }
 
+export interface MileageAnalytics {
+  total_miles: number;
+  total_days: number;
+  avg_miles_per_day: number;
+  crew_breakdown: Array<{ user_id: string; total_miles: number; days: number }>;
+}
+
+export function useMileageAnalytics(period: AnalyticsPeriod = 'all_time') {
+  const [mileage, setMileage] = useState<MileageAnalytics | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    load();
+  }, [period]);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const { start, end } = getPeriodRange(period);
+      let query = supabase
+        .from('daily_mileage_logs')
+        .select('user_id, start_mileage, end_mileage, date')
+        .not('start_mileage', 'is', null)
+        .not('end_mileage', 'is', null);
+
+      if (start) query = query.gte('date', start.split('T')[0]);
+      if (end) query = query.lte('date', end.split('T')[0]);
+
+      const { data, error } = await query;
+      if (error || !data) { setMileage(null); return; }
+
+      const byUser: Record<string, { total_miles: number; days: number }> = {};
+      let totalMiles = 0;
+
+      for (const row of data) {
+        const miles = (row.end_mileage as number) - (row.start_mileage as number);
+        if (miles <= 0) continue;
+        totalMiles += miles;
+        if (!byUser[row.user_id]) byUser[row.user_id] = { total_miles: 0, days: 0 };
+        byUser[row.user_id].total_miles += miles;
+        byUser[row.user_id].days += 1;
+      }
+
+      const crew_breakdown = Object.entries(byUser).map(([user_id, stats]) => ({
+        user_id,
+        total_miles: Math.round(stats.total_miles * 10) / 10,
+        days: stats.days,
+      })).sort((a, b) => b.total_miles - a.total_miles);
+
+      const total_days = new Set(data.map(r => r.date as string)).size;
+
+      setMileage({
+        total_miles: Math.round(totalMiles * 10) / 10,
+        total_days,
+        avg_miles_per_day: total_days > 0 ? Math.round((totalMiles / total_days) * 10) / 10 : 0,
+        crew_breakdown,
+      });
+    } catch {
+      setMileage(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return { mileage, loading };
+}
+
 export function useAdminAnalytics(period: AnalyticsPeriod = 'all_time') {
   const [analytics, setAnalytics] = useState<AdminAnalytics | null>(null);
   const [loading, setLoading] = useState(true);

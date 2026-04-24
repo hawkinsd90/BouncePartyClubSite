@@ -4,7 +4,7 @@ import { FileCheck, AlertCircle, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { trackEvent } from '../lib/siteEvents';
 import SignaturePad from '../components/waiver/SignaturePad';
-import WaiverViewer from '../components/waiver/WaiverViewer';
+import WaiverViewer, { sectionInitialId } from '../components/waiver/WaiverViewer';
 import {
   WAIVER_TEXT,
   WAIVER_VERSION,
@@ -158,6 +158,11 @@ export default function Sign() {
   };
 
   const scrollToFirstIncomplete = () => {
+    // Find the first missing initial section specifically
+    const firstMissingInitialSection = INITIALS_REQUIRED.find(
+      (s) => !initials[s]?.trim() || initials[s].trim().length < 2
+    );
+
     const elements = [
       { condition: !hasScrolledToBottom, id: 'waiver-section' },
       { condition: !renterName.trim(), id: 'renter-name' },
@@ -168,7 +173,10 @@ export default function Sign() {
       { condition: !eventCity.trim(), id: 'event-city' },
       { condition: !eventState.trim(), id: 'event-state' },
       { condition: !eventZip.trim(), id: 'event-zip' },
-      { condition: !INITIALS_REQUIRED.every((s) => initials[s]?.trim().length >= 2), id: 'waiver-section' },
+      {
+        condition: !!firstMissingInitialSection,
+        id: firstMissingInitialSection ? sectionInitialId(firstMissingInitialSection) : 'waiver-section',
+      },
       { condition: !typedName.trim(), id: 'typed-name' },
       { condition: !signatureDataUrl, id: 'signature-pad' },
       { condition: !electronicConsent, id: 'electronic-consent' },
@@ -179,7 +187,10 @@ export default function Sign() {
       const element = document.getElementById(firstIncomplete.id);
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        element.focus();
+        // Focus the actual input inside the container if it exists
+        const input = element.querySelector('input');
+        if (input) input.focus();
+        else element.focus();
       }
     }
   };

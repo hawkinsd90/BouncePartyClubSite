@@ -1,5 +1,5 @@
 import { format, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
-import { TruckIcon, Package } from 'lucide-react';
+import { Truck as TruckIcon, Package, Gauge } from 'lucide-react';
 import { Task } from '../../hooks/useCalendarTasks';
 import { getTasksForDate } from '../../lib/calendarUtils';
 
@@ -7,9 +7,10 @@ interface CalendarGridProps {
   currentMonth: Date;
   tasks: Task[];
   onDateClick: (date: Date) => void;
+  mileageDates?: Set<string>;
 }
 
-export function CalendarGrid({ currentMonth, tasks, onDateClick }: CalendarGridProps) {
+export function CalendarGrid({ currentMonth, tasks, onDateClick, mileageDates }: CalendarGridProps) {
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
   const calendarDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
@@ -38,6 +39,8 @@ export function CalendarGrid({ currentMonth, tasks, onDateClick }: CalendarGridP
             const isToday = isSameDay(day, new Date());
             const dropOffs = dayTasks.filter(t => t.type === 'drop-off').length;
             const pickUps = dayTasks.filter(t => t.type === 'pick-up').length;
+            const dateKey = format(day, 'yyyy-MM-dd');
+            const hasMileage = mileageDates?.has(dateKey) ?? false;
 
             return (
               <div
@@ -67,6 +70,11 @@ export function CalendarGrid({ currentMonth, tasks, onDateClick }: CalendarGridP
                         <span className="font-semibold">{pickUps}</span>
                       </div>
                     )}
+                    {hasMileage && (
+                      <div className="flex items-center justify-center gap-0.5 text-[10px] sm:text-xs bg-slate-100 text-slate-600 px-1 sm:px-2 py-0.5 sm:py-1 rounded">
+                        <Gauge className="w-2.5 h-2.5 sm:w-3 sm:h-3 flex-shrink-0" />
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -83,6 +91,12 @@ export function CalendarGrid({ currentMonth, tasks, onDateClick }: CalendarGridP
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 sm:w-4 sm:h-4 bg-orange-100 border-2 border-orange-500 rounded"></div>
           <span className="text-slate-700">Pick-up / Retrieval</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 sm:w-4 sm:h-4 bg-slate-100 border-2 border-slate-400 rounded flex items-center justify-center">
+            <Gauge className="w-2 h-2 text-slate-600" />
+          </div>
+          <span className="text-slate-700">Mileage Logged</span>
         </div>
       </div>
     </>

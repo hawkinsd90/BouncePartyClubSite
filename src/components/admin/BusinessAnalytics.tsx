@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { DollarSign, TrendingUp, TrendingDown, Users, ShoppingBag, CreditCard, Banknote, RotateCcw, Clock, Repeat, MapPin, Package, Star, AlertCircle, RefreshCw } from 'lucide-react';
-import { useAdminAnalytics, AnalyticsPeriod } from '../../hooks/useAdminAnalytics';
+import { useState, useEffect } from 'react';
+import { DollarSign, TrendingUp, TrendingDown, Users, ShoppingBag, CreditCard, Banknote, RotateCcw, Clock, Repeat, MapPin, Package, Star, AlertCircle, RefreshCw, Gauge, Car } from 'lucide-react';
+import { useAdminAnalytics, useMileageAnalytics, AnalyticsPeriod } from '../../hooks/useAdminAnalytics';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 
 function formatCents(cents: number): string {
@@ -67,6 +67,33 @@ function StatCard({ icon, label, value, sub, trendInfo, accent = 'blue' }: StatC
 export function BusinessAnalytics() {
   const [period, setPeriod] = useState<AnalyticsPeriod>('all_time');
   const { analytics: a, loading, error, reload } = useAdminAnalytics(period);
+  const { mileage: m } = useMileageAnalytics(period);
+  const [crewNames, setCrewNames] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!m || m.crew_breakdown.length === 0) return;
+    (async () => {
+      try {
+        const { data: { session } } = await (await import('../../lib/supabase')).supabase.auth.getSession();
+        if (!session?.access_token) return;
+        const ids = m.crew_breakdown.map(c => c.user_id);
+        const res = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-user-info`,
+          {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_ids: ids }),
+          }
+        );
+        if (res.ok) {
+          const { userInfo } = await res.json();
+          const names: Record<string, string> = {};
+          for (const id of ids) names[id] = userInfo[id]?.full_name || userInfo[id]?.email || 'Crew Member';
+          setCrewNames(names);
+        }
+      } catch { /* non-critical */ }
+    })();
+  }, [m]);
 
   if (loading) {
     return (
@@ -333,6 +360,70 @@ export function BusinessAnalytics() {
           )}
         </div>
       </div>
+
+      {/* Mileage Section */}
+      {m && (
+        <div>
+          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Fleet Mileage</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+            <StatCard
+              icon={<Gauge className="w-5 h-5" />}
+              label="Total Miles Driven"
+              value={m.total_miles.toLocaleString()}
+              sub="All crew, logged days only"
+              accent="blue"
+            />
+            <StatCard
+              icon={<Car className="w-5 h-5" />}
+              label="Days with Mileage"
+              value={m.total_days.toString()}
+              sub="Unique work days logged"
+              accent="green"
+            />
+            <StatCard
+              icon={<TrendingUp className="w-5 h-5" />}
+              label="Avg Miles / Day"
+              value={m.avg_miles_per_day.toLocaleString()}
+              sub="Across logged work days"
+              accent="cyan"
+            />
+          </div>
+          {m.crew_breakdown.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Car className="w-5 h-5 text-blue-600" />
+                <h3 className="font-semibold text-slate-900">Mileage by Crew Member</h3>
+              </div>
+              <div className="space-y-3">
+                {m.crew_breakdown.map(crew => {
+                  const maxMiles = m.crew_breakdown[0].total_miles;
+                  return (
+                    <div key={crew.user_id} className="flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium text-slate-900 truncate">
+                            {crewNames[crew.user_id] || 'Crew Member'}
+                          </span>
+                          <div className="flex items-center gap-3 ml-2 shrink-0">
+                            <span className="text-xs text-slate-500">{crew.days} day{crew.days !== 1 ? 's' : ''}</span>
+                            <span className="text-sm font-semibold text-slate-900">{crew.total_miles.toLocaleString()} mi</span>
+                          </div>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-1.5">
+                          <div
+                            className="bg-blue-500 h-1.5 rounded-full"
+                            style={{ width: maxMiles > 0 ? `${(crew.total_miles / maxMiles) * 100}%` : '0%' }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Cancellation Reasons */}
       {a.cancellation_reasons.length > 0 && (

@@ -127,9 +127,9 @@ export function InvoicePreview() {
       city: quoteData.city,
       state: quoteData.state,
       zip: quoteData.zip,
-      location_type: quoteData.location_type,
+      location_type: quoteData.location_type ?? 'residential',
       pickup_preference:
-        quoteData.pickup_preference ||
+        quoteData.pickup_preference ??
         (quoteData.location_type === 'commercial' ? 'same_day' : 'next_day'),
       can_use_stakes: quoteData.can_stake ?? true,
       generator_qty:

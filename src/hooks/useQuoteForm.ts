@@ -14,11 +14,11 @@ export interface QuoteFormData {
   zip: string;
   lat: number;
   lng: number;
-  location_type: 'residential' | 'commercial';
-  pickup_preference: 'same_day' | 'next_day';
+  location_type: 'residential' | 'commercial' | null;
+  pickup_preference: 'same_day' | 'next_day' | null;
   same_day_responsibility_accepted: boolean;
   overnight_responsibility_accepted: boolean;
-  can_stake: boolean;
+  can_stake: boolean | null;
   has_generator: boolean;
   generator_qty: number;
   has_pets: boolean;
@@ -38,11 +38,11 @@ const initialFormData: QuoteFormData = {
   zip: '',
   lat: 0,
   lng: 0,
-  location_type: 'residential',
-  pickup_preference: 'next_day',
+  location_type: null,
+  pickup_preference: null,
   same_day_responsibility_accepted: false,
   overnight_responsibility_accepted: false,
-  can_stake: true,
+  can_stake: null,
   has_generator: false,
   generator_qty: 0,
   has_pets: false,
@@ -107,6 +107,10 @@ export function useQuoteForm() {
   useEffect(() => {
     if (formData.location_type === 'commercial') {
       setFormData(prev => ({ ...prev, pickup_preference: 'same_day' }));
+    } else if (formData.location_type === 'residential' && formData.pickup_preference === 'same_day') {
+      // keep whatever was selected for residential
+    } else if (formData.location_type === null) {
+      setFormData(prev => ({ ...prev, pickup_preference: null }));
     }
   }, [formData.location_type]);
 
@@ -185,8 +189,8 @@ export function useQuoteForm() {
     if (isDuplicateOrder) {
       setFormData(prev => ({
         ...prev,
-        pickup_preference: prefillData.pickup_preference || 'next_day',
-        can_stake: prefillData.can_stake !== undefined ? prefillData.can_stake : true,
+        pickup_preference: prefillData.pickup_preference || null,
+        can_stake: prefillData.can_stake !== undefined ? prefillData.can_stake : null,
         has_generator: prefillData.has_generator !== undefined ? prefillData.has_generator : false,
         has_pets: prefillData.has_pets !== undefined ? prefillData.has_pets : false,
         special_details: prefillData.special_details || '',

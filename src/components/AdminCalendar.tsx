@@ -7,7 +7,8 @@ import { MileageModal } from './calendar/MileageModal';
 import { useCalendarTasks, Task } from '../hooks/useCalendarTasks';
 import { useRouteOptimization } from '../hooks/useRouteOptimization';
 import { getTasksForDate } from '../lib/calendarUtils';
-import { format, parse } from 'date-fns';
+import { format, parse, startOfMonth, endOfMonth } from 'date-fns';
+import { supabase } from '../lib/supabase';
 
 export function AdminCalendar() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -19,6 +20,28 @@ export function AdminCalendar() {
 
   const { tasks, loading, reload } = useCalendarTasks(currentMonth);
   const { optimizing, optimizeRoute } = useRouteOptimization();
+  const [mileageDates, setMileageDates] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    loadMonthMileage();
+  }, [currentMonth]);
+
+  async function loadMonthMileage() {
+    try {
+      const start = startOfMonth(currentMonth).toISOString().split('T')[0];
+      const end = endOfMonth(currentMonth).toISOString().split('T')[0];
+      const { data } = await supabase
+        .from('daily_mileage_logs')
+        .select('date')
+        .gte('date', start)
+        .lte('date', end);
+      if (data) {
+        setMileageDates(new Set(data.map(r => r.date as string)));
+      }
+    } catch {
+      // Non-critical
+    }
+  }
 
   // Load date and taskId from URL on mount
   useEffect(() => {
@@ -109,7 +132,7 @@ export function AdminCalendar() {
     <div className="space-y-6">
       <CalendarHeader currentMonth={currentMonth} onMonthChange={setCurrentMonth} />
 
-      <CalendarGrid currentMonth={currentMonth} tasks={tasks} onDateClick={handleDateClick} />
+      <CalendarGrid currentMonth={currentMonth} tasks={tasks} onDateClick={handleDateClick} mileageDates={mileageDates} />
 
       {showDayModal && selectedDate && (
         <DayViewModal

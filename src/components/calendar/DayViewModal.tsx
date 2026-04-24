@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { X, Truck as TruckIcon, Package, MousePointer, Car, Settings, ClipboardList, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
+import { X, Truck as TruckIcon, Package, MousePointer, Car, Settings, ClipboardList, AlertTriangle, Clock, CheckCircle, Gauge } from 'lucide-react';
 import { Task } from '../../hooks/useCalendarTasks';
 import { getStopNumber, sortTasksByOrder, isTaskActiveRouteStop, isDropOffPlanningOnly } from '../../lib/calendarUtils';
 import { TaskCard, TaskPosition } from './TaskCard';
@@ -8,6 +8,14 @@ import { MileageModal } from './MileageModal';
 import { RouteManagementModal } from './RouteManagementModal';
 import { EquipmentChecklistModal } from './EquipmentChecklistModal';
 import type { RouteOriginOptions } from '../../lib/routeOptimization';
+import { supabase } from '../../lib/supabase';
+
+interface MileageLogEntry {
+  user_id: string;
+  start_mileage: number | null;
+  end_mileage: number | null;
+  notes: string | null;
+}
 
 interface DayViewModalProps {
   selectedDate: Date;
@@ -33,6 +41,55 @@ export function DayViewModal({
   const [showRouteModal, setShowRouteModal] = useState(false);
   const [routeType, setRouteType] = useState<'drop-off' | 'pick-up'>('drop-off');
   const [showEquipmentChecklist, setShowEquipmentChecklist] = useState(false);
+  const [mileageLogs, setMileageLogs] = useState<MileageLogEntry[]>([]);
+  const [userNames, setUserNames] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    loadMileageLogs();
+  }, [selectedDate]);
+
+  async function loadMileageLogs() {
+    try {
+      const dateStr = selectedDate.toISOString().split('T')[0];
+      const { data, error } = await supabase
+        .from('daily_mileage_logs')
+        .select('user_id, start_mileage, end_mileage, notes')
+        .eq('date', dateStr);
+      if (error || !data) return;
+      setMileageLogs(data);
+
+      if (data.length > 0) {
+        const ids = data.map(r => r.user_id);
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.access_token) return;
+          const res = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-user-info`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ user_ids: ids }),
+            }
+          );
+          if (res.ok) {
+            const { userInfo } = await res.json();
+            const names: Record<string, string> = {};
+            for (const id of ids) {
+              names[id] = userInfo[id]?.full_name || userInfo[id]?.email || 'Unknown';
+            }
+            setUserNames(names);
+          }
+        } catch {
+          // Names are a nice-to-have; don't block on failure
+        }
+      }
+    } catch {
+      // Non-critical
+    }
+  }
 
   const allMorningTasks = tasks.filter(
     t => t.type === 'drop-off' || (t.type === 'pick-up' && t.pickupPreference === 'next_day')
@@ -80,6 +137,11 @@ export function DayViewModal({
   function handleEndDay() {
     setMileageType('end');
     setShowMileageModal(true);
+  }
+
+  function handleMileageSuccess() {
+    setShowMileageModal(false);
+    loadMileageLogs();
   }
 
   function handleManageRoute(type: 'drop-off' | 'pick-up') {
@@ -134,6 +196,46 @@ export function DayViewModal({
                   End Day Mileage
                 </button>
               </div>
+
+              {mileageLogs.length > 0 && (
+                <div className="mt-3 border-t border-blue-200 pt-3">
+                  <p className="text-xs font-semibold text-blue-800 flex items-center gap-1.5 mb-2">
+                    <Gauge className="w-3.5 h-3.5" />
+                    Today's Mileage
+                  </p>
+                  <div className="space-y-1.5">
+                    {mileageLogs.map(log => {
+                      const miles =
+                        log.start_mileage != null && log.end_mileage != null
+                          ? (log.end_mileage - log.start_mileage).toFixed(1)
+                          : null;
+                      return (
+                        <div key={log.user_id} className="flex items-center justify-between bg-white rounded-lg px-3 py-1.5 text-xs">
+                          <span className="font-medium text-slate-700 truncate max-w-[120px]">
+                            {userNames[log.user_id] || 'Crew Member'}
+                          </span>
+                          <div className="flex items-center gap-2 text-slate-600 shrink-0">
+                            {log.start_mileage != null && (
+                              <span className="text-green-700">Start: {log.start_mileage.toLocaleString()}</span>
+                            )}
+                            {log.end_mileage != null && (
+                              <span className="text-red-700">End: {log.end_mileage.toLocaleString()}</span>
+                            )}
+                            {miles != null && (
+                              <span className="font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
+                                {miles} mi
+                              </span>
+                            )}
+                            {log.start_mileage != null && log.end_mileage == null && (
+                              <span className="text-amber-600 italic">End pending</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             {hasMorning && (
@@ -407,7 +509,7 @@ export function DayViewModal({
         date={selectedDate}
         type={mileageType}
         onClose={() => setShowMileageModal(false)}
-        onSuccess={() => setShowMileageModal(false)}
+        onSuccess={handleMileageSuccess}
       />
 
       <RouteManagementModal

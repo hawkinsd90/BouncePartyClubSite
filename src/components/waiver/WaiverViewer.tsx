@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, AlertCircle } from 'lucide-react';
+
+export function sectionInitialId(section: string): string {
+  return `initial-${section.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+}
 
 interface WaiverViewerProps {
   waiverText: string;
@@ -63,19 +67,38 @@ export default function WaiverViewer({
       // If we hit a new section header and we have pending initials, render them first
       if (isHeader && currentSectionNeedsInitials && currentSectionElements.length > 0) {
         const sectionKey = currentSectionNeedsInitials;
+        const inputId = sectionInitialId(sectionKey);
+        const isSigned = (initials[sectionKey] || '').trim().length >= 2;
         renderedSections.push(
           <div key={`section-${currentSectionIndex}`} className="mb-6">
             {currentSectionElements}
-            <div className="mt-4 flex items-center gap-3 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-              <label className="text-sm font-medium text-gray-700">
+            <div
+              id={inputId}
+              className={`mt-4 flex items-center gap-3 rounded-lg p-3 border ${
+                isSigned
+                  ? 'bg-green-50 border-green-300'
+                  : 'bg-yellow-50 border-yellow-400 border-2'
+              }`}
+            >
+              {isSigned ? (
+                <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+              ) : (
+                <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 animate-pulse" />
+              )}
+              <label htmlFor={`${inputId}-input`} className="text-sm font-medium text-gray-700 flex-1">
                 Initial here to acknowledge "{sectionKey}":
               </label>
               <input
+                id={`${inputId}-input`}
                 type="text"
                 maxLength={4}
                 value={initials[sectionKey] || ''}
                 onChange={(e) => onInitialsChange(sectionKey, e.target.value.toUpperCase())}
-                className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center font-semibold uppercase"
+                className={`w-20 px-3 py-2 border rounded-lg text-center font-semibold uppercase ${
+                  isSigned
+                    ? 'border-green-400 bg-green-50 text-green-800'
+                    : 'border-yellow-400 bg-white text-gray-900'
+                }`}
                 placeholder="AB"
               />
             </div>
@@ -112,21 +135,42 @@ export default function WaiverViewer({
       renderedSections.push(
         <div key={`section-${currentSectionIndex}`} className="mb-6">
           {currentSectionElements}
-          {finalSectionKey && (
-            <div className="mt-4 flex items-center gap-3 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-              <label className="text-sm font-medium text-gray-700">
-                Initial here to acknowledge "{finalSectionKey}":
-              </label>
-              <input
-                type="text"
-                maxLength={4}
-                value={initials[finalSectionKey] || ''}
-                onChange={(e) => onInitialsChange(finalSectionKey, e.target.value.toUpperCase())}
-                className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center font-semibold uppercase"
-                placeholder="AB"
-              />
-            </div>
-          )}
+          {finalSectionKey && (() => {
+            const inputId = sectionInitialId(finalSectionKey);
+            const isSigned = (initials[finalSectionKey] || '').trim().length >= 2;
+            return (
+              <div
+                id={inputId}
+                className={`mt-4 flex items-center gap-3 rounded-lg p-3 border ${
+                  isSigned
+                    ? 'bg-green-50 border-green-300'
+                    : 'bg-yellow-50 border-yellow-400 border-2'
+                }`}
+              >
+                {isSigned ? (
+                  <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+                ) : (
+                  <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 animate-pulse" />
+                )}
+                <label htmlFor={`${inputId}-input`} className="text-sm font-medium text-gray-700 flex-1">
+                  Initial here to acknowledge "{finalSectionKey}":
+                </label>
+                <input
+                  id={`${inputId}-input`}
+                  type="text"
+                  maxLength={4}
+                  value={initials[finalSectionKey] || ''}
+                  onChange={(e) => onInitialsChange(finalSectionKey, e.target.value.toUpperCase())}
+                  className={`w-20 px-3 py-2 border rounded-lg text-center font-semibold uppercase ${
+                    isSigned
+                      ? 'border-green-400 bg-green-50 text-green-800'
+                      : 'border-yellow-400 bg-white text-gray-900'
+                  }`}
+                  placeholder="AB"
+                />
+              </div>
+            );
+          })()}
         </div>
       );
     }

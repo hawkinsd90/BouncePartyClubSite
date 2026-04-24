@@ -14,6 +14,7 @@ export function EventDetailsSection({ formData, onFormDataChange, validationErro
   const isSameDayRestricted =
     (formData.location_type === 'residential' && formData.pickup_preference === 'same_day') ||
     formData.location_type === 'commercial';
+  const locationSelected = formData.location_type != null;
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6">
@@ -95,7 +96,7 @@ export function EventDetailsSection({ formData, onFormDataChange, validationErro
         )}
       </div>
 
-      {formData.location_type === 'residential' && (
+      {formData.location_type === 'residential' && locationSelected && (
         <div className="mb-6">
           <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-3">When do you need pickup?</label>
           <div className="grid grid-cols-2 gap-3">
@@ -256,7 +257,7 @@ export function EventDetailsSection({ formData, onFormDataChange, validationErro
         </div>
       )}
 
-      {formData.location_type === 'residential' && (
+      {formData.location_type === 'residential' && locationSelected && (
         <div className="mb-6">
           <div className="p-3 sm:p-4 bg-slate-50 border border-slate-300 rounded-lg">
             <label className="flex items-start cursor-pointer">
