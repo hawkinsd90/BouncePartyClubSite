@@ -9,11 +9,17 @@ const corsHeaders = {
 
 const DRIVEABLE_STATUSES = new Set(["confirmed", "in_progress", "completed"]);
 
-/** Fetch task rows for a specific date and return only those with driveable addresses. */
-async function getTaskAddressesForDate(
+interface TaskStop {
+  // "lat,lng" when available, otherwise full address string — both work in Distance Matrix
+  waypoint: string;
+  label: string;
+}
+
+/** Fetch task rows for a specific date and return driveable stops with coordinates. */
+async function getTaskStopsForDate(
   supabaseAdmin: ReturnType<typeof createClient>,
   date: string
-): Promise<{ addresses: string[]; allRows: number; allStatuses: string[] }> {
+): Promise<{ stops: TaskStop[]; allRows: number; allStatuses: string[] }> {
   const { data: taskRows, error } = await supabaseAdmin
     .from("task_status")
     .select(`
@@ -21,21 +27,21 @@ async function getTaskAddressesForDate(
       sort_order,
       orders (
         status,
-        addresses ( line1, city, state, zip )
+        addresses ( line1, city, state, zip, lat, lng )
       )
     `)
     .eq("task_date", date)
     .order("sort_order", { ascending: true, nullsFirst: false })
     .order("order_id", { ascending: true });
 
-  if (error || !taskRows) return { addresses: [], allRows: 0, allStatuses: [] };
+  if (error || !taskRows) return { stops: [], allRows: 0, allStatuses: [] };
 
   const allStatuses = taskRows
     .map((r: any) => r.orders?.status)
     .filter(Boolean) as string[];
 
   const seenOrderIds = new Set<string>();
-  const addresses: string[] = [];
+  const stops: TaskStop[] = [];
 
   for (const row of taskRows) {
     const order = row.orders as any;
@@ -46,12 +52,22 @@ async function getTaskAddressesForDate(
     seenOrderIds.add(orderId);
 
     const addr = order.addresses;
-    if (addr?.line1 && addr?.city && addr?.state) {
-      addresses.push(`${addr.line1}, ${addr.city}, ${addr.state} ${addr.zip || ""}`.trim());
+    if (!addr) continue;
+
+    const label = `${addr.line1 || ""}, ${addr.city || ""}, ${addr.state || ""}`.trim();
+
+    // Prefer lat/lng coordinates — much more reliable than address geocoding in Distance Matrix
+    if (addr.lat && addr.lng) {
+      stops.push({ waypoint: `${addr.lat},${addr.lng}`, label });
+    } else if (addr.line1 && addr.city && addr.state) {
+      stops.push({
+        waypoint: `${addr.line1}, ${addr.city}, ${addr.state} ${addr.zip || ""}`.trim(),
+        label,
+      });
     }
   }
 
-  return { addresses, allRows: taskRows.length, allStatuses };
+  return { stops, allRows: taskRows.length, allStatuses };
 }
 
 /** Offset a YYYY-MM-DD string by `days` days. */
@@ -131,24 +147,22 @@ Deno.serve(async (req: Request) => {
     }
 
     // Try the requested date first, then search ±1, ±2, ±3 days if no tasks are found.
-    // This handles the common case where a mileage log is recorded the day after a job.
     const searchOffsets = [0, -1, 1, -2, 2, -3, 3];
-    let taskAddresses: string[] = [];
+    let taskStops: TaskStop[] = [];
     let resolvedDate = date;
     let lastDiagnostic = "";
 
     for (const offset of searchOffsets) {
       const candidateDate = offsetDate(date, offset);
-      const result = await getTaskAddressesForDate(supabaseAdmin, candidateDate);
+      const result = await getTaskStopsForDate(supabaseAdmin, candidateDate);
 
-      if (result.addresses.length > 0) {
-        taskAddresses = result.addresses;
+      if (result.stops.length > 0) {
+        taskStops = result.stops;
         resolvedDate = candidateDate;
         break;
       }
 
       if (offset === 0) {
-        // Build diagnostic for the originally requested date for use in the final error
         if (result.allRows === 0) {
           lastDiagnostic = `No tasks scheduled on ${date}.`;
         } else {
@@ -159,7 +173,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    if (taskAddresses.length === 0) {
+    if (taskStops.length === 0) {
       return new Response(
         JSON.stringify({
           error:
@@ -171,35 +185,32 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Prefer the explicit home_base_address key; fall back to business_address;
-    // last resort to the individual home_address_* fields.
+    // Build home base waypoint — prefer lat/lng from settings for accuracy
     const { data: homeBaseSettings } = await supabaseAdmin
       .from("admin_settings")
       .select("key, value")
-      .in("key", ["home_base_address", "business_address", "home_address_line1", "home_address_city", "home_address_state", "home_address_zip"]);
+      .in("key", [
+        "home_base_address", "business_address",
+        "home_address_line1", "home_address_city", "home_address_state", "home_address_zip",
+        "home_address_lat", "home_address_lng",
+      ]);
 
-    const settingsMap: Record<string, string> = {};
-    for (const row of homeBaseSettings ?? []) {
-      settingsMap[row.key] = row.value;
+    const sm: Record<string, string> = {};
+    for (const row of homeBaseSettings ?? []) sm[row.key] = row.value;
+
+    let homeWaypoint: string;
+    if (sm["home_address_lat"] && sm["home_address_lng"]) {
+      homeWaypoint = `${sm["home_address_lat"]},${sm["home_address_lng"]}`;
+    } else if (sm["home_base_address"]) {
+      homeWaypoint = sm["home_base_address"];
+    } else if (sm["business_address"]) {
+      homeWaypoint = sm["business_address"];
+    } else if (sm["home_address_line1"]) {
+      homeWaypoint = [sm["home_address_line1"], sm["home_address_city"], sm["home_address_state"], sm["home_address_zip"]]
+        .filter(Boolean).join(", ");
+    } else {
+      homeWaypoint = "42.2808,-83.3863"; // Wayne, MI coordinates as last resort
     }
-
-    let homeBase =
-      settingsMap["home_base_address"] ||
-      settingsMap["business_address"] ||
-      "";
-
-    if (!homeBase && settingsMap["home_address_line1"]) {
-      homeBase = [
-        settingsMap["home_address_line1"],
-        settingsMap["home_address_city"],
-        settingsMap["home_address_state"],
-        settingsMap["home_address_zip"],
-      ].filter(Boolean).join(", ");
-    }
-
-    if (!homeBase) homeBase = "Wayne, MI 48184";
-
-    const allAddresses = [homeBase, ...taskAddresses, homeBase];
 
     const googleMapsKey = Deno.env.get("GOOGLE_MAPS_API_KEY") ?? "";
     if (!googleMapsKey) {
@@ -209,12 +220,19 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Build ordered waypoint list: home → stop1 → stop2 → ... → home
+    const allWaypoints = [
+      { waypoint: homeWaypoint, label: "Home Base" },
+      ...taskStops,
+      { waypoint: homeWaypoint, label: "Home Base" },
+    ];
+
     let totalMeters = 0;
     const segmentResults: Array<{ from: string; to: string; distanceMiles: number }> = [];
 
-    for (let i = 0; i < allAddresses.length - 1; i++) {
-      const origin = encodeURIComponent(allAddresses[i]);
-      const destination = encodeURIComponent(allAddresses[i + 1]);
+    for (let i = 0; i < allWaypoints.length - 1; i++) {
+      const origin = encodeURIComponent(allWaypoints[i].waypoint);
+      const destination = encodeURIComponent(allWaypoints[i + 1].waypoint);
 
       const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin}&destinations=${destination}&mode=driving&units=imperial&key=${googleMapsKey}`;
 
@@ -232,7 +250,7 @@ Deno.serve(async (req: Request) => {
       if (!element || element.status !== "OK") {
         return new Response(
           JSON.stringify({
-            error: `Could not calculate distance for segment ${i + 1}: ${allAddresses[i]} → ${allAddresses[i + 1]}. Status: ${element?.status ?? "unknown"}`,
+            error: `Could not calculate distance for segment ${i + 1}: ${allWaypoints[i].label} → ${allWaypoints[i + 1].label}. Status: ${element?.status ?? "unknown"}`,
           }),
           { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
@@ -241,8 +259,8 @@ Deno.serve(async (req: Request) => {
       const meters = element.distance.value;
       totalMeters += meters;
       segmentResults.push({
-        from: allAddresses[i],
-        to: allAddresses[i + 1],
+        from: allWaypoints[i].label,
+        to: allWaypoints[i + 1].label,
         distanceMiles: parseFloat((meters * 0.000621371).toFixed(2)),
       });
     }
@@ -250,14 +268,13 @@ Deno.serve(async (req: Request) => {
     const totalMiles = totalMeters * 0.000621371;
     const calculatedEndMileage = mileageLog.start_mileage + totalMiles;
 
-    // Include resolvedDate so the client can inform the user if a nearby date was used
     return new Response(
       JSON.stringify({
         success: true,
         totalMiles: parseFloat(totalMiles.toFixed(2)),
         calculatedEndMileage: parseFloat(calculatedEndMileage.toFixed(1)),
         startMileage: mileageLog.start_mileage,
-        stopCount: taskAddresses.length,
+        stopCount: taskStops.length,
         segments: segmentResults,
         resolvedDate,
         usedNearbyDate: resolvedDate !== date,

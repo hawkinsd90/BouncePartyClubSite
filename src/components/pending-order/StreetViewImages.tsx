@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { X, Star, Loader } from 'lucide-react';
+import { loadGoogleMapsAPI } from '../../lib/googleMaps';
 
 interface Address {
   line1: string;
@@ -42,18 +43,39 @@ function nearestCardinal(heading: number): { heading: number; label: string } {
 
 async function fetchFacingHeading(address: Address): Promise<number | null> {
   if (!address.lat || !address.lng) return null;
+
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
   try {
+    // Step 1: Get the Street View panorama location for this address.
+    // Using lat/lng gives the nearest road-level panorama position.
     const metaUrl = `https://maps.googleapis.com/maps/api/streetview/metadata?location=${address.lat},${address.lng}&key=${apiKey}`;
     const res = await fetch(metaUrl);
     if (!res.ok) return null;
     const meta = await res.json();
     if (meta.status !== 'OK' || !meta.location) return null;
+
     const { lat: panoLat, lng: panoLng } = meta.location;
-    if (typeof google === 'undefined' || !google.maps?.geometry) return null;
-    const from = new google.maps.LatLng(panoLat, panoLng);
-    const to = new google.maps.LatLng(address.lat, address.lng);
-    return google.maps.geometry.spherical.computeHeading(from, to);
+
+    // Step 2: Ensure the Google Maps JS library is loaded, then load geometry.
+    await loadGoogleMapsAPI();
+    await (window.google.maps as any).importLibrary('geometry');
+
+    if (!window.google?.maps?.geometry?.spherical?.computeHeading) return null;
+
+    // Step 3: Compute bearing FROM the street panorama position TO the building.
+    // The panorama sits on the road; the address lat/lng is the building itself.
+    // This bearing is the direction the camera must face to look at the building.
+    const from = new window.google.maps.LatLng(panoLat, panoLng);
+    const to = new window.google.maps.LatLng(address.lat, address.lng);
+    const heading = window.google.maps.geometry.spherical.computeHeading(from, to);
+
+    // Sanity check: if panorama and address are essentially the same point (< 1m apart),
+    // the heading is meaningless. Return null so we don't highlight a random direction.
+    const distanceM = window.google.maps.geometry.spherical.computeDistanceBetween(from, to);
+    if (distanceM < 2) return null;
+
+    return heading;
   } catch {
     return null;
   }
@@ -70,18 +92,17 @@ export function StreetViewImages({
 
   useEffect(() => {
     setLoadingHeading(true);
+    setPrimaryHeading(null);
     fetchFacingHeading(address).then((heading) => {
       setPrimaryHeading(heading);
       setLoadingHeading(false);
     });
   }, [address.lat, address.lng]);
 
-  const primaryCardinal = primaryHeading !== null
+  // Only highlight a primary if we have a confident computed heading
+  const primaryCardinal = (primaryHeading !== null && !loadingHeading)
     ? nearestCardinal(primaryHeading)
-    : CARDINAL_ANGLES[0];
-
-  // All 4 angles in fixed order — primary one gets highlighted treatment
-  const orderedAngles = CARDINAL_ANGLES;
+    : null;
 
   return (
     <>
@@ -102,8 +123,9 @@ export function StreetViewImages({
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
-          {orderedAngles.map((angle) => {
-            const isPrimary = angle.heading === primaryCardinal.heading && !loadingHeading;
+          {CARDINAL_ANGLES.map((angle) => {
+            const isPrimary = primaryCardinal !== null && angle.heading === primaryCardinal.heading;
+            // For the primary image use the exact computed heading so it truly faces the building
             const imgHeading = isPrimary && primaryHeading !== null ? primaryHeading : angle.heading;
 
             return (
@@ -112,7 +134,9 @@ export function StreetViewImages({
                 className={`rounded overflow-hidden cursor-pointer group relative transition-all ${
                   isPrimary
                     ? 'border-2 border-amber-400 ring-2 ring-amber-200'
-                    : 'border border-slate-200'
+                    : loadingHeading
+                      ? 'border border-slate-200 opacity-80'
+                      : 'border border-slate-200'
                 }`}
                 onClick={() =>
                   onSelectImage({
@@ -121,18 +145,23 @@ export function StreetViewImages({
                   })
                 }
               >
-                {/* Label bar */}
                 <div className={`px-2 py-1 text-xs font-medium text-center flex items-center justify-center gap-1 ${
                   isPrimary ? 'bg-amber-400 text-white' : 'bg-slate-100 text-slate-700'
                 }`}>
-                  {isPrimary && <Star className="w-3 h-3 fill-white flex-shrink-0" />}
-                  {loadingHeading && angle.heading === CARDINAL_ANGLES[0].heading ? (
-                    <span className="flex items-center gap-1">
-                      <Loader className="w-3 h-3 animate-spin" />
-                      Detecting...
-                    </span>
+                  {loadingHeading ? (
+                    angle.heading === CARDINAL_ANGLES[0].heading ? (
+                      <span className="flex items-center gap-1 text-slate-500">
+                        <Loader className="w-3 h-3 animate-spin" />
+                        Detecting...
+                      </span>
+                    ) : (
+                      <span className="text-slate-500">{angle.label}</span>
+                    )
                   ) : (
-                    isPrimary ? `Front View` : angle.label
+                    <>
+                      {isPrimary && <Star className="w-3 h-3 fill-white flex-shrink-0" />}
+                      {isPrimary ? 'Front View' : angle.label}
+                    </>
                   )}
                 </div>
 
