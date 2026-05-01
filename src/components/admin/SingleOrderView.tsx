@@ -50,7 +50,7 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
         const { data: matchRow, error: searchError } = await supabase
           .from('orders')
           .select('id')
-          .ilike('id', `${orderId}%`)
+          .ilike('id::text', `${orderId}%`)
           .limit(1)
           .maybeSingle();
 
