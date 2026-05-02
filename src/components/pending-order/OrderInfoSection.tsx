@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { CreditCard as Edit2, Receipt } from 'lucide-react';
+import { CreditCard as Edit2 } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
 import { ORDER_STATUS_LABELS } from '../../lib/constants/statuses';
 
@@ -91,22 +91,6 @@ export function OrderInfoSection({ order, customerDisplayName, onEditClick }: Or
           </p>
         </div>
       </div>
-
-      {order.billing_address_line1 && (
-        <div className="mb-4 p-3 bg-sky-50 border border-sky-300 rounded-lg flex items-start gap-2">
-          <Receipt className="w-4 h-4 text-sky-600 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-xs font-semibold text-sky-900 mb-0.5">Billing Address (differs from event location)</p>
-            <p className="text-xs text-sky-800">
-              {order.billing_address_line1}
-              {order.billing_address_line2 && `, ${order.billing_address_line2}`}
-            </p>
-            <p className="text-xs text-sky-800">
-              {order.billing_city}, {order.billing_state} {order.billing_zip}
-            </p>
-          </div>
-        </div>
-      )}
 
       <div className="mb-4 p-3 bg-white rounded-lg border border-slate-200">
         <div className="grid grid-cols-4 gap-4 text-sm">
