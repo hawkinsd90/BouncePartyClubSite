@@ -471,10 +471,14 @@ export async function saveOrderChanges({
 
   if (hasTrackedChanges || hasFieldChanges) {
     const oldStatus = order.status;
-    if (adminOverrideApproval) {
-      changes.status = ORDER_STATUS.CONFIRMED;
-    } else {
-      changes.status = ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL;
+    const isDraft = oldStatus === ORDER_STATUS.DRAFT;
+
+    if (!isDraft) {
+      if (adminOverrideApproval) {
+        changes.status = ORDER_STATUS.CONFIRMED;
+      } else {
+        changes.status = ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL;
+      }
     }
 
     const { error: updateError } = await supabase.from('orders').update(changes).eq('id', order.id);
@@ -484,7 +488,7 @@ export async function saveOrderChanges({
       await logChangeFn(field, oldVal, newVal);
     }
 
-    if (adminOverrideApproval) {
+    if (!isDraft && adminOverrideApproval) {
       try {
         const { enterConfirmed } = await import('./orderLifecycle');
         const lcResult = await enterConfirmed(order.id, 'admin_override_approval', 'waived', oldStatus) as { success: boolean; error?: string; alreadySent?: boolean };
@@ -496,7 +500,7 @@ export async function saveOrderChanges({
       }
     }
 
-    if (hasTrackedChanges && !adminOverrideApproval) {
+    if (hasTrackedChanges && !isDraft && !adminOverrideApproval) {
       await sendNotificationsFn();
     }
   }
