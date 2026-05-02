@@ -469,9 +469,13 @@ export async function saveOrderChanges({
     || updatedFeeCount > 0;
   const hasFieldChanges = Object.keys(changes).length > 0;
 
+  const isDraft = order.status === ORDER_STATUS.DRAFT;
+
   if (hasTrackedChanges || hasFieldChanges) {
     const oldStatus = order.status;
-    if (adminOverrideApproval) {
+    if (isDraft) {
+      // Keep draft orders in draft — the customer invoice updates live without triggering approval flow
+    } else if (adminOverrideApproval) {
       changes.status = ORDER_STATUS.CONFIRMED;
     } else {
       changes.status = ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL;
@@ -484,7 +488,7 @@ export async function saveOrderChanges({
       await logChangeFn(field, oldVal, newVal);
     }
 
-    if (adminOverrideApproval) {
+    if (!isDraft && adminOverrideApproval) {
       try {
         const { enterConfirmed } = await import('./orderLifecycle');
         const lcResult = await enterConfirmed(order.id, 'admin_override_approval', 'waived', oldStatus) as { success: boolean; error?: string; alreadySent?: boolean };
@@ -496,7 +500,7 @@ export async function saveOrderChanges({
       }
     }
 
-    if (hasTrackedChanges && !adminOverrideApproval) {
+    if (hasTrackedChanges && !isDraft && !adminOverrideApproval) {
       await sendNotificationsFn();
     }
   }
@@ -504,7 +508,9 @@ export async function saveOrderChanges({
   onComplete();
 
   if (hasTrackedChanges) {
-    if (adminOverrideApproval) {
+    if (isDraft) {
+      showToast('Draft order updated successfully! The customer invoice reflects the latest changes.', 'success');
+    } else if (adminOverrideApproval) {
       showToast('Changes saved and order confirmed! Customer approval was skipped - order is ready to go.', 'success');
     } else {
       showToast('Changes saved successfully! Customer will be notified to review and approve the changes.', 'success');
