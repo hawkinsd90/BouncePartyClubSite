@@ -122,9 +122,7 @@ export function OrderDetailsTab({
         </div>
         <p className="text-sm text-amber-700">
           Make changes to order details and items below. Click "Save Changes" to apply all changes at once.
-          {order.status === ORDER_STATUS.DRAFT
-            ? ' The order will remain in Draft — the customer invoice will reflect the updated details.'
-            : ' The order status will be set to "Awaiting Customer Approval" when saved.'}
+          The order status will be set to "Awaiting Customer Approval" when saved.
         </p>
       </div>
 
