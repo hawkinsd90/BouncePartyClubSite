@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FileCheck, AlertCircle, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { trackEvent } from '../lib/siteEvents';
 import SignaturePad from '../components/waiver/SignaturePad';
-import WaiverViewer, { sectionInitialId } from '../components/waiver/WaiverViewer';
+import WaiverViewer, { sectionInitialId, WaiverViewerHandle } from '../components/waiver/WaiverViewer';
 import {
   WAIVER_TEXT,
   WAIVER_VERSION,
@@ -42,6 +42,8 @@ export default function Sign() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [order, setOrder] = useState<OrderData | null>(null);
+
+  const waiverViewerRef = useRef<WaiverViewerHandle>(null);
 
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
   const [typedName, setTypedName] = useState('');
@@ -199,8 +201,20 @@ export default function Sign() {
     e.preventDefault();
 
     if (!isFormValid() || !order) {
-      scrollToFirstIncomplete();
-      setError('Please complete all required fields');
+      const missingSections = INITIALS_REQUIRED.filter(
+        (s) => !initials[s]?.trim() || initials[s].trim().length < 2
+      );
+      if (missingSections.length > 0) {
+        setError(
+          `Please complete the missing initials:\n• ${missingSections.join('\n• ')}`
+        );
+        // Try to scroll inside the waiver viewer first, then fall back to full-page scroll
+        const scrolled = waiverViewerRef.current?.scrollToNextIncompleteInitial();
+        if (!scrolled) scrollToFirstIncomplete();
+      } else {
+        setError('Please complete all required fields');
+        scrollToFirstIncomplete();
+      }
       return;
     }
 
@@ -337,6 +351,7 @@ export default function Sign() {
                 1. Review Liability Waiver
               </h3>
               <WaiverViewer
+                ref={waiverViewerRef}
                 waiverText={WAIVER_TEXT}
                 onScrollToBottom={setHasScrolledToBottom}
                 initialsRequired={INITIALS_REQUIRED}
@@ -662,7 +677,7 @@ export default function Sign() {
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
                 <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-red-800">{error}</p>
+                <p className="text-sm text-red-800 whitespace-pre-line">{error}</p>
               </div>
             )}
 
