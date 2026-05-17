@@ -17,18 +17,18 @@ interface Props {
   chargingCard: boolean;
 }
 
-function parseTotalReceived(value: string, balanceDueCents: number): { totalReceivedCents: number; balancePaymentCents: number; tipCents: number } {
+function parseTotalReceived(value: string, balanceDueCents: number): { totalReceivedCents: number; balancePaymentCents: number; tipCents: number; valid: boolean } {
   const raw = parseFloat(value);
-  if (!raw || raw <= 0) return { totalReceivedCents: 0, balancePaymentCents: 0, tipCents: 0 };
+  if (!isFinite(raw) || raw <= 0) return { totalReceivedCents: 0, balancePaymentCents: 0, tipCents: 0, valid: false };
   const totalReceivedCents = Math.round(raw * 100);
   const balancePaymentCents = Math.min(totalReceivedCents, balanceDueCents);
   const tipCents = Math.max(totalReceivedCents - balanceDueCents, 0);
-  return { totalReceivedCents, balancePaymentCents, tipCents };
+  return { totalReceivedCents, balancePaymentCents, tipCents, valid: true };
 }
 
 function PaymentBreakdown({ totalValue, balanceDueCents }: { totalValue: string; balanceDueCents: number }) {
-  const { totalReceivedCents, balancePaymentCents, tipCents } = parseTotalReceived(totalValue, balanceDueCents);
-  if (!totalReceivedCents) return null;
+  const { totalReceivedCents, balancePaymentCents, tipCents, valid } = parseTotalReceived(totalValue, balanceDueCents);
+  if (!valid) return null;
   return (
     <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded p-2 space-y-0.5">
       <div className="flex justify-between">
@@ -39,12 +39,10 @@ function PaymentBreakdown({ totalValue, balanceDueCents }: { totalValue: string;
         <span>Balance payment:</span>
         <span className="font-medium text-green-700">{formatCurrency(balancePaymentCents)}</span>
       </div>
-      {tipCents > 0 && (
-        <div className="flex justify-between">
-          <span>Tip:</span>
-          <span className="font-medium text-blue-700">{formatCurrency(tipCents)}</span>
-        </div>
-      )}
+      <div className="flex justify-between">
+        <span>Tip:</span>
+        <span className={`font-medium ${tipCents > 0 ? 'text-blue-700' : 'text-slate-500'}`}>{formatCurrency(tipCents)}</span>
+      </div>
       <div className="flex justify-between border-t border-slate-200 pt-0.5 mt-0.5">
         <span className="font-semibold">Total received:</span>
         <span className="font-semibold">{formatCurrency(totalReceivedCents)}</span>
@@ -67,16 +65,16 @@ export function TaskDetailOrderManagement({
   const [cancelReasonError, setCancelReasonError] = useState('');
 
   async function handleCash() {
-    const { totalReceivedCents, balancePaymentCents, tipCents } = parseTotalReceived(cashAmount, task.balanceDue);
-    if (!totalReceivedCents || totalReceivedCents <= 0) return;
+    const { totalReceivedCents, balancePaymentCents, tipCents, valid } = parseTotalReceived(cashAmount, task.balanceDue);
+    if (!valid) return;
     await onCashPayment(balancePaymentCents, tipCents, totalReceivedCents);
     setShowCashPayment(false);
     setCashAmount('');
   }
 
   async function handleCheck() {
-    const { totalReceivedCents, balancePaymentCents, tipCents } = parseTotalReceived(checkAmount, task.balanceDue);
-    if (!totalReceivedCents || totalReceivedCents <= 0 || !checkNumber.trim()) return;
+    const { totalReceivedCents, balancePaymentCents, tipCents, valid } = parseTotalReceived(checkAmount, task.balanceDue);
+    if (!valid || !checkNumber.trim()) return;
     await onCheckPayment(balancePaymentCents, checkNumber.trim(), tipCents, totalReceivedCents);
     setShowCheckPayment(false);
     setCheckAmount('');
@@ -126,7 +124,7 @@ export function TaskDetailOrderManagement({
                 <div className="flex gap-2">
                   <button
                     onClick={handleCash}
-                    disabled={recordingCash || !cashAmount}
+                    disabled={recordingCash || !parseTotalReceived(cashAmount, task.balanceDue).valid}
                     className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white text-sm font-semibold py-2 px-3 rounded"
                   >
                     {recordingCash ? 'Recording...' : 'Record Payment'}
@@ -181,7 +179,7 @@ export function TaskDetailOrderManagement({
                 <div className="flex gap-2">
                   <button
                     onClick={handleCheck}
-                    disabled={recordingCheck || !checkAmount || !checkNumber.trim()}
+                    disabled={recordingCheck || !parseTotalReceived(checkAmount, task.balanceDue).valid || !checkNumber.trim()}
                     className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white text-sm font-semibold py-2 px-3 rounded"
                   >
                     {recordingCheck ? 'Recording...' : 'Record Payment'}
