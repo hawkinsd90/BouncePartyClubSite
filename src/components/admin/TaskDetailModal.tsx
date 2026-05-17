@@ -236,33 +236,143 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     finally { setProcessing(false); }
   }
 
+  async function compressImage(file: File): Promise<Blob | null> {
+    const HEIC_TYPES = ['image/heic', 'image/heif'];
+    const MAX_DIMENSION = 2048;
+    const JPEG_QUALITY = 0.82;
+
+    if (HEIC_TYPES.includes(file.type.toLowerCase())) {
+      // HEIC cannot be decoded by canvas in most browsers; return null to trigger fallback
+      console.log(`[photos] HEIC/HEIF detected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB) — skipping canvas compression`);
+      return null;
+    }
+
+    return new Promise((resolve) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        let { width, height } = img;
+        if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+          const ratio = Math.min(MAX_DIMENSION / width, MAX_DIMENSION / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { resolve(null); return; }
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => resolve(blob), 'image/jpeg', JPEG_QUALITY);
+      };
+      img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(null); };
+      img.src = objectUrl;
+    });
+  }
+
   async function handleImageUpload(isDamage?: boolean) {
+    const BUCKET_LIMIT_BYTES = 10 * 1024 * 1024; // 10 MB (matches updated bucket limit)
+    const HEIC_TYPES = ['image/heic', 'image/heif'];
+
     const input = document.createElement('input');
     input.type = 'file'; input.accept = 'image/*'; input.multiple = true;
     input.onchange = async (e: any) => {
-      const files = e.target.files;
-      if (!files || files.length === 0) return;
+      const files: File[] = Array.from(e.target.files || []);
+      if (files.length === 0) return;
+
+      console.log(`[photos] Selected ${files.length} file(s) for ${isDamage ? 'damage' : 'delivery'} upload`);
+
       setUploadingImages(true);
+      const uploadedUrls: string[] = [];
+      const skippedFiles: string[] = [];
+
       try {
         const taskStatusId = await ensureTaskStatus();
-        const uploadedUrls: string[] = [];
+
         for (const file of files) {
-          const fileName = `${task.orderId}-${task.type}-${Date.now()}-${file.name}`;
-          const { data, error } = await supabase.storage.from('public-assets').upload(fileName, file);
-          if (error) throw error;
+          const isHeic = HEIC_TYPES.includes(file.type.toLowerCase());
+          console.log(`[photos] Processing: ${file.name} | type: ${file.type} | original size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
+
+          let uploadBlob: Blob = file;
+          let uploadName = `${task.orderId}-${task.type}-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+
+          if (isHeic) {
+            if (file.size <= BUCKET_LIMIT_BYTES) {
+              // HEIC within limit — upload as-is and hope browser/CDN handles it
+              console.log(`[photos] HEIC within limit, uploading as-is`);
+            } else {
+              console.warn(`[photos] HEIC too large and cannot be compressed: ${file.name}`);
+              skippedFiles.push(file.name);
+              continue;
+            }
+          } else {
+            // Attempt canvas compression for standard image types
+            const compressed = await compressImage(file);
+            if (compressed) {
+              console.log(`[photos] Compressed: ${(file.size / 1024 / 1024).toFixed(2)} MB → ${(compressed.size / 1024 / 1024).toFixed(2)} MB`);
+              uploadBlob = compressed;
+              // Use .jpg extension for canvas-compressed output
+              uploadName = uploadName.replace(/\.[^.]+$/, '') + '.jpg';
+            } else {
+              // Compression failed; fall back to original if within limit
+              if (file.size > BUCKET_LIMIT_BYTES) {
+                console.warn(`[photos] Could not compress and file too large: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+                skippedFiles.push(file.name);
+                continue;
+              }
+              console.log(`[photos] Using original (compression unavailable, file within limit)`);
+            }
+          }
+
+          const { data, error } = await supabase.storage.from('public-assets').upload(uploadName, uploadBlob, { cacheControl: '3600', upsert: false });
+          if (error) {
+            console.error(`[photos] Upload failed for ${file.name}:`, error);
+            if (error.message?.toLowerCase().includes('size')) {
+              skippedFiles.push(file.name);
+              continue;
+            }
+            throw error;
+          }
           const { data: urlData } = supabase.storage.from('public-assets').getPublicUrl(data.path);
           uploadedUrls.push(urlData.publicUrl);
+          console.log(`[photos] Uploaded successfully: ${file.name}`);
         }
-        const col = isDamage ? 'damage_images' : 'delivery_images';
-        const { data: cur, error: fetchErr } = await supabase.from('task_status').select(col).eq('id', taskStatusId).maybeSingle();
-        if (fetchErr) throw fetchErr;
-        const merged = [...((cur as any)?.[col] || []), ...uploadedUrls];
-        const { error: updErr } = await supabase.from('task_status').update({ [col]: merged }).eq('id', taskStatusId);
-        if (updErr) throw updErr;
-        showAlert(`${uploadedUrls.length} ${isDamage ? 'damage' : 'delivery'} photo(s) uploaded and saved successfully!`);
-        refresh();
-      } catch (e: any) { console.error('Upload error:', e); showAlert('Failed to upload images: ' + e.message); }
-      finally { setUploadingImages(false); }
+
+        if (uploadedUrls.length > 0) {
+          const col = isDamage ? 'damage_images' : 'delivery_images';
+          const { data: cur, error: fetchErr } = await supabase.from('task_status').select(col).eq('id', taskStatusId).maybeSingle();
+          if (fetchErr) throw fetchErr;
+          const merged = [...((cur as any)?.[col] || []), ...uploadedUrls];
+          const { error: updErr } = await supabase.from('task_status').update({ [col]: merged }).eq('id', taskStatusId);
+          if (updErr) throw updErr;
+          console.log(`[photos] Saved ${uploadedUrls.length} URL(s) to task_status.${col}`);
+        }
+
+        if (skippedFiles.length > 0 && uploadedUrls.length === 0) {
+          const isAllHeic = skippedFiles.every(n => /\.hei[cf]$/i.test(n));
+          if (isAllHeic) {
+            showAlert('These photos could not be uploaded because the HEIC format is too large to process.\n\nPlease retake the photo using "Most Compatible" (JPEG) mode in your iPhone camera settings, or choose a smaller image.');
+          } else {
+            showAlert('Photo is too large. Please try again, or take a lower-resolution photo.');
+          }
+        } else if (skippedFiles.length > 0) {
+          showAlert(`${uploadedUrls.length} photo(s) uploaded. ${skippedFiles.length} photo(s) were skipped because they were too large. Please retake those using a lower resolution or JPEG mode.`);
+          refresh();
+        } else {
+          showAlert(`${uploadedUrls.length} ${isDamage ? 'damage' : 'delivery'} photo(s) uploaded and saved successfully!`);
+          refresh();
+        }
+      } catch (e: any) {
+        console.error('[photos] Upload error:', e);
+        const msg = (e.message || '').toLowerCase();
+        if (msg.includes('size') || msg.includes('maximum')) {
+          showAlert('Photo is too large. Please try again, or take a lower-resolution photo.');
+        } else {
+          showAlert('Failed to upload photos. Please try again.');
+        }
+      } finally {
+        setUploadingImages(false);
+      }
     };
     input.click();
   }
@@ -422,8 +532,17 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     finally { setRefunding(false); }
   }
 
-  async function handleCashPayment(amountCents: number) {
-    const confirmed = await showConfirm(`Record cash payment of ${formatCurrency(amountCents)} from ${task.customerName}?\n\nThis will send a receipt email to the customer.`);
+  async function handleCashPayment(balancePaymentCents: number, tipCents: number = 0, totalReceivedCents: number = balancePaymentCents) {
+    const hasTip = tipCents > 0;
+    const confirmLines = [
+      `Record cash payment from ${task.customerName}?`,
+      '',
+      `  Balance payment:  ${formatCurrency(balancePaymentCents)}`,
+      ...(hasTip ? [`  Tip:              ${formatCurrency(tipCents)}`, `  Total received:   ${formatCurrency(totalReceivedCents)}`] : []),
+      '',
+      'This will send a receipt email to the customer.',
+    ];
+    const confirmed = await showConfirm(confirmLines.join('\n'));
     if (!confirmed) return;
     setRecordingCash(true);
     try {
@@ -431,18 +550,31 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-cash-payment`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: task.orderId, amountCents }),
+        body: JSON.stringify({ orderId: task.orderId, amountCents: balancePaymentCents, tipCents }),
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || 'Failed to record payment');
-      showAlert(`Cash payment of ${formatCurrency(amountCents)} recorded successfully!`);
+      const successMsg = hasTip
+        ? `Cash payment recorded! Balance: ${formatCurrency(balancePaymentCents)} + Tip: ${formatCurrency(tipCents)} = ${formatCurrency(totalReceivedCents)}`
+        : `Cash payment of ${formatCurrency(balancePaymentCents)} recorded successfully!`;
+      showAlert(successMsg);
       refresh();
     } catch (e: any) { console.error('Cash payment error:', e); showAlert('Failed to record payment: ' + e.message); }
     finally { setRecordingCash(false); }
   }
 
-  async function handleCheckPayment(amountCents: number, checkNumber: string) {
-    const confirmed = await showConfirm(`Record check payment of ${formatCurrency(amountCents)} from ${task.customerName}?\n\nCheck #${checkNumber}\n\nThis will send a receipt email to the customer.`);
+  async function handleCheckPayment(balancePaymentCents: number, checkNumber: string, tipCents: number = 0, totalReceivedCents: number = balancePaymentCents) {
+    const hasTip = tipCents > 0;
+    const confirmLines = [
+      `Record check payment from ${task.customerName}?`,
+      '',
+      `  Check #:          ${checkNumber}`,
+      `  Balance payment:  ${formatCurrency(balancePaymentCents)}`,
+      ...(hasTip ? [`  Tip:              ${formatCurrency(tipCents)}`, `  Total received:   ${formatCurrency(totalReceivedCents)}`] : []),
+      '',
+      'This will send a receipt email to the customer.',
+    ];
+    const confirmed = await showConfirm(confirmLines.join('\n'));
     if (!confirmed) return;
     setRecordingCheck(true);
     try {
@@ -450,11 +582,14 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-check-payment`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: task.orderId, amountCents, checkNumber }),
+        body: JSON.stringify({ orderId: task.orderId, amountCents: balancePaymentCents, checkNumber, tipCents }),
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || 'Failed to record payment');
-      showAlert(`Check payment of ${formatCurrency(amountCents)} (Check #${checkNumber}) recorded successfully!`);
+      const successMsg = hasTip
+        ? `Check payment recorded! Balance: ${formatCurrency(balancePaymentCents)} + Tip: ${formatCurrency(tipCents)} = ${formatCurrency(totalReceivedCents)} (Check #${checkNumber})`
+        : `Check payment of ${formatCurrency(balancePaymentCents)} (Check #${checkNumber}) recorded successfully!`;
+      showAlert(successMsg);
       refresh();
     } catch (e: any) { console.error('Check payment error:', e); showAlert('Failed to record payment: ' + e.message); }
     finally { setRecordingCheck(false); }

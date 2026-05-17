@@ -5,8 +5,8 @@ import { Task } from '../../../hooks/useCalendarTasks';
 
 interface Props {
   task: Task;
-  onCashPayment: (amountCents: number) => Promise<void>;
-  onCheckPayment: (amountCents: number, checkNumber: string) => Promise<void>;
+  onCashPayment: (balancePaymentCents: number, tipCents?: number, totalReceivedCents?: number) => Promise<void>;
+  onCheckPayment: (balancePaymentCents: number, checkNumber: string, tipCents?: number, totalReceivedCents?: number) => Promise<void>;
   onPaperWaiver: () => Promise<void>;
   onCancelOrder: (reason: string) => Promise<void>;
   onChargeCard: (amountCents: number) => Promise<void>;
@@ -15,6 +15,42 @@ interface Props {
   signingWaiver: boolean;
   cancelling: boolean;
   chargingCard: boolean;
+}
+
+function parseTotalReceived(value: string, balanceDueCents: number): { totalReceivedCents: number; balancePaymentCents: number; tipCents: number } {
+  const raw = parseFloat(value);
+  if (!raw || raw <= 0) return { totalReceivedCents: 0, balancePaymentCents: 0, tipCents: 0 };
+  const totalReceivedCents = Math.round(raw * 100);
+  const balancePaymentCents = Math.min(totalReceivedCents, balanceDueCents);
+  const tipCents = Math.max(totalReceivedCents - balanceDueCents, 0);
+  return { totalReceivedCents, balancePaymentCents, tipCents };
+}
+
+function PaymentBreakdown({ totalValue, balanceDueCents }: { totalValue: string; balanceDueCents: number }) {
+  const { totalReceivedCents, balancePaymentCents, tipCents } = parseTotalReceived(totalValue, balanceDueCents);
+  if (!totalReceivedCents) return null;
+  return (
+    <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded p-2 space-y-0.5">
+      <div className="flex justify-between">
+        <span>Balance due:</span>
+        <span className="font-medium">{formatCurrency(balanceDueCents)}</span>
+      </div>
+      <div className="flex justify-between">
+        <span>Balance payment:</span>
+        <span className="font-medium text-green-700">{formatCurrency(balancePaymentCents)}</span>
+      </div>
+      {tipCents > 0 && (
+        <div className="flex justify-between">
+          <span>Tip:</span>
+          <span className="font-medium text-blue-700">{formatCurrency(tipCents)}</span>
+        </div>
+      )}
+      <div className="flex justify-between border-t border-slate-200 pt-0.5 mt-0.5">
+        <span className="font-semibold">Total received:</span>
+        <span className="font-semibold">{formatCurrency(totalReceivedCents)}</span>
+      </div>
+    </div>
+  );
 }
 
 export function TaskDetailOrderManagement({
@@ -31,17 +67,17 @@ export function TaskDetailOrderManagement({
   const [cancelReasonError, setCancelReasonError] = useState('');
 
   async function handleCash() {
-    const amountCents = Math.round(parseFloat(cashAmount) * 100);
-    if (!amountCents || amountCents <= 0) return;
-    await onCashPayment(amountCents);
+    const { totalReceivedCents, balancePaymentCents, tipCents } = parseTotalReceived(cashAmount, task.balanceDue);
+    if (!totalReceivedCents || totalReceivedCents <= 0) return;
+    await onCashPayment(balancePaymentCents, tipCents, totalReceivedCents);
     setShowCashPayment(false);
     setCashAmount('');
   }
 
   async function handleCheck() {
-    const amountCents = Math.round(parseFloat(checkAmount) * 100);
-    if (!amountCents || amountCents <= 0 || !checkNumber.trim()) return;
-    await onCheckPayment(amountCents, checkNumber.trim());
+    const { totalReceivedCents, balancePaymentCents, tipCents } = parseTotalReceived(checkAmount, task.balanceDue);
+    if (!totalReceivedCents || totalReceivedCents <= 0 || !checkNumber.trim()) return;
+    await onCheckPayment(balancePaymentCents, checkNumber.trim(), tipCents, totalReceivedCents);
     setShowCheckPayment(false);
     setCheckAmount('');
     setCheckNumber('');
@@ -63,6 +99,7 @@ export function TaskDetailOrderManagement({
 
       {task.balanceDue > 0 && (
         <div className="space-y-2">
+          {/* Cash payment */}
           <div>
             <button
               onClick={() => { setShowCashPayment(!showCashPayment); setShowCheckPayment(false); }}
@@ -75,7 +112,7 @@ export function TaskDetailOrderManagement({
               <div className="mt-3 p-3 bg-white border border-slate-200 rounded-lg space-y-2">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Amount Received ($) — Balance Due: {formatCurrency(task.balanceDue)}
+                    Total Received ($)
                   </label>
                   <input
                     type="number" step="0.01" min="0.01"
@@ -85,16 +122,17 @@ export function TaskDetailOrderManagement({
                     placeholder={(task.balanceDue / 100).toFixed(2)}
                   />
                 </div>
+                <PaymentBreakdown totalValue={cashAmount} balanceDueCents={task.balanceDue} />
                 <div className="flex gap-2">
                   <button
                     onClick={handleCash}
-                    disabled={recordingCash}
+                    disabled={recordingCash || !cashAmount}
                     className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white text-sm font-semibold py-2 px-3 rounded"
                   >
                     {recordingCash ? 'Recording...' : 'Record Payment'}
                   </button>
                   <button
-                    onClick={() => setShowCashPayment(false)}
+                    onClick={() => { setShowCashPayment(false); setCashAmount(''); }}
                     className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-semibold py-2 px-3 rounded"
                   >
                     Cancel
@@ -104,6 +142,7 @@ export function TaskDetailOrderManagement({
             )}
           </div>
 
+          {/* Check payment */}
           <div>
             <button
               onClick={() => { setShowCheckPayment(!showCheckPayment); setShowCashPayment(false); }}
@@ -116,7 +155,7 @@ export function TaskDetailOrderManagement({
               <div className="mt-3 p-3 bg-white border border-blue-200 rounded-lg space-y-2">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Amount Received ($) — Balance Due: {formatCurrency(task.balanceDue)}
+                    Total Received ($)
                   </label>
                   <input
                     type="number" step="0.01" min="0.01"
@@ -126,6 +165,7 @@ export function TaskDetailOrderManagement({
                     placeholder={(task.balanceDue / 100).toFixed(2)}
                   />
                 </div>
+                <PaymentBreakdown totalValue={checkAmount} balanceDueCents={task.balanceDue} />
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">
                     Check Number <span className="text-red-500">*</span>
@@ -147,7 +187,7 @@ export function TaskDetailOrderManagement({
                     {recordingCheck ? 'Recording...' : 'Record Payment'}
                   </button>
                   <button
-                    onClick={() => setShowCheckPayment(false)}
+                    onClick={() => { setShowCheckPayment(false); setCheckAmount(''); setCheckNumber(''); }}
                     className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-semibold py-2 px-3 rounded"
                   >
                     Cancel
