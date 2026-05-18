@@ -277,6 +277,7 @@ export function Checkout() {
               processing={processing}
               cardOnFileConsent={cardOnFileConsent}
               smsConsent={smsConsent}
+              referralSource={referralSource}
               tipCents={tipCents}
               paymentAmountCents={getPaymentAmountCents(paymentAmount, customAmount, priceBreakdown)}
               onViewInvoice={handleViewInvoice}
