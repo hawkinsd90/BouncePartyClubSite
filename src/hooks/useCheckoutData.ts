@@ -36,6 +36,8 @@ export function useCheckoutData(userId?: string) {
   const [cardOnFileConsent, setCardOnFileConsent] = useState(false);
   const [tipAmount, setTipAmount] = useState<'none' | '10' | '15' | '20' | 'custom'>('none');
   const [customTip, setCustomTip] = useState('');
+  const [referralSource, setReferralSource] = useState('');
+  const [referralSourceDetail, setReferralSourceDetail] = useState('');
   const [loading, setLoading] = useState(true);
   const [profileApplied, setProfileApplied] = useState(false);
 
@@ -174,6 +176,10 @@ export function useCheckoutData(userId?: string) {
     setTipAmount,
     customTip,
     setCustomTip,
+    referralSource,
+    setReferralSource,
+    referralSourceDetail,
+    setReferralSourceDetail,
     loading,
   };
 }

@@ -14,6 +14,7 @@ import { PaymentAmountSelector } from '../components/checkout/PaymentAmountSelec
 import { TipSection } from '../components/checkout/TipSection';
 import { ConsentSection } from '../components/checkout/ConsentSection';
 import { CheckoutSummary } from '../components/checkout/CheckoutSummary';
+import { ReferralSourceSelect } from '../components/shared/ReferralSourceSelect';
 import { createLogger } from '../lib/logger';
 import { trackEvent } from '../lib/siteEvents';
 
@@ -43,10 +44,15 @@ export function Checkout() {
     setTipAmount,
     customTip,
     setCustomTip,
+    referralSource,
+    setReferralSource,
+    referralSourceDetail,
+    setReferralSourceDetail,
     loading,
   } = useCheckoutData(user?.id);
 
   const [processing, setProcessing] = useState(false);
+  const [referralError, setReferralError] = useState('');
   const [billingSameAsEvent, setBillingSameAsEvent] = useState(true);
   const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
   const [customAmount, setCustomAmount] = useState('');
@@ -74,6 +80,13 @@ export function Checkout() {
       showToast('Please consent to SMS notifications', 'error');
       return;
     }
+
+    if (!referralSource) {
+      setReferralError('Please tell us how you heard about us.');
+      showToast('Please tell us how you heard about us.', 'error');
+      return;
+    }
+    setReferralError('');
 
     const paymentCents = getPaymentAmountCents(paymentAmount, customAmount, priceBreakdown);
     if (paymentAmount === 'custom' && paymentCents < priceBreakdown.deposit_due_cents) {
@@ -123,6 +136,8 @@ export function Checkout() {
         customerSelectedPaymentCents: paymentCents,
         customerSelectedPaymentType: paymentAmount,
         tipCents,
+        referralSource,
+        referralSourceDetail,
       });
 
       const depositCents = paymentCents;
@@ -231,6 +246,21 @@ export function Checkout() {
               onTipAmountChange={setTipAmount}
               onCustomTipChange={setCustomTip}
             />
+
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8">
+              <h2 className="text-xl font-bold text-slate-900 mb-1">One Quick Question</h2>
+              <p className="text-sm text-slate-500 mb-5">Help us understand how our customers find us.</p>
+              <ReferralSourceSelect
+                value={referralSource}
+                detail={referralSourceDetail}
+                onChange={(src, det) => {
+                  setReferralSource(src);
+                  setReferralSourceDetail(det);
+                  if (src) setReferralError('');
+                }}
+                error={referralError}
+              />
+            </div>
 
             <ConsentSection
               cardOnFileConsent={cardOnFileConsent}

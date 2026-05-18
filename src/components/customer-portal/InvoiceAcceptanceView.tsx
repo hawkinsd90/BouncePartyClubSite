@@ -24,6 +24,7 @@ import {
   generateConfirmationSmsMessage,
 } from '../../lib/orderEmailTemplates';
 import { formatOrderId } from '../../lib/utils';
+import { ReferralSourceSelect } from '../shared/ReferralSourceSelect';
 
 interface InvoiceAcceptanceViewProps {
   order: any;
@@ -66,6 +67,11 @@ export function InvoiceAcceptanceView({
   >('none');
   const [customTipAmount, setCustomTipAmount] = useState('');
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [referralSource, setReferralSource] = useState<string>(order.referral_source || '');
+  const [referralSourceDetail, setReferralSourceDetail] = useState<string>(order.referral_source_detail || '');
+  const [referralError, setReferralError] = useState('');
+
+  const referralAlreadyCaptured = !!order.referral_source;
 
   const needsCustomerInfo = !order.customer_id || (invoiceLink && !invoiceLink.customer_filled);
   const totalCents = order.deposit_due_cents + order.balance_due_cents;
@@ -132,6 +138,13 @@ export function InvoiceAcceptanceView({
       showToast('Please accept the overnight responsibility agreement', 'error');
       return;
     }
+
+    if (!referralAlreadyCaptured && !referralSource) {
+      setReferralError('Please tell us how you heard about us.');
+      showToast('Please tell us how you heard about us.', 'error');
+      return;
+    }
+    setReferralError('');
 
     const actualPaymentCents = getActualPaymentCents();
 
@@ -239,6 +252,21 @@ export function InvoiceAcceptanceView({
           showToast('Failed to save your information. Please try again.', 'error');
           setProcessing(false);
           return;
+        }
+      }
+
+      // Save referral source if not yet captured
+      if (!referralAlreadyCaptured && referralSource) {
+        const { error: referralSaveError } = await supabase
+          .from('orders')
+          .update({
+            referral_source: referralSource,
+            referral_source_detail: referralSourceDetail || null,
+          })
+          .eq('id', order.id);
+
+        if (referralSaveError) {
+          console.error('Failed to save referral source:', referralSaveError);
         }
       }
 
@@ -744,6 +772,29 @@ export function InvoiceAcceptanceView({
                 </span>
               </label>
             </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+              <h3 className="font-semibold text-slate-900 mb-3">One Quick Question</h3>
+              {referralAlreadyCaptured ? (
+                <ReferralSourceSelect
+                  value={referralSource}
+                  detail={referralSourceDetail}
+                  onChange={() => {}}
+                  readOnly
+                />
+              ) : (
+                <ReferralSourceSelect
+                  value={referralSource}
+                  detail={referralSourceDetail}
+                  onChange={(src, det) => {
+                    setReferralSource(src);
+                    setReferralSourceDetail(det);
+                    if (src) setReferralError('');
+                  }}
+                  error={referralError}
+                />
+              )}
+            </div>
           </div>
 
           <button
@@ -762,7 +813,8 @@ export function InvoiceAcceptanceView({
                 (!customerInfo.first_name ||
                   !customerInfo.last_name ||
                   !customerInfo.email ||
-                  !customerInfo.phone))
+                  !customerInfo.phone)) ||
+              (!referralAlreadyCaptured && !referralSource)
             }
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center"
           >

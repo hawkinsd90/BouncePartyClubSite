@@ -21,6 +21,8 @@ interface OrderData {
   customerSelectedPaymentCents?: number;
   customerSelectedPaymentType?: 'deposit' | 'full' | 'custom';
   tipCents?: number;
+  referralSource?: string | null;
+  referralSourceDetail?: string | null;
 }
 
 export async function createOrderBeforePayment(data: OrderData): Promise<string> {
@@ -36,6 +38,8 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     customerSelectedPaymentCents,
     customerSelectedPaymentType,
     tipCents = 0,
+    referralSource,
+    referralSourceDetail,
   } = data;
 
   // Fetch the current pricing rules to check apply_taxes_by_default setting
@@ -217,6 +221,8 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       sms_consented_at: smsConsent ? new Date().toISOString() : null,
       sms_consent: smsConsent,
       special_details: quoteData.special_details || null,
+      referral_source: referralSource || null,
+      referral_source_detail: referralSourceDetail || null,
     })
     .select()
     .single();

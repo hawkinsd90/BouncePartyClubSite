@@ -49,6 +49,8 @@ export interface Order {
   generator_qty?: number;
   has_pets?: boolean;
   special_details?: string | null;
+  referral_source?: string | null;
+  referral_source_detail?: string | null;
   pickup_preference?: string | null;
   workflow_status?: string;
   customers: {

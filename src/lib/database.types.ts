@@ -365,6 +365,8 @@ export interface Database {
           archived_at: string | null
           pending_review_admin_alerted: boolean
           confirmed_admin_alerted: boolean
+          referral_source: string | null
+          referral_source_detail: string | null
           created_at: string
           updated_at: string
         }

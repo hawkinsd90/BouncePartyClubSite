@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Activity, ShoppingCart, CreditCard, Users, TrendingUp, RefreshCw, BarChart2 } from 'lucide-react';
+import { Activity, ShoppingCart, CreditCard, Users, TrendingUp, RefreshCw, BarChart2, Megaphone } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { LoadingSpinner } from '../common/LoadingSpinner';
+import { REFERRAL_SOURCE_LABELS, REFERRAL_DETAIL_LABELS } from '../shared/ReferralSourceSelect';
 
 interface FunnelRow {
   event_name: string;
@@ -25,6 +26,19 @@ interface EventCount {
   count: number;
 }
 
+interface BookingSourceDetail {
+  detail: string;
+  count: number;
+}
+
+interface BookingSource {
+  source: string | null;
+  order_count: number;
+  revenue_cents: number;
+  details: BookingSourceDetail[];
+  detail_captured_count: number;
+}
+
 interface SiteMetrics {
   funnel: FunnelRow[];
   topUnits: TopUnit[];
@@ -32,6 +46,7 @@ interface SiteMetrics {
   allEventCounts: EventCount[];
   totalSessionsToday: number;
   totalEventsToday: number;
+  bookingSources: BookingSource[];
 }
 
 const EVENT_LABELS: Record<string, string> = {
@@ -132,7 +147,15 @@ export function SiteAnalytics() {
       let recentQuery = supabase.from('site_events').select('event_name, page_path, created_at, metadata').gte('created_at', since).order('created_at', { ascending: false }).limit(20);
       if (until) recentQuery = recentQuery.lt('created_at', until);
 
-      const [allEventsRes, unitsRes, recentRes, todayRes] = await Promise.all([
+      // Booking sources: query orders within period, not voided/draft
+      let bookingSourcesQuery = supabase
+        .from('orders')
+        .select('referral_source, referral_source_detail, total_cents')
+        .not('status', 'in', '("void","draft")')
+        .gte('created_at', since);
+      if (until) bookingSourcesQuery = bookingSourcesQuery.lt('created_at', until);
+
+      const [allEventsRes, unitsRes, recentRes, todayRes, bookingSourcesRes] = await Promise.all([
         allEventsQuery,
         unitsQuery,
         recentQuery,
@@ -140,6 +163,7 @@ export function SiteAnalytics() {
           .from('site_events')
           .select('session_id, event_name')
           .gte('created_at', todayStart.toISOString()),
+        bookingSourcesQuery,
       ]);
 
       const allCounts: Record<string, number> = {};
@@ -169,6 +193,42 @@ export function SiteAnalytics() {
       const todayData = todayRes.data || [];
       const uniqueSessions = new Set(todayData.map(r => r.session_id).filter(Boolean)).size;
 
+      // Process booking sources
+      const sourceMap = new Map<string | null, { order_count: number; revenue_cents: number; detailMap: Map<string, number>; detail_captured_count: number }>();
+      for (const row of (bookingSourcesRes.data || [])) {
+        const src = row.referral_source ?? null;
+        if (!sourceMap.has(src)) {
+          sourceMap.set(src, { order_count: 0, revenue_cents: 0, detailMap: new Map(), detail_captured_count: 0 });
+        }
+        const entry = sourceMap.get(src)!;
+        entry.order_count += 1;
+        entry.revenue_cents += row.total_cents || 0;
+        if (row.referral_source_detail) {
+          entry.detail_captured_count += 1;
+          const d = row.referral_source_detail;
+          entry.detailMap.set(d, (entry.detailMap.get(d) || 0) + 1);
+        }
+      }
+
+      // Order: known sources first (by count desc), null last
+      const KNOWN_ORDER = ['social_media', 'google', 'physical_marketing', 'referral', 'returning_customer', 'other'];
+      const bookingSources: BookingSource[] = [];
+      // Known sources in defined order
+      for (const src of KNOWN_ORDER) {
+        if (sourceMap.has(src)) {
+          const entry = sourceMap.get(src)!;
+          const details: BookingSourceDetail[] = Array.from(entry.detailMap.entries())
+            .sort((a, b) => b[1] - a[1])
+            .map(([detail, count]) => ({ detail, count }));
+          bookingSources.push({ source: src, order_count: entry.order_count, revenue_cents: entry.revenue_cents, details, detail_captured_count: entry.detail_captured_count });
+        }
+      }
+      // N/A (null) last
+      if (sourceMap.has(null)) {
+        const entry = sourceMap.get(null)!;
+        bookingSources.push({ source: null, order_count: entry.order_count, revenue_cents: entry.revenue_cents, details: [], detail_captured_count: 0 });
+      }
+
       setMetrics({
         funnel,
         topUnits,
@@ -176,6 +236,7 @@ export function SiteAnalytics() {
         allEventCounts,
         totalSessionsToday: uniqueSessions,
         totalEventsToday: todayData.length,
+        bookingSources,
       });
     } catch (err) {
       console.error('Failed to load site analytics:', err);
@@ -347,6 +408,85 @@ export function SiteAnalytics() {
           )}
         </div>
       </div>
+
+      {/* Booking Sources */}
+      {(() => {
+        const knownSources = metrics.bookingSources.filter(s => s.source !== null);
+        const naEntry = metrics.bookingSources.find(s => s.source === null);
+        const knownTotal = knownSources.reduce((sum, s) => sum + s.order_count, 0);
+
+        const formatCents = (cents: number) =>
+          cents === 0 ? '$0' : `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+
+        return (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Megaphone className="w-5 h-5 text-emerald-600" />
+              <h3 className="font-semibold text-slate-900">Booking Sources</h3>
+              <span className="text-xs text-slate-400 ml-1">({getPeriodRange(period).label})</span>
+            </div>
+            {metrics.bookingSources.length === 0 ? (
+              <p className="text-sm text-slate-500">No bookings with source data in this period yet.</p>
+            ) : (
+              <div className="space-y-4">
+                {knownSources.map(s => {
+                  const pct = knownTotal > 0 ? Math.round((s.order_count / knownTotal) * 100) : 0;
+                  const showDetailBreakdown = (s.source === 'social_media' || s.source === 'google') && s.details.length > 0;
+                  const showDetailCount = (s.source === 'referral' || s.source === 'other') && s.detail_captured_count > 0;
+                  return (
+                    <div key={s.source}>
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <div className="min-w-0">
+                          <span className="text-sm font-semibold text-slate-800">
+                            {REFERRAL_SOURCE_LABELS[s.source!] || s.source}
+                          </span>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-sm font-bold text-slate-900">{s.order_count} booking{s.order_count !== 1 ? 's' : ''}</span>
+                          <span className="text-xs text-slate-400 ml-1.5">· {formatCents(s.revenue_cents)}</span>
+                          <span className="text-xs text-emerald-600 font-medium ml-1.5">· {pct}% of known</span>
+                        </div>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden mb-1.5">
+                        <div
+                          className="h-2 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      {showDetailBreakdown && (
+                        <div className="ml-3 mt-1.5 space-y-0.5">
+                          {s.details.map(d => (
+                            <div key={d.detail} className="flex items-center justify-between text-xs text-slate-500 py-0.5">
+                              <span className="flex items-center gap-1.5">
+                                <span className="w-1 h-1 rounded-full bg-slate-300 inline-block" />
+                                {REFERRAL_DETAIL_LABELS[d.detail] || d.detail}
+                              </span>
+                              <span className="font-medium text-slate-600">{d.count}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {showDetailCount && (
+                        <p className="ml-3 mt-1 text-xs text-slate-400">Details captured: {s.detail_captured_count}</p>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {naEntry && (
+                  <div className="pt-3 border-t border-slate-100">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm text-slate-400 italic">N/A — Not Captured</span>
+                      <span className="text-sm text-slate-400">{naEntry.order_count} booking{naEntry.order_count !== 1 ? 's' : ''}</span>
+                    </div>
+                    <p className="text-xs text-slate-300 mt-0.5">Historical orders placed before this field was added.</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Recent Activity */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-5">
