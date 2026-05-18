@@ -147,11 +147,13 @@ export function SiteAnalytics() {
       let recentQuery = supabase.from('site_events').select('event_name, page_path, created_at, metadata').gte('created_at', since).order('created_at', { ascending: false }).limit(20);
       if (until) recentQuery = recentQuery.lt('created_at', until);
 
-      // Booking sources: query orders within period, not voided/draft
+      // Booking sources: query orders within period, excluding non-booking statuses.
+      // void/draft = never a real booking; cancelled = customer did not take delivery.
+      // pending_review, confirmed, awaiting_customer_approval, in_progress, completed all count.
       let bookingSourcesQuery = supabase
         .from('orders')
         .select('referral_source, referral_source_detail, total_cents')
-        .not('status', 'in', '("void","draft")')
+        .not('status', 'in', '("void","draft","cancelled")')
         .gte('created_at', since);
       if (until) bookingSourcesQuery = bookingSourcesQuery.lt('created_at', until);
 

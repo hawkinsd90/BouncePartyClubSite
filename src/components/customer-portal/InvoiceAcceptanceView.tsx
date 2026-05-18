@@ -267,6 +267,9 @@ export function InvoiceAcceptanceView({
 
         if (referralSaveError) {
           console.error('Failed to save referral source:', referralSaveError);
+          showToast('Failed to save how you heard about us. Please try again.', 'error');
+          setProcessing(false);
+          return;
         }
       }
 
