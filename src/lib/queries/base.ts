@@ -107,5 +107,5 @@ export const STANDARD_ORDER_SELECT = `
 export const COMPACT_ORDER_SELECT = `
   *,
   customers (first_name, last_name, email, phone, business_name),
-  addresses (line1, line2, city, state, zip)
+  addresses (line1, line2, city, state, zip, lat, lng)
 `;
