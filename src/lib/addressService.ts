@@ -36,6 +36,7 @@ export async function findExistingAddressId(fields: {
 /**
  * Geocode a street address using the browser-side Maps Geocoder.
  * Returns null if Maps is unavailable or the address cannot be geocoded.
+ * Never throws — address saves must not be blocked by geocoding failures.
  */
 async function geocodeAddressString(
   line1: string,
@@ -44,25 +45,36 @@ async function geocodeAddressString(
   zip: string
 ): Promise<{ lat: number; lng: number } | null> {
   if (typeof window === 'undefined') return null;
+
   const g = (window as any).google;
-  if (!g?.maps?.Geocoder) return null;
+  if (!g?.maps?.Geocoder) {
+    console.warn('[addressService] Google Maps Geocoder unavailable — address will save without coordinates.');
+    return null;
+  }
+
+  const address = `${line1}, ${city}, ${state} ${zip}`;
 
   return new Promise((resolve) => {
-    const geocoder = new g.maps.Geocoder();
-    const address = `${line1}, ${city}, ${state} ${zip}`;
-    geocoder.geocode(
-      { address, componentRestrictions: { country: 'us' } },
-      (results: any[], status: string) => {
-        if (status === 'OK' && results?.[0]?.geometry?.location) {
-          resolve({
-            lat: results[0].geometry.location.lat(),
-            lng: results[0].geometry.location.lng(),
-          });
-        } else {
-          resolve(null);
+    try {
+      const geocoder = new g.maps.Geocoder();
+      geocoder.geocode(
+        { address, componentRestrictions: { country: 'us' } },
+        (results: any[], status: string) => {
+          if (status === 'OK' && results?.[0]?.geometry?.location) {
+            resolve({
+              lat: results[0].geometry.location.lat(),
+              lng: results[0].geometry.location.lng(),
+            });
+          } else {
+            console.warn(`[addressService] Geocoding failed for "${address}" — status: ${status}. Address will save without coordinates.`);
+            resolve(null);
+          }
         }
-      }
-    );
+      );
+    } catch (err) {
+      console.warn('[addressService] Geocoder threw unexpectedly — address will save without coordinates.', err);
+      resolve(null);
+    }
   });
 }
 
@@ -82,7 +94,7 @@ export async function upsertCanonicalAddress(params: UpsertAddressParams): Promi
   const key = buildAddressKey(line1, city, state, zip);
 
   // Auto-geocode when the caller didn't supply coordinates.
-  if (!lat || !lng) {
+  if (lat == null || lng == null) {
     const coords = await geocodeAddressString(line1, city, state, zip);
     if (coords) {
       lat = coords.lat;
