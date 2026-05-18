@@ -33,6 +33,39 @@ export async function findExistingAddressId(fields: {
   return data?.id ?? null;
 }
 
+/**
+ * Geocode a street address using the browser-side Maps Geocoder.
+ * Returns null if Maps is unavailable or the address cannot be geocoded.
+ */
+async function geocodeAddressString(
+  line1: string,
+  city: string,
+  state: string,
+  zip: string
+): Promise<{ lat: number; lng: number } | null> {
+  if (typeof window === 'undefined') return null;
+  const g = (window as any).google;
+  if (!g?.maps?.Geocoder) return null;
+
+  return new Promise((resolve) => {
+    const geocoder = new g.maps.Geocoder();
+    const address = `${line1}, ${city}, ${state} ${zip}`;
+    geocoder.geocode(
+      { address, componentRestrictions: { country: 'us' } },
+      (results: any[], status: string) => {
+        if (status === 'OK' && results?.[0]?.geometry?.location) {
+          resolve({
+            lat: results[0].geometry.location.lat(),
+            lng: results[0].geometry.location.lng(),
+          });
+        } else {
+          resolve(null);
+        }
+      }
+    );
+  });
+}
+
 interface UpsertAddressParams {
   customer_id: string | null;
   line1: string;
@@ -45,8 +78,17 @@ interface UpsertAddressParams {
 }
 
 export async function upsertCanonicalAddress(params: UpsertAddressParams): Promise<{ id: string }> {
-  const { customer_id, line1, line2, city, state, zip, lat, lng } = params;
+  let { customer_id, line1, line2, city, state, zip, lat, lng } = params;
   const key = buildAddressKey(line1, city, state, zip);
+
+  // Auto-geocode when the caller didn't supply coordinates.
+  if (!lat || !lng) {
+    const coords = await geocodeAddressString(line1, city, state, zip);
+    if (coords) {
+      lat = coords.lat;
+      lng = coords.lng;
+    }
+  }
 
   const { data: upserted, error: upsertError } = await supabase
     .from('addresses')
