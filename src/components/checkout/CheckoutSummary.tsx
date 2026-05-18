@@ -8,6 +8,7 @@ interface CheckoutSummaryProps {
   processing: boolean;
   cardOnFileConsent: boolean;
   smsConsent: boolean;
+  referralSource: string;
   tipCents: number;
   paymentAmountCents?: number;
   onViewInvoice: () => void;
@@ -19,6 +20,7 @@ export function CheckoutSummary({
   processing,
   cardOnFileConsent,
   smsConsent,
+  referralSource,
   tipCents,
   paymentAmountCents,
   onViewInvoice,
@@ -65,7 +67,7 @@ export function CheckoutSummary({
 
       <button
         type="submit"
-        disabled={processing || !cardOnFileConsent || !smsConsent}
+        disabled={processing || !cardOnFileConsent || !smsConsent || !referralSource}
         className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:bg-slate-400 text-white font-semibold py-3 sm:py-4 px-4 sm:px-6 rounded-lg transition-all flex items-center justify-center text-sm sm:text-base touch-manipulation"
       >
         {processing ? (
