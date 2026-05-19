@@ -140,27 +140,27 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
   }
 
   // 3. Create or reuse canonical address
-  const rawAddr = billingSameAsEvent
-    ? {
-        line1: quoteData.address_line1,
-        line2: quoteData.address_line2 || null,
-        city: quoteData.city,
-        state: quoteData.state,
-        zip: quoteData.zip,
-        lat: quoteData.lat || null,
-        lng: quoteData.lng || null,
-      }
-    : billingAddress;
+  // The event/delivery address ALWAYS comes from quoteData — never from billingAddress.
+  // billingAddress is only stored in the billing_address_* columns below.
+  const eventAddr = {
+    line1: quoteData.address_line1,
+    line2: quoteData.address_line2 || null,
+    city: quoteData.city,
+    state: quoteData.state,
+    zip: quoteData.zip,
+    lat: quoteData.lat ?? null,
+    lng: quoteData.lng ?? null,
+  };
 
   const address = await upsertCanonicalAddress({
     customer_id: customer.id,
-    line1: rawAddr.line1,
-    line2: rawAddr.line2 || null,
-    city: rawAddr.city,
-    state: rawAddr.state,
-    zip: rawAddr.zip,
-    lat: rawAddr.lat ?? null,
-    lng: rawAddr.lng ?? null,
+    line1: eventAddr.line1,
+    line2: eventAddr.line2,
+    city: eventAddr.city,
+    state: eventAddr.state,
+    zip: eventAddr.zip,
+    lat: eventAddr.lat,
+    lng: eventAddr.lng,
   });
 
   // 4. Create order with 'draft' status (unpaid invoice)

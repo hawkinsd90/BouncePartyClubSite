@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { MapPin } from 'lucide-react';
 import { formatCurrency } from '../lib/pricing';
 import { RentalTerms } from '../components/waiver/RentalTerms';
 import { createOrderBeforePayment } from '../lib/orderCreation';
@@ -221,6 +222,32 @@ export function Checkout() {
             <RentalTerms />
 
             <ContactInformationForm contactData={contactData} onChange={setContactData} />
+
+            <div className="bg-white rounded-xl shadow-md p-6">
+              <h2 className="text-2xl font-bold text-slate-900 mb-1 flex items-center gap-2">
+                <MapPin className="w-6 h-6 text-green-600 shrink-0" />
+                Event / Delivery Address
+              </h2>
+              <p className="text-sm text-slate-500 mb-4">
+                This is where we will deliver and set up your inflatable.
+              </p>
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm font-medium text-slate-800">
+                  {quoteData.address_line1}
+                  {quoteData.address_line2 && `, ${quoteData.address_line2}`}
+                </p>
+                <p className="text-sm text-slate-700">
+                  {quoteData.city}, {quoteData.state} {quoteData.zip}
+                </p>
+              </div>
+              <p className="text-xs text-slate-500 mt-3">
+                Need to change this?{' '}
+                <a href="/quote" className="text-blue-600 underline hover:text-blue-800">
+                  Go back to your cart / quote
+                </a>{' '}
+                and update the event address before booking.
+              </p>
+            </div>
 
             <BillingAddressForm
               billingAddress={billingAddress}
