@@ -152,7 +152,7 @@ export function SiteAnalytics() {
       // pending_review, confirmed, awaiting_customer_approval, in_progress, completed all count.
       let bookingSourcesQuery = supabase
         .from('orders')
-        .select('referral_source, referral_source_detail, total_cents')
+        .select('referral_source, referral_source_detail, subtotal_cents, tax_cents')
         .not('status', 'in', '("void","draft","cancelled")')
         .gte('created_at', since);
       if (until) bookingSourcesQuery = bookingSourcesQuery.lt('created_at', until);
@@ -204,7 +204,7 @@ export function SiteAnalytics() {
         }
         const entry = sourceMap.get(src)!;
         entry.order_count += 1;
-        entry.revenue_cents += row.total_cents || 0;
+        entry.revenue_cents += (row.subtotal_cents || 0) + (row.tax_cents || 0);
         if (row.referral_source_detail) {
           entry.detail_captured_count += 1;
           const d = row.referral_source_detail;
