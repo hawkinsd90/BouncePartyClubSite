@@ -87,7 +87,7 @@ Deno.serve(async (req: Request) => {
     if (userErr || !user) return json401("Not authenticated");
 
     const { data: roleData, error: roleErr } = await callerClient.rpc("get_user_role", {
-      p_user_id: user.id,
+      user_id_input: user.id,
     });
     if (roleErr) {
       return jsonError(500, `Role check failed: ${roleErr.message}`);
