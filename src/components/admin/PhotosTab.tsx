@@ -27,7 +27,7 @@ export function PhotosTab() {
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       result = result.filter(p => {
-        if (p.order_id && p.order_id.toLowerCase().startsWith(q)) return true;
+        if (p.order_id && p.order_id.toLowerCase().includes(q)) return true;
         if (p.customer_name && p.customer_name.toLowerCase().includes(q)) return true;
         if (p.address_line1 && p.address_line1.toLowerCase().includes(q)) return true;
         if (p.unit_name && p.unit_name.toLowerCase().includes(q)) return true;

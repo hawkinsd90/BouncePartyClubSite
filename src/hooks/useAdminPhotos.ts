@@ -44,7 +44,7 @@ interface TaskStatusRow {
   orders: {
     event_date: string | null;
     customers: { first_name: string; last_name: string } | null;
-    addresses: { line1: string; address_id?: string } | null;
+    addresses: { id: string; line1: string } | null;
   } | null;
 }
 
@@ -150,7 +150,7 @@ export function useAdminPhotos() {
               addresses ( id, line1 )
             )
           `)
-          .or('delivery_images.neq.[]', 'damage_images.neq.[]')
+          .or('delivery_images.neq.[],damage_images.neq.[]')
           .order('created_at', { ascending: false }),
 
         // 2. order_lot_pictures table rows

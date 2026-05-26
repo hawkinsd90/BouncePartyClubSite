@@ -1,4 +1,4 @@
-import { Search, Dessert as SortDesc, Import as SortAsc } from 'lucide-react';
+import { Search, ArrowDownNarrowWide, ArrowUpNarrowWide } from 'lucide-react';
 import type { PhotoSource } from '../../../hooks/useAdminPhotos';
 
 export type SortOrder = 'newest' | 'oldest';
@@ -81,9 +81,9 @@ export function PhotoFilterBar({
           title={sortOrder === 'newest' ? 'Newest first' : 'Oldest first'}
         >
           {sortOrder === 'newest' ? (
-            <SortDesc className="w-4 h-4" />
+            <ArrowDownNarrowWide className="w-4 h-4" />
           ) : (
-            <SortAsc className="w-4 h-4" />
+            <ArrowUpNarrowWide className="w-4 h-4" />
           )}
           <span className="hidden sm:inline">{sortOrder === 'newest' ? 'Newest' : 'Oldest'}</span>
         </button>
