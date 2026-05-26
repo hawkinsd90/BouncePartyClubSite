@@ -22,6 +22,7 @@ import { PerformanceAnalytics } from '../components/admin/PerformanceAnalytics';
 import { BusinessAnalytics } from '../components/admin/BusinessAnalytics';
 import { SiteAnalytics } from '../components/admin/SiteAnalytics';
 import { GoogleCalendarSettings } from '../components/admin/GoogleCalendarSettings';
+import { PhotosTab } from '../components/admin/PhotosTab';
 import { NotificationFailuresAlert } from '../components/admin/NotificationFailuresAlert';
 import { AdminFloatingOrderHeader } from '../components/admin/AdminFloatingOrderHeader';
 import { TabNavigation, type AdminTab } from '../components/admin/TabNavigation';
@@ -413,6 +414,8 @@ function AdminDashboard() {
           <AddressCoordinateBackfill />
         </div>
       )}
+
+      {activeTab === 'photos' && <PhotosTab />}
 
       {activeTab === 'contacts' && <ContactsList />}
 

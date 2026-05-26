@@ -16,7 +16,8 @@ export type AdminTab =
   | 'message_templates'
   | 'blackout'
   | 'changelog'
-  | 'tools';
+  | 'tools'
+  | 'photos';
 
 interface TabConfig {
   id: AdminTab;
@@ -51,6 +52,7 @@ export function TabNavigation({ activeTab, onTabChange, pendingCount = 0 }: TabN
     { id: 'site_activity', label: 'Site Activity' },
     { id: 'google_calendar', label: 'Google Calendar' },
     { id: 'tools', label: 'Tools' },
+    { id: 'photos', label: 'Media Library' },
   ];
 
   return (
