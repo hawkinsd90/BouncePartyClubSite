@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MapPin, ExternalLink, Image as ImageIcon } from 'lucide-react';
+import { MapPin, ExternalLink, Image as ImageIcon, History } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { notifyError } from '../../lib/notifications';
 
@@ -18,8 +18,18 @@ interface LotPicture {
   uploaded_at: string;
 }
 
+interface AddressLotPicture {
+  id: string;
+  file_path: string;
+  file_name: string;
+  notes: string | null;
+  created_at: string;
+  saved_from_order_id: string | null;
+}
+
 export function LotPicturesDisplay({ orderId, onPromptCustomer, lotPicturesRequested }: LotPicturesDisplayProps) {
   const [pictures, setPictures] = useState<LotPicture[]>([]);
+  const [addressPictures, setAddressPictures] = useState<AddressLotPicture[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
@@ -29,15 +39,10 @@ export function LotPicturesDisplay({ orderId, onPromptCustomer, lotPicturesReque
     let debounceTimer: NodeJS.Timeout | null = null;
 
     const debouncedLoadPictures = () => {
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
-      }
-      debounceTimer = setTimeout(() => {
-        loadPictures();
-      }, 300);
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(loadPictures, 300);
     };
 
-    // Set up real-time listener for new picture uploads
     const channel = supabase
       .channel(`lot-pictures-${orderId}`)
       .on(
@@ -53,24 +58,54 @@ export function LotPicturesDisplay({ orderId, onPromptCustomer, lotPicturesReque
       .subscribe();
 
     return () => {
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
-      }
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
   }, [orderId]);
 
   const loadPictures = async () => {
     try {
-      const { data, error } = await supabase
+      // Load current order lot pictures
+      const { data: lotData, error: lotError } = await supabase
         .from('order_lot_pictures' as any)
         .select('*')
         .eq('order_id', orderId)
         .order('uploaded_at', { ascending: false });
 
-      if (error) throw error;
-      setPictures((data as any) || []);
-    } catch (error: any) {
+      if (lotError) throw lotError;
+      const currentPictures: LotPicture[] = (lotData as any) || [];
+      setPictures(currentPictures);
+
+      // Resolve the order's address_id, then load address lot pictures
+      const { data: orderData, error: orderError } = await supabase
+        .from('orders')
+        .select('address_id')
+        .eq('id', orderId)
+        .maybeSingle();
+
+      if (orderError) throw orderError;
+
+      const addressId = orderData?.address_id as string | null | undefined;
+
+      if (addressId) {
+        const { data: addrData, error: addrError } = await supabase
+          .from('address_lot_pictures' as any)
+          .select('id, file_path, file_name, notes, created_at, saved_from_order_id')
+          .eq('address_id', addressId)
+          .order('created_at', { ascending: false });
+
+        if (addrError) throw addrError;
+
+        // Exclude photos that already belong to this order (avoid duplication)
+        const currentFilePaths = new Set(currentPictures.map(p => p.file_path));
+        const filteredAddr = ((addrData as any) || [] as AddressLotPicture[]).filter(
+          (p: AddressLotPicture) => !currentFilePaths.has(p.file_path)
+        );
+        setAddressPictures(filteredAddr);
+      } else {
+        setAddressPictures([]);
+      }
+    } catch (error: unknown) {
       console.error('Error loading lot pictures:', error);
       notifyError('Failed to load lot pictures');
     } finally {
@@ -97,7 +132,10 @@ export function LotPicturesDisplay({ orderId, onPromptCustomer, lotPicturesReque
     );
   }
 
-  if (pictures.length === 0) {
+  const hasCurrentPictures = pictures.length > 0;
+  const hasAddressPictures = addressPictures.length > 0;
+
+  if (!hasCurrentPictures && !hasAddressPictures) {
     return (
       <div className={`${lotPicturesRequested ? 'bg-blue-50 border-blue-200' : 'bg-amber-50 border-amber-200'} border rounded-lg p-4`}>
         <div className="flex items-start gap-3">
@@ -128,50 +166,94 @@ export function LotPicturesDisplay({ orderId, onPromptCustomer, lotPicturesReque
 
   return (
     <>
-      <div className="bg-white rounded-lg shadow p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <MapPin className="w-5 h-5 text-green-600" />
-            <h3 className="font-semibold text-slate-900">Lot Pictures ({pictures.length})</h3>
+      {/* Saved address lot photos — shown above current order photos */}
+      {hasAddressPictures && (
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-3">
+          <div className="flex items-center gap-2 mb-3">
+            <History className="w-5 h-5 text-slate-500" />
+            <h3 className="font-semibold text-slate-700">
+              Saved Lot Photos for This Address ({addressPictures.length})
+            </h3>
           </div>
-          <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
-            Pictures Received
-          </span>
+          <p className="text-xs text-slate-500 mb-3">
+            These photos were saved by an admin from previous orders at this address.
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {addressPictures.map((picture) => (
+              <div key={picture.id} className="group relative">
+                <button
+                  onClick={() => setSelectedImage(getPictureUrl(picture.file_path))}
+                  className="aspect-square bg-slate-100 rounded-lg overflow-hidden border-2 border-slate-200 hover:border-slate-400 transition-colors w-full relative"
+                >
+                  <img
+                    src={getPictureUrl(picture.file_path)}
+                    alt={picture.file_name}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-opacity flex items-center justify-center">
+                    <ExternalLink className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </button>
+                <p className="text-xs text-slate-600 mt-1 truncate" title={picture.file_name}>
+                  {picture.file_name}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {new Date(picture.created_at).toLocaleDateString()}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
+      )}
 
-        <p className="text-sm text-slate-600 mb-4">
-          Customer uploaded pictures of the event location. Click to view full size.
-        </p>
-
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {pictures.map((picture) => (
-            <div key={picture.id} className="group relative">
-              <button
-                onClick={() => setSelectedImage(getPictureUrl(picture.file_path))}
-                className="aspect-square bg-slate-100 rounded-lg overflow-hidden border-2 border-slate-200 hover:border-blue-400 transition-colors w-full"
-              >
-                <img
-                  src={getPictureUrl(picture.file_path)}
-                  alt={picture.file_name}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                />
-                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-opacity flex items-center justify-center">
-                  <ExternalLink className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-              </button>
-              <p className="text-xs text-slate-600 mt-1 truncate" title={picture.file_name}>
-                {picture.file_name}
-              </p>
-              <p className="text-xs text-slate-500">
-                {new Date(picture.uploaded_at).toLocaleDateString()}
-              </p>
+      {/* Current order lot pictures */}
+      {hasCurrentPictures && (
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-green-600" />
+              <h3 className="font-semibold text-slate-900">Lot Pictures ({pictures.length})</h3>
             </div>
-          ))}
-        </div>
-      </div>
+            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
+              Pictures Received
+            </span>
+          </div>
 
-      {/* Image Modal */}
+          <p className="text-sm text-slate-600 mb-4">
+            Customer uploaded pictures of the event location. Click to view full size.
+          </p>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {pictures.map((picture) => (
+              <div key={picture.id} className="group relative">
+                <button
+                  onClick={() => setSelectedImage(getPictureUrl(picture.file_path))}
+                  className="aspect-square bg-slate-100 rounded-lg overflow-hidden border-2 border-slate-200 hover:border-blue-400 transition-colors w-full"
+                >
+                  <img
+                    src={getPictureUrl(picture.file_path)}
+                    alt={picture.file_name}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-opacity flex items-center justify-center">
+                    <ExternalLink className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </button>
+                <p className="text-xs text-slate-600 mt-1 truncate" title={picture.file_name}>
+                  {picture.file_name}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {new Date(picture.uploaded_at).toLocaleDateString()}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Image lightbox */}
       {selectedImage && (
         <div
           className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4"

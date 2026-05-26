@@ -22,6 +22,9 @@ export interface AdminPhoto {
   notes?: string;
   is_protected_evidence: boolean;
   is_marketing_restricted: boolean;
+  // Phase 2: lot photo address-save state
+  is_saved_to_address?: boolean;
+  address_lot_picture_id?: string;
 }
 
 export interface PhotoCounts {
@@ -56,11 +59,18 @@ interface LotPictureRow {
   notes: string | null;
   created_at: string | null;
   uploaded_at: string | null;
+  address_id: string | null;
   orders: {
     event_date: string | null;
     customers: { first_name: string; last_name: string } | null;
     addresses: { id: string; line1: string } | null;
   } | null;
+}
+
+interface AddressLotPictureRow {
+  id: string;
+  address_id: string;
+  file_path: string;
 }
 
 interface OrderPictureRow {
@@ -133,7 +143,7 @@ export function useAdminPhotos() {
 
     try {
       // All source queries run in parallel — each is independent.
-      const [taskRes, lotRes, orderPicRes, unitRes, carouselRes] = await Promise.all([
+      const [taskRes, lotRes, orderPicRes, unitRes, carouselRes, savedLotRes] = await Promise.all([
         // 1. task_status: delivery_images + damage_images JSONB arrays
         supabase
           .from('task_status')
@@ -164,6 +174,7 @@ export function useAdminPhotos() {
             notes,
             created_at,
             uploaded_at,
+            address_id,
             orders (
               event_date,
               customers ( first_name, last_name ),
@@ -225,9 +236,21 @@ export function useAdminPhotos() {
             updated_at
           `)
           .order('created_at', { ascending: false }),
+
+        // 6. address_lot_pictures — used to mark lot photos as already saved
+        supabase
+          .from('address_lot_pictures')
+          .select('id, address_id, file_path'),
       ]);
 
       const normalized: AdminPhoto[] = [];
+
+      // Build a lookup: "address_id|file_path" -> address_lot_picture id
+      // Used to mark lot photos that have already been saved to their address.
+      const savedLotMap = new Map<string, string>();
+      for (const row of (savedLotRes.data || []) as unknown as AddressLotPictureRow[]) {
+        savedLotMap.set(`${row.address_id}|${row.file_path}`, row.id);
+      }
 
       // --- Delivery + Damage from task_status ---
       for (const row of (taskRes.data || []) as unknown as TaskStatusRow[]) {
@@ -294,6 +317,11 @@ export function useAdminPhotos() {
         const addr = orderData?.addresses
           ? (Array.isArray(orderData.addresses) ? orderData.addresses[0] : orderData.addresses)
           : null;
+        // Prefer the address_id stamped on the lot picture row itself (set after first save);
+        // fall back to the joined address from the order.
+        const resolvedAddressId = row.address_id ?? addr?.id ?? undefined;
+        const savedKey = resolvedAddressId ? `${resolvedAddressId}|${row.file_path}` : null;
+        const addressLotPictureId = savedKey ? savedLotMap.get(savedKey) : undefined;
         normalized.push({
           id: row.id,
           source: 'lot',
@@ -305,11 +333,13 @@ export function useAdminPhotos() {
           order_id: row.order_id,
           order_event_date: orderData?.event_date ?? undefined,
           customer_name: buildCustomerName(orderData?.customers ?? null),
-          address_id: addr?.id,
+          address_id: resolvedAddressId,
           address_line1: addr?.line1,
           notes: row.notes ?? undefined,
           is_protected_evidence: false,
           is_marketing_restricted: false,
+          is_saved_to_address: addressLotPictureId !== undefined,
+          address_lot_picture_id: addressLotPictureId,
         });
       }
 

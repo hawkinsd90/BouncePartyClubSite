@@ -130,6 +130,7 @@ export function PhotosTab() {
         photos={filteredPhotos}
         onClose={handleModalClose}
         onNavigate={handleModalNavigate}
+        onPhotoSaved={refetch}
       />
     </div>
   );

@@ -13,7 +13,10 @@ import {
   User,
   Package,
   ExternalLink,
+  BookmarkPlus,
+  BookmarkCheck,
 } from 'lucide-react';
+import { supabase } from '../../../lib/supabase';
 import type { AdminPhoto, PhotoSource } from '../../../hooks/useAdminPhotos';
 
 interface PhotoDetailModalProps {
@@ -21,6 +24,7 @@ interface PhotoDetailModalProps {
   photos: AdminPhoto[];
   onClose: () => void;
   onNavigate: (photo: AdminPhoto) => void;
+  onPhotoSaved?: () => void;
 }
 
 const SOURCE_LABELS: Record<PhotoSource, string> = {
@@ -65,12 +69,21 @@ function formatEventDate(isoString: string): string {
   }
 }
 
-export function PhotoDetailModal({ photo, photos, onClose, onNavigate }: PhotoDetailModalProps) {
+export function PhotoDetailModal({ photo, photos, onClose, onNavigate, onPhotoSaved }: PhotoDetailModalProps) {
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveResult, setSaveResult] = useState<'success' | 'already_saved' | 'error' | null>(null);
   const touchStartX = useRef<number | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
+
+  // Reset save state when switching photos
+  useEffect(() => {
+    setShowSaveConfirm(false);
+    setSaveResult(null);
+  }, [photo?.id]);
 
   const currentIndex = photo ? photos.findIndex(p => p.id === photo.id) : -1;
   const hasPrev = currentIndex > 0;
@@ -175,6 +188,33 @@ export function PhotoDetailModal({ photo, photos, onClose, onNavigate }: PhotoDe
       window.open(photo.public_url, '_blank', 'noopener');
     } finally {
       setDownloading(false);
+    }
+  }
+
+  async function handleSaveToAddress() {
+    if (!photo || saving) return;
+    setSaving(true);
+    setSaveResult(null);
+    try {
+      const { error } = await supabase.rpc('save_lot_picture_to_address', {
+        p_order_lot_picture_id: photo.id,
+      });
+      if (error) {
+        // Duplicate is silently handled server-side; surface it as already_saved
+        if (error.message?.includes('already') || error.code === '23505') {
+          setSaveResult('already_saved');
+        } else {
+          setSaveResult('error');
+        }
+      } else {
+        setSaveResult('success');
+        setShowSaveConfirm(false);
+        onPhotoSaved?.();
+      }
+    } catch {
+      setSaveResult('error');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -326,11 +366,57 @@ export function PhotoDetailModal({ photo, photos, onClose, onNavigate }: PhotoDe
           )}
         </div>
 
+        {/* Save to Address confirmation panel */}
+        {showSaveConfirm && photo.source === 'lot' && photo.address_line1 && (
+          <div className="mx-4 mb-3 bg-amber-500/10 border border-amber-400/30 rounded-xl p-3">
+            <p className="text-amber-100 text-sm font-semibold mb-0.5">Save this lot photo to:</p>
+            <p className="text-white text-sm font-bold mb-1">{photo.address_line1}</p>
+            <p className="text-white/60 text-xs mb-3">
+              This photo will appear on future orders for this same address.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowSaveConfirm(false)}
+                className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveToAddress}
+                disabled={saving}
+                className="flex-1 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold transition-colors disabled:opacity-60"
+              >
+                {saving ? 'Saving...' : 'Save to Address'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Save result feedback */}
+        {saveResult === 'success' && (
+          <div className="mx-4 mb-3 flex items-center gap-2 bg-green-500/15 border border-green-400/30 rounded-xl px-3 py-2.5">
+            <Check className="w-4 h-4 text-green-400 flex-shrink-0" />
+            <p className="text-green-200 text-xs">Photo saved to address successfully.</p>
+          </div>
+        )}
+        {saveResult === 'already_saved' && (
+          <div className="mx-4 mb-3 flex items-center gap-2 bg-blue-500/15 border border-blue-400/30 rounded-xl px-3 py-2.5">
+            <BookmarkCheck className="w-4 h-4 text-blue-300 flex-shrink-0" />
+            <p className="text-blue-200 text-xs">This photo is already saved to this address.</p>
+          </div>
+        )}
+        {saveResult === 'error' && (
+          <div className="mx-4 mb-3 flex items-center gap-2 bg-red-500/15 border border-red-400/30 rounded-xl px-3 py-2.5">
+            <ShieldAlert className="w-4 h-4 text-red-400 flex-shrink-0" />
+            <p className="text-red-200 text-xs">Failed to save photo. You may not have permission.</p>
+          </div>
+        )}
+
         {/* Action buttons */}
-        <div className="flex gap-2 px-4 pb-4 pt-2">
+        <div className="flex gap-2 px-4 pb-4 pt-2 flex-wrap">
           <button
             onClick={handleCopyLink}
-            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-colors active:scale-95"
+            className="flex-1 min-w-[100px] flex items-center justify-center gap-2 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-colors active:scale-95"
           >
             {copied ? (
               <>
@@ -348,11 +434,42 @@ export function PhotoDetailModal({ photo, photos, onClose, onNavigate }: PhotoDe
           <button
             onClick={handleDownload}
             disabled={downloading}
-            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-colors active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="flex-1 min-w-[100px] flex items-center justify-center gap-2 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-colors active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <Download className={`w-4 h-4 ${downloading ? 'animate-bounce' : ''}`} />
             {downloading ? 'Saving...' : 'Download'}
           </button>
+
+          {/* Save to Address — lot photos only, with an address, not already saved */}
+          {photo.source === 'lot' && photo.order_id && photo.address_line1 && (
+            <button
+              onClick={() => {
+                if (photo.is_saved_to_address) {
+                  setSaveResult('already_saved');
+                } else {
+                  setSaveResult(null);
+                  setShowSaveConfirm(true);
+                }
+              }}
+              className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-colors active:scale-95 ${
+                photo.is_saved_to_address
+                  ? 'bg-green-500/20 text-green-300 cursor-default'
+                  : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300'
+              }`}
+            >
+              {photo.is_saved_to_address ? (
+                <>
+                  <BookmarkCheck className="w-4 h-4" />
+                  Saved to Address
+                </>
+              ) : (
+                <>
+                  <BookmarkPlus className="w-4 h-4" />
+                  Save to Address
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>
