@@ -435,16 +435,19 @@ export function SiteAnalytics() {
                   const showDetailCount = (s.source === 'referral' || s.source === 'other') && s.detail_captured_count > 0;
                   return (
                     <div key={s.source}>
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <div className="min-w-0">
+                      <div className="mb-1">
+                        <div className="flex items-center justify-between gap-2">
                           <span className="text-sm font-semibold text-slate-800">
                             {REFERRAL_SOURCE_LABELS[s.source!] || s.source}
                           </span>
+                          <span className="text-sm font-bold text-slate-900 shrink-0">
+                            {s.order_count} booking{s.order_count !== 1 ? 's' : ''}
+                          </span>
                         </div>
-                        <div className="text-right shrink-0">
-                          <span className="text-sm font-bold text-slate-900">{s.order_count} booking{s.order_count !== 1 ? 's' : ''}</span>
-                          <span className="text-xs text-slate-400 ml-1.5">· {formatCents(s.revenue_cents)}</span>
-                          <span className="text-xs text-emerald-600 font-medium ml-1.5">· {pct}% of known</span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-xs text-slate-400">{formatCents(s.revenue_cents)}</span>
+                          <span className="text-xs text-slate-300">·</span>
+                          <span className="text-xs text-emerald-600 font-medium">{pct}% of known</span>
                         </div>
                       </div>
                       <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden mb-1.5">
