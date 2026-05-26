@@ -280,7 +280,8 @@ export function useAdminPhotos() {
             address_line1: addressLine1,
             task_status_id: row.id,
             is_protected_evidence: true,
-            is_marketing_restricted: true,
+            // Delivery photos are eligible for promotion with stronger confirmation — not blocked at data layer.
+            is_marketing_restricted: false,
           });
         }
 
