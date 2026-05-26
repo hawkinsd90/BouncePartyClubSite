@@ -147,15 +147,13 @@ export function SiteAnalytics() {
       let recentQuery = supabase.from('site_events').select('event_name, page_path, created_at, metadata').gte('created_at', since).order('created_at', { ascending: false }).limit(20);
       if (until) recentQuery = recentQuery.lt('created_at', until);
 
-      // Booking sources: query orders within period, excluding non-booking statuses.
-      // void/draft = never a real booking; cancelled = customer did not take delivery.
-      // pending_review, confirmed, awaiting_customer_approval, in_progress, completed all count.
-      let bookingSourcesQuery = supabase
-        .from('orders')
-        .select('referral_source, referral_source_detail, subtotal_cents, tax_cents')
-        .not('status', 'in', '("void","draft","cancelled")')
-        .gte('created_at', since);
-      if (until) bookingSourcesQuery = bookingSourcesQuery.lt('created_at', until);
+      // Booking sources: use a narrow SECURITY DEFINER RPC so admin sessions
+      // don't need a broad SELECT policy on the orders table. Status filtering
+      // and date scoping are enforced server-side.
+      const bookingSourcesRpc = supabase.rpc('get_booking_source_analytics', {
+        p_start: since,
+        p_end: until ?? new Date().toISOString(),
+      });
 
       const [allEventsRes, unitsRes, recentRes, todayRes, bookingSourcesRes] = await Promise.all([
         allEventsQuery,
@@ -165,7 +163,7 @@ export function SiteAnalytics() {
           .from('site_events')
           .select('session_id, event_name')
           .gte('created_at', todayStart.toISOString()),
-        bookingSourcesQuery,
+        bookingSourcesRpc,
       ]);
 
       const allCounts: Record<string, number> = {};
