@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   X,
   ChevronLeft,
@@ -65,6 +66,7 @@ function formatEventDate(isoString: string): string {
 }
 
 export function PhotoDetailModal({ photo, photos, onClose, onNavigate }: PhotoDetailModalProps) {
+  const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const touchStartX = useRef<number | null>(null);
@@ -119,21 +121,39 @@ export function PhotoDetailModal({ photo, photos, onClose, onNavigate }: PhotoDe
 
   async function handleCopyLink() {
     if (!photo) return;
-    try {
-      await navigator.clipboard.writeText(photo.public_url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Fallback for browsers without clipboard API
-      const input = document.createElement('input');
-      input.value = photo.public_url;
-      document.body.appendChild(input);
-      input.select();
-      document.execCommand('copy');
-      document.body.removeChild(input);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+
+    const url = photo.public_url;
+
+    // Modern Clipboard API — works on desktop and mobile HTTPS
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      try {
+        await navigator.clipboard.writeText(url);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+        return;
+      } catch {
+        // Fall through to legacy approach
+      }
     }
+
+    // Legacy fallback: use a textarea positioned off-screen so iOS Safari
+    // can select and copy it (plain <input> is unreliable in fixed overlays).
+    const ta = document.createElement('textarea');
+    ta.value = url;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none;';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    // iOS requires setSelectionRange after focus
+    ta.setSelectionRange(0, ta.value.length);
+    try {
+      document.execCommand('copy');
+    } finally {
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   async function handleDownload() {
@@ -260,7 +280,15 @@ export function PhotoDetailModal({ photo, photos, onClose, onNavigate }: PhotoDe
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
             {photo.customer_name && (
-              <MetaRow icon={<User className="w-3.5 h-3.5" />} label="Customer" value={photo.customer_name} />
+              <MetaRow
+                icon={<User className="w-3.5 h-3.5" />}
+                label="Customer"
+                value={photo.customer_name}
+                onClick={() => {
+                  onClose();
+                  navigate('/admin?tab=contacts');
+                }}
+              />
             )}
             {photo.order_event_date && (
               <MetaRow
@@ -280,6 +308,10 @@ export function PhotoDetailModal({ photo, photos, onClose, onNavigate }: PhotoDe
                 icon={<ExternalLink className="w-3.5 h-3.5" />}
                 label="Order"
                 value={photo.order_id.slice(0, 8).toUpperCase()}
+                onClick={() => {
+                  onClose();
+                  navigate(`/admin?tab=orders&orderId=${photo.order_id}`);
+                }}
               />
             )}
             <MetaRow
@@ -331,14 +363,24 @@ interface MetaRowProps {
   icon: React.ReactNode;
   label: string;
   value: string;
+  onClick?: () => void;
 }
 
-function MetaRow({ icon, label, value }: MetaRowProps) {
+function MetaRow({ icon, label, value, onClick }: MetaRowProps) {
   return (
     <div className="flex items-center gap-2 text-xs">
       <span className="text-white/40 flex-shrink-0">{icon}</span>
       <span className="text-white/50 flex-shrink-0">{label}:</span>
-      <span className="text-white/90 truncate">{value}</span>
+      {onClick ? (
+        <button
+          onClick={onClick}
+          className="text-blue-300 hover:text-blue-200 underline underline-offset-2 truncate text-left transition-colors active:opacity-70"
+        >
+          {value}
+        </button>
+      ) : (
+        <span className="text-white/90 truncate">{value}</span>
+      )}
     </div>
   );
 }

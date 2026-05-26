@@ -1,4 +1,138 @@
-y is independent.
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '../lib/supabase';
+
+export type PhotoSource = 'lot' | 'order' | 'delivery' | 'damage' | 'unit' | 'carousel';
+
+export interface AdminPhoto {
+  id: string;
+  source: PhotoSource;
+  public_url: string;
+  file_path: string | null;
+  bucket: string | null;
+  file_name: string;
+  created_at: string;
+  order_id?: string;
+  order_event_date?: string;
+  customer_name?: string;
+  address_id?: string;
+  address_line1?: string;
+  unit_id?: string;
+  unit_name?: string;
+  task_status_id?: string;
+  notes?: string;
+  is_protected_evidence: boolean;
+  is_marketing_restricted: boolean;
+}
+
+export interface PhotoCounts {
+  total: number;
+  lot: number;
+  order: number;
+  delivery: number;
+  damage: number;
+  unit: number;
+  carousel: number;
+}
+
+interface TaskStatusRow {
+  id: string;
+  order_id: string;
+  task_type: string;
+  delivery_images: string[] | null;
+  damage_images: string[] | null;
+  created_at: string;
+  orders: {
+    event_date: string | null;
+    customers: { first_name: string; last_name: string } | null;
+    addresses: { id: string; line1: string } | null;
+  } | null;
+}
+
+interface LotPictureRow {
+  id: string;
+  order_id: string;
+  file_path: string;
+  file_name: string;
+  notes: string | null;
+  created_at: string | null;
+  uploaded_at: string | null;
+  orders: {
+    event_date: string | null;
+    customers: { first_name: string; last_name: string } | null;
+    addresses: { id: string; line1: string } | null;
+  } | null;
+}
+
+interface OrderPictureRow {
+  id: string;
+  order_id: string;
+  file_path: string;
+  file_name: string;
+  file_size: number;
+  mime_type: string;
+  notes: string | null;
+  uploaded_at: string;
+  created_at: string;
+  orders: {
+    event_date: string | null;
+    customers: { first_name: string; last_name: string } | null;
+    addresses: { id: string; line1: string } | null;
+  } | null;
+}
+
+interface UnitMediaRow {
+  id: string;
+  unit_id: string | null;
+  url: string;
+  alt: string;
+  sort: number | null;
+  mode: string | null;
+  is_featured: boolean | null;
+  created_at: string | null;
+  units: { name: string } | null;
+}
+
+interface CarouselRow {
+  id: string;
+  image_url: string;
+  title: string | null;
+  description: string | null;
+  media_type: string;
+  storage_path: string | null;
+  display_order: number;
+  is_active: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+// Extracts the storage path from a full Supabase public URL.
+// Input:  https://xxx.supabase.co/storage/v1/object/public/public-assets/abc-drop-off-123.jpg
+// Output: abc-drop-off-123.jpg
+function extractPathFromPublicUrl(fullUrl: string, bucket: string): string | null {
+  const marker = `/public/${bucket}/`;
+  const idx = fullUrl.indexOf(marker);
+  if (idx < 0) return null;
+  return fullUrl.slice(idx + marker.length);
+}
+
+function buildCustomerName(
+  customers: { first_name: string; last_name: string } | null
+): string | undefined {
+  if (!customers) return undefined;
+  return `${customers.first_name} ${customers.last_name}`.trim() || undefined;
+}
+
+export function useAdminPhotos() {
+  const [photos, setPhotos] = useState<AdminPhoto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // All source queries run in parallel — each is independent.
       const [taskRes, lotRes, orderPicRes, unitRes, carouselRes] = await Promise.all([
         // 1. task_status: delivery_images + damage_images JSONB arrays
         supabase
@@ -96,7 +230,6 @@ y is independent.
       const normalized: AdminPhoto[] = [];
 
       // --- Delivery + Damage from task_status ---
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
       for (const row of (taskRes.data || []) as unknown as TaskStatusRow[]) {
         const orderData = Array.isArray(row.orders) ? row.orders[0] : row.orders;
         const customerName = buildCustomerName(orderData?.customers ?? null);
@@ -211,14 +344,12 @@ y is independent.
       // --- Unit media ---
       for (const row of (unitRes.data || []) as unknown as UnitMediaRow[]) {
         const unitData = Array.isArray(row.units) ? row.units[0] : row.units;
-        // unit_media stores full absolute URLs already
         const url = row.url;
         const fileName = url.split('/').pop() ?? 'unit-image.jpg';
         normalized.push({
           id: row.id,
           source: 'unit',
           public_url: url,
-          // unit_media stores full URLs — no relative file_path
           file_path: null,
           bucket: 'unit-images',
           file_name: row.alt || fileName,
