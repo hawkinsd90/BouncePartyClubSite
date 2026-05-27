@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
-import { X, Package, ShieldAlert, Check, AlertTriangle } from 'lucide-react';
+import { X, Package, ShieldAlert, Check, AlertTriangle, Sun, Droplets, Layers } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import type { AdminPhoto } from '../../../hooks/useAdminPhotos';
 
 interface Unit {
   id: string;
   name: string;
+  is_combo: boolean;
 }
+
+type TargetMode = 'dry' | 'water' | 'both';
 
 interface PromoteToUnitModalProps {
   photo: AdminPhoto;
@@ -17,11 +20,34 @@ interface PromoteToUnitModalProps {
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
+const MODE_OPTIONS: { value: TargetMode; label: string; icon: React.ReactNode; description: string }[] = [
+  {
+    value: 'dry',
+    label: 'Dry Side',
+    icon: <Sun className="w-4 h-4" />,
+    description: 'Appears in dry mode gallery only',
+  },
+  {
+    value: 'water',
+    label: 'Wet Side',
+    icon: <Droplets className="w-4 h-4" />,
+    description: 'Appears in wet mode gallery only',
+  },
+  {
+    value: 'both',
+    label: 'Both',
+    icon: <Layers className="w-4 h-4" />,
+    description: 'Appears in both dry and wet galleries',
+  },
+];
+
 export function PromoteToUnitModal({ photo, onClose, onSuccess }: PromoteToUnitModalProps) {
   const [units, setUnits] = useState<Unit[]>([]);
   const [orderUnits, setOrderUnits] = useState<Unit[]>([]);
   const [loadingUnits, setLoadingUnits] = useState(true);
   const [selectedUnitId, setSelectedUnitId] = useState('');
+  const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
+  const [targetMode, setTargetMode] = useState<TargetMode>('dry');
   const [consentChecked, setConsentChecked] = useState(false);
   const [promoting, setPromoting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,29 +62,30 @@ export function PromoteToUnitModal({ photo, onClose, onSuccess }: PromoteToUnitM
         const [allUnitsRes, orderItemsRes] = await Promise.all([
           supabase
             .from('units')
-            .select('id, name')
+            .select('id, name, is_combo')
             .eq('active', true)
             .order('name'),
           photo.order_id
             ? supabase
                 .from('order_items')
-                .select('unit_id, units(id, name)')
+                .select('unit_id, units(id, name, is_combo)')
                 .eq('order_id', photo.order_id)
             : Promise.resolve({ data: [], error: null }),
         ]);
 
-        const all: Unit[] = (allUnitsRes.data ?? []).map((u: { id: string; name: string }) => ({
+        const all: Unit[] = (allUnitsRes.data ?? []).map((u: { id: string; name: string; is_combo: boolean }) => ({
           id: u.id,
           name: u.name,
+          is_combo: u.is_combo ?? false,
         }));
 
         // Extract units from this order
         const fromOrder: Unit[] = [];
         const fromOrderIds = new Set<string>();
-        for (const item of (orderItemsRes.data ?? []) as Array<{ unit_id: string; units: { id: string; name: string } | null }>) {
+        for (const item of (orderItemsRes.data ?? []) as Array<{ unit_id: string; units: { id: string; name: string; is_combo: boolean } | null }>) {
           const u = item.units;
           if (u && !fromOrderIds.has(u.id)) {
-            fromOrder.push({ id: u.id, name: u.name });
+            fromOrder.push({ id: u.id, name: u.name, is_combo: u.is_combo ?? false });
             fromOrderIds.add(u.id);
           }
         }
@@ -66,9 +93,10 @@ export function PromoteToUnitModal({ photo, onClose, onSuccess }: PromoteToUnitM
         setOrderUnits(fromOrder);
         setUnits(all);
 
-        // Pre-select: prefer order unit if only one, else blank
+        // Pre-select: prefer the single order unit if only one
         if (fromOrder.length === 1) {
           setSelectedUnitId(fromOrder[0].id);
+          setSelectedUnit(fromOrder[0]);
         }
       } finally {
         setLoadingUnits(false);
@@ -76,6 +104,22 @@ export function PromoteToUnitModal({ photo, onClose, onSuccess }: PromoteToUnitM
     }
     loadUnits();
   }, [photo.order_id]);
+
+  // When selected unit changes, update selectedUnit object and reset mode to 'dry'
+  function handleUnitChange(unitId: string) {
+    setSelectedUnitId(unitId);
+    if (!unitId) {
+      setSelectedUnit(null);
+      setTargetMode('dry');
+      return;
+    }
+    const allUnits = [...orderUnits, ...units];
+    const found = allUnits.find(u => u.id === unitId) ?? null;
+    setSelectedUnit(found);
+    setTargetMode('dry');
+  }
+
+  const isCombo = selectedUnit?.is_combo ?? false;
 
   async function handlePromote() {
     if (!selectedUnitId || !consentChecked || promoting) return;
@@ -98,6 +142,7 @@ export function PromoteToUnitModal({ photo, onClose, onSuccess }: PromoteToUnitM
           source_id: photo.id,
           action: 'unit',
           target_unit_id: selectedUnitId,
+          target_mode: isCombo ? targetMode : 'dry',
           consent_confirmed: true,
         }),
       });
@@ -183,27 +228,73 @@ export function PromoteToUnitModal({ photo, onClose, onSuccess }: PromoteToUnitM
             ) : (
               <select
                 value={selectedUnitId}
-                onChange={e => setSelectedUnitId(e.target.value)}
+                onChange={e => handleUnitChange(e.target.value)}
                 className="w-full h-11 px-3 border border-slate-300 rounded-xl text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-sky-400"
               >
                 <option value="">— Choose a unit —</option>
                 {orderUnits.length > 0 && (
                   <optgroup label="On this order">
                     {orderUnits.map(u => (
-                      <option key={u.id} value={u.id}>{u.name}</option>
+                      <option key={u.id} value={u.id}>
+                        {u.name}{u.is_combo ? ' (Combo)' : ''}
+                      </option>
                     ))}
                   </optgroup>
                 )}
                 {remainingUnits.length > 0 && (
                   <optgroup label={orderUnits.length > 0 ? 'All other units' : 'All units'}>
                     {remainingUnits.map(u => (
-                      <option key={u.id} value={u.id}>{u.name}</option>
+                      <option key={u.id} value={u.id}>
+                        {u.name}{u.is_combo ? ' (Combo)' : ''}
+                      </option>
                     ))}
                   </optgroup>
                 )}
               </select>
             )}
           </div>
+
+          {/* Mode selector — only shown for combo units */}
+          {isCombo && selectedUnitId && (
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Add to gallery side
+              </label>
+              <p className="text-xs text-slate-500 mb-3">
+                This is a combo unit with both dry and wet configurations. Choose which gallery this photo should appear in.
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {MODE_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setTargetMode(opt.value)}
+                    className={`flex flex-col items-center gap-1.5 px-3 py-3 rounded-xl border-2 text-xs font-semibold transition-all ${
+                      targetMode === opt.value
+                        ? opt.value === 'dry'
+                          ? 'border-sky-500 bg-sky-50 text-sky-700'
+                          : opt.value === 'water'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-teal-500 bg-teal-50 text-teal-700'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className={
+                      targetMode === opt.value
+                        ? opt.value === 'dry' ? 'text-sky-600' : opt.value === 'water' ? 'text-blue-600' : 'text-teal-600'
+                        : 'text-slate-400'
+                    }>
+                      {opt.icon}
+                    </span>
+                    <span>{opt.label}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-slate-400 mt-2">
+                {MODE_OPTIONS.find(o => o.value === targetMode)?.description}
+              </p>
+            </div>
+          )}
 
           {/* Consent checkbox */}
           <label className="flex items-start gap-3 cursor-pointer select-none">

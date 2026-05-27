@@ -13,6 +13,8 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 export function PromoteToCarouselModal({ photo, onClose, onSuccess }: PromoteToCarouselModalProps) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [consentChecked, setConsentChecked] = useState(false);
   const [promoting, setPromoting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +42,8 @@ export function PromoteToCarouselModal({ photo, onClose, onSuccess }: PromoteToC
           source_type: photo.source,
           source_id: photo.id,
           action: 'carousel',
+          carousel_title: title.trim() || null,
+          carousel_description: description.trim() || null,
           consent_confirmed: true,
         }),
       });
@@ -113,6 +117,39 @@ export function PromoteToCarouselModal({ photo, onClose, onSuccess }: PromoteToC
               </p>
             </div>
           )}
+
+          {/* Title field */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+              Title <span className="text-slate-400 font-normal">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder="e.g. Birthday Parties"
+              maxLength={80}
+              className="w-full h-11 px-3 border border-slate-300 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-400"
+            />
+          </div>
+
+          {/* Description field */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+              Description <span className="text-slate-400 font-normal">(optional)</span>
+            </label>
+            <textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="e.g. Make your celebration unforgettable"
+              maxLength={200}
+              rows={2}
+              className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none"
+            />
+            {description.length > 0 && (
+              <p className="text-xs text-slate-400 mt-1 text-right">{description.length}/200</p>
+            )}
+          </div>
 
           {/* Consent checkbox */}
           <label className="flex items-start gap-3 cursor-pointer select-none">

@@ -9,11 +9,20 @@ type EligibleSource = typeof ELIGIBLE_SOURCE_TYPES[number];
 // Actions supported
 type PromoteAction = "unit" | "carousel";
 
+// For combo units: which gallery side to add the image to.
+// 'dry'   → mode: 'dry',   visibility_mode: 'dry'
+// 'water' → mode: 'water', visibility_mode: 'water'
+// 'both'  → mode: 'dry',   visibility_mode: 'both'  (matches UnitForm convention)
+type TargetMode = "dry" | "water" | "both";
+
 interface PromoteRequest {
   source_type: string;
-  source_id: string;         // AdminPhoto.id as stored in the frontend
+  source_id: string;              // AdminPhoto.id as stored in the frontend
   action: PromoteAction;
-  target_unit_id?: string;   // required when action === 'unit'
+  target_unit_id?: string;        // required when action === 'unit'
+  target_mode?: TargetMode;       // optional; defaults to 'dry'; only meaningful for combo units
+  carousel_title?: string | null; // optional; only used when action === 'carousel'
+  carousel_description?: string | null;
   consent_confirmed: boolean;
 }
 
@@ -37,7 +46,16 @@ Deno.serve(async (req: Request) => {
       return json400("Invalid JSON body");
     }
 
-    const { source_type, source_id, action, target_unit_id, consent_confirmed } = body;
+    const {
+      source_type,
+      source_id,
+      action,
+      target_unit_id,
+      target_mode = "dry",
+      carousel_title,
+      carousel_description,
+      consent_confirmed,
+    } = body;
 
     if (!source_type || !source_id || !action) {
       return json400("Missing required fields: source_type, source_id, action");
@@ -229,6 +247,12 @@ Deno.serve(async (req: Request) => {
         .limit(1);
       const maxSort = sortRows?.[0]?.sort ?? -1;
 
+      // Resolve mode/visibility_mode from target_mode
+      // 'both' means the image appears in both dry and wet galleries, stored
+      // as mode:'dry', visibility_mode:'both' — matching the UnitForm convention.
+      const resolvedMode = target_mode === "water" ? "water" : "dry";
+      const resolvedVisibilityMode = target_mode === "both" ? "both" : resolvedMode;
+
       // Insert unit_media row
       const { data: insertedRow, error: insertErr } = await adminClient
         .from("unit_media")
@@ -236,8 +260,8 @@ Deno.serve(async (req: Request) => {
           unit_id: target_unit_id,
           url: publicUrl,
           alt: `${unitRow.name} - ${derivedFileName}`,
-          mode: "dry",
-          visibility_mode: "dry",
+          mode: resolvedMode,
+          visibility_mode: resolvedVisibilityMode,
           sort: maxSort + 1,
           is_featured: false,
         })
@@ -301,8 +325,8 @@ Deno.serve(async (req: Request) => {
           media_type: "image",
           is_active: true,
           display_order: maxOrder + 1,
-          title: null,
-          description: null,
+          title: carousel_title?.trim() || null,
+          description: carousel_description?.trim() || null,
         })
         .select("id")
         .single();
