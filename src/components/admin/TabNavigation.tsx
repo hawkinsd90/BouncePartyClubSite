@@ -45,6 +45,7 @@ export function TabNavigation({ activeTab, onTabChange, pendingCount = 0 }: TabN
     { id: 'contacts', label: 'Contacts' },
     { id: 'branding', label: 'Business Branding' },
     { id: 'permissions', label: 'Permissions' },
+    { id: 'photos', label: 'Media Library' },
     { id: 'message_templates', label: 'Message Templates' },
     { id: 'blackout', label: 'Blackout' },
     { id: 'changelog', label: 'Changelog' },
@@ -52,7 +53,6 @@ export function TabNavigation({ activeTab, onTabChange, pendingCount = 0 }: TabN
     { id: 'site_activity', label: 'Site Activity' },
     { id: 'google_calendar', label: 'Google Calendar' },
     { id: 'tools', label: 'Tools' },
-    { id: 'photos', label: 'Media Library' },
   ];
 
   return (

@@ -21,47 +21,32 @@ export function useCarouselData() {
       setLoading(true);
       setError(null);
 
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/hero_carousel_images?is_active=eq.true&order=display_order`;
+      const { data, error: queryError } = await supabase
+        .from('hero_carousel_images')
+        .select('id, image_url, title, description, media_type, storage_path, display_order, is_active')
+        .eq('is_active', true)
+        .order('display_order');
 
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Query timeout after 10 seconds')), 10000)
-      );
-
-      const fetchPromise = fetch(url, {
-        headers: {
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-      }).then(async res => {
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data?.message || `HTTP ${res.status}`);
-        }
-        return data;
-      });
-
-      const data = await Promise.race([fetchPromise, timeoutPromise]) as any;
-
-      if (data && !Array.isArray(data)) {
-        console.error('[Carousel] Response is not an array:', data);
-        setError(`Error: ${data?.message || 'Invalid response format'}`);
+      if (queryError) {
+        console.error('[Carousel] Error loading carousel:', queryError);
+        setError(`Error: ${queryError.message}`);
         setMedia([]);
         setLoading(false);
         return;
       }
 
       if (data && Array.isArray(data)) {
-        const mediaWithUrls = await Promise.all(
-          data.map(async (item: any) => {
-            if (item.storage_path) {
-              const { data: urlData } = supabase.storage
-                .from('carousel-media')
-                .getPublicUrl(item.storage_path);
-              return { ...item, image_url: urlData.publicUrl };
-            }
-            return item;
-          })
-        );
+        // Resolve storage_path → public URL for items stored in the bucket.
+        // For externally-hosted URLs (no storage_path) image_url is used as-is.
+        const mediaWithUrls = data.map((item: any) => {
+          if (item.storage_path) {
+            const { data: urlData } = supabase.storage
+              .from('carousel-media')
+              .getPublicUrl(item.storage_path);
+            return { ...item, image_url: urlData.publicUrl };
+          }
+          return item;
+        });
         setMedia(mediaWithUrls);
       } else {
         setMedia([]);
