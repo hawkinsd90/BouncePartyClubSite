@@ -43,9 +43,10 @@ cp .env.example .env
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
 VITE_GOOGLE_MAPS_API_KEY=
+VITE_STRIPE_PUBLISHABLE_KEY=
 ```
 
-4. Backend secrets (Stripe keys, Twilio credentials, Resend API key) are stored in the `admin_settings` database table — **never** in `.env` or Netlify environment variables. The Stripe publishable key is served to the frontend at runtime via the `get-stripe-publishable-key` edge function. See `docs/DEPLOYMENT_AND_SECURITY.md` for details.
+4. Backend secrets (Stripe secret key, Twilio credentials, Resend API key) are stored in the `admin_settings` database table — **never** in `.env` or Netlify environment variables. See `docs/DEPLOYMENT_AND_SECURITY.md` for details.
 
 5. Start the dev server:
 
