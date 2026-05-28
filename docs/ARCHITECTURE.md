@@ -128,7 +128,7 @@ All tables live in the `public` schema. Confirmed from live database:
 | `contacts` | Deduplicated phonebook — one record per unique customer across all orders; maintains lifetime stats via triggers |
 | `crew_location_history` | GPS breadcrumbs from crew members during deliveries (lat/lng, accuracy, speed, heading) |
 | `customer_profiles` | Extended profile linked to auth users (notification preferences, name) |
-| `customers` | Customer records linked to orders and optionally to auth users |
+| `customers` | Customer records linked to orders and optionally to auth users (`user_id` FK, `default_address_id`, `oauth_provider`, `oauth_profile_data`) |
 | `daily_mileage_logs` | Crew odometer readings for gas mileage expense tracking per shift |
 | `documents` | General document storage (kind + url + optional metadata JSON) |
 | `email_templates` | Admin-managed email template content by category (configurable subject, header, body, theme) |
@@ -166,7 +166,7 @@ All tables live in the `public` schema. Confirmed from live database:
 | `task_status` | Crew task cards — one per confirmed order per task type — tracking day-of workflow with JSONB `delivery_images` and `damage_images` arrays |
 | `transaction_receipts` | Immutable financial audit log with unique receipt numbers and `receipt_group_id` for grouped multi-type charges |
 | `unit_media` | Images and videos for each rentable unit with `mode` (dry/wet), `visibility_mode`, and `is_featured` flag |
-| `units` | Inventory — each bounce house, water slide, or combo unit with `types` array |
+| `units` | Inventory — each bounce house, water slide, or combo unit with `types` array and `active` boolean |
 | `user_consent_log` | Permanent record of user consent decisions (SMS, card-on-file) with batch idempotency |
 | `user_permissions_changelog` | Audit log of all role grant/revoke actions with actor email embedded at write time |
 | `user_roles` | Role assignments per auth user (master, admin, crew, customer) |
@@ -187,6 +187,14 @@ The `orders` table is the most complex record in the system. Notable columns bey
 | `same_day_responsibility_accepted` / `overnight_responsibility_accepted` | Customer acceptance of equipment responsibility clauses |
 | `booking_confirmation_sent` | Prevents duplicate confirmation emails |
 | `pending_review_admin_alerted` / `confirmed_admin_alerted` | Deduplication flags for admin notifications |
+| `generator_qty` | Number of generators requested (integer; separate from the boolean `generator_selected`) |
+| `clear_payment_info` | Signals that saved Stripe payment method should be cleared (set when items change or deposit increases) |
+| `current_eta` | Current crew ETA timestamp, updated as route progresses |
+| `waiver_signature_data` | Raw signature canvas data (stored for audit before PDF is generated) |
+| `e_signature_consent` | Whether the electronic consent checkbox was accepted during waiver signing |
+| `deposit_required` | Whether a deposit is required for this order |
+| `damage_charged_cents` | Amount charged for equipment damage |
+| `stripe_payment_status` | Stripe-specific payment status; set to `'paid'` even for zero-deposit approvals to signal the payment obligation is satisfied |
 | `order_financials_applied` (on `payments`) | Whether `deposit_paid_cents`/`balance_paid_cents` on the order have been updated for this payment |
 
 ---
@@ -241,8 +249,8 @@ Orders move through two independent status dimensions:
 
 ```
 draft → pending_review → awaiting_customer_approval → confirmed → in_progress → completed
-                                                                            ↘ cancelled
-                                                                            ↘ void
+                                                                          ↘ cancelled
+                                                                          ↘ void
 ```
 
 | Status | Meaning |
@@ -256,7 +264,7 @@ draft → pending_review → awaiting_customer_approval → confirmed → in_pro
 | `cancelled` | Cancelled by admin or customer |
 | `void` | Administratively voided (no charge) |
 
-Valid transitions are enforced by the `validate_order_status_transition` database function. Invalid transitions return an error.
+Valid transitions are enforced by the `validate_order_status_transition` database function. Invalid transitions return an error. The same-status "transition" (no change) is always permitted.
 
 ### Workflow Status (crew operations, stored on `orders.workflow_status`)
 
@@ -269,11 +277,11 @@ Tracks the crew's physical progress on event day, independent of order lifecycle
 
 ### Payment Status (derived)
 
-Computed from order amounts, not stored directly, via `getPaymentStatus(order)`:
+Computed from order amounts, not stored directly, via `getPaymentStatus(order)` in `src/lib/constants/statuses.ts`:
 
-- `payment_due` — No deposit collected
+- `payment_due` — No deposit collected (`deposit_paid_cents === 0`)
 - `deposit_paid` — Deposit collected, balance remaining
-- `paid_in_full` — Full balance collected
+- `paid_in_full` — Total collected equals total due
 
 ---
 
@@ -307,12 +315,12 @@ Edge functions live in `supabase/functions/`. Each is a standalone Deno module. 
 |---|---|
 | `cors.ts` | Standard CORS headers (`Access-Control-Allow-Origin: *`) for all responses |
 | `admin-settings.ts` | Helper to read `admin_settings` key-value table |
-| `format-order-id.ts` | Canonical order ID formatting (e.g., `D2BD1A2F`) |
+| `format-order-id.ts` | Canonical order ID formatting — first 8 chars of UUID uppercased (e.g., `D2BD1A2F`) |
 | `fmt.ts` | Currency and date formatting utilities for edge function templates |
 | `payment-validation.ts` | Shared payment amount validation logic |
 | `payment-receipt-email.ts` | Shared HTML receipt email builder used by multiple payment functions |
 | `rate-limit.ts` | Per-identifier sliding-window rate limiting via `rate_limits` table |
-| `transaction-logger.ts` | Transaction receipt creation and admin notification |
+| `transaction-logger.ts` | Transaction receipt creation and admin notification; supports grouped receipts via `receipt_group_id` |
 | `webhook-idempotency.ts` | Stripe webhook deduplication via `stripe_webhook_events` table |
 
 All edge functions handle CORS preflight (`OPTIONS`) and include CORS headers on every response.
@@ -325,7 +333,7 @@ All edge functions handle CORS preflight (`OPTIONS`) and include CORS headers on
 | `backfill-oauth-customers` | Yes | Data migration: ensures all Google OAuth users have customer records |
 | `backfill-payment-methods` | Yes | Data migration: reconciles Stripe payment method records; fills `payment_brand`/`last_four` from Stripe API |
 | `calculate-route-mileage` | Yes | Computes total miles for a day's route from `route_stops` |
-| `charge-deposit` | Yes | Charges saved payment method for deposit or balance; used for order approval and day-of balance collection |
+| `charge-deposit` | Yes | Charges saved payment method for deposit or balance. Uses a sentinel value (`deposit_paid_cents = -1`) for atomic race-condition safety. Called during order approval and day-of balance collection. |
 | `checkout-bridge` | No | Orchestration layer between checkout completion and order lifecycle progression |
 | `create-admin-user` | Yes | Bootstraps the first master user during initial setup |
 | `customer-balance-payment` | No | Allows customers to pay remaining balance via saved card on file or a new Stripe Checkout session |
@@ -335,27 +343,27 @@ All edge functions handle CORS preflight (`OPTIONS`) and include CORS headers on
 | `get-payment-method` | Yes | Returns customer's saved payment method details |
 | `get-session-metadata` | No | Returns customer session data for form prefill |
 | `get-stripe-publishable-key` | No | Returns Stripe publishable key (read from `admin_settings`) |
-| `get-user-info` | Yes | Returns authenticated user's profile and role information |
+| `get-user-info` | Yes | Returns authenticated user's profile and role information; also used by analytics to resolve crew display names |
 | `get-waiver-status` | No | Checks if an order has a signed waiver and returns PDF URL |
-| `order-lifecycle` | No | Authoritative handler for order status transitions and lifecycle events |
-| `promote-media` | Yes | Copies a photo from one source (lot, order, delivery) to the unit gallery or homepage carousel; enforces consent and evidence restrictions |
-| `reconcile-balance-payment` | No | Verifies Stripe session on checkout return; atomically records payment and updates order financials with race-condition safety |
+| `order-lifecycle` | No | Authoritative handler for order status transitions; sends admin SMS/email for `enter_pending_review` and `enter_confirmed` actions with idempotency guards |
+| `promote-media` | Yes | Copies a photo from one source (lot, order, delivery) to the unit gallery or homepage carousel; re-verifies delivery URLs exist before promotion; requires `consent_confirmed: true` |
+| `reconcile-balance-payment` | No | Verifies Stripe session on checkout return; uses `apply_balance_payment_financials` RPC with `order_financials_applied` flag for race-condition-safe idempotency |
 | `record-cash-payment` | Yes | Admin records a cash payment (atomic RPC + receipt logging) |
-| `record-check-payment` | Yes | Admin records a check payment with check number |
+| `record-check-payment` | Yes | Admin records a check payment with check number stored in `payments.notes` |
 | `record-consent` | Yes | Permanently records or revokes user consent (drain-pending, record, revoke) |
 | `save-payment-method-from-session` | Yes | Saves Stripe payment method details after successful checkout session |
 | `save-pending-consent` | No | Stores pre-signup consent in staging table |
-| `save-signature` | No | Records waiver signature, generates PDF, updates order |
+| `save-signature` | No | Records waiver signature with full audit data; generates PDF asynchronously; sends email confirmation with PDF attachment |
 | `save-signup-address` | No | Saves customer's home address submitted during signup |
 | `send-email` | Yes | Sends email via Resend with fallback SMS to admin on failure |
 | `send-error-notification` | No | Sends admin alert for application errors |
-| `send-invoice` | Yes | Generates and distributes invoice to customer via email/SMS; creates `invoice_links` record with both a 64-char token and 8-char short code |
-| `send-sms-notification` | Yes | Sends SMS via Twilio; logs to `sms_conversations` if `orderId` provided |
+| `send-invoice` | Yes | Generates and distributes invoice to customer via email/SMS; creates `invoice_links` record with both a 64-char token and 8-char short code; resolves origin from request header or env `SITE_URL` |
+| `send-sms-notification` | Yes | Sends SMS via Twilio; logs to `sms_conversations` if `orderId` (camelCase) provided |
 | `stripe-charge` | Yes | Direct Stripe charge (admin-initiated, outside checkout flow) |
-| `stripe-checkout` | Yes | Creates Stripe Checkout Session or Payment Intent |
+| `stripe-checkout` | Yes | Creates Stripe Checkout Session or Payment Intent; enforces rate limiting per order; performs server-side blackout check |
 | `stripe-refund` | Yes | Issues Stripe refund and records in `order_refunds` |
-| `stripe-webhook` | No | Processes Stripe webhook events with signature verification and idempotency |
-| `sync-google-calendar` | Yes | Syncs confirmed orders to Google Calendar |
+| `stripe-webhook` | No | Processes Stripe webhook events with signature verification and idempotency; handles: `checkout.session.completed`, `payment_intent.succeeded`, `charge.refunded`, `setup_intent.succeeded` |
+| `sync-google-calendar` | Yes | Syncs confirmed orders to Google Calendar (inactive until Google credentials configured) |
 | `twilio-status-callback` | No | Receives SMS delivery status updates from Twilio |
 | `twilio-webhook` | No | Receives inbound SMS from customers and routes to conversations |
 
@@ -367,30 +375,31 @@ Pricing is computed in `src/lib/pricing.ts` using rules fetched from the `pricin
 
 **Calculation order:**
 
-1. Day 1 subtotal (sum of unit prices × location multiplier)
-2. Extra day charges (additional days × `extra_day_pct` % of day 1 rate)
+1. Day 1 subtotal — sum of `(unit_price × qty × locationMultiplier)` for each item. Location multiplier is either `residential_multiplier` or `commercial_multiplier`.
+2. Extra day charges — `day1Subtotal × (extra_day_pct / 100) × (numDays - 1)`
 3. Travel fee (see `travelFeeCalculator.ts`)
-4. Surface fee (cement or unstaked grass — sandbag surcharge via `surface_sandbag_fee_cents`)
-5. Same-day pickup fee (`same_day_pickup_fee_cents` — commercial bookings or non-overnight returns)
-6. Generator fee (`generator_fee_single_cents` for one generator, `generator_fee_multiple_cents` for two or more)
-7. Tax (6% of subtotal + travel + surface + generator, if enabled; controlled by `apply_taxes_by_default` setting)
-8. Deposit / balance split (percentage-based via `deposit_percentage` or per-unit via `deposit_per_unit_cents`)
+4. Surface fee — charged when surface is `cement` OR (`grass` AND stakes cannot be used). Amount: `surface_sandbag_fee_cents`.
+5. Same-day pickup fee — charged when `location_type === 'commercial'` OR `overnight_allowed === false`. Amount: `same_day_pickup_fee_cents`.
+6. Generator fee — single generator: `generator_fee_single_cents` (fallback to `generator_price_cents`, default $100). Two or more: first at single price, each additional at `generator_fee_multiple_cents` (default $75).
+7. Tax — 6% (hardcoded) on (subtotal + travel + surface + generator fees), only if `apply_taxes_by_default` is enabled.
+8. Deposit — `quantity_of_units × deposit_per_unit_cents` (default $50/unit). Admin can override with `custom_deposit_cents`.
+9. Balance due — `Math.max(0, total_cents - deposit_due_cents)`
 
 Any fee can be administratively waived with a documented reason. Waived fees are stored as boolean flags + reason text on the `orders` record.
 
+**Note:** The `same_day_matrix_json` column exists on `pricing_rules` but is not used in the current pricing engine.
+
 ### Travel Fee Zones (`src/lib/travelFeeCalculator.ts`)
 
-Three-tier lookup, evaluated in order:
+Three-tier lookup, evaluated in priority order:
 
-1. **ZIP code zone override** — flat fee for specific ZIP codes (configured in `pricing_rules.zone_overrides_json`)
-2. **Free cities list** — zero travel fee for listed cities (case-insensitive; configured in both `pricing_rules.included_cities` array and `included_city_list_json`)
-3. **Distance-based** — per-mile charge beyond the base radius from home base (Wayne, MI). Rate is `pricing_rules.per_mile_after_base_cents`.
-
-When a flat ZIP zone override applies, `travel_is_flat_fee` is set to `true` on the order.
+1. **ZIP code zone override** — flat fee for specific ZIP codes (configured in `pricing_rules.zone_overrides_json`). Sets `travel_is_flat_fee = true` and `zone_name = zip`.
+2. **Free cities list** — zero travel fee for listed cities (case-insensitive match against `pricing_rules.included_cities` array and `included_city_list_json`). Displayed as "FREE".
+3. **Distance-based** — per-mile charge beyond the base radius from home base (Wayne, MI, 4426 Woodward St). Rate: `per_mile_after_base_cents`. If address is within the base radius: also free, displayed as "Within Base".
 
 ### Distance Calculation (`src/lib/distanceCalculator.ts`)
 
-Driving distance between the business home base and the event address is calculated using the Google Maps Distance Matrix API. The result (in miles) is stored on the order as `travel_total_miles`, `travel_base_radius_miles`, and `travel_chargeable_miles`.
+Driving distance between the business home base and the event address is calculated using the Google Maps Distance Matrix API. The result (in miles) is stored on the order as `travel_total_miles`, `travel_base_radius_miles`, and `travel_chargeable_miles`. The travel fee display always shows total miles to the customer, not just chargeable miles.
 
 ---
 
@@ -402,11 +411,13 @@ Driving distance between the business home base and the event address is calcula
 - `checkUnitAvailability(unitId, startDate, endDate, excludeOrderId?)` — checks for conflicting orders
 - `checkMultipleUnitsAvailability(...)` — batched version; deduplicates the blackout RPC call (only one call per unique date range, not per unit)
 
-Orders in these statuses block availability: `pending_review`, `awaiting_customer_approval`, `confirmed`, `in_progress`, `completed`.
+Orders in these statuses block availability: `pending_review`, `awaiting_customer_approval`, `confirmed`, `in_progress`, `completed` (plus the legacy `approved` status for backward compatibility).
+
+Date overlap logic is inclusive on both ends. The `excludeOrderId` parameter allows checking availability for an order that is being edited without conflicting with itself.
 
 Availability is checked at two trusted enforcement points:
 1. Client-side in the quote form (prevents selection of blocked dates)
-2. Server-side inside `stripe-checkout` before creating a Stripe session (cannot be bypassed)
+2. Server-side inside `stripe-checkout` before creating a Stripe session (cannot be bypassed). Blackout checks also distinguish between full blocks and same-day-pickup-only blocks.
 
 ---
 
@@ -433,7 +444,9 @@ User interactions are logged to the `site_events` table via `src/lib/siteEvents.
 - Checkout starts, checkout completions
 - Referral source attribution
 
-Each event optionally carries a `session_id`, `unit_id`, `order_id`, and arbitrary `metadata` JSON. Analytics are surfaced in the admin Site Analytics tab, including booking source attribution reports.
+Tracked funnel: `unit_view → cart_started → cart_submitted → checkout_started → checkout_completed`
+
+Each event optionally carries a `session_id`, `unit_id`, `order_id`, and arbitrary `metadata` JSON. Analytics are surfaced in the admin Site Analytics tab, including booking source attribution reports powered by the `get_booking_source_analytics` SECURITY DEFINER database function.
 
 ---
 
@@ -448,13 +461,21 @@ Each event optionally carries a `session_id`, `unit_id`, `order_id`, and arbitra
 | File | Purpose |
 |---|---|
 | `src/lib/utils.ts` | Currency formatting (`formatCurrency`), date formatting, order ID display, `createShortPortalLink()` |
-| `src/lib/validation.ts` | Email, phone, address validation utilities |
+| `src/lib/validation.ts` | Email, phone, address validation utilities. Phone validation requires exactly 10 digits (no international support). |
 | `src/lib/logger.ts` | Centralized logging: `createLogger('ModuleName')` returns a scoped logger with `.debug()`, `.warn()`, `.error()` |
 | `src/lib/safeStorage.ts` | Safe wrapper around `localStorage`/`sessionStorage` that catches exceptions on restricted browsers |
 | `src/lib/printUtils.ts` | Utilities for triggering browser print dialogs |
-| `src/lib/printIntegration.ts` | Multi-document print system: invoice, receipt, quote, waiver, catalog, report — with typed print templates and state management |
+| `src/lib/printIntegration.ts` | Multi-document print system: invoice, receipt, quote, waiver, catalog — with typed print templates. Quote preview generates a mock order with ID `'QUOTE-' + Date.now()` (not persisted). |
 | `src/lib/pricingCache.ts` | In-memory cache for `pricing_rules` to avoid redundant fetches during a session |
 | `src/lib/calendarUtils.ts` | Date/time manipulation utilities for the calendar view |
 | `src/lib/styles.ts` | Shared Tailwind class string helpers |
 | `src/lib/invoiceSummaryBuilder.ts` | Transforms order data into a normalized `OrderSummaryDisplay` object used across invoice, receipt, and print views |
 | `src/lib/addressService.ts` | `upsertCanonicalAddress()` — create-or-find logic for deduplicated address records |
+
+### `createShortPortalLink()` (`src/lib/utils.ts`)
+
+Generates a time-limited compact portal URL for SMS messages:
+- Short code: 8 random chars from an unambiguous set (no `0`, `O`, `1`, `I`, `l`)
+- Expiration: event date + 3 days, or 30 days from now if no event date
+- Inserts into `invoice_links` with `link_type: 'portal_shortlink'`
+- Falls back to full portal URL if the database insert fails

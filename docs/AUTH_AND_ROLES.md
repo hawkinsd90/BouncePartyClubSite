@@ -2,7 +2,7 @@
 
 ## Overview
 
-Authentication is handled by Supabase Auth. The app uses email/password as the primary method with Google OAuth as an optional alternative. Apple Sign-In is also wired up in the auth context. Role-based access control is implemented through a custom `user_roles` table — Supabase's built-in JWT claims are not used for role enforcement.
+Authentication is handled by Supabase Auth. The app uses email/password as the primary method with Google OAuth as an optional alternative. Apple Sign-In is also wired up in the auth context but not yet surfaced in UI. Role-based access control is implemented through a custom `user_roles` table — Supabase's built-in JWT claims are not used for role enforcement.
 
 ---
 
@@ -87,7 +87,6 @@ Consent for SMS marketing and card-on-file authorization must be collected befor
 When a customer checks consent boxes on the quote or checkout form before having an account:
 1. A unique `batch_id` (UUID) is generated on the client
 2. The `save-pending-consent` edge function stores the consents in `pending_signups_consent`:
-   - `user_id` — the user's future auth ID (set during account creation)
    - `batch_id` — groups all consents from this session
    - `consents` — JSON array of consent types and values
    - `user_agent_hint` — browser info for audit trail
@@ -159,7 +158,7 @@ The provider maintains ephemeral `sessionData` that persists across the quote �
 
 ### Default Address
 
-If the customer has a `default_address_id` set, that address is loaded and offered as a prefill in the quote form, speeding up repeat bookings.
+If the customer has a `default_address_id` set on their `customers` record, that address is loaded and offered as a prefill in the quote form, speeding up repeat bookings.
 
 ---
 
@@ -172,6 +171,8 @@ Google OAuth is triggered via `signInWithGoogle()`:
 3. Profile data is merged: form-submitted name takes priority over Google's display name
 4. OAuth provider and profile data are stored on the `customers` record (`oauth_provider`, `oauth_profile_data`)
 5. An optional `?next=` query parameter on the redirect URL is honored for post-login navigation
+
+The `google_oauth_client_id` is stored in `admin_settings` (not in env vars) and is used to configure the Google Sign-In button.
 
 ---
 
@@ -207,7 +208,15 @@ The `log_permission_change` trigger fires on every insert/delete in `user_roles`
 - `old_role`, `new_role`
 - `notes` — optional reason
 
-The actor's email is embedded at trigger time. This provides an immutable audit trail of all permission changes.
+The actor's email is embedded at trigger time. This provides an immutable audit trail of all permission changes that remains accurate even if the actor's email is later changed.
+
+### Role Escalation Prevention
+
+The `user_roles` table RLS policies enforce:
+- Only `master` role users can assign or revoke `admin` or `master` roles.
+- `admin` users can manage `crew` and `customer` roles.
+- Customers cannot modify their own roles.
+- No user can assign a role higher than their own.
 
 ---
 
@@ -245,7 +254,7 @@ The `/setup` route renders `Setup.tsx`, which calls the `create-admin-user` edge
 
 Supabase's default auth emails (signup confirmation, password reset) are replaced with branded versions via the `auth-email-hook` edge function. This hook is registered in Supabase as a custom auth email handler and:
 
-1. Receives the auth event (signup, password reset, etc.) from Supabase
+1. Receives the auth event type from Supabase (signup, password reset, etc.)
 2. Generates a branded HTML email using `emailTemplateBase.ts` (business logo, colors, footer)
 3. Sends via Resend
 

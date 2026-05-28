@@ -35,6 +35,7 @@ These are public values embedded in the compiled JavaScript bundle. They are saf
 | `VITE_SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Supabase public anon key |
 | `VITE_GOOGLE_MAPS_API_KEY` | Google Maps API key |
+| `VITE_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key (used as local dev fallback in `StripeCheckoutForm.tsx`) |
 
 ### Backend Secrets — Stored in `admin_settings` Table (NEVER in env vars)
 
@@ -43,15 +44,16 @@ The following secrets are stored as rows in the `admin_settings` database table 
 | Setting Key | Purpose |
 |---|---|
 | `stripe_secret_key` | Stripe secret key for server-side API calls |
-| `stripe_publishable_key` | Stripe publishable key (served to frontend via edge function, never in `.env`) |
+| `stripe_publishable_key` | Stripe publishable key (served to frontend via `get-stripe-publishable-key` edge function) |
 | `stripe_webhook_secret` | Stripe webhook signing secret |
 | `twilio_account_sid` | Twilio account SID |
 | `twilio_auth_token` | Twilio auth token |
 | `twilio_from_number` | Twilio sending phone number |
 | `resend_api_key` | Resend API key for email |
 | `admin_email` | Admin notification email address |
-| `admin_phone` | Admin notification phone number |
+| `admin_phone` / `admin_notification_phone` | Admin notification phone number |
 | `google_maps_api_key` | Google Maps API key (also available as VITE_ env for frontend) |
+| `google_oauth_client_id` | Google OAuth client ID (used for Google Sign-In button) |
 | `google_calendar_client_id` | Google Calendar OAuth client ID |
 | `google_calendar_client_secret` | Google Calendar OAuth client secret |
 | `google_calendar_refresh_token` | Long-lived refresh token |
@@ -112,7 +114,7 @@ The `stripe-webhook` edge function enforces:
 Key entry points are rate-limited using the `checkRateLimit()` utility (`supabase/functions/_shared/rate-limit.ts`). Rate limit state is stored in the `rate_limits` database table.
 
 Protected endpoints:
-- Stripe checkout session creation (per order)
+- Stripe checkout session creation (per order ID + IP)
 - Payment recording
 - Email sending
 
@@ -122,7 +124,7 @@ The rate limiter uses a sliding-window approach. On each request it reads `(iden
 
 ## Admin Settings Security
 
-The `admin_settings_changelog` table logs every change to settings. Secret values (Stripe keys, Twilio credentials, Resend API key) are automatically redacted in the changelog by a database trigger — only the key name is recorded, not the value. The redaction trigger substitutes `[REDACTED]` for any key whose name contains `key`, `secret`, `token`, `sid`, or `password`.
+The `admin_settings_changelog` table logs every change to settings. Secret values (Stripe keys, Twilio credentials, Resend API key) are automatically redacted in the changelog by a database trigger — only the key name is recorded, not the value. The redaction trigger (`redact_sensitive_changelog_values`) substitutes `[REDACTED]` for any key whose name contains `key`, `secret`, `token`, `sid`, or `password`.
 
 ---
 
@@ -161,7 +163,7 @@ Records every role grant and revoke:
 
 ### Transaction Receipts (`transaction_receipts`)
 
-Immutable financial log of every payment event with unique receipt numbers. Cannot be updated or deleted after creation.
+Immutable financial log of every payment event with unique receipt numbers. Cannot be updated or deleted after creation. Supports `receipt_group_id` for grouping related transactions (e.g., deposit + tip from same charge).
 
 ---
 
@@ -199,7 +201,20 @@ All outbound SMS messages sent via `send-sms-notification` must pass `orderId` (
 
 ## Input Validation and Sanitization
 
-- Email addresses and phone numbers are validated client-side via `src/lib/validation.ts`
+- Email addresses and phone numbers are validated client-side via `src/lib/validation.ts`. Phone validation requires exactly 10 digits after stripping non-digits (no international support).
 - Payment amounts are validated server-side in `_shared/payment-validation.ts`
 - Order status transitions are validated by the `validate_order_status_transition` database function — invalid transitions are rejected with an error before any change is made
-- All RPC functions run with `SECURITY DEFINER` where elevation is required, with explicit `search_path` set to prevent schema injection
+- All RPC functions that require elevated privilege run with `SECURITY DEFINER` and explicit `search_path` set to prevent schema injection
+- The `check_date_blackout` function correctly handles wrap-aware annual recurrence patterns (date ranges that span year-end)
+
+---
+
+## Payment Race-Condition Safety
+
+Two independent safety mechanisms prevent double-charging:
+
+### Deposit Charging (`charge-deposit`)
+Uses a sentinel value `deposit_paid_cents = -1`. The update only succeeds if the current value is `<= 0`. Exactly one concurrent caller wins; others receive a 409 response. The sentinel is released if the charge fails before Stripe is called.
+
+### Balance Payment Reconciliation (`reconcile-balance-payment` + `apply_balance_payment_financials` RPC)
+Uses the unique constraint on `payments.stripe_payment_intent_id` as a distributed mutex. Concurrent callers invoke the `apply_balance_payment_financials` RPC, which atomically checks and sets the `order_financials_applied` flag. Only the first caller to set the flag applies the financial update to the order.

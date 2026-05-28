@@ -66,7 +66,7 @@ The `payments` table records every individual payment event. Key columns:
 
 ### Financial Application Flag
 
-`order_financials_applied` is `true` once the payment has been applied to update `deposit_paid_cents`, `balance_paid_cents`, or `total_refunded_cents` on the order. This flag enables safe idempotency checks — the edge function can retry without double-counting.
+`order_financials_applied` is `true` once the payment has been applied to update `deposit_paid_cents`, `balance_paid_cents`, or `total_refunded_cents` on the order. This flag enables safe idempotency — the edge function can retry without double-counting. It is checked and set atomically by the `apply_balance_payment_financials` RPC.
 
 ---
 
@@ -77,9 +77,11 @@ The `payments` table records every individual payment event. Key columns:
 The `stripe-checkout` edge function creates a Stripe Checkout Session or Payment Intent. It:
 
 1. Reads the Stripe secret key from `admin_settings` (never from env vars).
-2. Applies rate limiting per order (prevents duplicate checkout session creation).
-3. Supports `setupMode` (card-on-file only, no charge) and `invoiceMode` (pay-later invoice).
-4. Returns the session URL or client secret to the frontend.
+2. Applies rate limiting per order (prevents duplicate checkout session creation) using the order ID + IP as the identifier.
+3. Performs server-side blackout date check — returns error code `DATE_BLACKED_OUT` or `SAME_DAY_PICKUP_BLACKED_OUT` if the date is blocked.
+4. Supports `setupMode` (card-on-file only, no charge) and `invoiceMode` (pay-later invoice).
+5. Sets Stripe session metadata: `order_id`, `payment_type`, `deposit_amount`, `tip_cents`.
+6. Returns the session URL or client secret to the frontend.
 
 ### Webhook Processing (`stripe-webhook` edge function)
 
@@ -87,10 +89,44 @@ Every Stripe webhook is verified via cryptographic signature before any processi
 
 After verification, the idempotency system (`webhook-idempotency.ts`) checks whether the event has already been processed. If it has, the function returns immediately without re-applying changes.
 
-Handled webhook events:
-- `payment_intent.succeeded` — records payment, updates order payment status, logs transaction receipt
-- `charge.refunded` — records refund, updates order, logs refund receipt
-- `checkout.session.completed` — saves payment method details to order
+**Handled webhook events:**
+
+| Event | Action |
+|---|---|
+| `checkout.session.completed` | Saves payment method details; calls `handleDepositPayment` or `handleBalancePayment` depending on payment type; advances order status |
+| `payment_intent.succeeded` | Calls `apply_balance_payment_financials` RPC atomically; updates order payment tracking |
+| `charge.refunded` | Inserts refund row in `payments` (type: `incidental`, negative amount), creates `order_refunds` record, logs transaction receipt |
+| `setup_intent.succeeded` | Saves payment method to order; advances status if needed |
+
+### Race-Condition Safety for Balance Payments (`reconcile-balance-payment`)
+
+The unique constraint on `payments.stripe_payment_intent_id` acts as a distributed mutex:
+
+1. The first caller inserts the payment row successfully.
+2. Any concurrent duplicate caller gets a `23505` constraint violation.
+3. Both paths call `apply_balance_payment_financials()` RPC, which checks `order_financials_applied`.
+4. Only the first caller to set the flag updates the order totals. The second caller detects the flag is already true and returns without double-writing.
+
+This guarantees exactly one update to `balance_paid_cents` even under concurrent webhook delivery.
+
+### Deposit Charge Race-Condition Safety (`charge-deposit`)
+
+The deposit charge function uses a sentinel value to prevent double-charging:
+
+1. Atomically sets `deposit_paid_cents = -1` (sentinel) only if it is currently `<= 0`.
+2. If the update touches 0 rows (another caller already set the sentinel), returns `409 Conflict`.
+3. If the Stripe charge fails, the sentinel is released (reset to 0).
+4. After a successful charge, the real `deposit_paid_cents` value is written.
+
+This ensures exactly one deposit charge fires even if the approval button is clicked multiple times or two admin sessions are open simultaneously.
+
+### Tip Handling
+
+Tips are included in the total Stripe charge amount but tracked separately:
+- `charge amount = payment_amount + tip_cents`
+- `deposit_paid_cents` is set to `payment_amount` only (tip excluded)
+- `tip_cents` is stored separately on the order
+- Balance due calculation excludes tip to prevent double-counting: `balance_due_cents = total_cents - deposit_paid_cents - balance_paid_cents`
 
 ### Stripe Refunds (`stripe-refund` edge function)
 
@@ -106,13 +142,14 @@ Admins can charge the saved card on file directly from the Calendar Task Detail 
 - `balance_due_cents > 0` (balance is outstanding)
 - `stripe_payment_method_id` is set on the order (a card is saved)
 
+**Display:** Button shows card brand and last four digits (e.g., "Mastercard •••• 1840") from `payment_method_brand` and `payment_method_last_four` on the order.
+
 **How it works:**
-1. Button displays card brand and last four digits (e.g., "Mastercard •••• 1840")
-2. Admin clicks — confirmation modal shows exact amount
-3. On confirmation, calls `charge-deposit` edge function with `selectedPaymentType: 'balance'`
-4. Edge function charges off-session, records payment, sends receipt email
-5. `balance_due_cents` updated on order
-6. Admin sees success; task card refreshes
+1. Admin clicks — confirmation modal shows exact amount
+2. On confirmation, calls `charge-deposit` edge function with `selectedPaymentType: 'balance'`
+3. Edge function charges off-session, records payment, sends receipt email
+4. `balance_due_cents` updated on order
+5. Admin sees success; task card refreshes
 
 ---
 
@@ -121,15 +158,30 @@ Admins can charge the saved card on file directly from the Calendar Task Detail 
 When an admin approves an order:
 
 1. Availability re-checked to prevent overbooking.
-2. If deposit is zero: order moves to `confirmed`, card flagged for balance collection.
-3. If deposit is positive: `charge-deposit` edge function charges the saved payment method.
-4. Invoice created with status `paid` (fully paid), `partial` (deposit only), or `sent` (no charge).
-5. Transaction receipt logged.
-6. Customer receives email and SMS confirmation.
+2. Idempotency guard: aborts if order is already `confirmed`, `cancelled`, or `void`.
+3. **Zero-deposit path:** If `deposit_due_cents <= 0`, sets `stripe_payment_status = 'paid'` (signals the payment obligation is satisfied without an actual charge) and skips to confirmation.
+4. **Standard deposit path:** Calls `charge-deposit` edge function. The response includes `paymentDetails: { paymentIntentId, chargeId, amountCents, paymentMethod, paymentBrand }`. The actual Stripe charge amount is the source of truth — not `deposit_due_cents`.
+5. Invoice created with status `paid` (fully paid), `partial` (deposit only), or `sent` (no charge).
+6. Transaction receipt logged via `logGroupedTransactions()` (handles deposit + tip as grouped receipts if applicable).
+7. Customer receives email and SMS confirmation.
 
 If the card is declined, a custom email and SMS are sent with a link to the Customer Portal to update the payment method. Order stays unapproved until the admin retries.
 
-Force-approve (admin override) skips the deposit charge entirely and confirms without collecting payment.
+**Force Approve** (admin override) skips the deposit charge entirely and confirms without collecting payment. Calls `enterConfirmed()` with `paymentOutcome: 'waived'`.
+
+### Payment Outcome Values
+
+The `paymentOutcome` parameter passed to `order-lifecycle` controls how the order's financial state is recorded:
+
+| Value | Meaning |
+|---|---|
+| `waived` | Admin waived the deposit |
+| `already_paid` | Payment was collected earlier |
+| `charged_now` | Deposit just charged successfully |
+| `zero_due_with_card` | Zero deposit, card saved for future use |
+| `full_paid` | Full amount collected |
+| `custom_paid` | Custom amount collected |
+| `cash` | Cash payment outside Stripe |
 
 ---
 
@@ -148,7 +200,7 @@ Check payments require a non-empty check number, which is stored in `payments.no
 
 ## Transaction Receipt Logging (`src/lib/transactionReceiptService.ts`)
 
-Every payment event is written to `transaction_receipts` with a unique, sequential receipt number.
+Every payment event is written to `transaction_receipts` with a unique, sequential receipt number (generated by a database sequence).
 
 ### Deduplication
 
@@ -156,11 +208,11 @@ The primary deduplication key is `(payment_intent_id, transaction_type)`. This p
 
 ### Grouped Receipts
 
-When a single Stripe charge covers multiple transaction types (e.g., deposit + tip), `logGroupedTransactions()` assigns a shared `receipt_group_id` so they can be displayed together in a single admin receipt email.
+When a single Stripe charge covers multiple transaction types (e.g., deposit + tip), `logGroupedTransactions()` assigns a shared `receipt_group_id` (UUID) so they can be displayed together in a single admin receipt email.
 
 ### Admin Notifications
 
-After logging, `logAndNotifyTransaction()` sends a formatted HTML receipt email to the admin. This is fire-and-forget — a send failure does not block the payment flow.
+After logging, `logAndNotifyTransaction()` sends a formatted HTML receipt email to the admin. This is fire-and-forget — a send failure does not block the payment flow. The email includes receipt number, transaction type, amount, order ID, customer name, payment method brand and last four, event date, and a link to the admin panel.
 
 ---
 
@@ -171,17 +223,19 @@ The `orders` table tracks payment progress with these columns (all in cents):
 | Column | Meaning |
 |---|---|
 | `deposit_due_cents` | Deposit required at confirmation |
-| `deposit_paid_cents` | Amount collected toward deposit |
+| `deposit_paid_cents` | Amount collected toward deposit (excludes tip) |
 | `balance_due_cents` | Remaining balance |
 | `balance_paid_cents` | Amount collected toward balance |
-| `tip_cents` | Tip collected |
+| `tip_cents` | Tip collected (tracked separately, excluded from balance calculations) |
 | `total_cents` | Full order total (subtotal + all fees + tax) |
+| `total_refunded_cents` | Total amount refunded |
+| `damage_charged_cents` | Amount charged for equipment damage |
 
 Payment status is derived (not stored) using `getPaymentStatus(order)` from `src/lib/constants/statuses.ts`.
 
 ### Balance Due Calculation
 
-`balance_due_cents` is computed excluding the tip: `total_cents - deposit_paid_cents - balance_paid_cents`. The tip is tracked separately in `tip_cents` and excluded from balance calculations to prevent tip double-counting.
+`balance_due_cents` is computed excluding the tip: `total_cents - deposit_paid_cents - balance_paid_cents`. The tip is tracked separately in `tip_cents` and excluded from balance calculations to prevent double-counting.
 
 ---
 
@@ -209,5 +263,5 @@ For audit queries, the `order_refunds`, `payments`, and `transaction_receipts` t
 Key constraints enforced by the schema:
 - Every order with a Stripe payment has a corresponding transaction receipt
 - Deposit and tip can coexist as separate receipts for the same Stripe charge (deduplication key includes `transaction_type`)
-- Refunds are traceable back to their original charge via `original_charge_id` on `order_refunds`
+- Refunds are traceable back to their original charge via `stripe_refund_id` on `order_refunds`
 - `order_financials_applied` on `payments` prevents double-counting when the webhook is retried

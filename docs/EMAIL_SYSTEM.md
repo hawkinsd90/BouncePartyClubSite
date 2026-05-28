@@ -73,7 +73,7 @@ If `orderId` is provided, the outbound message is logged to the `messages` table
 
 ## Email Template System (`src/lib/emailTemplateBase.ts`)
 
-All HTML emails are built using a shared component library. Templates use table-based HTML for maximum email client compatibility.
+All HTML emails are built using a shared component library. Templates use table-based HTML for maximum email client compatibility. The logo URL and brand color are pulled from `admin_settings` at send time so all transactional emails stay on-brand.
 
 ### Wrapper
 
@@ -163,6 +163,15 @@ The `send-invoice` edge function builds its own inline HTML email (not using `em
 
 The companion SMS uses the short URL (`/i/:shortCode`) to keep the message concise and within SMS character limits. Email and SMS are sent in parallel via `EdgeRuntime.waitUntil`, so a failure of one does not block the other or the API response.
 
+### Waiver Confirmation Email (`save-signature` edge function)
+
+After a waiver is signed, the `save-signature` edge function sends a confirmation email to the customer:
+- Subject: "Your Rental Agreement Has Been Signed — Bounce Party Club"
+- Includes the signed PDF as an email attachment (base64-encoded)
+- Falls back to a download link if the PDF is not yet generated
+- Shows signer name, event date, event address, and signed timestamp
+- Includes safety reminders (no shoes, no food, no sharp objects, etc.)
+
 ---
 
 ## Branded Auth Emails (`auth-email-hook` edge function)
@@ -187,7 +196,7 @@ Admins manage reusable SMS templates in the admin Message Templates tab. Templat
 
 Variable placeholders use single braces: `{variable_name}`. They are substituted at send time.
 
-### Current Templates (live DB)
+### Current Templates (confirmed from live DB)
 
 | Template Key | Template Name | Purpose |
 |---|---|---|
@@ -220,7 +229,7 @@ Variables use single-brace `{variable}` format (not double-brace):
 | `{total_amount}` | Order total |
 | `{balance_amount}` | Balance due |
 | `{eta}` | Estimated arrival time |
-| `{portal_link}` | Customer portal URL |
+| `{portal_link}` | Customer portal URL (short URL form for SMS) |
 | `{review_url}` | Google Review URL from admin settings |
 | `{rejection_reason}` | Reason for rejection |
 | `{refund_policy}` | Refund policy text |
@@ -247,7 +256,7 @@ Inbound SMS from customers is received by the `twilio-webhook` edge function. It
 
 1. **Validates** the `X-Twilio-Signature` header against the webhook URL and POST body using the Twilio Auth Token. Rejects any request with an invalid signature.
 2. **Finds or creates** an `sms_conversations` record for the sender's phone number.
-3. **Stores** the message in `messages` with `direction: 'inbound'`.
+3. **Stores** the message in `messages` with `direction: 'inbound'`, `from_phone`, `to_phone`, `message_body`, `twilio_message_sid`, and `channel: 'sms'`.
 4. **Forwards** the message content to the admin via SMS and email notification so they know a customer replied.
 
 The admin can reply from the order detail SMS conversation panel, which calls `send-sms-notification` directly.

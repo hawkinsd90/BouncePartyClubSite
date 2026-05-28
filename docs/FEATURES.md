@@ -14,10 +14,11 @@ Rentable units (bounce houses, water slides, combos) are stored in the `units` t
 - `indoor_ok`, `outdoor_ok` — suitability flags
 - `quantity_available` — how many of this unit exist in inventory
 - `is_combo` — whether the unit is a combo inflatable
+- `active` — whether the unit is visible and bookable. Inactive units are excluded from cart duplication.
 
 Unit media (`unit_media` table) supports multiple images and videos per unit, with:
 - `mode` — `dry` or `wet` (which set-up mode the image shows)
-- `visibility_mode` — controls which mode tab the image appears under
+- `visibility_mode` — controls which mode tab the image appears under (`dry`, `wet`, or `both`)
 - `is_featured` — marks the primary hero image for a unit
 
 Unit images are uploaded to the `unit-images` Supabase storage bucket (admin-only write access).
@@ -30,7 +31,7 @@ The quote form is a multi-section page where customers configure their rental:
 
 1. **Event Details** — date range (start and end dates for multi-day events), event start/end time, pickup preference (same-day vs. next-day)
 2. **Address** — Google Places autocomplete; geocoded for travel fee calculation
-3. **Setup Details** — location type (residential/commercial), surface type (grass/concrete/indoor), generator need, special details, pets on premises
+3. **Setup Details** — location type (residential/commercial), surface type (grass/concrete/indoor), generator need and quantity, special details, pets on premises
 4. **Cart** — unit selection with real-time availability checking
 5. **Summary** — full pricing breakdown with all fees before submission
 
@@ -44,6 +45,10 @@ On submission:
 
 If the customer is logged in, their previous address and contact details are prefilled from `CustomerProfileContext`. Customers with a `default_address_id` saved get their home address pre-populated in the form.
 
+### Quote Prefill from Duplication
+
+When an admin duplicates an existing order, the quote form is prepopulated via `localStorage` entries set by `useOrderDuplication`. Event dates are intentionally left blank so the user must consciously choose new dates. Time windows, address, setup details, cart items, and contact info are all preserved.
+
 ---
 
 ## Checkout Page (`/checkout/:orderId`)
@@ -55,9 +60,10 @@ The checkout page handles Stripe payment collection. Flow:
 3. Adds an optional tip
 4. Confirms card-on-file and SMS consent (if not already given)
 5. Enters billing address (stored in Stripe and on the order record)
-6. Stripe Checkout Session is created via `stripe-checkout` edge function
-7. Customer is redirected to Stripe's hosted checkout page
-8. On success, redirects to `/payment-complete` which finalizes the order
+6. Selects referral source (how they heard about the business)
+7. Stripe Checkout Session is created via `stripe-checkout` edge function
+8. Customer is redirected to Stripe's hosted checkout page
+9. On success, redirects to `/payment-complete` which finalizes the order
 
 ### Payment Amount Options
 
@@ -96,6 +102,8 @@ A contact record is upserted automatically whenever a new order is submitted (ma
 - `opt_in_sms`, `opt_in_email` — communication preferences
 - `tags` — admin-assigned labels (array)
 - `business_name` — for commercial customers
+- `source` — how the contact was first acquired
+- `last_contact_date` — last time the contact was interacted with
 
 Contacts are viewable, searchable, and filterable from the admin Contacts tab. Each contact shows their full order history and allows sending an SMS directly from the conversation thread.
 
@@ -153,15 +161,17 @@ The `/sign/:orderId` page collects:
 - Optional home address
 - Canvas-based signature (using `signature_pad` library)
 - Optional typed name and initials
-- Electronic consent acknowledgment
+- Electronic consent acknowledgment checkbox
 
 On submission, the `save-signature` edge function:
-1. Stores the signature record in `order_signatures` with the full waiver text snapshot, IP address, user agent, and device info
-2. Generates a signed PDF and stores it in the `signed-waivers` Supabase storage bucket (private)
-3. Sets `waiver_signed_at` and `signed_waiver_url` on the order
-4. Returns the PDF URL for immediate display
+1. Stores the signature record in `order_signatures` with the full waiver text snapshot, IP address, user agent, device info, signer home/event address, initials, and typed name
+2. Stores a `consent_records` row with `consent_type: 'electronic_signature'`
+3. Generates a signed PDF asynchronously (`generate-signed-waiver` function) — stored in the `signed-waivers` bucket (private)
+4. Sets `waiver_signed_at` and `signed_waiver_url` on the order
+5. Sends a confirmation email to the customer with the PDF as an attachment (falls back to download link if PDF is not yet ready)
+6. Returns the PDF URL for immediate display
 
-The `order_signatures` record stores everything needed for a legally defensible audit: signer identity, consent text, waiver version, IP, user agent, and a complete snapshot of the waiver text as it existed at signing time.
+The `order_signatures` record stores everything needed for a legally defensible audit: signer identity, consent text, waiver version, IP, user agent, device info, and a complete snapshot of the waiver text as it existed at signing time.
 
 ### Overnight and Same-Day Responsibility Agreements
 
@@ -216,7 +226,12 @@ Clicking any photo opens a detail view with:
 
 ### Promote to Unit Gallery / Carousel (`promote-media` edge function)
 
-Admins can promote photos taken during events to the unit catalog or homepage carousel. The edge function copies the file to the appropriate storage bucket and creates the necessary `unit_media` or `hero_carousel_images` record. Consent is gated — admin must confirm before promoting.
+Admins can promote photos taken during events to the unit catalog or homepage carousel. The `promote-media` edge function:
+- Requires `consent_confirmed: true` in the request body
+- Requires `admin` or `master` role (verified via `get_user_role()` RPC)
+- Re-verifies that delivery photo URLs actually exist in `task_status.delivery_images` before allowing promotion (prevents arbitrary file promotion)
+- Copies the file to the appropriate storage bucket with a path like `promoted/{safeBaseName}-{timestamp}.{ext}`
+- Creates the necessary `unit_media` or `hero_carousel_images` record with appended sort/display order
 
 ### Media Health Panel
 
@@ -238,7 +253,7 @@ The `AddressAutocomplete` component uses the Google Places Autocomplete API to h
 
 ### Travel Fee Calculation
 
-The `distanceCalculator.ts` library computes driving distance from the home base (Wayne, MI) to the event address using the Distance Matrix API. Chargeable miles (miles beyond the free radius) are stored on the order.
+The `distanceCalculator.ts` library computes driving distance from the home base (Wayne, MI) to the event address using the Distance Matrix API. Chargeable miles (miles beyond the free radius) are stored on the order. The fee display always shows the full driving distance, not just chargeable miles.
 
 ### Route Optimization
 
@@ -275,7 +290,7 @@ The admin panel is a tabbed interface with the following sections:
 
 ### Contacts Tab
 - Full phonebook with search and filtering
-- Customer details, order history, lifetime spend
+- Customer details, order history, lifetime spend, repeat-customer flag
 - SMS conversation thread per customer
 
 ### Invoices Tab
@@ -284,7 +299,7 @@ The admin panel is a tabbed interface with the following sections:
 
 ### Analytics Tab
 - Business performance charts (revenue, bookings, lead time)
-- Date range filtering
+- Date range filtering: last 1d / 7d / 30d / 90d / this month / last month / two months ago / all time
 - Site analytics (page views, funnel conversion)
 - Booking source analytics (how customers found the business)
 
@@ -326,7 +341,7 @@ The Order Detail Modal is the primary admin interface for managing a single orde
 - Add/remove units from cart
 - Manage custom fees and discounts (with saved template support)
 - Override deposit amount
-- Waive fees (tax, travel, surface, generator, same-day pickup) with reason
+- Waive fees (tax, travel, surface, generator, same-day pickup, sandbag) with reason
 - View/edit admin message (displayed to customer in portal)
 
 ### Payments Tab
@@ -397,9 +412,7 @@ Addresses are stored as canonical records in the `addresses` table with a unique
 
 ### Save to Address (Lot Pictures)
 
-When crew or admin uploads lot pictures for an order, they can "Save to Address" from the Photo Detail view. This creates a record in `address_lot_pictures` linking the photo to the canonical address. Future orders at the same address automatically surface these reference photos to crew and admins, providing institutional memory about the setup location. This eliminates the need for crews to re-photograph familiar venues.
-
-`save_lot_picture_to_address` is a server-side RPC that atomically creates the `address_lot_pictures` record and updates the `address_id` on the `order_lot_pictures` record.
+When crew or admin uploads lot pictures for an order, they can "Save to Address" from the Photo Detail view. This calls the `save_lot_picture_to_address` RPC atomically — it creates a record in `address_lot_pictures` and updates the `address_id` on the `order_lot_pictures` record. Future orders at the same address automatically surface these reference photos to crew and admins, providing institutional memory about the setup location. This eliminates the need for crews to re-photograph familiar venues.
 
 ---
 
@@ -430,7 +443,7 @@ When the admin modifies a confirmed order and sends it for customer review, the 
 - New pricing breakdown
 - Approve or Reject buttons
 
-Approval atomically confirms the changes and moves the order back to `confirmed`. Rejection logs the rejection and notifies the admin. Both happen without login via the `atomic_approve_order` RPC function.
+Approval atomically confirms the changes via the `atomic_approve_order` RPC function and moves the order back to `confirmed`. Rejection logs the rejection and notifies the admin. Both happen without login.
 
 ### Payment Tab
 
@@ -496,6 +509,8 @@ The homepage features a media carousel managed through the admin panel. The `her
 - `is_active` — toggles visibility without deleting
 - `title`, `description` — optional overlay text
 
+An admin setting (`carousel_show_arrows`) controls whether navigation arrows are displayed on the carousel.
+
 ---
 
 ## Blackout System
@@ -509,7 +524,7 @@ Prevent new orders on specified date ranges. Supports:
 - `recurrence`: `one_time`, `annual`, or `weekly`
 - `expires_at`: optional expiration date for temporary blocks
 
-The `check_date_blackout` database function is called by both the client-side quote form and the server-side `stripe-checkout` edge function. The server-side check cannot be bypassed.
+The `check_date_blackout` database function is called by both the client-side quote form and the server-side `stripe-checkout` edge function. The server-side check cannot be bypassed. The function correctly handles wrap-aware annual recurrence (dates that span year boundaries).
 
 ### Blackout Addresses
 
@@ -538,13 +553,20 @@ Branding is loaded by `BusinessContext` and used throughout the app for display 
 
 ### Business Analytics Tab
 
-Revenue and booking performance charts with configurable date ranges:
-- Total revenue by month
-- Booking count by month
+Revenue and booking performance charts with configurable date ranges (last 1d / 7d / 30d / 90d / this month / last month / two months ago / all time):
+- Total revenue, revenue this month with trend vs. last month
 - Average order value
+- Total tips and tip rate
+- Deposits collected, balance owed, total refunds
+- Cash vs. card payment split
+- Total orders, orders this month with trend
 - Average lead time (days between booking and event)
-- Top units by booking frequency
-- Revenue by unit
+- Cancelled orders count and cancellation rate
+- Repeat customer count and rate (2+ completed bookings)
+- Top 8 units by revenue (name, booking count, revenue)
+- Top 8 cities by order count
+- Crew mileage breakdown by crew member (fetches display names via `get-user-info` edge function)
+- Cancellation reason breakdown
 
 ### Performance Analytics
 
@@ -560,10 +582,13 @@ Tracks user behavior via the `site_events` table:
 - Quote form starts and completions
 - Unit detail views
 - Checkout starts and completions
+- Conversion funnel: `unit_view → cart_started → cart_submitted → checkout_started → checkout_completed`
+- Today's session count (unique `session_id` values)
+- Recent activity feed (last 20 events)
 
 ### Booking Source Analytics
 
-Tracks referral sources via `referral_source` and `referral_source_detail` fields on orders. Provides insight into which marketing channels are driving bookings (Google, Facebook, repeat customer, word of mouth, etc.). Powered by the `get_booking_source_analytics` database RPC.
+Tracks referral sources via `referral_source` and `referral_source_detail` fields on orders. Groups by source with order count and revenue. The `get_booking_source_analytics` SECURITY DEFINER database RPC provides the aggregated data. Sources include: social_media (with sub-source breakdown), google, physical_marketing, referral, returning_customer, other.
 
 ---
 
@@ -574,13 +599,17 @@ All runtime configuration is stored in the `admin_settings` key-value table and 
 | Key Prefix | What It Stores |
 |---|---|
 | `business_*` | Business name, address, phone, email, website, legal entity, license |
-| `branding_*` | Logo URL, favicon URL, brand color |
+| `home_address_*` | Home base address components and coordinates for travel calculations |
+| `logo_url`, `favicon_url` | Branding assets |
 | `social_*` | Social media URLs |
 | `stripe_*` | Stripe secret key, publishable key, webhook secret |
 | `twilio_*` | Twilio Account SID, Auth Token, From Number |
 | `resend_*` | Resend API key for email |
-| `google_*` | Google Maps API key, Review URL, Calendar credentials |
+| `google_*` | Google Maps API key, OAuth client, Review URL, Calendar credentials |
 | `admin_*` | Admin email, admin phone number |
+| `carousel_*` | Carousel display settings |
+| `apply_travel_fee_by_default` | Whether to apply travel fee on new orders |
+| `use_business_address_for_travel` | Whether to use business address as travel origin |
 
 Secret values (Stripe keys, Twilio credentials, Resend API key) are redacted in the `admin_settings_changelog` by a database trigger. The trigger substitutes `[REDACTED]` for any key whose name contains `key`, `secret`, `token`, `sid`, or `password`.
 
@@ -592,10 +621,15 @@ Confirmed orders can be synced to a Google Calendar. When an order is confirmed:
 
 1. A record is added to the `google_calendar_sync_queue` table (via database trigger)
 2. The `sync-google-calendar` edge function processes the queue
-3. A calendar event is created or updated with order details
+3. A calendar event is created or updated with order summaries
 4. Sync status is tracked in `google_calendar_sync` per event date
 
-Configuration (Google OAuth credentials) is managed in the admin Google Calendar Settings tab. Sync can be toggled on/off without removing credentials via the `google_calendar_enabled` setting.
+**Calendar Event Format:**
+- Summary: `BPC: {activeCount} Active / {orderCount} Total Orders`
+- Description: order date, active/total counts, and customer name list (up to 15)
+- Reminders: email + popup at 9am and 6pm the previous day
+
+Configuration (Google OAuth credentials) is managed in the admin Google Calendar Settings tab. Sync can be toggled on/off without removing credentials via the `google_calendar_enabled` setting. The sync is currently inactive until Google credentials are fully configured.
 
 ---
 

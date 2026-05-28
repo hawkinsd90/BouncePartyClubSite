@@ -14,7 +14,7 @@ Users with the `crew` role (or `admin`/`master`) can access the crew page at `/c
 
 ## Task Cards (`task_status` table)
 
-A task card is the fundamental unit of crew work. **Two** task cards are created automatically by a database trigger when an order moves to `confirmed` — one for drop-off and one for pick-up.
+A task card is the fundamental unit of crew work. **Two** task cards are created automatically by a database trigger (`auto_create_task_status`) when an order moves to `confirmed` — one for drop-off and one for pick-up.
 
 ### Task Card Fields (confirmed from live DB)
 
@@ -122,13 +122,18 @@ Each route is scored by summing across all stops:
 ### Output
 
 The optimized route is saved to the `route_stops` table. Each stop record has:
-- `order_id` — which order
-- `type` — `delivery` or `pickup`
-- `eta` — computed estimated arrival time
-- `sort_order` — position in optimized sequence
-- `calculated_eta_minutes` — drive time from previous stop
-- `calculated_eta_distance_miles` — distance from previous stop
-- `eta_calculated_at` — when this was last computed
+
+| Column | Purpose |
+|---|---|
+| `order_id` | Which order |
+| `type` | `delivery` or `pickup` |
+| `eta` | Computed estimated arrival time |
+| `sort_order` | Position in optimized sequence |
+| `calculated_eta_minutes` | Drive time from previous stop |
+| `calculated_eta_distance_miles` | Distance from previous stop |
+| `eta_calculated_at` | When this was last computed |
+| `checkpoint`, `checkpoint_time` | Crew confirmation data |
+| `gps_lat`, `gps_lng` | GPS at checkpoint |
 
 ---
 
@@ -201,7 +206,7 @@ Each crew member can log odometer readings for a day's work:
 
 ### Route Mileage Calculation
 
-The `calculate-route-mileage` edge function computes the theoretical total miles for the day's route based on the `route_stops` sequence. This can be compared against actual odometer readings.
+The `calculate-route-mileage` edge function computes the theoretical total miles for the day's route based on the `route_stops` sequence. This can be compared against actual odometer readings for expense tracking and mileage reimbursement.
 
 Accessed via the Mileage Modal in the calendar day view.
 
@@ -242,7 +247,11 @@ Crew upload lot photos from the task card or via the `LotPicturesTab` in the cus
 
 ### Saving to Address (`save_lot_picture_to_address` RPC)
 
-After uploading, crew or admin can "Save to Address" from the Photo Detail view. This creates a record in `address_lot_pictures` linking the photo to the address. Future orders at the same address will show these reference photos to crew and admins — extremely useful for knowing the setup location in advance.
+After uploading, crew or admin can "Save to Address" from the Photo Detail view. This RPC atomically:
+1. Creates a record in `address_lot_pictures` linking the photo to the address
+2. Updates the `address_id` on the `order_lot_pictures` record
+
+Future orders at the same address will show these reference photos to crew and admins — extremely useful for knowing the setup location in advance without re-scouting.
 
 ### Customer Visibility
 
@@ -268,7 +277,7 @@ From the Task Detail Modal, admins have direct order management controls without
 | **Record Check Payment** | Balance due > $0 | Calls `record-check-payment` edge function; requires check number; same atomic flow as cash |
 | **Charge Card on File** | Balance due > $0 AND Stripe card saved | Calls `charge-deposit` edge function with `selectedPaymentType: 'balance'`; shows card brand + last four digits before confirming; charges off-session, sends receipt, updates `balance_due_cents` on order |
 | **Mark Waiver Signed (Paper)** | Waiver not yet signed | Creates `order_signatures` record marking it as paper-signed; sets `waiver_signed_at` on order |
-| **Cancel Order** | Order not in terminal state | Opens reason form → refund-intent confirmation modal ("Yes, Refund Needed" / "No Refund") → calls cancellation flow; refund flag is informational only, no automatic charge |
+| **Cancel Order** | Order not in terminal state | Opens reason form → refund-intent confirmation modal → calls cancellation flow; refund flag is informational only, no automatic charge |
 
 The card details (brand and last four digits) displayed on the "Charge Card on File" button come from `payment_method_brand` and `payment_method_last_four` on the order.
 

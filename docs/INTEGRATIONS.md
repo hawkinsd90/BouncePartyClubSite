@@ -16,7 +16,7 @@ Stripe handles all card payment processing. The integration uses Stripe Checkout
 
 Credentials stored in `admin_settings`:
 - `stripe_secret_key` — Stripe secret key (server-side only, never exposed to frontend)
-- `stripe_publishable_key` — Stripe publishable key (returned to frontend via the `get-stripe-publishable-key` edge function; never stored in `.env`)
+- `stripe_publishable_key` — Stripe publishable key (returned to frontend via the `get-stripe-publishable-key` edge function; also stored in `VITE_STRIPE_PUBLISHABLE_KEY` env var as a local dev fallback in `StripeCheckoutForm.tsx`)
 - `stripe_webhook_secret` — webhook signature verification secret
 
 ### Payment Flows
@@ -24,13 +24,18 @@ Credentials stored in `admin_settings`:
 #### Customer Checkout (Stripe Checkout Session)
 
 1. Frontend calls `stripe-checkout` edge function with order ID and payment details
-2. Edge function creates a Stripe Checkout Session:
+2. Edge function enforces rate limiting (per order ID + IP) and performs server-side blackout checks
+3. Edge function creates a Stripe Checkout Session:
    - Sets `customer_email` from order
-   - Sets metadata: `orderId`, `paymentType` (deposit/full/custom)
+   - Sets metadata: `order_id`, `payment_type` (deposit/full/custom), `deposit_amount`, `tip_cents`
    - Sets `success_url` to `/payment-complete?session_id={CHECKOUT_SESSION_ID}`
    - Sets `cancel_url` to `/payment-canceled`
-3. Frontend redirects to Stripe's hosted checkout page
-4. On success, Stripe calls the webhook and redirects the customer to `/payment-complete`
+4. Frontend redirects to Stripe's hosted checkout page
+5. On success, Stripe calls the webhook and redirects the customer to `/payment-complete`
+
+**Blackout error codes returned by `stripe-checkout`:**
+- `DATE_BLACKED_OUT` — the event date is fully blocked
+- `SAME_DAY_PICKUP_BLACKED_OUT` — same-day pickup is blocked for that date
 
 #### Checkout Bridge (`checkout-bridge` edge function)
 
@@ -56,10 +61,11 @@ Called in two contexts:
 
 Flow:
 1. Reads `stripe_customer_id` and `stripe_payment_method_id` from the order
-2. Creates a PaymentIntent for the specified amount
-3. Confirms the PaymentIntent immediately (off-session charge)
-4. On success: logs payment to `payments`, records transaction receipt, updates `balance_paid_cents` or `deposit_paid_cents` on order, sends customer receipt email
-5. On failure: sends decline notification to customer, logs failure
+2. Uses sentinel value (`deposit_paid_cents = -1`) for atomic race-condition safety — only one concurrent caller can proceed
+3. Creates a PaymentIntent for the specified amount (includes tip in the charge amount)
+4. Confirms the PaymentIntent immediately (off-session charge)
+5. On success: logs payment to `payments`, records transaction receipt, updates `deposit_paid_cents` (tip excluded) and `balance_due_cents` on order, sends customer receipt email
+6. On failure: sends decline notification to customer, logs failure, releases sentinel
 
 When called from task detail, `selectedPaymentType` is `'balance'` and `tipCents` is `0`.
 
@@ -85,9 +91,18 @@ The `webhook-idempotency.ts` shared utility checks the `stripe_webhook_events` t
 
 | Event | Action |
 |---|---|
-| `payment_intent.succeeded` | Records payment in `payments` table, updates `deposit_paid_cents` or `balance_paid_cents` on order, logs transaction receipt, sends customer receipt |
-| `charge.refunded` | Records refund in `order_refunds` table, updates `total_refunded_cents` on order, logs refund receipt |
-| `checkout.session.completed` | Saves payment method details via `save-payment-method-from-session` |
+| `checkout.session.completed` | Saves payment method details; handles deposit or balance payment; advances order status from draft → pending_review or confirmed |
+| `payment_intent.succeeded` | Calls `apply_balance_payment_financials()` RPC atomically; updates order payment tracking |
+| `charge.refunded` | Records refund in `payments` (negative amount, type `incidental`), creates `order_refunds` record, logs transaction receipt |
+| `setup_intent.succeeded` | Saves payment method to order; advances order status if applicable |
+
+### Race-Condition Safety
+
+Two independent race-condition safety mechanisms are used:
+
+**For deposits (`charge-deposit`):** Sentinel value `deposit_paid_cents = -1` — only one concurrent caller can claim the charge. The claim is atomic (`.lte()` filter). Failed charges release the sentinel.
+
+**For balance payments (`reconcile-balance-payment`):** The unique constraint on `payments.stripe_payment_intent_id` acts as a distributed mutex. Both concurrent callers invoke `apply_balance_payment_financials()` RPC, but only the first to set the `order_financials_applied` flag actually updates the order totals.
 
 ### Payment Method Storage
 
@@ -128,7 +143,7 @@ Twilio handles all SMS communication: outbound notifications to customers and ad
 Credentials stored in `admin_settings`:
 - `twilio_account_sid` — Twilio Account SID
 - `twilio_auth_token` — Twilio Auth Token
-- `twilio_from_number` — The "From" phone number (e.g., `+15550001234`)
+- `twilio_from_number` — The "From" phone number (e.g., `+18663106071`)
 
 Credentials are read at runtime by each edge function that needs them — never hardcoded or stored in environment variables.
 
@@ -167,7 +182,8 @@ SMS messages have strict character limits. To keep links short, the system uses 
 - **`link_type` field** distinguishes the purpose of each record:
   - `invoice` — created by `send-invoice` edge function
   - `portal_shortlink` — created by `createShortPortalLink()` for crew ETA messages and other SMS use cases
-- **`short_code`** uses an unambiguous character set (no `0`, `O`, `1`, `I`, `l`) to avoid misreading
+- **`short_code`** uses an unambiguous character set (no `0`, `O`, `1`, `I`, `l`) to avoid misreading in SMS messages
+- **Expiration:** 3 days after event date (or 30 days from creation if no event date)
 
 `createShortPortalLink(orderId, supabaseClient, eventDate?)` returns the full short URL (e.g., `https://bouncepartyclub.com/i/AbCdEfGh`) and falls back to the full portal URL if short code generation fails.
 
@@ -312,14 +328,14 @@ The Google Maps JavaScript SDK is loaded lazily using a singleton pattern:
 The Distance Matrix API is called with:
 - `origins`: array of lat/lng coordinates
 - `destinations`: array of lat/lng coordinates
-- `departureTime`: `new Date()` for traffic-aware routing
+- `departureTime`: 6:20 AM for route optimization; `new Date()` for travel fee calculation
 - `travelMode: 'DRIVING'`
 
 **Chunking:** The API supports a maximum of 100 elements (origins × destinations) per request. The route optimization code automatically splits larger requests into multiple chunks and merges results.
 
 ### Distance Calculator (`src/lib/distanceCalculator.ts`)
 
-For travel fee calculation, computes driving distance between the home base (Wayne, MI) and the event address:
+For travel fee calculation, computes driving distance between the home base (Wayne, MI — coordinates lat `42.2808`, lng `-83.3863`) and the event address:
 1. Geocodes event address to lat/lng (already done during address autocomplete)
 2. Calls Distance Matrix with home base as origin
 3. Returns total miles and chargeable miles (miles beyond free radius)
@@ -350,10 +366,17 @@ Configured from the admin Google Calendar Settings tab.
 1. When an order moves to `confirmed`, a database trigger adds a row to `google_calendar_sync_queue`
 2. The `sync-google-calendar` edge function processes the queue
 3. For each queued date, the function:
-   - Fetches all confirmed orders for that date
-   - Creates or updates a Google Calendar event with order summaries
+   - Fetches all confirmed/in_progress/pending_review orders for that date
+   - Creates or updates a Google Calendar event
    - Records sync status in `google_calendar_sync` (success or error)
    - Marks queue row as processed
+
+### Calendar Event Format
+
+- **Summary:** `BPC: {activeCount} Active / {orderCount} Total Orders`
+- **Description:** date, active/total count, and customer name list (up to 15, then "...and X more")
+- **Reminders:** email + popup at 9am and 6pm the previous day
+- `useDefault: false` — only custom reminders apply
 
 ### Sync Status Tracking (`google_calendar_sync` table)
 
@@ -364,6 +387,8 @@ Per event date:
 - `last_sync_error` — error message if sync failed
 - `order_count` — number of orders included in this calendar event
 
+**Current Status:** The sync function is scaffolded and inactive until Google OAuth credentials are fully configured in admin settings. The database trigger that queues sync operations is disabled pending credential setup.
+
 ---
 
 ## Rate Limiting
@@ -373,14 +398,14 @@ All public-facing edge functions use the shared `rate-limit.ts` utility backed b
 ### How It Works
 
 1. On each request, reads the row for `(identifier, endpoint)` from `rate_limits`
-2. `identifier` is typically the order ID, customer email, or IP address
+2. `identifier` is typically the order ID + IP address, customer email, or IP address alone
 3. If `request_count` exceeds the threshold: set `blocked_until` timestamp
 4. If `blocked_until` is in the future: return 429 Too Many Requests
 5. After the blocking window expires: reset counter
 
 ### Protected Endpoints
 
-- Stripe checkout session creation (per order ID)
+- Stripe checkout session creation (per order ID + IP)
 - Payment recording
 - Email sending
 
