@@ -43,10 +43,9 @@ cp .env.example .env
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
 VITE_GOOGLE_MAPS_API_KEY=
-VITE_STRIPE_PUBLISHABLE_KEY=
 ```
 
-4. Backend secrets (Stripe secret key, Twilio credentials) are stored in the `admin_settings` database table — **never** in `.env` or Netlify environment variables. See `DEPLOYMENT_AND_SECURITY.md` for details.
+4. Backend secrets (Stripe keys, Twilio credentials, Resend API key) are stored in the `admin_settings` database table — **never** in `.env` or Netlify environment variables. The Stripe publishable key is served to the frontend at runtime via the `get-stripe-publishable-key` edge function. See `docs/DEPLOYMENT_AND_SECURITY.md` for details.
 
 5. Start the dev server:
 
@@ -88,12 +87,15 @@ supabase/
 | File | Contents |
 |---|---|
 | `README.md` | This file — project overview and local setup |
-| `ARCHITECTURE.md` | Data layer, routing, context stack, query patterns, migrations |
-| `AUTH_AND_ROLES.md` | Role hierarchy, auth flow, OAuth, protected routes |
-| `PAYMENTS_AND_RECEIPTS.md` | Stripe integration, payment types, receipt logging, webhooks |
-| `FEATURES.md` | Contacts, invoices, e-signatures, Google integrations, day-of workflow |
-| `EMAIL_SYSTEM.md` | Email template system, notification service, SMS fallback |
-| `DEPLOYMENT_AND_SECURITY.md` | Netlify config, environment variables, secrets management, RLS |
+| `docs/ARCHITECTURE.md` | Data layer, routing, context stack, edge functions, query patterns |
+| `docs/AUTH_AND_ROLES.md` | Role hierarchy, auth flow, OAuth, consent system, protected routes |
+| `docs/CREW_AND_OPERATIONS.md` | Task cards, route optimization, GPS tracking, mileage, lot pictures |
+| `docs/DEPLOYMENT_AND_SECURITY.md` | Netlify config, environment variables, secrets management, RLS |
+| `docs/EMAIL_SYSTEM.md` | Email template system, SMS templates, notification service, Twilio webhook |
+| `docs/FEATURES.md` | Full feature reference — catalog, quote, checkout, portal, admin panel |
+| `docs/INTEGRATIONS.md` | Stripe, Twilio, Resend, Google Maps, Google Calendar |
+| `docs/ORDERS_AND_WORKFLOW.md` | Order lifecycle, approval flow, changelog, invoice system |
+| `docs/PAYMENTS_AND_RECEIPTS.md` | Payment types, Stripe webhooks, receipt logging, cash/check flows |
 
 ## Build
 
