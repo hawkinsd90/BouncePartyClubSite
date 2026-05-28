@@ -2,7 +2,7 @@
 
 ## Overview
 
-Authentication is handled by Supabase Auth. The app uses email/password as the primary method with Google OAuth as an optional alternative. Role-based access control is implemented through a custom `user_roles` table — Supabase's built-in JWT claims are not used for role enforcement.
+Authentication is handled by Supabase Auth. The app uses email/password as the primary method with Google OAuth as an optional alternative. Apple Sign-In is also wired up in the auth context. Role-based access control is implemented through a custom `user_roles` table — Supabase's built-in JWT claims are not used for role enforcement.
 
 ---
 
@@ -65,10 +65,11 @@ supabase.auth.onAuthStateChange((event, session) => {
 1. Customer fills out `/signup` with name, email, password, and optionally a home address.
 2. `signUp()` is called with user metadata (first name, last name, phone, address fields).
 3. A Postgres trigger (`handle_new_user`) runs on `auth.users` insert and:
-   - Creates a `customers` record (using metadata name/email; Google name is overridden by form name if both exist)
+   - Creates a `customers` record (using metadata name/email; form-submitted name takes priority over Google's display name if both exist)
    - Creates a `user_roles` entry with `role: 'customer'`
    - Links the new user to any existing orders matching their email address
    - Creates a `customer_profiles` record
+   - Stores OAuth provider and profile data on `customers` if the user signed up via Google
 4. Home address (if provided) is saved via the `save-signup-address` edge function after successful auth.
 
 Trigger execution is logged to `auth_trigger_logs` for debugging.
@@ -101,7 +102,7 @@ Immediately after `SIGNED_IN` auth event, `AuthContext` calls `drainPendingConse
 1. An **in-tab guard** (a `Set<userId>`) prevents the drain from firing twice in the same browser tab
 2. The `record-consent` edge function is called with `action=drain-pending` and the `batch_id`
 3. The function moves records from `pending_signups_consent` to `user_consent_log`:
-   - Each consent type is inserted with `(user_id, consent_batch_id, consent_type)` unique index
+   - Each consent type is inserted with a `(user_id, consent_batch_id, consent_type)` unique index
    - This prevents duplicate logging even if the drain fires from multiple tabs
 4. The `pending_signups_consent` row is deleted after successful drain
 
@@ -218,7 +219,7 @@ Business-wide configuration is loaded by `BusinessProvider` (`src/contexts/Busin
 - `business_address`, `business_phone`, `business_email`, `business_website`
 - `business_license_number`
 - `logo_url`, `favicon_url`, `brand_primary_color`
-- Social media URLs
+- Social media URLs (Facebook, Instagram, TikTok, YouTube, Yelp)
 - `google_review_url`, `google_maps_url`
 
 This data is used for display, email template branding, and the dynamic waiver text.

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The application integrates with four external services: Stripe (payments), Twilio (SMS), Resend (email), and Google (Maps, Calendar). All API credentials are stored in the `admin_settings` table — never in environment variables or code.
+The application integrates with four external services: Stripe (payments), Twilio (SMS), Resend (email), and Google (Maps, Calendar). All API credentials are stored in the `admin_settings` table — never in environment variables or code. Edge functions read credentials at runtime.
 
 ---
 
@@ -15,8 +15,8 @@ Stripe handles all card payment processing. The integration uses Stripe Checkout
 ### Configuration
 
 Credentials stored in `admin_settings`:
-- `stripe_secret_key` — Stripe secret key (server-side only)
-- `stripe_publishable_key` — Stripe publishable key (returned to frontend via `get-stripe-publishable-key` edge function)
+- `stripe_secret_key` — Stripe secret key (server-side only, never exposed to frontend)
+- `stripe_publishable_key` — Stripe publishable key (returned to frontend via the `get-stripe-publishable-key` edge function; never stored in `.env`)
 - `stripe_webhook_secret` — webhook signature verification secret
 
 ### Payment Flows
@@ -30,7 +30,16 @@ Credentials stored in `admin_settings`:
    - Sets `success_url` to `/payment-complete?session_id={CHECKOUT_SESSION_ID}`
    - Sets `cancel_url` to `/payment-canceled`
 3. Frontend redirects to Stripe's hosted checkout page
-4. On success, Stripe calls the webhook and redirects customer
+4. On success, Stripe calls the webhook and redirects the customer to `/payment-complete`
+
+#### Checkout Bridge (`checkout-bridge` edge function)
+
+After Stripe redirects the customer to `/payment-complete`, the `checkout-bridge` edge function:
+1. Receives the Stripe session ID
+2. Verifies payment status via `reconcile-balance-payment` (race-condition-safe)
+3. Updates order status from `draft` to `pending_review`
+4. Triggers admin notification
+5. Returns the updated order for display on the success page
 
 #### Setup Mode (Card-on-File Only)
 
@@ -39,15 +48,11 @@ When `require_card_on_file` is true and no immediate charge is needed:
 2. Card is tokenized and saved to the Stripe customer
 3. Payment method details saved via `save-payment-method-from-session` after session completes
 
-#### Admin Direct Charge (`stripe-charge`)
-
-For admin-initiated charges outside the checkout flow. Used for balance collection or ad-hoc charges.
-
-#### Deposit Charge (`charge-deposit`)
+#### Deposit Charge (`charge-deposit` edge function)
 
 Called in two contexts:
 1. **Order approval** — by `orderApprovalService` when admin approves an order with a positive deposit
-2. **Day-of balance collection** — by the Task Detail Modal's "Charge Card on File" button when admin charges the remaining balance on event day
+2. **Day-of balance collection** — by the Task Detail Modal's "Charge Card on File" button
 
 Flow:
 1. Reads `stripe_customer_id` and `stripe_payment_method_id` from the order
@@ -58,7 +63,7 @@ Flow:
 
 When called from task detail, `selectedPaymentType` is `'balance'` and `tipCents` is `0`.
 
-#### Customer Balance Payment (`customer-balance-payment`)
+#### Customer Balance Payment (`customer-balance-payment` edge function)
 
 Allows customers to pay their remaining balance from the Customer Portal:
 1. Customer views balance due in portal
@@ -68,10 +73,10 @@ Allows customers to pay their remaining balance from the Customer Portal:
 
 ### Webhook Processing (`stripe-webhook`)
 
-All Stripe events are received at the `stripe-webhook` edge function (JWT not required, verified by signature).
+All Stripe events are received at the `stripe-webhook` edge function (JWT verification not required; verified by Stripe signature instead).
 
 **Signature Verification:**
-Every webhook is verified using `stripe.webhooks.constructEvent()` with the `stripe_webhook_secret`. Requests with invalid or missing signatures return 400 immediately.
+Every webhook is verified using `stripe.webhooks.constructEvent()` with the `stripe_webhook_secret`. Requests with invalid or missing signatures return 400 immediately. There is no dev-mode bypass.
 
 **Idempotency:**
 The `webhook-idempotency.ts` shared utility checks the `stripe_webhook_events` table before processing. If the event ID has already been processed, the function returns 200 without re-applying changes.
@@ -92,7 +97,7 @@ After a successful checkout session:
 3. Stores on the order record: `stripe_customer_id`, `stripe_payment_method_id`, `payment_method_brand`, `payment_method_last_four`, `payment_method_exp_month`, `payment_method_exp_year`
 4. These are used for future off-session charges (deposit, balance)
 
-### Updating a Saved Card (`fix-payment-method`)
+### Updating a Saved Card (`fix-payment-method` edge function)
 
 When a charge is declined, customers receive an email with a link to update their card. The `fix-payment-method` edge function:
 1. Creates a new Stripe Checkout Session in setup mode
@@ -100,7 +105,7 @@ When a charge is declined, customers receive an email with a link to update thei
 3. New payment method replaces the old one on the order
 4. Admin is notified
 
-### Refunds (`stripe-refund`)
+### Refunds (`stripe-refund` edge function)
 
 Admin-only (requires `admin` or `master` role):
 1. Admin specifies amount and reason in the Payments tab
@@ -116,7 +121,7 @@ Admin-only (requires `admin` or `master` role):
 
 ### Overview
 
-Twilio handles all SMS communication: outbound notifications to customers and crew, and inbound customer replies.
+Twilio handles all SMS communication: outbound notifications to customers and admin, and inbound customer replies.
 
 ### Configuration
 
@@ -125,18 +130,19 @@ Credentials stored in `admin_settings`:
 - `twilio_auth_token` — Twilio Auth Token
 - `twilio_from_number` — The "From" phone number (e.g., `+15550001234`)
 
-Credentials are read at runtime by each edge function that needs them — never hardcoded or in environment variables.
+Credentials are read at runtime by each edge function that needs them — never hardcoded or stored in environment variables.
 
-### Outbound SMS (`send-sms-notification`)
+### Outbound SMS (`send-sms-notification` edge function)
 
 All outbound SMS goes through the `send-sms-notification` edge function:
-- Requires authentication (JWT)
 - Reads Twilio credentials from `admin_settings`
 - Calls Twilio REST API to send the message
-- If `orderId` is provided, logs the message to `messages` table and `sms_conversations` record
+- If `orderId` (camelCase) is provided, logs the message to `messages` table linked to the `sms_conversations` record
 - Returns success/failure to caller
 
-### Inbound SMS (`twilio-webhook`)
+**Thread Linking:** The request body field must be `orderId` (camelCase). Using `order_id` (snake_case) is silently ignored — messages sent that way are stored with `order_id = null` and do not appear in the order SMS thread.
+
+### Inbound SMS (`twilio-webhook` edge function)
 
 Twilio calls the `twilio-webhook` edge function when a customer texts the business number:
 
@@ -151,7 +157,7 @@ Twilio calls the `twilio-webhook` edge function when a customer texts the busine
    - `twilio_message_sid`
    - `channel: 'sms'`
 
-4. **Admin Notification** — forwards the message to the admin via SMS and email so they know a customer replied.
+4. **Admin Notification** — forwards the message to the admin via SMS and email.
 
 ### Short URLs in SMS (`invoice_links` table)
 
@@ -159,50 +165,58 @@ SMS messages have strict character limits. To keep links short, the system uses 
 
 - **Route:** `/i/:shortCode` → handled by `ShortLink` component → redirects to `/customer-portal/:orderId?t=:token`
 - **`link_type` field** distinguishes the purpose of each record:
-  - `invoice` — created by `send-invoice` edge function when admin sends an invoice
-  - `portal_shortlink` — created by `createShortPortalLink()` (`src/lib/utils.ts`) for crew ETA messages and other SMS use cases
-- **`short_code`** is 8 characters using an unambiguous character set (no `0`, `O`, `1`, `I`, `l`) to avoid misreading
-- **Expiry** is set to 3 days after the event date (or 30 days from creation if no event date)
+  - `invoice` — created by `send-invoice` edge function
+  - `portal_shortlink` — created by `createShortPortalLink()` for crew ETA messages and other SMS use cases
+- **`short_code`** uses an unambiguous character set (no `0`, `O`, `1`, `I`, `l`) to avoid misreading
 
 `createShortPortalLink(orderId, supabaseClient, eventDate?)` returns the full short URL (e.g., `https://bouncepartyclub.com/i/AbCdEfGh`) and falls back to the full portal URL if short code generation fails.
 
-### Delivery Status Callback (`twilio-status-callback`)
+### Delivery Status Callback (`twilio-status-callback` edge function)
 
 Twilio calls this endpoint with delivery status updates for outbound messages:
 - `delivered` — message delivered successfully
 - `failed`, `undelivered` — delivery failed
 
-Status is recorded on the `sms_conversations` record. Failed deliveries can trigger a `notification_failures` entry.
+Failed deliveries can trigger a `notification_failures` entry.
 
 ### SMS Message Templates
 
 Templates are stored in `sms_message_templates` and managed from the admin Message Templates tab:
 
-| Template Key | When Used |
-|---|---|
-| `booking_confirmation` | Customer submits order |
-| `order_confirmed` | Admin approves order |
-| `eta_customer` | Crew en route to delivery |
-| `deposit_charged` | Deposit collected |
-| `balance_reminder` | Balance payment reminder |
-| `waiver_reminder` | Waiver not yet signed |
-| `pickup_complete` | Equipment picked up (includes Google Review link) |
-| `cancellation` | Order cancelled |
-| `order_changes` | Admin modified confirmed order |
-| `crew_checkpoint_*` | Crew status updates |
-| `admin_new_order` | Admin notification: new order submitted |
-| `admin_cancellation` | Admin notification: customer cancelled |
+| Template Key | Template Name | When Used |
+|---|---|---|
+| `arrived_sms` | Crew - Arrival Notification | Crew arrives at delivery location |
+| `booking_received_admin` | Admin - New Booking Notification | New booking received and paid |
+| `delivery_notification` | Delivery Notification | Crew en route to delivery |
+| `dropoff_done_sms` | Crew - Drop-Off Complete | Drop-off finished |
+| `eta_sms` | Crew - ETA Notification | Crew starts shift (GPS-calculated ETA) |
+| `lot_pictures_uploaded_admin` | Admin - Lot Pictures Uploaded | Customer uploads lot pictures |
+| `order_approved` | Order Approved | Admin approves an order |
+| `order_cancelled_admin` | Admin - Order Cancellation | Customer cancels their order |
+| `order_confirmation` | Order Confirmation | Customer places an order |
+| `order_rejected` | Order Rejected | Admin rejects an order |
+| `payment_reminder` | Payment Reminder | Outstanding balance reminder |
+| `pickup_thanks_sms` | Crew - Pickup Complete | Pickup complete; includes Google Review link |
+| `pictures_reminder` | Pictures Reminder | Customer prompted to upload lot photos |
 
-Variable substitution is performed at send time. Supported variables:
-- `{{customer_name}}` — customer first name
-- `{{order_id}}` — formatted order ID (e.g., `BPC-1234`)
-- `{{event_date}}` — event date in readable format
-- `{{portal_link}}` — customer portal URL (short `/i/:shortCode` URL when available, otherwise full token URL)
-- `{{invoice_link}}` — invoice URL (short `/i/:shortCode` URL when available)
-- `{{signing_link}}` — waiver signing URL
-- `{{google_review_url}}` — Google Review URL from admin settings
-- `{{eta_time}}` — estimated arrival time
-- `{{balance_due}}` — formatted balance amount
+**Variable format:** Single braces — `{variable_name}` (not double-brace).
+
+| Variable | Meaning |
+|---|---|
+| `{name}` | Customer full name |
+| `{customer_name}` | Customer full name (admin-facing templates) |
+| `{customer_first_name}` | Customer first name |
+| `{order_id}` | Formatted order ID |
+| `{event_date}` | Event date |
+| `{event_address}` | Delivery address |
+| `{total_amount}` | Order total |
+| `{balance_amount}` | Balance due |
+| `{eta}` | Estimated arrival time |
+| `{portal_link}` | Customer portal short URL |
+| `{review_url}` | Google Review URL |
+| `{rejection_reason}` | Reason for rejection |
+| `{refund_policy}` | Refund policy text |
+| `{order_link}` | Direct link to order |
 
 ---
 
@@ -219,11 +233,12 @@ Stored in `admin_settings`:
 
 ### `send-email` Edge Function
 
-**Payload:**
+Reads `resend_api_key` from `admin_settings` at call time. All parameters:
+
 ```typescript
 {
   to: string              // recipient email
-  from?: string           // sender (defaults to business email)
+  from?: string           // sender (defaults to business email from admin_settings)
   subject: string
   html: string            // full HTML email body
   text?: string           // plain text fallback
@@ -238,9 +253,9 @@ Stored in `admin_settings`:
 **Fallback Behavior:**
 If the email fails and `skipFallback` is not set, the function sends an SMS to the admin phone with the recipient, subject, and truncated error message. This ensures critical notifications are not silently lost.
 
-### Branded Email Hook (`auth-email-hook`)
+### Branded Auth Emails (`auth-email-hook` edge function)
 
-Supabase's default auth emails (signup confirmation, password reset) are intercepted and replaced with branded versions. The hook receives the auth event from Supabase and sends via Resend using the `emailTemplateBase.ts` component library.
+Supabase's default auth emails (signup confirmation, password reset) are intercepted and replaced with branded versions. The hook receives the auth event from Supabase and sends branded HTML via Resend using the `emailTemplateBase.ts` component library.
 
 ### Email Template System (`src/lib/emailTemplateBase.ts`)
 
@@ -274,7 +289,8 @@ createButton(label, url, theme)
 
 ### Configuration
 
-Stored in environment variable: `VITE_GOOGLE_MAPS_API_KEY` (public key, safe for frontend)
+Stored in environment variable: `VITE_GOOGLE_MAPS_API_KEY` (public key, safe for frontend).
+Also stored in `admin_settings` as `google_maps_api_key` for server-side use in edge functions.
 
 ### APIs Used
 
@@ -282,7 +298,7 @@ Stored in environment variable: `VITE_GOOGLE_MAPS_API_KEY` (public key, safe for
 |---|---|
 | Places Autocomplete | Address input on quote form |
 | Geocoding | Converting selected address to lat/lng |
-| Distance Matrix | Travel fee calculation, route optimization |
+| Distance Matrix | Travel fee calculation, route optimization, ETA calculation |
 
 ### SDK Loading (`src/lib/googleMapsLoader.ts`)
 
@@ -296,7 +312,7 @@ The Google Maps JavaScript SDK is loaded lazily using a singleton pattern:
 The Distance Matrix API is called with:
 - `origins`: array of lat/lng coordinates
 - `destinations`: array of lat/lng coordinates
-- `departureTime`: `new Date()` for route optimization (traffic modeling)
+- `departureTime`: `new Date()` for traffic-aware routing
 - `travelMode: 'DRIVING'`
 
 **Chunking:** The API supports a maximum of 100 elements (origins × destinations) per request. The route optimization code automatically splits larger requests into multiple chunks and merges results.
@@ -316,7 +332,7 @@ Results stored on order: `travel_total_miles`, `travel_base_radius_miles`, `trav
 
 ### Overview
 
-Confirmed orders can be automatically synced to a Google Calendar, providing the business with a visual overview of their schedule outside the app.
+Confirmed orders can be automatically synced to a Google Calendar, providing the business with a visual schedule overview outside the app.
 
 ### Configuration
 
@@ -325,7 +341,7 @@ Stored in `admin_settings`:
 - `google_calendar_client_secret` — OAuth 2.0 client secret
 - `google_calendar_refresh_token` — Long-lived refresh token from OAuth flow
 - `google_calendar_id` — Which calendar to write events to
-- `google_calendar_enabled` — Whether sync is active
+- `google_calendar_enabled` — Whether sync is active (can be toggled without removing credentials)
 
 Configured from the admin Google Calendar Settings tab.
 
@@ -352,19 +368,20 @@ Per event date:
 
 ## Rate Limiting
 
-All public-facing edge functions use the shared `rate-limit.ts` utility backed by the `rate_limits` table.
+All public-facing edge functions use the shared `rate-limit.ts` utility backed by the `rate_limits` database table. The limiter uses a sliding-window approach.
 
 ### How It Works
 
-1. On each request, the rate limiter reads the row for `(identifier, endpoint)` from `rate_limits`
+1. On each request, reads the row for `(identifier, endpoint)` from `rate_limits`
 2. `identifier` is typically the order ID, customer email, or IP address
-3. If a request comes in within the window:
-   - Increment `request_count`
-   - If `request_count` exceeds the threshold: set `blocked_until` timestamp
+3. If `request_count` exceeds the threshold: set `blocked_until` timestamp
 4. If `blocked_until` is in the future: return 429 Too Many Requests
 5. After the blocking window expires: reset counter
 
-Rate limiting protects against:
-- Duplicate checkout session creation (per order ID)
-- Brute-force payment attempts
-- Webhook replay attacks
+### Protected Endpoints
+
+- Stripe checkout session creation (per order ID)
+- Payment recording
+- Email sending
+
+Rate limiting protects against duplicate checkout session creation, brute-force payment attempts, and webhook replay attacks.

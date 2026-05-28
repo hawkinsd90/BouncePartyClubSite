@@ -9,7 +9,7 @@ Rentable units (bounce houses, water slides, combos) are stored in the `units` t
 - `price_dry_cents`, `price_water_cents` — separate pricing for dry and wet mode
 - `dimensions`, `dimensions_water` — physical size in dry and wet mode
 - `footprint_sqft` — square footage for lot assessment
-- `power_circuits` — number of 20-amp circuits required
+- `power_circuits` — number of 20-amp circuits required (stored as decimal)
 - `capacity` — max number of riders
 - `indoor_ok`, `outdoor_ok` — suitability flags
 - `quantity_available` — how many of this unit exist in inventory
@@ -28,21 +28,21 @@ Unit images are uploaded to the `unit-images` Supabase storage bucket (admin-onl
 
 The quote form is a multi-section page where customers configure their rental:
 
-1. **Event Details** — date, event start/end time, pickup preference (same-day vs. next-day)
+1. **Event Details** — date range (start and end dates for multi-day events), event start/end time, pickup preference (same-day vs. next-day)
 2. **Address** — Google Places autocomplete; geocoded for travel fee calculation
-3. **Setup Details** — location type (residential/commercial), surface type (grass/concrete/indoor), generator need, special details, pets
-4. **Cart** — unit selection with availability checking
-5. **Summary** — full pricing breakdown before submission
+3. **Setup Details** — location type (residential/commercial), surface type (grass/concrete/indoor), generator need, special details, pets on premises
+4. **Cart** — unit selection with real-time availability checking
+5. **Summary** — full pricing breakdown with all fees before submission
 
 On submission:
-1. Blackout dates are checked client-side
-2. Unit availability is verified
+1. Blackout dates are checked client-side against `check_date_blackout` RPC
+2. Unit availability is verified against the `check_unit_availability` function
 3. A `draft` order is created in the database via `src/lib/orderCreation.ts`
 4. Customer is created or upserted by email
-5. An invoice email/SMS is dispatched
+5. An invoice email and SMS are dispatched via the `send-invoice` edge function
 6. Customer is redirected to `/checkout/:orderId`
 
-If the customer is logged in, their previous address and contact details are prefilled from `CustomerProfileContext`.
+If the customer is logged in, their previous address and contact details are prefilled from `CustomerProfileContext`. Customers with a `default_address_id` saved get their home address pre-populated in the form.
 
 ---
 
@@ -54,9 +54,10 @@ The checkout page handles Stripe payment collection. Flow:
 2. Selects a payment amount (deposit, full, or custom via `PaymentAmountSelector`)
 3. Adds an optional tip
 4. Confirms card-on-file and SMS consent (if not already given)
-5. Stripe Checkout Session is created via `stripe-checkout` edge function
-6. Customer is redirected to Stripe's hosted checkout page
-7. On success, redirects to `/payment-complete` which finalizes the order
+5. Enters billing address (stored in Stripe and on the order record)
+6. Stripe Checkout Session is created via `stripe-checkout` edge function
+7. Customer is redirected to Stripe's hosted checkout page
+8. On success, redirects to `/payment-complete` which finalizes the order
 
 ### Payment Amount Options
 
@@ -68,9 +69,17 @@ The checkout page handles Stripe payment collection. Flow:
 
 The customer's selection is recorded in `customer_selected_payment_cents` and `customer_selected_payment_type` on the order.
 
+### Billing Address
+
+The checkout form collects a billing address for Stripe. This is stored inline on the `orders` record (`billing_address_line1`, `billing_city`, `billing_state`, `billing_zip`) — separate from the event delivery address.
+
 ### Card-on-File (Setup Mode)
 
 If `require_card_on_file` is true on the order, a Stripe setup session is created instead of (or in addition to) a charge session. This saves the card for future charges (deposit, balance) without charging at checkout.
+
+### Referral Source Tracking
+
+The checkout form captures how the customer heard about the business via a `referral_source` dropdown (e.g., Google, Facebook, referred by friend). Free-text detail is captured in `referral_source_detail`. Both fields are stored on the order for analytics.
 
 ---
 
@@ -80,14 +89,13 @@ The `contacts` table is a deduplicated phonebook of every person who has ever pl
 
 A contact record is upserted automatically whenever a new order is submitted (matched by email address). Contact statistics are maintained by database triggers:
 
-- `total_bookings` — total completed orders
+- `total_bookings` — total order count
 - `total_spent_cents` — lifetime spend including custom fees and discounts
 - `completed_bookings_count`, `first_completed_booking_date`, `last_completed_booking_date`
 - `is_repeat_customer` — true if 2+ completed bookings
 - `opt_in_sms`, `opt_in_email` — communication preferences
-- `tags` — admin-assigned labels
+- `tags` — admin-assigned labels (array)
 - `business_name` — for commercial customers
-- `loyalty_tier` — derived from booking history
 
 Contacts are viewable, searchable, and filterable from the admin Contacts tab. Each contact shows their full order history and allows sending an SMS directly from the conversation thread.
 
@@ -104,17 +112,17 @@ When an admin approves an order, an invoice is created automatically with the ap
 **Invoice Links** (`invoice_links` table) provide secure tokenized public URLs for customers to view their invoice and access their customer portal without logging in. Each link has two access paths:
 
 - **Full token URL** (`/customer-portal/:orderId?t=:token`) — 64-character hex token; used for email links where length is not a concern.
-- **Short URL** (`/i/:shortCode`) — 8-character alphanumeric code; used in SMS messages to keep character counts low.
+- **Short URL** (`/i/:shortCode`) — 8-character alphanumeric code using an unambiguous character set (no `0`, `O`, `1`, `I`, `l`); used in SMS messages to stay within character limits.
 
-The `link_type` column on `invoice_links` distinguishes between `invoice` links (created by the `send-invoice` edge function during admin invoice distribution) and `portal_shortlink` links (created by `createShortPortalLink()` in the frontend for crew ETA SMS messages). Both types resolve via the `/i/:shortCode` route (`ShortLink.tsx`) which looks up the short code and redirects to the appropriate customer portal URL.
+The `link_type` column on `invoice_links` distinguishes between:
+- `invoice` — created by the `send-invoice` edge function during admin invoice distribution
+- `portal_shortlink` — created by `createShortPortalLink()` for crew ETA SMS messages and other compact-URL use cases
 
-Links expire via the `expires_at` field. Invoice links default to 3 days after the event date (or 30 days from creation if no event date). Portal shortlinks default to 30 days.
+Both types resolve via the `/i/:shortCode` route (`ShortLink.tsx`) which looks up the short code and redirects to the appropriate customer portal URL.
 
-**Admin Invoice Sending** (`send-invoice` edge function) — Admins send invoices to customers by triggering the `send-invoice` edge function from the admin panel (Invoice Builder or order detail workflow). The function:
-1. Creates or updates an `invoice_links` record with both a full token and a short code.
-2. Dispatches a formatted invoice email with a "View Invoice" button linked to the full token URL.
-3. Sends an SMS with the short URL (`/i/:shortCode`) to reduce character count.
-Both email and SMS are sent in parallel; a failure of one does not block the other.
+Links expire via the `expires_at` field: 3 days after the event date (or 30 days from creation if no event date).
+
+**Admin Invoice Sending** (`send-invoice` edge function) dispatches a formatted invoice email (full token URL) and an SMS (short URL) in parallel. A failure of one does not block the other.
 
 Admins can also use the **Invoice Builder** to manually construct invoices with custom line items, fees, and discounts, then send them directly to a customer by email/SMS.
 
@@ -143,33 +151,100 @@ The `/sign/:orderId` page collects:
 - Renter name, phone, email
 - Event date and full event address
 - Optional home address
-- Canvas-based signature
+- Canvas-based signature (using `signature_pad` library)
 - Optional typed name and initials
 - Electronic consent acknowledgment
 
 On submission, the `save-signature` edge function:
 1. Stores the signature record in `order_signatures` with the full waiver text snapshot, IP address, user agent, and device info
-2. Generates a signed PDF and stores it in the `signed-waivers` Supabase storage bucket
+2. Generates a signed PDF and stores it in the `signed-waivers` Supabase storage bucket (private)
 3. Sets `waiver_signed_at` and `signed_waiver_url` on the order
-4. Returns the PDF URL for display
+4. Returns the PDF URL for immediate display
 
 The `order_signatures` record stores everything needed for a legally defensible audit: signer identity, consent text, waiver version, IP, user agent, and a complete snapshot of the waiver text as it existed at signing time.
+
+### Overnight and Same-Day Responsibility Agreements
+
+Separate responsibility acknowledgments are tracked on the order:
+- `same_day_responsibility_accepted` — customer acknowledged same-day pickup responsibility
+- `overnight_responsibility_accepted` — customer acknowledged overnight equipment responsibility
+
+These are separate from the main waiver and are shown as inline consent checkboxes during checkout.
+
+---
+
+## Media Library (Admin Photos Tab)
+
+The admin Photos tab provides a unified view of all photos across the entire system — delivery proof, damage photos, customer-submitted order photos, lot pictures, unit catalog images, and carousel media.
+
+### Sources and Filters
+
+Photos are aggregated from multiple tables and storage buckets:
+
+| Source | Table | Description |
+|---|---|---|
+| `delivery` | `task_status.delivery_images` | Crew delivery proof photos |
+| `damage` | `task_status.damage_images` | Crew damage documentation photos |
+| `order` | `order_pictures` | Customer-submitted photos via portal |
+| `lot` | `order_lot_pictures` | Pre-event lot assessment photos |
+| `unit` | `unit_media` | Unit catalog images |
+| `carousel` | `hero_carousel_images` | Homepage carousel media |
+
+### Advanced Filtering
+
+The filter bar supports:
+- **Source filter** — show photos from one specific source or all
+- **Search** — filter by customer name, address, unit name, or order ID
+- **Sort** — newest first, oldest first, alphabetical by source/customer/unit
+- **Date range** — last 7 days, 30 days, 90 days, or all time
+- **Evidence filter** — show only protected evidence (damage photos), non-protected, or all
+- **Saved to address filter** — show only lot photos saved to a canonical address
+- **Display status filter** — filter by visibility mode (unit catalog images)
+- **Group by** — flat list, or grouped by source, order, unit, or address
+
+### Pagination
+
+Photos load 24 at a time with a "Load more" button. Count is displayed as "Showing X of Y photos."
+
+### Photo Detail Modal
+
+Clicking any photo opens a detail view with:
+- Full-resolution image
+- Source metadata (order ID, customer name, unit, address)
+- Status badges (saved to address, protected evidence, in unit gallery, in carousel)
+- Admin actions: Promote to unit gallery, promote to carousel, save lot photo to address, download
+
+### Promote to Unit Gallery / Carousel (`promote-media` edge function)
+
+Admins can promote photos taken during events to the unit catalog or homepage carousel. The edge function copies the file to the appropriate storage bucket and creates the necessary `unit_media` or `hero_carousel_images` record. Consent is gated — admin must confirm before promoting.
+
+### Media Health Panel
+
+A collapsible panel at the top of the Photos tab surfaces warnings:
+- Unit images without a storage path
+- Damage photo counts
+- Notes about evidence restrictions (damage photos are protected)
+- Notes about video exclusion (videos are not shown in the photo grid)
 
 ---
 
 ## Google Maps Integration
 
-Google Maps is used for two purposes:
+Google Maps is used for three purposes:
 
 ### Address Autocomplete
 
 The `AddressAutocomplete` component uses the Google Places Autocomplete API to help customers enter their event address. On selection, the address is geocoded and coordinates (lat/lng) are stored on the `addresses` record for travel fee calculation.
 
-The Google Maps SDK is loaded lazily using a singleton loader (`src/lib/googleMapsLoader.ts`) to avoid loading it on pages that don't need it.
+### Travel Fee Calculation
+
+The `distanceCalculator.ts` library computes driving distance from the home base (Wayne, MI) to the event address using the Distance Matrix API. Chargeable miles (miles beyond the free radius) are stored on the order.
 
 ### Route Optimization
 
-See the Day-of Workflow section.
+See the Crew and Operations documentation.
+
+The Google Maps SDK is loaded lazily using a singleton loader (`src/lib/googleMapsLoader.ts`) to prevent duplicate loads across components.
 
 ---
 
@@ -184,7 +259,7 @@ The admin manages customer reviews displayed on the homepage via the admin panel
 - `is_active` — toggle visibility without deleting
 - `display_order` — controls sequence
 
-Only real reviews from actual customers should be entered here. The "Read more reviews on Google" button links to the business Google review page configured in admin settings.
+Only real reviews from actual customers should be entered here. The "Read more reviews on Google" button links to the business Google review page configured in admin settings (`google_review_url`).
 
 ---
 
@@ -200,7 +275,7 @@ The admin panel is a tabbed interface with the following sections:
 
 ### Contacts Tab
 - Full phonebook with search and filtering
-- Customer details, order history, loyalty stats
+- Customer details, order history, lifetime spend
 - SMS conversation thread per customer
 
 ### Invoices Tab
@@ -211,12 +286,20 @@ The admin panel is a tabbed interface with the following sections:
 - Business performance charts (revenue, bookings, lead time)
 - Date range filtering
 - Site analytics (page views, funnel conversion)
+- Booking source analytics (how customers found the business)
+
+### Photos Tab
+- Unified media library across all photo sources
+- Advanced filtering, grouping, and pagination
+- Promote photos to unit gallery or carousel
+- Media health panel with warnings
 
 ### Crew Calendar Tab
 - Monthly calendar view with confirmed orders
 - Day view showing all deliveries and pickups
 - Route optimization controls
 - Task card management
+- Mileage logging
 
 ### Settings Tab (sub-tabs):
 - **Business Info** — name, address, phone, email, website, legal entity, license
@@ -244,19 +327,20 @@ The Order Detail Modal is the primary admin interface for managing a single orde
 - Manage custom fees and discounts (with saved template support)
 - Override deposit amount
 - Waive fees (tax, travel, surface, generator, same-day pickup) with reason
+- View/edit admin message (displayed to customer in portal)
 
 ### Payments Tab
-- Full payment history
+- Full payment history with ledger sequence
 - Record cash or check payments
-- Initiate Stripe refund
+- Initiate Stripe refund (admin/master only)
 - Send customer balance payment link
-- Issue Stripe refund with reason (admin/master only)
+- View Stripe fee and net amounts
 
 ### Workflow Tab
 - Status progression controls
 - Send customer notifications
-- View/send admin message visible to customer in portal
 - Manage lot picture requests
+- Request customer approval for order changes
 
 ### Notes Tab
 - Internal admin notes (not visible to customer)
@@ -285,8 +369,9 @@ Any fee on an order can be waived by an admin with a documented reason:
 | Surface fee | `surface_fee_waived` | `surface_fee_waive_reason` |
 | Same-day pickup fee | `same_day_pickup_fee_waived` | `same_day_pickup_fee_waive_reason` |
 | Generator fee | `generator_fee_waived` | `generator_fee_waive_reason` |
+| Sandbag fee | `sandbag_fee_waived` | `sandbag_fee_waive_reason` |
 
-Waiver reasons are logged in the order changelog for audit purposes.
+Waiver reasons are logged in the order changelog for audit purposes. The `tax_waived` field is backfilled for historical orders that predate the `apply_taxes_by_default` setting.
 
 ---
 
@@ -298,7 +383,7 @@ Admins can add arbitrary fee line items to any order (e.g., "Extra cleaning fee"
 
 ### Discounts (`order_discounts`)
 
-Admins can add discounts as either a fixed dollar amount or a percentage. Both are stored on `order_discounts`. Discounts affect the order total and thus the deposit calculation.
+Admins can add discounts as either a fixed dollar amount or a percentage. Discounts affect the order total and thus the deposit calculation.
 
 ### Saved Templates
 
@@ -306,79 +391,15 @@ Frequently-used fees and discounts can be saved as templates (`saved_fee_templat
 
 ---
 
-## Day-of Workflow
+## Address Deduplication and Lot Photo Persistence
 
-### Task Order Management
+Addresses are stored as canonical records in the `addresses` table with a unique `address_key` for deduplication. When the same address is submitted twice, the existing record is returned rather than creating a duplicate. Coordinates (lat/lng) are stored for travel fee and distance calculations.
 
-From the Task Detail Modal (accessible from both the admin Calendar tab and the `/crew` page), admins have direct order management controls that do not require navigating to the full order detail:
+### Save to Address (Lot Pictures)
 
-| Action | When Available | What It Does |
-|---|---|---|
-| **Record Cash Payment** | Balance due > $0 | Calls `record-cash-payment` edge function; sends receipt email to customer |
-| **Record Check Payment** | Balance due > $0 | Calls `record-check-payment` with check number; sends receipt email |
-| **Charge Card on File** | Balance due > $0 AND a Stripe card is saved | Charges the saved card for the full remaining balance via `charge-deposit` edge function; sends receipt and booking confirmation email; updates `balance_due_cents` on the order |
-| **Mark Waiver Signed (Paper)** | Waiver not yet signed | Creates an `order_signatures` record flagged as paper waiver; sets `waiver_signed_at` on order |
-| **Cancel Order** | Order not in terminal state | Shows reason form → refund intent confirmation dialog (with "Yes, Refund Needed" / "No Refund" buttons) → calls `customer-cancel-order` edge function |
+When crew or admin uploads lot pictures for an order, they can "Save to Address" from the Photo Detail view. This creates a record in `address_lot_pictures` linking the photo to the canonical address. Future orders at the same address automatically surface these reference photos to crew and admins, providing institutional memory about the setup location. This eliminates the need for crews to re-photograph familiar venues.
 
-The "Charge Card on File" button displays the saved card brand and last four digits (e.g., "Mastercard •••• 1840") so the admin can confirm the correct card before charging.
-
-### Task Cards (`task_status` table)
-
-When an order moves to `confirmed`, a database trigger automatically creates a `task_status` record for that order. Each task card tracks:
-
-- `task_type` — `delivery` or `pickup`
-- `task_date` — the event date
-- `status` — workflow progress (pending → on_the_way → arrived → setup_in_progress → setup_completed)
-- `en_route_time`, `arrived_time`, `completed_time` — timestamps
-- `eta_sent` — whether an ETA SMS has been sent to the customer
-- `waiver_reminder_sent`, `payment_reminder_sent` — notification flags
-- `sort_order` — position in the day's route
-- `delivery_images`, `damage_images` — arrays of image URLs
-- `notes` — crew notes on the task
-- `gps_lat`, `gps_lng` — crew GPS at task completion
-- `calculated_eta_minutes` — drive time estimate from route optimization
-
-Crew see these cards in the Calendar view and can update status, add photos, and log their location.
-
-### Route Optimization (`src/lib/routeOptimization.ts`)
-
-Admins and crew optimize the day's delivery route from the calendar day view. The algorithm runs client-side using the Google Maps Distance Matrix API.
-
-**Three-stage pipeline:**
-
-1. **Geographic Sweep** — sorts stops by compass angle from home base to cluster nearby stops
-2. **Multi-Start Greedy** — tests up to 8 starting points using nearest-neighbor; picks lowest-scoring route
-3. **2-Opt Refinement** — iteratively swaps stop pairs (up to 100 iterations) to reduce total drive time
-
-**Scoring factors:**
-- Drive duration in minutes
-- Lateness penalty (100× multiplier for arriving after event start time)
-- Early event priority bonus
-- Equipment dependency enforcement (pickup stops must follow drop-off stops for the same unit)
-
-**Setup times:** 20 minutes per unit for delivery setup; 15 minutes for pickups.
-
-**Traffic modeling:** 6:20 AM departure with Google Maps live traffic data.
-
-The optimized route is saved to `route_stops` and displayed on the calendar with arrival time estimates and lateness warnings.
-
-### Crew Location Tracking
-
-The `crew_location_history` table stores GPS breadcrumbs from crew during active deliveries. Each record captures latitude, longitude, accuracy, speed, heading, and a checkpoint label. The admin can monitor crew progress in real time.
-
-### Mileage Tracking
-
-Crew log start/end odometer readings via the Mileage Modal in the calendar. Readings are stored in `daily_mileage_logs` with start/end time, user ID, and optional notes. The `calculate-route-mileage` edge function can also compute theoretical route mileage from the optimized route for comparison.
-
-### Equipment Checklist
-
-The Equipment Checklist Modal allows crew to mark off equipment conditions before/during delivery (inflatable condition, blower status, stakes, sandbags, water connections). This is accessed from the task card in the day view.
-
-### Lot Pictures
-
-Crew can photograph the event lot before setup (to document condition) and after setup (for customer confirmation). Photos are stored in the `order_lot_pictures` table and the `lot-pictures` Supabase storage bucket. Customers can view these photos in their Customer Portal.
-
-The admin can request lot pictures from a confirmed order (sets `lot_pictures_requested` flag and timestamp). Customers are notified when pictures are available.
+`save_lot_picture_to_address` is a server-side RPC that atomically creates the `address_lot_pictures` record and updates the `address_id` on the `order_lot_pictures` record.
 
 ---
 
@@ -388,7 +409,7 @@ The customer portal is a public-facing, tokenized view that does not require log
 
 ### Short Link Access (`/i/:shortCode`)
 
-The portal can also be reached via a compact short URL (`/i/:shortCode`). The `ShortLink` page resolves the 8-character code by querying the `invoice_links` table and redirects to `/customer-portal/:orderId?t=:token`. This URL form is used in SMS messages to stay within character limits. Short links expire after the `expires_at` date stored on the `invoice_links` record.
+The portal can also be reached via a compact short URL (`/i/:shortCode`). The `ShortLink` page resolves the 8-character code by querying the `invoice_links` table and redirects to `/customer-portal/:orderId?t=:token`. This URL form is used in SMS messages to stay within character limits.
 
 ### Regular Portal View
 
@@ -396,10 +417,11 @@ Shows the customer:
 - Order status and event details
 - Invoice and pricing breakdown
 - Payment options (if balance is due)
-- Lot pictures (submitted by crew after setup)
-- Delivery tracking (crew ETA and live location)
+- Lot pictures (uploaded by crew after setup)
+- Delivery tracking (crew ETA and status updates via Supabase Realtime)
 - Link to sign the waiver
 - Order cancellation option
+- Admin message (if admin has posted a note for the customer)
 
 ### Order Approval View
 
@@ -408,24 +430,22 @@ When the admin modifies a confirmed order and sends it for customer review, the 
 - New pricing breakdown
 - Approve or Reject buttons
 
-Approval atomically confirms the changes and moves the order back to `confirmed`. Rejection logs the rejection and notifies the admin. Both happen without login via an atomic RPC function.
+Approval atomically confirms the changes and moves the order back to `confirmed`. Rejection logs the rejection and notifies the admin. Both happen without login via the `atomic_approve_order` RPC function.
 
 ### Payment Tab
 
-Customers with an outstanding balance can pay via:
-- Saved card on file (processed by `customer-balance-payment` edge function)
-- The customer can update their card if the saved card is declined (via `fix-payment-method` edge function)
+Customers with an outstanding balance can pay via their saved card on file. If the saved card is declined, a link to update the card is provided (via `fix-payment-method` edge function).
 
 ### Lot Pictures Tab
 
-Displays photos uploaded by the crew, visible to the customer after setup is complete.
+Displays photos uploaded by the crew, visible to the customer after upload.
 
 ### Customer Cancellation
 
-Customers can cancel their own order from the portal. They select a cancellation reason and can optionally request a refund. The `customer-cancel-order` edge function records:
+Customers can cancel their own order from the portal. They select a cancellation reason and can optionally flag that they want a refund. The `customer-cancel-order` edge function records:
 - `cancellation_reason` — selected from a standardized list
 - `cancelled_at`, `cancelled_by` timestamps
-- `refund_requested` — whether the customer wants a refund (admin must still process manually)
+- `refund_requested` — customer's refund intent flag (admin must still process manually)
 
 ---
 
@@ -439,13 +459,31 @@ Logged-in customers can view all their orders with status, payment status, and q
 
 ---
 
+## Travel Calculator (Admin Tool)
+
+The admin Travel Calculator tab allows admins to calculate travel fees for any arbitrary address without creating an order. Useful for quoting travel costs to potential customers or auditing pricing. Calls the same distance calculation logic used during order creation.
+
+---
+
+## Address Coordinate Backfill (Admin Tool)
+
+The `AddressCoordinateBackfill` admin component allows admins to retroactively geocode historical addresses that are missing lat/lng coordinates. This ensures all addresses can be used for travel fee calculations and route optimization.
+
+---
+
+## Payment Backfill Section (Admin Tool)
+
+The `PaymentBackfillSection` admin component allows admins to retroactively fix orders where payment method details (brand, last four digits, expiry) were not saved — typically from early orders before the payment method backfill migration. Calls the `backfill-payment-methods` edge function.
+
+---
+
 ## SMS Conversations
 
 Each customer phone number has a dedicated `sms_conversations` record. Inbound and outbound messages are stored in the `messages` table.
 
 Admins view and reply to SMS threads directly from the order detail SMS tab. The `twilio-webhook` edge function handles inbound messages and routes them to the correct conversation by phone number.
 
-**Message Templates** (`sms_message_templates` table) are managed in the admin Message Templates tab. Variables like `{{customer_name}}`, `{{order_id}}`, `{{event_date}}`, `{{portal_link}}`, `{{google_review_url}}` are substituted at send time.
+**Important:** Messages only appear in an order's SMS thread if the outgoing send was made with `orderId` (camelCase) in the edge function request body. Messages sent without `orderId` are stored with `order_id = null` and are invisible in the order thread.
 
 ---
 
@@ -467,7 +505,7 @@ Admins can block orders from the Blackout tab using three types of restrictions:
 ### Blackout Dates
 
 Prevent new orders on specified date ranges. Supports:
-- `block_type`: `full` (no orders) or `same_day_pickup_only` (allows next-day pickups)
+- `block_type`: `full` (no orders) or `same_day_pickup_only` (blocks same-day pickups but allows next-day)
 - `recurrence`: `one_time`, `annual`, or `weekly`
 - `expires_at`: optional expiration date for temporary blocks
 
@@ -492,7 +530,7 @@ The admin Business Branding tab manages:
 - Social media URLs (Facebook, Instagram, TikTok, YouTube, Yelp)
 - Google Review URL and Google Maps URL
 
-Branding is loaded by `BusinessContext` and used throughout the app for display and in email templates.
+Branding is loaded by `BusinessContext` and used throughout the app for display and in email templates. The logo URL and brand color are also used in the `emailTemplateBase.ts` component library for all transactional emails.
 
 ---
 
@@ -523,6 +561,10 @@ Tracks user behavior via the `site_events` table:
 - Unit detail views
 - Checkout starts and completions
 
+### Booking Source Analytics
+
+Tracks referral sources via `referral_source` and `referral_source_detail` fields on orders. Provides insight into which marketing channels are driving bookings (Google, Facebook, repeat customer, word of mouth, etc.). Powered by the `get_booking_source_analytics` database RPC.
+
 ---
 
 ## Admin Settings / Configuration
@@ -537,10 +579,10 @@ All runtime configuration is stored in the `admin_settings` key-value table and 
 | `stripe_*` | Stripe secret key, publishable key, webhook secret |
 | `twilio_*` | Twilio Account SID, Auth Token, From Number |
 | `resend_*` | Resend API key for email |
-| `google_*` | Google Maps API key, Google Review URL, Google Calendar credentials |
+| `google_*` | Google Maps API key, Review URL, Calendar credentials |
 | `admin_*` | Admin email, admin phone number |
 
-Secret values (Stripe keys, Twilio credentials) are redacted in the `admin_settings_changelog` by a database trigger — the trigger substitutes `[REDACTED]` before logging.
+Secret values (Stripe keys, Twilio credentials, Resend API key) are redacted in the `admin_settings_changelog` by a database trigger. The trigger substitutes `[REDACTED]` for any key whose name contains `key`, `secret`, `token`, `sid`, or `password`.
 
 ---
 
@@ -548,12 +590,12 @@ Secret values (Stripe keys, Twilio credentials) are redacted in the `admin_setti
 
 Confirmed orders can be synced to a Google Calendar. When an order is confirmed:
 
-1. A record is added to the `google_calendar_sync_queue` table
+1. A record is added to the `google_calendar_sync_queue` table (via database trigger)
 2. The `sync-google-calendar` edge function processes the queue
-3. A calendar event is created/updated with order details
+3. A calendar event is created or updated with order details
 4. Sync status is tracked in `google_calendar_sync` per event date
 
-Configuration (Google OAuth credentials) is managed in the admin Google Calendar Settings tab.
+Configuration (Google OAuth credentials) is managed in the admin Google Calendar Settings tab. Sync can be toggled on/off without removing credentials via the `google_calendar_enabled` setting.
 
 ---
 
@@ -570,16 +612,6 @@ The `notification_system_status` table maintains real-time health status per sys
 
 ---
 
-## Saved Fee and Discount Templates
-
-Admins can save frequently-used fees and discounts as templates:
-- `saved_fee_templates` — named fee amounts for quick application (e.g., "Extra cleaning fee: $50")
-- `saved_discount_templates` — named discounts with fixed amount or percentage (e.g., "Repeat customer: 10%")
-
-These appear as quick-select options when adding fees/discounts to an order, avoiding manual reentry.
-
----
-
 ## Crew Page (`/crew`)
 
 The crew page is a dedicated calendar view for crew members showing:
@@ -591,14 +623,6 @@ The crew page is a dedicated calendar view for crew members showing:
 - Real-time task status updates via Supabase Realtime subscriptions
 
 Admin users also have access to the crew page. The crew page does not show financial details — only operational task information.
-
----
-
-## Address Deduplication
-
-Addresses are stored as canonical records in the `addresses` table with a unique `address_key` for deduplication. When the same address is submitted twice, the existing record is returned rather than creating a duplicate. Coordinates (lat/lng) are stored for travel fee and distance calculations.
-
-The `addressService.ts` library provides `upsertCanonicalAddress()` which handles the create-or-find logic.
 
 ---
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-All outbound communication (email and SMS) is dispatched through a unified notification service (`src/lib/notificationService.ts`). Email is sent via the `send-email` edge function (which calls Resend). SMS is sent via the `send-sms-notification` edge function (which calls Twilio). Neither service is called directly from the frontend.
+All outbound communication (email and SMS) is dispatched through a unified notification service (`src/lib/notificationService.ts`). Email is sent via the `send-email` edge function (which calls Resend). SMS is sent via the `send-sms-notification` edge function (which calls Twilio). Neither service is called directly from the frontend — all calls go through edge functions.
 
 ---
 
@@ -28,24 +28,26 @@ Email and SMS are always sent independently. A failure of one does not block the
 
 **Endpoint:** `POST /functions/v1/send-email`
 
+Reads the Resend API key from `admin_settings` at call time — not from environment variables.
+
 **Payload:**
 
 ```typescript
 {
   to: string
-  from?: string
+  from?: string           // defaults to business email from admin_settings
   subject: string
   html: string
   text?: string
   attachments?: { filename: string; content: string; encoding: string }[]
-  context?: string         // for logging/debugging
-  skipFallback?: boolean   // suppress admin SMS on failure
+  context?: string        // for logging/debugging
+  skipFallback?: boolean  // suppress admin SMS on failure
   templateName?: string
   orderId?: string
 }
 ```
 
-**Fallback behavior:** If the email fails to send and `skipFallback` is not set, the function sends an SMS to the admin phone with the recipient, subject, and truncated error message.
+**Fallback behavior:** If the email fails to send and `skipFallback` is not set, the function sends an SMS to the admin phone with the recipient, subject, and truncated error message. This ensures critical notifications are not silently dropped.
 
 ---
 
@@ -55,13 +57,23 @@ Email and SMS are always sent independently. A failure of one does not block the
 
 Reads Twilio credentials (Account SID, Auth Token, From Number) from the `admin_settings` table at call time — not from environment variables.
 
-If `orderId` is provided, the outbound message is logged to the `messages` table under the customer's `sms_conversations` record.
+**Important:** The request body must use `orderId` (camelCase) to link the outbound message to an order's SMS thread. Using `order_id` (snake_case) is silently ignored, causing the message to be stored with `order_id = null` and making it invisible in the order SMS thread.
+
+```typescript
+{
+  to: string       // destination phone number
+  message: string  // SMS body
+  orderId?: string // camelCase — required for thread linking
+}
+```
+
+If `orderId` is provided, the outbound message is logged to the `messages` table under the customer's `sms_conversations` record and appears in the order's SMS thread in the admin panel.
 
 ---
 
 ## Email Template System (`src/lib/emailTemplateBase.ts`)
 
-All HTML emails are built using a shared component library. Templates use table-based HTML for compatibility with email clients.
+All HTML emails are built using a shared component library. Templates use table-based HTML for maximum email client compatibility.
 
 ### Wrapper
 
@@ -73,10 +85,7 @@ createEmailWrapper(content: string, options?: {
 }): string
 ```
 
-Renders the outer email shell with the company logo, a header section, the body content, and a branded footer with contact information.
-
-- Logo URL: stored in Supabase public storage
-- Footer includes company phone: (313) 889-3860
+Renders the outer email shell with the company logo (from `admin_settings`), a header section, the body content, and a branded footer with contact information.
 
 ### Content Components
 
@@ -142,18 +151,80 @@ export function generateMyEmail(customerName: string, actionUrl: string): string
 | Template file | Sends when |
 |---|---|
 | `bookingEmailTemplates.ts` | Customer booking confirmation (order submitted) |
-| `orderEmailTemplates.ts` | Order status changes, admin notifications |
+| `orderEmailTemplates.ts` | Order status changes, admin notifications, approvals, cancellations, changes |
 | `transactionReceiptService.ts` | Admin receipt on each payment event |
 
 ### Invoice Email (`send-invoice` edge function)
 
 The `send-invoice` edge function builds its own inline HTML email (not using `emailTemplateBase.ts`) and sends it directly to the `send-email` edge function. The email includes:
-- Order total amount
-- Deposit due amount
+- Order total amount and deposit due
 - A styled "View & Accept Invoice" button linking to the full token URL (`/customer-portal/:orderId?t=:token`)
 - Contact phone number
 
 The companion SMS uses the short URL (`/i/:shortCode`) to keep the message concise and within SMS character limits. Email and SMS are sent in parallel via `EdgeRuntime.waitUntil`, so a failure of one does not block the other or the API response.
+
+---
+
+## Branded Auth Emails (`auth-email-hook` edge function)
+
+Supabase's default auth emails (signup confirmation, password reset) are replaced with branded versions via the `auth-email-hook` edge function. This hook is registered in Supabase as a custom auth email handler and:
+
+1. Receives the auth event type from Supabase (signup, password reset, etc.)
+2. Generates a branded HTML email using `emailTemplateBase.ts` (business logo, colors, footer)
+3. Sends the email via Resend
+
+This ensures all auth emails match the business branding rather than using Supabase's generic templates.
+
+---
+
+## SMS Message Templates
+
+Admins manage reusable SMS templates in the admin Message Templates tab. Templates are stored in the `sms_message_templates` table with:
+- `template_key` — unique identifier used in code
+- `template_name` — human-readable name
+- `description` — what the template is for
+- `message_template` — the message body with `{variable}` placeholders
+
+Variable placeholders use single braces: `{variable_name}`. They are substituted at send time.
+
+### Current Templates (live DB)
+
+| Template Key | Template Name | Purpose |
+|---|---|---|
+| `arrived_sms` | Crew - Arrival Notification | Sent when crew arrives at delivery location |
+| `booking_received_admin` | Admin - New Booking Notification | Notifies admin when a new booking is received |
+| `delivery_notification` | Delivery Notification | Sent when crew is en route to delivery |
+| `dropoff_done_sms` | Crew - Drop-Off Complete | Sent when drop-off is finished |
+| `eta_sms` | Crew - ETA Notification | Sent at crew shift start with GPS-calculated ETA |
+| `lot_pictures_uploaded_admin` | Admin - Lot Pictures Uploaded | Notifies admin when customer uploads lot pictures |
+| `order_approved` | Order Approved | Sent when admin approves an order |
+| `order_cancelled_admin` | Admin - Order Cancellation Notification | Notifies admin when a customer cancels |
+| `order_confirmation` | Order Confirmation | Auto-sent when customer places an order |
+| `order_rejected` | Order Rejected | Sent when admin rejects an order |
+| `payment_reminder` | Payment Reminder | Sent for outstanding balance reminders |
+| `pickup_thanks_sms` | Crew - Pickup Complete | Thank-you with Google Review link after pickup |
+| `pictures_reminder` | Pictures Reminder | Reminder for customer to upload setup area photos |
+
+### Template Variables
+
+Variables use single-brace `{variable}` format (not double-brace):
+
+| Variable | Meaning |
+|---|---|
+| `{name}` | Customer full name |
+| `{customer_name}` | Customer full name (admin-facing templates) |
+| `{customer_first_name}` | Customer first name |
+| `{order_id}` | Formatted order ID |
+| `{event_date}` | Event date |
+| `{event_address}` | Delivery address |
+| `{total_amount}` | Order total |
+| `{balance_amount}` | Balance due |
+| `{eta}` | Estimated arrival time |
+| `{portal_link}` | Customer portal URL |
+| `{review_url}` | Google Review URL from admin settings |
+| `{rejection_reason}` | Reason for rejection |
+| `{refund_policy}` | Refund policy text |
+| `{order_link}` | Direct link to order |
 
 ---
 
@@ -170,21 +241,23 @@ The admin Notification Failures panel (`src/components/admin/NotificationFailure
 
 ---
 
-## SMS Message Templates
-
-Admins manage reusable SMS templates in the admin Message Templates tab. Templates are stored in the `sms_message_templates` table and can be selected when composing messages from the order detail view.
-
-Variable placeholders (e.g., customer name, event date, order ID) are substituted at send time.
-
----
-
-## Twilio Inbound (Webhook)
+## Twilio Inbound Webhook (`twilio-webhook`)
 
 Inbound SMS from customers is received by the `twilio-webhook` edge function. It:
 
-1. Validates the Twilio signature.
-2. Finds or creates an `sms_conversations` record for the sender's phone number.
-3. Stores the message in `messages`.
-4. Forwards the message content to the admin via SMS and email notification.
+1. **Validates** the `X-Twilio-Signature` header against the webhook URL and POST body using the Twilio Auth Token. Rejects any request with an invalid signature.
+2. **Finds or creates** an `sms_conversations` record for the sender's phone number.
+3. **Stores** the message in `messages` with `direction: 'inbound'`.
+4. **Forwards** the message content to the admin via SMS and email notification so they know a customer replied.
 
 The admin can reply from the order detail SMS conversation panel, which calls `send-sms-notification` directly.
+
+---
+
+## Twilio Delivery Status Callback (`twilio-status-callback`)
+
+Twilio calls this endpoint with delivery status updates for outbound messages:
+- `delivered` — message delivered successfully
+- `failed`, `undelivered` — delivery failed
+
+Failed deliveries can trigger a `notification_failures` entry and contribute to the consecutive failure counter monitored by the admin Notification Failures panel.

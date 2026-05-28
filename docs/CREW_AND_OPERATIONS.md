@@ -2,7 +2,7 @@
 
 ## Overview
 
-The crew operations system handles everything that happens on the day of an event: delivery routing, task tracking, location monitoring, mileage logging, lot documentation, and customer communication. Crew members access these features through the `/crew` route.
+The crew operations system handles everything that happens on the day of an event: delivery routing, task tracking, location monitoring, mileage logging, lot documentation, equipment checklists, and customer communication. Crew members access these features through the `/crew` route. Admins have identical access through the Calendar tab in the admin panel.
 
 ---
 
@@ -14,29 +14,29 @@ Users with the `crew` role (or `admin`/`master`) can access the crew page at `/c
 
 ## Task Cards (`task_status` table)
 
-A task card is the fundamental unit of crew work. One task card is created automatically by a database trigger when an order moves to `confirmed`.
+A task card is the fundamental unit of crew work. **Two** task cards are created automatically by a database trigger when an order moves to `confirmed` — one for drop-off and one for pick-up.
 
-### Task Card Fields
+### Task Card Fields (confirmed from live DB)
 
-| Field | Purpose |
-|---|---|
-| `order_id` | Which order this task is for |
-| `task_type` | `delivery` or `pickup` |
-| `task_date` | The event date |
-| `status` | Current workflow state |
-| `en_route_time` | When crew marked "on the way" |
-| `arrived_time` | When crew marked "arrived" |
-| `completed_time` | When crew marked "completed" |
-| `eta_sent` | Whether an ETA SMS was sent to customer |
-| `waiver_reminder_sent` | Whether a waiver reminder was sent |
-| `payment_reminder_sent` | Whether a payment reminder was sent |
-| `sort_order` | Position in the optimized route |
-| `delivery_images` | JSON array of delivery photo URLs |
-| `damage_images` | JSON array of damage photo URLs |
-| `notes` | Crew notes for this task |
-| `gps_lat`, `gps_lng` | Crew GPS coordinates at task completion |
-| `calculated_eta_minutes` | Estimated drive time from route optimization |
-| `eta_calculation_error` | Error message if ETA calculation failed |
+| Field | Type | Purpose |
+|---|---|---|
+| `order_id` | uuid | Which order this task is for |
+| `task_type` | text | `drop-off` or `pick-up` |
+| `task_date` | date | The event date |
+| `status` | text | Current workflow state |
+| `en_route_time` | timestamptz | When crew marked "on the way" |
+| `arrived_time` | timestamptz | When crew marked "arrived" |
+| `completed_time` | timestamptz | When crew marked "completed" |
+| `eta_sent` | boolean | Whether an ETA SMS was sent to the customer |
+| `waiver_reminder_sent` | boolean | Whether a waiver reminder was sent |
+| `payment_reminder_sent` | boolean | Whether a payment reminder was sent |
+| `sort_order` | integer | Position in the optimized route |
+| `delivery_images` | jsonb | Array of delivery photo URLs |
+| `damage_images` | jsonb | Array of damage photo URLs |
+| `notes` | text | Crew notes for this task |
+| `gps_lat`, `gps_lng` | numeric | Crew GPS coordinates at task completion |
+| `calculated_eta_minutes` | integer | Estimated drive time from route optimization |
+| `eta_calculation_error` | text | Error message if ETA calculation failed |
 
 ### Task Workflow States
 
@@ -152,13 +152,38 @@ Crew can submit their current GPS location from the crew page. Submissions are s
 - `accuracy` — GPS accuracy in meters
 - `speed` — speed in m/s
 - `heading` — compass heading
-- `checkpoint` — label for this submission (e.g., "en_route", "arrived")
+- `checkpoint` — label for this submission (e.g., `en_route`, `arrived`)
 - `order_id` — which order (if applicable)
 - `stop_id` — which route stop
 
 ### ETA Calculation
 
 When a crew member marks "on the way," the system can calculate a real-time ETA using their current GPS location and the Google Maps Distance Matrix API. This ETA is stored on the `task_status` record and can be sent to the customer via SMS.
+
+---
+
+## SMS Notifications During Delivery
+
+All delivery SMS messages go through the `send-sms-notification` edge function. When sent with an `orderId`, they are stored in `sms_conversations` and appear in the order's SMS thread.
+
+### Checkpoint Messages
+
+Each task status transition triggers a unique SMS to the customer:
+
+| Action | Template | Message Content |
+|---|---|---|
+| En Route (drop-off) | inline | "Hello [Name]! We're on our way to deliver your rental. ETA: [time] ([distance] away)." Appends waiver/balance warnings if outstanding. |
+| En Route (pick-up) | inline | "Hello [Name]! We're on our way to pick up your rental. ETA: [time] ([distance] away)." |
+| Arrived (drop-off) | inline | "We have arrived at your location! Please put up animals, be ready to inspect the equipment, and approve the setup location." Appends waiver/payment prompts if needed. |
+| Arrived (pick-up) | inline | "We have arrived at your location! We'll begin pickup shortly. Thank you for using Bounce Party Club!" |
+| Drop-off complete | inline | "Equipment has been delivered! You are now responsible for the equipment until [pickup time]. [Safety rules list]." |
+| Pickup complete | `pickup_thanks_sms` | Thank-you message with Google Review URL. |
+
+The `eta_sent` flag on `task_status` prevents duplicate ETA messages.
+
+### Post-Pickup Google Review Request
+
+After pickup is complete, the `pickup_thanks_sms` template is sent which includes the `google_review_url` from admin settings. The admin can control this via the `add_google_review_to_pickup` setting.
 
 ---
 
@@ -197,6 +222,13 @@ Checklist state is tracked per task. Incomplete checklists can trigger warnings 
 
 ## Lot Pictures
 
+### Overview
+
+Lot pictures document the setup location. They exist in two connected tables:
+
+- **`order_lot_pictures`** — photos linked to a specific order. Contains an `address_id` FK that optionally links the photo to the canonical address.
+- **`address_lot_pictures`** — photos saved directly to a canonical address record. When a lot photo is saved to an address, it persists across bookings so that future deliveries to the same address can reference existing photos.
+
 ### Uploading
 
 Crew upload lot photos from the task card or via the `LotPicturesTab` in the customer portal section:
@@ -206,7 +238,11 @@ Crew upload lot photos from the task card or via the `LotPicturesTab` in the cus
   - `file_name` — original filename
   - `notes` — optional caption
   - `uploaded_by` — crew member user ID
-  - `uploaded_at` — timestamp
+  - `address_id` — optional link to canonical address record
+
+### Saving to Address (`save_lot_picture_to_address` RPC)
+
+After uploading, crew or admin can "Save to Address" from the Photo Detail view. This creates a record in `address_lot_pictures` linking the photo to the address. Future orders at the same address will show these reference photos to crew and admins — extremely useful for knowing the setup location in advance.
 
 ### Customer Visibility
 
@@ -218,28 +254,7 @@ Admins can request lot pictures from the Order Detail Modal Workflow tab. This s
 - `lot_pictures_requested = true` on the order
 - `lot_pictures_requested_at` timestamp
 
-The request can trigger a reminder SMS to the crew.
-
----
-
-## Crew SMS Communications
-
-### ETA Messages
-
-When crew marks "en route," an ETA SMS is sent to the customer using the `eta_customer` SMS template. The message includes the estimated arrival time. The `eta_sent` flag on `task_status` prevents duplicate sends.
-
-### Checkpoint Messages
-
-Certain task status transitions trigger automatic SMS to the customer:
-- "On the way" → ETA message
-- "Arrived" → Arrival notification
-- "Setup complete" → Setup confirmation
-
-Templates are managed in the admin Message Templates tab.
-
-### Post-Pickup Google Review Request
-
-After pickup is complete, an SMS is sent to the customer requesting a Google Review. The template includes the `google_review_url` from admin settings. The `add_google_review_to_pickup` setting controls whether this message is sent.
+The request can trigger a reminder SMS (`pictures_reminder` template) to the customer.
 
 ---
 
@@ -251,28 +266,17 @@ From the Task Detail Modal, admins have direct order management controls without
 |---|---|---|
 | **Record Cash Payment** | Balance due > $0 | Calls `record-cash-payment` edge function; atomically creates payment record, updates `balance_paid_cents`, logs to changelog, sends receipt email |
 | **Record Check Payment** | Balance due > $0 | Calls `record-check-payment` edge function; requires check number; same atomic flow as cash |
-| **Charge Card on File** | Balance due > $0 AND Stripe card saved | Calls `charge-deposit` edge function with `selectedPaymentType: 'balance'`; charges off-session, sends receipt, updates `balance_due_cents` |
+| **Charge Card on File** | Balance due > $0 AND Stripe card saved | Calls `charge-deposit` edge function with `selectedPaymentType: 'balance'`; shows card brand + last four digits before confirming; charges off-session, sends receipt, updates `balance_due_cents` on order |
 | **Mark Waiver Signed (Paper)** | Waiver not yet signed | Creates `order_signatures` record marking it as paper-signed; sets `waiver_signed_at` on order |
 | **Cancel Order** | Order not in terminal state | Opens reason form → refund-intent confirmation modal ("Yes, Refund Needed" / "No Refund") → calls cancellation flow; refund flag is informational only, no automatic charge |
 
-The card details (brand and last four digits) displayed on the "Charge Card on File" button come from `payment_method_brand` and `payment_method_last_four` on the order, populated from the `Task` object's `paymentMethodBrand` and `paymentMethodLastFour` fields.
+The card details (brand and last four digits) displayed on the "Charge Card on File" button come from `payment_method_brand` and `payment_method_last_four` on the order.
 
 ---
 
 ## Crew Invoice Builder (`CrewInvoiceBuilder`)
 
 Crew members can generate simplified invoices for on-site payment collection. Accessible from the crew task detail view. Provides a stripped-down invoice interface focused on collecting balance payments without exposing full admin functionality.
-
----
-
-## Real-Time Subscriptions
-
-The crew page uses Supabase Realtime to subscribe to changes in:
-- `task_status` — task card updates (status, photos, notes)
-- `route_stops` — route and ETA updates
-- `order_pictures` — new photo uploads
-
-Changes broadcast instantly to all connected crew devices without requiring a page refresh.
 
 ---
 
@@ -285,3 +289,14 @@ When viewing task details from the admin calendar, a floating header shows:
 - Payment status indicator
 
 This allows admins to quickly navigate between the operational calendar view and the financial order management view.
+
+---
+
+## Real-Time Subscriptions
+
+The crew page uses Supabase Realtime to subscribe to changes in:
+- `task_status` — task card updates (status, photos, notes)
+- `route_stops` — route and ETA updates
+- `order_pictures` — new photo uploads
+
+Changes broadcast instantly to all connected crew devices without requiring a page refresh.
