@@ -58,29 +58,41 @@ npm run dev
 
 ```
 src/
-  App.tsx                  # Root router and provider stack
-  pages/                   # Route-level page components
-  components/              # Feature-grouped UI components
-    admin/                 # Admin dashboard components
-    calendar/              # Crew calendar and day-of tools
-    checkout/              # Checkout flow
-    customer-portal/       # Customer self-service portal
-    order-detail/          # Order management modals
-    payment/               # Stripe payment components
-    quote/                 # Quote/booking form
-    waiver/                # E-signature waiver system
-    common/                # Shared layout, modals, spinners
-    shared/                # Reusable form and display components
-  contexts/                # React contexts (Auth, Business, CustomerProfile)
-  hooks/                   # Custom React hooks
-  lib/                     # Business logic, services, utilities
-    queries/               # Centralized Supabase query modules
-    constants/             # Shared constants (statuses, home base)
-  types/                   # TypeScript interfaces and types
+  App.tsx                    # Root router and provider stack
+  pages/                     # Route-level page components
+  components/
+    AdminCalendar.tsx         # Top-level crew calendar component
+    admin/                   # Admin dashboard tabs and panels
+      carousel/              # Hero carousel management
+      photos/                # Media library (Photos tab)
+      task-detail/           # Task detail sub-components
+    calendar/                # Calendar grid, day view, modals
+    checkout/                # Checkout flow components
+    common/                  # Layout, modals, error boundary, print
+    crew/                    # Crew-facing invoice builder
+    customer-portal/         # Customer self-service portal views
+    dashboard/               # Customer dashboard tabs and cards
+    forms/                   # Generic form input components
+    invoice/                 # Invoice builder sub-components
+    order/                   # Order form (address, units, summary)
+    order-detail/            # Admin order detail tabs and editors
+    payment/                 # Stripe payment components
+    pending-order/           # Pending order review components
+    quote/                   # Quote/booking form sections
+    shared/                  # Reusable display and form components
+    ui/                      # Low-level UI primitives (date/time pickers)
+    waiver/                  # E-signature waiver system
+  contexts/                  # React contexts (Auth, Business, CustomerProfile)
+  hooks/                     # Custom React hooks
+  lib/                       # Business logic, services, utilities
+    queries/                 # Centralized Supabase query modules
+    constants/               # Shared constants (statuses)
+  types/                     # TypeScript interfaces and types
 
 supabase/
-  functions/               # Deno edge functions (payments, email, SMS, etc.)
-  migrations/              # Ordered SQL migration files
+  functions/                 # Deno edge functions (payments, email, SMS, etc.)
+    _shared/                 # Shared utilities used across functions
+  migrations/                # Ordered SQL migration files
 ```
 
 ## Documentation
