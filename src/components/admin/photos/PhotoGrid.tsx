@@ -2,11 +2,15 @@ import { Image } from 'lucide-react';
 import type { AdminPhoto, PhotoSource } from '../../../hooks/useAdminPhotos';
 import { PhotoCard } from './PhotoCard';
 
+export const PAGE_SIZE = 24;
+
 interface PhotoGridProps {
   photos: AdminPhoto[];
   loading: boolean;
   activeFilter: PhotoSource | 'all';
   onPhotoClick: (photo: AdminPhoto) => void;
+  visibleCount: number;
+  onLoadMore: () => void;
 }
 
 const EMPTY_MESSAGES: Record<PhotoSource | 'all', { title: string; body: string }> = {
@@ -16,7 +20,7 @@ const EMPTY_MESSAGES: Record<PhotoSource | 'all', { title: string; body: string 
   },
   lot: {
     title: 'No lot photos yet',
-    body: "Lot photos are uploaded by customers before their event so you can review the setup location.",
+    body: 'Lot photos are uploaded by customers before their event so you can review the setup location.',
   },
   order: {
     title: 'No order photos yet',
@@ -41,24 +45,20 @@ const EMPTY_MESSAGES: Record<PhotoSource | 'all', { title: string; body: string 
 };
 
 function SkeletonCard() {
-  return (
-    <div className="aspect-square rounded-xl bg-slate-200 animate-pulse" />
-  );
+  return <div className="aspect-square rounded-xl bg-slate-200 animate-pulse" />;
 }
 
-export function PhotoGrid({ photos, loading, activeFilter, onPhotoClick }: PhotoGridProps) {
+export function PhotoGrid({ photos, loading, activeFilter, onPhotoClick, visibleCount, onLoadMore }: PhotoGridProps) {
   if (loading) {
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        {Array.from({ length: 12 }).map((_, i) => (
-          <SkeletonCard key={i} />
-        ))}
+        {Array.from({ length: 12 }).map((_, i) => <SkeletonCard key={i} />)}
       </div>
     );
   }
 
   if (photos.length === 0) {
-    const { title, body } = EMPTY_MESSAGES[activeFilter];
+    const { title, body } = EMPTY_MESSAGES[activeFilter] ?? EMPTY_MESSAGES['all'];
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center px-4">
         <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
@@ -70,11 +70,29 @@ export function PhotoGrid({ photos, loading, activeFilter, onPhotoClick }: Photo
     );
   }
 
+  const visible = photos.slice(0, visibleCount);
+  const hasMore = visibleCount < photos.length;
+
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-      {photos.map((photo) => (
-        <PhotoCard key={photo.id} photo={photo} onClick={onPhotoClick} />
-      ))}
+    <div>
+      <p className="text-xs text-slate-400 font-medium mb-3 tabular-nums">
+        Showing {visible.length} of {photos.length} photo{photos.length !== 1 ? 's' : ''}
+      </p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        {visible.map((photo) => (
+          <PhotoCard key={photo.id} photo={photo} onClick={onPhotoClick} />
+        ))}
+      </div>
+      {hasMore && (
+        <div className="mt-6 text-center">
+          <button
+            onClick={onLoadMore}
+            className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm rounded-xl transition-colors shadow-sm"
+          >
+            Load more ({photos.length - visibleCount} remaining)
+          </button>
+        </div>
+      )}
     </div>
   );
 }
