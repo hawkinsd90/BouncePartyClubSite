@@ -161,7 +161,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       try {
         const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`, {
           method: 'POST', headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ to: task.customerPhone, message: msg, order_id: task.orderId }),
+          body: JSON.stringify({ to: task.customerPhone, message: msg, orderId: task.orderId }),
         });
         if (!r.ok) { smsWarning = 'SMS failed to send'; console.warn('En Route SMS failed:', await r.text()); }
       } catch (e: any) { smsWarning = 'SMS failed: ' + e.message; }
@@ -217,7 +217,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       try {
         const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`, {
           method: 'POST', headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ to: task.customerPhone, message: msg, order_id: task.orderId }),
+          body: JSON.stringify({ to: task.customerPhone, message: msg, orderId: task.orderId }),
         });
         if (!r.ok) { smsWarn = 'SMS failed to send'; console.warn('Arrived SMS failed:', await r.text()); }
       } catch (e: any) { smsWarn = 'SMS failed: ' + e.message; }
@@ -418,7 +418,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       try {
         const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`, {
           method: 'POST', headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ to: task.customerPhone, message: msg, order_id: task.orderId, mediaUrls: [] }),
+          body: JSON.stringify({ to: task.customerPhone, message: msg, orderId: task.orderId, mediaUrls: [] }),
         });
         if (!r.ok) { smsWarn = 'SMS failed to send'; console.warn('Drop-off SMS failed:', await r.text()); }
       } catch (e: any) { smsWarn = 'SMS failed: ' + e.message; }
