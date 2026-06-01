@@ -710,7 +710,7 @@ Applied when `location_type === 'commercial'` OR `overnight_allowed === false`. 
 ### Tax
 
 Applied at exactly 6% (hardcoded in the engine) on (subtotal + travel fee + surface fee + generator fee). The same-day pickup fee is **excluded** from the tax base. Controlled by:
-- `apply_taxes_by_default` on `pricing_rules` — defaults to `true` for backward compatibility
+- `apply_taxes_by_default` on `pricing_rules` — currently `false` in the live database (tax is OFF by default for new orders)
 - Per-order `tax_waived` flag — admin can waive per order with reason
 - Historical orders were backfilled via the `backfill_tax_waived_for_old_orders` migration to honor the original no-tax policy.
 
@@ -915,7 +915,7 @@ Stores the actual content of every SMS message exchanged with a customer:
 - `twilio_message_sid` — Twilio's unique message identifier
 - `is_admin_internal` — flags messages meant only for admin eyes
 - `order_id` — links to the relevant order for display in Order Detail SMS tab
-- `customer_phone` — the customer's phone number (joins conversations to customers)
+- `status` — delivery status from Twilio
 
 ### `messages` — The Notification Dispatch Log
 

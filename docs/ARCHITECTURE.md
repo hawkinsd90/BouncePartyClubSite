@@ -266,7 +266,7 @@ Single-row configuration table (one row for the whole system). All pricing optio
 | `included_city_list_json` | JSONB list of free cities (legacy/alternative format) |
 | `zone_overrides_json` | JSONB map of ZIP code → flat fee (overrides distance-based) |
 | `residential_multiplier` | Price multiplier for residential orders (e.g., `1.0`) |
-| `commercial_multiplier` | Price multiplier for commercial orders (e.g., `1.2`) |
+| `commercial_multiplier` | Price multiplier for commercial orders (e.g., `1.0` — currently same as residential) |
 | `surface_sandbag_fee_cents` | Fee charged when sandbags/stakes are needed |
 | `same_day_pickup_fee_cents` | Surcharge for same-day pickup |
 | `same_day_matrix_json` | Reserved JSON matrix for future same-day pricing logic (not currently used) |
@@ -514,7 +514,7 @@ Pricing is computed in `src/lib/pricing.ts` using rules fetched from the `pricin
 4. Surface fee — charged when surface is `cement` OR (`grass` AND stakes cannot be used). Amount: `surface_sandbag_fee_cents`.
 5. Same-day pickup fee — charged when `location_type === 'commercial'` OR `!overnight_allowed`. Amount: `same_day_pickup_fee_cents` from `pricing_rules`.
 6. Generator fee — single generator: `generator_fee_single_cents` (fallback to `generator_price_cents`). Two or more: first at `generator_fee_single_cents`, each additional at `generator_fee_multiple_cents`. Formula: `single_fee + (multiple_fee × (qty - 1))`.
-7. Tax — 6% (hardcoded) applied to (subtotal + travel + surface + generator fees — does NOT include same-day pickup fee). Only applied if `apply_taxes_by_default` is enabled on `pricing_rules` (defaults `true` for backward compatibility).
+7. Tax — 6% (hardcoded) applied to (subtotal + travel + surface + generator fees — does NOT include same-day pickup fee). Only applied if `apply_taxes_by_default` is enabled on `pricing_rules` (currently `false` in the live database — tax is OFF by default for new orders).
 8. Deposit — `quantity_of_units × deposit_per_unit_cents` (default $50/unit). Admin can override per-order with `custom_deposit_cents`. Note: the `deposit_percentage` column exists on `pricing_rules` but is not used by the pricing engine.
 9. Balance due — `Math.max(0, total_cents - deposit_due_cents)`
 
@@ -556,7 +556,7 @@ Availability is checked at two trusted enforcement points:
 
 ## Database Functions and RPCs
 
-All 87 database functions (confirmed from live DB). Functions marked `SECURITY DEFINER` run with elevated privileges and have explicit `search_path` to prevent schema injection.
+All 64 database functions (confirmed from live DB — `check_unit_availability` appears twice as two overloaded signatures). Functions marked `SECURITY DEFINER` run with elevated privileges and have explicit `search_path` to prevent schema injection.
 
 ### Business Logic RPCs
 
@@ -622,6 +622,8 @@ All trigger functions are `SECURITY DEFINER`:
 | `redact_sensitive_changelog_values()` | Before insert on `admin_settings_changelog` — redacts values for keys containing `key`, `secret`, `token`, `sid`, or `password` |
 | `sync_invoice_links_expires_at()` | `orders.event_date` change — updates expiration on related `invoice_links` rows |
 | `update_blackout_*_timestamp()` | Updates to blackout tables — maintains `updated_at` |
+| `update_contact_stats()` | `contacts` table updates — recalculates lifetime stats |
+| `update_*_updated_at()` / `update_updated_at_column()` | Various tables — maintains `updated_at` timestamp on row changes |
 | `update_contact_booking_stats()` | Order inserts/updates — maintains `contacts` lifetime stats and loyalty flags |
 | `validate_order_status_transition()` | Before order update — rejects transitions not in the valid state graph |
 
