@@ -54,12 +54,40 @@ The following secrets are stored as rows in the `admin_settings` database table 
 | `admin_phone` / `admin_notification_phone` | Admin notification phone number |
 | `google_maps_api_key` | Google Maps API key (also available as VITE_ env for frontend) |
 | `google_oauth_client_id` | Google OAuth client ID (used for Google Sign-In button) |
+| `google_oauth_client_secret` | Google OAuth client secret (server-side only) |
 | `google_calendar_client_id` | Google Calendar OAuth client ID |
 | `google_calendar_client_secret` | Google Calendar OAuth client secret |
 | `google_calendar_refresh_token` | Long-lived refresh token |
 | `google_calendar_id` | Target calendar ID |
-| `google_calendar_enabled` | Toggle calendar sync on/off |
+| `google_calendar_enabled` | Toggle calendar sync on/off (`'true'` / `'false'`) |
 | `google_review_url` | Google Review page URL |
+| `google_maps_url` | Google Maps listing URL for the business |
+| `supabase_url` | Supabase project URL (used at runtime by edge functions that cannot access env vars) |
+| `home_address` | Business home base street address for travel fee origin |
+| `home_address_lat` | Home base latitude (decimal) |
+| `home_address_lng` | Home base longitude (decimal) |
+| `home_base_radius_miles` | Free-travel radius in miles from home base |
+| `travel_fee_per_mile` | Per-mile rate in dollars charged beyond free radius |
+| `apply_travel_fee_by_default` | Whether travel fees are auto-applied on new orders (`'true'` / `'false'`) |
+| `use_business_address_for_travel` | Use home address for travel calculations instead of stored coordinates |
+| `carousel_show_arrows` | Whether navigation arrows appear on the homepage carousel |
+| `apply_taxes_by_default` | Whether tax is applied by default on new orders (`'true'` / `'false'`) |
+| `business_name` | Business display name |
+| `business_name_short` | Short business name (for compact displays) |
+| `business_legal_entity` | Legal entity name (for waivers and invoices) |
+| `business_address` | Full business address |
+| `business_phone` | Business contact phone number |
+| `business_email` | Business contact email address |
+| `business_website` | Business website URL |
+| `business_license_number` | License number for legal documents |
+| `logo_url` | URL to the business logo (used in all emails and portal) |
+| `favicon_url` | URL to the favicon |
+| `brand_primary_color` | Hex color for branding (e.g., `#3b82f6`) |
+| `facebook_url` | Facebook page URL |
+| `instagram_url` | Instagram profile URL |
+| `tiktok_url` | TikTok profile URL |
+| `youtube_url` | YouTube channel URL |
+| `yelp_url` | Yelp business listing URL |
 
 **Do not add these to Netlify's environment variables panel, `.env`, or any other frontend-accessible location.** They are only readable by Supabase edge functions running server-side with the service role key.
 
@@ -107,6 +135,8 @@ The `stripe-webhook` edge function enforces:
 2. Every incoming request is verified using Stripe's `constructEvent()` with the webhook signing secret. Invalid signatures return 400.
 3. Idempotency: every processed webhook event ID is stored in `stripe_webhook_events`. Duplicate events are silently discarded.
 
+The `stripe_webhook_events` table tracks each event with `status` (`processed`, `failed`, `skipped`), `attempts` count, and `last_error` for operational visibility. This enables admins to identify stuck or repeatedly-failing webhook events without digging through edge function logs.
+
 ---
 
 ## Rate Limiting
@@ -119,6 +149,8 @@ Protected endpoints:
 - Email sending
 
 The rate limiter uses a sliding-window approach. On each request it reads `(identifier, endpoint)` from the `rate_limits` table, increments the counter, and sets a `blocked_until` timestamp when the threshold is exceeded.
+
+A `cleanup_old_rate_limits()` database function purges expired rate limit rows. This should be called periodically (e.g., via a scheduled job) to prevent the `rate_limits` table from growing unbounded.
 
 ---
 
@@ -206,6 +238,45 @@ All outbound SMS messages sent via `send-sms-notification` must pass `orderId` (
 - Order status transitions are validated by the `validate_order_status_transition` database function — invalid transitions are rejected with an error before any change is made
 - All RPC functions that require elevated privilege run with `SECURITY DEFINER` and explicit `search_path` set to prevent schema injection
 - The `check_date_blackout` function correctly handles wrap-aware annual recurrence patterns (date ranges that span year-end)
+
+---
+
+## Consent Compliance
+
+The application maintains a complete, auditable record of every consent given (or declined) by customers for:
+- **SMS marketing** — consent to receive SMS messages from the business
+- **Card on file** — consent to save a card for future charges
+
+Consent is captured in two stages:
+
+1. **Pre-auth staging (`pending_signups_consent`)** — consent given during checkout before the customer has an account is stored with a `batch_id` UUID so it can be matched to the account after signup.
+2. **Permanent log (`user_consent_log`)** — after sign-in, the `record-consent` edge function drains pending consent into this table. The unique index on `(user_id, consent_batch_id, consent_type)` prevents duplicate entries even if the drain fires from multiple tabs.
+
+Each consent record stores: `user_id`, `customer_id`, `consent_type`, `consented` (bool), `policy_version`, `source` (checkout, signup, etc.), `consent_batch_id`, `ip_hint`, and `user_agent_hint`.
+
+---
+
+## Auth Trigger Debugging
+
+Every execution of the `handle_new_user` Postgres trigger (which fires on new user creation) is logged to the `auth_trigger_logs` table. This table records:
+- `user_id` — the new user's UUID
+- `event` — the trigger event type
+- `message` — status message or error
+- `created_at` — timestamp
+
+This provides a persistent debug trail for diagnosing signup failures, OAuth profile merge issues, or role assignment errors without needing to inspect edge function or Supabase Auth logs.
+
+---
+
+## Role Management Security
+
+All role changes go through RPCs that enforce the role hierarchy at the database level:
+
+- `assign_role_by_email` and `assign_user_role` check that the caller's role is at or above the target role being assigned
+- `remove_user_role` enforces the same hierarchy for revocations
+- Every insert/delete in `user_roles` fires the `log_permission_change` trigger, embedding the actor's email at write time for an immutable audit trail
+
+The `user_permissions_changelog` table retains a full history of all role grants and revocations, which remains accurate even if the actor's email address is later changed.
 
 ---
 

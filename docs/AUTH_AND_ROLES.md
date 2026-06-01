@@ -194,10 +194,17 @@ Behavior:
 
 ## Role Management
 
-Roles are assigned and revoked through the admin Permissions tab. Two database RPCs handle this:
+Roles are assigned and revoked through the admin Permissions tab. Seven database RPCs handle role operations:
 
-- `assign_role_by_email(email, role)` — grants a role to a user by email
-- `get_all_role_users()` — returns all users with non-customer roles (excludes `customer` role)
+| RPC | Arguments | Purpose |
+|---|---|---|
+| `assign_role_by_email(p_email, p_role)` | email text, role text | Grants a role to a user identified by email address |
+| `assign_user_role(target_user_id, target_role)` | uuid, text | Grants a role to a user identified by UUID |
+| `remove_user_role(target_user_id, target_role)` | uuid, text | Revokes a specific role from a user by UUID |
+| `get_all_role_users()` | — | Returns all users with non-customer roles (excludes `customer` role) |
+| `get_admin_users()` | — | Returns all users with `admin` or `master` role |
+| `get_user_highest_role(check_user_id)` | uuid | Returns the highest role for a given user (master > admin > crew > customer) |
+| `user_has_role(check_user_id, check_role)` | uuid, text | Returns boolean — whether a user has a specific role |
 
 ### Permissions Audit Log
 

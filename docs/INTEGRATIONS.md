@@ -39,12 +39,16 @@ Credentials stored in `admin_settings`:
 
 #### Checkout Bridge (`checkout-bridge` edge function)
 
-After Stripe redirects the customer to `/payment-complete`, the `checkout-bridge` edge function:
-1. Receives the Stripe session ID
-2. Verifies payment status via `reconcile-balance-payment` (race-condition-safe)
-3. Updates order status from `draft` to `pending_review`
-4. Triggers admin notification
-5. Returns the updated order for display on the success page
+After the customer completes payment on Stripe's hosted page, Stripe redirects to the `checkout-bridge` edge function (hosted on the Supabase domain) with query parameters: `orderId`, `session_id`, and `origin`.
+
+The bridge is a minimal HTML page with inline JavaScript that:
+1. Reads `orderId`, `session_id`, and `origin` from the URL query string
+2. Calls `window.opener.postMessage({ type: 'BPC_CHECKOUT_COMPLETE', orderId, session_id }, origin)` to send the payment result back to the original checkout window
+3. Calls `window.close()` to close itself
+
+**Why this exists:** Stripe cannot redirect to `localhost` URLs (or any non-HTTPS URL) in development. The `checkout-bridge` lives on the Supabase domain (always accessible, no CORS issues) and acts as a relay. The checkout window listens for the `BPC_CHECKOUT_COMPLETE` postMessage event and navigates to the booking confirmation page once received.
+
+The actual payment reconciliation (verifying the Stripe session, updating order status, sending confirmation emails) is handled separately by the `stripe-webhook` edge function processing Stripe's webhook events — not by the checkout bridge.
 
 #### Setup Mode (Card-on-File Only)
 
@@ -152,7 +156,7 @@ Credentials are read at runtime by each edge function that needs them — never 
 All outbound SMS goes through the `send-sms-notification` edge function:
 - Reads Twilio credentials from `admin_settings`
 - Calls Twilio REST API to send the message
-- If `orderId` (camelCase) is provided, logs the message to `messages` table linked to the `sms_conversations` record
+- If `orderId` (camelCase) is provided, logs the message to the `sms_conversations` table linked to the order
 - Returns success/failure to caller
 
 **Thread Linking:** The request body field must be `orderId` (camelCase). Using `order_id` (snake_case) is silently ignored — messages sent that way are stored with `order_id = null` and do not appear in the order SMS thread.
@@ -165,12 +169,11 @@ Twilio calls the `twilio-webhook` edge function when a customer texts the busine
 
 2. **Conversation Lookup** — finds or creates an `sms_conversations` record for the sender's phone number. Links to an order if the phone number matches a customer.
 
-3. **Message Storage** — stores the inbound message in `messages` with:
+3. **Message Storage** — stores the inbound message in `sms_conversations` with:
    - `direction: 'inbound'`
    - `from_phone`, `to_phone`
    - `message_body`
    - `twilio_message_sid`
-   - `channel: 'sms'`
 
 4. **Admin Notification** — forwards the message to the admin via SMS and email.
 

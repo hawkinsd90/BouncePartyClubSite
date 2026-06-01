@@ -67,7 +67,7 @@ Reads Twilio credentials (Account SID, Auth Token, From Number) from the `admin_
 }
 ```
 
-If `orderId` is provided, the outbound message is logged to the `messages` table under the customer's `sms_conversations` record and appears in the order's SMS thread in the admin panel.
+If `orderId` is provided, the outbound message is stored in the `sms_conversations` table linked to the order and appears in the order's SMS thread in the admin panel.
 
 ---
 
@@ -256,7 +256,7 @@ Inbound SMS from customers is received by the `twilio-webhook` edge function. It
 
 1. **Validates** the `X-Twilio-Signature` header against the webhook URL and POST body using the Twilio Auth Token. Rejects any request with an invalid signature.
 2. **Finds or creates** an `sms_conversations` record for the sender's phone number.
-3. **Stores** the message in `messages` with `direction: 'inbound'`, `from_phone`, `to_phone`, `message_body`, `twilio_message_sid`, and `channel: 'sms'`.
+3. **Stores** the inbound message in `sms_conversations` with `direction: 'inbound'`, `from_phone`, `to_phone`, `message_body`, `twilio_message_sid`.
 4. **Forwards** the message content to the admin via SMS and email notification so they know a customer replied.
 
 The admin can reply from the order detail SMS conversation panel, which calls `send-sms-notification` directly.
@@ -270,3 +270,16 @@ Twilio calls this endpoint with delivery status updates for outbound messages:
 - `failed`, `undelivered` — delivery failed
 
 Failed deliveries can trigger a `notification_failures` entry and contribute to the consecutive failure counter monitored by the admin Notification Failures panel.
+
+---
+
+## SMS Architecture: Two Distinct Tables
+
+The SMS system uses two separate tables with distinct purposes — they are not related by foreign key:
+
+| Table | Purpose | Columns |
+|---|---|---|
+| `sms_conversations` | Actual SMS thread — all inbound and outbound messages linked to an order | `order_id`, `from_phone`, `to_phone`, `message_body`, `direction`, `twilio_message_sid`, `is_admin_internal` |
+| `messages` | Notification dispatch log — records what was sent, to whom, and via which channel | `order_id`, `to_phone`, `to_email`, `channel`, `template_key`, `payload_json`, `sent_at`, `status` |
+
+The `messages` table does **not** store message bodies. It is a structured log of notification dispatch events (which template was triggered, when, and whether it succeeded). The `sms_conversations` table stores the full text of every SMS message exchanged with a customer and is what drives the SMS thread UI in the admin order panel.

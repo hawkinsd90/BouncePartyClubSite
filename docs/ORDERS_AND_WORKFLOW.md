@@ -412,12 +412,16 @@ Admins can manually build invoices from the Invoices tab with:
 
 ## Checkout Bridge (`checkout-bridge` edge function)
 
-The `checkout-bridge` edge function orchestrates the handoff between checkout completion and order lifecycle progression. After Stripe redirects the customer to `/payment-complete`, this function:
-1. Receives the Stripe session ID
-2. Verifies payment status (race-condition-safe via `reconcile-balance-payment`)
-3. Updates order status from `draft` to `pending_review`
-4. Triggers admin notification
-5. Returns the updated order for display on the success page
+The `checkout-bridge` is a minimal HTML page served from the Supabase edge function domain. After the customer completes payment on Stripe's hosted checkout, Stripe redirects to this page with query parameters: `orderId`, `session_id`, and `origin`.
+
+The page's inline JavaScript:
+1. Reads `orderId`, `session_id`, and `origin` from the URL query string
+2. Calls `window.opener.postMessage({ type: 'BPC_CHECKOUT_COMPLETE', orderId, session_id }, origin)` to send the payment completion signal back to the original checkout window
+3. Calls `window.close()` to close itself
+
+The original checkout tab listens for the `BPC_CHECKOUT_COMPLETE` message and navigates to the booking confirmation page.
+
+**Why this exists:** Stripe cannot redirect to `localhost` or arbitrary development URLs. The bridge lives on the Supabase domain (always accessible, no CORS issues) and acts as a secure cross-domain relay. Actual payment reconciliation (verifying the session, recording payment, updating order status, sending emails) is handled by the `stripe-webhook` edge function processing Stripe's webhook — not by this bridge page.
 
 ---
 
