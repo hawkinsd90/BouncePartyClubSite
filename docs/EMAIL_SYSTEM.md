@@ -279,7 +279,7 @@ The SMS system uses two separate tables with distinct purposes — they are not 
 
 | Table | Purpose | Columns |
 |---|---|---|
-| `sms_conversations` | Actual SMS thread — all inbound and outbound messages linked to an order | `order_id`, `from_phone`, `to_phone`, `message_body`, `direction`, `twilio_message_sid`, `is_admin_internal` |
+| `sms_conversations` | Actual SMS thread — all inbound and outbound messages linked to an order | `order_id`, `from_phone`, `to_phone`, `message_body`, `direction`, `twilio_message_sid`, `status`, `is_admin_internal` |
 | `messages` | Notification dispatch log — records what was sent, to whom, and via which channel | `order_id`, `to_phone`, `to_email`, `channel`, `template_key`, `payload_json`, `sent_at`, `status` |
 
 The `messages` table does **not** store message bodies. It is a structured log of notification dispatch events (which template was triggered, when, and whether it succeeded). The `sms_conversations` table stores the full text of every SMS message exchanged with a customer and is what drives the SMS thread UI in the admin order panel.

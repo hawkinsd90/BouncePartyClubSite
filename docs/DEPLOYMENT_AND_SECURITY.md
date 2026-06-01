@@ -63,7 +63,11 @@ The following secrets are stored as rows in the `admin_settings` database table 
 | `google_review_url` | Google Review page URL |
 | `google_maps_url` | Google Maps listing URL for the business |
 | `supabase_url` | Supabase project URL (used at runtime by edge functions that cannot access env vars) |
-| `home_address` | Business home base street address for travel fee origin |
+| `home_address_line1` | Business home base street address line 1 for travel fee origin |
+| `home_address_line2` | Business home base street address line 2 |
+| `home_address_city` | Business home base city |
+| `home_address_state` | Business home base state |
+| `home_address_zip` | Business home base ZIP code |
 | `home_address_lat` | Home base latitude (decimal) |
 | `home_address_lng` | Home base longitude (decimal) |
 | `home_base_radius_miles` | Free-travel radius in miles from home base |

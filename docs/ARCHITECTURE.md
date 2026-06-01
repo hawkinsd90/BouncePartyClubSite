@@ -512,15 +512,15 @@ Pricing is computed in `src/lib/pricing.ts` using rules fetched from the `pricin
 2. Extra day charges — `day1Subtotal × (extra_day_pct / 100) × (numDays - 1)`
 3. Travel fee (see `travelFeeCalculator.ts`)
 4. Surface fee — charged when surface is `cement` OR (`grass` AND stakes cannot be used). Amount: `surface_sandbag_fee_cents`.
-5. Same-day pickup fee — charged when `location_type === 'commercial'` OR `overnight_allowed === false`. Amount: `same_day_pickup_fee_cents`.
-6. Generator fee — single generator: `generator_fee_single_cents` (fallback to `generator_price_cents`, default $100). Two or more: first at single price, each additional at `generator_fee_multiple_cents` (default $75).
-7. Tax — 6% (hardcoded) on (subtotal + travel + surface + generator fees), only if `apply_taxes_by_default` is enabled.
-8. Deposit — `quantity_of_units × deposit_per_unit_cents` (default $50/unit). Admin can override with `custom_deposit_cents`.
+5. Same-day pickup fee — charged when `location_type === 'commercial'` OR `!overnight_allowed`. Amount: `same_day_pickup_fee_cents` from `pricing_rules`.
+6. Generator fee — single generator: `generator_fee_single_cents` (fallback to `generator_price_cents`). Two or more: first at `generator_fee_single_cents`, each additional at `generator_fee_multiple_cents`. Formula: `single_fee + (multiple_fee × (qty - 1))`.
+7. Tax — 6% (hardcoded) applied to (subtotal + travel + surface + generator fees — does NOT include same-day pickup fee). Only applied if `apply_taxes_by_default` is enabled on `pricing_rules` (defaults `true` for backward compatibility).
+8. Deposit — `quantity_of_units × deposit_per_unit_cents` (default $50/unit). Admin can override per-order with `custom_deposit_cents`. Note: the `deposit_percentage` column exists on `pricing_rules` but is not used by the pricing engine.
 9. Balance due — `Math.max(0, total_cents - deposit_due_cents)`
 
 Any fee can be administratively waived with a documented reason. Waived fees are stored as boolean flags + reason text on the `orders` record.
 
-**Note:** The `same_day_matrix_json` column exists on `pricing_rules` but is not used in the current pricing engine.
+**Note:** The `same_day_matrix_json` column exists on `pricing_rules` and is populated in the live database, but is not used in the current pricing engine (`calculatePrice` in `pricing.ts`). It is defined in the `PricingRules` interface for future use.
 
 ### Travel Fee Zones (`src/lib/travelFeeCalculator.ts`)
 
@@ -556,7 +556,7 @@ Availability is checked at two trusted enforcement points:
 
 ## Database Functions and RPCs
 
-All 63 database functions (confirmed from live DB). Functions marked `SECURITY DEFINER` run with elevated privileges and have explicit `search_path` to prevent schema injection.
+All 87 database functions (confirmed from live DB). Functions marked `SECURITY DEFINER` run with elevated privileges and have explicit `search_path` to prevent schema injection.
 
 ### Business Logic RPCs
 

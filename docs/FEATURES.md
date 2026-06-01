@@ -699,30 +699,26 @@ The stored `travel_fee_cents` on the order reflects which tier was used. Admins 
 
 ### Surface Fee
 
-A flat `surface_fee_cents` applies when the surface type is `concrete` or `indoor`. Can be waived with `surface_fee_waived` flag.
+A flat `surface_sandbag_fee_cents` applies when the surface type is `cement`, OR when the surface is `grass` AND `can_use_stakes` is false. Can be waived with `surface_fee_waived` flag.
 
 ### Same-Day Pickup Fee
 
-Applied when the customer selects same-day pickup (pickup same day as delivery). Rate is `same_day_pickup_fee_cents`. Can be waived.
+Applied when `location_type === 'commercial'` OR `overnight_allowed === false`. Rate is `same_day_pickup_fee_cents` from `pricing_rules`. Can be waived with `same_day_pickup_fee_waived` flag.
 
-### Sandbag Fee
-
-Applied when the customer selects sandbags for hard surfaces. Rate is `sandbag_fee_cents`. Can be waived.
+**Note:** The `same_day_matrix_json` column exists on `pricing_rules` and is populated in the live database with tiered same-day pricing entries, but is not used by the current `calculatePrice` engine. It is reserved for future tiered same-day pricing logic.
 
 ### Tax
 
-Applied as a percentage (`tax_rate`) of the subtotal (units + fees). Controlled by:
-- `apply_taxes_by_default` admin setting — whether tax is auto-applied on new orders
+Applied at exactly 6% (hardcoded in the engine) on (subtotal + travel fee + surface fee + generator fee). The same-day pickup fee is **excluded** from the tax base. Controlled by:
+- `apply_taxes_by_default` on `pricing_rules` — defaults to `true` for backward compatibility
 - Per-order `tax_waived` flag — admin can waive per order with reason
-- The `backfill_tax_waived_for_old_orders` migration backfilled historical orders to honor the original no-tax policy.
+- Historical orders were backfilled via the `backfill_tax_waived_for_old_orders` migration to honor the original no-tax policy.
 
 ### Deposit
 
-Deposit amount is the higher of:
-- `deposit_per_unit_cents × number_of_units` (fixed per-unit rate)
-- `deposit_percentage × order_total` (percentage of total)
+Deposit amount is calculated as `quantity_of_units × deposit_per_unit_cents` (default $50/unit from `pricing_rules.deposit_per_unit_cents`). Admin can override per-order with `custom_deposit_cents`.
 
-The `deposit_percentage` field on `pricing_rules` takes effect only if it produces a higher deposit than the per-unit rate.
+**Note:** The `deposit_percentage` column exists on `pricing_rules` but is NOT used by the current `calculatePrice` engine. Deposit is always per-unit in the live calculation.
 
 ### Overnight Pricing
 
@@ -742,7 +738,7 @@ User behavior is tracked via `src/lib/siteEvents.ts` and stored in the `site_eve
 | `checkout_started` | Customer reaches the checkout page |
 | `checkout_completed` | Payment successfully completed |
 
-Each event record includes: `event_type`, `session_id` (UUID per browser session), `path`, `metadata` (JSON with relevant details like unit slug), `user_agent`, `created_at`.
+Each event record includes: `event_name`, `session_id` (text per browser session), `page_path`, `unit_id` (FK if applicable), `order_id` (FK if applicable), `referrer`, `metadata` (JSONB), `created_at`.
 
 **Admin bypass:** The `siteEvents.ts` module checks the user's role before recording any event. Admin and master users are excluded from tracking entirely to prevent internal navigation from polluting funnel conversion data.
 
