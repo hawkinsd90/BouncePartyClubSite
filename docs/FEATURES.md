@@ -492,11 +492,13 @@ The `PaymentBackfillSection` admin component allows admins to retroactively fix 
 
 ## SMS Conversations
 
-Each customer phone number has a dedicated `sms_conversations` record. Inbound and outbound messages are stored in the `messages` table.
+Each customer phone number has a dedicated SMS thread stored in the `sms_conversations` table. Each record stores the actual message body, direction (inbound/outbound), Twilio message SID, and the linked `order_id`.
 
 Admins view and reply to SMS threads directly from the order detail SMS tab. The `twilio-webhook` edge function handles inbound messages and routes them to the correct conversation by phone number.
 
-**Important:** Messages only appear in an order's SMS thread if the outgoing send was made with `orderId` (camelCase) in the edge function request body. Messages sent without `orderId` are stored with `order_id = null` and are invisible in the order thread.
+**Important:** Messages only appear in an order's SMS thread if the outgoing send was made with `orderId` (camelCase) in the `send-sms-notification` edge function request body. Messages sent without `orderId` are stored with `order_id = null` and are invisible in the order thread.
+
+Note: The separate `messages` table is a notification dispatch log (template key, channel, payload, status) — it does NOT store message body text. See the "SMS Architecture: Two Distinct Tables" section below.
 
 ---
 
@@ -663,3 +665,296 @@ Admin users also have access to the crew page. The crew page does not show finan
 ## Menu Preview (`/menu-preview`)
 
 A printable catalog page showing all active units with photos, dimensions, pricing, and capacity. Used for in-person sales or as a PDF handout. Accessible without login.
+
+The page preloads all unit images before triggering the browser print dialog, preventing missing images in the printed output. Data is passed via `sessionStorage` (key `menuPreviewData`) to support print-optimized rendering without a separate network request.
+
+---
+
+## Pricing Engine
+
+Pricing is calculated in `src/lib/pricing.ts` using the `PricingRules` record from `admin_settings`. The engine is used both client-side (live quote updates) and server-side (order validation at checkout).
+
+### Unit Price
+
+Each unit contributes either `price_dry_cents` or `price_water_cents` depending on the order's `water_slide` flag.
+
+### Multi-Day Pricing
+
+Multi-day orders use the `extra_day_pct` field on `pricing_rules` (default 0.5) to calculate additional day charges. Each day beyond the first costs `price × extra_day_pct`. The full duration spanning `event_date` to `event_end_date` is used.
+
+### Travel Fee (Three-Tier Logic)
+
+1. **ZIP Zone Override** — if the event address ZIP code is in the `zip_travel_overrides` map (from `pricing_rules`), that fixed fee applies.
+2. **Free Cities List** — if the city is in the `free_travel_cities` array, the travel fee is $0.
+3. **Distance-Based** — miles beyond `home_base_radius_miles` from the home address are charged at `travel_fee_per_mile` per mile. Distance is calculated via Google Maps Distance Matrix.
+
+The stored `travel_fee_cents` on the order reflects which tier was used. Admins can waive the travel fee per-order with a reason.
+
+### Generator Fee Tiering
+
+- First generator: charged at `generator_fee_single_cents`
+- Each additional generator: charged at `generator_fee_multiple_cents`
+- Total: `generator_fee_single_cents + (count - 1) × generator_fee_multiple_cents`
+- Can be waived with `generator_fee_waived` flag.
+
+### Surface Fee
+
+A flat `surface_fee_cents` applies when the surface type is `concrete` or `indoor`. Can be waived with `surface_fee_waived` flag.
+
+### Same-Day Pickup Fee
+
+Applied when the customer selects same-day pickup (pickup same day as delivery). Rate is `same_day_pickup_fee_cents`. Can be waived.
+
+### Sandbag Fee
+
+Applied when the customer selects sandbags for hard surfaces. Rate is `sandbag_fee_cents`. Can be waived.
+
+### Tax
+
+Applied as a percentage (`tax_rate`) of the subtotal (units + fees). Controlled by:
+- `apply_taxes_by_default` admin setting — whether tax is auto-applied on new orders
+- Per-order `tax_waived` flag — admin can waive per order with reason
+- The `backfill_tax_waived_for_old_orders` migration backfilled historical orders to honor the original no-tax policy.
+
+### Deposit
+
+Deposit amount is the higher of:
+- `deposit_per_unit_cents × number_of_units` (fixed per-unit rate)
+- `deposit_percentage × order_total` (percentage of total)
+
+The `deposit_percentage` field on `pricing_rules` takes effect only if it produces a higher deposit than the per-unit rate.
+
+### Overnight Pricing
+
+The `overnight_holiday_only` flag on `pricing_rules` restricts overnight rental availability to holiday dates only. When enabled, overnight pickup is blocked on non-holiday dates.
+
+---
+
+## Site Analytics and Admin Bypass
+
+User behavior is tracked via `src/lib/siteEvents.ts` and stored in the `site_events` table. Tracked events follow a conversion funnel:
+
+| Event | When |
+|---|---|
+| `unit_view` | Customer views a unit detail page |
+| `cart_started` | Customer adds first item to cart |
+| `cart_submitted` | Customer submits the quote form |
+| `checkout_started` | Customer reaches the checkout page |
+| `checkout_completed` | Payment successfully completed |
+
+Each event record includes: `event_type`, `session_id` (UUID per browser session), `path`, `metadata` (JSON with relevant details like unit slug), `user_agent`, `created_at`.
+
+**Admin bypass:** The `siteEvents.ts` module checks the user's role before recording any event. Admin and master users are excluded from tracking entirely to prevent internal navigation from polluting funnel conversion data.
+
+---
+
+## Customer Portal Realtime Subscriptions
+
+The Customer Portal subscribes to live Supabase Realtime changes on 6 tables simultaneously to show real-time updates without requiring page refreshes:
+
+| Table | Purpose |
+|---|---|
+| `orders` | Order status changes, payment updates |
+| `task_status` | Crew workflow status (en route, arrived, etc.) |
+| `route_stops` | ETA updates from route optimization |
+| `order_pictures` | New customer-uploaded photos |
+| `order_lot_pictures` | New lot photos uploaded by crew |
+| `order_signatures` | Waiver signing completion |
+
+All 6 subscriptions are debounced (600ms) before refreshing data to prevent excessive re-renders when multiple changes fire in rapid succession. Subscriptions are scoped to the specific `order_id` and cleaned up on unmount.
+
+---
+
+## Invoice Acceptance Flow (Three Paths)
+
+When a customer opens their Customer Portal via the invoice link, the system determines which payment flow to present based on order configuration:
+
+### Path 1: No Card Required
+If `require_card_on_file` is false and `deposit_due_cents` is 0, the customer just accepts the invoice. No payment UI is shown. `invoice_accepted_at` is recorded.
+
+### Path 2: Card Setup Only
+If `require_card_on_file` is true but no charge is needed (deposit waived or already paid), the customer is prompted to save a card on file. A Stripe Setup Session is created (not a Payment Session). The card is saved for future use (e.g., deposit charge on approval, balance charge on completion).
+
+### Path 3: Normal Charge
+If `deposit_due_cents > 0`, the customer selects a payment amount (deposit, full, or custom), optionally adds a tip, and proceeds through Stripe checkout.
+
+All three paths are handled by the `InvoiceAcceptanceView` component which reads `require_card_on_file` and `deposit_due_cents` from the order to route to the correct flow.
+
+---
+
+## Order Approval with Change Detection
+
+When an admin modifies a confirmed order and sends it for customer review, the Customer Portal's `OrderApprovalView` component performs change detection by:
+
+1. Reading all `order_changelog` entries with `change_type = 'edit'` that occurred after `customer_approval_requested_at`
+2. Grouping changes by field name
+3. Displaying a human-readable summary of what changed (e.g., "Event date changed from June 1 to June 15")
+4. Showing the updated pricing breakdown
+
+The customer can then select how much they want to pay (deposit, full, or custom amount) before approving. On approval, the `atomic_approve_order` RPC atomically:
+- Sets `awaiting_customer_approval = false`
+- Clears `customer_approval_requested_at`
+- Sets `status = 'confirmed'` (if previously confirmed before the edit)
+- Logs the approval to `order_changelog`
+
+---
+
+## Waiver PDF Generation
+
+The `generate-signed-waiver` edge function creates a PDF of the completed waiver:
+
+1. Fetches the `order_signatures` record for the order
+2. Retrieves the business logo URL from `admin_settings`
+3. Renders a structured PDF document including:
+   - Business logo and name
+   - Full waiver text (stored verbatim in the signature record)
+   - Signer identity (name, phone, email)
+   - Signature date and IP address
+   - Device information and user agent
+   - UETA compliance statement: "This electronic signature is legally binding under the Electronic Signatures in Global and National Commerce Act (ESIGN) and the Uniform Electronic Transactions Act (UETA)"
+   - Canvas signature image (PNG data URI from the signature record)
+4. Stores the PDF in the `signed-waivers` storage bucket (private)
+5. Updates `signed_waiver_url` on the order
+
+The PDF is attached to the waiver confirmation email sent to the customer. If PDF generation is not yet complete when the email sends, a download link is provided instead.
+
+---
+
+## Repeat Customer Form Prefill
+
+When a logged-in customer starts a new quote, the `get_user_order_prefill` SECURITY DEFINER RPC is called. It returns the most recent confirmed order for that user's email address with:
+- Event address (all fields)
+- Setup details (surface type, location type, special details)
+- Generator preference
+- Contact information
+
+This data prefills the quote form so repeat customers don't need to re-enter their delivery address and setup preferences. The prefill can be cleared if the customer wants to start fresh.
+
+---
+
+## Backfill and Maintenance Tools (Admin-Only)
+
+### Address Coordinate Backfill
+
+The `AddressCoordinateBackfill` admin tool retroactively geocodes historical `addresses` records that are missing `lat` and `lng` coordinates. Uses the Google Maps Geocoding API. Essential for enabling travel fee calculations and route optimization on old orders.
+
+### Payment Method Backfill
+
+The `PaymentBackfillSection` admin tool retroactively populates `payment_method_brand` and `payment_method_last_four` on orders that were processed before these fields existed. Calls the `backfill-payment-methods` edge function which queries Stripe for each order's payment intent and updates the record.
+
+### OAuth Customer Backfill
+
+The `backfill-oauth-customers` edge function links existing customer records to auth users who signed up via Google OAuth after their orders were placed. Matches on email address and sets `user_id` on the `customers` record.
+
+---
+
+## Transaction Receipt System
+
+Every payment event generates an immutable `transaction_receipts` record. Receipts:
+- Cannot be updated or deleted after creation (enforced by RLS — no UPDATE or DELETE policies)
+- Have a unique human-readable `receipt_number` (format: `REC-{timestamp}` or sequential)
+- Group related transactions via `receipt_group_id` (e.g., deposit + tip from the same Stripe charge share a group)
+- Track `payment_type` (`stripe`, `cash`, `check`), `amount_cents`, `tip_cents`, `subtotal_cents`, `net_cents`, `stripe_fee_cents`
+- Reference `order_id`, `payment_id`, and `stripe_payment_intent_id`
+
+Receipts are viewable by customers from their Customer Dashboard and by admins from the Order Detail Payments tab.
+
+---
+
+## Rate Limiting
+
+Key edge function endpoints are protected by a sliding-window rate limiter using the `rate_limits` database table:
+
+| Endpoint | Identifier | Limit |
+|---|---|---|
+| Stripe checkout session creation | order ID + IP | Prevents brute force / repeated session creation |
+| Payment recording | order ID | Prevents duplicate payment submissions |
+| Email sending | recipient + type | Prevents email flooding |
+
+The `checkRateLimit()` function (in `_shared/rate-limit.ts`) reads the `(identifier, endpoint)` pair, increments the counter, and sets `blocked_until` when the threshold is exceeded. The `cleanup_old_rate_limits()` database function purges expired rows.
+
+---
+
+## Stripe Webhook Event Tracking
+
+All incoming Stripe webhook events are recorded in the `stripe_webhook_events` table for operational visibility and idempotency:
+
+| Column | Purpose |
+|---|---|
+| `stripe_event_id` | Stripe event ID (unique) |
+| `event_type` | e.g., `checkout.session.completed` |
+| `status` | `processed`, `failed`, or `skipped` |
+| `attempts` | Number of processing attempts |
+| `last_error` | Error message if processing failed |
+| `processed_at` | Timestamp |
+
+Duplicate webhook deliveries are silently discarded (same `stripe_event_id` = `skipped`). Failed events remain in the table for admin diagnosis without digging through edge function logs.
+
+---
+
+## Permissions and Role Management
+
+The admin Permissions tab allows master and admin users to grant and revoke roles for other users. Role operations are backed by SECURITY DEFINER RPCs that enforce the role hierarchy:
+
+- Only `master` users can assign `admin` or `master` roles
+- `admin` users can assign `crew` and `customer` roles
+- No user can assign a role higher than their own
+
+All role changes are logged to `user_permissions_changelog` with the actor's email embedded at write time — the audit trail remains accurate even if the actor's email later changes.
+
+The `get_all_role_users()` RPC returns all users with non-customer roles (admin, master, crew) with their email and assigned roles, used to populate the Permissions tab user list.
+
+---
+
+## SMS Architecture: Two Distinct Tables
+
+The application uses two distinct tables for different SMS concerns:
+
+### `sms_conversations` — The SMS Thread
+
+Stores the actual content of every SMS message exchanged with a customer:
+- `message_body` — the text of the message
+- `direction` — `inbound` (from customer) or `outbound` (to customer)
+- `from_phone`, `to_phone` — parties
+- `twilio_message_sid` — Twilio's unique message identifier
+- `is_admin_internal` — flags messages meant only for admin eyes
+- `order_id` — links to the relevant order for display in Order Detail SMS tab
+- `customer_phone` — the customer's phone number (joins conversations to customers)
+
+### `messages` — The Notification Dispatch Log
+
+Records what notifications were dispatched — not the message body:
+- `template_key` — which notification template was used (e.g., `booking_confirmed`)
+- `channel` — `email` or `sms`
+- `payload_json` — the data passed to the template
+- `status` — `sent`, `failed`, `pending`
+- `recipient_id`, `order_id` — context for the notification
+
+This table is for operational monitoring (did the notification go out? did it fail?) — not for reading message content. Message content is only in `sms_conversations`.
+
+---
+
+## Loyalty and Repeat Customer Tracking
+
+The `contacts` table tracks loyalty metrics automatically via database triggers:
+
+- `completed_bookings_count` — incremented each time an order for this contact reaches `completed` status
+- `is_repeat_customer` — set to `true` when `completed_bookings_count >= 2`
+- `first_completed_booking_date` — date of first completed order
+- `last_completed_booking_date` — date of most recent completed order
+- `total_spent_cents` — cumulative spend including custom fees and discounts, updated by trigger
+
+Cancelled orders are excluded from the loyalty calculations. The trigger fires on every `orders` UPDATE, checking the `status` transition to `completed`.
+
+The Business Analytics tab surfaces aggregate repeat customer count and rate across all contacts.
+
+---
+
+## Waiver Reminder and Payment Reminder SMS
+
+The task status system tracks two boolean flags to prevent duplicate reminder messages:
+
+- `waiver_reminder_sent` — set after a waiver reminder SMS is sent to the customer. Prevents the reminder from firing again if the crew marks "arrived" a second time.
+- `payment_reminder_sent` — set after a balance payment reminder SMS is sent. Included in the en-route or arrived message if the customer still has an outstanding balance.
+
+These flags are on the `task_status` record and are evaluated during delivery checkpoint SMS sends.

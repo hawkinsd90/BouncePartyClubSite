@@ -128,12 +128,14 @@ The optimized route is saved to the `route_stops` table. Each stop record has:
 | `order_id` | Which order |
 | `type` | `delivery` or `pickup` |
 | `eta` | Computed estimated arrival time |
-| `sort_order` | Position in optimized sequence |
 | `calculated_eta_minutes` | Drive time from previous stop |
 | `calculated_eta_distance_miles` | Distance from previous stop |
 | `eta_calculated_at` | When this was last computed |
+| `eta_calculation_error` | Error message if ETA calculation failed |
 | `checkpoint`, `checkpoint_time` | Crew confirmation data |
 | `gps_lat`, `gps_lng` | GPS at checkpoint |
+
+Note: Route stop sequence order is determined by the `sort_order` column on the corresponding `task_status` record, not on `route_stops` itself.
 
 ---
 

@@ -138,7 +138,7 @@ All tables live in the `public` schema. Confirmed from live database:
 | `hero_carousel_images` | Homepage carousel media entries (images and videos) with display order |
 | `invoice_links` | Secure tokenized links for customer invoice/portal access. Contains a 64-char hex `link_token` for direct URL access and an optional 8-char alphanumeric `short_code` for compact SMS links. The `link_type` column (`invoice` or `portal_shortlink`) distinguishes creation context. |
 | `invoices` | Invoice records with status tracking (`draft`, `sent`, `partial`, `paid`, `void`) |
-| `messages` | All SMS messages (inbound and outbound) per customer phone number |
+| `messages` | Notification dispatch log — records what was sent (template key, channel, payload, status). Does NOT store message body text. Distinct from `sms_conversations`. |
 | `notification_failures` | Log of email/SMS send failures with recipient, error, and resolution status |
 | `notification_system_status` | Real-time health status of email and SMS subsystems with consecutive failure counts |
 | `order_changelog` | Full audit trail of every edit, status change, payment, and cancellation on an order |
@@ -173,33 +173,166 @@ All tables live in the `public` schema. Confirmed from live database:
 
 ### Orders Table — Key Columns
 
-The `orders` table is the most complex record in the system. Notable columns beyond the obvious:
+The `orders` table is the most complex record in the system. Notable columns beyond the obvious (event_date, address_id, subtotal_cents, etc.):
 
 | Column | Purpose |
 |---|---|
-| `workflow_status` | Crew operational status (separate from order `status`) |
-| `referral_source` / `referral_source_detail` | How the customer found the business (e.g., `social`, `google`) and the sub-detail (e.g., `instagram`) |
-| `billing_address_line1–zip` | Billing address captured from Stripe (stored inline, separate from event address) |
-| `travel_is_flat_fee` | Whether travel fee was applied as a flat ZIP-code zone rate vs. per-mile |
+| `status` | Order lifecycle status (default `'pending'`; see Order Status Model below) |
+| `workflow_status` | Crew operational status (default `'pending'`; separate from order `status`) |
+| `event_end_date` | End date for multi-day rentals |
+| `event_start_time` / `pickup_time` / `event_end_time` | Precise event and pickup times |
+| `start_window` / `end_window` | Delivery arrival window |
+| `pickup_preference` | `same_day` or `next_day` |
+| `until_end_of_day` | Whether the equipment can stay until end of event day |
+| `overnight_allowed` | Whether overnight is permitted for this order |
+| `can_use_stakes` | Whether ground stakes are allowed (affects surface fee) |
+| `location_type` | `residential` or `commercial` (affects pricing multiplier) |
+| `surface` | Surface type (grass, concrete, asphalt, etc.) |
+| `has_pets` | Whether pets are present (displayed to crew) |
+| `special_details` | Free-text field for extra setup instructions |
+| `generator_selected` | Boolean — whether generator was requested |
+| `generator_qty` | Number of generators requested (integer) |
+| `generator_fee_cents` | Generator fee amount captured at booking |
+| `total_cents` | Full order total (subtotal + all fees + tax) |
+| `tip_cents` | Tip amount (tracked separately, excluded from balance due calculations) |
+| `deposit_required` | Whether a deposit is required |
 | `custom_deposit_cents` | Admin-overridden deposit amount (overrides percentage-based calculation) |
-| `require_card_on_file` | Whether checkout must save a card even if no immediate charge |
-| `admin_message` | Admin-written message visible to the customer in the portal |
-| `same_day_responsibility_accepted` / `overnight_responsibility_accepted` | Customer acceptance of equipment responsibility clauses |
-| `booking_confirmation_sent` | Prevents duplicate confirmation emails |
-| `pending_review_admin_alerted` / `confirmed_admin_alerted` | Deduplication flags for admin notifications |
-| `generator_qty` | Number of generators requested (integer; separate from the boolean `generator_selected`) |
-| `clear_payment_info` | Signals that saved Stripe payment method should be cleared (set when items change or deposit increases) |
-| `current_eta` | Current crew ETA timestamp, updated as route progresses |
-| `waiver_signature_data` | Raw signature canvas data (stored for audit before PDF is generated) |
-| `e_signature_consent` | Whether the electronic consent checkbox was accepted during waiver signing |
-| `deposit_required` | Whether a deposit is required for this order |
+| `deposit_due_cents` | Final deposit required at confirmation |
+| `deposit_paid_cents` | Amount collected toward deposit (sentinel `-1` during atomic charge) |
+| `balance_due_cents` | Outstanding balance |
+| `balance_paid_cents` | Amount collected toward balance |
 | `damage_charged_cents` | Amount charged for equipment damage |
-| `stripe_payment_status` | Stripe-specific payment status; set to `'paid'` even for zero-deposit approvals to signal the payment obligation is satisfied |
-| `order_financials_applied` (on `payments`) | Whether `deposit_paid_cents`/`balance_paid_cents` on the order have been updated for this payment |
+| `total_refunded_cents` | Total amount refunded |
+| `travel_fee_cents` | Calculated travel fee |
+| `travel_total_miles` | Total driving miles to event address |
+| `travel_base_radius_miles` | Free-travel radius at booking time |
+| `travel_chargeable_miles` | Miles beyond free radius |
+| `travel_per_mile_cents` | Per-mile rate at booking time |
+| `travel_is_flat_fee` | Whether a ZIP-code zone flat rate was applied |
+| `surface_fee_cents` | Surface/sandbag fee |
+| `same_day_pickup_fee_cents` | Same-day pickup surcharge |
+| `tax_cents` | Tax amount |
+| `tax_waived` / `tax_waive_reason` | Admin tax waiver with required reason |
+| `travel_fee_waived` / `travel_fee_waive_reason` | Admin travel fee waiver |
+| `same_day_pickup_fee_waived` / `same_day_pickup_fee_waive_reason` | Admin same-day fee waiver |
+| `surface_fee_waived` / `surface_fee_waive_reason` | Admin surface fee waiver |
+| `generator_fee_waived` / `generator_fee_waive_reason` | Admin generator fee waiver |
+| `stripe_customer_id` | Stripe customer token |
+| `stripe_payment_method_id` | Saved Stripe payment method ID for off-session charges |
+| `stripe_payment_status` | Stripe-specific status; set to `'paid'` even for zero-deposit approvals to signal payment obligation satisfied |
+| `payment_method_brand` | Card brand (Visa, Mastercard, etc.) |
+| `payment_method_last_four` | Last four digits of saved card |
+| `payment_method_exp_month` / `payment_method_exp_year` | Card expiration date (used for expiring card monitoring) |
+| `payment_method_validated_at` | When the payment method was last validated |
+| `customer_selected_payment_cents` | What the customer indicated they would pay (reconciled after webhook) |
+| `customer_selected_payment_type` | `deposit`, `balance`, or `custom` |
+| `require_card_on_file` | Whether checkout must save a card even with no immediate charge |
+| `clear_payment_info` | Signals saved Stripe payment method should be cleared (set when items/deposit increase) |
+| `admin_message` | Admin-written message visible to customer in the portal |
+| `edit_summary` | Summary of changes sent to customer when approval is requested |
+| `awaiting_customer_approval` | Boolean flag set during approval-required edit flow |
+| `customer_approval_requested_at` / `customer_approved_at` | Timestamps for the approval workflow |
+| `refund_requested` | Whether the customer requested a refund on cancellation |
+| `cancellation_reason` / `cancelled_at` / `cancelled_by` | Cancellation metadata |
+| `same_day_responsibility_accepted` | Customer acceptance of same-day responsibility clause |
+| `overnight_responsibility_accepted` | Customer acceptance of overnight responsibility clause |
+| `sms_consent` / `sms_consent_text` / `sms_consented_at` | SMS marketing consent captured at checkout |
+| `card_on_file_consent` / `card_on_file_consent_text` / `card_on_file_consented_at` | Card-on-file authorization consent |
+| `e_signature_consent` | Whether electronic signature consent was accepted |
+| `waiver_signed_at` | Timestamp of waiver signing |
+| `signed_waiver_url` | URL to the generated signed waiver PDF |
+| `signature_id` | FK to `order_signatures` |
+| `waiver_signature_data` | Raw canvas signature data (stored for audit before PDF generation) |
+| `lot_pictures_requested` / `lot_pictures_requested_at` | Whether and when admin requested lot photos |
+| `invoice_sent_at` / `invoice_accepted_at` | Invoice distribution and acceptance timestamps |
+| `booking_confirmation_sent` | Deduplication flag — prevents duplicate booking confirmation emails |
+| `pending_review_admin_alerted` / `confirmed_admin_alerted` | Deduplication flags for admin SMS/email notifications |
+| `current_eta` | Crew ETA timestamp updated as route progresses |
+| `billing_address_line1–zip` | Billing address collected from Stripe Checkout (separate from event address) |
+| `referral_source` / `referral_source_detail` | How the customer found the business and sub-detail (e.g., `social` / `instagram`) |
+| `archived_at` | Timestamp when order was archived (soft delete for completed/old orders) |
 
 ---
 
-## Query Layer
+### Pricing Rules Table
+
+Single-row configuration table (one row for the whole system). All pricing options:
+
+| Column | Purpose |
+|---|---|
+| `base_radius_miles` | Free travel radius from home base |
+| `per_mile_after_base_cents` | Per-mile charge beyond base radius |
+| `included_cities` | Array of city names with free travel (newer format) |
+| `included_city_list_json` | JSONB list of free cities (legacy/alternative format) |
+| `zone_overrides_json` | JSONB map of ZIP code → flat fee (overrides distance-based) |
+| `residential_multiplier` | Price multiplier for residential orders (e.g., `1.0`) |
+| `commercial_multiplier` | Price multiplier for commercial orders (e.g., `1.2`) |
+| `surface_sandbag_fee_cents` | Fee charged when sandbags/stakes are needed |
+| `same_day_pickup_fee_cents` | Surcharge for same-day pickup |
+| `same_day_matrix_json` | Reserved JSON matrix for future same-day pricing logic (not currently used) |
+| `overnight_holiday_only` | Restricts overnight rentals to holiday dates only |
+| `extra_day_pct` | Percentage of day-1 price charged for each additional day (e.g., `50` = 50% for days 2+) |
+| `generator_price_cents` | Legacy generator fee (superseded by single/multiple split) |
+| `generator_fee_single_cents` | Fee for one generator |
+| `generator_fee_multiple_cents` | Fee for each additional generator beyond the first |
+| `deposit_per_unit_cents` | Flat deposit per unit (e.g., $50/unit) |
+| `deposit_percentage` | Alternative percentage-based deposit calculation (e.g., `25` for 25% of total) |
+| `apply_taxes_by_default` | Whether tax is applied by default on new orders |
+
+### Unit Media Table
+
+Each unit can have multiple media items. Key columns:
+
+| Column | Purpose |
+|---|---|
+| `mode` | `dry`, `wet`, or `both` — which setup mode the image shows |
+| `visibility_mode` | Controls which mode tab this image appears under (`dry`, `wet`, `both`) |
+| `is_featured` | Whether this is the primary image shown on catalog/detail pages |
+| `sort` | Display order within a unit's gallery |
+
+### Consent Records Table
+
+Per-order consent records (collected at checkout / invoice acceptance). Distinct from `user_consent_log` (which is per-user post-signup):
+
+| Column | Purpose |
+|---|---|
+| `order_id` | Which order this consent was captured for |
+| `consent_type` | Type: `sms_marketing`, `card_on_file`, `e_signature`, etc. |
+| `consented` | Boolean |
+| `consent_text` | Exact text the customer agreed to (snapshot) |
+| `consent_version` | Version of the consent language shown |
+| `consented_at` | When consent was given |
+| `ip_address` / `user_agent` | Audit trail |
+
+### Email Templates Table
+
+Admin-editable email template content, managed from the Settings → Message Templates tab:
+
+| Column | Purpose |
+|---|---|
+| `template_name` | Unique identifier |
+| `subject` | Email subject line with `{variable}` placeholders |
+| `description` | Human-readable description of when this template is used |
+| `header_title` | Text shown in the email header banner |
+| `content_template` | Email body with `{variable}` placeholders |
+| `theme` | Color theme: `primary`, `success`, `warning`, `danger` |
+| `category` | Template category (`booking`, `payment`, `admin`, etc.) |
+
+### Contacts Table — Loyalty Fields
+
+The `contacts` table maintains auto-updated lifetime statistics for each customer via database triggers:
+
+| Column | Purpose |
+|---|---|
+| `total_bookings` | Count of all non-cancelled orders for this contact |
+| `total_spent_cents` | Lifetime revenue from this contact (includes custom fees, excludes refunds) |
+| `completed_bookings_count` | Count of completed (not just confirmed) orders |
+| `first_completed_booking_date` / `last_completed_booking_date` | Lifecycle of customer relationship |
+| `is_repeat_customer` | Auto-set to `true` when `completed_bookings_count >= 2` |
+| `tags` | Admin-assigned text tags array for segmentation |
+| `opt_in_sms` / `opt_in_email` | Marketing consent flags |
+
+---
 
 All database calls go through the centralized query layer in `src/lib/queries/`. Direct Supabase client calls in components or hooks are avoided.
 
@@ -334,7 +467,7 @@ All edge functions handle CORS preflight (`OPTIONS`) and include CORS headers on
 | `backfill-payment-methods` | Yes | Data migration: reconciles Stripe payment method records; fills `payment_brand`/`last_four` from Stripe API |
 | `calculate-route-mileage` | Yes | Computes total miles for a day's route from `route_stops` |
 | `charge-deposit` | Yes | Charges saved payment method for deposit or balance. Uses a sentinel value (`deposit_paid_cents = -1`) for atomic race-condition safety. Called during order approval and day-of balance collection. |
-| `checkout-bridge` | No | Orchestration layer between checkout completion and order lifecycle progression |
+| `checkout-bridge` | No | Minimal HTML page served from the Supabase domain that relays payment completion from Stripe back to the checkout window via `window.opener.postMessage({ type: 'BPC_CHECKOUT_COMPLETE', orderId, session_id })` then calls `window.close()`. Exists because Stripe cannot redirect to localhost or arbitrary dev URLs. |
 | `create-admin-user` | Yes | Bootstraps the first master user during initial setup |
 | `customer-balance-payment` | No | Allows customers to pay remaining balance via saved card on file or a new Stripe Checkout session |
 | `customer-cancel-order` | No | Handles customer-initiated cancellation with reason and refund-request flag |
@@ -418,6 +551,79 @@ Date overlap logic is inclusive on both ends. The `excludeOrderId` parameter all
 Availability is checked at two trusted enforcement points:
 1. Client-side in the quote form (prevents selection of blocked dates)
 2. Server-side inside `stripe-checkout` before creating a Stripe session (cannot be bypassed). Blackout checks also distinguish between full blocks and same-day-pickup-only blocks.
+
+---
+
+## Database Functions and RPCs
+
+All 63 database functions (confirmed from live DB). Functions marked `SECURITY DEFINER` run with elevated privileges and have explicit `search_path` to prevent schema injection.
+
+### Business Logic RPCs
+
+| Function | Security | Purpose |
+|---|---|---|
+| `apply_balance_payment_financials(p_pi_id, p_order_id, p_balance_cents, p_tip_cents, ...)` | DEFINER | Atomically updates `balance_paid_cents`/`deposit_paid_cents` on order using `order_financials_applied` flag for idempotency |
+| `approve_order_changes(p_order_id, p_token, ...)` | DEFINER | Customer approves admin-requested order changes; optionally triggers payment |
+| `archive_old_orders(threshold_days)` | DEFINER | Soft-archives orders older than threshold by setting `archived_at` |
+| `check_date_blackout(p_start, p_end)` | DEFINER | Returns `{ is_full_blocked, is_same_day_pickup_blocked }` for a date range, handling annual/recurring blackouts |
+| `check_expiring_cards()` | DEFINER | Returns orders with payment method cards expiring within 30 days |
+| `check_rate_limit(p_identifier, p_endpoint, p_max_requests, p_window_seconds)` | DEFINER | Sliding-window rate limiter; returns `{ allowed, remaining }` |
+| `check_unit_availability(p_unit_id, p_start_date, p_end_date, p_exclude_order_id?)` | DEFINER | Returns conflict count for a single unit (overloaded — also accepts array form) |
+| `check_unit_availability(p_unit_ids[], p_start_date, p_end_date)` | DEFINER | Batch availability check across multiple units |
+| `claim_balance_payment_financials(p_pi_id)` | DEFINER | First step of balance payment: claims atomic lock for a payment intent ID |
+| `cleanup_old_rate_limits()` | DEFINER | Deletes expired rate limit rows; call periodically to prevent table growth |
+| `generate_invoice_number()` | INVOKER | Returns next sequential invoice number from database sequence |
+| `generate_receipt_group_id()` | INVOKER | Returns a new UUID for grouping related transaction receipts |
+| `generate_receipt_number()` | DEFINER | Returns next sequential unique receipt number |
+| `get_admin_analytics(p_start?, p_end?)` | DEFINER | Returns 25+ business metrics as JSONB for the admin analytics dashboard |
+| `get_booking_source_analytics(p_start?, p_end?)` | DEFINER | Returns booking count and revenue grouped by referral source |
+| `get_booking_sources_analytics(p_since, p_until?)` | DEFINER | Alternative booking source analytics with different time range parameters |
+| `get_order_by_token(p_token)` | DEFINER | Fetches order by invoice link token (used for tokenized customer access) |
+| `get_order_with_relations_by_token(p_token)` | DEFINER | Returns full order with all relations as JSONB (used by Customer Portal) |
+| `get_public_business_settings()` | DEFINER | Returns non-sensitive business settings for public display (branding, contact info) |
+| `get_signature_status(order_uuid)` | DEFINER | Returns waiver signing status and PDF URL for an order |
+| `get_unresolved_failures_count()` | DEFINER | Returns count of unresolved notification failures |
+| `get_user_creation_logs(target_email)` | DEFINER | Returns `auth_trigger_logs` for a given email (admin debugging tool) |
+| `get_user_order_prefill()` | DEFINER | Returns last-used order data for the current authenticated user to prefill forms |
+| `get_user_role(user_id_input)` | DEFINER | Returns a user's primary role |
+| `is_admin()` | DEFINER | Returns boolean — whether the calling session user is admin or master |
+| `order_has_valid_signature(order_uuid)` | DEFINER | Returns boolean — whether order has a valid waiver signature |
+| `record_cash_payment(p_order_id, p_amount_cents, p_tip_cents, p_acting_user_id)` | DEFINER | Atomic: inserts payment row + updates order totals + logs changelog |
+| `record_check_payment(p_order_id, p_amount_cents, p_tip_cents, p_acting_user_id, p_check_number?)` | DEFINER | Same as cash, but stores check number in `payments.notes` |
+| `record_notification_failure(p_type, p_recipient, p_subject, p_message_preview, p_error, p_context?)` | DEFINER | Logs a notification failure and increments consecutive failure counter |
+| `record_notification_success(p_type)` | DEFINER | Resets consecutive failure counter for a notification type |
+| `save_lot_picture_to_address(p_order_lot_picture_id)` | DEFINER | Copies a lot picture from an order to the canonical `address_lot_pictures` table |
+| `upsert_contact_from_checkout(p_first_name, p_last_name, p_email, p_phone, ...)` | DEFINER | Creates or updates a contacts record from checkout form data |
+
+### Role Management RPCs
+
+| Function | Security | Purpose |
+|---|---|---|
+| `assign_role_by_email(p_email, p_role)` | DEFINER | Grants a role to a user identified by email |
+| `assign_user_role(target_user_id, target_role)` | DEFINER | Grants a role to a user identified by UUID |
+| `remove_user_role(target_user_id, target_role)` | DEFINER | Revokes a specific role from a user |
+| `get_all_role_users()` | DEFINER | Returns all users with non-customer roles |
+| `get_admin_users()` | DEFINER | Returns all users with `admin` or `master` role |
+| `get_user_highest_role(check_user_id)` | DEFINER | Returns the highest role for a user |
+| `user_has_role(check_user_id, check_role)` | DEFINER | Returns boolean — whether user has a specific role |
+
+### Trigger Functions
+
+All trigger functions are `SECURITY DEFINER`:
+
+| Trigger Function | Fires On |
+|---|---|
+| `auto_assign_customer_role()` | New user signup — assigns `customer` role |
+| `auto_create_task_status()` | Order status → `confirmed` — creates `task_status` rows for drop-off and pickup |
+| `auto_sync_google_calendar()` | Order status changes — queues a Google Calendar sync event |
+| `auto_update_order_status()` | `task_status` changes — advances order workflow status |
+| `log_admin_settings_change()` | `admin_settings` inserts/updates — writes to changelog with value redaction |
+| `log_permission_change()` | `user_roles` insert/delete — writes to `user_permissions_changelog` with actor email |
+| `redact_sensitive_changelog_values()` | Before insert on `admin_settings_changelog` — redacts values for keys containing `key`, `secret`, `token`, `sid`, or `password` |
+| `sync_invoice_links_expires_at()` | `orders.event_date` change — updates expiration on related `invoice_links` rows |
+| `update_blackout_*_timestamp()` | Updates to blackout tables — maintains `updated_at` |
+| `update_contact_booking_stats()` | Order inserts/updates — maintains `contacts` lifetime stats and loyalty flags |
+| `validate_order_status_transition()` | Before order update — rejects transitions not in the valid state graph |
 
 ---
 
