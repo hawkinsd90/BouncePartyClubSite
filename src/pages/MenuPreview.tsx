@@ -43,6 +43,39 @@ function preloadImages(urls: string[]) {
   );
 }
 
+// Fetch an image URL and return a base64 data URL. Falls back to the original
+// URL on any error so the img tag still has a src (it just may not render).
+async function toDataUrl(url: string): Promise<string> {
+  if (!url) return url;
+  try {
+    const res = await fetch(url, { mode: 'cors', cache: 'force-cache' });
+    if (!res.ok) return url;
+    const blob = await res.blob();
+    return new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => resolve(url);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return url;
+  }
+}
+
+// Returns a map of original URL → data URL for all images in the clone node
+async function inlineImages(node: HTMLElement): Promise<void> {
+  const imgs = Array.from(node.querySelectorAll('img')) as HTMLImageElement[];
+  await Promise.all(
+    imgs.map(async (img) => {
+      const src = img.getAttribute('src');
+      if (src && !src.startsWith('data:')) {
+        const dataUrl = await toDataUrl(src);
+        img.src = dataUrl;
+      }
+    })
+  );
+}
+
 function getUnitImageUrl(unit: Unit): string {
   const allImages = unit.media || [];
   const featured = allImages.find((m: any) => m.is_featured);
@@ -130,13 +163,11 @@ export function MenuPreview() {
 
     setSavingImage(true);
 
-    // Clone the hidden template into a temporary body-level wrapper so the
-    // browser actually paints it. The wrapper is near-transparent so users
-    // won't notice the brief flash. html-to-image captures the clone directly
-    // (not the wrapper), so the wrapper opacity doesn't affect the output.
+    // Place the clone just below the visible viewport so the browser renders
+    // it without any opacity reduction (opacity on the wrapper taints html-to-image).
     const wrapper = document.createElement('div');
     wrapper.style.cssText =
-      'position:fixed;top:0;left:0;z-index:99999;opacity:0.001;pointer-events:none;overflow:visible;';
+      'position:fixed;top:100vh;left:0;z-index:99999;pointer-events:none;overflow:visible;';
 
     const clone = template.cloneNode(true) as HTMLElement;
     clone.style.position = 'static';
@@ -146,12 +177,14 @@ export function MenuPreview() {
     document.body.appendChild(wrapper);
 
     try {
-      const logoUrl = `${window.location.origin}/bounce party club logo.png`;
-      await preloadImages([logoUrl, ...getUnitImageUrls(data.units)]);
-      // One extra frame so the browser paints the appended clone
-      await new Promise<void>((r) => setTimeout(r, 80));
+      // Convert all cross-origin image src attributes to data URLs inside the
+      // clone before capture. This bypasses CORS canvas tainting entirely.
+      await inlineImages(clone);
 
-      const dataUrl = await toPng(clone, { cacheBust: true, pixelRatio: 2 });
+      // One rAF so the browser lays out and paints the freshly appended clone
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+
+      const dataUrl = await toPng(clone, { pixelRatio: 2 });
       const link = document.createElement('a');
       link.download = 'bounce-party-club-menu.png';
       link.href = dataUrl;
