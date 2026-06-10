@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Printer } from 'lucide-react';
+import { ArrowLeft, Printer, Download } from 'lucide-react';
+import { toPng } from 'html-to-image';
 import { notifyError } from '../lib/notifications';
 
 type Unit = {
@@ -42,10 +43,20 @@ function preloadImages(urls: string[]) {
   );
 }
 
+function getUnitImageUrls(units: Unit[]): string[] {
+  return units
+    .map((u) => {
+      const dryImages = (u.media || []).filter((m: any) => m.mode === 'dry' || !m.mode);
+      return dryImages[0]?.url || u.media?.[0]?.url || '';
+    })
+    .filter(Boolean);
+}
+
 export function MenuPreview() {
   const navigate = useNavigate();
   const [data, setData] = useState<MenuPreviewData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [savingImage, setSavingImage] = useState(false);
 
   const returnTo = useMemo(() => {
     return sessionStorage.getItem('menu-preview-return-to') || '';
@@ -92,16 +103,9 @@ export function MenuPreview() {
 
     const logoUrl = `${window.location.origin}/bounce party club logo.png`;
 
-    const unitImageUrls = data.units
-      .map((u) => {
-        const dryImages = (u.media || []).filter((m: any) => m.mode === 'dry' || !m.mode);
-        return dryImages[0]?.url || u.media?.[0]?.url || '';
-      })
-      .filter(Boolean);
-
     try {
       document.body.classList.add('print-menu-preview');
-      await preloadImages([logoUrl, ...unitImageUrls]);
+      await preloadImages([logoUrl, ...getUnitImageUrls(data.units)]);
 
       // Let layout settle before opening print dialog
       setTimeout(() => window.print(), 50);
@@ -112,6 +116,33 @@ export function MenuPreview() {
     } finally {
       // Cleanup after dialog opens
       setTimeout(() => document.body.classList.remove('print-menu-preview'), 750);
+    }
+  };
+
+  const handleSaveImage = async () => {
+    if (!data) return;
+
+    const node = document.getElementById('menu-content');
+    if (!node) {
+      notifyError('Could not generate image. Please try Print / Save PDF instead.');
+      return;
+    }
+
+    setSavingImage(true);
+    try {
+      const logoUrl = `${window.location.origin}/bounce party club logo.png`;
+      await preloadImages([logoUrl, ...getUnitImageUrls(data.units)]);
+
+      const dataUrl = await toPng(node, { cacheBust: true, pixelRatio: 2 });
+      const link = document.createElement('a');
+      link.download = 'bounce-party-club-menu.png';
+      link.href = dataUrl;
+      link.click();
+    } catch (e) {
+      console.error(e);
+      notifyError('Could not generate image. Please try Print / Save PDF instead.');
+    } finally {
+      setSavingImage(false);
     }
   };
 
@@ -147,8 +178,8 @@ export function MenuPreview() {
   const generatedDate = new Date(data.generatedAtIso);
 
   return (
-    <div id="menu-print-wrapper" className="menu-preview-route min-h-screen bg-slate-50 py-8 px-4">
-      {/* Top action bar (screen only) */}
+    <div className="menu-preview-route min-h-screen bg-slate-50 py-8 px-4">
+      {/* Action bar — screen only, excluded from image capture (outside #menu-content) */}
       <div className="max-w-5xl mx-auto mb-4 flex items-center justify-between gap-3 no-print">
         <button
           onClick={handleBack}
@@ -158,111 +189,122 @@ export function MenuPreview() {
           Back
         </button>
 
-        <button
-          onClick={handlePrint}
-          className="inline-flex items-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-        >
-          <Printer className="w-4 h-4 mr-2" />
-          Print / Save PDF
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSaveImage}
+            disabled={savingImage}
+            className="inline-flex items-center bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            {savingImage ? 'Saving...' : 'Save as Image'}
+          </button>
+
+          <button
+            onClick={handlePrint}
+            className="inline-flex items-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+          >
+            <Printer className="w-4 h-4 mr-2" />
+            Print / Save PDF
+          </button>
+        </div>
       </div>
 
-      {/* PRINT HEADER */}
-      <div className="menu-print-header">
-        <img
-          src="/bounce party club logo.png"
-          alt="Bounce Party Club"
-          className="menu-print-logo"
-          onError={(e) => ((e.currentTarget.style.display = 'none'))}
-        />
+      {/* id="menu-content" is the capture target for toPng — action bar is outside this element */}
+      <div id="menu-content">
+        {/* PRINT HEADER */}
+        <div className="menu-print-header">
+          <img
+            src="/bounce party club logo.png"
+            alt="Bounce Party Club"
+            className="menu-print-logo"
+            onError={(e) => ((e.currentTarget.style.display = 'none'))}
+          />
 
-        <div className="menu-print-header-center">
-          <div className="menu-print-title">{data.title || 'Inflatable Price List'}</div>
-          <div className="menu-print-subtitle">
-            Generated {generatedDate.toLocaleDateString('en-US')}
+          <div className="menu-print-header-center">
+            <div className="menu-print-title">{data.title || 'Inflatable Price List'}</div>
+            <div className="menu-print-subtitle">
+              Generated {generatedDate.toLocaleDateString('en-US')}
+            </div>
           </div>
+
+          {/* spacer so centered text stays centered in print */}
+          <div className="menu-print-header-right" aria-hidden="true" />
         </div>
 
-        {/* spacer so centered text stays centered in print */}
-        <div className="menu-print-header-right" aria-hidden="true" />
-      </div>
+        {/* Page number (PRINT ONLY via CSS positioning) */}
+        <div className="menu-print-page-number" aria-hidden="true" />
 
-      {/* Page number (PRINT ONLY via CSS positioning) */}
-      <div className="menu-print-page-number" aria-hidden="true" />
+        {/* Content */}
+        <div className="menu-print-content max-w-5xl mx-auto">
+          <div className="menu-print-grid">
+            {data.units.map((unit) => {
+              const allImages = unit.media || [];
+              const featuredImage = allImages.find((m: any) => m.is_featured);
+              const dryImages = allImages.filter((m: any) => m.mode === 'dry' || !m.mode);
+              const imageUrl = featuredImage?.url || dryImages[0]?.url || allImages[0]?.url || '';
 
-      {/* Content */}
-      <div className="menu-print-content max-w-5xl mx-auto">
-        <div className="menu-print-grid">
-          {data.units.map((unit) => {
-            // Find the featured image across ALL images (dry or wet)
-            const allImages = unit.media || [];
-            const featuredImage = allImages.find((m: any) => m.is_featured);
-
-            // Fallback to first dry image, then any first image
-            const dryImages = allImages.filter((m: any) => m.mode === 'dry' || !m.mode);
-            const imageUrl = featuredImage?.url || dryImages[0]?.url || allImages[0]?.url || '';
-
-            return (
-              <div key={unit.id} className="menu-unit-card">
-                {imageUrl ? (
-                  <img
-                    src={imageUrl}
-                    alt={unit.name}
-                    className="menu-unit-image"
-                    onError={(e) => ((e.currentTarget.style.display = 'none'))}
-                  />
-                ) : null}
-
-                <div className="menu-unit-name-row">
-                  <div className="menu-unit-name">{unit.name}</div>
-                  {unit.is_combo ? <div className="menu-unit-badge">COMBO</div> : null}
-                </div>
-
-                <div className="menu-unit-type">{unit.type}</div>
-
-                <div className="menu-unit-details">
-                  <div className="menu-detail-row">
-                    <span className="menu-detail-label">Dimensions</span>
-                    <span className="menu-detail-value">{unit.dimensions || 'N/A'}</span>
-                  </div>
-                  <div className="menu-detail-row">
-                    <span className="menu-detail-label">Footprint</span>
-                    <span className="menu-detail-value">{unit.footprint_sqft} sq ft</span>
-                  </div>
-                  <div className="menu-detail-row">
-                    <span className="menu-detail-label">Capacity</span>
-                    <span className="menu-detail-value">{unit.capacity} kids</span>
-                  </div>
-                  <div className="menu-detail-row">
-                    <span className="menu-detail-label">Qty Available</span>
-                    <span className="menu-detail-value">{unit.quantity_available}</span>
-                  </div>
-                </div>
-
-                <div className="menu-unit-pricing">
-                  <div className="menu-price-row">
-                    <span className="menu-price-label">Dry</span>
-                    <span className="menu-price-value">{formatCurrency(unit.price_dry_cents)}</span>
-                  </div>
-                  {unit.price_water_cents ? (
-                    <div className="menu-price-row">
-                      <span className="menu-price-label">Water</span>
-                      <span className="menu-price-value">{formatCurrency(unit.price_water_cents)}</span>
-                    </div>
+              return (
+                <div key={unit.id} className="menu-unit-card">
+                  {imageUrl ? (
+                    <img
+                      src={imageUrl}
+                      alt={unit.name}
+                      className="menu-unit-image"
+                      onError={(e) => ((e.currentTarget.style.display = 'none'))}
+                    />
                   ) : null}
-                </div>
-              </div>
-            );
-          })}
-        </div>
 
-        <div className="menu-print-footer">
-          <div>
-            <strong>Bounce Party Club</strong> • Prices shown are base rental rates. Delivery/setup
-            fees may apply.
+                  <div className="menu-unit-name-row">
+                    <div className="menu-unit-name">{unit.name}</div>
+                    {unit.is_combo ? <div className="menu-unit-badge">COMBO</div> : null}
+                  </div>
+
+                  <div className="menu-unit-type">{unit.type}</div>
+
+                  <div className="menu-unit-details">
+                    <div className="menu-detail-row">
+                      <span className="menu-detail-label">Dimensions</span>
+                      <span className="menu-detail-value">{unit.dimensions || 'N/A'}</span>
+                    </div>
+                    <div className="menu-detail-row">
+                      <span className="menu-detail-label">Footprint</span>
+                      <span className="menu-detail-value">{unit.footprint_sqft} sq ft</span>
+                    </div>
+                    <div className="menu-detail-row">
+                      <span className="menu-detail-label">Capacity</span>
+                      <span className="menu-detail-value">{unit.capacity} kids</span>
+                    </div>
+                    <div className="menu-detail-row">
+                      <span className="menu-detail-label">Qty Available</span>
+                      <span className="menu-detail-value">{unit.quantity_available}</span>
+                    </div>
+                  </div>
+
+                  <div className="menu-unit-pricing">
+                    <div className="menu-price-row">
+                      <span className="menu-price-label">Dry</span>
+                      <span className="menu-price-value">{formatCurrency(unit.price_dry_cents)}</span>
+                    </div>
+                    {unit.price_water_cents ? (
+                      <div className="menu-price-row">
+                        <span className="menu-price-label">Water</span>
+                        <span className="menu-price-value">{formatCurrency(unit.price_water_cents)}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <div className="menu-print-footer-muted">
-            Prices are subject to change. Please confirm final pricing at booking.
+
+          <div className="menu-print-footer">
+            <div>
+              <strong>Bounce Party Club</strong> • Prices shown are base rental rates. Delivery/setup
+              fees may apply.
+            </div>
+            <div className="menu-print-footer-muted">
+              Prices are subject to change. Please confirm final pricing at booking.
+            </div>
           </div>
         </div>
       </div>
