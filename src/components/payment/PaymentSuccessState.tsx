@@ -86,7 +86,7 @@ export function PaymentSuccessState({ orderDetails, sessionTipCents = 0 }: Payme
               <div>
                 <p className="text-sm text-slate-600 mb-1">Event Date:</p>
                 <p className="font-semibold text-slate-900">
-                  {new Date(orderDetails.event_date).toLocaleDateString('en-US', {
+                  {new Date(orderDetails.event_date + 'T12:00:00').toLocaleDateString('en-US', {
                     year: 'numeric',
                     month: '2-digit',
                     day: '2-digit',
