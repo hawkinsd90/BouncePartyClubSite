@@ -43,13 +43,15 @@ function preloadImages(urls: string[]) {
   );
 }
 
+function getUnitImageUrl(unit: Unit): string {
+  const allImages = unit.media || [];
+  const featured = allImages.find((m: any) => m.is_featured);
+  const dryImages = allImages.filter((m: any) => m.mode === 'dry' || !m.mode);
+  return featured?.url || dryImages[0]?.url || allImages[0]?.url || '';
+}
+
 function getUnitImageUrls(units: Unit[]): string[] {
-  return units
-    .map((u) => {
-      const dryImages = (u.media || []).filter((m: any) => m.mode === 'dry' || !m.mode);
-      return dryImages[0]?.url || u.media?.[0]?.url || '';
-    })
-    .filter(Boolean);
+  return units.map(getUnitImageUrl).filter(Boolean);
 }
 
 export function MenuPreview() {
@@ -107,14 +109,12 @@ export function MenuPreview() {
       document.body.classList.add('print-menu-preview');
       await preloadImages([logoUrl, ...getUnitImageUrls(data.units)]);
 
-      // Let layout settle before opening print dialog
       setTimeout(() => window.print(), 50);
     } catch (e) {
       console.error(e);
       notifyError('Could not prepare print preview.');
       document.body.classList.remove('print-menu-preview');
     } finally {
-      // Cleanup after dialog opens
       setTimeout(() => document.body.classList.remove('print-menu-preview'), 750);
     }
   };
@@ -122,7 +122,7 @@ export function MenuPreview() {
   const handleSaveImage = async () => {
     if (!data) return;
 
-    const node = document.getElementById('menu-content');
+    const node = document.getElementById('menu-image-export');
     if (!node) {
       notifyError('Could not generate image. Please try Print / Save PDF instead.');
       return;
@@ -179,7 +179,7 @@ export function MenuPreview() {
 
   return (
     <div className="menu-preview-route min-h-screen bg-slate-50 py-8 px-4">
-      {/* Action bar — screen only, excluded from image capture (outside #menu-content) */}
+      {/* Action bar — screen only, excluded from both PDF and image capture */}
       <div className="max-w-5xl mx-auto mb-4 flex items-center justify-between gap-3 no-print">
         <button
           onClick={handleBack}
@@ -209,9 +209,8 @@ export function MenuPreview() {
         </div>
       </div>
 
-      {/* id="menu-content" is the capture target for toPng — action bar is outside this element */}
+      {/* id="menu-content" — screen preview and PDF print target */}
       <div id="menu-content">
-        {/* PRINT HEADER */}
         <div className="menu-print-header">
           <img
             src="/bounce party club logo.png"
@@ -227,21 +226,15 @@ export function MenuPreview() {
             </div>
           </div>
 
-          {/* spacer so centered text stays centered in print */}
           <div className="menu-print-header-right" aria-hidden="true" />
         </div>
 
-        {/* Page number (PRINT ONLY via CSS positioning) */}
         <div className="menu-print-page-number" aria-hidden="true" />
 
-        {/* Content */}
         <div className="menu-print-content max-w-5xl mx-auto">
           <div className="menu-print-grid">
             {data.units.map((unit) => {
-              const allImages = unit.media || [];
-              const featuredImage = allImages.find((m: any) => m.is_featured);
-              const dryImages = allImages.filter((m: any) => m.mode === 'dry' || !m.mode);
-              const imageUrl = featuredImage?.url || dryImages[0]?.url || allImages[0]?.url || '';
+              const imageUrl = getUnitImageUrl(unit);
 
               return (
                 <div key={unit.id} className="menu-unit-card">
@@ -306,6 +299,136 @@ export function MenuPreview() {
               Prices are subject to change. Please confirm final pricing at booking.
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* id="menu-image-export" — off-screen fixed-width canvas for PNG export only */}
+      {/* Hidden by CSS: position:absolute left:-9999px — never visible on screen */}
+      <div
+        id="menu-image-export"
+        style={{
+          width: '1200px',
+          background: '#f8fafc',
+          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        }}
+      >
+        {/* Export Header */}
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #1d4ed8 0%, #0891b2 100%)',
+            padding: '32px 40px 28px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '24px',
+          }}
+        >
+          <img
+            src="/bounce party club logo.png"
+            alt="Bounce Party Club"
+            style={{ height: '80px', width: 'auto', objectFit: 'contain' }}
+            onError={(e) => ((e.currentTarget.style.display = 'none'))}
+          />
+          <div style={{ textAlign: 'center', flex: 1 }}>
+            <div style={{ fontSize: '30px', fontWeight: 900, color: '#fff', lineHeight: 1.1 }}>
+              {data.title || 'Inflatable Price List'}
+            </div>
+            <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.8)', marginTop: '6px', fontWeight: 600 }}>
+              Bounce Party Club · Generated {generatedDate.toLocaleDateString('en-US')}
+            </div>
+          </div>
+          <div style={{ width: '80px' }} />
+        </div>
+
+        {/* 3-column card grid */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: '16px',
+            padding: '24px 32px',
+          }}
+        >
+          {data.units.map((unit) => {
+            const imageUrl = getUnitImageUrl(unit);
+            return (
+              <div
+                key={unit.id}
+                style={{
+                  background: '#fff',
+                  borderRadius: '12px',
+                  overflow: 'hidden',
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 2px 8px rgba(15,23,42,0.08)',
+                }}
+              >
+                {imageUrl ? (
+                  <img
+                    src={imageUrl}
+                    alt={unit.name}
+                    style={{ width: '100%', height: '170px', objectFit: 'cover', display: 'block' }}
+                    onError={(e) => ((e.currentTarget.style.display = 'none'))}
+                  />
+                ) : (
+                  <div style={{ width: '100%', height: '170px', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ color: '#94a3b8', fontSize: '13px' }}>No image</span>
+                  </div>
+                )}
+
+                <div style={{ padding: '12px 14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px', marginBottom: '4px' }}>
+                    <div style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>
+                      {unit.name}
+                    </div>
+                    {unit.is_combo ? (
+                      <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #f59e0b', fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '6px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        COMBO
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 700, marginBottom: '8px' }}>
+                    {unit.type}
+                  </div>
+
+                  {unit.dimensions ? (
+                    <div style={{ fontSize: '11px', color: '#475569', marginBottom: '8px', fontWeight: 600 }}>
+                      {unit.dimensions} · {unit.capacity} kids
+                    </div>
+                  ) : null}
+
+                  <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '8px', padding: '8px 10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: unit.price_water_cents ? '4px' : '0' }}>
+                      <span style={{ fontSize: '14px', fontWeight: 800, color: '#166534' }}>Dry</span>
+                      <span style={{ fontSize: '14px', fontWeight: 900, color: '#15803d' }}>{formatCurrency(unit.price_dry_cents)}</span>
+                    </div>
+                    {unit.price_water_cents ? (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '14px', fontWeight: 800, color: '#0369a1' }}>Water</span>
+                        <span style={{ fontSize: '14px', fontWeight: 900, color: '#0369a1' }}>{formatCurrency(unit.price_water_cents)}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Export Footer */}
+        <div
+          style={{
+            borderTop: '2px solid #e2e8f0',
+            padding: '16px 32px',
+            textAlign: 'center',
+            fontSize: '12px',
+            color: '#64748b',
+            fontWeight: 600,
+            background: '#fff',
+          }}
+        >
+          <strong style={{ color: '#0f172a' }}>Bounce Party Club</strong>
+          {' '}· Prices are base rental rates. Delivery/setup fees may apply. Subject to change — confirm at booking.
         </div>
       </div>
     </div>

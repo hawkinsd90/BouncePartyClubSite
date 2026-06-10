@@ -154,27 +154,6 @@ export function Home() {
         // }
       />
 
-      {/* Browse Inflatables CTA — visible inline on mobile so users don't need the hamburger menu */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-2">
-        <div className="bg-gradient-to-r from-blue-600 to-cyan-600 rounded-2xl p-6 sm:p-8 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl sm:text-2xl font-extrabold text-white mb-1">
-              Browse Our Inflatables
-            </h2>
-            <p className="text-blue-100 text-sm sm:text-base">
-              See all bounce houses, combos, slides, and obstacle courses.
-            </p>
-          </div>
-          <button
-            onClick={() => navigate('/catalog')}
-            className="w-full sm:w-auto flex-shrink-0 inline-flex items-center justify-center gap-2 bg-white hover:bg-blue-50 text-blue-700 font-extrabold py-4 px-8 rounded-xl transition-all shadow-lg hover:shadow-xl text-base sm:text-lg"
-          >
-            Browse Inflatables
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        </div>
-      </section>
-
       <style>{`
         @keyframes ribbon-scroll {
           0%   { transform: translateX(0); }
@@ -207,6 +186,17 @@ export function Home() {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Browse Inflatables CTA — slim strip below the ribbon */}
+      <div className="bg-blue-700 flex items-center justify-between px-4 sm:px-6 py-2.5 gap-3">
+        <span className="text-sm font-bold text-white tracking-wide">View Our Full Inflatable Catalog</span>
+        <button
+          onClick={() => navigate('/catalog')}
+          className="flex-shrink-0 inline-flex items-center gap-1 bg-white hover:bg-blue-50 text-blue-700 font-bold text-xs py-1.5 px-3 rounded-full transition-colors"
+        >
+          Browse <ChevronRight className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       <section className="relative bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-600 text-white overflow-hidden">
