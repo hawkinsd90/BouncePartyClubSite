@@ -122,18 +122,36 @@ export function MenuPreview() {
   const handleSaveImage = async () => {
     if (!data) return;
 
-    const node = document.getElementById('menu-image-export');
-    if (!node) {
+    const template = document.getElementById('menu-image-export');
+    if (!template) {
       notifyError('Could not generate image. Please try Print / Save PDF instead.');
       return;
     }
 
     setSavingImage(true);
+
+    // Clone the hidden template into a temporary body-level wrapper so the
+    // browser actually paints it. The wrapper is near-transparent so users
+    // won't notice the brief flash. html-to-image captures the clone directly
+    // (not the wrapper), so the wrapper opacity doesn't affect the output.
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText =
+      'position:fixed;top:0;left:0;z-index:99999;opacity:0.001;pointer-events:none;overflow:visible;';
+
+    const clone = template.cloneNode(true) as HTMLElement;
+    clone.style.position = 'static';
+    clone.style.left = '';
+    clone.style.top = '';
+    wrapper.appendChild(clone);
+    document.body.appendChild(wrapper);
+
     try {
       const logoUrl = `${window.location.origin}/bounce party club logo.png`;
       await preloadImages([logoUrl, ...getUnitImageUrls(data.units)]);
+      // One extra frame so the browser paints the appended clone
+      await new Promise<void>((r) => setTimeout(r, 80));
 
-      const dataUrl = await toPng(node, { cacheBust: true, pixelRatio: 2 });
+      const dataUrl = await toPng(clone, { cacheBust: true, pixelRatio: 2 });
       const link = document.createElement('a');
       link.download = 'bounce-party-club-menu.png';
       link.href = dataUrl;
@@ -142,6 +160,7 @@ export function MenuPreview() {
       console.error(e);
       notifyError('Could not generate image. Please try Print / Save PDF instead.');
     } finally {
+      document.body.removeChild(wrapper);
       setSavingImage(false);
     }
   };
@@ -233,61 +252,73 @@ export function MenuPreview() {
 
         <div className="menu-print-content max-w-5xl mx-auto">
           <div className="menu-print-grid">
-            {data.units.map((unit) => {
-              const imageUrl = getUnitImageUrl(unit);
+            {(() => {
+              const pairs: Unit[][] = [];
+              for (let i = 0; i < data.units.length; i += 2) {
+                pairs.push(data.units.slice(i, i + 2));
+              }
+              return pairs.map((pair, rowIdx) => (
+                <div
+                  key={rowIdx}
+                  className={`menu-print-row${rowIdx < pairs.length - 1 ? ' menu-print-row-break' : ''}`}
+                >
+                  {pair.map((unit) => {
+                    const imageUrl = getUnitImageUrl(unit);
+                    return (
+                      <div key={unit.id} className="menu-unit-card">
+                        {imageUrl ? (
+                          <img
+                            src={imageUrl}
+                            alt={unit.name}
+                            className="menu-unit-image"
+                            onError={(e) => ((e.currentTarget.style.display = 'none'))}
+                          />
+                        ) : null}
 
-              return (
-                <div key={unit.id} className="menu-unit-card">
-                  {imageUrl ? (
-                    <img
-                      src={imageUrl}
-                      alt={unit.name}
-                      className="menu-unit-image"
-                      onError={(e) => ((e.currentTarget.style.display = 'none'))}
-                    />
-                  ) : null}
+                        <div className="menu-unit-name-row">
+                          <div className="menu-unit-name">{unit.name}</div>
+                          {unit.is_combo ? <div className="menu-unit-badge">COMBO</div> : null}
+                        </div>
 
-                  <div className="menu-unit-name-row">
-                    <div className="menu-unit-name">{unit.name}</div>
-                    {unit.is_combo ? <div className="menu-unit-badge">COMBO</div> : null}
-                  </div>
+                        <div className="menu-unit-type">{unit.type}</div>
 
-                  <div className="menu-unit-type">{unit.type}</div>
+                        <div className="menu-unit-details">
+                          <div className="menu-detail-row">
+                            <span className="menu-detail-label">Dimensions</span>
+                            <span className="menu-detail-value">{unit.dimensions || 'N/A'}</span>
+                          </div>
+                          <div className="menu-detail-row">
+                            <span className="menu-detail-label">Footprint</span>
+                            <span className="menu-detail-value">{unit.footprint_sqft} sq ft</span>
+                          </div>
+                          <div className="menu-detail-row">
+                            <span className="menu-detail-label">Capacity</span>
+                            <span className="menu-detail-value">{unit.capacity} kids</span>
+                          </div>
+                          <div className="menu-detail-row">
+                            <span className="menu-detail-label">Qty Available</span>
+                            <span className="menu-detail-value">{unit.quantity_available}</span>
+                          </div>
+                        </div>
 
-                  <div className="menu-unit-details">
-                    <div className="menu-detail-row">
-                      <span className="menu-detail-label">Dimensions</span>
-                      <span className="menu-detail-value">{unit.dimensions || 'N/A'}</span>
-                    </div>
-                    <div className="menu-detail-row">
-                      <span className="menu-detail-label">Footprint</span>
-                      <span className="menu-detail-value">{unit.footprint_sqft} sq ft</span>
-                    </div>
-                    <div className="menu-detail-row">
-                      <span className="menu-detail-label">Capacity</span>
-                      <span className="menu-detail-value">{unit.capacity} kids</span>
-                    </div>
-                    <div className="menu-detail-row">
-                      <span className="menu-detail-label">Qty Available</span>
-                      <span className="menu-detail-value">{unit.quantity_available}</span>
-                    </div>
-                  </div>
-
-                  <div className="menu-unit-pricing">
-                    <div className="menu-price-row">
-                      <span className="menu-price-label">Dry</span>
-                      <span className="menu-price-value">{formatCurrency(unit.price_dry_cents)}</span>
-                    </div>
-                    {unit.price_water_cents ? (
-                      <div className="menu-price-row">
-                        <span className="menu-price-label">Water</span>
-                        <span className="menu-price-value">{formatCurrency(unit.price_water_cents)}</span>
+                        <div className="menu-unit-pricing">
+                          <div className="menu-price-row">
+                            <span className="menu-price-label">Dry</span>
+                            <span className="menu-price-value">{formatCurrency(unit.price_dry_cents)}</span>
+                          </div>
+                          {unit.price_water_cents ? (
+                            <div className="menu-price-row">
+                              <span className="menu-price-label">Water</span>
+                              <span className="menu-price-value">{formatCurrency(unit.price_water_cents)}</span>
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
-                    ) : null}
-                  </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
+              ));
+            })()}
           </div>
 
           <div className="menu-print-footer">

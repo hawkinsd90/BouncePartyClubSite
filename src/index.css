@@ -144,6 +144,11 @@ textarea {
   gap: 18px;
 }
 
+/* Row wrappers are transparent to the 2-column grid on screen */
+.menu-preview-route .menu-print-row {
+  display: contents;
+}
+
 @media (max-width: 900px) {
   .menu-preview-route .menu-print-grid {
     grid-template-columns: 1fr;
@@ -647,10 +652,24 @@ textarea {
   }
 
   body.print-menu-preview #root .menu-print-grid {
+    display: block !important;
+  }
+
+  /* Each row = 2 cards side by side, forced onto its own page */
+  body.print-menu-preview #root .menu-print-row {
     display: grid !important;
     grid-template-columns: 1fr 1fr !important;
     gap: 0.22in !important;
     align-items: start !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    margin-bottom: 0 !important;
+  }
+
+  /* All rows except the last get a forced page break after */
+  body.print-menu-preview #root .menu-print-row-break {
+    break-after: page !important;
+    page-break-after: always !important;
   }
 
   body.print-menu-preview #root .menu-unit-card {
