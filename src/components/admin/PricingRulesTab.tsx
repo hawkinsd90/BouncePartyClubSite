@@ -62,22 +62,24 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Save pricing rules via RPC to avoid schema cache issues
-      const { error: pricingError } = await supabase.rpc('update_pricing_rules', {
-        p_id: editedRules.id,
-        p_base_radius_miles: editedRules.base_radius_miles,
-        p_per_mile_after_base_cents: editedRules.per_mile_after_base_cents,
-        p_surface_sandbag_fee_cents: editedRules.surface_sandbag_fee_cents,
-        p_deposit_per_unit_cents: editedRules.deposit_per_unit_cents || 5000,
-        p_included_cities: editedRules.included_cities || [],
-        p_generator_fee_single_cents: editedRules.generator_fee_single_cents || 10000,
-        p_generator_fee_multiple_cents: editedRules.generator_fee_multiple_cents || 7500,
-        p_same_day_pickup_fee_cents: editedRules.same_day_pickup_fee_cents || 0,
-        p_same_day_weekday_delivery_fee_cents: editedRules.same_day_weekday_delivery_fee_cents || 0,
-        p_apply_taxes_by_default: editedRules.apply_taxes_by_default ?? true,
+      // Save pricing rules via edge function to bypass PostgREST schema cache
+      const res = await supabase.functions.invoke('update-pricing-rules', {
+        body: {
+          id: editedRules.id,
+          base_radius_miles: editedRules.base_radius_miles,
+          per_mile_after_base_cents: editedRules.per_mile_after_base_cents,
+          surface_sandbag_fee_cents: editedRules.surface_sandbag_fee_cents,
+          deposit_per_unit_cents: editedRules.deposit_per_unit_cents || 5000,
+          included_cities: editedRules.included_cities || [],
+          generator_fee_single_cents: editedRules.generator_fee_single_cents || 10000,
+          generator_fee_multiple_cents: editedRules.generator_fee_multiple_cents || 7500,
+          same_day_pickup_fee_cents: editedRules.same_day_pickup_fee_cents || 0,
+          same_day_weekday_delivery_fee_cents: editedRules.same_day_weekday_delivery_fee_cents || 0,
+          apply_taxes_by_default: editedRules.apply_taxes_by_default ?? true,
+        },
       });
-
-      if (pricingError) throw pricingError;
+      if (res.error) throw res.error;
+      if (res.data?.error) throw new Error(res.data.error);
 
       // Save travel fee default setting
       const { error: travelError } = await supabase
