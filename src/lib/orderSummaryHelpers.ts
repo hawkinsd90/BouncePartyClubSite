@@ -6,11 +6,13 @@ interface FeeInput {
   travel_fee_display_name?: string;
   surface_fee_cents?: number;
   same_day_pickup_fee_cents?: number;
+  same_day_weekday_delivery_fee_cents?: number;
   generator_fee_cents?: number;
   generator_qty?: number;
   travel_fee_waived?: boolean;
   surface_fee_waived?: boolean;
   same_day_pickup_fee_waived?: boolean;
+  same_day_weekday_delivery_fee_waived?: boolean;
   generator_fee_waived?: boolean;
 }
 
@@ -69,6 +71,10 @@ export function buildFeesList(fees: FeeInput): Array<{ name: string; amount: num
 
   if ((fees.same_day_pickup_fee_cents && fees.same_day_pickup_fee_cents > 0) || fees.same_day_pickup_fee_waived) {
     feesList.push({ name: 'Same-Day Pickup Fee', amount: fees.same_day_pickup_fee_cents || 0 });
+  }
+
+  if ((fees.same_day_weekday_delivery_fee_cents && fees.same_day_weekday_delivery_fee_cents > 0) || fees.same_day_weekday_delivery_fee_waived) {
+    feesList.push({ name: 'Same-Day Weekday Delivery Fee', amount: fees.same_day_weekday_delivery_fee_cents || 0 });
   }
 
   if ((fees.generator_fee_cents && fees.generator_fee_cents > 0) || fees.generator_fee_waived) {

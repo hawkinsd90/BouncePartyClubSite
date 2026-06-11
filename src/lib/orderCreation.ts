@@ -195,6 +195,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       travel_is_flat_fee: priceBreakdown.travel_is_flat_fee,
       surface_fee_cents: priceBreakdown.surface_fee_cents,
       same_day_pickup_fee_cents: priceBreakdown.same_day_pickup_fee_cents || 0,
+      same_day_weekday_delivery_fee_cents: priceBreakdown.same_day_weekday_delivery_fee_cents || 0,
       generator_fee_cents: priceBreakdown.generator_fee_cents || 0,
       tax_cents: applyTaxesByDefault ? priceBreakdown.tax_cents : 0,
       tax_waived: false,

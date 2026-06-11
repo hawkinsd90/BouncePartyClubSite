@@ -101,6 +101,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [surfaceFeeWaiveReason, setSurfaceFeeWaiveReason] = useState(order.surface_fee_waive_reason || '');
   const [generatorFeeWaived, setGeneratorFeeWaived] = useState(order.generator_fee_waived || false);
   const [generatorFeeWaiveReason, setGeneratorFeeWaiveReason] = useState(order.generator_fee_waive_reason || '');
+  const [sameDayWeekdayDeliveryFeeWaived, setSameDayWeekdayDeliveryFeeWaived] = useState(order.same_day_weekday_delivery_fee_waived || false);
+  const [sameDayWeekdayDeliveryFeeWaiveReason, setSameDayWeekdayDeliveryFeeWaiveReason] = useState(order.same_day_weekday_delivery_fee_waive_reason || '');
 
   const { orderSummary: updatedOrderSummary, calculatedPricing, calculatePricing } = usePricing();
   const { payments, pricingRules, reload: reloadOrderData } = useOrderDetails(order.id);
@@ -260,6 +262,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     sameDayPickupFeeWaived,
     surfaceFeeWaived,
     generatorFeeWaived,
+    sameDayWeekdayDeliveryFeeWaived,
   ]);
 
   // Check if any changes have been made
@@ -391,10 +394,15 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         sameDayPickupFeeWaived,
         surfaceFeeWaived,
         generatorFeeWaived,
+        sameDayWeekdayDeliveryFeeWaived,
       },
-      existingOrder: order,
+      existingOrder: {
+        ...order,
+        event_date: order.event_date,
+        same_day_weekday_delivery_fee_cents: order.same_day_weekday_delivery_fee_cents ?? 0,
+      },
     });
-  }, [order, editedOrder, stagedItems, discounts, customFees, customDepositCents, pricingRules, adminSettings, taxWaived, travelFeeWaived, sameDayPickupFeeWaived, surfaceFeeWaived, generatorFeeWaived, calculatePricing]);
+  }, [order, editedOrder, stagedItems, discounts, customFees, customDepositCents, pricingRules, adminSettings, taxWaived, travelFeeWaived, sameDayPickupFeeWaived, surfaceFeeWaived, generatorFeeWaived, sameDayWeekdayDeliveryFeeWaived, calculatePricing]);
 
   async function loadOrderDetails() {
     try {
@@ -495,6 +503,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         surfaceFeeWaiveReason,
         generatorFeeWaived,
         generatorFeeWaiveReason,
+        sameDayWeekdayDeliveryFeeWaived,
+        sameDayWeekdayDeliveryFeeWaiveReason,
         logChangeFn: logChange,
         sendNotificationsFn: async () => {
           await sendOrderEditNotifications({ order, adminMessage });
@@ -702,6 +712,13 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               onGeneratorFeeWaivedToggle={(reason) => {
                 setGeneratorFeeWaived(!generatorFeeWaived);
                 setGeneratorFeeWaiveReason(reason);
+                setHasChanges(true);
+              }}
+              sameDayWeekdayDeliveryFeeWaived={sameDayWeekdayDeliveryFeeWaived}
+              sameDayWeekdayDeliveryFeeWaiveReason={sameDayWeekdayDeliveryFeeWaiveReason}
+              onSameDayWeekdayDeliveryFeeWaivedToggle={(reason) => {
+                setSameDayWeekdayDeliveryFeeWaived(!sameDayWeekdayDeliveryFeeWaived);
+                setSameDayWeekdayDeliveryFeeWaiveReason(reason);
                 setHasChanges(true);
               }}
               depositCatchupMode={depositCatchupMode}

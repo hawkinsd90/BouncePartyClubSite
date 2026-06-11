@@ -25,6 +25,8 @@ interface SaveOrderChangesParams {
   surfaceFeeWaiveReason?: string;
   generatorFeeWaived?: boolean;
   generatorFeeWaiveReason?: string;
+  sameDayWeekdayDeliveryFeeWaived?: boolean;
+  sameDayWeekdayDeliveryFeeWaiveReason?: string;
   depositCatchupMode?: 'require' | 'waive';
   logChangeFn: (field: string, oldValue: any, newValue: any, action?: 'update' | 'add' | 'remove') => Promise<void>;
   sendNotificationsFn: () => Promise<void>;
@@ -52,6 +54,8 @@ export async function saveOrderChanges({
   surfaceFeeWaiveReason,
   generatorFeeWaived,
   generatorFeeWaiveReason,
+  sameDayWeekdayDeliveryFeeWaived,
+  sameDayWeekdayDeliveryFeeWaiveReason,
   depositCatchupMode,
   logChangeFn,
   sendNotificationsFn,
@@ -199,6 +203,10 @@ export async function saveOrderChanges({
       changes.same_day_pickup_fee_cents = calculatedPricing.same_day_pickup_fee_cents;
       logs.push(['same_day_pickup_fee', order.same_day_pickup_fee_cents || 0, calculatedPricing.same_day_pickup_fee_cents]);
     }
+    if (calculatedPricing.same_day_weekday_delivery_fee_cents !== (order.same_day_weekday_delivery_fee_cents || 0)) {
+      changes.same_day_weekday_delivery_fee_cents = calculatedPricing.same_day_weekday_delivery_fee_cents;
+      logs.push(['same_day_weekday_delivery_fee', order.same_day_weekday_delivery_fee_cents || 0, calculatedPricing.same_day_weekday_delivery_fee_cents]);
+    }
     if (calculatedPricing.tax_cents !== (order.tax_cents || 0)) {
       changes.tax_cents = calculatedPricing.tax_cents;
       logs.push(['tax', order.tax_cents, calculatedPricing.tax_cents]);
@@ -304,6 +312,18 @@ export async function saveOrderChanges({
   // Handle generator fee waive reason changes
   if (generatorFeeWaiveReason !== undefined && generatorFeeWaiveReason !== (order.generator_fee_waive_reason || '')) {
     changes.generator_fee_waive_reason = generatorFeeWaiveReason || null;
+  }
+
+  // Handle same-day weekday delivery fee waived changes
+  if (sameDayWeekdayDeliveryFeeWaived !== undefined && sameDayWeekdayDeliveryFeeWaived !== (order.same_day_weekday_delivery_fee_waived || false)) {
+    changes.same_day_weekday_delivery_fee_waived = sameDayWeekdayDeliveryFeeWaived;
+    const reasonInfo = sameDayWeekdayDeliveryFeeWaived && sameDayWeekdayDeliveryFeeWaiveReason ? ` (Reason: ${sameDayWeekdayDeliveryFeeWaiveReason})` : '';
+    logs.push(['same_day_weekday_delivery_fee_waived', order.same_day_weekday_delivery_fee_waived || false, `${sameDayWeekdayDeliveryFeeWaived}${reasonInfo}`]);
+  }
+
+  // Handle same-day weekday delivery fee waive reason changes
+  if (sameDayWeekdayDeliveryFeeWaiveReason !== undefined && sameDayWeekdayDeliveryFeeWaiveReason !== (order.same_day_weekday_delivery_fee_waive_reason || '')) {
+    changes.same_day_weekday_delivery_fee_waive_reason = sameDayWeekdayDeliveryFeeWaiveReason || null;
   }
 
   // Determine if we need to clear payment method

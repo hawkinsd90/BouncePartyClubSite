@@ -44,6 +44,8 @@ export function InvoiceBuilder() {
   const [surfaceFeeWaiveReason, setSurfaceFeeWaiveReason] = useState('');
   const [generatorFeeWaived, setGeneratorFeeWaived] = useState(false);
   const [generatorFeeWaiveReason, setGeneratorFeeWaiveReason] = useState('');
+  const [sameDayWeekdayDeliveryFeeWaived, setSameDayWeekdayDeliveryFeeWaived] = useState(false);
+  const [sameDayWeekdayDeliveryFeeWaiveReason, setSameDayWeekdayDeliveryFeeWaiveReason] = useState('');
   const [customDepositCents, setCustomDepositCents] = useState<number | null>(null);
   const [customDepositInput, setCustomDepositInput] = useState('');
   const [requireCardOnFile, setRequireCardOnFile] = useState(true);
@@ -95,6 +97,7 @@ export function InvoiceBuilder() {
           sameDayPickupFeeWaived,
           surfaceFeeWaived,
           generatorFeeWaived,
+          sameDayWeekdayDeliveryFeeWaived,
         },
       });
     }
@@ -121,6 +124,7 @@ export function InvoiceBuilder() {
     sameDayPickupFeeWaived,
     surfaceFeeWaived,
     generatorFeeWaived,
+    sameDayWeekdayDeliveryFeeWaived,
     calculatePricing,
   ]);
 
@@ -224,6 +228,11 @@ export function InvoiceBuilder() {
         return;
       }
 
+      if (sameDayWeekdayDeliveryFeeWaived && !sameDayWeekdayDeliveryFeeWaiveReason.trim()) {
+        showToast('A reason is required to waive the Same-Day Weekday Delivery Fee', 'error');
+        return;
+      }
+
       const customer = customers.find(c => c.id === customerManagement.selectedCustomer);
 
       const result = await generateInvoice(
@@ -257,6 +266,8 @@ export function InvoiceBuilder() {
           surfaceFeeWaiveReason,
           generatorFeeWaived,
           generatorFeeWaiveReason,
+          sameDayWeekdayDeliveryFeeWaived,
+          sameDayWeekdayDeliveryFeeWaiveReason,
           requireCardOnFile,
         },
         customer
@@ -286,6 +297,8 @@ export function InvoiceBuilder() {
       setSurfaceFeeWaiveReason('');
       setGeneratorFeeWaived(false);
       setGeneratorFeeWaiveReason('');
+      setSameDayWeekdayDeliveryFeeWaived(false);
+      setSameDayWeekdayDeliveryFeeWaiveReason('');
       setRequireCardOnFile(true);
       customerManagement.setSelectedCustomer('');
       resetEventDetails();
@@ -545,6 +558,21 @@ export function InvoiceBuilder() {
                 setGeneratorFeeWaiveReason(reason);
               }}
               color="blue"
+              compact={true}
+            />
+          )}
+
+          {((calculatedPricing?.same_day_weekday_delivery_fee_cents || 0) > 0 || sameDayWeekdayDeliveryFeeWaived) && (
+            <FeeWaiver
+              feeName="Same-Day Weekday Delivery Fee"
+              feeAmount={calculatedPricing?.same_day_weekday_delivery_fee_cents || 0}
+              isWaived={sameDayWeekdayDeliveryFeeWaived}
+              waiveReason={sameDayWeekdayDeliveryFeeWaiveReason}
+              onToggle={(reason) => {
+                setSameDayWeekdayDeliveryFeeWaived(!sameDayWeekdayDeliveryFeeWaived);
+                setSameDayWeekdayDeliveryFeeWaiveReason(reason);
+              }}
+              color="orange"
               compact={true}
             />
           )}

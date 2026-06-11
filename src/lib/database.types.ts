@@ -225,6 +225,7 @@ export interface Database {
           surface_fee_cents?: number | null
           same_day_pickup_fee_cents?: number | null
           generator_fee_cents?: number | null
+          same_day_weekday_delivery_fee_cents?: number | null
           total_cents?: number | null
           paid_amount_cents?: number | null
         }
@@ -301,6 +302,9 @@ export interface Database {
           travel_fee_waive_reason: string | null
           same_day_pickup_fee_waived: boolean
           same_day_pickup_fee_waive_reason: string | null
+          same_day_weekday_delivery_fee_cents: number
+          same_day_weekday_delivery_fee_waived: boolean
+          same_day_weekday_delivery_fee_waive_reason: string | null
           tip_cents: number
           total_cents: number
           deposit_due_cents: number
@@ -516,6 +520,7 @@ export interface Database {
           deposit_per_unit_cents: number | null
           free_city_list_json: Json | null
           same_day_pickup_fee_cents: number | null
+          same_day_weekday_delivery_fee_cents: number | null
           tax_rate: number | null
           generator_fee_single_cents: number | null
           generator_fee_multiple_cents: number | null

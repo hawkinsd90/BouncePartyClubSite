@@ -22,6 +22,7 @@ export interface PricingRules {
   generator_fee_single_cents?: number;
   generator_fee_multiple_cents?: number;
   apply_taxes_by_default?: boolean;
+  same_day_weekday_delivery_fee_cents?: number;
   same_day_matrix_json?: Array<{ units: number; generator: boolean; subtotal_ge_cents: number; fee_cents: number }> | null;
 }
 
@@ -44,6 +45,7 @@ export interface PriceCalculationInput {
   zip: string;
   has_generator: boolean;
   generator_qty?: number;
+  is_same_day_weekday_delivery?: boolean;
   rules: PricingRules;
 }
 
@@ -58,11 +60,21 @@ export interface PriceBreakdown {
   travel_fee_display_name: string;
   surface_fee_cents: number;
   same_day_pickup_fee_cents: number;
+  same_day_weekday_delivery_fee_cents: number;
   generator_fee_cents: number;
   tax_cents: number;
   total_cents: number;
   deposit_due_cents: number;
   balance_due_cents: number;
+}
+
+export function isSameDayWeekdayDelivery(eventDateYMD: string): boolean {
+  if (!eventDateYMD) return false;
+  const todayYMD = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Detroit' });
+  if (eventDateYMD !== todayYMD) return false;
+  const [year, month, day] = eventDateYMD.split('-').map(Number);
+  const dow = new Date(year, month - 1, day).getDay();
+  return dow >= 1 && dow <= 5;
 }
 
 export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
@@ -78,6 +90,7 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
     zip,
     has_generator,
     generator_qty = 0,
+    is_same_day_weekday_delivery = false,
     rules,
   } = input;
 
@@ -131,6 +144,11 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
     same_day_pickup_fee_cents = rules.same_day_pickup_fee_cents;
   }
 
+  const same_day_weekday_delivery_fee_cents =
+    is_same_day_weekday_delivery && rules.same_day_weekday_delivery_fee_cents
+      ? rules.same_day_weekday_delivery_fee_cents
+      : 0;
+
   let generator_fee_cents = 0;
   const actual_generator_qty = generator_qty > 0 ? generator_qty : (has_generator ? 1 : 0);
   if (actual_generator_qty > 0) {
@@ -156,6 +174,7 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
     travel_fee_cents +
     surface_fee_cents +
     same_day_pickup_fee_cents +
+    same_day_weekday_delivery_fee_cents +
     generator_fee_cents +
     tax_cents;
 
@@ -181,6 +200,7 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
     travel_fee_display_name,
     surface_fee_cents,
     same_day_pickup_fee_cents,
+    same_day_weekday_delivery_fee_cents,
     generator_fee_cents,
     tax_cents,
     total_cents,
