@@ -555,79 +555,92 @@ export function MenuPreview() {
         <div className="menu-print-page-number" aria-hidden="true" />
 
         <div className="menu-print-content max-w-5xl mx-auto">
-          <div className="menu-print-grid">
-            {(() => {
-              const pairs: Unit[][] = [];
-              for (let i = 0; i < data.units.length; i += 2) {
-                pairs.push(data.units.slice(i, i + 2));
-              }
-              return pairs.map((pair, rowIdx) => (
-                <div
-                  key={rowIdx}
-                  className={`menu-print-row${rowIdx < pairs.length - 1 ? ' menu-print-row-break' : ''}`}
-                >
-                  {pair.map((unit, pairIdx) => {
-                    const unitIdx = rowIdx * 2 + pairIdx;
-                    // In the 3-col print grid, 2 print rows = 6 units. Mark the
-                    // 6th, 12th, 18th... card so CSS can break-after in print.
-                    const isLastInPrintPage = (unitIdx + 1) % 6 === 0 && unitIdx < data.units.length - 1;
-                    const imageUrl = getUnitImageUrl(unit);
-                    return (
-                      <div key={unit.id} className={`menu-unit-card${isLastInPrintPage ? ' menu-print-page-after' : ''}`}>
-                        {imageUrl ? (
-                          <img
-                            src={imageUrl}
-                            alt={unit.name}
-                            className="menu-unit-image"
-                            onError={(e) => ((e.currentTarget.style.display = 'none'))}
-                          />
-                        ) : null}
+          {(() => {
+            // Group units into pages of 6 (2 rows × 3 cols in print layout).
+            // Each page group gets its own grid so break-after goes on a real
+            // block container — not on a grid item — which works reliably on mobile.
+            const PAGE_SIZE = 6;
+            const pages: Unit[][] = [];
+            for (let i = 0; i < data.units.length; i += PAGE_SIZE) {
+              pages.push(data.units.slice(i, i + PAGE_SIZE));
+            }
 
-                        <div className="menu-unit-name-row">
-                          <div className="menu-unit-name">{unit.name}</div>
-                          {isCombo(unit) ? <div className="menu-unit-badge">COMBO</div> : null}
-                        </div>
+            // Screen layout uses 2 columns so rows hold 2 units each.
+            function buildRows(units: Unit[]): Unit[][] {
+              const rows: Unit[][] = [];
+              for (let i = 0; i < units.length; i += 2) rows.push(units.slice(i, i + 2));
+              return rows;
+            }
 
-                        <div className="menu-unit-type">{getUnitTypeLabel(unit)}</div>
+            return pages.map((pageUnits, pageIdx) => (
+              <div
+                key={pageIdx}
+                className={`menu-print-page-group${pageIdx < pages.length - 1 ? ' menu-print-page-break' : ''}`}
+              >
+                <div className="menu-print-grid">
+                  {buildRows(pageUnits).map((pair, rowIdx) => (
+                    <div key={rowIdx} className="menu-print-row">
+                      {pair.map((unit) => {
+                        const imageUrl = getUnitImageUrl(unit);
+                        return (
+                          <div key={unit.id} className="menu-unit-card">
+                            {imageUrl ? (
+                              <img
+                                src={imageUrl}
+                                alt={unit.name}
+                                className="menu-unit-image"
+                                onError={(e) => ((e.currentTarget.style.display = 'none'))}
+                              />
+                            ) : null}
 
-                        <div className="menu-unit-details">
-                          <div className="menu-detail-row">
-                            <span className="menu-detail-label">Dimensions</span>
-                            <span className="menu-detail-value">{unit.dimensions || 'N/A'}</span>
-                          </div>
-                          <div className="menu-detail-row">
-                            <span className="menu-detail-label">Footprint</span>
-                            <span className="menu-detail-value">{unit.footprint_sqft} sq ft</span>
-                          </div>
-                          <div className="menu-detail-row">
-                            <span className="menu-detail-label">Capacity</span>
-                            <span className="menu-detail-value">{unit.capacity} kids</span>
-                          </div>
-                          <div className="menu-detail-row">
-                            <span className="menu-detail-label">Qty Available</span>
-                            <span className="menu-detail-value">{unit.quantity_available}</span>
-                          </div>
-                        </div>
-
-                        <div className="menu-unit-pricing">
-                          <div className="menu-price-row">
-                            <span className="menu-price-label">Dry</span>
-                            <span className="menu-price-value">{formatCurrency(unit.price_dry_cents)}</span>
-                          </div>
-                          {unit.price_water_cents ? (
-                            <div className="menu-price-row">
-                              <span className="menu-price-label">Water</span>
-                              <span className="menu-price-value">{formatCurrency(unit.price_water_cents)}</span>
+                            <div className="menu-unit-name-row">
+                              <div className="menu-unit-name">{unit.name}</div>
+                              {isCombo(unit) ? <div className="menu-unit-badge">COMBO</div> : null}
                             </div>
-                          ) : null}
-                        </div>
-                      </div>
-                    );
-                  })}
+
+                            <div className="menu-unit-type">{getUnitTypeLabel(unit)}</div>
+
+                            <div className="menu-unit-details">
+                              <div className="menu-detail-row">
+                                <span className="menu-detail-label">Dimensions</span>
+                                <span className="menu-detail-value">{unit.dimensions || 'N/A'}</span>
+                              </div>
+                              <div className="menu-detail-row">
+                                <span className="menu-detail-label">Footprint</span>
+                                <span className="menu-detail-value">{unit.footprint_sqft} sq ft</span>
+                              </div>
+                              <div className="menu-detail-row">
+                                <span className="menu-detail-label">Capacity</span>
+                                <span className="menu-detail-value">{unit.capacity} kids</span>
+                              </div>
+                              <div className="menu-detail-row">
+                                <span className="menu-detail-label">Qty Available</span>
+                                <span className="menu-detail-value">{unit.quantity_available}</span>
+                              </div>
+                            </div>
+
+                            <div className="menu-unit-pricing">
+                              <div className="menu-price-row">
+                                <span className="menu-price-label">Dry</span>
+                                <span className="menu-price-value">{formatCurrency(unit.price_dry_cents)}</span>
+                              </div>
+                              {unit.price_water_cents ? (
+                                <div className="menu-price-row">
+                                  <span className="menu-price-label">Water</span>
+                                  <span className="menu-price-value">{formatCurrency(unit.price_water_cents)}</span>
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
-              ));
-            })()}
-          </div>
+              </div>
+            ));
+          })()}
+
 
           <div className="menu-print-footer">
             <div>

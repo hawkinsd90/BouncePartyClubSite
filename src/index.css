@@ -626,7 +626,7 @@ textarea {
     max-width: none !important;
   }
 
-  /* 3-column grid — no page breaks, fits all on as few pages as possible */
+  /* 3-column grid inside each page group */
   body.print-menu-preview #root .menu-print-grid {
     display: grid !important;
     grid-template-columns: repeat(3, 1fr) !important;
@@ -638,8 +638,15 @@ textarea {
     display: contents !important;
   }
 
-  body.print-menu-preview #root .menu-print-row-break {
-    display: contents !important;
+  /* Page group: block container that holds one page worth of cards.
+     break-after on a real block element is reliable cross-browser (including mobile). */
+  body.print-menu-preview #root .menu-print-page-group {
+    display: block !important;
+  }
+
+  body.print-menu-preview #root .menu-print-page-break {
+    break-after: page !important;
+    page-break-after: always !important;
   }
 
   body.print-menu-preview #root .menu-unit-card {
@@ -652,12 +659,6 @@ textarea {
     padding: 8px !important;
     margin: 0 !important;
     box-shadow: none !important;
-  }
-
-  /* Page break after every 6th card (2 rows × 3 cols) */
-  body.print-menu-preview #root .menu-print-page-after {
-    break-after: page !important;
-    page-break-after: always !important;
   }
 
   body.print-menu-preview #root .menu-unit-image {
