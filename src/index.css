@@ -273,17 +273,6 @@ textarea {
 }
 
 /* ============================================================
-   MENU IMAGE EXPORT (off-screen canvas, never visible to users)
-   ============================================================ */
-
-#menu-image-export {
-  position: absolute !important;
-  left: -9999px !important;
-  top: 0 !important;
-  pointer-events: none !important;
-}
-
-/* ============================================================
    PRINT STYLES
    ============================================================ */
 

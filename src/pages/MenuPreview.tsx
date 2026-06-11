@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Printer, Download } from 'lucide-react';
-import { toPng } from 'html-to-image';
 import { notifyError } from '../lib/notifications';
 
 type Unit = {
@@ -43,39 +42,6 @@ function preloadImages(urls: string[]) {
   );
 }
 
-// Fetch an image URL and return a base64 data URL. Falls back to the original
-// URL on any error so the img tag still has a src (it just may not render).
-async function toDataUrl(url: string): Promise<string> {
-  if (!url) return url;
-  try {
-    const res = await fetch(url, { mode: 'cors', cache: 'force-cache' });
-    if (!res.ok) return url;
-    const blob = await res.blob();
-    return new Promise<string>((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = () => resolve(url);
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return url;
-  }
-}
-
-// Returns a map of original URL → data URL for all images in the clone node
-async function inlineImages(node: HTMLElement): Promise<void> {
-  const imgs = Array.from(node.querySelectorAll('img')) as HTMLImageElement[];
-  await Promise.all(
-    imgs.map(async (img) => {
-      const src = img.getAttribute('src');
-      if (src && !src.startsWith('data:')) {
-        const dataUrl = await toDataUrl(src);
-        img.src = dataUrl;
-      }
-    })
-  );
-}
-
 function getUnitImageUrl(unit: Unit): string {
   const allImages = unit.media || [];
   const featured = allImages.find((m: any) => m.is_featured);
@@ -85,6 +51,316 @@ function getUnitImageUrl(unit: Unit): string {
 
 function getUnitImageUrls(units: Unit[]): string[] {
   return units.map(getUnitImageUrl).filter(Boolean);
+}
+
+// Load an image (possibly cross-origin) and return an HTMLImageElement ready to drawImage.
+// Uses crossOrigin='anonymous' so that if the server sends CORS headers the canvas won't taint.
+// Falls back to no crossOrigin attr on error (renders without taint protection but still draws).
+function loadImageForCanvas(src: string): Promise<HTMLImageElement | null> {
+  if (!src) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => {
+      // Retry without crossOrigin — some servers don't send CORS headers
+      const img2 = new Image();
+      img2.onload = () => resolve(img2);
+      img2.onerror = () => resolve(null);
+      img2.src = src + (src.includes('?') ? '&' : '?') + '_cb=' + Date.now();
+    };
+    img.src = src;
+  });
+}
+
+// Draw a rounded rectangle path on a canvas context
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number
+) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// Wrap text and return lines that fit within maxWidth
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    const test = current ? current + ' ' + word : word;
+    if (ctx.measureText(test).width <= maxWidth) {
+      current = test;
+    } else {
+      if (current) lines.push(current);
+      current = word;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+// Draw the full menu onto a canvas and return it as a PNG data URL.
+// All drawing is pure Canvas 2D — no DOM capture, no html-to-image, no CORS issues.
+async function drawMenuToCanvas(
+  data: MenuPreviewData,
+  logoImg: HTMLImageElement | null,
+  unitImages: (HTMLImageElement | null)[]
+): Promise<string> {
+  const SCALE = 2; // retina
+  const W = 1200;
+  const COLS = 3;
+  const PAD = 32;
+  const GAP = 16;
+  const HEADER_H = 140;
+  const IMG_H = 160;
+  const CARD_CONTENT_H = 160; // text area per card
+  const CARD_H = IMG_H + CARD_CONTENT_H;
+  const CARD_W = Math.floor((W - PAD * 2 - GAP * (COLS - 1)) / COLS);
+  const FOOTER_H = 56;
+  const ROWS = Math.ceil(data.units.length / COLS);
+  const GRID_H = ROWS * CARD_H + (ROWS - 1) * GAP;
+  const TOTAL_H = HEADER_H + PAD + GRID_H + PAD + FOOTER_H;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W * SCALE;
+  canvas.height = TOTAL_H * SCALE;
+  const ctx = canvas.getContext('2d')!;
+  ctx.scale(SCALE, SCALE);
+
+  // Background
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(0, 0, W, TOTAL_H);
+
+  // --- Header gradient ---
+  const grad = ctx.createLinearGradient(0, 0, W, HEADER_H);
+  grad.addColorStop(0, '#1d4ed8');
+  grad.addColorStop(1, '#0891b2');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, HEADER_H);
+
+  // Logo in header
+  let logoRight = PAD;
+  if (logoImg) {
+    const logoH = 72;
+    const logoW = Math.round((logoImg.naturalWidth / logoImg.naturalHeight) * logoH);
+    const lx = PAD;
+    const ly = (HEADER_H - logoH) / 2;
+    ctx.drawImage(logoImg, lx, ly, logoW, logoH);
+    logoRight = lx + logoW + 16;
+  }
+
+  // Title in header
+  const titleX = W / 2;
+  const generatedDate = new Date(data.generatedAtIso);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `900 30px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+  ctx.fillText(data.title || 'Inflatable Price List', titleX, HEADER_H / 2 + 6);
+  ctx.font = `600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+  ctx.fillStyle = 'rgba(255,255,255,0.82)';
+  ctx.fillText(
+    `Bounce Party Club  ·  Generated ${generatedDate.toLocaleDateString('en-US')}`,
+    titleX,
+    HEADER_H / 2 + 28
+  );
+  ctx.textAlign = 'left';
+
+  // Suppress unused variable warning
+  void logoRight;
+
+  // --- Unit cards ---
+  let cardY = HEADER_H + PAD;
+
+  for (let i = 0; i < data.units.length; i++) {
+    const unit = data.units[i];
+    const col = i % COLS;
+    const row = Math.floor(i / COLS);
+    const cx = PAD + col * (CARD_W + GAP);
+    const cy = cardY + row * (CARD_H + GAP);
+
+    // Card shadow (simulated with offset fill)
+    ctx.fillStyle = 'rgba(15,23,42,0.07)';
+    roundRect(ctx, cx + 2, cy + 3, CARD_W, CARD_H, 12);
+    ctx.fill();
+
+    // Card background
+    ctx.fillStyle = '#ffffff';
+    roundRect(ctx, cx, cy, CARD_W, CARD_H, 12);
+    ctx.fill();
+
+    // Card border
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1;
+    roundRect(ctx, cx, cy, CARD_W, CARD_H, 12);
+    ctx.stroke();
+
+    // Unit image (clipped to top of card with rounded top corners)
+    const unitImg = unitImages[i];
+    ctx.save();
+    roundRect(ctx, cx, cy, CARD_W, IMG_H, 12);
+    // Square off bottom corners of the image clip
+    ctx.rect(cx, cy + IMG_H - 12, CARD_W, 12);
+    ctx.clip();
+    if (unitImg) {
+      // cover: scale to fill, center crop
+      const iRatio = unitImg.naturalWidth / unitImg.naturalHeight;
+      const cRatio = CARD_W / IMG_H;
+      let sw = unitImg.naturalWidth, sh = unitImg.naturalHeight;
+      let sx = 0, sy = 0;
+      if (iRatio > cRatio) {
+        sw = Math.round(sh * cRatio);
+        sx = Math.round((unitImg.naturalWidth - sw) / 2);
+      } else {
+        sh = Math.round(sw / cRatio);
+        sy = Math.round((unitImg.naturalHeight - sh) / 2);
+      }
+      ctx.drawImage(unitImg, sx, sy, sw, sh, cx, cy, CARD_W, IMG_H);
+    } else {
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillRect(cx, cy, CARD_W, IMG_H);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '500 13px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('No image', cx + CARD_W / 2, cy + IMG_H / 2 + 5);
+      ctx.textAlign = 'left';
+    }
+    ctx.restore();
+
+    // Card text area
+    const tx = cx + 12;
+    let ty = cy + IMG_H + 14;
+    const textW = CARD_W - 24;
+
+    // Unit name
+    ctx.fillStyle = '#0f172a';
+    ctx.font = `800 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    const nameLines = wrapText(ctx, unit.name, textW - (unit.is_combo ? 58 : 0));
+    nameLines.slice(0, 2).forEach((line, li) => {
+      ctx.fillText(line, tx, ty + li * 18);
+    });
+
+    // COMBO badge
+    if (unit.is_combo) {
+      const badgeX = cx + CARD_W - 12 - 52;
+      const badgeY = cy + IMG_H + 6;
+      ctx.fillStyle = '#fef3c7';
+      roundRect(ctx, badgeX, badgeY, 52, 18, 4);
+      ctx.fill();
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 1;
+      roundRect(ctx, badgeX, badgeY, 52, 18, 4);
+      ctx.stroke();
+      ctx.fillStyle = '#92400e';
+      ctx.font = `800 9px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText('COMBO', badgeX + 26, badgeY + 12);
+      ctx.textAlign = 'left';
+    }
+
+    ty += Math.min(nameLines.length, 2) * 18 + 2;
+
+    // Type
+    ctx.fillStyle = '#64748b';
+    ctx.font = `700 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    ctx.fillText(unit.type, tx, ty);
+    ty += 16;
+
+    // Divider
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(tx + textW, ty);
+    ctx.stroke();
+    ty += 10;
+
+    // Details rows
+    const details: [string, string][] = [
+      ['Dimensions', unit.dimensions || 'N/A'],
+      ['Footprint', `${unit.footprint_sqft} sq ft`],
+      ['Capacity', `${unit.capacity} kids`],
+    ];
+    ctx.font = `600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    for (const [label, value] of details) {
+      ctx.fillStyle = '#64748b';
+      ctx.fillText(label, tx, ty);
+      ctx.fillStyle = '#0f172a';
+      ctx.textAlign = 'right';
+      ctx.fillText(value, tx + textW, ty);
+      ctx.textAlign = 'left';
+      ty += 15;
+    }
+
+    ty += 4;
+
+    // Pricing box
+    const pricingH = unit.price_water_cents ? 46 : 28;
+    ctx.fillStyle = '#f0fdf4';
+    roundRect(ctx, tx, ty, textW, pricingH, 6);
+    ctx.fill();
+    ctx.strokeStyle = '#86efac';
+    ctx.lineWidth = 1;
+    roundRect(ctx, tx, ty, textW, pricingH, 6);
+    ctx.stroke();
+
+    ty += 10;
+    ctx.font = `800 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    ctx.fillStyle = '#166534';
+    ctx.fillText('Dry', tx + 8, ty);
+    ctx.fillStyle = '#15803d';
+    ctx.textAlign = 'right';
+    ctx.fillText(formatCurrency(unit.price_dry_cents), tx + textW - 8, ty);
+    ctx.textAlign = 'left';
+
+    if (unit.price_water_cents) {
+      ty += 18;
+      ctx.fillStyle = '#0369a1';
+      ctx.fillText('Water', tx + 8, ty);
+      ctx.textAlign = 'right';
+      ctx.fillText(formatCurrency(unit.price_water_cents), tx + textW - 8, ty);
+      ctx.textAlign = 'left';
+    }
+  }
+
+  // --- Footer ---
+  const fy = HEADER_H + PAD + GRID_H + PAD;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, fy, W, FOOTER_H);
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, fy);
+  ctx.lineTo(W, fy);
+  ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.font = `700 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+  ctx.fillStyle = '#0f172a';
+  ctx.fillText('Bounce Party Club', W / 2, fy + 22);
+  ctx.font = `500 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+  ctx.fillStyle = '#64748b';
+  ctx.fillText(
+    'Prices are base rental rates. Delivery/setup fees may apply. Subject to change — confirm at booking.',
+    W / 2,
+    fy + 38
+  );
+  ctx.textAlign = 'left';
+
+  return canvas.toDataURL('image/png');
 }
 
 export function MenuPreview() {
@@ -154,46 +430,30 @@ export function MenuPreview() {
 
   const handleSaveImage = async () => {
     if (!data) return;
-
-    const template = document.getElementById('menu-image-export');
-    if (!template) {
-      notifyError('Could not generate image. Please try Print / Save PDF instead.');
-      return;
-    }
-
     setSavingImage(true);
 
-    // Place the clone just below the visible viewport so the browser renders
-    // it without any opacity reduction (opacity on the wrapper taints html-to-image).
-    const wrapper = document.createElement('div');
-    wrapper.style.cssText =
-      'position:fixed;top:100vh;left:0;z-index:99999;pointer-events:none;overflow:visible;';
-
-    const clone = template.cloneNode(true) as HTMLElement;
-    clone.style.position = 'static';
-    clone.style.left = '';
-    clone.style.top = '';
-    wrapper.appendChild(clone);
-    document.body.appendChild(wrapper);
-
     try {
-      // Convert all cross-origin image src attributes to data URLs inside the
-      // clone before capture. This bypasses CORS canvas tainting entirely.
-      await inlineImages(clone);
+      const logoUrl = `${window.location.origin}/bounce party club logo.png`;
+      const unitUrls = getUnitImageUrls(data.units);
 
-      // One rAF so the browser lays out and paints the freshly appended clone
-      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+      // Load all images in parallel for canvas drawing
+      const [logoImg, ...unitImgs] = await Promise.all([
+        loadImageForCanvas(logoUrl),
+        ...data.units.map((u) => loadImageForCanvas(getUnitImageUrl(u))),
+      ]);
 
-      const dataUrl = await toPng(clone, { pixelRatio: 2 });
+      const dataUrl = await drawMenuToCanvas(data, logoImg, unitImgs);
+
       const link = document.createElement('a');
       link.download = 'bounce-party-club-menu.png';
       link.href = dataUrl;
       link.click();
+
+      void unitUrls; // suppress unused warning
     } catch (e) {
       console.error(e);
       notifyError('Could not generate image. Please try Print / Save PDF instead.');
     } finally {
-      document.body.removeChild(wrapper);
       setSavingImage(false);
     }
   };
@@ -231,7 +491,7 @@ export function MenuPreview() {
 
   return (
     <div className="menu-preview-route min-h-screen bg-slate-50 py-8 px-4">
-      {/* Action bar — screen only, excluded from both PDF and image capture */}
+      {/* Action bar — screen only, excluded from PDF */}
       <div className="max-w-5xl mx-auto mb-4 flex items-center justify-between gap-3 no-print">
         <button
           onClick={handleBack}
@@ -261,7 +521,7 @@ export function MenuPreview() {
         </div>
       </div>
 
-      {/* id="menu-content" — screen preview and PDF print target */}
+      {/* Screen preview and PDF print target */}
       <div id="menu-content">
         <div className="menu-print-header">
           <img
@@ -363,136 +623,6 @@ export function MenuPreview() {
               Prices are subject to change. Please confirm final pricing at booking.
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* id="menu-image-export" — off-screen fixed-width canvas for PNG export only */}
-      {/* Hidden by CSS: position:absolute left:-9999px — never visible on screen */}
-      <div
-        id="menu-image-export"
-        style={{
-          width: '1200px',
-          background: '#f8fafc',
-          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        }}
-      >
-        {/* Export Header */}
-        <div
-          style={{
-            background: 'linear-gradient(135deg, #1d4ed8 0%, #0891b2 100%)',
-            padding: '32px 40px 28px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '24px',
-          }}
-        >
-          <img
-            src="/bounce party club logo.png"
-            alt="Bounce Party Club"
-            style={{ height: '80px', width: 'auto', objectFit: 'contain' }}
-            onError={(e) => ((e.currentTarget.style.display = 'none'))}
-          />
-          <div style={{ textAlign: 'center', flex: 1 }}>
-            <div style={{ fontSize: '30px', fontWeight: 900, color: '#fff', lineHeight: 1.1 }}>
-              {data.title || 'Inflatable Price List'}
-            </div>
-            <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.8)', marginTop: '6px', fontWeight: 600 }}>
-              Bounce Party Club · Generated {generatedDate.toLocaleDateString('en-US')}
-            </div>
-          </div>
-          <div style={{ width: '80px' }} />
-        </div>
-
-        {/* 3-column card grid */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: '16px',
-            padding: '24px 32px',
-          }}
-        >
-          {data.units.map((unit) => {
-            const imageUrl = getUnitImageUrl(unit);
-            return (
-              <div
-                key={unit.id}
-                style={{
-                  background: '#fff',
-                  borderRadius: '12px',
-                  overflow: 'hidden',
-                  border: '1px solid #e2e8f0',
-                  boxShadow: '0 2px 8px rgba(15,23,42,0.08)',
-                }}
-              >
-                {imageUrl ? (
-                  <img
-                    src={imageUrl}
-                    alt={unit.name}
-                    style={{ width: '100%', height: '170px', objectFit: 'cover', display: 'block' }}
-                    onError={(e) => ((e.currentTarget.style.display = 'none'))}
-                  />
-                ) : (
-                  <div style={{ width: '100%', height: '170px', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ color: '#94a3b8', fontSize: '13px' }}>No image</span>
-                  </div>
-                )}
-
-                <div style={{ padding: '12px 14px' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px', marginBottom: '4px' }}>
-                    <div style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>
-                      {unit.name}
-                    </div>
-                    {unit.is_combo ? (
-                      <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #f59e0b', fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '6px', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                        COMBO
-                      </span>
-                    ) : null}
-                  </div>
-
-                  <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 700, marginBottom: '8px' }}>
-                    {unit.type}
-                  </div>
-
-                  {unit.dimensions ? (
-                    <div style={{ fontSize: '11px', color: '#475569', marginBottom: '8px', fontWeight: 600 }}>
-                      {unit.dimensions} · {unit.capacity} kids
-                    </div>
-                  ) : null}
-
-                  <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '8px', padding: '8px 10px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: unit.price_water_cents ? '4px' : '0' }}>
-                      <span style={{ fontSize: '14px', fontWeight: 800, color: '#166534' }}>Dry</span>
-                      <span style={{ fontSize: '14px', fontWeight: 900, color: '#15803d' }}>{formatCurrency(unit.price_dry_cents)}</span>
-                    </div>
-                    {unit.price_water_cents ? (
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '14px', fontWeight: 800, color: '#0369a1' }}>Water</span>
-                        <span style={{ fontSize: '14px', fontWeight: 900, color: '#0369a1' }}>{formatCurrency(unit.price_water_cents)}</span>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Export Footer */}
-        <div
-          style={{
-            borderTop: '2px solid #e2e8f0',
-            padding: '16px 32px',
-            textAlign: 'center',
-            fontSize: '12px',
-            color: '#64748b',
-            fontWeight: 600,
-            background: '#fff',
-          }}
-        >
-          <strong style={{ color: '#0f172a' }}>Bounce Party Club</strong>
-          {' '}· Prices are base rental rates. Delivery/setup fees may apply. Subject to change — confirm at booking.
         </div>
       </div>
     </div>
