@@ -13,7 +13,6 @@ interface PricingRules {
   generator_fee_single_cents?: number;
   generator_fee_multiple_cents?: number;
   same_day_pickup_fee_cents?: number;
-  same_day_weekday_delivery_fee_cents?: number;
   apply_taxes_by_default?: boolean;
 }
 
@@ -27,7 +26,6 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
   const [editedRules, setEditedRules] = useState(initialRules);
   const [applyTravelFeeByDefault, setApplyTravelFeeByDefault] = useState(true);
 
-  // Track display values during editing
   const [displayValues, setDisplayValues] = useState({
     perMile: '',
     sandbag: '',
@@ -35,7 +33,6 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
     generatorSingle: '',
     generatorMultiple: '',
     sameDayPickup: '',
-    sameDayWeekdayDelivery: ''
   });
 
   useEffect(() => {
@@ -62,26 +59,23 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Save pricing rules via edge function to bypass PostgREST schema cache
-      const res = await supabase.functions.invoke('update-pricing-rules', {
-        body: {
-          id: editedRules.id,
+      const { error: pricingError } = await supabase
+        .from('pricing_rules')
+        .update({
           base_radius_miles: editedRules.base_radius_miles,
           per_mile_after_base_cents: editedRules.per_mile_after_base_cents,
           surface_sandbag_fee_cents: editedRules.surface_sandbag_fee_cents,
           deposit_per_unit_cents: editedRules.deposit_per_unit_cents || 5000,
-          included_cities: editedRules.included_cities || [],
+          included_cities: editedRules.included_cities,
           generator_fee_single_cents: editedRules.generator_fee_single_cents || 10000,
           generator_fee_multiple_cents: editedRules.generator_fee_multiple_cents || 7500,
           same_day_pickup_fee_cents: editedRules.same_day_pickup_fee_cents || 0,
-          same_day_weekday_delivery_fee_cents: editedRules.same_day_weekday_delivery_fee_cents || 0,
           apply_taxes_by_default: editedRules.apply_taxes_by_default ?? true,
-        },
-      });
-      if (res.error) throw res.error;
-      if (res.data?.error) throw new Error(res.data.error);
+        })
+        .eq('id', editedRules.id);
 
-      // Save travel fee default setting
+      if (pricingError) throw pricingError;
+
       const { error: travelError } = await supabase
         .from('admin_settings')
         .upsert({
@@ -111,7 +105,6 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
   };
 
   const handleStartEdit = () => {
-    // Initialize display values from current rules
     setDisplayValues({
       perMile: (editedRules.per_mile_after_base_cents / 100).toFixed(2),
       sandbag: (editedRules.surface_sandbag_fee_cents / 100).toFixed(2),
@@ -119,11 +112,9 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
       generatorSingle: ((editedRules.generator_fee_single_cents || 10000) / 100).toFixed(2),
       generatorMultiple: ((editedRules.generator_fee_multiple_cents || 7500) / 100).toFixed(2),
       sameDayPickup: ((editedRules.same_day_pickup_fee_cents || 0) / 100).toFixed(2),
-      sameDayWeekdayDelivery: ((editedRules.same_day_weekday_delivery_fee_cents || 0) / 100).toFixed(2)
     });
     setIsEditing(true);
   };
-
 
   return (
     <div className="bg-white rounded-xl shadow-md p-6">
@@ -325,28 +316,6 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
           />
           <p className="text-xs text-slate-500 mt-1">
             Additional fee for same-day pickup requests
-          </p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">
-            Same Day Weekday Delivery Fee (in dollars)
-          </label>
-          <input
-            type="text"
-            value={isEditing ? displayValues.sameDayWeekdayDelivery : ((editedRules.same_day_weekday_delivery_fee_cents || 0) / 100).toFixed(2)}
-            onChange={(e) => {
-              const value = e.target.value.replace(/[^0-9.]/g, '');
-              setDisplayValues({ ...displayValues, sameDayWeekdayDelivery: value });
-              setEditedRules({ ...editedRules, same_day_weekday_delivery_fee_cents: Math.round(Number(value || 0) * 100) });
-            }}
-            readOnly={!isEditing}
-            className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${
-              isEditing ? 'bg-white' : 'bg-slate-50'
-            }`}
-          />
-          <p className="text-xs text-slate-500 mt-1">
-            Fee applied when the event date is today and falls on a weekday (Mon–Fri)
           </p>
         </div>
 
