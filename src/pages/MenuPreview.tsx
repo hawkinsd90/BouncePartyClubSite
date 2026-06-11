@@ -362,7 +362,7 @@ async function drawMenuToCanvas(
   ctx.textAlign = 'center';
   ctx.font = `700 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
   ctx.fillStyle = '#0f172a';
-  ctx.fillText('Bounce Party Club', W / 2, fy + 22);
+  ctx.fillText('Bounce Party Club  ·  bouncepartyclub.com', W / 2, fy + 22);
   ctx.font = `500 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
   ctx.fillStyle = '#64748b';
   ctx.fillText(
@@ -657,7 +657,7 @@ export function MenuPreview() {
 
           <div className="menu-print-footer">
             <div>
-              <strong>Bounce Party Club</strong> • Prices shown are base rental rates. Delivery/setup
+              <strong>Bounce Party Club</strong> · bouncepartyclub.com · Prices shown are base rental rates. Delivery/setup
               fees may apply.
             </div>
             <div className="menu-print-footer-muted">
