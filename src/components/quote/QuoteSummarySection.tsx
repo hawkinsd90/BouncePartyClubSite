@@ -11,6 +11,7 @@ interface PriceBreakdown {
   travel_fee_display_name?: string;
   surface_fee_cents: number;
   same_day_pickup_fee_cents: number;
+  same_day_weekday_delivery_fee_cents: number;
   generator_fee_cents: number;
   tax_cents: number;
 }
@@ -42,6 +43,7 @@ export function QuoteSummarySection({ cart, priceBreakdown }: QuoteSummarySectio
     ? priceBreakdown.travel_fee_cents +
       priceBreakdown.surface_fee_cents +
       priceBreakdown.same_day_pickup_fee_cents +
+      priceBreakdown.same_day_weekday_delivery_fee_cents +
       priceBreakdown.generator_fee_cents +
       priceBreakdown.tax_cents
     : 0;
@@ -101,6 +103,13 @@ export function QuoteSummarySection({ cart, priceBreakdown }: QuoteSummarySectio
               <div className="flex items-center justify-between text-xs sm:text-sm">
                 <span className="text-slate-600">Same-Day Pickup</span>
                 <span className="font-semibold text-slate-800">{formatDollars(priceBreakdown.same_day_pickup_fee_cents)}</span>
+              </div>
+            )}
+
+            {priceBreakdown.same_day_weekday_delivery_fee_cents > 0 && (
+              <div className="flex items-center justify-between text-xs sm:text-sm">
+                <span className="text-slate-600">Same-Day Weekday Delivery</span>
+                <span className="font-semibold text-slate-800">{formatDollars(priceBreakdown.same_day_weekday_delivery_fee_cents)}</span>
               </div>
             )}
 
