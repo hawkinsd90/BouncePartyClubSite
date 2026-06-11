@@ -13,6 +13,7 @@ interface PricingRules {
   generator_fee_single_cents?: number;
   generator_fee_multiple_cents?: number;
   same_day_pickup_fee_cents?: number;
+  same_day_weekday_delivery_fee_cents?: number;
   apply_taxes_by_default?: boolean;
 }
 
@@ -33,6 +34,7 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
     generatorSingle: '',
     generatorMultiple: '',
     sameDayPickup: '',
+    sameDayWeekdayDelivery: '',
   });
 
   useEffect(() => {
@@ -70,6 +72,7 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
           generator_fee_single_cents: editedRules.generator_fee_single_cents || 10000,
           generator_fee_multiple_cents: editedRules.generator_fee_multiple_cents || 7500,
           same_day_pickup_fee_cents: editedRules.same_day_pickup_fee_cents || 0,
+          same_day_weekday_delivery_fee_cents: editedRules.same_day_weekday_delivery_fee_cents || 0,
           apply_taxes_by_default: editedRules.apply_taxes_by_default ?? true,
         })
         .eq('id', editedRules.id);
@@ -112,6 +115,7 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
       generatorSingle: ((editedRules.generator_fee_single_cents || 10000) / 100).toFixed(2),
       generatorMultiple: ((editedRules.generator_fee_multiple_cents || 7500) / 100).toFixed(2),
       sameDayPickup: ((editedRules.same_day_pickup_fee_cents || 0) / 100).toFixed(2),
+      sameDayWeekdayDelivery: ((editedRules.same_day_weekday_delivery_fee_cents || 0) / 100).toFixed(2),
     });
     setIsEditing(true);
   };
@@ -316,6 +320,28 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
           />
           <p className="text-xs text-slate-500 mt-1">
             Additional fee for same-day pickup requests
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-2">
+            Same Day Weekday Delivery Fee (in dollars)
+          </label>
+          <input
+            type="text"
+            value={isEditing ? displayValues.sameDayWeekdayDelivery : ((editedRules.same_day_weekday_delivery_fee_cents || 0) / 100).toFixed(2)}
+            onChange={(e) => {
+              const value = e.target.value.replace(/[^0-9.]/g, '');
+              setDisplayValues({ ...displayValues, sameDayWeekdayDelivery: value });
+              setEditedRules({ ...editedRules, same_day_weekday_delivery_fee_cents: Math.round(Number(value || 0) * 100) });
+            }}
+            readOnly={!isEditing}
+            className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${
+              isEditing ? 'bg-white' : 'bg-slate-50'
+            }`}
+          />
+          <p className="text-xs text-slate-500 mt-1">
+            Additional fee applied when the event date is today and falls on a weekday
           </p>
         </div>
 
