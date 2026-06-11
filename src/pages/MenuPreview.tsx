@@ -453,30 +453,29 @@ export function MenuPreview() {
 
       const dataUrl = await drawMenuToCanvas(data, logoImg, unitImgs);
 
-      // iOS Safari and most mobile browsers ignore the `download` attribute on
-      // programmatic anchor clicks. Opening the data URL in a new tab lets the
-      // user long-press → Save Image. On desktop we keep the direct download.
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      if (isMobile) {
-        const win = window.open('', '_blank');
-        if (win) {
-          win.document.write(
-            `<html><body style="margin:0;background:#000"><img src="${dataUrl}" style="max-width:100%;display:block" /></body></html>`
-          );
-          win.document.close();
-        } else {
-          // Popup blocked — fall back to same-tab navigation
-          window.location.href = dataUrl;
-        }
+      // Convert to Blob so we can use the Web Share API (works on iOS/Android)
+      // and also get an object URL for the desktop anchor download.
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const file = new File([blob], 'bounce-party-club-menu.png', { type: 'image/png' });
+
+      // Web Share API with files triggers the native save sheet on iOS 15+ / Android Chrome.
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'Bounce Party Club Menu' });
       } else {
+        // Desktop fallback
+        const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.download = 'bounce-party-club-menu.png';
-        link.href = dataUrl;
+        link.href = url;
         link.click();
+        URL.revokeObjectURL(url);
       }
-    } catch (e) {
-      console.error(e);
-      notifyError('Could not generate image. Please try Print / Save PDF instead.');
+    } catch (e: unknown) {
+      if (e instanceof Error && e.name !== 'AbortError') {
+        console.error(e);
+        notifyError('Could not save image. Please try Print / Save PDF instead.');
+      }
     } finally {
       setSavingImage(false);
     }
