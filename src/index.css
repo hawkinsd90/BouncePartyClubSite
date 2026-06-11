@@ -547,11 +547,11 @@ textarea {
   body.print-menu-preview #root .menu-preview-route {
     display: block !important;
   }
+
   /* Clean print surface */
   body.print-menu-preview #root .menu-preview-route {
     background: white !important;
     padding: 0 !important;
-    zoom: 1 !important; /* IMPORTANT: remove print zoom weirdness */
   }
 
   /* Hide screen-only controls */
@@ -561,147 +561,159 @@ textarea {
     visibility: hidden !important;
   }
 
-  /*
-    Header prints ONLY once (page 1) — NOT fixed.
-    Also: tell the print engine "don't orphan the header on a page alone".
-  */
+  /* Header: gradient bar matching PNG style */
   body.print-menu-preview #root .menu-print-header {
     position: static !important;
     height: auto !important;
-
     display: flex !important;
-    flex-direction: column !important;
+    flex-direction: row !important;
     align-items: center !important;
-    justify-content: center !important;
-    gap: 2px !important;
-
-    padding: 0.12in 0 !important;
-    margin: 0 0 0.18in 0 !important;
-
-    background: white !important;
-    border-bottom: 1px solid #e5e7eb !important;
-
+    justify-content: space-between !important;
+    gap: 16px !important;
+    padding: 20px 28px 18px !important;
+    margin: 0 0 16px 0 !important;
+    background: linear-gradient(135deg, #1d4ed8, #0891b2) !important;
+    border: none !important;
     box-shadow: none !important;
     border-radius: 0 !important;
-
     break-inside: avoid !important;
     page-break-inside: avoid !important;
-    break-after: avoid-page !important;   /* key: keep header with first cards */
+    break-after: avoid-page !important;
     page-break-after: avoid !important;
   }
 
   body.print-menu-preview #root .menu-print-logo {
-    height: 0.55in !important;
+    height: 0.6in !important;
     width: auto !important;
     object-fit: contain !important;
     margin: 0 !important;
   }
 
+  body.print-menu-preview #root .menu-print-header-center {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    flex: 1 !important;
+  }
+
+  body.print-menu-preview #root .menu-print-header-right {
+    width: 0.6in !important;
+    display: block !important;
+  }
+
   body.print-menu-preview #root .menu-print-title {
-    font-size: 13px !important;
+    font-size: 20px !important;
     font-weight: 900 !important;
-    color: #0f172a !important;
+    color: #ffffff !important;
     line-height: 1.1 !important;
     margin: 0 !important;
   }
 
   body.print-menu-preview #root .menu-print-subtitle {
-    font-size: 10px !important;
+    font-size: 9px !important;
     font-weight: 600 !important;
-    color: #64748b !important;
-    line-height: 1.1 !important;
-    margin: 0 !important;
+    color: rgba(255,255,255,0.82) !important;
+    line-height: 1.2 !important;
+    margin: 2px 0 0 !important;
   }
 
-  /*
-    Page number on every page (bottom-right).
-    NOTE: Chrome does NOT reliably support counter(pages), so keep it simple.
-  */
   body.print-menu-preview #root .menu-print-page-number {
-    position: fixed !important;
-    bottom: 0.25in !important;
-    right: 0.35in !important;
-    font-size: 10px !important;
-    font-weight: 600 !important;
-    color: #64748b !important;
-    z-index: 9999 !important;
+    display: none !important;
   }
 
-  body.print-menu-preview #root .menu-print-page-number::after {
-    content: "Page " counter(page) !important;
-  }
-
-  /*
-    IMPORTANT FIX:
-    DO NOT use column-count for print. Columns cause the “cropped image at page start” bug.
-    Use a normal 2-column grid instead.
-  */
   body.print-menu-preview #root .menu-print-content {
-    padding-bottom: 0.4in !important; /* keep footer/page# clear */
+    padding: 0 16px 16px !important;
+    max-width: none !important;
   }
 
+  /* 3-column grid — no page breaks, fits all on as few pages as possible */
   body.print-menu-preview #root .menu-print-grid {
-    display: block !important;
-  }
-
-  /* Each row = 2 cards side by side, forced onto its own page */
-  body.print-menu-preview #root .menu-print-row {
     display: grid !important;
-    grid-template-columns: 1fr 1fr !important;
-    gap: 0.22in !important;
-    align-items: start !important;
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-    margin-bottom: 0 !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 10px !important;
   }
 
-  /* All rows except the last get a forced page break after */
+  /* Row wrappers are transparent to the 3-column grid in print */
+  body.print-menu-preview #root .menu-print-row {
+    display: contents !important;
+  }
+
   body.print-menu-preview #root .menu-print-row-break {
-    break-after: page !important;
-    page-break-after: always !important;
+    display: contents !important;
   }
 
   body.print-menu-preview #root .menu-unit-card {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
     display: block !important;
-    box-shadow: none !important;
-    border-radius: 0 !important;
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    padding: 8px !important;
     margin: 0 !important;
+    box-shadow: none !important;
   }
 
   body.print-menu-preview #root .menu-unit-image {
     display: block !important;
     width: 100% !important;
-    height: 1.2in !important;
+    height: 1.15in !important;
     object-fit: cover !important;
-    border-radius: 0 !important;
-
+    border-radius: 6px !important;
+    margin-bottom: 6px !important;
     break-inside: avoid !important;
     page-break-inside: avoid !important;
     break-before: avoid !important;
     page-break-before: avoid !important;
   }
 
-  body.print-menu-preview #root .menu-detail-row {
+  body.print-menu-preview #root .menu-unit-name {
     font-size: 11px !important;
-    padding: 4px 0 !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
   }
 
-  body.print-menu-preview #root .menu-unit-name {
-    font-size: 13px !important;
+  body.print-menu-preview #root .menu-unit-badge {
+    font-size: 7px !important;
+    padding: 2px 4px !important;
   }
 
   body.print-menu-preview #root .menu-unit-type {
-    font-size: 11px !important;
+    font-size: 9px !important;
+    margin-bottom: 4px !important;
+    color: #64748b !important;
+  }
+
+  body.print-menu-preview #root .menu-unit-details {
+    padding-top: 4px !important;
+    margin-top: 2px !important;
+  }
+
+  body.print-menu-preview #root .menu-detail-row {
+    font-size: 8px !important;
+    padding: 2px 0 !important;
   }
 
   body.print-menu-preview #root .menu-unit-pricing {
-    border-radius: 0 !important;
-    box-shadow: none !important;
+    border-radius: 4px !important;
+    padding: 5px 7px !important;
+    margin-top: 5px !important;
   }
 
   body.print-menu-preview #root .menu-price-row {
-    font-size: 12px !important;
+    font-size: 9px !important;
+    padding: 1px 0 !important;
+  }
+
+  body.print-menu-preview #root .menu-print-footer {
+    margin-top: 12px !important;
+    border-top: 1px solid #e2e8f0 !important;
+    padding: 8px 0 !important;
+    font-size: 8px !important;
+  }
+
+  body.print-menu-preview #root .menu-print-footer-muted {
+    font-size: 7px !important;
+    margin-top: 2px !important;
   }
 }

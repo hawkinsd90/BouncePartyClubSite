@@ -6,7 +6,8 @@ import { notifyError } from '../lib/notifications';
 type Unit = {
   id: string;
   name: string;
-  type: string;
+  types: string[];
+  type?: string;
   is_combo: boolean | null;
   price_dry_cents: number;
   price_water_cents: number | null;
@@ -14,7 +15,7 @@ type Unit = {
   footprint_sqft: number;
   capacity: number;
   quantity_available: number;
-  media: Array<{ url: string; alt: string; mode?: string | null }>;
+  media: Array<{ url: string; alt: string; mode?: string | null; is_featured?: boolean | null }>;
 };
 
 type MenuPreviewData = {
@@ -25,6 +26,16 @@ type MenuPreviewData = {
 
 function formatCurrency(cents: number) {
   return `$${(cents / 100).toFixed(2)}`;
+}
+
+function getUnitTypeLabel(unit: Unit): string {
+  if (unit.types?.length) return unit.types.join(' • ');
+  if (unit.type) return unit.type;
+  return '';
+}
+
+function isCombo(unit: Unit): boolean {
+  return unit.is_combo === true || (unit.types || []).includes('Combo');
 }
 
 function preloadImages(urls: string[]) {
@@ -248,13 +259,13 @@ async function drawMenuToCanvas(
     // Unit name
     ctx.fillStyle = '#0f172a';
     ctx.font = `800 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-    const nameLines = wrapText(ctx, unit.name, textW - (unit.is_combo ? 58 : 0));
+    const nameLines = wrapText(ctx, unit.name, textW - (isCombo(unit) ? 58 : 0));
     nameLines.slice(0, 2).forEach((line, li) => {
       ctx.fillText(line, tx, ty + li * 18);
     });
 
     // COMBO badge
-    if (unit.is_combo) {
+    if (isCombo(unit)) {
       const badgeX = cx + CARD_W - 12 - 52;
       const badgeY = cy + IMG_H + 6;
       ctx.fillStyle = '#fef3c7';
@@ -276,7 +287,7 @@ async function drawMenuToCanvas(
     // Type
     ctx.fillStyle = '#64748b';
     ctx.font = `700 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-    ctx.fillText(unit.type, tx, ty);
+    ctx.fillText(getUnitTypeLabel(unit), tx, ty);
     ty += 16;
 
     // Divider
@@ -570,10 +581,10 @@ export function MenuPreview() {
 
                         <div className="menu-unit-name-row">
                           <div className="menu-unit-name">{unit.name}</div>
-                          {unit.is_combo ? <div className="menu-unit-badge">COMBO</div> : null}
+                          {isCombo(unit) ? <div className="menu-unit-badge">COMBO</div> : null}
                         </div>
 
-                        <div className="menu-unit-type">{unit.type}</div>
+                        <div className="menu-unit-type">{getUnitTypeLabel(unit)}</div>
 
                         <div className="menu-unit-details">
                           <div className="menu-detail-row">
