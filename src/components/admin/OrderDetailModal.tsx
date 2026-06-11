@@ -143,13 +143,15 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         travel_total_miles: travelMiles,
         surface_fee_cents: order.surface_fee_cents || 0,
         same_day_pickup_fee_cents: order.same_day_pickup_fee_cents || 0,
+        same_day_weekday_delivery_fee_cents: order.same_day_weekday_delivery_fee_cents || 0,
+        same_day_weekday_delivery_fee_waived: order.same_day_weekday_delivery_fee_waived || false,
         generator_fee_cents: order.generator_fee_cents || 0,
         generator_qty: order.generator_qty || 0,
         tax_cents: order.tax_cents || 0,
         tip_cents: order.tip_cents || 0,
         total_cents: (() => {
           const subtotal = order.subtotal_cents || 0;
-          const fees = (order.travel_fee_cents || 0) + (order.surface_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.generator_fee_cents || 0);
+          const fees = (order.travel_fee_cents || 0) + (order.surface_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.same_day_weekday_delivery_fee_cents || 0) + (order.generator_fee_cents || 0);
           const totalCustomFees = customFees.filter(f => !f.is_new).reduce((sum: number, f: any) => sum + (f.amount_cents || 0), 0);
           const totalDiscounts = discounts.filter(d => !d.is_new).reduce((sum: number, d: any) => {
             if (d.percentage) return sum + Math.round(subtotal * (d.percentage / 100));
@@ -174,7 +176,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         console.error('Error loading current order summary:', err);
         // Fallback: build summary from stored order fields without driving distance
         const subtotal = order.subtotal_cents || 0;
-        const fees = (order.travel_fee_cents || 0) + (order.surface_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.generator_fee_cents || 0);
+        const fees = (order.travel_fee_cents || 0) + (order.surface_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.same_day_weekday_delivery_fee_cents || 0) + (order.generator_fee_cents || 0);
         const totalCustomFees = customFees.filter((f: any) => !f.is_new).reduce((sum: number, f: any) => sum + (f.amount_cents || 0), 0);
         const totalDiscounts = discounts.filter((d: any) => !d.is_new).reduce((sum: number, d: any) => {
           if (d.percentage) return sum + Math.round(subtotal * (d.percentage / 100));
@@ -189,6 +191,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           travel_total_miles: parseFloat(order.travel_total_miles) || 0,
           surface_fee_cents: order.surface_fee_cents || 0,
           same_day_pickup_fee_cents: order.same_day_pickup_fee_cents || 0,
+          same_day_weekday_delivery_fee_cents: order.same_day_weekday_delivery_fee_cents || 0,
+          same_day_weekday_delivery_fee_waived: order.same_day_weekday_delivery_fee_waived || false,
           generator_fee_cents: order.generator_fee_cents || 0,
           generator_qty: order.generator_qty || 0,
           tax_cents: order.tax_cents || 0,

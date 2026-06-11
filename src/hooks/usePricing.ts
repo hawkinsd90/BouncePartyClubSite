@@ -318,6 +318,7 @@ export function usePricing() {
         pickup_preference: eventDetails.pickup_preference,
         event_date: eventDetails.event_date,
         event_end_date: eventDetails.event_end_date,
+        same_day_weekday_delivery_fee_waived: sameDayWeekdayDeliveryFeeWaived || false,
       };
 
       const summary = formatOrderSummary(orderData);

@@ -70,6 +70,11 @@ export async function saveOrderChanges({
     throw new Error('Availability conflict');
   }
 
+  if (sameDayWeekdayDeliveryFeeWaived && !sameDayWeekdayDeliveryFeeWaiveReason?.trim()) {
+    showToast('A reason is required to waive the Same-Day Weekday Delivery Fee.', 'error');
+    throw new Error('Same-Day Weekday Delivery Fee waiver reason required');
+  }
+
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
     console.error('Authentication error:', authError);
