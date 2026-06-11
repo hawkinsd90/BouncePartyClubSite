@@ -566,10 +566,14 @@ export function MenuPreview() {
                   key={rowIdx}
                   className={`menu-print-row${rowIdx < pairs.length - 1 ? ' menu-print-row-break' : ''}`}
                 >
-                  {pair.map((unit) => {
+                  {pair.map((unit, pairIdx) => {
+                    const unitIdx = rowIdx * 2 + pairIdx;
+                    // In the 3-col print grid, 2 print rows = 6 units. Mark the
+                    // 6th, 12th, 18th... card so CSS can break-after in print.
+                    const isLastInPrintPage = (unitIdx + 1) % 6 === 0 && unitIdx < data.units.length - 1;
                     const imageUrl = getUnitImageUrl(unit);
                     return (
-                      <div key={unit.id} className="menu-unit-card">
+                      <div key={unit.id} className={`menu-unit-card${isLastInPrintPage ? ' menu-print-page-after' : ''}`}>
                         {imageUrl ? (
                           <img
                             src={imageUrl}
