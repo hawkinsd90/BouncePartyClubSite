@@ -445,9 +445,7 @@ export function MenuPreview() {
 
     try {
       const logoUrl = `${window.location.origin}/bounce party club logo.png`;
-      const unitUrls = getUnitImageUrls(data.units);
 
-      // Load all images in parallel for canvas drawing
       const [logoImg, ...unitImgs] = await Promise.all([
         loadImageForCanvas(logoUrl),
         ...data.units.map((u) => loadImageForCanvas(getUnitImageUrl(u))),
@@ -455,12 +453,27 @@ export function MenuPreview() {
 
       const dataUrl = await drawMenuToCanvas(data, logoImg, unitImgs);
 
-      const link = document.createElement('a');
-      link.download = 'bounce-party-club-menu.png';
-      link.href = dataUrl;
-      link.click();
-
-      void unitUrls; // suppress unused warning
+      // iOS Safari and most mobile browsers ignore the `download` attribute on
+      // programmatic anchor clicks. Opening the data URL in a new tab lets the
+      // user long-press → Save Image. On desktop we keep the direct download.
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile) {
+        const win = window.open('', '_blank');
+        if (win) {
+          win.document.write(
+            `<html><body style="margin:0;background:#000"><img src="${dataUrl}" style="max-width:100%;display:block" /></body></html>`
+          );
+          win.document.close();
+        } else {
+          // Popup blocked — fall back to same-tab navigation
+          window.location.href = dataUrl;
+        }
+      } else {
+        const link = document.createElement('a');
+        link.download = 'bounce-party-club-menu.png';
+        link.href = dataUrl;
+        link.click();
+      }
     } catch (e) {
       console.error(e);
       notifyError('Could not generate image. Please try Print / Save PDF instead.');
