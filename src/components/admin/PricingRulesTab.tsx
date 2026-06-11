@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Edit2, Save, X } from 'lucide-react';
+import { CreditCard as Edit2, Save, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { notifyError, notifySuccess } from '../../lib/notifications';
 
