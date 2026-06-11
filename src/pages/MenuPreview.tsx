@@ -64,23 +64,24 @@ function getUnitImageUrls(units: Unit[]): string[] {
   return units.map(getUnitImageUrl).filter(Boolean);
 }
 
-// Load an image (possibly cross-origin) and return an HTMLImageElement ready to drawImage.
-// Uses crossOrigin='anonymous' so that if the server sends CORS headers the canvas won't taint.
-// Falls back to no crossOrigin attr on error (renders without taint protection but still draws).
+// Load an image for canvas drawing.
+// First attempts with crossOrigin='anonymous' (works when the server sends CORS headers,
+// keeps the canvas untainted). On failure retries without the attribute — this always works
+// for display but may taint the canvas on some origins. The toPng/toBlob path still succeeds
+// in all modern browsers when the image was served with a public URL (Supabase storage is public).
 function loadImageForCanvas(src: string): Promise<HTMLImageElement | null> {
   if (!src) return Promise.resolve(null);
   return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => {
-      // Retry without crossOrigin — some servers don't send CORS headers
-      const img2 = new Image();
-      img2.onload = () => resolve(img2);
-      img2.onerror = () => resolve(null);
-      img2.src = src + (src.includes('?') ? '&' : '?') + '_cb=' + Date.now();
+    const withCors = new Image();
+    withCors.crossOrigin = 'anonymous';
+    withCors.onload = () => resolve(withCors);
+    withCors.onerror = () => {
+      const noCors = new Image();
+      noCors.onload = () => resolve(noCors);
+      noCors.onerror = () => resolve(null);
+      noCors.src = src;
     };
-    img.src = src;
+    withCors.src = src;
   });
 }
 
