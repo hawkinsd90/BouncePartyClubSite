@@ -185,7 +185,7 @@ async function drawMenuToCanvas(
   ctx.font = `600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
   ctx.fillStyle = 'rgba(255,255,255,0.82)';
   ctx.fillText(
-    `Bounce Party Club  ·  Generated ${generatedDate.toLocaleDateString('en-US')}`,
+    `bouncepartyclub.com  ·  Generated ${generatedDate.toLocaleDateString('en-US')}`,
     titleX,
     HEADER_H / 2 + 28
   );
@@ -558,7 +558,7 @@ export function MenuPreview() {
           <div className="menu-print-header-center">
             <div className="menu-print-title">{data.title || 'Inflatable Price List'}</div>
             <div className="menu-print-subtitle">
-              Generated {generatedDate.toLocaleDateString('en-US')}
+              bouncepartyclub.com · Generated {generatedDate.toLocaleDateString('en-US')}
             </div>
           </div>
 
