@@ -23,15 +23,24 @@ export function useQuotePricing(cart: CartItem[], formData: QuoteFormData, prici
       clearTimeout(debounceTimerRef.current);
     }
 
-    // Only calculate if we have the required data including user selections
-    if (cart.length > 0 && pricingRules && formData.zip && formData.lat && formData.lng
-        && formData.pickup_preference !== null && formData.can_stake !== null) {
-      // Debounce the pricing calculation by 500ms
+    const hasRequiredPricingInputs =
+      cart.length > 0 &&
+      !!pricingRules &&
+      !!formData.zip &&
+      !!formData.lat &&
+      !!formData.lng &&
+      !!formData.event_date &&
+      !!formData.event_end_date &&
+      formData.pickup_preference !== null &&
+      formData.can_stake !== null;
+
+    if (hasRequiredPricingInputs) {
       debounceTimerRef.current = setTimeout(() => {
         calculatePricing();
       }, 500);
     } else {
       setPriceBreakdown(null);
+      SafeStorage.removeItem(PRICE_BREAKDOWN_STORAGE_KEY);
     }
 
     // Cleanup on unmount
