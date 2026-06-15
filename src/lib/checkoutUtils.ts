@@ -58,6 +58,7 @@ export function buildOrderSummary(
       travel_fee_display_name: priceBreakdown.travel_fee_display_name,
       surface_fee_cents: priceBreakdown.surface_fee_cents,
       same_day_pickup_fee_cents: priceBreakdown.same_day_pickup_fee_cents,
+      same_day_weekday_delivery_fee_cents: priceBreakdown.same_day_weekday_delivery_fee_cents,
       generator_fee_cents: priceBreakdown.generator_fee_cents,
     },
     discounts: [],
