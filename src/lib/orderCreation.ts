@@ -179,7 +179,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       until_end_of_day: quoteData.until_end_of_day || false,
       same_day_responsibility_accepted: quoteData.same_day_responsibility_accepted || false,
       overnight_responsibility_accepted: quoteData.overnight_responsibility_accepted || false,
-      generator_qty: quoteData.generator_qty || 0,
+      generator_qty: quoteData.generator_qty || (quoteData.has_generator ? 1 : 0),
       address_id: address.id,
       billing_address_line1: billingSameAsEvent ? null : (billingAddress.line1 || null),
       billing_address_line2: billingSameAsEvent ? null : (billingAddress.line2 || null),
