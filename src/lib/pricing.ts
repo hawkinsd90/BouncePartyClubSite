@@ -71,7 +71,10 @@ export interface PriceBreakdown {
 export function isSameDayWeekdayDelivery(eventDateYMD: string): boolean {
   if (!eventDateYMD) return false;
   const todayYMD = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Detroit' });
-  return eventDateYMD === todayYMD;
+  if (eventDateYMD !== todayYMD) return false;
+  const [year, month, day] = eventDateYMD.split('-').map(Number);
+  const dow = new Date(year, month - 1, day).getDay();
+  return dow >= 1 && dow <= 5;
 }
 
 export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
