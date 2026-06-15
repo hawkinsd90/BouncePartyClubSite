@@ -309,6 +309,7 @@ export function OrderDetailsTab({
               surfaceFeeWaived={surfaceFeeWaived}
               generatorFeeWaived={generatorFeeWaived}
               sameDayPickupFeeWaived={sameDayPickupFeeWaived}
+              sameDayWeekdayDeliveryFeeWaived={sameDayWeekdayDeliveryFeeWaived}
             />
           </div>
         )}

@@ -592,6 +592,7 @@ export function InvoiceBuilder() {
               surfaceFeeWaived={surfaceFeeWaived}
               generatorFeeWaived={generatorFeeWaived}
               sameDayPickupFeeWaived={sameDayPickupFeeWaived}
+              sameDayWeekdayDeliveryFeeWaived={sameDayWeekdayDeliveryFeeWaived}
             />
           )}
 
