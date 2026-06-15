@@ -97,7 +97,7 @@ export function OrderInfoSection({ order, customerDisplayName, onEditClick }: Or
           <div className="text-center">
             <div className="text-xs text-slate-500 mb-1">Generator</div>
             <div className="font-medium text-slate-900">
-              {order.generator_required ? 'Yes' : 'No'}
+              {order.generator_qty > 0 ? `Yes (${order.generator_qty})` : 'No'}
             </div>
           </div>
           <div className="text-center">

@@ -52,6 +52,7 @@ export interface Task {
     damageImages?: string[];
     etaSent: boolean;
   };
+  generatorQty?: number;
   pickupReadiness?: PickupReadiness;
   pickupBlockReason?: string;
 }
@@ -221,6 +222,9 @@ export function useCalendarTasks(currentMonth: Date) {
         const items = orderItemsForOrder
           .map(item => `${(item.units as any)?.name || 'Unknown'} (${item.wet_or_dry === 'water' ? 'Water' : 'Dry'})`);
 
+        if (order.generator_qty > 0) {
+          items.push(`Generator${order.generator_qty > 1 ? ` (${order.generator_qty}x)` : ''}`);
+        }
         const equipmentIds = orderItemsForOrder
           .map(item => item.unit_id)
           .filter((id): id is string => !!id);
@@ -269,6 +273,7 @@ export function useCalendarTasks(currentMonth: Date) {
           surface: order.surface,
           lat,
           lng,
+          generatorQty: order.generator_qty || 0,
           payments: order.payments as any || [],
           taskStatus: dropOffStatus ? {
             id: dropOffStatus.id,
@@ -328,6 +333,7 @@ export function useCalendarTasks(currentMonth: Date) {
           surface: order.surface,
           lat,
           lng,
+          generatorQty: order.generator_qty || 0,
           payments: order.payments as any || [],
           taskStatus: pickUpStatus ? {
             id: pickUpStatus.id,
