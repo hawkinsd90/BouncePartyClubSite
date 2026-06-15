@@ -108,7 +108,7 @@ export function QuoteSummarySection({ cart, priceBreakdown }: QuoteSummarySectio
 
             {priceBreakdown.same_day_weekday_delivery_fee_cents > 0 && (
               <div className="flex items-center justify-between text-xs sm:text-sm">
-                <span className="text-slate-600">Same-Day Weekday Delivery</span>
+                <span className="text-slate-600">Same-Day Delivery</span>
                 <span className="font-semibold text-slate-800">{formatDollars(priceBreakdown.same_day_weekday_delivery_fee_cents)}</span>
               </div>
             )}

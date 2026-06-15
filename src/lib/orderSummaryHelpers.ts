@@ -74,7 +74,7 @@ export function buildFeesList(fees: FeeInput): Array<{ name: string; amount: num
   }
 
   if ((fees.same_day_weekday_delivery_fee_cents && fees.same_day_weekday_delivery_fee_cents > 0) || fees.same_day_weekday_delivery_fee_waived) {
-    feesList.push({ name: 'Same-Day Weekday Delivery Fee', amount: fees.same_day_weekday_delivery_fee_cents || 0 });
+    feesList.push({ name: 'Same-Day Delivery Fee', amount: fees.same_day_weekday_delivery_fee_cents || 0 });
   }
 
   if ((fees.generator_fee_cents && fees.generator_fee_cents > 0) || fees.generator_fee_waived) {
