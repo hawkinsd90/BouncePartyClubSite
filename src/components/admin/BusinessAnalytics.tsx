@@ -138,6 +138,7 @@ export function BusinessAnalytics() {
             className="text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white text-slate-700"
           >
             <option value="all_time">All Time</option>
+            <option value="today">Today</option>
             <option value="1d">Last 24 Hours</option>
             <option value="7d">Last 7 Days</option>
             <option value="30d">Last 30 Days</option>

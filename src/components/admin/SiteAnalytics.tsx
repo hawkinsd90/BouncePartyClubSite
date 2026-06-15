@@ -75,10 +75,14 @@ const FUNNEL_EVENTS = [
   'checkout_completed',
 ];
 
-type PeriodKey = '1d' | '7d' | '30d' | '90d' | 'this_month' | 'last_month' | '2mo_ago';
+type PeriodKey = 'today' | '1d' | '7d' | '30d' | '90d' | 'this_month' | 'last_month' | '2mo_ago';
 
 function getPeriodRange(period: PeriodKey): { since: string; until: string | null; label: string } {
   const now = new Date();
+  if (period === 'today') {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return { since: start.toISOString(), until: null, label: 'Today' };
+  }
   if (period === '1d') {
     return {
       since: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
@@ -279,6 +283,7 @@ export function SiteAnalytics() {
             onChange={e => setPeriod(e.target.value as PeriodKey)}
             className="flex-1 sm:flex-none text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white text-slate-700"
           >
+            <option value="today">Today</option>
             <option value="1d">Last 24 Hours</option>
             <option value="7d">Last 7 Days</option>
             <option value="30d">Last 30 Days</option>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
-export type AnalyticsPeriod = 'all_time' | '1d' | '7d' | '30d' | '90d' | 'this_month' | 'last_month' | '2mo_ago';
+export type AnalyticsPeriod = 'all_time' | 'today' | '1d' | '7d' | '30d' | '90d' | 'this_month' | 'last_month' | '2mo_ago';
 
 export interface AdminAnalytics {
   total_revenue_cents: number;
@@ -33,6 +33,10 @@ export interface AdminAnalytics {
 function getPeriodRange(period: AnalyticsPeriod): { start: string | null; end: string | null } {
   const now = new Date();
   if (period === 'all_time') return { start: null, end: null };
+  if (period === 'today') {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return { start: start.toISOString(), end: now.toISOString() };
+  }
   if (period === '1d') {
     const start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     return { start: start.toISOString(), end: now.toISOString() };
