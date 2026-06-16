@@ -533,6 +533,14 @@ export function ApprovalModal({
                 </div>
               )}
             </>
+          ) : alreadyPaidDeposit ? (
+            <div className="mb-3 p-3 bg-green-50 border-2 border-green-200 rounded-lg">
+              <p className="text-sm font-semibold text-green-900">No payment required</p>
+              <p className="text-xs text-green-800 mt-1">
+                Your {formatCurrency(order.deposit_paid_cents || 0)} deposit is already on file.
+                Any price changes will be added to your remaining balance due at the event.
+              </p>
+            </div>
           ) : (
             <div className="mb-3 p-3 bg-green-50 border-2 border-green-200 rounded-lg">
               <div className="flex items-center justify-between">
@@ -599,7 +607,9 @@ export function ApprovalModal({
             >
               {submitting
                 ? 'Processing...'
-                : selectedPaymentBaseCents <= 0 && !alreadyPaidDeposit
+                : alreadyPaidDeposit
+                ? 'Confirm Changes'
+                : selectedPaymentBaseCents <= 0
                 ? 'Confirm Booking'
                 : 'Confirm & Pay'}
             </button>

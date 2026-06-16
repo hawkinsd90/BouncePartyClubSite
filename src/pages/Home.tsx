@@ -12,6 +12,7 @@ import {
   // Zap, // BPC-SECURITY-HARDENING: removed — only used by the commented-out test booking button.
   ExternalLink,
   Sun,
+  ChevronRight,
 } from 'lucide-react';
 import { AddressAutocomplete } from '../components/order/AddressAutocomplete';
 import { HeroCarousel } from '../components/admin/HeroCarousel';
@@ -185,6 +186,17 @@ export function Home() {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Browse Inflatables CTA — slim strip below the ribbon */}
+      <div className="bg-blue-700 flex items-center justify-between px-4 sm:px-6 py-2.5 gap-3">
+        <span className="text-sm font-bold text-white tracking-wide">View Our Full Inflatable Catalog</span>
+        <button
+          onClick={() => navigate('/catalog')}
+          className="flex-shrink-0 inline-flex items-center gap-1 bg-white hover:bg-blue-50 text-blue-700 font-bold text-xs py-1.5 px-3 rounded-full transition-colors"
+        >
+          Browse <ChevronRight className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       <section className="relative bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-600 text-white overflow-hidden">

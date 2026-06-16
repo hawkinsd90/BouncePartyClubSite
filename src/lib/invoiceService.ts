@@ -65,6 +65,8 @@ interface InvoiceData {
   surfaceFeeWaiveReason?: string | null;
   generatorFeeWaived?: boolean;
   generatorFeeWaiveReason?: string | null;
+  sameDayWeekdayDeliveryFeeWaived?: boolean;
+  sameDayWeekdayDeliveryFeeWaiveReason?: string;
   requireCardOnFile?: boolean;
 }
 
@@ -102,6 +104,8 @@ async function createOrder(
   surfaceFeeWaiveReason: string | null = null,
   generatorFeeWaived: boolean = false,
   generatorFeeWaiveReason: string | null = null,
+  sameDayWeekdayDeliveryFeeWaived: boolean = false,
+  sameDayWeekdayDeliveryFeeWaiveReason: string | null = null,
   requireCardOnFile: boolean = true
 ) {
   const { data, error } = await supabase
@@ -129,6 +133,7 @@ async function createOrder(
       travel_is_flat_fee: priceBreakdown?.travel_is_flat_fee || false,
       surface_fee_cents: priceBreakdown?.surface_fee_cents || 0,
       same_day_pickup_fee_cents: priceBreakdown?.same_day_pickup_fee_cents || 0,
+      same_day_weekday_delivery_fee_cents: priceBreakdown?.same_day_weekday_delivery_fee_cents || 0,
       generator_fee_cents: priceBreakdown?.generator_fee_cents || 0,
       tax_cents: taxCents,
       tax_waived: taxWaived,
@@ -141,6 +146,8 @@ async function createOrder(
       surface_fee_waive_reason: surfaceFeeWaiveReason,
       generator_fee_waived: generatorFeeWaived,
       generator_fee_waive_reason: generatorFeeWaiveReason,
+      same_day_weekday_delivery_fee_waived: sameDayWeekdayDeliveryFeeWaived,
+      same_day_weekday_delivery_fee_waive_reason: sameDayWeekdayDeliveryFeeWaiveReason,
       deposit_due_cents: depositRequired,
       deposit_required: depositRequired > 0,
       balance_due_cents: Math.max(0, totalCents - depositRequired),
@@ -277,6 +284,8 @@ export async function generateInvoice(invoiceData: InvoiceData, customer: Custom
     invoiceData.surfaceFeeWaiveReason || null,
     invoiceData.generatorFeeWaived || false,
     invoiceData.generatorFeeWaiveReason || null,
+    invoiceData.sameDayWeekdayDeliveryFeeWaived || false,
+    invoiceData.sameDayWeekdayDeliveryFeeWaiveReason || null,
     invoiceData.requireCardOnFile !== false
   );
 

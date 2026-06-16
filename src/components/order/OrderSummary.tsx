@@ -24,6 +24,7 @@ interface OrderSummaryProps {
   surfaceFeeWaived?: boolean;
   generatorFeeWaived?: boolean;
   sameDayPickupFeeWaived?: boolean;
+  sameDayWeekdayDeliveryFeeWaived?: boolean;
 }
 
 export function OrderSummary({
@@ -42,6 +43,7 @@ export function OrderSummary({
   surfaceFeeWaived = false,
   generatorFeeWaived = false,
   sameDayPickupFeeWaived = false,
+  sameDayWeekdayDeliveryFeeWaived = false,
 }: OrderSummaryProps) {
   const hasChanged = (fieldName: string) => {
     return changelog.some(c => c.field_changed === fieldName);
@@ -125,7 +127,8 @@ export function OrderSummary({
               (fee.name.startsWith('Travel Fee') && travelFeeWaived) ||
               (fee.name === 'Surface Fee (Sandbags)' && surfaceFeeWaived) ||
               (fee.name.startsWith('Generator') && generatorFeeWaived) ||
-              (fee.name === 'Same-Day Pickup Fee' && sameDayPickupFeeWaived);
+              (fee.name === 'Same-Day Pickup Fee' && sameDayPickupFeeWaived) ||
+              (fee.name === 'Same-Day Delivery Fee' && sameDayWeekdayDeliveryFeeWaived);
 
             return (
               <div key={index} className={`flex justify-between ${changed || isWaived ? 'bg-blue-50 -mx-2 px-2 py-1 rounded print-highlight' : ''}`}>

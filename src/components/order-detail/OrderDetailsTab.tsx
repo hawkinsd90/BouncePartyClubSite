@@ -40,6 +40,8 @@ interface OrderDetailsTabProps {
   surfaceFeeWaiveReason?: string;
   generatorFeeWaived: boolean;
   generatorFeeWaiveReason?: string;
+  sameDayWeekdayDeliveryFeeWaived: boolean;
+  sameDayWeekdayDeliveryFeeWaiveReason?: string;
   depositCatchupMode: 'require' | 'waive';
   onDepositCatchupModeChange: (mode: 'require' | 'waive') => void;
   onOrderChange: (updates: any) => void;
@@ -57,6 +59,7 @@ interface OrderDetailsTabProps {
   onSameDayPickupFeeWaivedToggle: (reason: string) => void;
   onSurfaceFeeWaivedToggle: (reason: string) => void;
   onGeneratorFeeWaivedToggle: (reason: string) => void;
+  onSameDayWeekdayDeliveryFeeWaivedToggle: (reason: string) => void;
   onStatusChange: (status: string) => void;
   onMarkChanges: () => void;
 }
@@ -88,6 +91,8 @@ export function OrderDetailsTab({
   surfaceFeeWaiveReason,
   generatorFeeWaived,
   generatorFeeWaiveReason,
+  sameDayWeekdayDeliveryFeeWaived,
+  sameDayWeekdayDeliveryFeeWaiveReason,
   depositCatchupMode,
   onDepositCatchupModeChange,
   onOrderChange,
@@ -105,6 +110,7 @@ export function OrderDetailsTab({
   onSameDayPickupFeeWaivedToggle,
   onSurfaceFeeWaivedToggle,
   onGeneratorFeeWaivedToggle,
+  onSameDayWeekdayDeliveryFeeWaivedToggle,
   onStatusChange,
   onMarkChanges,
 }: OrderDetailsTabProps) {
@@ -303,6 +309,7 @@ export function OrderDetailsTab({
               surfaceFeeWaived={surfaceFeeWaived}
               generatorFeeWaived={generatorFeeWaived}
               sameDayPickupFeeWaived={sameDayPickupFeeWaived}
+              sameDayWeekdayDeliveryFeeWaived={sameDayWeekdayDeliveryFeeWaived}
             />
           </div>
         )}
@@ -376,6 +383,21 @@ export function OrderDetailsTab({
           waiveReason={generatorFeeWaiveReason}
           onToggle={onGeneratorFeeWaivedToggle}
           color="blue"
+        />
+      )}
+
+      {(
+        (calculatedPricing?.same_day_weekday_delivery_fee_cents ?? 0) > 0 ||
+        (order.same_day_weekday_delivery_fee_cents ?? 0) > 0 ||
+        sameDayWeekdayDeliveryFeeWaived
+      ) && (
+        <FeeWaiver
+          feeName="Same-Day Weekday Delivery Fee"
+          feeAmount={calculatedPricing?.same_day_weekday_delivery_fee_cents ?? order.same_day_weekday_delivery_fee_cents ?? 0}
+          isWaived={sameDayWeekdayDeliveryFeeWaived}
+          waiveReason={sameDayWeekdayDeliveryFeeWaiveReason}
+          onToggle={onSameDayWeekdayDeliveryFeeWaivedToggle}
+          color="orange"
         />
       )}
 

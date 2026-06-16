@@ -73,6 +73,7 @@ export interface OrderSummaryData {
   travel_total_miles: number;
   surface_fee_cents: number;
   same_day_pickup_fee_cents: number;
+  same_day_weekday_delivery_fee_cents: number;
   generator_fee_cents: number;
   generator_qty: number;
   tax_cents: number;
@@ -88,6 +89,7 @@ export interface OrderSummaryData {
   travel_fee_waived?: boolean;
   surface_fee_waived?: boolean;
   same_day_pickup_fee_waived?: boolean;
+  same_day_weekday_delivery_fee_waived?: boolean;
   generator_fee_waived?: boolean;
 }
 
@@ -131,6 +133,7 @@ async function calculateOriginalFees(order: any, discounts: OrderDiscount[], cus
   travel_fee_cents: number;
   surface_fee_cents: number;
   same_day_pickup_fee_cents: number;
+  same_day_weekday_delivery_fee_cents: number;
   generator_fee_cents: number;
   tax_cents: number;
 }> {
@@ -144,6 +147,7 @@ async function calculateOriginalFees(order: any, discounts: OrderDiscount[], cus
       travel_fee_cents: 0,
       surface_fee_cents: 0,
       same_day_pickup_fee_cents: 0,
+      same_day_weekday_delivery_fee_cents: 0,
       generator_fee_cents: 0,
       tax_cents: 0,
     };
@@ -173,6 +177,11 @@ async function calculateOriginalFees(order: any, discounts: OrderDiscount[], cus
     generatorFeeCents = perGeneratorCents * (order.generator_qty || 0);
   }
 
+  let sameDayWeekdayDeliveryFeeCents = order.same_day_weekday_delivery_fee_cents || 0;
+  if (order.same_day_weekday_delivery_fee_waived && sameDayWeekdayDeliveryFeeCents === 0) {
+    sameDayWeekdayDeliveryFeeCents = pricingData.same_day_weekday_delivery_fee_cents || 0;
+  }
+
   let taxCents = order.tax_cents || 0;
   if (order.tax_waived && taxCents === 0) {
     const subtotal = order.subtotal_cents || 0;
@@ -192,6 +201,7 @@ async function calculateOriginalFees(order: any, discounts: OrderDiscount[], cus
     travel_fee_cents: travelFeeCents,
     surface_fee_cents: surfaceFeeCents,
     same_day_pickup_fee_cents: sameDayPickupFeeCents,
+    same_day_weekday_delivery_fee_cents: sameDayWeekdayDeliveryFeeCents,
     generator_fee_cents: generatorFeeCents,
     tax_cents: taxCents,
   };
@@ -302,6 +312,7 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
       travel_total_miles: travelMiles,
       surface_fee_cents: originalFees.surface_fee_cents,
       same_day_pickup_fee_cents: originalFees.same_day_pickup_fee_cents,
+      same_day_weekday_delivery_fee_cents: originalFees.same_day_weekday_delivery_fee_cents,
       generator_fee_cents: originalFees.generator_fee_cents,
       generator_qty: order.generator_qty || 0,
       tax_cents: originalFees.tax_cents,
@@ -314,6 +325,7 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
       pickup_preference: order.pickup_preference,
       event_date: order.event_date,
       event_end_date: order.event_end_date || undefined,
+      same_day_weekday_delivery_fee_waived: order.same_day_weekday_delivery_fee_waived || false,
     };
   } catch (error) {
     console.error('Error loading order summary:', error);
@@ -326,10 +338,11 @@ export function calculateTotalFromOrder(order: any, discounts: OrderDiscount[], 
   const travelFee = order.travel_fee_cents || 0;
   const surfaceFee = order.surface_fee_cents || 0;
   const sameDayFee = order.same_day_pickup_fee_cents || 0;
+  const sameDayWeekdayDeliveryFee = order.same_day_weekday_delivery_fee_cents || 0;
   const generatorFee = order.generator_fee_cents || 0;
   const tax = order.tax_cents || 0;
 
-  const totalFees = travelFee + surfaceFee + sameDayFee + generatorFee;
+  const totalFees = travelFee + surfaceFee + sameDayFee + sameDayWeekdayDeliveryFee + generatorFee;
   const totalCustomFees = customFees.reduce((sum, fee) => sum + (fee.amount_cents || 0), 0);
 
   const discountTotal = discounts.reduce((sum, discount) => {
@@ -359,11 +372,13 @@ export function formatOrderSummary(data: OrderSummaryData): OrderSummaryDisplay 
       travel_total_miles: data.travel_total_miles,
       surface_fee_cents: data.surface_fee_cents,
       same_day_pickup_fee_cents: data.same_day_pickup_fee_cents,
+      same_day_weekday_delivery_fee_cents: data.same_day_weekday_delivery_fee_cents,
       generator_fee_cents: data.generator_fee_cents,
       generator_qty: data.generator_qty,
       travel_fee_waived: data.travel_fee_waived,
       surface_fee_waived: data.surface_fee_waived,
       same_day_pickup_fee_waived: data.same_day_pickup_fee_waived,
+      same_day_weekday_delivery_fee_waived: data.same_day_weekday_delivery_fee_waived,
       generator_fee_waived: data.generator_fee_waived,
     },
     discounts: data.discounts,

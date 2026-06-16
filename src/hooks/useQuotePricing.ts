@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { calculatePrice, calculateDrivingDistance, type PricingRules } from '../lib/pricing';
+import { calculatePrice, calculateDrivingDistance, isSameDayWeekdayDelivery, type PricingRules } from '../lib/pricing';
 import { HOME_BASE } from '../lib/constants';
 import { SafeStorage } from '../lib/safeStorage';
 import type { QuoteFormData } from './useQuoteForm';
@@ -23,12 +23,24 @@ export function useQuotePricing(cart: CartItem[], formData: QuoteFormData, prici
       clearTimeout(debounceTimerRef.current);
     }
 
-    // Only calculate if we have the required data
-    if (cart.length > 0 && pricingRules && formData.zip && formData.lat && formData.lng) {
-      // Debounce the pricing calculation by 500ms
+    const hasRequiredPricingInputs =
+      cart.length > 0 &&
+      !!pricingRules &&
+      !!formData.zip &&
+      !!formData.lat &&
+      !!formData.lng &&
+      !!formData.event_date &&
+      !!formData.event_end_date &&
+      formData.pickup_preference !== null &&
+      formData.can_stake !== null;
+
+    if (hasRequiredPricingInputs) {
       debounceTimerRef.current = setTimeout(() => {
         calculatePricing();
       }, 500);
+    } else {
+      setPriceBreakdown(null);
+      SafeStorage.removeItem(PRICE_BREAKDOWN_STORAGE_KEY);
     }
 
     // Cleanup on unmount
@@ -68,6 +80,7 @@ export function useQuotePricing(cart: CartItem[], formData: QuoteFormData, prici
       has_generator: formData.has_generator || formData.generator_qty > 0,
       generator_qty: formData.generator_qty || 0,
       rules: pricingRules,
+      is_same_day_weekday_delivery: isSameDayWeekdayDelivery(formData.event_date),
     });
 
     setPriceBreakdown(breakdown);

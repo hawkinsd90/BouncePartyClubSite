@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { calculatePrice, calculateDrivingDistance, type PricingRules } from '../lib/pricing';
+import { calculatePrice, calculateDrivingDistance, isSameDayWeekdayDelivery, type PricingRules } from '../lib/pricing';
 import { formatOrderSummary, type OrderSummaryData } from '../lib/orderSummary';
 import { HOME_BASE } from '../lib/constants';
 
@@ -19,6 +19,7 @@ interface FeeWaivers {
   sameDayPickupFeeWaived?: boolean;
   surfaceFeeWaived?: boolean;
   generatorFeeWaived?: boolean;
+  sameDayWeekdayDeliveryFeeWaived?: boolean;
 }
 
 interface CalculatePricingParams {
@@ -58,6 +59,8 @@ interface CalculatePricingParams {
     };
     tip_cents?: number;
     deposit_paid_cents?: number;
+    event_date?: string;
+    same_day_weekday_delivery_fee_cents?: number;
   };
 }
 
@@ -74,6 +77,7 @@ interface CalculatedPricing {
   distance_miles: number;
   surface_fee_cents: number;
   same_day_pickup_fee_cents: number;
+  same_day_weekday_delivery_fee_cents: number;
   custom_fees_total_cents: number;
   discount_total_cents: number;
   tax_cents: number;
@@ -102,6 +106,7 @@ export function usePricing() {
       sameDayPickupFeeWaived = false,
       surfaceFeeWaived = false,
       generatorFeeWaived = false,
+      sameDayWeekdayDeliveryFeeWaived = false,
     } = feeWaivers;
 
     try {
@@ -174,6 +179,18 @@ export function usePricing() {
         useSavedSameDayFee = true;
       }
 
+      // Determine if we should use saved weekday delivery fee or compute fresh
+      const eventDateChanged = existingOrder
+        ? eventDetails.event_date !== existingOrder.event_date?.split('T')[0]
+        : false;
+      const useSavedWeekdayDeliveryFee = !!(
+        existingOrder &&
+        !eventDateChanged &&
+        existingOrder.same_day_weekday_delivery_fee_cents !== undefined &&
+        existingOrder.same_day_weekday_delivery_fee_cents !== null
+      );
+      const isSameDayWeekday = useSavedWeekdayDeliveryFee ? false : isSameDayWeekdayDelivery(eventDetails.event_date);
+
       // Filter out deleted items for existing orders
       const activeItems = items.filter(item => !item.is_deleted);
 
@@ -204,6 +221,7 @@ export function usePricing() {
         has_generator: (eventDetails.generator_qty || 0) > 0,
         generator_qty: eventDetails.generator_qty || 0,
         rules: pricingRules,
+        is_same_day_weekday_delivery: isSameDayWeekday,
       });
 
       // Prepare items for display
@@ -232,12 +250,16 @@ export function usePricing() {
         ? existingOrder.same_day_pickup_fee_cents
         : priceBreakdown.same_day_pickup_fee_cents;
       const originalGeneratorFeeCents = priceBreakdown.generator_fee_cents;
+      const originalSameDayWeekdayDeliveryFeeCents = useSavedWeekdayDeliveryFee && existingOrder?.same_day_weekday_delivery_fee_cents !== undefined
+        ? (existingOrder.same_day_weekday_delivery_fee_cents ?? 0)
+        : priceBreakdown.same_day_weekday_delivery_fee_cents;
 
       // Apply waivers for total calculation
       const finalTravelFeeCents = travelFeeWaived ? 0 : originalTravelFeeCents;
       const finalSurfaceFeeCents = surfaceFeeWaived ? 0 : originalSurfaceFeeCents;
       const finalSameDayPickupFeeCents = sameDayPickupFeeWaived ? 0 : originalSameDayPickupFeeCents;
       const finalGeneratorFeeCents = generatorFeeWaived ? 0 : originalGeneratorFeeCents;
+      const finalSameDayWeekdayDeliveryFeeCents = sameDayWeekdayDeliveryFeeWaived ? 0 : originalSameDayWeekdayDeliveryFeeCents;
 
       // Calculate tax based on waived fees and apply_taxes_by_default setting
       const shouldApplyTaxesByDefault = pricingRules.apply_taxes_by_default ?? true;
@@ -266,7 +288,7 @@ export function usePricing() {
       }
 
       // Calculate total with all waivers applied
-      const finalTotalCents = priceBreakdown.subtotal_cents + finalTravelFeeCents + finalSurfaceFeeCents + finalSameDayPickupFeeCents + finalGeneratorFeeCents + customFeesTotalCents - discountTotalCents + finalTaxCents;
+      const finalTotalCents = priceBreakdown.subtotal_cents + finalTravelFeeCents + finalSurfaceFeeCents + finalSameDayPickupFeeCents + finalGeneratorFeeCents + finalSameDayWeekdayDeliveryFeeCents + customFeesTotalCents - discountTotalCents + finalTaxCents;
 
       // Calculate deposit — clamp so neither value can go negative or exceed total
       const rawDepositDueCents = customDepositCents !== null ? customDepositCents : priceBreakdown.deposit_due_cents;
@@ -283,6 +305,7 @@ export function usePricing() {
         travel_total_miles: finalTravelMiles,
         surface_fee_cents: originalSurfaceFeeCents,
         same_day_pickup_fee_cents: originalSameDayPickupFeeCents,
+        same_day_weekday_delivery_fee_cents: originalSameDayWeekdayDeliveryFeeCents,
         generator_fee_cents: originalGeneratorFeeCents,
         generator_qty: eventDetails.generator_qty || 0,
         tax_cents: finalTaxCents,
@@ -295,6 +318,7 @@ export function usePricing() {
         pickup_preference: eventDetails.pickup_preference,
         event_date: eventDetails.event_date,
         event_end_date: eventDetails.event_end_date,
+        same_day_weekday_delivery_fee_waived: sameDayWeekdayDeliveryFeeWaived || false,
       };
 
       const summary = formatOrderSummary(orderData);
@@ -314,6 +338,7 @@ export function usePricing() {
         distance_miles: finalTravelMiles,
         surface_fee_cents: finalSurfaceFeeCents,
         same_day_pickup_fee_cents: finalSameDayPickupFeeCents,
+        same_day_weekday_delivery_fee_cents: finalSameDayWeekdayDeliveryFeeCents,
         custom_fees_total_cents: summary.customFees.reduce((sum, f) => sum + f.amount, 0),
         discount_total_cents: summary.discounts.reduce((sum, d) => sum + d.amount, 0),
         tax_cents: finalTaxCents,

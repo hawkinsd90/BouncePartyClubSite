@@ -45,6 +45,10 @@ On submission:
 
 If the customer is logged in, their previous address and contact details are prefilled from `CustomerProfileContext`. Customers with a `default_address_id` saved get their home address pre-populated in the form.
 
+### Quote Pricing Debounce
+
+Live price calculations in the quote summary (`useQuotePricing.ts`) are debounced 500ms via `debounceTimerRef`. The timer is reset on every form input change so rapid typing or address selection does not trigger excessive recalculations. The pricing output is cleared (and `sessionStorage` is purged) whenever required inputs are incomplete.
+
 ### Quote Prefill from Duplication
 
 When an admin duplicates an existing order, the quote form is prepopulated via `localStorage` entries set by `useOrderDuplication`. Event dates are intentionally left blank so the user must consciously choose new dates. Time windows, address, setup details, cart items, and contact info are all preserved.
@@ -299,7 +303,8 @@ The admin panel is a tabbed interface with the following sections:
 
 ### Analytics Tab
 - Business performance charts (revenue, bookings, lead time)
-- Date range filtering: last 1d / 7d / 30d / 90d / this month / last month / two months ago / all time
+- Date range filtering: **today** / last 1d / 7d / 30d / 90d / this month / last month / two months ago / all time
+- The **Today** period spans from midnight to the current moment (America/Detroit timezone)
 - Site analytics (page views, funnel conversion)
 - Booking source analytics (how customers found the business)
 
@@ -315,6 +320,7 @@ The admin panel is a tabbed interface with the following sections:
 - Route optimization controls
 - Task card management
 - Mileage logging
+- Task equipment lists include generators: if `generator_qty > 0` on an order, the generator (with quantity if more than one) is appended to the equipment list shown in crew task cards and calendar views (e.g., "Generator (2x)")
 
 ### Settings Tab (sub-tabs):
 - **Business Info** — name, address, phone, email, website, legal entity, license
@@ -383,6 +389,7 @@ Any fee on an order can be waived by an admin with a documented reason:
 | Travel fee | `travel_fee_waived` | `travel_fee_waive_reason` |
 | Surface fee | `surface_fee_waived` | `surface_fee_waive_reason` |
 | Same-day pickup fee | `same_day_pickup_fee_waived` | `same_day_pickup_fee_waive_reason` |
+| Same-day weekday delivery fee | `same_day_weekday_delivery_fee_waived` | `same_day_weekday_delivery_fee_waive_reason` |
 | Generator fee | `generator_fee_waived` | `generator_fee_waive_reason` |
 | Sandbag fee | `sandbag_fee_waived` | `sandbag_fee_waive_reason` |
 
@@ -508,6 +515,10 @@ The homepage features a media carousel managed through the admin panel. The `her
 - `media_type` — `image` or `video`
 - `storage_path` — path in `carousel-media` Supabase storage bucket
 - `display_order` — controls sequence
+
+### Browse Inflatables CTA
+
+Immediately below the hero carousel ribbon, the homepage shows a slim blue strip ("View Our Full Inflatable Catalog") with a "Browse" button that navigates to `/catalog`. This strip is always visible on the home page and provides a direct entry point to the unit catalog for customers who want to browse inventory before filling out the quote form.
 - `is_active` — toggles visibility without deleting
 - `title`, `description` — optional overlay text
 
@@ -555,7 +566,7 @@ Branding is loaded by `BusinessContext` and used throughout the app for display 
 
 ### Business Analytics Tab
 
-Revenue and booking performance charts with configurable date ranges (last 1d / 7d / 30d / 90d / this month / last month / two months ago / all time):
+Revenue and booking performance charts with configurable date ranges (**today** / last 1d / 7d / 30d / 90d / this month / last month / two months ago / all time):
 - Total revenue, revenue this month with trend vs. last month
 - Average order value
 - Total tips and tip rate
@@ -668,6 +679,19 @@ A printable catalog page showing all active units with photos, dimensions, prici
 
 The page preloads all unit images before triggering the browser print dialog, preventing missing images in the printed output. Data is passed via `sessionStorage` (key `menuPreviewData`) to support print-optimized rendering without a separate network request.
 
+### Save as Image
+
+The menu preview includes a "Save as Image" button that renders the full catalog to an HTML Canvas (pure Canvas 2D — no DOM capture libraries) and triggers a native save/share sheet. Implementation details:
+
+- Draws all unit cards onto a `1200px × auto` canvas at 2× retina resolution
+- Loads unit images with CORS-anonymous fallback to prevent canvas tainting
+- On iOS 15+ / Android Chrome, uses the Web Share API (`navigator.share({ files: [file] })`) to trigger the native share/save sheet
+- On desktop, falls back to an anchor `<a download>` element
+
+### PDF Layout
+
+The print layout groups units into pages of 6 (2 rows × 3 columns per page) using explicit `page-break-after` on container elements — not on grid items — for reliable cross-browser page breaks. The screen layout uses 2 columns. The header shows the business logo, title, and generation date; the footer shows the website and a pricing disclaimer.
+
 ---
 
 ## Pricing Engine
@@ -706,6 +730,17 @@ A flat `surface_sandbag_fee_cents` applies when the surface type is `cement`, OR
 Applied when `location_type === 'commercial'` OR `overnight_allowed === false`. Rate is `same_day_pickup_fee_cents` from `pricing_rules`. Can be waived with `same_day_pickup_fee_waived` flag.
 
 **Note:** The `same_day_matrix_json` column exists on `pricing_rules` and is populated in the live database with tiered same-day pricing entries, but is not used by the current `calculatePrice` engine. It is reserved for future tiered same-day pricing logic.
+
+### Same-Day Weekday Delivery Fee
+
+A separate fee applied when the event date is today **and** today is a weekday (Monday–Friday). Determined by `isSameDayWeekdayDelivery(eventDateYMD)` in `src/lib/pricing.ts`, which checks both date equality (in the `America/Detroit` timezone) and day-of-week (dow 1–5).
+
+- Rate is `same_day_weekday_delivery_fee_cents` from `pricing_rules` (default $50)
+- Stored as `same_day_weekday_delivery_fee_cents` on the `orders` and `invoices` tables
+- Excluded from the tax base
+- Can be waived with `same_day_weekday_delivery_fee_waived` flag
+- Displayed in `OrderSummary` with a "WAIVED" badge when waived
+- The `isSameDayWeekdayDelivery` check is made at quote time in the quote form and at invoice build time in `InvoiceBuilder`
 
 ### Tax
 
@@ -758,6 +793,8 @@ The Customer Portal subscribes to live Supabase Realtime changes on 6 tables sim
 | `order_signatures` | Waiver signing completion |
 
 All 6 subscriptions are debounced (600ms) before refreshing data to prevent excessive re-renders when multiple changes fire in rapid succession. Subscriptions are scoped to the specific `order_id` and cleaned up on unmount.
+
+**Note:** The `orders` table is explicitly added to the `supabase_realtime` publication via migration (`ALTER PUBLICATION supabase_realtime ADD TABLE orders`) to enable filtered row-level change events. Without this, `orders` changes would not be delivered to the realtime subscription.
 
 ---
 

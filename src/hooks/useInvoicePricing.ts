@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { calculatePrice, calculateDrivingDistance, type PricingRules, type PriceBreakdown } from '../lib/pricing';
+import { calculatePrice, calculateDrivingDistance, isSameDayWeekdayDelivery, type PricingRules, type PriceBreakdown } from '../lib/pricing';
 import { HOME_BASE } from '../lib/constants';
 
 interface CartItem {
@@ -111,6 +111,7 @@ export function useInvoicePricing(
         has_generator: eventDetails.generator_qty > 0,
         generator_qty: eventDetails.generator_qty,
         rules: pricingRules,
+        is_same_day_weekday_delivery: isSameDayWeekdayDelivery(eventDetails.event_date),
       });
 
       setPriceBreakdown(breakdown);
@@ -146,8 +147,9 @@ export function useInvoicePricing(
     const travelFee = priceBreakdown?.travel_fee_cents || 0;
     const surfaceFee = priceBreakdown?.surface_fee_cents || 0;
     const sameDayPickupFee = priceBreakdown?.same_day_pickup_fee_cents || 0;
+    const sameDayWeekdayDeliveryFee = priceBreakdown?.same_day_weekday_delivery_fee_cents || 0;
     const generatorFee = priceBreakdown?.generator_fee_cents || 0;
-    return travelFee + surfaceFee + sameDayPickupFee + generatorFee;
+    return travelFee + surfaceFee + sameDayPickupFee + sameDayWeekdayDeliveryFee + generatorFee;
   }, [priceBreakdown]);
 
   const actualSubtotal = useMemo(
