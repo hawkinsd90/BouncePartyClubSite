@@ -186,6 +186,27 @@ The `paymentOutcome` parameter passed to `order-lifecycle` controls how the orde
 
 ---
 
+## Customer Approval Modal (`ApprovalModal.tsx`)
+
+The `ApprovalModal` component shown during the customer order-change approval flow displays contextual payment messaging based on payment state:
+
+| State | Message Shown | Button Text |
+|---|---|---|
+| Deposit already paid | "No payment required — your deposit of $X is on file. Any price changes will be added to your balance." | **Confirm Changes** |
+| Zero deposit due, card on file | "No deposit required today — your card will be kept on file for the final payment." | **Confirm Booking** |
+| Zero deposit due, no card on file | Warning: "No card is on file. Please add a payment method before confirming." + Add Card button | **Confirm Booking** (disabled until card added) |
+| Deposit due | Shows charge amount with balance-due breakdown | **Confirm & Pay** |
+
+The "already paid" path (when `deposit_paid_cents > 0` or `stripe_payment_status === 'paid'`) skips the Stripe charge entirely and confirms the order without collecting additional payment.
+
+---
+
+## Payment Success Screen ("Request Received")
+
+The payment success screen (`PaymentSuccessState.tsx`) shown after checkout completion displays the event date using a timezone-safe parse: `new Date(event_date + 'T12:00:00')`. This prevents the date from rendering one day early due to UTC midnight interpretation when the raw `YYYY-MM-DD` string is passed directly to `new Date()`.
+
+---
+
 ## Cash and Check Payments
 
 Both are processed through their respective edge functions, which require `admin`, `crew`, or `master` role.

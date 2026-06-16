@@ -198,6 +198,14 @@ When `deposit_due_cents` is 0 (either naturally or through admin override), the 
 
 ---
 
+## Short Order ID Lookup
+
+Admins and crew can look up orders by entering a short prefix of the order UUID (up to 8 characters) in the `SingleOrderView` component. When the entered string is 8 characters or fewer, the `find_order_id_by_prefix` SECURITY DEFINER RPC is called instead of a direct lookup. This RPC performs a case-insensitive prefix match on `orders.id::text` and returns the full UUID, which is then used for the standard order detail load.
+
+The RPC returns `null` if no match is found or if the prefix is ambiguous (multiple matches).
+
+---
+
 ## Order Edit and Modification (`src/lib/orderSaveService.ts`)
 
 Admins can modify confirmed orders. Changes can be sent to the customer for approval before taking effect, or applied immediately (admin override).
