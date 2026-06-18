@@ -7,6 +7,8 @@ interface CartItem {
   unit_name: string;
   wet_or_dry: 'dry' | 'water';
   unit_price_cents: number;
+  price_dry_cents?: number;
+  price_water_cents?: number | null;
   qty: number;
   is_combo?: boolean;
   isAvailable?: boolean;

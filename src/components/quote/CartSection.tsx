@@ -6,6 +6,8 @@ interface CartItem {
   unit_name: string;
   wet_or_dry: 'dry' | 'water';
   unit_price_cents: number;
+  price_dry_cents?: number;
+  price_water_cents?: number | null;
   qty: number;
   is_combo?: boolean;
   isAvailable?: boolean;
@@ -104,7 +106,10 @@ export function CartSection({ cart, eventDate, onUpdateItem, onRemoveItem }: Car
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => onUpdateItem(index, { wet_or_dry: 'dry' })}
+                    onClick={() => onUpdateItem(index, {
+                      wet_or_dry: 'dry',
+                      unit_price_cents: item.price_dry_cents ?? item.unit_price_cents,
+                    })}
                     className={`flex items-center justify-center p-2.5 sm:p-3 rounded-lg border-2 transition-all text-xs sm:text-sm font-medium ${
                       item.wet_or_dry === 'dry'
                         ? 'border-blue-600 bg-blue-50 text-blue-900'
@@ -120,7 +125,10 @@ export function CartSection({ cart, eventDate, onUpdateItem, onRemoveItem }: Car
                   </button>
                   <button
                     type="button"
-                    onClick={() => onUpdateItem(index, { wet_or_dry: 'water' })}
+                    onClick={() => onUpdateItem(index, {
+                      wet_or_dry: 'water',
+                      unit_price_cents: item.price_water_cents ?? item.unit_price_cents,
+                    })}
                     className={`flex items-center justify-center p-2.5 sm:p-3 rounded-lg border-2 transition-all text-xs sm:text-sm font-medium ${
                       item.wet_or_dry === 'water'
                         ? 'border-blue-600 bg-blue-50 text-blue-900'

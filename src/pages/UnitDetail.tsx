@@ -361,6 +361,8 @@ export function UnitDetail() {
                   unit_name: unit.name,
                   wet_or_dry: wetOrDry,
                   unit_price_cents: wetOrDry === 'water' && unit.price_water_cents ? unit.price_water_cents : unit.price_dry_cents,
+                  price_dry_cents: unit.price_dry_cents,
+                  price_water_cents: unit.price_water_cents ?? null,
                   qty: 1,
                   is_combo: ((unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide')),
                 };
