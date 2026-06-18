@@ -243,12 +243,12 @@ export function Catalog() {
               className="flex-shrink-0 flex items-center gap-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-3 px-4 sm:px-6 rounded-xl transition-all shadow-lg hover:shadow-xl text-sm sm:text-base"
             >
               <Download className="w-5 h-5 flex-shrink-0" />
-              <span className="sm:hidden">Menu PDF</span>
-              <span className="hidden sm:inline">Download Menu PDF</span>
+              <span className="sm:hidden">Save Menu</span>
+              <span className="hidden sm:inline">Save / Download Menu</span>
             </button>
           </div>
 
-          <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 border-2 border-blue-200 mb-6">
+          <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 border-2 border-blue-200 mb-6 overflow-hidden">
             <label className="block text-sm sm:text-base font-semibold text-slate-700 mb-3">
               Check Availability for a Date
             </label>
