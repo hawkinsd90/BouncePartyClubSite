@@ -41,7 +41,7 @@ export function DatePickerInput({
   const displayValue = formatDisplayDate(value);
 
   return (
-    <div className="relative overflow-hidden w-full">
+    <div className="relative w-full">
       {showIcon && (
         <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400 pointer-events-none z-10" />
       )}
@@ -69,12 +69,13 @@ export function DatePickerInput({
         max={max}
         disabled={disabled}
         required={required}
-        className={`w-full ${showIcon ? 'pl-9 sm:pl-11' : 'pl-3 sm:pl-4'} pr-3 sm:pr-4 py-2.5 border-2 border-slate-300 rounded-xl bg-white hover:border-blue-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 transition-all cursor-pointer disabled:bg-slate-100 disabled:cursor-not-allowed ${className}`}
+        className={`w-full max-w-full ${showIcon ? 'pl-9 sm:pl-11' : 'pl-3 sm:pl-4'} pr-3 sm:pr-4 py-2.5 border-2 border-slate-300 rounded-xl bg-white hover:border-blue-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 transition-all cursor-pointer disabled:bg-slate-100 disabled:cursor-not-allowed ${className}`}
         style={{
           fontSize: '16px',
           minHeight: '44px',
           colorScheme: 'light',
           color: 'transparent',
+          boxSizing: 'border-box',
         }}
       />
     </div>

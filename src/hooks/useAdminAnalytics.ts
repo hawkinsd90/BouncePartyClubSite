@@ -70,11 +70,18 @@ function getPeriodRange(period: AnalyticsPeriod): { start: string | null; end: s
   return { start: null, end: null };
 }
 
+export interface MissingMileageEntry {
+  user_id: string;
+  date: string;
+  missing: 'start' | 'end' | 'both';
+}
+
 export interface MileageAnalytics {
   total_miles: number;
   total_days: number;
   avg_miles_per_day: number;
   crew_breakdown: Array<{ user_id: string; total_miles: number; days: number }>;
+  missing_entries: MissingMileageEntry[];
 }
 
 export function useMileageAnalytics(period: AnalyticsPeriod = 'all_time') {
@@ -89,22 +96,35 @@ export function useMileageAnalytics(period: AnalyticsPeriod = 'all_time') {
     setLoading(true);
     try {
       const { start, end } = getPeriodRange(period);
-      let query = supabase
+
+      // Fetch all logs (complete and incomplete) in one query
+      let allQuery = supabase
         .from('daily_mileage_logs')
-        .select('user_id, start_mileage, end_mileage, date')
-        .not('start_mileage', 'is', null)
-        .not('end_mileage', 'is', null);
+        .select('user_id, start_mileage, end_mileage, date');
 
-      if (start) query = query.gte('date', start.split('T')[0]);
-      if (end) query = query.lte('date', end.split('T')[0]);
+      if (start) allQuery = allQuery.gte('date', start.split('T')[0]);
+      if (end) allQuery = allQuery.lte('date', end.split('T')[0]);
 
-      const { data, error } = await query;
+      const { data, error } = await allQuery;
       if (error || !data) { setMileage(null); return; }
 
       const byUser: Record<string, { total_miles: number; days: number }> = {};
       let totalMiles = 0;
+      const missing_entries: MissingMileageEntry[] = [];
 
       for (const row of data) {
+        const hasStart = row.start_mileage != null;
+        const hasEnd = row.end_mileage != null;
+
+        if (!hasStart || !hasEnd) {
+          missing_entries.push({
+            user_id: row.user_id,
+            date: row.date as string,
+            missing: !hasStart && !hasEnd ? 'both' : !hasStart ? 'start' : 'end',
+          });
+          continue;
+        }
+
         const miles = (row.end_mileage as number) - (row.start_mileage as number);
         if (miles <= 0) continue;
         totalMiles += miles;
@@ -119,13 +139,18 @@ export function useMileageAnalytics(period: AnalyticsPeriod = 'all_time') {
         days: stats.days,
       })).sort((a, b) => b.total_miles - a.total_miles);
 
-      const total_days = new Set(data.map(r => r.date as string)).size;
+      const completeLogs = data.filter(r => r.start_mileage != null && r.end_mileage != null);
+      const total_days = new Set(completeLogs.map(r => r.date as string)).size;
+
+      // Sort missing entries by date descending so newest appear first
+      missing_entries.sort((a, b) => b.date.localeCompare(a.date));
 
       setMileage({
         total_miles: Math.round(totalMiles * 10) / 10,
         total_days,
         avg_miles_per_day: total_days > 0 ? Math.round((totalMiles / total_days) * 10) / 10 : 0,
         crew_breakdown,
+        missing_entries,
       });
     } catch {
       setMileage(null);

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { DollarSign, TrendingUp, TrendingDown, Users, ShoppingBag, CreditCard, Banknote, RotateCcw, Clock, Repeat, MapPin, Package, Star, AlertCircle, RefreshCw, Gauge, Car } from 'lucide-react';
-import { useAdminAnalytics, useMileageAnalytics, AnalyticsPeriod } from '../../hooks/useAdminAnalytics';
+import { useNavigate } from 'react-router-dom';
+import { DollarSign, TrendingUp, TrendingDown, Users, ShoppingBag, CreditCard, Banknote, RotateCcw, Clock, Repeat, MapPin, Package, Star, AlertCircle, RefreshCw, Gauge, Car, AlertTriangle } from 'lucide-react';
+import { useAdminAnalytics, useMileageAnalytics, AnalyticsPeriod, MissingMileageEntry } from '../../hooks/useAdminAnalytics';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 
 function formatCents(cents: number): string {
@@ -43,28 +44,95 @@ function StatCard({ icon, label, value, sub, trendInfo, accent = 'blue' }: StatC
   const colors = accentMap[accent] || accentMap.blue;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition-shadow">
-      <div className="flex items-start justify-between mb-3">
-        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${colors}`}>
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 hover:shadow-md transition-shadow">
+      <div className="flex items-start gap-2 mb-2">
+        <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${colors}`}>
           {icon}
         </div>
-        <div className="text-right">
-          <div className="text-2xl font-bold text-slate-900 leading-tight">{value}</div>
+        <div className="min-w-0 flex-1">
+          <div className="text-xl font-bold text-slate-900 leading-tight break-all">{value}</div>
           {trendInfo && (
-            <div className={`text-xs font-medium mt-1 ${trendInfo.positive ? 'text-green-600' : 'text-red-500'}`}>
-              {trendInfo.positive ? <TrendingUp className="w-3 h-3 inline mr-0.5" /> : <TrendingDown className="w-3 h-3 inline mr-0.5" />}
-              {trendInfo.label}
+            <div className={`text-xs font-medium mt-0.5 flex items-start gap-0.5 ${trendInfo.positive ? 'text-green-600' : 'text-red-500'}`}>
+              <span className="flex-shrink-0 mt-px">{trendInfo.positive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}</span>
+              <span className="leading-tight">{trendInfo.label}</span>
             </div>
           )}
         </div>
       </div>
-      <div className="text-sm font-semibold text-slate-800">{label}</div>
-      {sub && <div className="text-xs text-slate-500 mt-0.5">{sub}</div>}
+      <div className="text-sm font-semibold text-slate-800 leading-tight">{label}</div>
+      {sub && <div className="text-xs text-slate-500 mt-0.5 leading-tight">{sub}</div>}
+    </div>
+  );
+}
+
+interface MissingMileagePanelProps {
+  entries: MissingMileageEntry[];
+  crewNames: Record<string, string>;
+  onNavigate: (date: string) => void;
+}
+
+function MissingMileagePanel({ entries, crewNames, onNavigate }: MissingMileagePanelProps) {
+  // Group by user_id
+  const byUser: Record<string, MissingMileageEntry[]> = {};
+  for (const e of entries) {
+    if (!byUser[e.user_id]) byUser[e.user_id] = [];
+    byUser[e.user_id].push(e);
+  }
+
+  const missingLabel = (missing: MissingMileageEntry['missing']) => {
+    if (missing === 'both') return 'Start & end missing';
+    if (missing === 'start') return 'Start missing';
+    return 'End missing';
+  };
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  };
+
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+        <h3 className="font-semibold text-amber-900">Incomplete Mileage Entries</h3>
+        <span className="ml-auto text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+          {entries.length} missing
+        </span>
+      </div>
+      <div className="space-y-4">
+        {Object.entries(byUser).map(([userId, userEntries]) => (
+          <div key={userId}>
+            <div className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-2">
+              {crewNames[userId] || 'Crew Member'}
+            </div>
+            <div className="space-y-1.5">
+              {userEntries.map((entry) => (
+                <button
+                  key={`${entry.user_id}-${entry.date}`}
+                  onClick={() => onNavigate(entry.date)}
+                  className="w-full flex items-center justify-between px-3 py-2 bg-white border border-amber-200 rounded-lg hover:bg-amber-50 hover:border-amber-400 transition-colors text-left group"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm font-medium text-slate-900">{formatDate(entry.date)}</span>
+                    <span className="text-xs text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded font-medium">
+                      {missingLabel(entry.missing)}
+                    </span>
+                  </div>
+                  <span className="text-xs text-amber-600 font-medium group-hover:text-amber-800 shrink-0 ml-2">
+                    Go to date →
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
 export function BusinessAnalytics() {
+  const navigate = useNavigate();
   const [period, setPeriod] = useState<AnalyticsPeriod>('all_time');
   const { analytics: a, loading, error, reload } = useAdminAnalytics(period);
   const { mileage: m } = useMileageAnalytics(period);
@@ -422,6 +490,13 @@ export function BusinessAnalytics() {
                 })}
               </div>
             </div>
+          )}
+          {m.missing_entries.length > 0 && (
+            <MissingMileagePanel
+              entries={m.missing_entries}
+              crewNames={crewNames}
+              onNavigate={(date) => navigate(`/admin?tab=calendar&date=${date}`)}
+            />
           )}
         </div>
       )}
