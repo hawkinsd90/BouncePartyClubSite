@@ -40,7 +40,7 @@ export function TimePickerInput({
   const displayValue = formatDisplayTime(value);
 
   return (
-    <div className="relative w-full">
+    <div className="relative w-full overflow-hidden rounded-lg">
       {showIcon && (
         <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-400 pointer-events-none z-10" />
       )}
@@ -75,6 +75,7 @@ export function TimePickerInput({
           colorScheme: 'light',
           color: 'transparent',
           boxSizing: 'border-box',
+          width: '100%',
         }}
       />
     </div>
