@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { SafeStorage } from '../lib/safeStorage';
+import { supabase } from '../lib/supabase';
 
 interface CartItem {
   unit_id: string;
   unit_name: string;
   wet_or_dry: 'dry' | 'water';
   unit_price_cents: number;
+  price_dry_cents?: number;
+  price_water_cents?: number;
   qty: number;
   is_combo?: boolean;
   isAvailable?: boolean;
@@ -31,12 +34,52 @@ export function useQuoteCart() {
     loadCart();
   }, []);
 
-  function loadCart() {
+  async function loadCart() {
     const savedCart = SafeStorage.getItem<CartItem[]>(CART_STORAGE_KEY, {
       validate: validateCart,
       expirationDays: 7
     });
-    setCart(savedCart || []);
+    if (!savedCart || savedCart.length === 0) {
+      setCart([]);
+      return;
+    }
+
+    // Hydrate combo items that are missing both price fields (legacy carts)
+    const needsHydration = savedCart.filter(
+      item => item.is_combo && (item.price_dry_cents == null || item.price_water_cents == null)
+    );
+
+    if (needsHydration.length === 0) {
+      setCart(savedCart);
+      return;
+    }
+
+    try {
+      const unitIds = [...new Set(needsHydration.map(i => i.unit_id))];
+      const { data: units } = await supabase
+        .from('units')
+        .select('id, price_dry_cents, price_water_cents')
+        .in('id', unitIds);
+
+      const priceMap = new Map((units || []).map(u => [u.id, u]));
+      const hydrated = savedCart.map(item => {
+        if (!item.is_combo || (item.price_dry_cents != null && item.price_water_cents != null)) {
+          return item;
+        }
+        const unit = priceMap.get(item.unit_id);
+        if (!unit) return item;
+        return {
+          ...item,
+          price_dry_cents: unit.price_dry_cents,
+          price_water_cents: unit.price_water_cents ?? unit.price_dry_cents,
+        };
+      });
+
+      setCart(hydrated);
+      SafeStorage.setItem(CART_STORAGE_KEY, hydrated, { expirationDays: 7 });
+    } catch {
+      setCart(savedCart);
+    }
   }
 
   function notifyCartUpdate() {
