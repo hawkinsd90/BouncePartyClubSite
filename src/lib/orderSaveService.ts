@@ -236,16 +236,18 @@ export async function saveOrderChanges({
     const isConfirmedWithPayment = (order.status === ORDER_STATUS.CONFIRMED || order.status === ORDER_STATUS.IN_PROGRESS) && depositAlreadyCapturedCents > 0;
     const depositDifferenceCents = Math.max(0, finalDepositCents - depositAlreadyCapturedCents);
 
+    const balanceAlreadyPaidCents = order.balance_paid_cents || 0;
+
     let newBalanceDueCents: number;
     if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'require') {
-      newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents);
+      newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents - balanceAlreadyPaidCents);
       changes.deposit_catchup_cents = depositDifferenceCents;
       logs.push(['deposit_catchup', 0, depositDifferenceCents]);
     } else if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'waive') {
-      newBalanceDueCents = Math.max(0, effectiveTotalCents - depositAlreadyCapturedCents);
+      newBalanceDueCents = Math.max(0, effectiveTotalCents - depositAlreadyCapturedCents - balanceAlreadyPaidCents);
       changes.deposit_catchup_cents = 0;
     } else {
-      newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents);
+      newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents - balanceAlreadyPaidCents);
     }
 
     if (newBalanceDueCents !== order.balance_due_cents) {
