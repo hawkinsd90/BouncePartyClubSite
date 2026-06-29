@@ -75,7 +75,7 @@ Deno.serve(async (req: Request) => {
         // Valid user session — check role
         uploaderUserId = userData.user.id;
         const { data: roleData } = await supabaseClient
-          .rpc("get_user_role", { p_user_id: uploaderUserId });
+          .rpc("get_user_role", { user_id_input: uploaderUserId });
         uploaderRole = roleData as string | null;
 
         if (uploaderRole && ["admin", "master", "crew"].includes(uploaderRole)) {
@@ -134,9 +134,17 @@ Deno.serve(async (req: Request) => {
     // Check if a signature row already exists for this order
     const { data: existing } = await supabaseClient
       .from("order_signatures")
-      .select("id")
+      .select("id, electronic_consent_given")
       .eq("order_id", orderId)
       .maybeSingle();
+
+    // Protect existing digital waivers — never downgrade to paper
+    if (existing?.electronic_consent_given === true) {
+      return jsonError(
+        "A digital waiver has already been signed for this order. Physical waiver upload is not needed.",
+        409
+      );
+    }
 
     // No-file override: admin only, requires overrideReason
     if (!file) {

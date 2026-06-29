@@ -65,7 +65,7 @@ Deno.serve(async (req: Request) => {
         const { data: userData } = await anonClient.auth.getUser(jwt);
         if (userData?.user) {
           const { data: roleData } = await supabaseClient
-            .rpc("get_user_role", { p_user_id: userData.user.id });
+            .rpc("get_user_role", { user_id_input: userData.user.id });
           const role = roleData as string | null;
           if (role && ["admin", "master", "crew"].includes(role)) {
             canReceiveSignedUrl = true;

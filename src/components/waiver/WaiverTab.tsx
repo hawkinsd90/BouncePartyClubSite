@@ -37,7 +37,7 @@ export default function WaiverTab({ orderId, token, onWaiverChange }: WaiverTabP
           'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ orderId }),
+        body: JSON.stringify({ orderId, ...(token && { token }) }),
       });
       if (!res.ok) throw new Error(`get-waiver-status returned ${res.status}`);
       const { data } = await res.json();
