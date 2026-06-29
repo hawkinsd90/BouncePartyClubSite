@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DollarSign, TrendingUp, TrendingDown, Users, ShoppingBag, CreditCard, Banknote, RotateCcw, Clock, Repeat, MapPin, Package, Star, AlertCircle, RefreshCw, Gauge, Car, AlertTriangle } from 'lucide-react';
-import { useAdminAnalytics, useMileageAnalytics, AnalyticsPeriod, MissingMileageEntry } from '../../hooks/useAdminAnalytics';
+import { useAdminAnalytics, useMileageAnalytics, useDeliveryTimingAnalytics, AnalyticsPeriod, MissingMileageEntry } from '../../hooks/useAdminAnalytics';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 
 function formatCents(cents: number): string {
@@ -136,6 +136,7 @@ export function BusinessAnalytics() {
   const [period, setPeriod] = useState<AnalyticsPeriod>('all_time');
   const { analytics: a, loading, error, reload } = useAdminAnalytics(period);
   const { mileage: m } = useMileageAnalytics(period);
+  const { data: dt } = useDeliveryTimingAnalytics(period);
   const [crewNames, setCrewNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -498,6 +499,63 @@ export function BusinessAnalytics() {
               onNavigate={(date) => navigate(`/admin?tab=calendar&date=${date}`)}
             />
           )}
+        </div>
+      )}
+
+      {/* Delivery Performance */}
+      {dt && (dt.avg_travel_minutes != null || dt.avg_delivery_setup_minutes != null) && (
+        <div>
+          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Delivery Performance</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {dt.avg_travel_minutes != null && (
+              <StatCard
+                icon={<Car className="w-5 h-5" />}
+                label="Avg Travel Time"
+                value={`${Math.round(dt.avg_travel_minutes)} min`}
+                sub={`${dt.task_counts.with_travel} trips`}
+              />
+            )}
+            {dt.avg_delivery_setup_minutes != null && (
+              <StatCard
+                icon={<Clock className="w-5 h-5" />}
+                label="Avg Delivery Setup"
+                value={`${Math.round(dt.avg_delivery_setup_minutes)} min`}
+                sub={`${dt.task_counts.dropoff_total} drop-offs`}
+              />
+            )}
+            {dt.avg_pickup_service_minutes != null && (
+              <StatCard
+                icon={<Clock className="w-5 h-5" />}
+                label="Avg Pickup Service"
+                value={`${Math.round(dt.avg_pickup_service_minutes)} min`}
+                sub={`${dt.task_counts.pickup_total} pickups`}
+              />
+            )}
+            {dt.avg_total_dropoff_minutes != null && (
+              <StatCard
+                icon={<Gauge className="w-5 h-5" />}
+                label="Avg Total Drop-off"
+                value={`${Math.round(dt.avg_total_dropoff_minutes)} min`}
+                sub="Travel + setup"
+              />
+            )}
+            {dt.avg_total_pickup_minutes != null && (
+              <StatCard
+                icon={<Gauge className="w-5 h-5" />}
+                label="Avg Total Pickup"
+                value={`${Math.round(dt.avg_total_pickup_minutes)} min`}
+                sub="Travel + service"
+              />
+            )}
+            {dt.avg_eta_accuracy_minutes != null && (
+              <StatCard
+                icon={<Clock className="w-5 h-5" />}
+                label="ETA Accuracy"
+                value={`${Math.round(Math.abs(dt.avg_eta_accuracy_minutes))} min`}
+                sub={`${dt.task_counts.with_eta} tasks w/ ETA`}
+              />
+            )}
+          </div>
         </div>
       )}
 

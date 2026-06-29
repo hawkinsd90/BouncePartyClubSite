@@ -1,4 +1,4 @@
-import { Navigation, CheckCircle, Camera, MessageCircle, Star, AlertTriangle } from 'lucide-react';
+import { Navigation, CheckCircle, Camera, MessageCircle, Star, AlertTriangle, Upload } from 'lucide-react';
 
 interface Props {
   isDropOff: boolean;
@@ -11,11 +11,12 @@ interface Props {
   onImageUpload: (isDamage?: boolean) => void;
   onDropOffComplete: () => void;
   onPickupComplete: () => void;
+  onPaperWaiverUpload: () => void;
 }
 
 export function TaskDetailActions({
   isDropOff, isToday, currentStatus: _currentStatus, processing, uploadingImages,
-  onEnRoute, onArrived, onImageUpload, onDropOffComplete, onPickupComplete,
+  onEnRoute, onArrived, onImageUpload, onDropOffComplete, onPickupComplete, onPaperWaiverUpload,
 }: Props) {
   return (
     <div className="border-t border-slate-200 pt-6">
@@ -59,6 +60,14 @@ export function TaskDetailActions({
             >
               <MessageCircle className="w-5 h-5" />
               <span className="text-sm sm:text-base">Leaving - Send Rules</span>
+            </button>
+
+            <button
+              onClick={onPaperWaiverUpload}
+              className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 px-4 rounded-lg border border-slate-300 transition-colors sm:col-span-2"
+            >
+              <Upload className="w-5 h-5" />
+              <span className="text-sm sm:text-base">Upload Paper Waiver</span>
             </button>
           </>
         ) : (

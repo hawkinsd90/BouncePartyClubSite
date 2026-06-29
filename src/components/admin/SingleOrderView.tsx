@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Copy, Check, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Copy, Check, ExternalLink, Link } from 'lucide-react';
 import { PendingOrderCard } from './PendingOrderCard';
 import { AdminFloatingOrderHeader } from './AdminFloatingOrderHeader';
 import { supabase } from '../../lib/supabase';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
+import { createShortPortalLink } from '../../lib/utils';
 
 interface SingleOrderViewProps {
   orderId: string;
@@ -19,6 +20,9 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
   const [showFloatingHeader, setShowFloatingHeader] = useState(false);
   const [copied, setCopied] = useState(false);
   const [portalToken, setPortalToken] = useState<string | null>(null);
+  const [shortUrl, setShortUrl] = useState<string | null>(null);
+  const [shortLinkCopied, setShortLinkCopied] = useState(false);
+  const [generatingShortLink, setGeneratingShortLink] = useState(false);
   const cardRef = useRef<{ card: HTMLElement, actionButtons: HTMLElement | null, openEdit: () => void } | null>(null);
 
   useEffect(() => {
@@ -122,6 +126,53 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
       setPortalToken(data?.link_token ?? null);
     })();
   }, [order?.id, order?.status]);
+
+  useEffect(() => {
+    if (!order) return;
+    (async () => {
+      const { data } = await supabase
+        .from('invoice_links' as any)
+        .select('short_code')
+        .eq('order_id', order.id)
+        .eq('link_type', 'portal_shortlink')
+        .not('short_code', 'is', null)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data?.short_code) {
+        setShortUrl(`${window.location.origin}/i/${data.short_code}`);
+      }
+    })();
+  }, [order?.id]);
+
+  async function handleShortLink() {
+    setGeneratingShortLink(true);
+    try {
+      let url = shortUrl;
+      if (!url) {
+        url = await createShortPortalLink(order.id, supabase, order.event_date);
+        setShortUrl(url);
+      }
+      await navigator.clipboard.writeText(url);
+      setShortLinkCopied(true);
+      setTimeout(() => setShortLinkCopied(false), 2000);
+    } catch {
+      // clipboard fallback
+      if (shortUrl) {
+        const el = document.createElement('textarea');
+        el.value = shortUrl;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+        setShortLinkCopied(true);
+        setTimeout(() => setShortLinkCopied(false), 2000);
+      }
+    } finally {
+      setGeneratingShortLink(false);
+    }
+  }
 
   async function handleCopyUUID() {
     if (!order?.id) return;
@@ -260,6 +311,24 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
               <ExternalLink className="w-3.5 h-3.5" />
               Customer Portal
             </a>
+
+            <div className="flex flex-col items-end gap-0.5">
+              <button
+                onClick={handleShortLink}
+                disabled={generatingShortLink}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:border-teal-400 hover:bg-teal-50 text-slate-700 hover:text-teal-700 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+              >
+                {shortLinkCopied ? (
+                  <Check className="w-3.5 h-3.5 text-green-600" />
+                ) : (
+                  <Link className="w-3.5 h-3.5" />
+                )}
+                {shortLinkCopied ? 'Copied!' : shortUrl ? 'Copy Short Link' : generatingShortLink ? 'Generating...' : 'Generate & Copy'}
+              </button>
+              {shortUrl && (
+                <span className="text-xs text-slate-400 font-mono truncate max-w-[220px]">{shortUrl}</span>
+              )}
+            </div>
           </div>
         </div>
 

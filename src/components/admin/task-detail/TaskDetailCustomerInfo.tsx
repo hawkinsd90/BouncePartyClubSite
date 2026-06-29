@@ -42,8 +42,14 @@ export function TaskDetailCustomerInfo({ task, onRefund, refunding }: Props) {
         <div><span className="font-semibold">Phone:</span> {task.customerPhone}</div>
         <div><span className="font-semibold">Address:</span> {task.address}</div>
         <div><span className="font-semibold">Event Time:</span> {formatTimeStr(task.eventStartTime)} - {formatTimeStr(task.eventEndTime)}</div>
-        {!task.waiverSigned && (
-          <div className="text-amber-700 font-semibold">⚠️ Waiver not signed</div>
+        {!task.waiverSigned ? (
+          <div className="text-amber-700 font-semibold text-xs bg-amber-50 border border-amber-200 rounded px-2 py-1">Waiver not signed</div>
+        ) : task.waiverType === 'digital' ? (
+          <div className="text-green-700 font-semibold text-xs bg-green-50 border border-green-200 rounded px-2 py-1">Waiver signed — digital</div>
+        ) : task.waiverType === 'paper_with_photo' ? (
+          <div className="text-green-700 font-semibold text-xs bg-green-50 border border-green-200 rounded px-2 py-1">Paper waiver — photo on file</div>
+        ) : (
+          <div className="text-amber-700 font-semibold text-xs bg-amber-50 border border-amber-200 rounded px-2 py-1">Paper waiver — photo missing</div>
         )}
         {task.balanceDue > 0 && (
           <div className="text-red-700 font-semibold">⚠️ Balance due: {formatCurrency(task.balanceDue)}</div>

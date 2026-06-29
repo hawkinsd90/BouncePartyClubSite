@@ -615,36 +615,68 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
   }
 
   async function handlePaperWaiver() {
-    const confirmed = await showConfirm(`Mark waiver as signed in person for ${task.customerName}?\n\nThis records a paper waiver was signed on-site and updates the order status.`);
-    if (!confirmed) return;
+    const overrideReason = window.prompt(
+      `Mark waiver as signed in person for ${task.customerName} (no photo).\n\nProvide a reason (required):\ne.g., "Crew collected paper copy, will scan later"`
+    );
+    if (!overrideReason || !overrideReason.trim()) return;
+
     setSigningWaiver(true);
     try {
-      const now = new Date().toISOString();
-      const { error: sigError } = await supabase.from('order_signatures').insert({
-        order_id: task.orderId,
-        signature_data_url: '',
-        renter_name: task.customerName || 'Unknown',
-        renter_phone: task.customerPhone || '',
-        renter_email: task.customerEmail || null,
-        signer_name: task.customerName || 'Unknown',
-        signer_phone: task.customerPhone || '',
-        signer_email: task.customerEmail || null,
-        typed_name: task.customerName || 'Unknown',
-        ip_address: '0.0.0.0',
-        user_agent: 'Admin - Paper Waiver Signed On-Site',
-        waiver_version: 'paper',
-        electronic_consent_given: false,
+      const { data: { session } } = await supabase.auth.getSession();
+      const form = new FormData();
+      form.append('orderId', task.orderId);
+      form.append('uploadSource', 'admin_no_photo');
+      form.append('overrideReason', overrideReason.trim());
+
+      const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-physical-waiver`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session?.access_token}` },
+        body: form,
       });
-      if (sigError) throw sigError;
-      const { error: orderError } = await supabase.from('orders').update({
-        waiver_signed_at: now,
-        e_signature_consent: false,
-      }).eq('id', task.orderId);
-      if (orderError) console.warn('Order waiver_signed_at update failed:', orderError.message);
-      showAlert('Waiver marked as signed in person!');
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Failed to record waiver');
+      showAlert('Waiver marked as signed in person (no photo).');
       refresh();
     } catch (e: any) { console.error('Paper waiver error:', e); showAlert('Failed to mark waiver: ' + e.message); }
     finally { setSigningWaiver(false); }
+  }
+
+  async function handlePaperWaiverUpload() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/jpeg,image/png,image/webp,application/pdf';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+
+      const lowerName = file.name.toLowerCase();
+      if (lowerName.endsWith('.heic') || lowerName.endsWith('.heif') ||
+          file.type === 'image/heic' || file.type === 'image/heif') {
+        showAlert('HEIC photos are not supported. Please convert to JPEG first. On iPhone: Settings > Camera > Formats > Most Compatible');
+        return;
+      }
+
+      setSigningWaiver(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const form = new FormData();
+        form.append('file', file);
+        form.append('orderId', task.orderId);
+        form.append('uploadSource', 'admin_upload');
+
+        const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-physical-waiver`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${session?.access_token}` },
+          body: form,
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Failed to upload waiver');
+        showAlert('Paper waiver uploaded successfully.');
+        refresh();
+      } catch (e: any) { console.error('Paper waiver upload error:', e); showAlert('Failed to upload waiver: ' + e.message); }
+      finally { setSigningWaiver(false); }
+    };
+    input.click();
   }
 
   async function handleChargeCard(amountCents: number) {
@@ -872,6 +904,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
             onImageUpload={handleImageUpload}
             onDropOffComplete={handleDropOffComplete}
             onPickupComplete={handlePickupComplete}
+            onPaperWaiverUpload={handlePaperWaiverUpload}
           />
 
           {/* Photos */}

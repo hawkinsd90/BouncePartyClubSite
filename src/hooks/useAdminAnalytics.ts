@@ -162,6 +162,49 @@ export function useMileageAnalytics(period: AnalyticsPeriod = 'all_time') {
   return { mileage, loading };
 }
 
+export interface DeliveryTimingAnalytics {
+  avg_travel_minutes: number | null;
+  avg_delivery_setup_minutes: number | null;
+  avg_pickup_service_minutes: number | null;
+  avg_total_dropoff_minutes: number | null;
+  avg_total_pickup_minutes: number | null;
+  avg_eta_accuracy_minutes: number | null;
+  task_counts: {
+    dropoff_total: number;
+    pickup_total: number;
+    with_travel: number;
+    with_eta: number;
+  };
+}
+
+export function useDeliveryTimingAnalytics(period: AnalyticsPeriod = 'all_time') {
+  const [data, setData] = useState<DeliveryTimingAnalytics | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    load();
+  }, [period]);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const { start, end } = getPeriodRange(period);
+      const { data: result, error } = await supabase.rpc('get_delivery_timing_analytics', {
+        p_start_date: start ? start.split('T')[0] : null,
+        p_end_date: end ? end.split('T')[0] : null,
+      });
+      if (error) throw error;
+      setData(result as DeliveryTimingAnalytics);
+    } catch {
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return { data, loading };
+}
+
 export function useAdminAnalytics(period: AnalyticsPeriod = 'all_time') {
   const [analytics, setAnalytics] = useState<AdminAnalytics | null>(null);
   const [loading, setLoading] = useState(true);

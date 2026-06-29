@@ -34,9 +34,6 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    // Verify the order exists before serving any signature data.
-    // This prevents callers who have fabricated a UUID from probing
-    // whether a signature row exists without a corresponding order.
     const { data: order, error: orderError } = await supabaseClient
       .from("orders")
       .select("id")
@@ -50,16 +47,10 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Return only the columns needed for the customer portal display.
-    // Omitted entirely: waiver_text_snapshot, home_address_*, device_info,
-    // user_agent, electronic_consent_text, typed_name, signer_email, ip_address.
-    // signer_email and ip_address are PII; the customer already knows their own
-    // email and the raw IP provides no value to them. ip_address in particular
-    // would be forwarded by the UI to a third-party geolocation service.
     const { data: sig, error: sigError } = await supabaseClient
       .from("order_signatures")
       .select(
-        "signed_at, signer_name, waiver_version, initials_data, signature_image_url, pdf_url"
+        "signed_at, signer_name, waiver_version, initials_data, signature_image_url, pdf_url, electronic_consent_given, physical_waiver_storage_path, physical_waiver_uploaded_at, physical_waiver_file_type, physical_waiver_upload_source, physical_waiver_override_reason"
       )
       .eq("order_id", orderId)
       .maybeSingle();
@@ -72,8 +63,65 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    if (!sig) {
+      return new Response(
+        JSON.stringify({ signed: false, data: null }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Determine waiver type
+    let waiverType: "digital" | "paper_with_photo" | "paper_no_photo";
+    if (sig.electronic_consent_given) {
+      waiverType = "digital";
+    } else if (sig.physical_waiver_storage_path) {
+      waiverType = "paper_with_photo";
+    } else {
+      waiverType = "paper_no_photo";
+    }
+
+    // Generate signed URL for physical waiver if one exists
+    let physicalWaiver: {
+      has_file: boolean;
+      signed_url: string | null;
+      file_type: string | null;
+      uploaded_at: string | null;
+      upload_source: string | null;
+    } | null = null;
+
+    if (sig.waiver_version === "paper") {
+      let signedUrl: string | null = null;
+      if (sig.physical_waiver_storage_path) {
+        const { data: urlData, error: urlError } = await supabaseClient.storage
+          .from("physical-waivers")
+          .createSignedUrl(sig.physical_waiver_storage_path, 3600);
+        if (!urlError && urlData?.signedUrl) {
+          signedUrl = urlData.signedUrl;
+        }
+      }
+
+      physicalWaiver = {
+        has_file: !!sig.physical_waiver_storage_path,
+        signed_url: signedUrl,
+        file_type: sig.physical_waiver_file_type ?? null,
+        uploaded_at: sig.physical_waiver_uploaded_at ?? null,
+        upload_source: sig.physical_waiver_upload_source ?? null,
+      };
+    }
+
+    const responseData = {
+      signed_at: sig.signed_at,
+      signer_name: sig.signer_name,
+      waiver_version: sig.waiver_version,
+      initials_data: sig.initials_data,
+      signature_image_url: sig.signature_image_url,
+      pdf_url: sig.pdf_url,
+      waiver_type: waiverType,
+      physical_waiver: physicalWaiver,
+    };
+
     return new Response(
-      JSON.stringify({ signed: !!sig, data: sig ?? null }),
+      JSON.stringify({ signed: true, data: responseData }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: unknown) {

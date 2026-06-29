@@ -28,6 +28,7 @@ export interface Task {
   balancePaidCents: number;
   tipCents: number;
   waiverSigned: boolean;
+  waiverType?: 'digital' | 'paper_with_photo' | 'paper_no_photo' | null;
   balanceDue: number;
   pickupPreference?: string;
   surface?: string;
@@ -265,6 +266,7 @@ export function useCalendarTasks(currentMonth: Date) {
           balancePaidCents: order.balance_paid_cents || 0,
           tipCents: order.tip_cents || 0,
           waiverSigned: !!order.waiver_signed_at,
+          waiverType: !order.waiver_signed_at ? null : order.e_signature_consent ? 'digital' : order.waiver_signed_at ? 'paper_no_photo' : null,
           balanceDue,
           stripePaymentMethodId: order.stripe_payment_method_id || null,
           paymentMethodBrand: order.payment_method_brand || null,
@@ -325,6 +327,7 @@ export function useCalendarTasks(currentMonth: Date) {
           balancePaidCents: order.balance_paid_cents || 0,
           tipCents: order.tip_cents || 0,
           waiverSigned: !!order.waiver_signed_at,
+          waiverType: !order.waiver_signed_at ? null : order.e_signature_consent ? 'digital' : order.waiver_signed_at ? 'paper_no_photo' : null,
           balanceDue,
           stripePaymentMethodId: order.stripe_payment_method_id || null,
           paymentMethodBrand: order.payment_method_brand || null,
