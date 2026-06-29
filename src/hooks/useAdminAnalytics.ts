@@ -170,10 +170,12 @@ export interface DeliveryTimingAnalytics {
   avg_total_pickup_minutes: number | null;
   avg_eta_accuracy_minutes: number | null;
   task_counts: {
-    dropoff_total: number;
-    pickup_total: number;
-    with_travel: number;
-    with_eta: number;
+    total_dropoff: number;
+    total_pickup: number;
+    travel_sample: number;
+    eta_sample: number;
+    dropoff_with_all_timestamps: number;
+    pickup_with_all_timestamps: number;
   };
 }
 

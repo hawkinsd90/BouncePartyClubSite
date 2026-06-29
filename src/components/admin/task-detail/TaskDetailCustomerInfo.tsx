@@ -1,7 +1,10 @@
-import { useState } from 'react';
-import { RotateCcw } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { RotateCcw, ExternalLink } from 'lucide-react';
 import { formatCurrency } from '../../../lib/pricing';
 import { Task } from '../../../hooks/useCalendarTasks';
+import { supabase } from '../../../lib/supabase';
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
 function formatTimeStr(time: string): string {
   if (!time || time === 'TBD') return time;
@@ -22,6 +25,37 @@ export function TaskDetailCustomerInfo({ task, onRefund, refunding }: Props) {
   const [showRefundForm, setShowRefundForm] = useState(false);
   const [refundAmount, setRefundAmount] = useState('');
   const [refundReason, setRefundReason] = useState('');
+  const [physicalWaiverUrl, setPhysicalWaiverUrl] = useState<string | null>(null);
+
+  // Fetch signed URL for physical waiver when task has a paper waiver
+  useEffect(() => {
+    if (!task.waiverSigned || task.waiverType === 'digital' || task.waiverType === null) {
+      setPhysicalWaiverUrl(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/get-waiver-status`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ orderId: task.orderId }),
+        });
+        if (!res.ok || cancelled) return;
+        const { data } = await res.json();
+        if (!cancelled) {
+          setPhysicalWaiverUrl(data?.physical_waiver?.signed_url ?? null);
+        }
+      } catch {
+        // non-critical — waiver badge still shows
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [task.orderId, task.waiverType]);
 
   async function handleRefund() {
     const amountCents = Math.round(parseFloat(refundAmount) * 100);
@@ -42,15 +76,30 @@ export function TaskDetailCustomerInfo({ task, onRefund, refunding }: Props) {
         <div><span className="font-semibold">Phone:</span> {task.customerPhone}</div>
         <div><span className="font-semibold">Address:</span> {task.address}</div>
         <div><span className="font-semibold">Event Time:</span> {formatTimeStr(task.eventStartTime)} - {formatTimeStr(task.eventEndTime)}</div>
+
         {!task.waiverSigned ? (
           <div className="text-amber-700 font-semibold text-xs bg-amber-50 border border-amber-200 rounded px-2 py-1">Waiver not signed</div>
         ) : task.waiverType === 'digital' ? (
           <div className="text-green-700 font-semibold text-xs bg-green-50 border border-green-200 rounded px-2 py-1">Waiver signed — digital</div>
         ) : task.waiverType === 'paper_with_photo' ? (
-          <div className="text-green-700 font-semibold text-xs bg-green-50 border border-green-200 rounded px-2 py-1">Paper waiver — photo on file</div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="text-green-700 font-semibold text-xs bg-green-50 border border-green-200 rounded px-2 py-1">Paper waiver — photo on file</div>
+            {physicalWaiverUrl && (
+              <a
+                href={physicalWaiverUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
+              >
+                <ExternalLink className="w-3 h-3" />
+                View
+              </a>
+            )}
+          </div>
         ) : (
           <div className="text-amber-700 font-semibold text-xs bg-amber-50 border border-amber-200 rounded px-2 py-1">Paper waiver — photo missing</div>
         )}
+
         {task.balanceDue > 0 && (
           <div className="text-red-700 font-semibold">⚠️ Balance due: {formatCurrency(task.balanceDue)}</div>
         )}

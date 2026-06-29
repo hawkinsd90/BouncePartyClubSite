@@ -172,7 +172,8 @@ export function useCalendarTasks(currentMonth: Date) {
           *,
           customers (first_name, last_name, phone, email),
           addresses (line1, city, state, zip, lat, lng),
-          payments (id, amount_cents, status, paid_at, type)
+          payments (id, amount_cents, status, paid_at, type),
+          order_signatures (electronic_consent_given, waiver_version, physical_waiver_storage_path)
         `)
         .gte('event_date', format(queryStart, 'yyyy-MM-dd'))
         .lte('event_date', format(monthEnd, 'yyyy-MM-dd'))
@@ -266,7 +267,14 @@ export function useCalendarTasks(currentMonth: Date) {
           balancePaidCents: order.balance_paid_cents || 0,
           tipCents: order.tip_cents || 0,
           waiverSigned: !!order.waiver_signed_at,
-          waiverType: !order.waiver_signed_at ? null : order.e_signature_consent ? 'digital' : order.waiver_signed_at ? 'paper_no_photo' : null,
+          waiverType: (() => {
+            if (!order.waiver_signed_at) return null;
+            const sig = (order.order_signatures as any[])?.[0];
+            if (!sig) return null;
+            if (sig.electronic_consent_given) return 'digital' as const;
+            if (sig.physical_waiver_storage_path) return 'paper_with_photo' as const;
+            return 'paper_no_photo' as const;
+          })(),
           balanceDue,
           stripePaymentMethodId: order.stripe_payment_method_id || null,
           paymentMethodBrand: order.payment_method_brand || null,
@@ -327,7 +335,14 @@ export function useCalendarTasks(currentMonth: Date) {
           balancePaidCents: order.balance_paid_cents || 0,
           tipCents: order.tip_cents || 0,
           waiverSigned: !!order.waiver_signed_at,
-          waiverType: !order.waiver_signed_at ? null : order.e_signature_consent ? 'digital' : order.waiver_signed_at ? 'paper_no_photo' : null,
+          waiverType: (() => {
+            if (!order.waiver_signed_at) return null;
+            const sig = (order.order_signatures as any[])?.[0];
+            if (!sig) return null;
+            if (sig.electronic_consent_given) return 'digital' as const;
+            if (sig.physical_waiver_storage_path) return 'paper_with_photo' as const;
+            return 'paper_no_photo' as const;
+          })(),
           balanceDue,
           stripePaymentMethodId: order.stripe_payment_method_id || null,
           paymentMethodBrand: order.payment_method_brand || null,

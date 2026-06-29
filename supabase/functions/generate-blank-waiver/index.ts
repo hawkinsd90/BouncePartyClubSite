@@ -114,7 +114,7 @@ Deno.serve(async (req: Request) => {
     // Verify order exists (same gate as get-waiver-status)
     const { data: order, error: orderError } = await supabaseClient
       .from("orders")
-      .select("id, customers(first_name, last_name), addresses(address, city, state), event_date")
+      .select("id, customers(first_name, last_name), addresses(line1, city, state), event_date")
       .eq("id", orderId)
       .maybeSingle();
 
@@ -192,7 +192,7 @@ Deno.serve(async (req: Request) => {
       }
     }
     if (address) {
-      const addrLine = [address.address, address.city, address.state].filter(Boolean).join(", ");
+      const addrLine = [address.line1, address.city, address.state].filter(Boolean).join(", ");
       if (addrLine) {
         doc.setFontSize(9);
         doc.setFont("helvetica", "italic");

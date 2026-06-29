@@ -512,7 +512,7 @@ export function BusinessAnalytics() {
                 icon={<Car className="w-5 h-5" />}
                 label="Avg Travel Time"
                 value={`${Math.round(dt.avg_travel_minutes)} min`}
-                sub={`${dt.task_counts.with_travel} trips`}
+                sub={`${dt.task_counts.travel_sample} trips`}
               />
             )}
             {dt.avg_delivery_setup_minutes != null && (
@@ -520,7 +520,7 @@ export function BusinessAnalytics() {
                 icon={<Clock className="w-5 h-5" />}
                 label="Avg Delivery Setup"
                 value={`${Math.round(dt.avg_delivery_setup_minutes)} min`}
-                sub={`${dt.task_counts.dropoff_total} drop-offs`}
+                sub={`${dt.task_counts.dropoff_with_all_timestamps} drop-offs`}
               />
             )}
             {dt.avg_pickup_service_minutes != null && (
@@ -528,7 +528,7 @@ export function BusinessAnalytics() {
                 icon={<Clock className="w-5 h-5" />}
                 label="Avg Pickup Service"
                 value={`${Math.round(dt.avg_pickup_service_minutes)} min`}
-                sub={`${dt.task_counts.pickup_total} pickups`}
+                sub={`${dt.task_counts.pickup_with_all_timestamps} pickups`}
               />
             )}
             {dt.avg_total_dropoff_minutes != null && (
@@ -552,7 +552,7 @@ export function BusinessAnalytics() {
                 icon={<Clock className="w-5 h-5" />}
                 label="ETA Accuracy"
                 value={`${Math.round(Math.abs(dt.avg_eta_accuracy_minutes))} min`}
-                sub={`${dt.task_counts.with_eta} tasks w/ ETA`}
+                sub={`${dt.task_counts.eta_sample} tasks w/ ETA`}
               />
             )}
           </div>
