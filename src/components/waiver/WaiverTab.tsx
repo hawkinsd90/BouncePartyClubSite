@@ -64,11 +64,14 @@ export default function WaiverTab({ orderId, token, onWaiverChange }: WaiverTabP
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(`PDF generation failed: ${res.status}`);
+      const disposition = res.headers.get('content-disposition') ?? '';
+      const filenameMatch = disposition.match(/filename="([^"]+)"/);
+      const filename = filenameMatch?.[1] ?? `waiver-blank-${orderId.slice(0, 8)}.pdf`;
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `waiver-blank-${orderId.slice(0, 8)}.pdf`;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

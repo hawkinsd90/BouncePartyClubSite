@@ -8,14 +8,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const INITIALS_REQUIRED = [
-  "Cancellations and Refunds",
-  "Damage Responsibility and Fee",
-  "Rules and Safety Compliance",
-];
-
-const WAIVER_VERSION = "1.0";
-
 // IMPORTANT: This function must stay in sync with src/lib/waiverContent.ts generateWaiverText().
 // The digital signing flow stores a snapshot of that text at signing time. If these diverge,
 // the blank waiver shown to customers will not match what they ultimately sign electronically.
@@ -126,6 +118,9 @@ If I am not the parent or legal guardian of participating minors, I affirm I hav
 ${businessName} does not provide medical or liability insurance for injuries sustained while using the equipment.`;
 }
 
+// Sections that require an inline initials + date field after their body text
+const INLINE_INITIALS_SECTIONS = new Set([6, 8, 9]);
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -161,17 +156,16 @@ Deno.serve(async (req: Request) => {
         .eq("link_token", token)
         .maybeSingle();
 
-      if (!link || link.order_id !== orderId) {
-        // Token mismatch — fall through to orderId-only check (same as get-waiver-status)
-      } else if (link.expires_at && new Date(link.expires_at) < new Date()) {
-        return new Response(JSON.stringify({ error: "Link expired" }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      if (link && link.order_id === orderId) {
+        if (link.expires_at && new Date(link.expires_at) < new Date()) {
+          return new Response(JSON.stringify({ error: "Link expired" }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
       }
     }
 
-    // Verify order exists (same gate as get-waiver-status)
     const { data: order, error: orderError } = await supabaseClient
       .from("orders")
       .select("id, customers(first_name, last_name), addresses(line1, city, state), event_date")
@@ -204,12 +198,77 @@ Deno.serve(async (req: Request) => {
 
     const waiverText = generateWaiverText(businessName, businessLegalEntity, businessAddress, businessPhone, businessEmail);
 
+    const customer = order.customers as any;
+    const address = order.addresses as any;
+
+    const firstName: string = customer?.first_name || "";
+    const lastName: string = customer?.last_name || "";
+    const signerName: string = [firstName, lastName].filter(Boolean).join(" ") || "Unknown";
+    const eventDate: string = order.event_date || new Date().toISOString().split("T")[0];
+    const eventAddressLine: string = [address?.line1, address?.city, address?.state].filter(Boolean).join(", ");
+    const eventDateFormatted: string = new Date(eventDate + "T00:00:00").toLocaleDateString("en-US", {
+      weekday: "long", year: "numeric", month: "long", day: "numeric",
+    });
+
+    // Build filename: BPC-Liability-Waiver-{LastName}-{YYYY-MM-DD}.pdf
+    const safeLastName = lastName.replace(/[^a-zA-Z0-9]/g, "") || "Customer";
+    const pdfFilename = `BPC-Liability-Waiver-${safeLastName}-${eventDate}.pdf`;
+
+    // Parse waiver text into sections
+    const paragraphs = waiverText.split("\n\n");
+    // Skip first two paragraphs: business info line and "IMPORTANT" intro — already in header
+    const bodyParagraphs = paragraphs.slice(2);
+
+    interface WaiverSection {
+      sectionNumber: number;
+      header: string;
+      paragraphs: string[];
+    }
+    interface IntroBlock {
+      sectionNumber: null;
+      header: null;
+      paragraphs: string[];
+    }
+    type Block = WaiverSection | IntroBlock;
+
+    const blocks: Block[] = [];
+    let currentBlock: Block = { sectionNumber: null, header: null, paragraphs: [] };
+
+    for (const para of bodyParagraphs) {
+      const headerMatch = para.match(/^(\d+)\. /);
+      if (headerMatch) {
+        if (currentBlock.paragraphs.length > 0 || currentBlock.header !== null) {
+          blocks.push(currentBlock);
+        }
+        currentBlock = {
+          sectionNumber: parseInt(headerMatch[1]),
+          header: para,
+          paragraphs: [],
+        };
+      } else {
+        currentBlock.paragraphs.push(para);
+      }
+    }
+    if (currentBlock.paragraphs.length > 0 || currentBlock.header !== null) {
+      blocks.push(currentBlock);
+    }
+
+    // PDF setup
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 20;
     const maxWidth = pageWidth - 2 * margin;
+    const footerY = pageHeight - 10; // footer baseline
+    const contentMaxY = pageHeight - 18; // content must not exceed this
     let y = margin;
+
+    // ── PAGE 1 HEADER ──────────────────────────────────────────────────────────
+    // Title
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("LIABILITY WAIVER AND RENTAL AGREEMENT", pageWidth / 2, y, { align: "center" });
+    y += 8;
 
     // Logo
     if (logoUrl) {
@@ -221,102 +280,111 @@ Deno.serve(async (req: Request) => {
           const contentType = logoResponse.headers.get("content-type") || "image/png";
           const ext = contentType.includes("jpeg") ? "JPEG" : "PNG";
           const logoDataUrl = `data:${contentType};base64,${base64Logo}`;
-          const logoWidth = 40;
-          const logoHeight = 20;
+          const logoWidth = 36;
+          const logoHeight = 18;
           doc.addImage(logoDataUrl, ext, (pageWidth - logoWidth) / 2, y, logoWidth, logoHeight);
-          y += logoHeight + 6;
+          y += logoHeight + 4;
         }
       } catch { /* continue without logo */ }
     }
 
-    doc.setFontSize(18);
-    doc.setFont("helvetica", "bold");
-    doc.text("LIABILITY WAIVER AND RENTAL AGREEMENT", pageWidth / 2, y, { align: "center" });
-    y += 8;
-
-    doc.setFontSize(10);
+    // Business info line
+    doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.text(businessLegalEntity, pageWidth / 2, y, { align: "center" });
-    y += 5;
-    doc.text(`Version ${WAIVER_VERSION} — BLANK COPY FOR PHYSICAL SIGNATURE`, pageWidth / 2, y, { align: "center" });
+    const businessInfoLine = [businessLegalEntity, [businessAddress, businessPhone, businessEmail].filter(Boolean).join(" | ")].filter(Boolean).join("  ");
+    doc.text(businessInfoLine, pageWidth / 2, y, { align: "center" });
     y += 5;
 
-    // Pre-filled customer info
-    const customer = order.customers as any;
-    const address = order.addresses as any;
-    if (customer) {
-      const name = [customer.first_name, customer.last_name].filter(Boolean).join(" ");
-      if (name) {
-        doc.setFontSize(9);
-        doc.setFont("helvetica", "italic");
-        doc.setTextColor(60, 100, 180);
-        doc.text(`Prepared for: ${name}`, pageWidth / 2, y, { align: "center" });
-        y += 4;
-      }
-    }
-    if (address) {
-      const addrLine = [address.line1, address.city, address.state].filter(Boolean).join(", ");
-      if (addrLine) {
-        doc.setFontSize(9);
-        doc.setFont("helvetica", "italic");
-        doc.setTextColor(60, 100, 180);
-        doc.text(`Event address: ${addrLine}`, pageWidth / 2, y, { align: "center" });
-        y += 4;
-      }
-    }
-    if (order.event_date) {
+    // Prepared for / event info
+    if (signerName && signerName !== "Unknown") {
       doc.setFontSize(9);
       doc.setFont("helvetica", "italic");
       doc.setTextColor(60, 100, 180);
-      doc.text(`Event date: ${new Date(order.event_date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`, pageWidth / 2, y, { align: "center" });
+      doc.text(`Prepared for: ${signerName}`, pageWidth / 2, y, { align: "center" });
+      y += 4;
+    }
+    if (eventAddressLine) {
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "italic");
+      doc.setTextColor(60, 100, 180);
+      doc.text(`Event address: ${eventAddressLine}`, pageWidth / 2, y, { align: "center" });
+      y += 4;
+    }
+    if (eventDate) {
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "italic");
+      doc.setTextColor(60, 100, 180);
+      doc.text(`Event date: ${eventDateFormatted}`, pageWidth / 2, y, { align: "center" });
       y += 4;
     }
     doc.setTextColor(0, 0, 0);
 
-    y += 3;
-    doc.setDrawColor(200, 200, 200);
+    y += 2;
+    doc.setDrawColor(180, 180, 180);
     doc.line(margin, y, pageWidth - margin, y);
-    y += 8;
+    y += 7;
 
-    // Waiver body text
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    const lines = doc.splitTextToSize(waiverText, maxWidth);
-    for (const line of lines) {
-      if (y > pageHeight - 30) { doc.addPage(); y = margin; }
-      doc.text(line, margin, y);
-      y += 5;
+    // ── WAIVER BODY ────────────────────────────────────────────────────────────
+    const addPage = () => {
+      doc.addPage();
+      y = margin;
+    };
+
+    const ensureSpace = (needed: number) => {
+      if (y + needed > contentMaxY) addPage();
+    };
+
+    for (const block of blocks) {
+      if (block.header !== null) {
+        ensureSpace(10);
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        const headerLines = doc.splitTextToSize(block.header, maxWidth);
+        for (const line of headerLines) {
+          ensureSpace(6);
+          doc.text(line, margin, y);
+          y += 5;
+        }
+        y += 2;
+      }
+
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+
+      for (const para of (block as WaiverSection).paragraphs) {
+        const lines = doc.splitTextToSize(para, maxWidth);
+        ensureSpace(lines.length * 4.5 + 4);
+        for (const line of lines) {
+          if (y > contentMaxY) addPage();
+          doc.text(line, margin, y);
+          y += 4.5;
+        }
+        y += 3;
+      }
+
+      // Inline initials field after sections 6, 8, 9
+      if (block.sectionNumber !== null && INLINE_INITIALS_SECTIONS.has(block.sectionNumber)) {
+        ensureSpace(14);
+        y += 2;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.text("Initials:", margin, y);
+        doc.setFont("helvetica", "normal");
+        doc.line(margin + 22, y + 1, margin + 62, y + 1);
+        doc.setFont("helvetica", "bold");
+        doc.text("Date:", margin + 70, y);
+        doc.setFont("helvetica", "normal");
+        doc.line(margin + 82, y + 1, margin + 130, y + 1);
+        y += 10;
+      }
     }
 
-    // Ensure enough space for signature section
-    if (y > pageHeight - 100) { doc.addPage(); y = margin; }
-
-    y += 10;
+    // ── SIGNATURE BLOCK ────────────────────────────────────────────────────────
+    ensureSpace(60);
+    y += 4;
     doc.setDrawColor(0, 0, 0);
     doc.line(margin, y, pageWidth - margin, y);
     y += 8;
-
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.text("INITIALS REQUIRED — SIGN EACH SECTION BELOW", pageWidth / 2, y, { align: "center" });
-    y += 10;
-
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    for (const section of INITIALS_REQUIRED) {
-      if (y > pageHeight - 30) { doc.addPage(); y = margin; }
-      doc.text(`${section}:`, margin, y);
-      doc.line(margin + 80, y + 1, margin + 130, y + 1);
-      doc.setFont("helvetica", "italic");
-      doc.setTextColor(120, 120, 120);
-      doc.text("Initial here", margin + 82, y);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(0, 0, 0);
-      y += 10;
-    }
-
-    y += 5;
-    if (y > pageHeight - 60) { doc.addPage(); y = margin; }
 
     doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
@@ -325,13 +393,8 @@ Deno.serve(async (req: Request) => {
 
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-
-    // Pre-fill name if available
-    const signerName = customer
-      ? [customer.first_name, customer.last_name].filter(Boolean).join(" ")
-      : "";
     doc.text("Full Legal Name:", margin, y);
-    if (signerName) {
+    if (signerName && signerName !== "Unknown") {
       doc.setFont("helvetica", "bold");
       doc.text(signerName, margin + 45, y);
       doc.setFont("helvetica", "normal");
@@ -349,18 +412,35 @@ Deno.serve(async (req: Request) => {
     doc.setFontSize(8);
     doc.setFont("helvetica", "italic");
     doc.setTextColor(100, 100, 100);
-    doc.text(
-      "By signing, you agree to the terms of this Agreement. Return the signed copy to your delivery crew.",
-      pageWidth / 2,
-      pageHeight - 20,
-      { align: "center" }
-    );
-    doc.text(
-      "This is a paper copy. Digital signing is available at the Customer Portal.",
-      pageWidth / 2,
-      pageHeight - 15,
-      { align: "center" }
-    );
+    if (y <= contentMaxY - 8) {
+      doc.text(
+        "By signing, you agree to the terms of this Agreement. Return the signed copy to your delivery crew.",
+        pageWidth / 2,
+        y,
+        { align: "center" }
+      );
+    }
+    doc.setTextColor(0, 0, 0);
+
+    // ── PER-PAGE FOOTERS ───────────────────────────────────────────────────────
+    const totalPages = (doc.internal as any).getNumberOfPages();
+    const footerPreparedFor = signerName && signerName !== "Unknown" ? `Prepared For: ${signerName}` : "";
+    const footerEvent = [eventAddressLine, eventDateFormatted].filter(Boolean).join(" · ");
+
+    for (let p = 1; p <= totalPages; p++) {
+      doc.setPage(p);
+      doc.setDrawColor(200, 200, 200);
+      doc.line(margin, footerY - 4, pageWidth - margin, footerY - 4);
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(120, 120, 120);
+      doc.text(`Page ${p} / ${totalPages}`, margin, footerY);
+      const footerRight = [footerPreparedFor, footerEvent].filter(Boolean).join("  ·  ");
+      if (footerRight) {
+        doc.text(footerRight, pageWidth - margin, footerY, { align: "right" });
+      }
+      doc.setTextColor(0, 0, 0);
+    }
 
     const pdfBuffer = doc.output("arraybuffer");
     const pdfBytes = new Uint8Array(pdfBuffer);
@@ -370,7 +450,7 @@ Deno.serve(async (req: Request) => {
       headers: {
         ...corsHeaders,
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="waiver-blank-${orderId.slice(0, 8)}.pdf"`,
+        "Content-Disposition": `attachment; filename="${pdfFilename}"`,
         "Cache-Control": "no-store",
       },
     });
