@@ -148,7 +148,6 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    // If token provided, validate it against invoice_links
     if (token) {
       const { data: link } = await supabaseClient
         .from("invoice_links")
@@ -210,13 +209,91 @@ Deno.serve(async (req: Request) => {
       weekday: "long", year: "numeric", month: "long", day: "numeric",
     });
 
-    // Build filename: BPC-Liability-Waiver-{LastName}-{YYYY-MM-DD}.pdf
     const safeLastName = lastName.replace(/[^a-zA-Z0-9]/g, "") || "Customer";
     const pdfFilename = `BPC-Liability-Waiver-${safeLastName}-${eventDate}.pdf`;
 
-    // Parse waiver text into sections
+    // Pre-fetch logo so it can be reused on every page header
+    let logoDataUrl: string | null = null;
+    let logoExt: "JPEG" | "PNG" = "PNG";
+    const LOGO_W = 36;
+    const LOGO_H = 18;
+
+    if (logoUrl) {
+      try {
+        const logoResponse = await fetch(logoUrl);
+        if (logoResponse.ok) {
+          const logoBlob = await logoResponse.arrayBuffer();
+          const base64Logo = btoa(String.fromCharCode(...new Uint8Array(logoBlob)));
+          const contentType = logoResponse.headers.get("content-type") || "image/png";
+          logoExt = contentType.includes("jpeg") ? "JPEG" : "PNG";
+          logoDataUrl = `data:${contentType};base64,${base64Logo}`;
+        }
+      } catch { /* continue without logo */ }
+    }
+
+    // PDF setup
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 20;
+    const maxWidth = pageWidth - 2 * margin;
+    const footerHeight = 12; // reserved at bottom for footer
+
+    // ── HEADER RENDERING ───────────────────────────────────────────────────────
+    // Returns the y position after the header separator line (= content start y)
+    const renderPageHeader = (startY: number): number => {
+      let y = startY;
+
+      // Title
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.text("LIABILITY WAIVER AND RENTAL AGREEMENT", pageWidth / 2, y, { align: "center" });
+      y += 8;
+
+      // Logo (centered, between title and business info)
+      if (logoDataUrl) {
+        doc.addImage(logoDataUrl, logoExt, (pageWidth - LOGO_W) / 2, y, LOGO_W, LOGO_H);
+        y += LOGO_H + 4;
+      }
+
+      // Business info line
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      const businessInfoLine = [
+        businessLegalEntity,
+        [businessAddress, businessPhone, businessEmail].filter(Boolean).join(" | "),
+      ].filter(Boolean).join("  ");
+      doc.text(businessInfoLine, pageWidth / 2, y, { align: "center" });
+      y += 5;
+
+      // Separator
+      y += 2;
+      doc.setDrawColor(180, 180, 180);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 7;
+
+      return y;
+    };
+
+    // Render header on page 1 and record the content start Y
+    let y = renderPageHeader(margin);
+    const contentStartY = y; // reused for pages 2+
+
+    const contentMaxY = pageHeight - footerHeight;
+
+    const addPage = () => {
+      doc.addPage();
+      // Reserve space for the header which will be stamped in the post-render loop
+      y = contentStartY;
+    };
+
+    const ensureSpace = (needed: number) => {
+      if (y + needed > contentMaxY) addPage();
+    };
+
+    // ── PARSE WAIVER TEXT INTO SECTIONS ────────────────────────────────────────
     const paragraphs = waiverText.split("\n\n");
-    // Skip first two paragraphs: business info line and "IMPORTANT" intro — already in header
+    // Skip first two paragraphs: business info line and "IMPORTANT" intro — both in header
     const bodyParagraphs = paragraphs.slice(2);
 
     interface WaiverSection {
@@ -253,87 +330,7 @@ Deno.serve(async (req: Request) => {
       blocks.push(currentBlock);
     }
 
-    // PDF setup
-    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 20;
-    const maxWidth = pageWidth - 2 * margin;
-    const footerY = pageHeight - 10; // footer baseline
-    const contentMaxY = pageHeight - 18; // content must not exceed this
-    let y = margin;
-
-    // ── PAGE 1 HEADER ──────────────────────────────────────────────────────────
-    // Title
-    doc.setFontSize(16);
-    doc.setFont("helvetica", "bold");
-    doc.text("LIABILITY WAIVER AND RENTAL AGREEMENT", pageWidth / 2, y, { align: "center" });
-    y += 8;
-
-    // Logo
-    if (logoUrl) {
-      try {
-        const logoResponse = await fetch(logoUrl);
-        if (logoResponse.ok) {
-          const logoBlob = await logoResponse.arrayBuffer();
-          const base64Logo = btoa(String.fromCharCode(...new Uint8Array(logoBlob)));
-          const contentType = logoResponse.headers.get("content-type") || "image/png";
-          const ext = contentType.includes("jpeg") ? "JPEG" : "PNG";
-          const logoDataUrl = `data:${contentType};base64,${base64Logo}`;
-          const logoWidth = 36;
-          const logoHeight = 18;
-          doc.addImage(logoDataUrl, ext, (pageWidth - logoWidth) / 2, y, logoWidth, logoHeight);
-          y += logoHeight + 4;
-        }
-      } catch { /* continue without logo */ }
-    }
-
-    // Business info line
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    const businessInfoLine = [businessLegalEntity, [businessAddress, businessPhone, businessEmail].filter(Boolean).join(" | ")].filter(Boolean).join("  ");
-    doc.text(businessInfoLine, pageWidth / 2, y, { align: "center" });
-    y += 5;
-
-    // Prepared for / event info
-    if (signerName && signerName !== "Unknown") {
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "italic");
-      doc.setTextColor(60, 100, 180);
-      doc.text(`Prepared for: ${signerName}`, pageWidth / 2, y, { align: "center" });
-      y += 4;
-    }
-    if (eventAddressLine) {
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "italic");
-      doc.setTextColor(60, 100, 180);
-      doc.text(`Event address: ${eventAddressLine}`, pageWidth / 2, y, { align: "center" });
-      y += 4;
-    }
-    if (eventDate) {
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "italic");
-      doc.setTextColor(60, 100, 180);
-      doc.text(`Event date: ${eventDateFormatted}`, pageWidth / 2, y, { align: "center" });
-      y += 4;
-    }
-    doc.setTextColor(0, 0, 0);
-
-    y += 2;
-    doc.setDrawColor(180, 180, 180);
-    doc.line(margin, y, pageWidth - margin, y);
-    y += 7;
-
     // ── WAIVER BODY ────────────────────────────────────────────────────────────
-    const addPage = () => {
-      doc.addPage();
-      y = margin;
-    };
-
-    const ensureSpace = (needed: number) => {
-      if (y + needed > contentMaxY) addPage();
-    };
-
     for (const block of blocks) {
       if (block.header !== null) {
         ensureSpace(10);
@@ -407,30 +404,24 @@ Deno.serve(async (req: Request) => {
     doc.line(margin + 30, y + 1, pageWidth - margin - 50, y + 1);
     doc.text("Date:", pageWidth - margin - 45, y);
     doc.line(pageWidth - margin - 30, y + 1, pageWidth - margin, y + 1);
-    y += 14;
 
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "italic");
-    doc.setTextColor(100, 100, 100);
-    if (y <= contentMaxY - 8) {
-      doc.text(
-        "By signing, you agree to the terms of this Agreement. Return the signed copy to your delivery crew.",
-        pageWidth / 2,
-        y,
-        { align: "center" }
-      );
-    }
-    doc.setTextColor(0, 0, 0);
-
-    // ── PER-PAGE FOOTERS ───────────────────────────────────────────────────────
+    // ── PER-PAGE HEADERS (pages 2+) AND FOOTERS (all pages) ───────────────────
     const totalPages = (doc.internal as any).getNumberOfPages();
+    const footerY = pageHeight - 5;
     const footerPreparedFor = signerName && signerName !== "Unknown" ? `Prepared For: ${signerName}` : "";
     const footerEvent = [eventAddressLine, eventDateFormatted].filter(Boolean).join(" · ");
 
     for (let p = 1; p <= totalPages; p++) {
       doc.setPage(p);
+
+      // Stamp header on pages 2+ (page 1 already has it from initial render)
+      if (p > 1) {
+        renderPageHeader(margin);
+      }
+
+      // Footer separator + content
       doc.setDrawColor(200, 200, 200);
-      doc.line(margin, footerY - 4, pageWidth - margin, footerY - 4);
+      doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5);
       doc.setFontSize(7);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(120, 120, 120);
