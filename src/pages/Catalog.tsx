@@ -248,12 +248,12 @@ export function Catalog() {
             </button>
           </div>
 
-          <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 border-2 border-blue-200 mb-6 overflow-hidden">
+          <div className="w-full max-w-full min-w-0 bg-white rounded-xl shadow-md p-4 sm:p-6 border-2 border-blue-200 mb-6">
             <label className="block text-sm sm:text-base font-semibold text-slate-700 mb-3">
               Check Availability for a Date
             </label>
-            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
-              <div className="w-full sm:max-w-xs">
+            <div className="flex w-full max-w-full min-w-0 flex-col sm:flex-row gap-3 items-stretch sm:items-end">
+              <div className="w-full max-w-full min-w-0 sm:max-w-xs">
                 <DatePickerInput
                   value={eventDate}
                   onChange={handleDateChange}
@@ -266,7 +266,7 @@ export function Catalog() {
                 <button
                   onClick={handleCheckAvailability}
                   disabled={availabilityLoading}
-                  className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:opacity-60 text-white font-bold py-3 px-5 rounded-xl transition-all shadow-md hover:shadow-lg whitespace-nowrap"
+                  className="flex w-full sm:w-auto max-w-full items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:opacity-60 text-white font-bold py-3 px-5 rounded-xl transition-all shadow-md hover:shadow-lg whitespace-nowrap"
                 >
                   {availabilityLoading ? (
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -279,7 +279,7 @@ export function Catalog() {
               {availabilityChecked && (
                 <button
                   onClick={handleClearAvailability}
-                  className="flex items-center gap-2 text-slate-600 hover:text-slate-800 font-semibold py-3 px-3 rounded-xl transition-all border-2 border-slate-300 hover:border-slate-400 bg-white whitespace-nowrap"
+                  className="flex w-full sm:w-auto max-w-full items-center justify-center gap-2 text-slate-600 hover:text-slate-800 font-semibold py-3 px-3 rounded-xl transition-all border-2 border-slate-300 hover:border-slate-400 bg-white whitespace-nowrap"
                 >
                   <XCircle className="w-4 h-4" />
                   Show All
