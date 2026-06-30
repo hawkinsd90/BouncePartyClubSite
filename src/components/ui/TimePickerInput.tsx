@@ -49,7 +49,7 @@ export function TimePickerInput({
       <div
         className={`absolute inset-0 z-[1] box-border flex h-full w-full max-w-full min-w-0 items-center pointer-events-none ${
           showIcon ? 'pl-9 sm:pl-11' : 'pl-3 sm:pl-4'
-        } pr-10 sm:pr-11`}
+        } pr-3 sm:pr-4`}
         aria-hidden="true"
       >
         {displayValue ? (
@@ -73,10 +73,12 @@ export function TimePickerInput({
         max={max}
         disabled={disabled}
         required={required}
-        className={`block h-12 w-full max-w-full min-w-0 box-border rounded-lg border border-slate-300 bg-white ${
+        className={`block h-12 w-full max-w-full min-w-0 box-border appearance-none rounded-lg border border-slate-300 bg-white ${
           showIcon ? 'pl-9 sm:pl-11' : 'pl-3 sm:pl-4'
-        } pr-10 sm:pr-11 py-2.5 transition-all cursor-pointer hover:border-blue-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:bg-slate-100 disabled:cursor-not-allowed ${className}`}
+        } pr-3 sm:pr-4 py-2.5 transition-all cursor-pointer hover:border-blue-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:bg-slate-100 disabled:cursor-not-allowed ${className}`}
         style={{
+          WebkitAppearance: 'none',
+          appearance: 'none',
           fontSize: '16px',
           minHeight: '48px',
           colorScheme: 'light',
@@ -84,7 +86,8 @@ export function TimePickerInput({
           boxSizing: 'border-box',
           width: '100%',
           maxWidth: '100%',
-          minWidth: 0,
+          minWidth: '0',
+          display: 'block',
         }}
       />
     </div>
