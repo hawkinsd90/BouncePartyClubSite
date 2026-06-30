@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { SafeStorage } from '../lib/safeStorage';
@@ -33,6 +33,7 @@ export function Catalog() {
   const [availabilityChecked, setAvailabilityChecked] = useState(false);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [unavailableUnitIds, setUnavailableUnitIds] = useState<Set<string>>(new Set());
+  const autoCheckRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -102,6 +103,7 @@ export function Catalog() {
     const prefillData = SafeStorage.getItem<any>('bpc_quote_prefill');
     if (prefillData && prefillData.event_date) {
       setEventDate(prefillData.event_date);
+      autoCheckRef.current = true;
       return;
     }
 
@@ -143,6 +145,13 @@ export function Catalog() {
       setAvailabilityLoading(false);
     }
   }, [eventDate, units]);
+
+  useEffect(() => {
+    if (autoCheckRef.current && eventDate && units.length > 0 && !availabilityChecked && !availabilityLoading) {
+      autoCheckRef.current = false;
+      handleCheckAvailability();
+    }
+  }, [eventDate, units, availabilityChecked, availabilityLoading, handleCheckAvailability]);
 
   const handleClearAvailability = () => {
     setAvailabilityChecked(false);
