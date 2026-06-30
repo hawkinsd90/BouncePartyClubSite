@@ -224,7 +224,7 @@ Deno.serve(async (req: Request) => {
     field("Typed Legal Name", signature.typed_name || signature.signer_name || "");
     field("Email", signature.signer_email || "");
     if (signature.signer_phone) field("Phone", signature.signer_phone);
-    field("Date Signed", new Date(signature.signed_at).toLocaleString("en-US", { dateStyle: "full", timeStyle: "long" }));
+    field("Date Signed", new Date(signature.signed_at).toLocaleString("en-US", { dateStyle: "full", timeStyle: "long", timeZone: "America/Detroit" }));
     field("IP Address", signature.ip_address || "");
     y += 4;
 
