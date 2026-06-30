@@ -6,6 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+  "Access-Control-Expose-Headers": "Content-Disposition",
 };
 
 // IMPORTANT: This function must stay in sync with src/lib/waiverContent.ts generateWaiverText().
@@ -223,7 +224,12 @@ Deno.serve(async (req: Request) => {
         const logoResponse = await fetch(logoUrl);
         if (logoResponse.ok) {
           const logoBlob = await logoResponse.arrayBuffer();
-          const base64Logo = btoa(String.fromCharCode(...new Uint8Array(logoBlob)));
+          const bytes = new Uint8Array(logoBlob);
+          let binary = "";
+          for (let i = 0; i < bytes.length; i += 1024) {
+            binary += String.fromCharCode(...bytes.subarray(i, i + 1024));
+          }
+          const base64Logo = btoa(binary);
           const contentType = logoResponse.headers.get("content-type") || "image/png";
           logoExt = contentType.includes("jpeg") ? "JPEG" : "PNG";
           logoDataUrl = `data:${contentType};base64,${base64Logo}`;
