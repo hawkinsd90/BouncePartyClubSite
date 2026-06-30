@@ -253,7 +253,7 @@ export function Catalog() {
               Check Availability for a Date
             </label>
             <div className="flex w-full max-w-full min-w-0 flex-col sm:flex-row gap-3 items-stretch sm:items-end">
-              <div className="w-full max-w-full min-w-0 sm:max-w-xs">
+              <div className="w-full min-w-0 max-w-full overflow-hidden sm:max-w-xs">
                 <DatePickerInput
                   value={eventDate}
                   onChange={handleDateChange}
