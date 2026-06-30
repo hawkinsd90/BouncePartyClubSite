@@ -1,6 +1,15 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { jsPDF } from "npm:jspdf@2.5.2";
+import {
+  MARGIN,
+  INLINE_INITIALS_SECTIONS,
+  fetchLogoDataUrl,
+  parseWaiverSections,
+  renderPageHeader,
+  stampAllPageHeaders,
+  stampAllPageFooters,
+} from "../_shared/waiver-pdf.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -119,14 +128,10 @@ If I am not the parent or legal guardian of participating minors, I affirm I hav
 ${businessName} does not provide medical or liability insurance for injuries sustained while using the equipment.`;
 }
 
-// Sections that require an inline initials + date field after their body text
-const INLINE_INITIALS_SECTIONS = new Set([6, 8, 9]);
-
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
-
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
@@ -155,7 +160,6 @@ Deno.serve(async (req: Request) => {
         .select("order_id, expires_at")
         .eq("link_token", token)
         .maybeSingle();
-
       if (link && link.order_id === orderId) {
         if (link.expires_at && new Date(link.expires_at) < new Date()) {
           return new Response(JSON.stringify({ error: "Link expired" }), {
@@ -184,168 +188,68 @@ Deno.serve(async (req: Request) => {
       .select("key, value")
       .in("key", ["logo_url", "business_name", "business_name_short", "business_legal_entity", "business_address", "business_phone", "business_email"]);
 
-    const settingsMap: Record<string, string> = {};
+    const sm: Record<string, string> = {};
     for (const row of settings ?? []) {
-      if (row.key && row.value) settingsMap[row.key] = row.value;
+      if (row.key && row.value) sm[row.key] = row.value;
     }
 
-    const logoUrl: string | null = settingsMap["logo_url"] || null;
-    const businessName: string = settingsMap["business_name_short"] || settingsMap["business_name"] || "Bounce Party Club";
-    const businessLegalEntity: string = settingsMap["business_legal_entity"] || settingsMap["business_name"] || "Bounce Party Club LLC";
-    const businessAddress: string = settingsMap["business_address"] || "";
-    const businessPhone: string = settingsMap["business_phone"] || "";
-    const businessEmail: string = settingsMap["business_email"] || "";
+    const logoUrl = sm["logo_url"] || null;
+    const businessName = sm["business_name_short"] || sm["business_name"] || "Bounce Party Club";
+    const businessLegalEntity = sm["business_legal_entity"] || sm["business_name"] || "Bounce Party Club LLC";
+    const businessAddress = sm["business_address"] || "";
+    const businessPhone = sm["business_phone"] || "";
+    const businessEmail = sm["business_email"] || "";
+    const businessInfoLine = [
+      businessLegalEntity,
+      [businessAddress, businessPhone, businessEmail].filter(Boolean).join(" | "),
+    ].filter(Boolean).join("  ");
 
     const waiverText = generateWaiverText(businessName, businessLegalEntity, businessAddress, businessPhone, businessEmail);
 
     const customer = order.customers as any;
     const address = order.addresses as any;
-
-    const firstName: string = customer?.first_name || "";
-    const lastName: string = customer?.last_name || "";
-    const signerName: string = [firstName, lastName].filter(Boolean).join(" ") || "Unknown";
-    const eventDate: string = order.event_date || new Date().toISOString().split("T")[0];
-    const eventAddressLine: string = [address?.line1, address?.city, address?.state].filter(Boolean).join(", ");
-    const eventDateFormatted: string = new Date(eventDate + "T00:00:00").toLocaleDateString("en-US", {
+    const lastName = customer?.last_name || "";
+    const signerName = [customer?.first_name || "", lastName].filter(Boolean).join(" ") || "Unknown";
+    const eventDate = order.event_date || new Date().toISOString().split("T")[0];
+    const eventAddressLine = [address?.line1, address?.city, address?.state].filter(Boolean).join(", ");
+    const eventDateFormatted = new Date(eventDate + "T00:00:00").toLocaleDateString("en-US", {
       weekday: "long", year: "numeric", month: "long", day: "numeric",
     });
 
     const safeLastName = lastName.replace(/[^a-zA-Z0-9]/g, "") || "Customer";
     const pdfFilename = `BPC-Liability-Waiver-${safeLastName}-${eventDate}.pdf`;
 
-    // Pre-fetch logo so it can be reused on every page header
-    let logoDataUrl: string | null = null;
-    let logoExt: "JPEG" | "PNG" = "PNG";
-    const LOGO_W = 36;
-    const LOGO_H = 18;
+    // Pre-fetch logo
+    const logoResult = logoUrl ? await fetchLogoDataUrl(logoUrl) : null;
+    const logoDataUrl = logoResult?.dataUrl ?? null;
+    const logoExt: "JPEG" | "PNG" = logoResult?.ext ?? "PNG";
 
-    if (logoUrl) {
-      try {
-        const logoResponse = await fetch(logoUrl);
-        if (logoResponse.ok) {
-          const logoBlob = await logoResponse.arrayBuffer();
-          const bytes = new Uint8Array(logoBlob);
-          let binary = "";
-          for (let i = 0; i < bytes.length; i += 1024) {
-            binary += String.fromCharCode(...bytes.subarray(i, i + 1024));
-          }
-          const base64Logo = btoa(binary);
-          const contentType = logoResponse.headers.get("content-type") || "image/png";
-          logoExt = contentType.includes("jpeg") ? "JPEG" : "PNG";
-          logoDataUrl = `data:${contentType};base64,${base64Logo}`;
-        }
-      } catch { /* continue without logo */ }
-    }
+    const blocks = parseWaiverSections(waiverText);
 
     // PDF setup
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 20;
-    const maxWidth = pageWidth - 2 * margin;
-    const footerHeight = 12; // reserved at bottom for footer
+    const maxWidth = pageWidth - 2 * MARGIN;
+    const contentMaxY = pageHeight - 18;
 
-    // ── HEADER RENDERING ───────────────────────────────────────────────────────
-    // Returns the y position after the header separator line (= content start y)
-    const renderPageHeader = (startY: number): number => {
-      let y = startY;
+    // Render page 1 header; record where content starts
+    let y = renderPageHeader(doc, MARGIN, logoDataUrl, logoExt, businessInfoLine);
+    const contentStartY = y;
 
-      // Title
-      doc.setFontSize(16);
-      doc.setFont("helvetica", "bold");
-      doc.text("LIABILITY WAIVER AND RENTAL AGREEMENT", pageWidth / 2, y, { align: "center" });
-      y += 8;
+    const addPage = () => { doc.addPage(); y = contentStartY; };
+    const ensureSpace = (needed: number) => { if (y + needed > contentMaxY) addPage(); };
 
-      // Logo (centered, between title and business info)
-      if (logoDataUrl) {
-        doc.addImage(logoDataUrl, logoExt, (pageWidth - LOGO_W) / 2, y, LOGO_W, LOGO_H);
-        y += LOGO_H + 4;
-      }
-
-      // Business info line
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "normal");
-      const businessInfoLine = [
-        businessLegalEntity,
-        [businessAddress, businessPhone, businessEmail].filter(Boolean).join(" | "),
-      ].filter(Boolean).join("  ");
-      doc.text(businessInfoLine, pageWidth / 2, y, { align: "center" });
-      y += 5;
-
-      // Separator
-      y += 2;
-      doc.setDrawColor(180, 180, 180);
-      doc.line(margin, y, pageWidth - margin, y);
-      y += 7;
-
-      return y;
-    };
-
-    // Render header on page 1 and record the content start Y
-    let y = renderPageHeader(margin);
-    const contentStartY = y; // reused for pages 2+
-
-    const contentMaxY = pageHeight - footerHeight;
-
-    const addPage = () => {
-      doc.addPage();
-      // Reserve space for the header which will be stamped in the post-render loop
-      y = contentStartY;
-    };
-
-    const ensureSpace = (needed: number) => {
-      if (y + needed > contentMaxY) addPage();
-    };
-
-    // ── PARSE WAIVER TEXT INTO SECTIONS ────────────────────────────────────────
-    const paragraphs = waiverText.split("\n\n");
-    // Skip first two paragraphs: business info line and "IMPORTANT" intro — both in header
-    const bodyParagraphs = paragraphs.slice(2);
-
-    interface WaiverSection {
-      sectionNumber: number;
-      header: string;
-      paragraphs: string[];
-    }
-    interface IntroBlock {
-      sectionNumber: null;
-      header: null;
-      paragraphs: string[];
-    }
-    type Block = WaiverSection | IntroBlock;
-
-    const blocks: Block[] = [];
-    let currentBlock: Block = { sectionNumber: null, header: null, paragraphs: [] };
-
-    for (const para of bodyParagraphs) {
-      const headerMatch = para.match(/^(\d+)\. /);
-      if (headerMatch) {
-        if (currentBlock.paragraphs.length > 0 || currentBlock.header !== null) {
-          blocks.push(currentBlock);
-        }
-        currentBlock = {
-          sectionNumber: parseInt(headerMatch[1]),
-          header: para,
-          paragraphs: [],
-        };
-      } else {
-        currentBlock.paragraphs.push(para);
-      }
-    }
-    if (currentBlock.paragraphs.length > 0 || currentBlock.header !== null) {
-      blocks.push(currentBlock);
-    }
-
-    // ── WAIVER BODY ────────────────────────────────────────────────────────────
+    // Waiver body
     for (const block of blocks) {
       if (block.header !== null) {
         ensureSpace(10);
         doc.setFontSize(10);
         doc.setFont("helvetica", "bold");
-        const headerLines = doc.splitTextToSize(block.header, maxWidth);
-        for (const line of headerLines) {
+        doc.setTextColor(0, 0, 0);
+        for (const line of doc.splitTextToSize(block.header, maxWidth)) {
           ensureSpace(6);
-          doc.text(line, margin, y);
+          doc.text(line, MARGIN, y);
           y += 5;
         }
         y += 2;
@@ -353,40 +257,41 @@ Deno.serve(async (req: Request) => {
 
       doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
+      doc.setTextColor(0, 0, 0);
 
-      for (const para of (block as WaiverSection).paragraphs) {
+      for (const para of block.paragraphs) {
         const lines = doc.splitTextToSize(para, maxWidth);
         ensureSpace(lines.length * 4.5 + 4);
         for (const line of lines) {
           if (y > contentMaxY) addPage();
-          doc.text(line, margin, y);
+          doc.text(line, MARGIN, y);
           y += 4.5;
         }
         y += 3;
       }
 
-      // Inline initials field after sections 6, 8, 9
+      // Blank initials + date field after sections 6, 8, 9
       if (block.sectionNumber !== null && INLINE_INITIALS_SECTIONS.has(block.sectionNumber)) {
         ensureSpace(14);
         y += 2;
         doc.setFont("helvetica", "bold");
         doc.setFontSize(9);
-        doc.text("Initials:", margin, y);
+        doc.text("Initials:", MARGIN, y);
         doc.setFont("helvetica", "normal");
-        doc.line(margin + 22, y + 1, margin + 62, y + 1);
+        doc.line(MARGIN + 22, y + 1, MARGIN + 62, y + 1);
         doc.setFont("helvetica", "bold");
-        doc.text("Date:", margin + 70, y);
+        doc.text("Date:", MARGIN + 70, y);
         doc.setFont("helvetica", "normal");
-        doc.line(margin + 82, y + 1, margin + 130, y + 1);
+        doc.line(MARGIN + 82, y + 1, MARGIN + 130, y + 1);
         y += 10;
       }
     }
 
-    // ── SIGNATURE BLOCK ────────────────────────────────────────────────────────
+    // Signature block
     ensureSpace(60);
     y += 4;
     doc.setDrawColor(0, 0, 0);
-    doc.line(margin, y, pageWidth - margin, y);
+    doc.line(MARGIN, y, pageWidth - MARGIN, y);
     y += 8;
 
     doc.setFontSize(12);
@@ -396,53 +301,33 @@ Deno.serve(async (req: Request) => {
 
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text("Full Legal Name:", margin, y);
-    if (signerName && signerName !== "Unknown") {
+    doc.text("Full Legal Name:", MARGIN, y);
+    if (signerName !== "Unknown") {
       doc.setFont("helvetica", "bold");
-      doc.text(signerName, margin + 45, y);
+      doc.text(signerName, MARGIN + 45, y);
       doc.setFont("helvetica", "normal");
     } else {
-      doc.line(margin + 45, y + 1, pageWidth - margin, y + 1);
+      doc.line(MARGIN + 45, y + 1, pageWidth - MARGIN, y + 1);
     }
     y += 10;
+    doc.text("Signature:", MARGIN, y);
+    doc.line(MARGIN + 30, y + 1, pageWidth - MARGIN - 50, y + 1);
+    doc.text("Date:", pageWidth - MARGIN - 45, y);
+    doc.line(pageWidth - MARGIN - 30, y + 1, pageWidth - MARGIN, y + 1);
 
-    doc.text("Signature:", margin, y);
-    doc.line(margin + 30, y + 1, pageWidth - margin - 50, y + 1);
-    doc.text("Date:", pageWidth - margin - 45, y);
-    doc.line(pageWidth - margin - 30, y + 1, pageWidth - margin, y + 1);
+    // Stamp repeating headers on pages 2+ and footers on all pages
+    stampAllPageHeaders(doc, contentStartY, logoDataUrl, logoExt, businessInfoLine);
 
-    // ── PER-PAGE HEADERS (pages 2+) AND FOOTERS (all pages) ───────────────────
-    const totalPages = (doc.internal as any).getNumberOfPages();
-    const footerY = pageHeight - 5;
-    const footerPreparedFor = signerName && signerName !== "Unknown" ? `Prepared For: ${signerName}` : "";
-    const footerEvent = [eventAddressLine, eventDateFormatted].filter(Boolean).join(" · ");
-
-    for (let p = 1; p <= totalPages; p++) {
-      doc.setPage(p);
-
-      // Stamp header on pages 2+ (page 1 already has it from initial render)
-      if (p > 1) {
-        renderPageHeader(margin);
-      }
-
-      // Footer separator + content
-      doc.setDrawColor(200, 200, 200);
-      doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5);
-      doc.setFontSize(7);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(120, 120, 120);
-      doc.text(`Page ${p} / ${totalPages}`, margin, footerY);
-      const footerRight = [footerPreparedFor, footerEvent].filter(Boolean).join("  ·  ");
-      if (footerRight) {
-        doc.text(footerRight, pageWidth - margin, footerY, { align: "right" });
-      }
-      doc.setTextColor(0, 0, 0);
-    }
+    const footerRight = [
+      signerName !== "Unknown" ? `Prepared For: ${signerName}` : "",
+      eventAddressLine,
+      eventDateFormatted,
+    ].filter(Boolean).join("  ·  ");
+    stampAllPageFooters(doc, footerRight);
 
     const pdfBuffer = doc.output("arraybuffer");
-    const pdfBytes = new Uint8Array(pdfBuffer);
 
-    return new Response(pdfBytes, {
+    return new Response(new Uint8Array(pdfBuffer), {
       status: 200,
       headers: {
         ...corsHeaders,
