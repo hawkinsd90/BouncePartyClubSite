@@ -177,15 +177,30 @@ export function Catalog() {
     : [];
 
   const handleExportMenu = () => {
-    if (units.length === 0) {
+    if (filteredUnits.length === 0) {
       notifyError('No units available to export');
       return;
     }
 
+    const filterLabels: Record<string, string> = {
+      all: 'All Inflatables',
+      bounce: 'Bounce Houses',
+      combo: 'Wet or Dry Units',
+      slide: 'Water Slides',
+      obstacle: 'Obstacle Courses',
+    };
+
+    const title = availabilityChecked
+      ? `Available Inflatables — ${formattedDate}`
+      : 'Bounce Party Club Menu';
+
     const menuData = {
       generatedAtIso: new Date().toISOString(),
-      title: 'Bounce Party Club Menu',
+      title,
       units: filteredUnits,
+      availabilityChecked,
+      availabilityDateFormatted: availabilityChecked ? formattedDate : null,
+      activeFilter: filterType !== 'all' ? filterLabels[filterType] : null,
     };
 
     sessionStorage.setItem('menu-preview-data', JSON.stringify(menuData));
