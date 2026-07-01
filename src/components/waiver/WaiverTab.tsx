@@ -250,8 +250,8 @@ export default function WaiverTab({ orderId, token, onWaiverChange }: WaiverTabP
         </div>
       )}
 
-      {/* Physical waiver upload section */}
-      {showUploadSection && (
+      {/* Physical waiver upload section — TODO: implement upload flow before enabling */}
+      {false && showUploadSection && (
         <div className="bg-white border border-slate-200 rounded-lg p-5">
           <h4 className="text-sm font-semibold text-slate-800 mb-1">Upload Signed Waiver Photo</h4>
           <p className="text-xs text-slate-500 mb-4">
