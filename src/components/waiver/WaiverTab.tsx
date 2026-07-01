@@ -157,7 +157,7 @@ export default function WaiverTab({ orderId, token, onWaiverChange }: WaiverTabP
           <Printer className="w-5 h-5 text-slate-500 flex-shrink-0" />
           <div>
             <p className="text-sm font-semibold text-slate-800">Download Blank Waiver</p>
-            <p className="text-xs text-slate-500">Print and sign by hand, then upload below</p>
+            <p className="text-xs text-slate-500">Print and sign by hand if requested by our crew.</p>
           </div>
         </div>
         <button

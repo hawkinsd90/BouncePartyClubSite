@@ -62,13 +62,16 @@ export function TaskDetailActions({
               <span className="text-sm sm:text-base">Leaving - Send Rules</span>
             </button>
 
-            <button
-              onClick={onPaperWaiverUpload}
-              className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 px-4 rounded-lg border border-slate-300 transition-colors sm:col-span-2"
-            >
-              <Upload className="w-5 h-5" />
-              <span className="text-sm sm:text-base">Upload Paper Waiver</span>
-            </button>
+            {/* Upload Paper Waiver — TODO: enable when physical waiver upload is implemented */}
+            {false && (
+              <button
+                onClick={onPaperWaiverUpload}
+                className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 px-4 rounded-lg border border-slate-300 transition-colors sm:col-span-2"
+              >
+                <Upload className="w-5 h-5" />
+                <span className="text-sm sm:text-base">Upload Paper Waiver</span>
+              </button>
+            )}
           </>
         ) : (
           <>

@@ -7,6 +7,7 @@ import { createShortPortalLink } from '../../lib/utils';
 import { showAlert, showConfirm, showModal } from '../common/CustomModal';
 import { getCurrentLocation, calculateETA } from '../../lib/googleMaps';
 import { Task } from '../../hooks/useCalendarTasks';
+import { getStopNumber, isTaskActiveRouteStop } from '../../lib/calendarUtils';
 import { TaskDetailCustomerInfo } from './task-detail/TaskDetailCustomerInfo';
 import { TaskDetailOrderManagement } from './task-detail/TaskDetailOrderManagement';
 import { TaskDetailActions } from './task-detail/TaskDetailActions';
@@ -70,6 +71,18 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     loadMileageLog();
   }, [task.date]);
 
+  // Use shared route-stop logic so stop numbers match DayView/TaskCard exactly.
+  // Only active (non-excluded, non-completed) route stops are counted.
+  const stopNumber = getStopNumber(task, allTasks);
+  const activeRouteStops = allTasks.filter(
+    t => t.type === task.type && isTaskActiveRouteStop(t) && t.taskStatus?.sortOrder != null
+  );
+  // Fall back to all active stops of same type when no route order is saved yet
+  const activeStopsCount = activeRouteStops.length > 0
+    ? activeRouteStops.length
+    : allTasks.filter(t => t.type === task.type && isTaskActiveRouteStop(t)).length;
+
+  // Keep move-up/down arrows working using all active stops sorted by current order
   const tasksOfSameType = allTasks
     .filter(t => t.type === task.type)
     .sort((a, b) => (a.taskStatus?.sortOrder || 0) - (b.taskStatus?.sortOrder || 0));
@@ -789,7 +802,9 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
                   <button onClick={() => handleReorder('up')} disabled={!canMoveUp} className="p-1 hover:bg-slate-100 rounded disabled:opacity-30 disabled:cursor-not-allowed" title="Move up in route"><ChevronUp className="w-4 h-4" /></button>
                   <button onClick={() => handleReorder('down')} disabled={!canMoveDown} className="p-1 hover:bg-slate-100 rounded disabled:opacity-30 disabled:cursor-not-allowed" title="Move down in route"><ChevronDown className="w-4 h-4" /></button>
                 </div>
-                <span className="text-xs text-slate-500">Stop #{currentIndex + 1} of {tasksOfSameType.length}</span>
+                {stopNumber > 0 && (
+                  <span className="text-xs text-slate-500">Stop #{stopNumber} of {activeStopsCount}</span>
+                )}
                 <button onClick={async () => { setRefreshing(true); setLastUpdated(new Date()); await refresh(); setTimeout(() => setRefreshing(false), 500); }} disabled={refreshing} className="ml-auto flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 px-2 py-1 rounded hover:bg-blue-50 disabled:opacity-50">
                   <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
                   <span className="hidden sm:inline">{refreshing ? 'Refreshing...' : `Updated ${Math.floor((Date.now() - lastUpdated.getTime()) / 1000)}s ago`}</span>

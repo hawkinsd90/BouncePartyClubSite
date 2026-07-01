@@ -78,13 +78,15 @@ export function getStopNumber(task: Task, selectedDayTasks: Task[]): number {
     const morningTasks = routeSaved
       ? sortTasksByOrder(morningPool.filter(hasRouteSortOrder))
       : sortTasksByOrder(morningPool);
-    return morningTasks.findIndex(t => t.id === task.id) + 1;
+    const idx = morningTasks.findIndex(t => t.id === task.id);
+    return idx === -1 ? 0 : idx + 1;
   } else if (task.type === 'pick-up' && task.pickupPreference === 'same_day') {
     const routeSaved = afternoonPickUpTasks.some(hasRouteSortOrder);
     const afternoonTasks = routeSaved
       ? sortTasksByOrder(afternoonPickUpTasks.filter(hasRouteSortOrder))
       : sortTasksByOrder(afternoonPickUpTasks);
-    return afternoonTasks.findIndex(t => t.id === task.id) + 1;
+    const idx = afternoonTasks.findIndex(t => t.id === task.id);
+    return idx === -1 ? 0 : idx + 1;
   }
   return 0;
 }

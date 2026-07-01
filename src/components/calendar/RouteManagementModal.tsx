@@ -104,10 +104,15 @@ export function RouteManagementModal({
       setModalJustOpened(true);
 
       const allRouteTasks = sortTasksByOrder(allRouteTypeTasks);
-      const eligibleTasks = allRouteTasks.filter(t => isTaskActiveRouteStop(t));
+      const activeTasks = allRouteTasks.filter(t => isTaskActiveRouteStop(t));
+
+      // Tasks with sort_order = null were previously excluded — restore them to the
+      // excluded section so admins can re-add them without needing a DB reset.
+      const persistedExcluded = activeTasks.filter(t => t.taskStatus?.sortOrder == null && t.taskStatus?.id);
+      const eligibleTasks = activeTasks.filter(t => t.taskStatus?.sortOrder != null || !t.taskStatus?.id);
 
       setLocalTasks(eligibleTasks);
-      setExcludedTasks([]);
+      setExcludedTasks(persistedExcluded);
       setInitialTasks(eligibleTasks);
       setInitialOrder(eligibleTasks.map(t => t.id));
       setHasChanges(false);
