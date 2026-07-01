@@ -53,6 +53,7 @@ export function AdminCalendar() {
       try {
         const date = parse(dateParam, 'yyyy-MM-dd', new Date());
         setSelectedDate(date);
+        setCurrentMonth(startOfMonth(date));
         if (taskIdParam) {
           pendingTaskIdRef.current = taskIdParam;
         } else {
