@@ -49,8 +49,8 @@ function StatCard({ icon, label, value, sub, trendInfo, accent = 'blue' }: StatC
         <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${colors}`}>
           {icon}
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-sm sm:text-xl font-bold text-slate-900 leading-tight">{value}</div>
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <div className="text-xs sm:text-base lg:text-xl font-bold text-slate-900 leading-tight truncate">{value}</div>
           {trendInfo && (
             <div className={`text-xs font-medium mt-0.5 flex items-start gap-0.5 ${trendInfo.positive ? 'text-green-600' : 'text-red-500'}`}>
               <span className="flex-shrink-0 mt-px">{trendInfo.positive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}</span>
