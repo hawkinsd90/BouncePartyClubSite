@@ -503,11 +503,13 @@ export function MenuPreview() {
       const blob = await res.blob();
       const file = new File([blob], 'bounce-party-club-menu.png', { type: 'image/png' });
 
-      // Web Share API with files triggers the native save sheet on iOS 15+ / Android Chrome.
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      // Web Share API with files triggers the native share sheet on iOS/Android.
+      // On desktop browsers (Windows/macOS), canShare() may return true but opens
+      // an OS share dialog instead of a direct save — so restrict it to touch devices.
+      const isTouchDevice = navigator.maxTouchPoints > 0;
+      if (isTouchDevice && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], title: 'Bounce Party Club Menu' });
       } else {
-        // Desktop fallback
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.download = 'bounce-party-club-menu.png';
