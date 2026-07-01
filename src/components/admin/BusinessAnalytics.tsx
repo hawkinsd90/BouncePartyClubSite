@@ -49,8 +49,8 @@ function StatCard({ icon, label, value, sub, trendInfo, accent = 'blue' }: StatC
         <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${colors}`}>
           {icon}
         </div>
-        <div className="min-w-0 flex-1 overflow-hidden">
-          <div className="text-xs sm:text-base lg:text-xl font-bold text-slate-900 leading-tight truncate">{value}</div>
+        <div className="min-w-0 flex-1">
+          <div className="text-xl font-bold text-slate-900 leading-tight">{value}</div>
           {trendInfo && (
             <div className={`text-xs font-medium mt-0.5 flex items-start gap-0.5 ${trendInfo.positive ? 'text-green-600' : 'text-red-500'}`}>
               <span className="flex-shrink-0 mt-px">{trendInfo.positive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}</span>
@@ -229,7 +229,7 @@ export function BusinessAnalytics() {
       {/* Revenue Section */}
       <div>
         <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Revenue</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <StatCard
             icon={<DollarSign className="w-5 h-5" />}
             label="Total Revenue"
@@ -264,7 +264,7 @@ export function BusinessAnalytics() {
       {/* Payments Section */}
       <div>
         <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Payments & Balances</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <StatCard
             icon={<CreditCard className="w-5 h-5" />}
             label="Deposits Collected"
@@ -315,7 +315,7 @@ export function BusinessAnalytics() {
       {/* Orders Section */}
       <div>
         <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Orders</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <StatCard
             icon={<ShoppingBag className="w-5 h-5" />}
             label="Total Orders"
@@ -350,7 +350,7 @@ export function BusinessAnalytics() {
       {/* Customers Section */}
       <div>
         <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Customers</h3>
-        <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <StatCard
             icon={<Users className="w-5 h-5" />}
             label="Unique Customers"
@@ -435,7 +435,7 @@ export function BusinessAnalytics() {
       {m && (
         <div>
           <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Fleet Mileage</h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <StatCard
               icon={<Gauge className="w-5 h-5" />}
               label="Total Miles Driven"
@@ -506,7 +506,7 @@ export function BusinessAnalytics() {
       {dt && (dt.avg_travel_minutes != null || dt.avg_delivery_setup_minutes != null) && (
         <div>
           <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Delivery Performance</h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {dt.avg_travel_minutes != null && (
               <StatCard
                 icon={<Car className="w-5 h-5" />}
