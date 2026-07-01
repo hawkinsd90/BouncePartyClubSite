@@ -174,7 +174,7 @@ export function useCalendarTasks(currentMonth: Date) {
           customers (first_name, last_name, phone, email),
           addresses (line1, city, state, zip, lat, lng),
           payments (id, amount_cents, status, paid_at, type),
-          order_signatures (electronic_consent_given, waiver_version, physical_waiver_storage_path)
+          order_signatures!order_signatures_order_id_fkey (electronic_consent_given, waiver_version, physical_waiver_storage_path)
         `)
         .gte('event_date', format(queryStart, 'yyyy-MM-dd'))
         .lte('event_date', format(monthEnd, 'yyyy-MM-dd'))
