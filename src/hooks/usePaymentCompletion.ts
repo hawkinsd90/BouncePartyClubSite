@@ -54,6 +54,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
   const [isAdminInvoice, setIsAdminInvoice] = useState(false);
   const [sessionTipCents, setSessionTipCents] = useState<number>(0);
   const [shouldRedirectToPortal, setShouldRedirectToPortal] = useState(false);
+  const [isFirstVisit, setIsFirstVisit] = useState(false);
 
   useEffect(() => {
     // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
@@ -109,8 +110,8 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
       const processedKey = `payment_processed_${orderId}`;
       const alreadyProcessed = SafeStorage.getItem(processedKey);
 
-      if (alreadyProcessed) {
-        // console.log('[PAYMENT-COMPLETE] Payment already processed, skipping notifications');
+      if (!alreadyProcessed) {
+        setIsFirstVisit(true);
       }
 
       // Check immediately first, then retry with delays if needed
@@ -355,5 +356,6 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
     isAdminInvoice,
     sessionTipCents,
     shouldRedirectToPortal,
+    isFirstVisit,
   };
 }

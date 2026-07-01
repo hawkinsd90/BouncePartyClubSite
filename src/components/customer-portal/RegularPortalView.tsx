@@ -741,7 +741,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
               />
             )}
 
-            {activeTab === 'waiver' && <WaiverTab orderId={orderId} order={order} />}
+            {activeTab === 'waiver' && <WaiverTab orderId={orderId} order={order} token={invoiceLinkToken ?? undefined} />}
 
             {activeTab === 'payment' && (
               <PaymentTab

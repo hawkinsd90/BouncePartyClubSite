@@ -236,16 +236,18 @@ export async function saveOrderChanges({
     const isConfirmedWithPayment = (order.status === ORDER_STATUS.CONFIRMED || order.status === ORDER_STATUS.IN_PROGRESS) && depositAlreadyCapturedCents > 0;
     const depositDifferenceCents = Math.max(0, finalDepositCents - depositAlreadyCapturedCents);
 
+    const balanceAlreadyPaidCents = order.balance_paid_cents || 0;
+
     let newBalanceDueCents: number;
     if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'require') {
-      newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents);
+      newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents - balanceAlreadyPaidCents);
       changes.deposit_catchup_cents = depositDifferenceCents;
       logs.push(['deposit_catchup', 0, depositDifferenceCents]);
     } else if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'waive') {
-      newBalanceDueCents = Math.max(0, effectiveTotalCents - depositAlreadyCapturedCents);
+      newBalanceDueCents = Math.max(0, effectiveTotalCents - depositAlreadyCapturedCents - balanceAlreadyPaidCents);
       changes.deposit_catchup_cents = 0;
     } else {
-      newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents);
+      newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents - balanceAlreadyPaidCents);
     }
 
     if (newBalanceDueCents !== order.balance_due_cents) {
@@ -494,12 +496,26 @@ export async function saveOrderChanges({
     || updatedFeeCount > 0;
   const hasFieldChanges = Object.keys(changes).length > 0;
 
+  // Statuses where we must never attempt a status transition — the order is
+  // already operational or terminal. Admin changes (fees, generators, items)
+  // are saved as-is without touching status.
+  const PRESERVE_STATUS = new Set([
+    ORDER_STATUS.IN_PROGRESS,
+    ORDER_STATUS.COMPLETED,
+    ORDER_STATUS.CANCELLED,
+    ORDER_STATUS.VOID,
+  ]);
+  const preserveCurrentStatus = PRESERVE_STATUS.has(order.status);
+
   if (hasTrackedChanges || hasFieldChanges) {
     const oldStatus = order.status;
-    if (adminOverrideApproval) {
-      changes.status = ORDER_STATUS.CONFIRMED;
-    } else {
-      changes.status = ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL;
+
+    if (!preserveCurrentStatus) {
+      if (adminOverrideApproval) {
+        changes.status = ORDER_STATUS.CONFIRMED;
+      } else {
+        changes.status = ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL;
+      }
     }
 
     const { error: updateError } = await supabase.from('orders').update(changes).eq('id', order.id);
@@ -509,7 +525,7 @@ export async function saveOrderChanges({
       await logChangeFn(field, oldVal, newVal);
     }
 
-    if (adminOverrideApproval) {
+    if (!preserveCurrentStatus && adminOverrideApproval) {
       try {
         const { enterConfirmed } = await import('./orderLifecycle');
         const lcResult = await enterConfirmed(order.id, 'admin_override_approval', 'waived', oldStatus) as { success: boolean; error?: string; alreadySent?: boolean };
@@ -521,7 +537,7 @@ export async function saveOrderChanges({
       }
     }
 
-    if (hasTrackedChanges && !adminOverrideApproval) {
+    if (hasTrackedChanges && !adminOverrideApproval && !preserveCurrentStatus) {
       await sendNotificationsFn();
     }
   }
@@ -529,7 +545,9 @@ export async function saveOrderChanges({
   onComplete();
 
   if (hasTrackedChanges) {
-    if (adminOverrideApproval) {
+    if (preserveCurrentStatus) {
+      showToast('Changes saved successfully!', 'success');
+    } else if (adminOverrideApproval) {
       showToast('Changes saved and order confirmed! Customer approval was skipped - order is ready to go.', 'success');
     } else {
       showToast('Changes saved successfully! Customer will be notified to review and approve the changes.', 'success');

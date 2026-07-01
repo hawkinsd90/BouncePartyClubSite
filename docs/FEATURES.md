@@ -138,11 +138,25 @@ Links expire via the `expires_at` field: 3 days after the event date (or 30 days
 
 Admins can also use the **Invoice Builder** to manually construct invoices with custom line items, fees, and discounts, then send them directly to a customer by email/SMS.
 
+**Short Portal Link in Order View** — In the `SingleOrderView` (the single-order lookup screen accessible to crew and admin), a "Copy Portal Link" button generates or fetches the 8-character short portal link for the order and copies it to the clipboard. If no short link exists, `createShortPortalLink()` is called to create one on demand. This provides crew members a quick way to share the customer's portal link without navigating to the full order detail.
+
 ---
 
 ## Electronic Waiver System
 
 Every order requires a signed waiver before the rental takes place. The waiver is ESIGN/UETA compliant.
+
+### Blank Waiver PDF Download
+
+Customers with an unsigned waiver can download a blank copy of the waiver PDF from the Customer Portal. The `generate-blank-waiver` edge function renders the waiver text (from `waiverContent.ts`, populated with current `admin_settings` values) as a PDF — identical in layout to the signed waiver PDF but without signature fields filled in. The PDF is returned inline (not stored) and downloaded directly by the browser.
+
+### Waiver PDF Shared Utility (`supabase/functions/_shared/waiver-pdf.ts`)
+
+The waiver PDF rendering logic is shared between two edge functions via `_shared/waiver-pdf.ts`:
+- `generate-signed-waiver` — uses it to render completed, signed waiver PDFs stored in the `signed-waivers` bucket
+- `generate-blank-waiver` — uses it to render unsigned blank waivers returned directly to the browser
+
+---
 
 ### Waiver Content (`src/lib/waiverContent.ts`)
 
@@ -578,8 +592,11 @@ Revenue and booking performance charts with configurable date ranges (**today** 
 - Repeat customer count and rate (2+ completed bookings)
 - Top 8 units by revenue (name, booking count, revenue)
 - Top 8 cities by order count
-- Crew mileage breakdown by crew member (fetches display names via `get-user-info` edge function)
+- Crew mileage breakdown by crew member with missing-mileage alerts (fetches display names via `get-user-info` edge function; highlights crew members who worked on a day but have no mileage log recorded)
 - Cancellation reason breakdown
+- Delivery timing analytics: average travel time to first stop, average setup time per unit, average pickup time, ETA accuracy (percentage of deliveries where actual arrival was within 15 minutes of calculated ETA)
+
+Orders placed by admin or master users are excluded from all analytics aggregations to prevent test-order distortion.
 
 ### Performance Analytics
 
@@ -681,12 +698,20 @@ The page preloads all unit images before triggering the browser print dialog, pr
 
 ### Save as Image
 
-The menu preview includes a "Save as Image" button that renders the full catalog to an HTML Canvas (pure Canvas 2D — no DOM capture libraries) and triggers a native save/share sheet. Implementation details:
+The menu preview includes a "Save Menu" button that renders the full catalog to an HTML Canvas (pure Canvas 2D — no DOM capture libraries) and triggers a native save/share sheet. Implementation details:
 
 - Draws all unit cards onto a `1200px × auto` canvas at 2× retina resolution
 - Loads unit images with CORS-anonymous fallback to prevent canvas tainting
-- On iOS 15+ / Android Chrome, uses the Web Share API (`navigator.share({ files: [file] })`) to trigger the native share/save sheet
-- On desktop, falls back to an anchor `<a download>` element
+- On touch devices (`navigator.maxTouchPoints > 0`), uses the Web Share API (`navigator.share({ files: [file] })`) to trigger the native share/save sheet on iOS 15+ / Android Chrome
+- On desktop (no touch points), falls back directly to an anchor `<a download>` element for a direct file download — avoids the OS-level share dialog that Chrome on Windows would otherwise show
+
+### Availability-Aware Menu Export
+
+Admins can optionally filter the menu by a specific event date before exporting. When a date is provided:
+- Units that are fully unavailable for that date are excluded from the export
+- The header of the generated image/PDF includes the selected date
+
+This is useful for generating a custom menu to share with customers that only shows units available for their specific event date.
 
 ### PDF Layout
 
@@ -775,7 +800,9 @@ User behavior is tracked via `src/lib/siteEvents.ts` and stored in the `site_eve
 
 Each event record includes: `event_name`, `session_id` (text per browser session), `page_path`, `unit_id` (FK if applicable), `order_id` (FK if applicable), `referrer`, `metadata` (JSONB), `created_at`.
 
-**Admin bypass:** The `siteEvents.ts` module checks the user's role before recording any event. Admin and master users are excluded from tracking entirely to prevent internal navigation from polluting funnel conversion data.
+**Admin bypass:** The `siteEvents.ts` module checks the user's role before recording any event. Admin and master users are excluded from tracking entirely to prevent internal navigation from polluting funnel conversion data. Orders placed by admin or master users are also excluded from analytics aggregations (e.g., `get_admin_analytics`) to prevent test orders from distorting revenue and booking metrics.
+
+**`checkout_completed` deduplication:** The `checkout_completed` event uses a processed-order guard — if the current `order_id` is already in the session's processed-orders set, the event is not re-fired. This prevents duplicate `checkout_completed` events when customers revisit the `/payment-complete` page after a successful payment.
 
 ---
 
@@ -991,3 +1018,31 @@ The task status system tracks two boolean flags to prevent duplicate reminder me
 - `payment_reminder_sent` — set after a balance payment reminder SMS is sent. Included in the en-route or arrived message if the customer still has an outstanding balance.
 
 These flags are on the `task_status` record and are evaluated during delivery checkpoint SMS sends.
+
+---
+
+## Google Ads Tag (`src/components/common/GoogleAdsTag.tsx`)
+
+The `GoogleAdsTag` component manages the Google Ads conversion tracking tag (`AW-18153233398`) as a React component rendered in the app's root layout.
+
+### Route Protection
+
+The tag is **never injected** when the initial page load (or the first SPA navigation) is to an admin or internal route. Protected route prefixes:
+
+```
+/admin, /crew, /setup, /invoice-preview, /menu-preview
+```
+
+This protection is implemented by `isInternalRoute(pathname)`, which is exported for reuse elsewhere in the codebase.
+
+Once the tag is injected (on a public route visit), it persists in the DOM for the rest of the session. This is intentional and safe: gtag does NOT automatically fire page views on SPA navigation. All page view and conversion events must be fired explicitly via `trackGoogleAdsEvent()`. The tag configuration uses `send_page_view: false` to make this explicit and prevent any automatic tracking.
+
+### Safe Event Helper (`trackGoogleAdsEvent`)
+
+```typescript
+trackGoogleAdsEvent(eventName: string, params?: Record<string, unknown>): void
+```
+
+Checks `window.location.pathname` at call time before invoking `window.gtag`. If the current route matches any protected prefix, the call is silently dropped. This is a call-time guard — not just a mount-time guard — which means components rendered on both public and internal routes cannot accidentally fire events when navigated to an admin context.
+
+No conversion events are currently wired up; this is the infrastructure for future use.

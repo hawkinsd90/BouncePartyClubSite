@@ -53,6 +53,7 @@ export function AdminCalendar() {
       try {
         const date = parse(dateParam, 'yyyy-MM-dd', new Date());
         setSelectedDate(date);
+        setCurrentMonth(startOfMonth(date));
         if (taskIdParam) {
           pendingTaskIdRef.current = taskIdParam;
         } else {
@@ -134,7 +135,7 @@ export function AdminCalendar() {
 
       <CalendarGrid currentMonth={currentMonth} tasks={tasks} onDateClick={handleDateClick} mileageDates={mileageDates} />
 
-      {showDayModal && selectedDate && (
+      {showDayModal && selectedDate && !loading && (
         <DayViewModal
           selectedDate={selectedDate}
           tasks={selectedDayTasks}
@@ -146,7 +147,16 @@ export function AdminCalendar() {
         />
       )}
 
-      {loading && (
+      {loading && showDayModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+          <div className="bg-white rounded-xl shadow-2xl p-8 flex flex-col items-center gap-4">
+            <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+            <p className="text-slate-600 font-medium">Loading tasks...</p>
+          </div>
+        </div>
+      )}
+
+      {loading && !showDayModal && (
         <div className="text-center py-8">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           <p className="mt-2 text-slate-600">Loading calendar...</p>

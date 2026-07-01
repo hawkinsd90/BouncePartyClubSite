@@ -17,7 +17,7 @@ export function EventDetailsSection({ formData, onFormDataChange, validationErro
   const locationSelected = formData.location_type != null;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6">
+    <div className="w-full max-w-full min-w-0 bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6">
       <div className="flex items-center gap-3 mb-4 sm:mb-6">
         <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
           <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
@@ -27,12 +27,11 @@ export function EventDetailsSection({ formData, onFormDataChange, validationErro
 
       <div className="mb-6">
         <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-3">Event Type</label>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 w-full max-w-full min-w-0">
           <button
             type="button"
             onClick={() => onFormDataChange({ location_type: 'residential' })}
-            className={`flex flex-col items-center p-3 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all ${
-              formData.location_type === 'residential'
+            className={`min-w-0 flex flex-col items-center p-3 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all ${              formData.location_type === 'residential'
                 ? 'border-blue-600 bg-blue-50 shadow-sm'
                 : 'border-slate-300 hover:border-blue-400 hover:bg-slate-50'
             }`}
@@ -334,8 +333,8 @@ export function EventDetailsSection({ formData, onFormDataChange, validationErro
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-        <div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 w-full max-w-full min-w-0">
+        <div className="w-full max-w-full min-w-0">
           <label htmlFor="event-start-date" className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">Event Start Date *</label>
           <DatePickerInput
             id="event-start-date"
@@ -369,7 +368,7 @@ export function EventDetailsSection({ formData, onFormDataChange, validationErro
             className="border-2"
           />
         </div>
-        <div>
+        <div className="w-full max-w-full min-w-0">
           <label htmlFor="event-end-date" className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">Event End Date *</label>
           <DatePickerInput
             id="event-end-date"
@@ -387,8 +386,8 @@ export function EventDetailsSection({ formData, onFormDataChange, validationErro
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-        <div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 w-full max-w-full min-w-0">
+        <div className="w-full max-w-full min-w-0">
           <label htmlFor="start-time" className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">Start Time *</label>
           <TimePickerInput
             id="start-time"
@@ -398,9 +397,9 @@ export function EventDetailsSection({ formData, onFormDataChange, validationErro
             showIcon={false}
           />
         </div>
-        <div>
+        <div className="w-full max-w-full min-w-0">
           <label htmlFor="end-time" className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">End Time *</label>
-          <div className="space-y-2">
+          <div className="space-y-2 w-full max-w-full min-w-0">
             <TimePickerInput
               id="end-time"
               value={formData.end_window}

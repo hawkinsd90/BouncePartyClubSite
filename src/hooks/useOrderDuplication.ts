@@ -43,7 +43,11 @@ export function useOrderDuplication() {
           units (
             id,
             name,
-            active
+            active,
+            types,
+            is_combo,
+            price_dry_cents,
+            price_water_cents
           )
         `)
         .eq('order_id', orderId);
@@ -97,14 +101,19 @@ export function useOrderDuplication() {
         if (!proceed) return;
       }
 
-      const cartItems = validItems.map(item => ({
-        unit_id: item.unit_id,
-        unit_name: item.units.name,
-        wet_or_dry: item.wet_or_dry as 'dry' | 'water',
-        unit_price_cents: item.unit_price_cents,
-        qty: item.qty,
-        is_combo: false,
-      }));
+      const cartItems = validItems.map(item => {
+        const isCombo = (item.units?.types || []).includes('Combo') || (item.units?.types || []).includes('Water Slide') || item.units?.is_combo === true;
+        return {
+          unit_id: item.unit_id,
+          unit_name: item.units.name,
+          wet_or_dry: item.wet_or_dry as 'dry' | 'water',
+          unit_price_cents: item.unit_price_cents,
+          price_dry_cents: item.units?.price_dry_cents ?? item.unit_price_cents,
+          price_water_cents: item.units?.price_water_cents ?? item.units?.price_dry_cents ?? item.unit_price_cents,
+          qty: item.qty,
+          is_combo: isCombo,
+        };
+      });
 
       SafeStorage.setItem('bpc_cart', cartItems, { expirationDays: 7 });
       window.dispatchEvent(new CustomEvent('bpc-cart-updated'));

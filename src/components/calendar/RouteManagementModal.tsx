@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { X, Route as RouteIcon, Shuffle, ChevronUp, ChevronDown, Truck, Package, AlertTriangle, Clock, CheckCircle, Home, MapPin, Navigation } from 'lucide-react';
+import { X, Route as RouteIcon, Shuffle, ChevronUp, ChevronDown, Truck, Package, AlertTriangle, Clock, CheckCircle, Home, MapPin, Navigation, UserMinus, UserPlus } from 'lucide-react';
 import { format } from 'date-fns';
 import { Task } from '../../hooks/useCalendarTasks';
 import { supabase } from '../../lib/supabase';
@@ -61,6 +61,7 @@ export function RouteManagementModal({
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [localTasks, setLocalTasks] = useState<Task[]>([]);
+  const [excludedTasks, setExcludedTasks] = useState<Task[]>([]);
   const [initialTasks, setInitialTasks] = useState<Task[]>([]);
   const [initialOrder, setInitialOrder] = useState<string[]>([]);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
@@ -103,9 +104,15 @@ export function RouteManagementModal({
       setModalJustOpened(true);
 
       const allRouteTasks = sortTasksByOrder(allRouteTypeTasks);
-      const eligibleTasks = allRouteTasks.filter(t => isTaskActiveRouteStop(t));
+      const activeTasks = allRouteTasks.filter(t => isTaskActiveRouteStop(t));
+
+      // Tasks with sort_order = null were previously excluded — restore them to the
+      // excluded section so admins can re-add them without needing a DB reset.
+      const persistedExcluded = activeTasks.filter(t => t.taskStatus?.sortOrder == null && t.taskStatus?.id);
+      const eligibleTasks = activeTasks.filter(t => t.taskStatus?.sortOrder != null || !t.taskStatus?.id);
 
       setLocalTasks(eligibleTasks);
+      setExcludedTasks(persistedExcluded);
       setInitialTasks(eligibleTasks);
       setInitialOrder(eligibleTasks.map(t => t.id));
       setHasChanges(false);
@@ -114,14 +121,20 @@ export function RouteManagementModal({
       const allRouteTasks = sortTasksByOrder(allRouteTypeTasks);
       const eligibleTasks = allRouteTasks.filter(t => isTaskActiveRouteStop(t));
 
-      setLocalTasks(eligibleTasks);
-      setInitialTasks(eligibleTasks);
-      setInitialOrder(eligibleTasks.map(t => t.id));
+      // Only reset if a task was added by a realtime update (not already in local or excluded)
+      const knownIds = new Set([...localTasks.map(t => t.id), ...excludedTasks.map(t => t.id)]);
+      const newTasks = eligibleTasks.filter(t => !knownIds.has(t.id));
+      if (newTasks.length > 0) {
+        setLocalTasks(prev => [...prev, ...newTasks]);
+        setInitialTasks(eligibleTasks);
+        setInitialOrder(eligibleTasks.map(t => t.id));
+      }
     } else if (!isOpen && modalJustOpened) {
       setModalJustOpened(false);
+      setExcludedTasks([]);
       setResolvedOriginLabel(null);
     }
-  }, [isOpen, allRouteTypeTasks, modalJustOpened, hasChanges]);
+  }, [isOpen, allRouteTypeTasks, modalJustOpened, hasChanges, localTasks, excludedTasks]);
 
   if (!isOpen) return null;
 
@@ -137,6 +150,24 @@ export function RouteManagementModal({
     const newOrder = newTasks.map(t => t.id);
     const hasOrderChanged = JSON.stringify(newOrder) !== JSON.stringify(initialOrder);
     setHasChanges(hasOrderChanged);
+  }
+
+  function removeTask(taskId: string) {
+    const task = localTasks.find(t => t.id === taskId);
+    if (!task) return;
+    const updated = localTasks.filter(t => t.id !== taskId);
+    setLocalTasks(updated);
+    setExcludedTasks(prev => [...prev, task]);
+    checkForChanges(updated);
+  }
+
+  function addBackTask(taskId: string) {
+    const task = excludedTasks.find(t => t.id === taskId);
+    if (!task) return;
+    const updated = [...localTasks, task];
+    setLocalTasks(updated);
+    setExcludedTasks(prev => prev.filter(t => t.id !== taskId));
+    checkForChanges(updated);
   }
 
   function moveUp(index: number) {
@@ -244,7 +275,7 @@ export function RouteManagementModal({
             completed_at: null,
             completed_time: null,
             estimated_arrival: null,
-            sort_order: null,
+            sort_order: 0,
             en_route_time: null,
             eta_sent: false,
             waiver_reminder_sent: false,
@@ -314,7 +345,16 @@ export function RouteManagementModal({
           .eq('id', task.taskStatus.id);
       }).filter(Boolean);
 
-      await Promise.all(updates);
+      const excludedUpdates = excludedTasks
+        .filter(task => task.taskStatus?.id)
+        .map(task =>
+          supabase
+            .from('task_status')
+            .update({ sort_order: null })
+            .eq('id', task.taskStatus!.id)
+        );
+
+      await Promise.all([...updates, ...excludedUpdates]);
       showToast('Route saved successfully', 'success');
       setHasChanges(false);
       onUpdate();
@@ -465,6 +505,13 @@ export function RouteManagementModal({
                           <ChevronDown className="w-5 h-5 text-slate-600" />
                         </button>
                       </div>
+                      <button
+                        onClick={() => removeTask(task.id)}
+                        className="p-1 hover:bg-red-100 rounded transition-colors flex-shrink-0 mt-0.5"
+                        title="Remove from my route"
+                      >
+                        <UserMinus className="w-4 h-4 text-red-500" />
+                      </button>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="inline-flex items-center justify-center w-8 h-8 bg-blue-600 text-white font-bold rounded-full text-sm flex-shrink-0">
@@ -506,6 +553,41 @@ export function RouteManagementModal({
             ) : (
               <div className="text-center py-6 text-slate-500 text-sm border-2 border-dashed border-slate-200 rounded-lg">
                 No active route stops
+              </div>
+            )}
+
+            {excludedTasks.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-slate-200">
+                <h3 className="text-sm font-semibold text-slate-500 mb-2 flex items-center gap-2">
+                  <UserMinus className="w-4 h-4 text-slate-400" />
+                  Removed from My Route ({excludedTasks.length})
+                </h3>
+                <p className="text-xs text-slate-400 mb-3">These stops are excluded from your route and optimizer. Another crew member can handle them.</p>
+                <div className="space-y-2">
+                  {excludedTasks.map(task => (
+                    <div key={task.id} className="bg-slate-50 border border-dashed border-slate-300 rounded-lg p-3 opacity-70">
+                      <div className="flex items-center gap-2">
+                        {task.type === 'pick-up' ? (
+                          <Package className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                        ) : (
+                          <Truck className="w-4 h-4 text-green-400 flex-shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <span className="font-semibold text-sm text-slate-600">{task.customerName}</span>
+                          <p className="text-xs text-slate-400 truncate">{task.address}</p>
+                        </div>
+                        <button
+                          onClick={() => addBackTask(task.id)}
+                          className="flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-xs font-medium transition-colors flex-shrink-0"
+                          title="Add back to my route"
+                        >
+                          <UserPlus className="w-3.5 h-3.5" />
+                          Add Back
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

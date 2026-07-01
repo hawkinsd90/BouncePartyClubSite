@@ -204,9 +204,9 @@ Templates are stored in `sms_message_templates` and managed from the admin Messa
 
 | Template Key | Template Name | When Used |
 |---|---|---|
-| `arrived_sms` | Crew - Arrival Notification | Crew arrives at delivery location |
+| `arrived_sms` | Crew - Arrival Notification | Crew arrives at delivery location; includes pet/debris reminder if `has_pets = true` on the order |
 | `booking_received_admin` | Admin - New Booking Notification | New booking received and paid |
-| `delivery_notification` | Delivery Notification | Crew en route to delivery |
+| `delivery_notification` | Delivery Notification | Crew en route to delivery; includes pet/debris reminder if `has_pets = true` on the order |
 | `dropoff_done_sms` | Crew - Drop-Off Complete | Drop-off finished |
 | `eta_sms` | Crew - ETA Notification | Crew starts shift (GPS-calculated ETA) |
 | `lot_pictures_uploaded_admin` | Admin - Lot Pictures Uploaded | Customer uploads lot pictures |
@@ -215,6 +215,7 @@ Templates are stored in `sms_message_templates` and managed from the admin Messa
 | `order_confirmation` | Order Confirmation | Customer places an order |
 | `order_rejected` | Order Rejected | Admin rejects an order |
 | `payment_reminder` | Payment Reminder | Outstanding balance reminder |
+| `pet_debris_reminder` | Pet/Debris Reminder | Appended to en-route and arrived messages when `has_pets = true`; reminds customers to secure pets and clear debris from the setup area before crew arrives |
 | `pickup_thanks_sms` | Crew - Pickup Complete | Pickup complete; includes Google Review link |
 | `pictures_reminder` | Pictures Reminder | Customer prompted to upload lot photos |
 
@@ -413,3 +414,35 @@ All public-facing edge functions use the shared `rate-limit.ts` utility backed b
 - Email sending
 
 Rate limiting protects against duplicate checkout session creation, brute-force payment attempts, and webhook replay attacks.
+
+---
+
+## Google Ads
+
+### Overview
+
+The `GoogleAdsTag` component (`src/components/common/GoogleAdsTag.tsx`) manages client-side Google Ads conversion tracking. It is rendered in the root layout so it is available on all public pages.
+
+### Tag ID
+
+`AW-18153233398`
+
+### Route Protection
+
+The tag is only ever injected when a public route is first visited. It is **never injected** on these internal route prefixes:
+
+```
+/admin, /crew, /setup, /invoice-preview, /menu-preview
+```
+
+Once injected, the tag persists in the DOM for the session. This is safe because `send_page_view: false` is set in the gtag config — no events fire automatically on SPA navigation. The tag requires explicit event calls.
+
+### `isInternalRoute(pathname)` (exported)
+
+Returns `true` if the given pathname starts with any blocked prefix. Used by the tag component and available for import by any other module that needs to guard against firing analytics events on admin routes.
+
+### `trackGoogleAdsEvent(eventName, params?)` (exported)
+
+A safe wrapper around `window.gtag('event', ...)`. Checks `window.location.pathname` at call time and returns immediately if the current route is internal. Also guards against `window.gtag` not being defined (e.g., script blocked by an ad blocker).
+
+No conversion events are currently wired up — this infrastructure is in place for future use.

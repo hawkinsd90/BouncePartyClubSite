@@ -6,6 +6,7 @@ import { CustomerProfileProvider } from './contexts/CustomerProfileContext';
 import { ProtectedRoute } from './components/common/ProtectedRoute';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Layout } from './components/common/Layout';
+import { GoogleAdsTag } from './components/common/GoogleAdsTag';
 import { Home } from './pages/Home';
 import { useAuth } from './contexts/AuthContext';
 
@@ -61,6 +62,7 @@ function App() {
         <BusinessProvider>
           <AuthProvider>
             <CustomerProfileProvider>
+        <GoogleAdsTag />
         <OAuthRedirectHandler />
         <Suspense fallback={
           <div className="min-h-screen flex items-center justify-center bg-slate-50">

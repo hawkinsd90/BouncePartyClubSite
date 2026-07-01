@@ -119,6 +119,14 @@ Each route is scored by summing across all stops:
 - Returns driving duration in seconds, converted to minutes
 - Also returns distance in meters, converted to miles
 
+### Route Stop Numbering
+
+Only active route stops are numbered. Excluded, inactive, blocked, projected, and completed task states are not counted in the visible stop sequence. This ensures the displayed stop number (e.g., "Stop 3 of 7") reflects only the stops that remain in the active route, giving crew an accurate count of pending deliveries.
+
+### Task Date Matching
+
+When looking up `task_status` records for a given day, the query filters by `task_date` to ensure each task card attaches to the correct calendar date. This is critical for rescheduled orders: if an order's event date changes, the associated `task_status` records' `task_date` values must match the new date — otherwise the task card will appear on the old date's calendar view rather than the new one.
+
 ### Output
 
 The optimized route is saved to the `route_stops` table. Each stop record has:
@@ -147,6 +155,10 @@ The admin/crew can view and interact with the day's route:
 - Run optimization button triggers the 3-stage algorithm
 - Manual reorder (drag-and-drop) overrides the optimized order
 - "Send ETA" button sends each customer an SMS with their crew's estimated arrival time
+
+### Recovering Stops Removed from Route
+
+If a stop is accidentally removed from the active route (e.g., via the "Remove from My Route" action), it can be recovered from the Route Management Modal. The modal lists any stops that are in the `route_stops` table for the day but are not currently included in the active route sequence. Admins can re-add these stops to the route, which restores their `sort_order` value and includes them in subsequent ETA calculations.
 
 ---
 
@@ -211,6 +223,25 @@ Each crew member can log odometer readings for a day's work:
 The `calculate-route-mileage` edge function computes the theoretical total miles for the day's route based on the `route_stops` sequence. This can be compared against actual odometer readings for expense tracking and mileage reimbursement.
 
 Accessed via the Mileage Modal in the calendar day view.
+
+### Mileage Analytics
+
+The admin analytics dashboard includes a per-crew-member mileage breakdown. For each crew member who was active on a given day (i.e., had at least one completed task), the system checks whether a `daily_mileage_logs` entry exists. Crew members with tasks but no mileage entry are surfaced as **missing mileage** alerts, prompting the admin to follow up. Display names are resolved via the `get-user-info` edge function using crew member user IDs.
+
+---
+
+## Delivery Timing Analytics
+
+The admin analytics dashboard tracks operational timing metrics based on completed task timestamps:
+
+| Metric | Calculation |
+|---|---|
+| **Average travel time** | Time from shift start (6:20 AM) to first `en_route_time` recorded that day |
+| **Average setup time per unit** | Time from `arrived_time` to `completed_time` on drop-off tasks, divided by number of units |
+| **Average pickup time** | Time from `arrived_time` to `completed_time` on pick-up tasks |
+| **ETA accuracy** | Percentage of deliveries where `arrived_time` was within 15 minutes of `calculated_eta_minutes` (projected arrival) |
+
+These metrics are based on `task_status` records with `completed_time` set and are scoped to the selected date range in the analytics dashboard.
 
 ---
 

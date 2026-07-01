@@ -56,6 +56,10 @@ export function isTaskActiveRouteStop(task: Task): boolean {
   return task.pickupReadiness === 'ready';
 }
 
+function hasRouteSortOrder(task: Task): boolean {
+  return task.taskStatus?.sortOrder != null;
+}
+
 export function getStopNumber(task: Task, selectedDayTasks: Task[]): number {
   const dropOffTasks = selectedDayTasks.filter(t => t.type === 'drop-off' && isTaskActiveRouteStop(t));
   const morningPickUpTasks = selectedDayTasks.filter(
@@ -67,15 +71,22 @@ export function getStopNumber(task: Task, selectedDayTasks: Task[]): number {
 
   if (!isTaskActiveRouteStop(task)) return 0;
 
-  if (task.type === 'drop-off') {
-    const morningTasks = sortTasksByOrder([...dropOffTasks, ...morningPickUpTasks]);
-    return morningTasks.findIndex(t => t.id === task.id) + 1;
-  } else if (task.type === 'pick-up' && task.pickupPreference === 'next_day') {
-    const morningTasks = sortTasksByOrder([...dropOffTasks, ...morningPickUpTasks]);
-    return morningTasks.findIndex(t => t.id === task.id) + 1;
+  if (task.type === 'drop-off' || (task.type === 'pick-up' && task.pickupPreference === 'next_day')) {
+    const morningPool = [...dropOffTasks, ...morningPickUpTasks];
+    // If any morning task has a saved sort order, only ordered tasks get stop numbers
+    const routeSaved = morningPool.some(hasRouteSortOrder);
+    const morningTasks = routeSaved
+      ? sortTasksByOrder(morningPool.filter(hasRouteSortOrder))
+      : sortTasksByOrder(morningPool);
+    const idx = morningTasks.findIndex(t => t.id === task.id);
+    return idx === -1 ? 0 : idx + 1;
   } else if (task.type === 'pick-up' && task.pickupPreference === 'same_day') {
-    const afternoonTasks = sortTasksByOrder(afternoonPickUpTasks);
-    return afternoonTasks.findIndex(t => t.id === task.id) + 1;
+    const routeSaved = afternoonPickUpTasks.some(hasRouteSortOrder);
+    const afternoonTasks = routeSaved
+      ? sortTasksByOrder(afternoonPickUpTasks.filter(hasRouteSortOrder))
+      : sortTasksByOrder(afternoonPickUpTasks);
+    const idx = afternoonTasks.findIndex(t => t.id === task.id);
+    return idx === -1 ? 0 : idx + 1;
   }
   return 0;
 }

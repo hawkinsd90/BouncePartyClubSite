@@ -12,13 +12,13 @@ export function PaymentComplete() {
   const orderId = searchParams.get('order_id');
   const sessionId = searchParams.get('session_id');
 
-  const { status, error, orderDetails, isAdminInvoice, sessionTipCents, shouldRedirectToPortal } = usePaymentCompletion(orderId, sessionId);
+  const { status, error, orderDetails, isAdminInvoice, sessionTipCents, shouldRedirectToPortal, isFirstVisit } = usePaymentCompletion(orderId, sessionId);
 
   useEffect(() => {
-    if (status === 'success' && orderId) {
+    if (status === 'success' && orderId && isFirstVisit) {
       trackEvent('checkout_completed', { orderId });
     }
-  }, [status, orderId]);
+  }, [status, orderId, isFirstVisit]);
 
   useEffect(() => {
     if (status === 'success' && shouldRedirectToPortal && orderId) {

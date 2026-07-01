@@ -28,6 +28,7 @@ export interface Task {
   balancePaidCents: number;
   tipCents: number;
   waiverSigned: boolean;
+  waiverType?: 'digital' | 'paper_with_photo' | 'paper_no_photo' | null;
   balanceDue: number;
   pickupPreference?: string;
   surface?: string;
@@ -53,6 +54,7 @@ export interface Task {
     etaSent: boolean;
   };
   generatorQty?: number;
+  hasPets?: boolean;
   pickupReadiness?: PickupReadiness;
   pickupBlockReason?: string;
 }
@@ -171,7 +173,8 @@ export function useCalendarTasks(currentMonth: Date) {
           *,
           customers (first_name, last_name, phone, email),
           addresses (line1, city, state, zip, lat, lng),
-          payments (id, amount_cents, status, paid_at, type)
+          payments (id, amount_cents, status, paid_at, type),
+          order_signatures!order_signatures_order_id_fkey (electronic_consent_given, waiver_version, physical_waiver_storage_path)
         `)
         .gte('event_date', format(queryStart, 'yyyy-MM-dd'))
         .lte('event_date', format(monthEnd, 'yyyy-MM-dd'))
@@ -239,8 +242,9 @@ export function useCalendarTasks(currentMonth: Date) {
         // This avoids raw-field math that misses custom fees and uses non-existent columns.
         const balanceDue = Math.max(0, (order.balance_due_cents || 0) - (order.balance_paid_cents || 0));
 
+        const eventDateStr = format(eventDate, 'yyyy-MM-dd');
         const dropOffStatus = taskStatuses?.find(
-          ts => ts.order_id === order.id && ts.task_type === 'drop-off'
+          ts => ts.order_id === order.id && ts.task_type === 'drop-off' && ts.task_date === eventDateStr
         );
 
         generatedTasks.push({
@@ -265,6 +269,14 @@ export function useCalendarTasks(currentMonth: Date) {
           balancePaidCents: order.balance_paid_cents || 0,
           tipCents: order.tip_cents || 0,
           waiverSigned: !!order.waiver_signed_at,
+          waiverType: (() => {
+            if (!order.waiver_signed_at) return null;
+            const sig = (order.order_signatures as any[])?.[0];
+            if (!sig) return null;
+            if (sig.electronic_consent_given) return 'digital' as const;
+            if (sig.physical_waiver_storage_path) return 'paper_with_photo' as const;
+            return 'paper_no_photo' as const;
+          })(),
           balanceDue,
           stripePaymentMethodId: order.stripe_payment_method_id || null,
           paymentMethodBrand: order.payment_method_brand || null,
@@ -274,6 +286,7 @@ export function useCalendarTasks(currentMonth: Date) {
           lat,
           lng,
           generatorQty: order.generator_qty || 0,
+          hasPets: order.has_pets || false,
           payments: order.payments as any || [],
           taskStatus: dropOffStatus ? {
             id: dropOffStatus.id,
@@ -290,8 +303,9 @@ export function useCalendarTasks(currentMonth: Date) {
           ? eventDate
           : addDays(eventDate, 1);
 
+        const pickupDateStr = format(pickupDate, 'yyyy-MM-dd');
         const pickUpStatus = taskStatuses?.find(
-          ts => ts.order_id === order.id && ts.task_type === 'pick-up'
+          ts => ts.order_id === order.id && ts.task_type === 'pick-up' && ts.task_date === pickupDateStr
         );
 
         const pickupReadiness = derivePickupReadiness(
@@ -325,6 +339,14 @@ export function useCalendarTasks(currentMonth: Date) {
           balancePaidCents: order.balance_paid_cents || 0,
           tipCents: order.tip_cents || 0,
           waiverSigned: !!order.waiver_signed_at,
+          waiverType: (() => {
+            if (!order.waiver_signed_at) return null;
+            const sig = (order.order_signatures as any[])?.[0];
+            if (!sig) return null;
+            if (sig.electronic_consent_given) return 'digital' as const;
+            if (sig.physical_waiver_storage_path) return 'paper_with_photo' as const;
+            return 'paper_no_photo' as const;
+          })(),
           balanceDue,
           stripePaymentMethodId: order.stripe_payment_method_id || null,
           paymentMethodBrand: order.payment_method_brand || null,
@@ -334,6 +356,7 @@ export function useCalendarTasks(currentMonth: Date) {
           lat,
           lng,
           generatorQty: order.generator_qty || 0,
+          hasPets: order.has_pets || false,
           payments: order.payments as any || [],
           taskStatus: pickUpStatus ? {
             id: pickUpStatus.id,

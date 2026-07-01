@@ -7,6 +7,7 @@ import { createShortPortalLink } from '../../lib/utils';
 import { showAlert, showConfirm, showModal } from '../common/CustomModal';
 import { getCurrentLocation, calculateETA } from '../../lib/googleMaps';
 import { Task } from '../../hooks/useCalendarTasks';
+import { getStopNumber, isTaskActiveRouteStop } from '../../lib/calendarUtils';
 import { TaskDetailCustomerInfo } from './task-detail/TaskDetailCustomerInfo';
 import { TaskDetailOrderManagement } from './task-detail/TaskDetailOrderManagement';
 import { TaskDetailActions } from './task-detail/TaskDetailActions';
@@ -70,12 +71,28 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     loadMileageLog();
   }, [task.date]);
 
-  const tasksOfSameType = allTasks
-    .filter(t => t.type === task.type)
-    .sort((a, b) => (a.taskStatus?.sortOrder || 0) - (b.taskStatus?.sortOrder || 0));
+  // Use shared route-stop logic so stop numbers match DayView/TaskCard exactly.
+  // Only active (non-excluded, non-completed) route stops are counted.
+  const stopNumber = getStopNumber(task, allTasks);
+  const activeRouteStops = allTasks.filter(
+    t => t.type === task.type && isTaskActiveRouteStop(t) && t.taskStatus?.sortOrder != null
+  );
+  // Fall back to all active stops of same type when no route order is saved yet
+  const activeStopsCount = activeRouteStops.length > 0
+    ? activeRouteStops.length
+    : allTasks.filter(t => t.type === task.type && isTaskActiveRouteStop(t)).length;
+
+  // Move-up/down arrows operate on the same pool getStopNumber uses: active route stops only,
+  // filtered to those with a saved sort_order when the route has been committed to DB.
+  const activeRoutePool = allTasks.filter(
+    t => t.type === task.type && isTaskActiveRouteStop(t) && t.taskStatus?.sortOrder != null
+  );
+  const tasksOfSameType = (activeRoutePool.length > 0 ? activeRoutePool : allTasks.filter(
+    t => t.type === task.type && isTaskActiveRouteStop(t)
+  )).sort((a, b) => (a.taskStatus?.sortOrder ?? 0) - (b.taskStatus?.sortOrder ?? 0));
   const currentIndex = tasksOfSameType.findIndex(t => t.id === task.id);
-  const canMoveUp = currentIndex > 0;
-  const canMoveDown = currentIndex < tasksOfSameType.length - 1;
+  const canMoveUp = stopNumber > 0 && currentIndex > 0;
+  const canMoveDown = stopNumber > 0 && currentIndex !== -1 && currentIndex < tasksOfSameType.length - 1;
 
   async function ensureTaskStatus() {
     if (task.taskStatus?.id) return task.taskStatus.id;
@@ -154,7 +171,15 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
           const enRoutePortalUrl = await createShortPortalLink(task.orderId, supabase, task.date?.toISOString());
           msg += `\n\nPlease complete these before we arrive: ${enRoutePortalUrl}`;
         }
-        msg += '\n\nPlease ensure there is a clear path for delivery and setup. See you soon!';
+        msg += '\n\nPlease ensure there is a clear path for delivery and setup.';
+        if (task.hasPets) {
+          msg += ' Please also clear the backyard area of any pet waste before we arrive.';
+        }
+        msg += ' See you soon!';
+      } else {
+        if (task.hasPets) {
+          msg += ' Please make sure all pets are secured inside before we arrive.';
+        }
       }
 
       let smsWarning: string | null = null;
@@ -209,8 +234,15 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
           msg += `\nComplete at: ${arrivedPortalUrl}\n\n`;
         }
         msg += 'Please:\n• Put up any animals\n• Be ready to inspect the equipment\n• Approve the setup location';
+        if (task.hasPets) {
+          msg += '\n• Make sure all pets are secured inside';
+        }
       } else {
-        msg += "We'll begin pickup shortly. Thank you for using Bounce Party Club!";
+        msg += "We'll begin pickup shortly.";
+        if (task.hasPets) {
+          msg += ' Please make sure all pets are secured inside before we arrive.';
+        }
+        msg += ' Thank you for using Bounce Party Club!';
       }
 
       let smsWarn: string | null = null;
@@ -521,7 +553,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
       if (swapIdx < 0 || swapIdx >= tasksOfSameType.length) return;
       const cur = tasksOfSameType[idx]; const swap = tasksOfSameType[swapIdx];
-      const curOrder = cur.taskStatus?.sortOrder || idx; const swapOrder = swap.taskStatus?.sortOrder || swapIdx;
+      const curOrder = cur.taskStatus?.sortOrder ?? idx; const swapOrder = swap.taskStatus?.sortOrder ?? swapIdx;
       const updates: Promise<{ error: any }>[] = [];
       if (cur.taskStatus?.id) updates.push(supabase.from('task_status').update({ sort_order: swapOrder }).eq('id', cur.taskStatus.id) as unknown as Promise<{ error: any }>);
       if (swap.taskStatus?.id) updates.push(supabase.from('task_status').update({ sort_order: curOrder }).eq('id', swap.taskStatus.id) as unknown as Promise<{ error: any }>);
@@ -615,36 +647,68 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
   }
 
   async function handlePaperWaiver() {
-    const confirmed = await showConfirm(`Mark waiver as signed in person for ${task.customerName}?\n\nThis records a paper waiver was signed on-site and updates the order status.`);
-    if (!confirmed) return;
+    const overrideReason = window.prompt(
+      `Mark waiver as signed in person for ${task.customerName} (no photo).\n\nProvide a reason (required):\ne.g., "Crew collected paper copy, will scan later"`
+    );
+    if (!overrideReason || !overrideReason.trim()) return;
+
     setSigningWaiver(true);
     try {
-      const now = new Date().toISOString();
-      const { error: sigError } = await supabase.from('order_signatures').insert({
-        order_id: task.orderId,
-        signature_data_url: '',
-        renter_name: task.customerName || 'Unknown',
-        renter_phone: task.customerPhone || '',
-        renter_email: task.customerEmail || null,
-        signer_name: task.customerName || 'Unknown',
-        signer_phone: task.customerPhone || '',
-        signer_email: task.customerEmail || null,
-        typed_name: task.customerName || 'Unknown',
-        ip_address: '0.0.0.0',
-        user_agent: 'Admin - Paper Waiver Signed On-Site',
-        waiver_version: 'paper',
-        electronic_consent_given: false,
+      const { data: { session } } = await supabase.auth.getSession();
+      const form = new FormData();
+      form.append('orderId', task.orderId);
+      form.append('uploadSource', 'admin_no_photo');
+      form.append('overrideReason', overrideReason.trim());
+
+      const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-physical-waiver`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session?.access_token}` },
+        body: form,
       });
-      if (sigError) throw sigError;
-      const { error: orderError } = await supabase.from('orders').update({
-        waiver_signed_at: now,
-        e_signature_consent: false,
-      }).eq('id', task.orderId);
-      if (orderError) console.warn('Order waiver_signed_at update failed:', orderError.message);
-      showAlert('Waiver marked as signed in person!');
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Failed to record waiver');
+      showAlert('Waiver marked as signed in person (no photo).');
       refresh();
     } catch (e: any) { console.error('Paper waiver error:', e); showAlert('Failed to mark waiver: ' + e.message); }
     finally { setSigningWaiver(false); }
+  }
+
+  async function handlePaperWaiverUpload() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/jpeg,image/png,image/webp,application/pdf';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+
+      const lowerName = file.name.toLowerCase();
+      if (lowerName.endsWith('.heic') || lowerName.endsWith('.heif') ||
+          file.type === 'image/heic' || file.type === 'image/heif') {
+        showAlert('HEIC photos are not supported. Please convert to JPEG first. On iPhone: Settings > Camera > Formats > Most Compatible');
+        return;
+      }
+
+      setSigningWaiver(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const form = new FormData();
+        form.append('file', file);
+        form.append('orderId', task.orderId);
+        form.append('uploadSource', 'admin_upload');
+
+        const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-physical-waiver`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${session?.access_token}` },
+          body: form,
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Failed to upload waiver');
+        showAlert('Paper waiver uploaded successfully.');
+        refresh();
+      } catch (e: any) { console.error('Paper waiver upload error:', e); showAlert('Failed to upload waiver: ' + e.message); }
+      finally { setSigningWaiver(false); }
+    };
+    input.click();
   }
 
   async function handleChargeCard(amountCents: number) {
@@ -742,7 +806,9 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
                   <button onClick={() => handleReorder('up')} disabled={!canMoveUp} className="p-1 hover:bg-slate-100 rounded disabled:opacity-30 disabled:cursor-not-allowed" title="Move up in route"><ChevronUp className="w-4 h-4" /></button>
                   <button onClick={() => handleReorder('down')} disabled={!canMoveDown} className="p-1 hover:bg-slate-100 rounded disabled:opacity-30 disabled:cursor-not-allowed" title="Move down in route"><ChevronDown className="w-4 h-4" /></button>
                 </div>
-                <span className="text-xs text-slate-500">Stop #{currentIndex + 1} of {tasksOfSameType.length}</span>
+                {stopNumber > 0 && (
+                  <span className="text-xs text-slate-500">Stop #{stopNumber} of {activeStopsCount}</span>
+                )}
                 <button onClick={async () => { setRefreshing(true); setLastUpdated(new Date()); await refresh(); setTimeout(() => setRefreshing(false), 500); }} disabled={refreshing} className="ml-auto flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 px-2 py-1 rounded hover:bg-blue-50 disabled:opacity-50">
                   <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
                   <span className="hidden sm:inline">{refreshing ? 'Refreshing...' : `Updated ${Math.floor((Date.now() - lastUpdated.getTime()) / 1000)}s ago`}</span>
@@ -872,6 +938,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
             onImageUpload={handleImageUpload}
             onDropOffComplete={handleDropOffComplete}
             onPickupComplete={handlePickupComplete}
+            onPaperWaiverUpload={handlePaperWaiverUpload}
           />
 
           {/* Photos */}

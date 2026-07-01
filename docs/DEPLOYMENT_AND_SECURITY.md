@@ -172,6 +172,7 @@ The `admin_settings_changelog` table logs every change to settings. Secret value
 | `carousel-media` | Yes | Admin only | Homepage carousel images/videos |
 | `unit-images` | Yes | Admin only | Rental unit catalog photos |
 | `signed-waivers` | No | Edge function only | Stored signed waiver PDFs |
+| `physical-waivers` | No | Edge function only (`upload-physical-waiver`) | Admin-uploaded paper/physical waiver images; service role required; never directly accessible by frontend |
 | `order-pictures` | Yes | Crew / authenticated | Delivery proof and damage photos |
 | `lot-pictures` | No | Crew / authenticated | Pre-event lot assessment photos |
 

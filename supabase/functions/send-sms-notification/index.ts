@@ -154,13 +154,22 @@ Deno.serve(async (req: Request) => {
         reviewUrl = reviewUrlSetting?.value || '';
       }
 
+      const petWasteReminder = order.has_pets
+        ? " Please make sure the backyard area is clear of any pet waste before our crew arrives."
+        : "";
+      const petSecureReminder = order.has_pets
+        ? " Please make sure all pets are secured inside before our crew arrives."
+        : "";
+
       messageBody = template.message_template
         .replace("{customer_name}", `${order.customers?.first_name || ''} ${order.customers?.last_name || ''}`)
         .replace("{name}", order.customers?.first_name || '')
         .replace("{order_id}", formatOrderId(order.id))
         .replace("{event_date}", order.event_date || '')
         .replace("{event_address}", order.event_address_line1 || '')
-        .replace("{review_url}", reviewUrl);
+        .replace("{review_url}", reviewUrl)
+        .replace("{pet_reminder}", petWasteReminder)
+        .replace("{pet_secure}", petSecureReminder);
     }
 
     if (!toPhone || !messageBody) {

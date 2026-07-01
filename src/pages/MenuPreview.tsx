@@ -22,6 +22,9 @@ type MenuPreviewData = {
   generatedAtIso: string;
   units: Unit[];
   title?: string;
+  availabilityChecked?: boolean;
+  availabilityDateFormatted?: string | null;
+  activeFilter?: string | null;
 };
 
 function formatCurrency(cents: number) {
@@ -137,7 +140,8 @@ async function drawMenuToCanvas(
   const COLS = 3;
   const PAD = 32;
   const GAP = 16;
-  const HEADER_H = 140;
+  const hasBadges = !!(data.availabilityChecked || data.activeFilter);
+  const HEADER_H = hasBadges ? 168 : 140;
   const IMG_H = 160;
   const CARD_CONTENT_H = 160; // text area per card
   const CARD_H = IMG_H + CARD_CONTENT_H;
@@ -181,14 +185,53 @@ async function drawMenuToCanvas(
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ffffff';
   ctx.font = `900 30px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-  ctx.fillText(data.title || 'Inflatable Price List', titleX, HEADER_H / 2 + 6);
+  const titleY = hasBadges ? HEADER_H / 2 - 8 : HEADER_H / 2 + 6;
+  ctx.fillText(data.title || 'Inflatable Price List', titleX, titleY);
   ctx.font = `600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
   ctx.fillStyle = 'rgba(255,255,255,0.82)';
   ctx.fillText(
     `bouncepartyclub.com  ·  Generated ${generatedDate.toLocaleDateString('en-US')}`,
     titleX,
-    HEADER_H / 2 + 28
+    titleY + 22
   );
+
+  // Availability / filter badges
+  if (hasBadges) {
+    const badges: string[] = [];
+    if (data.availabilityChecked && data.availabilityDateFormatted) {
+      badges.push(`Available: ${data.availabilityDateFormatted}`);
+    }
+    if (data.activeFilter) {
+      badges.push(`Filter: ${data.activeFilter}`);
+    }
+
+    const badgeY = titleY + 46;
+    const badgePadX = 14;
+    const badgePadY = 6;
+    const badgeH = 24;
+    ctx.font = `700 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+
+    // measure total width to center group
+    const widths = badges.map(b => ctx.measureText(b).width + badgePadX * 2);
+    const totalW = widths.reduce((a, b) => a + b, 0) + (badges.length - 1) * 10;
+    let bx = titleX - totalW / 2;
+
+    for (let bi = 0; bi < badges.length; bi++) {
+      const bw = widths[bi];
+      ctx.fillStyle = 'rgba(255,255,255,0.20)';
+      roundRect(ctx, bx, badgeY - badgePadY, bw, badgeH, badgeH / 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.40)';
+      ctx.lineWidth = 1;
+      roundRect(ctx, bx, badgeY - badgePadY, bw, badgeH, badgeH / 2);
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.fillText(badges[bi], bx + bw / 2, badgeY + badgeH / 2 - badgePadY - 1);
+      bx += bw + 10;
+    }
+  }
+
   ctx.textAlign = 'left';
 
   // Suppress unused variable warning
@@ -460,11 +503,13 @@ export function MenuPreview() {
       const blob = await res.blob();
       const file = new File([blob], 'bounce-party-club-menu.png', { type: 'image/png' });
 
-      // Web Share API with files triggers the native save sheet on iOS 15+ / Android Chrome.
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      // Web Share API with files triggers the native share sheet on iOS/Android.
+      // On desktop browsers (Windows/macOS), canShare() may return true but opens
+      // an OS share dialog instead of a direct save — so restrict it to touch devices.
+      const isTouchDevice = navigator.maxTouchPoints > 0;
+      if (isTouchDevice && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], title: 'Bounce Party Club Menu' });
       } else {
-        // Desktop fallback
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.download = 'bounce-party-club-menu.png';
@@ -560,6 +605,20 @@ export function MenuPreview() {
             <div className="menu-print-subtitle">
               bouncepartyclub.com · Generated {generatedDate.toLocaleDateString('en-US')}
             </div>
+            {(data.availabilityChecked || data.activeFilter) && (
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
+                {data.availabilityChecked && data.availabilityDateFormatted && (
+                  <span style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.4)', borderRadius: '20px', padding: '2px 12px', fontSize: '12px', fontWeight: 700, color: '#ffffff', letterSpacing: '0.02em' }}>
+                    Available: {data.availabilityDateFormatted}
+                  </span>
+                )}
+                {data.activeFilter && (
+                  <span style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.35)', borderRadius: '20px', padding: '2px 12px', fontSize: '12px', fontWeight: 700, color: '#ffffff', letterSpacing: '0.02em' }}>
+                    Filter: {data.activeFilter}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="menu-print-header-right" aria-hidden="true" />

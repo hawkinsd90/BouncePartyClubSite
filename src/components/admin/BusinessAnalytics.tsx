@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { DollarSign, TrendingUp, TrendingDown, Users, ShoppingBag, CreditCard, Banknote, RotateCcw, Clock, Repeat, MapPin, Package, Star, AlertCircle, RefreshCw, Gauge, Car } from 'lucide-react';
-import { useAdminAnalytics, useMileageAnalytics, AnalyticsPeriod } from '../../hooks/useAdminAnalytics';
+import { useNavigate } from 'react-router-dom';
+import { DollarSign, TrendingUp, TrendingDown, Users, ShoppingBag, CreditCard, Banknote, RotateCcw, Clock, Repeat, MapPin, Package, Star, AlertCircle, RefreshCw, Gauge, Car, AlertTriangle } from 'lucide-react';
+import { useAdminAnalytics, useMileageAnalytics, useDeliveryTimingAnalytics, AnalyticsPeriod, MissingMileageEntry } from '../../hooks/useAdminAnalytics';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 
 function formatCents(cents: number): string {
@@ -43,31 +44,101 @@ function StatCard({ icon, label, value, sub, trendInfo, accent = 'blue' }: StatC
   const colors = accentMap[accent] || accentMap.blue;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition-shadow">
-      <div className="flex items-start justify-between mb-3">
-        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${colors}`}>
+    <div className="bg-white rounded-lg shadow-sm border border-slate-200 px-3 py-2.5 hover:shadow-md transition-shadow">
+      <div className="flex items-center gap-3">
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${colors}`}>
           {icon}
         </div>
-        <div className="text-right">
-          <div className="text-2xl font-bold text-slate-900 leading-tight">{value}</div>
-          {trendInfo && (
-            <div className={`text-xs font-medium mt-1 ${trendInfo.positive ? 'text-green-600' : 'text-red-500'}`}>
-              {trendInfo.positive ? <TrendingUp className="w-3 h-3 inline mr-0.5" /> : <TrendingDown className="w-3 h-3 inline mr-0.5" />}
-              {trendInfo.label}
-            </div>
-          )}
+        <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-slate-700 leading-tight">{label}</div>
+            {sub && <div className="text-xs text-slate-400 leading-tight">{sub}</div>}
+            {trendInfo && (
+              <div className={`text-xs font-medium flex items-center gap-0.5 mt-0.5 ${trendInfo.positive ? 'text-green-600' : 'text-red-500'}`}>
+                {trendInfo.positive ? <TrendingUp className="w-3 h-3 flex-shrink-0" /> : <TrendingDown className="w-3 h-3 flex-shrink-0" />}
+                <span className="leading-tight">{trendInfo.label}</span>
+              </div>
+            )}
+          </div>
+          <div className="text-lg font-bold text-slate-900 leading-tight flex-shrink-0">{value}</div>
         </div>
       </div>
-      <div className="text-sm font-semibold text-slate-800">{label}</div>
-      {sub && <div className="text-xs text-slate-500 mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
+interface MissingMileagePanelProps {
+  entries: MissingMileageEntry[];
+  crewNames: Record<string, string>;
+  onNavigate: (date: string) => void;
+}
+
+function MissingMileagePanel({ entries, crewNames, onNavigate }: MissingMileagePanelProps) {
+  // Group by user_id
+  const byUser: Record<string, MissingMileageEntry[]> = {};
+  for (const e of entries) {
+    if (!byUser[e.user_id]) byUser[e.user_id] = [];
+    byUser[e.user_id].push(e);
+  }
+
+  const missingLabel = (missing: MissingMileageEntry['missing']) => {
+    if (missing === 'both') return 'Start & end missing';
+    if (missing === 'start') return 'Start missing';
+    return 'End missing';
+  };
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  };
+
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+        <h3 className="font-semibold text-amber-900">Incomplete Mileage Entries</h3>
+        <span className="ml-auto text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+          {entries.length} missing
+        </span>
+      </div>
+      <div className="space-y-4">
+        {Object.entries(byUser).map(([userId, userEntries]) => (
+          <div key={userId}>
+            <div className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-2">
+              {crewNames[userId] || 'Crew Member'}
+            </div>
+            <div className="space-y-1.5">
+              {userEntries.map((entry) => (
+                <button
+                  key={`${entry.user_id}-${entry.date}`}
+                  onClick={() => onNavigate(entry.date)}
+                  className="w-full flex items-center justify-between px-3 py-2 bg-white border border-amber-200 rounded-lg hover:bg-amber-50 hover:border-amber-400 transition-colors text-left group"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm font-medium text-slate-900">{formatDate(entry.date)}</span>
+                    <span className="text-xs text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded font-medium">
+                      {missingLabel(entry.missing)}
+                    </span>
+                  </div>
+                  <span className="text-xs text-amber-600 font-medium group-hover:text-amber-800 shrink-0 ml-2">
+                    Go to date →
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
 export function BusinessAnalytics() {
+  const navigate = useNavigate();
   const [period, setPeriod] = useState<AnalyticsPeriod>('all_time');
   const { analytics: a, loading, error, reload } = useAdminAnalytics(period);
   const { mileage: m } = useMileageAnalytics(period);
+  const { data: dt } = useDeliveryTimingAnalytics(period);
   const [crewNames, setCrewNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -160,7 +231,7 @@ export function BusinessAnalytics() {
       {/* Revenue Section */}
       <div>
         <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Revenue</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <StatCard
             icon={<DollarSign className="w-5 h-5" />}
             label="Total Revenue"
@@ -195,7 +266,7 @@ export function BusinessAnalytics() {
       {/* Payments Section */}
       <div>
         <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Payments & Balances</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <StatCard
             icon={<CreditCard className="w-5 h-5" />}
             label="Deposits Collected"
@@ -246,7 +317,7 @@ export function BusinessAnalytics() {
       {/* Orders Section */}
       <div>
         <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Orders</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <StatCard
             icon={<ShoppingBag className="w-5 h-5" />}
             label="Total Orders"
@@ -281,7 +352,7 @@ export function BusinessAnalytics() {
       {/* Customers Section */}
       <div>
         <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Customers</h3>
-        <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <StatCard
             icon={<Users className="w-5 h-5" />}
             label="Unique Customers"
@@ -366,7 +437,7 @@ export function BusinessAnalytics() {
       {m && (
         <div>
           <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Fleet Mileage</h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <StatCard
               icon={<Gauge className="w-5 h-5" />}
               label="Total Miles Driven"
@@ -423,6 +494,70 @@ export function BusinessAnalytics() {
               </div>
             </div>
           )}
+          {m.missing_entries.length > 0 && (
+            <MissingMileagePanel
+              entries={m.missing_entries}
+              crewNames={crewNames}
+              onNavigate={(date) => navigate(`/admin?tab=calendar&date=${date}`)}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Delivery Performance */}
+      {dt && (dt.avg_travel_minutes != null || dt.avg_delivery_setup_minutes != null) && (
+        <div>
+          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Delivery Performance</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {dt.avg_travel_minutes != null && (
+              <StatCard
+                icon={<Car className="w-5 h-5" />}
+                label="Avg Travel Time"
+                value={`${Math.round(dt.avg_travel_minutes)} min`}
+                sub={`${dt.task_counts.travel_sample} trips`}
+              />
+            )}
+            {dt.avg_delivery_setup_minutes != null && (
+              <StatCard
+                icon={<Clock className="w-5 h-5" />}
+                label="Avg Delivery Setup"
+                value={`${Math.round(dt.avg_delivery_setup_minutes)} min`}
+                sub={`${dt.task_counts.dropoff_with_all_timestamps} drop-offs`}
+              />
+            )}
+            {dt.avg_pickup_service_minutes != null && (
+              <StatCard
+                icon={<Clock className="w-5 h-5" />}
+                label="Avg Pickup Service"
+                value={`${Math.round(dt.avg_pickup_service_minutes)} min`}
+                sub={`${dt.task_counts.pickup_with_all_timestamps} pickups`}
+              />
+            )}
+            {dt.avg_total_dropoff_minutes != null && (
+              <StatCard
+                icon={<Gauge className="w-5 h-5" />}
+                label="Avg Total Drop-off"
+                value={`${Math.round(dt.avg_total_dropoff_minutes)} min`}
+                sub="Travel + setup"
+              />
+            )}
+            {dt.avg_total_pickup_minutes != null && (
+              <StatCard
+                icon={<Gauge className="w-5 h-5" />}
+                label="Avg Total Pickup"
+                value={`${Math.round(dt.avg_total_pickup_minutes)} min`}
+                sub="Travel + service"
+              />
+            )}
+            {dt.avg_eta_accuracy_minutes != null && (
+              <StatCard
+                icon={<Clock className="w-5 h-5" />}
+                label="ETA Accuracy"
+                value={`${Math.round(Math.abs(dt.avg_eta_accuracy_minutes))} min`}
+                sub={`${dt.task_counts.eta_sample} tasks w/ ETA`}
+              />
+            )}
+          </div>
         </div>
       )}
 
