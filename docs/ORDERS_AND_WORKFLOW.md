@@ -24,7 +24,7 @@ Order creation happens when a customer submits the quote form. The process:
    - Referral source and detail fields
    - Billing address fields from checkout
 
-5. **Order Items** — creates `order_items` records for each unit in the cart with a snapshot of the price at time of booking.
+5. **Order Items** — creates `order_items` records for each unit in the cart with a snapshot of the price at time of booking. For combo units (those with both `price_dry_cents` and `price_water_cents`), the cart stores both price variants and updates `unit_price_cents` when the customer toggles dry/wet mode, ensuring the correct price is snapshotted at order creation time.
 
 6. **Discounts and Custom Fees** — if provided, creates `order_discounts` and `order_custom_fees` records.
 
@@ -235,6 +235,13 @@ The saved Stripe payment method (`stripe_payment_method_id`) is cleared when:
 3. Order was paid in full but total increased
 
 This forces the customer to re-enter payment details for the updated amount.
+
+### Operational Status Preservation During Edits
+
+When an admin edits an order that is already in an active operational state (`in_progress`, `completed`, `cancelled`, or `void`), the save service preserves the current `status` rather than resetting it to an earlier state in the approval workflow. Specifically:
+
+- Orders with `status` of `in_progress`, `completed`, `cancelled`, or `void` are NOT moved to `awaiting_customer_approval` after an edit — they remain in their current operational state.
+- This prevents crew-day edits (e.g., correcting pickup time) from inadvertently triggering the customer approval flow for orders that are already mid-delivery or completed.
 
 ### Atomic Update
 

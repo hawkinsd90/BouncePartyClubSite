@@ -454,6 +454,7 @@ Edge functions live in `supabase/functions/`. Each is a standalone Deno module. 
 | `payment-receipt-email.ts` | Shared HTML receipt email builder used by multiple payment functions |
 | `rate-limit.ts` | Per-identifier sliding-window rate limiting via `rate_limits` table |
 | `transaction-logger.ts` | Transaction receipt creation and admin notification; supports grouped receipts via `receipt_group_id` |
+| `waiver-pdf.ts` | Shared waiver PDF rendering logic — used by both `generate-signed-waiver` (stores in bucket) and `generate-blank-waiver` (returns inline to browser) |
 | `webhook-idempotency.ts` | Stripe webhook deduplication via `stripe_webhook_events` table |
 
 All edge functions handle CORS preflight (`OPTIONS`) and include CORS headers on every response.
@@ -472,7 +473,8 @@ All edge functions handle CORS preflight (`OPTIONS`) and include CORS headers on
 | `customer-balance-payment` | No | Allows customers to pay remaining balance via saved card on file or a new Stripe Checkout session |
 | `customer-cancel-order` | No | Handles customer-initiated cancellation with reason and refund-request flag |
 | `fix-payment-method` | No | Allows customer to update a saved card after a declined charge |
-| `generate-signed-waiver` | No | Generates a downloadable signed waiver PDF |
+| `generate-blank-waiver` | No | Generates a blank (unsigned) waiver PDF using current `admin_settings` waiver text — returned inline for customer download; not stored in any bucket |
+| `generate-signed-waiver` | No | Generates a completed signed waiver PDF; stores in `signed-waivers` bucket; uses shared `waiver-pdf.ts` renderer |
 | `get-payment-method` | Yes | Returns customer's saved payment method details |
 | `get-session-metadata` | No | Returns customer session data for form prefill |
 | `get-stripe-publishable-key` | No | Returns Stripe publishable key (read from `admin_settings`) |
@@ -487,6 +489,7 @@ All edge functions handle CORS preflight (`OPTIONS`) and include CORS headers on
 | `save-payment-method-from-session` | Yes | Saves Stripe payment method details after successful checkout session |
 | `save-pending-consent` | No | Stores pre-signup consent in staging table |
 | `save-signature` | No | Records waiver signature with full audit data; generates PDF asynchronously; sends email confirmation with PDF attachment |
+| `upload-physical-waiver` | Yes | Accepts a physical (paper) waiver image upload from admin; stores in the private `physical-waivers` bucket using the service role key; requires `admin` or `master` role; returns the stored file URL |
 | `save-signup-address` | No | Saves customer's home address submitted during signup |
 | `send-email` | Yes | Sends email via Resend with fallback SMS to admin on failure |
 | `send-error-notification` | No | Sends admin alert for application errors |
@@ -679,6 +682,10 @@ Each event optionally carries a `session_id`, `unit_id`, `order_id`, and arbitra
 | `src/lib/styles.ts` | Shared Tailwind class string helpers |
 | `src/lib/invoiceSummaryBuilder.ts` | Transforms order data into a normalized `OrderSummaryDisplay` object used across invoice, receipt, and print views |
 | `src/lib/addressService.ts` | `upsertCanonicalAddress()` — create-or-find logic for deduplicated address records |
+
+### `GoogleAdsTag` (`src/components/common/GoogleAdsTag.tsx`)
+
+Manages the Google Ads conversion tag for the SPA. Exports `isInternalRoute(pathname)` and `trackGoogleAdsEvent(name, params?)` for use by other modules. The tag is only injected on public routes; `send_page_view: false` prevents any automatic tracking on SPA navigation. See INTEGRATIONS.md for full details.
 
 ### `createShortPortalLink()` (`src/lib/utils.ts`)
 
