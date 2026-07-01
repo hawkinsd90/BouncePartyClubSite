@@ -338,7 +338,7 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
                 ) : (
                   <Link className="w-3.5 h-3.5" />
                 )}
-                {shortLinkCopied ? 'Copied!' : shortUrl ? 'Copy Short Link' : generatingShortLink ? 'Generating...' : 'Generate & Copy'}
+                {shortLinkCopied ? 'Copied!' : generatingShortLink ? 'Generating...' : 'Copy Link'}
               </button>
               {shortUrl && (
                 <span className="text-xs text-slate-400 font-mono truncate max-w-[220px]">{shortUrl}</span>
