@@ -154,7 +154,15 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
           const enRoutePortalUrl = await createShortPortalLink(task.orderId, supabase, task.date?.toISOString());
           msg += `\n\nPlease complete these before we arrive: ${enRoutePortalUrl}`;
         }
-        msg += '\n\nPlease ensure there is a clear path for delivery and setup. See you soon!';
+        msg += '\n\nPlease ensure there is a clear path for delivery and setup.';
+        if (task.hasPets) {
+          msg += ' Please also clear the backyard area of any pet waste before we arrive.';
+        }
+        msg += ' See you soon!';
+      } else {
+        if (task.hasPets) {
+          msg += ' Please make sure all pets are secured inside before we arrive.';
+        }
       }
 
       let smsWarning: string | null = null;
@@ -209,8 +217,15 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
           msg += `\nComplete at: ${arrivedPortalUrl}\n\n`;
         }
         msg += 'Please:\n• Put up any animals\n• Be ready to inspect the equipment\n• Approve the setup location';
+        if (task.hasPets) {
+          msg += '\n• Make sure all pets are secured inside';
+        }
       } else {
-        msg += "We'll begin pickup shortly. Thank you for using Bounce Party Club!";
+        msg += "We'll begin pickup shortly.";
+        if (task.hasPets) {
+          msg += ' Please make sure all pets are secured inside before we arrive.';
+        }
+        msg += ' Thank you for using Bounce Party Club!';
       }
 
       let smsWarn: string | null = null;

@@ -54,6 +54,7 @@ export interface Task {
     etaSent: boolean;
   };
   generatorQty?: number;
+  hasPets?: boolean;
   pickupReadiness?: PickupReadiness;
   pickupBlockReason?: string;
 }
@@ -284,6 +285,7 @@ export function useCalendarTasks(currentMonth: Date) {
           lat,
           lng,
           generatorQty: order.generator_qty || 0,
+          hasPets: order.has_pets || false,
           payments: order.payments as any || [],
           taskStatus: dropOffStatus ? {
             id: dropOffStatus.id,
@@ -352,6 +354,7 @@ export function useCalendarTasks(currentMonth: Date) {
           lat,
           lng,
           generatorQty: order.generator_qty || 0,
+          hasPets: order.has_pets || false,
           payments: order.payments as any || [],
           taskStatus: pickUpStatus ? {
             id: pickUpStatus.id,
