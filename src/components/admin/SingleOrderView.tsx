@@ -151,7 +151,22 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
     try {
       let url = shortUrl;
       if (!url) {
-        url = await createShortPortalLink(order.id, supabase, order.event_date);
+        // Re-check DB for an active link in case state hasn't loaded yet
+        const { data: existing } = await supabase
+          .from('invoice_links' as any)
+          .select('short_code')
+          .eq('order_id', order.id)
+          .eq('link_type', 'portal_shortlink')
+          .not('short_code', 'is', null)
+          .gt('expires_at', new Date().toISOString())
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (existing?.short_code) {
+          url = `${window.location.origin}/i/${existing.short_code}`;
+        } else {
+          url = await createShortPortalLink(order.id, supabase, order.event_date);
+        }
         setShortUrl(url);
       }
       await navigator.clipboard.writeText(url);
