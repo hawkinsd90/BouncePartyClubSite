@@ -82,13 +82,17 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     ? activeRouteStops.length
     : allTasks.filter(t => t.type === task.type && isTaskActiveRouteStop(t)).length;
 
-  // Keep move-up/down arrows working using all active stops sorted by current order
-  const tasksOfSameType = allTasks
-    .filter(t => t.type === task.type)
-    .sort((a, b) => (a.taskStatus?.sortOrder || 0) - (b.taskStatus?.sortOrder || 0));
+  // Move-up/down arrows operate on the same pool getStopNumber uses: active route stops only,
+  // filtered to those with a saved sort_order when the route has been committed to DB.
+  const activeRoutePool = allTasks.filter(
+    t => t.type === task.type && isTaskActiveRouteStop(t) && t.taskStatus?.sortOrder != null
+  );
+  const tasksOfSameType = (activeRoutePool.length > 0 ? activeRoutePool : allTasks.filter(
+    t => t.type === task.type && isTaskActiveRouteStop(t)
+  )).sort((a, b) => (a.taskStatus?.sortOrder ?? 0) - (b.taskStatus?.sortOrder ?? 0));
   const currentIndex = tasksOfSameType.findIndex(t => t.id === task.id);
-  const canMoveUp = currentIndex > 0;
-  const canMoveDown = currentIndex < tasksOfSameType.length - 1;
+  const canMoveUp = stopNumber > 0 && currentIndex > 0;
+  const canMoveDown = stopNumber > 0 && currentIndex !== -1 && currentIndex < tasksOfSameType.length - 1;
 
   async function ensureTaskStatus() {
     if (task.taskStatus?.id) return task.taskStatus.id;

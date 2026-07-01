@@ -275,7 +275,7 @@ export function RouteManagementModal({
             completed_at: null,
             completed_time: null,
             estimated_arrival: null,
-            sort_order: null,
+            sort_order: 0,
             en_route_time: null,
             eta_sent: false,
             waiver_reminder_sent: false,
