@@ -44,23 +44,25 @@ function StatCard({ icon, label, value, sub, trendInfo, accent = 'blue' }: StatC
   const colors = accentMap[accent] || accentMap.blue;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 hover:shadow-md transition-shadow">
-      <div className="flex items-start gap-2 mb-2">
-        <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${colors}`}>
+    <div className="bg-white rounded-lg shadow-sm border border-slate-200 px-3 py-2.5 hover:shadow-md transition-shadow">
+      <div className="flex items-center gap-3">
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${colors}`}>
           {icon}
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-xl font-bold text-slate-900 leading-tight">{value}</div>
-          {trendInfo && (
-            <div className={`text-xs font-medium mt-0.5 flex items-start gap-0.5 ${trendInfo.positive ? 'text-green-600' : 'text-red-500'}`}>
-              <span className="flex-shrink-0 mt-px">{trendInfo.positive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}</span>
-              <span className="leading-tight">{trendInfo.label}</span>
-            </div>
-          )}
+        <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-slate-700 leading-tight">{label}</div>
+            {sub && <div className="text-xs text-slate-400 leading-tight">{sub}</div>}
+            {trendInfo && (
+              <div className={`text-xs font-medium flex items-center gap-0.5 mt-0.5 ${trendInfo.positive ? 'text-green-600' : 'text-red-500'}`}>
+                {trendInfo.positive ? <TrendingUp className="w-3 h-3 flex-shrink-0" /> : <TrendingDown className="w-3 h-3 flex-shrink-0" />}
+                <span className="leading-tight">{trendInfo.label}</span>
+              </div>
+            )}
+          </div>
+          <div className="text-lg font-bold text-slate-900 leading-tight flex-shrink-0">{value}</div>
         </div>
       </div>
-      <div className="text-sm font-semibold text-slate-800 leading-tight">{label}</div>
-      {sub && <div className="text-xs text-slate-500 mt-0.5 leading-tight">{sub}</div>}
     </div>
   );
 }
