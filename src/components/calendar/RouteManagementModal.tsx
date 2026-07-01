@@ -340,7 +340,16 @@ export function RouteManagementModal({
           .eq('id', task.taskStatus.id);
       }).filter(Boolean);
 
-      await Promise.all(updates);
+      const excludedUpdates = excludedTasks
+        .filter(task => task.taskStatus?.id)
+        .map(task =>
+          supabase
+            .from('task_status')
+            .update({ sort_order: null })
+            .eq('id', task.taskStatus!.id)
+        );
+
+      await Promise.all([...updates, ...excludedUpdates]);
       showToast('Route saved successfully', 'success');
       setHasChanges(false);
       onUpdate();
