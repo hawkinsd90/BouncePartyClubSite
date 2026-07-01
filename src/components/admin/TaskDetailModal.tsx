@@ -553,7 +553,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
       if (swapIdx < 0 || swapIdx >= tasksOfSameType.length) return;
       const cur = tasksOfSameType[idx]; const swap = tasksOfSameType[swapIdx];
-      const curOrder = cur.taskStatus?.sortOrder || idx; const swapOrder = swap.taskStatus?.sortOrder || swapIdx;
+      const curOrder = cur.taskStatus?.sortOrder ?? idx; const swapOrder = swap.taskStatus?.sortOrder ?? swapIdx;
       const updates: Promise<{ error: any }>[] = [];
       if (cur.taskStatus?.id) updates.push(supabase.from('task_status').update({ sort_order: swapOrder }).eq('id', cur.taskStatus.id) as unknown as Promise<{ error: any }>);
       if (swap.taskStatus?.id) updates.push(supabase.from('task_status').update({ sort_order: curOrder }).eq('id', swap.taskStatus.id) as unknown as Promise<{ error: any }>);
