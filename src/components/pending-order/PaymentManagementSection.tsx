@@ -124,11 +124,6 @@ export function PaymentManagementSection({
       return;
     }
 
-    const confirmed = window.confirm(
-      `Confirm refund of ${formatCurrency(amountCents)} for order #${order.id.slice(0, 8)}?\n\nReason: ${REFUND_REASONS.find(r => r.value === refundReason)?.label}\n\nThis action cannot be undone.`
-    );
-    if (!confirmed) return;
-
     setIsRefunding(true);
     setRefundMessage(null);
 
