@@ -73,11 +73,17 @@ export function PaymentManagementSection({
   const succeededPayments = payments.filter(p => p.status === 'succeeded');
   const totalCapturedCents = succeededPayments.reduce((sum, p) => sum + p.amount_cents, 0);
 
-  const totalRefundedCents = refunds
+  // For display: only show succeeded refunds in the "refunded" total.
+  const succeededRefundedCents = refunds
     .filter(r => r.status === 'succeeded')
     .reduce((sum, r) => sum + r.amount_cents, 0);
 
-  const maxRefundableCents = Math.max(0, totalCapturedCents - totalRefundedCents);
+  // For max refundable: treat both succeeded and pending as consumed to prevent double-refunds.
+  const reservedRefundCents = refunds
+    .filter(r => r.status === 'succeeded' || r.status === 'pending')
+    .reduce((sum, r) => sum + r.amount_cents, 0);
+
+  const maxRefundableCents = Math.max(0, totalCapturedCents - reservedRefundCents);
 
   const customFeesCents = customFees.reduce((sum, f) => sum + (f.amount_cents || 0), 0);
   const subtotalCents = order.subtotal_cents || 0;
@@ -183,13 +189,17 @@ export function PaymentManagementSection({
           <div className="bg-slate-50 border border-slate-200 rounded p-3">
             <div className="text-xs text-slate-700 mb-1">Total Refunded</div>
             <div className="text-lg font-bold text-slate-900">
-              {formatCurrency(totalRefundedCents)}
+              {formatCurrency(succeededRefundedCents)}
             </div>
-            {maxRefundableCents > 0 && (
+            {maxRefundableCents > 0 ? (
               <div className="text-xs text-slate-500 mt-1">
-                Remaining: {formatCurrency(maxRefundableCents)}
+                Available: {formatCurrency(maxRefundableCents)}
               </div>
-            )}
+            ) : reservedRefundCents > succeededRefundedCents ? (
+              <div className="text-xs text-amber-600 mt-1">
+                Pending refund in progress
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="bg-slate-50 border border-slate-200 rounded p-3">

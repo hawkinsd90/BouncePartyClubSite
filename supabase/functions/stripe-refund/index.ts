@@ -17,10 +17,7 @@ interface RefundRequest {
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders,
-    });
+    return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
@@ -48,7 +45,6 @@ Deno.serve(async (req: Request) => {
       .eq("user_id", user.id)
       .single();
 
-    // DB stores roles lowercase: "admin", "master"
     if (!userRole || (userRole.role !== "admin" && userRole.role !== "master")) {
       return new Response(
         JSON.stringify({ error: "Admin access required" }),
@@ -90,14 +86,32 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Server-side over-refund prevention: compute already-refunded amount
+    // Validate order exists
+    const { data: orderData, error: orderError } = await supabaseClient
+      .from("orders")
+      .select("id, status")
+      .eq("id", orderId)
+      .single();
+
+    if (orderError || !orderData) {
+      return new Response(
+        JSON.stringify({ error: "Order not found" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (orderData.status !== "cancelled") {
+      console.warn(`Refund issued for non-cancelled order ${orderId}, status: ${orderData.status}`);
+    }
+
+    // Server-side over-refund prevention: treat both succeeded AND pending refunds as consumed
     const { data: existingRefunds } = await supabaseClient
       .from("order_refunds")
       .select("amount_cents")
       .eq("order_id", orderId)
-      .eq("status", "succeeded");
+      .in("status", ["succeeded", "pending"]);
 
-    const alreadyRefundedCents = (existingRefunds ?? []).reduce(
+    const alreadyReservedCents = (existingRefunds ?? []).reduce(
       (sum: number, r: { amount_cents: number }) => sum + r.amount_cents,
       0
     );
@@ -122,7 +136,7 @@ Deno.serve(async (req: Request) => {
       (sum: number, p: { amount_cents: number }) => sum + p.amount_cents,
       0
     );
-    const maxRefundableCents = totalCapturedCents - alreadyRefundedCents;
+    const maxRefundableCents = totalCapturedCents - alreadyReservedCents;
 
     if (amountCents > maxRefundableCents) {
       return new Response(
@@ -133,13 +147,15 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Multi-payment allocation: allocate the refund across payments newest-first.
-    // For each payment intent, refund up to what remains on that PI.
     const stripeReason =
       reason === "duplicate" ? "duplicate"
       : reason === "fraudulent" ? "fraudulent"
       : "requested_by_customer";
 
+    // Multi-payment allocation: allocate the refund across payments newest-first.
+    // For each PI, query Stripe's refunds API directly to get accurately how much
+    // has already been refunded (avoids relying on charge.amount_refunded which
+    // requires expanding charges, deprecated in newer API versions).
     let remainingToRefund = amountCents;
     const createdRefunds: Stripe.Refund[] = [];
 
@@ -156,8 +172,22 @@ Deno.serve(async (req: Request) => {
 
       if (pi.status !== "succeeded") continue;
 
-      // How much has already been refunded on this specific PI via Stripe?
-      const piAlreadyRefunded = pi.charges?.data?.[0]?.amount_refunded ?? 0;
+      // Get all non-failed/non-canceled refunds on this PI from Stripe directly.
+      let piAlreadyRefunded = 0;
+      try {
+        const stripeRefundsList = await stripe.refunds.list({
+          payment_intent: pi.id,
+          limit: 100,
+        });
+        piAlreadyRefunded = stripeRefundsList.data
+          .filter((r: Stripe.Refund) => r.status !== "failed" && r.status !== "canceled")
+          .reduce((sum: number, r: Stripe.Refund) => sum + r.amount, 0);
+      } catch (err) {
+        console.error(`Error listing refunds for PI ${pi.id}:`, err);
+        // Do not assume 0 — skip this PI if we cannot verify its refundable amount.
+        continue;
+      }
+
       const piRefundable = pi.amount - piAlreadyRefunded;
       if (piRefundable <= 0) continue;
 
@@ -184,7 +214,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Insert one order_refunds row per Stripe refund object
+    // Insert one order_refunds row per Stripe refund object created
     const refundRows = createdRefunds.map(r => ({
       order_id: orderId,
       amount_cents: r.amount,
@@ -203,7 +233,7 @@ Deno.serve(async (req: Request) => {
       console.error("Error recording refunds:", refundError);
     }
 
-    // Safely update total_refunded_cents using actual DB value to avoid race conditions
+    // Atomically update total_refunded_cents
     const actualRefunded = amountCents - remainingToRefund;
     await supabaseClient.rpc("increment_order_refunded_cents", {
       p_order_id: orderId,
