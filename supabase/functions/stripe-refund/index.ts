@@ -214,7 +214,10 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Insert one order_refunds row per Stripe refund object created
+    // Insert one order_refunds row per Stripe refund object created.
+    // If this insert fails, the Stripe refunds already exist — return a specific
+    // error so the caller knows manual reconciliation is required. Never silently
+    // report success when the DB record is missing.
     const refundRows = createdRefunds.map(r => ({
       order_id: orderId,
       amount_cents: r.amount,
@@ -229,16 +232,37 @@ Deno.serve(async (req: Request) => {
       .insert(refundRows)
       .select();
 
-    if (refundError) {
-      console.error("Error recording refunds:", refundError);
+    if (refundError || !refundRecords?.length) {
+      console.error("CRITICAL: Stripe refunds created but DB recording failed:", refundError);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          stripeRefundsCreated: createdRefunds.map(r => ({ id: r.id, amount: r.amount, status: r.status })),
+          error: "Stripe refund(s) were processed but could not be recorded in the database. Manual reconciliation required.",
+        }),
+        { status: 207, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // Atomically update total_refunded_cents
+    // Only update order total after successful DB insert.
     const actualRefunded = amountCents - remainingToRefund;
-    await supabaseClient.rpc("increment_order_refunded_cents", {
+    const { error: rpcError } = await supabaseClient.rpc("increment_order_refunded_cents", {
       p_order_id: orderId,
       p_amount_cents: actualRefunded,
     });
+
+    if (rpcError) {
+      console.error("Warning: refund recorded but order total update failed:", rpcError);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          warning: "Refund processed and recorded, but order total_refunded_cents could not be updated. Totals may be temporarily out of sync.",
+          refunds: createdRefunds.map(r => ({ id: r.id, amount: r.amount, status: r.status })),
+          refundRecords,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     return new Response(
       JSON.stringify({
