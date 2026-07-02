@@ -12,6 +12,7 @@ export interface DamageRecord {
 export function usePendingOrderData(orderId: string) {
   const [smsConversations, setSmsConversations] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
+  const [refunds, setRefunds] = useState<any[]>([]);
   const [contact, setContact] = useState<any>(null);
   const [orderSummary, setOrderSummary] = useState<any>(null);
   const [customFees, setCustomFees] = useState<any[]>([]);
@@ -90,6 +91,15 @@ export function usePendingOrderData(orderId: string) {
     }
   }
 
+  async function loadRefunds() {
+    const { data } = await supabase
+      .from('order_refunds')
+      .select('*')
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: false });
+    if (data) setRefunds(data);
+  }
+
   async function loadSummary() {
     if (loadingSummaryRef.current) {
       return;
@@ -111,6 +121,7 @@ export function usePendingOrderData(orderId: string) {
   return {
     smsConversations,
     payments,
+    refunds,
     contact,
     orderSummary,
     customFees,
@@ -119,6 +130,7 @@ export function usePendingOrderData(orderId: string) {
     loadSmsConversations,
     loadContact,
     loadPayments,
+    loadRefunds,
     loadSummary,
     loadCustomFees,
     loadDiscounts,

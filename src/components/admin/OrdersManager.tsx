@@ -177,6 +177,10 @@ export function OrdersManager() {
       }
     });
 
+    categories.cancelled.sort((a: any, b: any) =>
+      new Date(b.event_date + 'T12:00:00').getTime() - new Date(a.event_date + 'T12:00:00').getTime()
+    );
+
     return categories;
   }, [orders]);
 

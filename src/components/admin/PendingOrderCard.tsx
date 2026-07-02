@@ -55,6 +55,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
   const {
     smsConversations,
     payments,
+    refunds,
     contact,
     orderSummary,
     customFees,
@@ -63,6 +64,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
     loadSmsConversations,
     loadContact,
     loadPayments,
+    loadRefunds,
     loadSummary,
     loadCustomFees,
     loadDiscounts,
@@ -81,6 +83,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
   useEffect(() => {
     loadSmsConversations();
     loadPayments();
+    loadRefunds();
     loadContact(order.customers?.email);
     loadSummary();
     loadCustomFees();
@@ -192,6 +195,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
 
   const isDraft = order.status === ORDER_STATUS.DRAFT;
   const isAwaitingApproval = order.status === ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL;
+  const isPendingReview = order.status === ORDER_STATUS.PENDING;
   const paymentUrl = `${window.location.origin}/checkout/${order.id}`;
 
   async function handleCopyPaymentLink() {
@@ -314,7 +318,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
         isSending={sendingSms}
       />
 
-      <PaymentManagementSection order={order} payments={payments} customFees={customFees} discounts={discounts} />
+      <PaymentManagementSection order={order} payments={payments} refunds={refunds} customFees={customFees} discounts={discounts} onRefundSuccess={() => { loadPayments(); loadRefunds(); onUpdate(); }} />
 
       {isDraft ? (
         <div ref={actionButtonsRef} className="space-y-3">
@@ -348,7 +352,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
             {processing ? 'Processing...' : 'Force Approve (Admin Override)'}
           </button>
         </div>
-      ) : (
+      ) : isPendingReview ? (
         <div ref={actionButtonsRef} className="flex gap-3">
           <button
             onClick={() => setShowApprovalModal(true)}
@@ -365,6 +369,8 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
             Reject
           </button>
         </div>
+      ) : (
+        <div ref={actionButtonsRef} />
       )}
 
       {showApprovalModal && (
