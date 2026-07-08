@@ -151,7 +151,12 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
   const needsPayment = balanceDue > 0;
   const canCancel = (CANCELLABLE_STATUSES as readonly string[]).includes(order.status);
   const isConfirmed = order.status === ORDER_STATUS.CONFIRMED;
-  const stepsUnlocked = totalPaid > 0 || isConfirmed;
+  const isActiveOrder = [
+    ORDER_STATUS.CONFIRMED,
+    ORDER_STATUS.IN_PROGRESS,
+    ORDER_STATUS.COMPLETED,
+  ].includes(order.status as any);
+  const stepsUnlocked = totalPaid > 0 || isActiveOrder;
   const orderDelivered = ([ORDER_STATUS.COMPLETED, ORDER_STATUS.IN_PROGRESS] as string[]).includes(order.status) &&
     ['setup_completed', 'pickup_scheduled', 'pickup_in_progress'].includes(order.workflow_status || '')
     || order.status === ORDER_STATUS.COMPLETED;
