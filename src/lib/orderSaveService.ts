@@ -236,18 +236,30 @@ export async function saveOrderChanges({
     const isConfirmedWithPayment = (order.status === ORDER_STATUS.CONFIRMED || order.status === ORDER_STATUS.IN_PROGRESS) && depositAlreadyCapturedCents > 0;
     const depositDifferenceCents = Math.max(0, finalDepositCents - depositAlreadyCapturedCents);
 
-    const balanceAlreadyPaidCents = order.balance_paid_cents || 0;
+    // deposit_paid_cents and balance_paid_cents are mutually exclusive payment
+    // classifications (each payment is one or the other, never both).
+    // Summing them gives total collected without double-counting.
+    const totalAlreadyPaidCents =
+      (order.deposit_paid_cents || 0) + (order.balance_paid_cents || 0);
+
+    // HOTFIX GUARD: For refunded orders, preserve stored balance_due_cents.
+    // The formula below does not account for total_refunded_cents, so applying
+    // it to a refunded order could recreate a false customer balance.
+    // TODO: centralize refund-aware balance calculation in a shared RPC.
+    const hasRefunds = (order.total_refunded_cents || 0) > 0;
 
     let newBalanceDueCents: number;
-    if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'require') {
-      newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents - balanceAlreadyPaidCents);
+    if (hasRefunds) {
+      newBalanceDueCents = order.balance_due_cents ?? 0;
+    } else if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'require') {
+      newBalanceDueCents = Math.max(0, effectiveTotalCents - totalAlreadyPaidCents);
       changes.deposit_catchup_cents = depositDifferenceCents;
       logs.push(['deposit_catchup', 0, depositDifferenceCents]);
     } else if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'waive') {
-      newBalanceDueCents = Math.max(0, effectiveTotalCents - depositAlreadyCapturedCents - balanceAlreadyPaidCents);
+      newBalanceDueCents = Math.max(0, effectiveTotalCents - totalAlreadyPaidCents);
       changes.deposit_catchup_cents = 0;
     } else {
-      newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents - balanceAlreadyPaidCents);
+      newBalanceDueCents = Math.max(0, effectiveTotalCents - totalAlreadyPaidCents);
     }
 
     if (newBalanceDueCents !== order.balance_due_cents) {

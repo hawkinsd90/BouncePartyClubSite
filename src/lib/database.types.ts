@@ -598,15 +598,12 @@ export interface Database {
       task_status: {
         Row: {
           id: string
-          task_id: string | null
           order_id: string
           status: string
           crew_notes: string | null
           admin_notes: string | null
           notes: string | null
-          completed_at: string | null
           completed_time: string | null
-          estimated_arrival: string | null
           sort_order: number | null
           task_type: string | null
           task_date: string | null

@@ -364,6 +364,47 @@ export function OrdersManager() {
     };
   }, [activeTab, filteredOrders]);
 
+  // Use URL params as the authority — on fresh navigation from the calendar,
+  // tabFromUrl and singleOrderId are set before React state initialises.
+  const isSingleOrderRoute = tabFromUrl === 'single_order' || Boolean(singleOrderId);
+
+  if (isSingleOrderRoute) {
+    if (singleOrderId) {
+      return (
+        <SingleOrderView
+          key={singleOrderId}
+          orderId={singleOrderId}
+          openEditMode={editMode}
+          onBack={() => handleTabChange('all')}
+          onUpdate={refetch}
+        />
+      );
+    }
+    return (
+      <div className="bg-white rounded-lg shadow p-8">
+        <h3 className="text-lg font-semibold text-slate-900 mb-4">Search for an Order</h3>
+        <p className="text-slate-600 mb-6">Enter an order ID to view a specific order</p>
+        <div className="flex gap-3 max-w-xl">
+          <input
+            type="text"
+            value={singleOrderSearchId}
+            onChange={(e) => setSingleOrderSearchId(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSingleOrderSearch()}
+            placeholder="Enter Order ID (e.g., CDF04DF2)"
+            className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            onClick={handleSingleOrderSearch}
+            disabled={!singleOrderSearchId.trim()}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+          >
+            Search
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="text-center py-12">
@@ -460,38 +501,7 @@ export function OrdersManager() {
         </div>
       )}
 
-      {activeTab === 'single_order' ? (
-        singleOrderId ? (
-          <SingleOrderView
-            orderId={singleOrderId}
-            openEditMode={editMode}
-            onBack={() => handleTabChange('all')}
-            onUpdate={refetch}
-          />
-        ) : (
-          <div className="bg-white rounded-lg shadow p-8">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Search for an Order</h3>
-            <p className="text-slate-600 mb-6">Enter an order ID to view a specific order</p>
-            <div className="flex gap-3 max-w-xl">
-              <input
-                type="text"
-                value={singleOrderSearchId}
-                onChange={(e) => setSingleOrderSearchId(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSingleOrderSearch()}
-                placeholder="Enter Order ID (e.g., CDF04DF2)"
-                className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <button
-                onClick={handleSingleOrderSearch}
-                disabled={!singleOrderSearchId.trim()}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
-              >
-                Search
-              </button>
-            </div>
-          </div>
-        )
-      ) : filteredOrders.length === 0 ? (
+      {filteredOrders.length === 0 ? (
         <div className="bg-white rounded-lg shadow p-12 text-center">
           <p className="text-slate-600 text-lg">No orders found</p>
           <p className="text-slate-500 text-sm mt-2">

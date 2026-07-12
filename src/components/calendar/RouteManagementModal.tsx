@@ -261,46 +261,80 @@ export function RouteManagementModal({
       const tasksForOptimization = await Promise.all(localTasks.map(async (task) => {
         if (task.taskStatus) return task;
 
-        const { data, error } = await supabase
+        const dateStr = format(task.date, 'yyyy-MM-dd');
+
+        // Step 1: check for an existing row without overwriting it
+        const { data: existing, error: selectError } = await supabase
+          .from('task_status')
+          .select('id, status, sort_order, completed_time, delivery_images, damage_images, eta_sent')
+          .eq('order_id', task.orderId)
+          .eq('task_type', task.type)
+          .eq('task_date', dateStr)
+          .maybeSingle();
+
+        if (selectError) throw selectError;
+
+        if (existing) {
+          return {
+            ...task,
+            taskStatus: {
+              id: existing.id,
+              status: existing.status,
+              sortOrder: existing.sort_order ?? null,
+              completedTime: existing.completed_time ?? null,
+              deliveryImages: (existing.delivery_images as any) || [],
+              damageImages: (existing.damage_images as any) || [],
+              etaSent: existing.eta_sent || false,
+            },
+          };
+        }
+
+        // Step 2: insert minimal pending row — route ordering is a separate update
+        const { data: inserted, error: insertError } = await supabase
           .from('task_status')
           .insert({
             order_id: task.orderId,
             task_type: task.type,
-            task_date: task.date.toISOString().split('T')[0],
+            task_date: dateStr,
             status: 'pending',
-            task_id: null,
-            crew_notes: null,
-            admin_notes: null,
-            notes: null,
-            completed_at: null,
-            completed_time: null,
-            estimated_arrival: null,
-            sort_order: 0,
-            en_route_time: null,
-            eta_sent: false,
-            waiver_reminder_sent: false,
-            payment_reminder_sent: false,
-            calculated_eta_minutes: null,
-            gps_lat: null,
-            gps_lng: null,
-            eta_calculation_error: null,
-            delivery_images: null,
-            damage_images: null,
           })
-          .select()
+          .select('id, status, sort_order, completed_time, delivery_images, damage_images, eta_sent')
           .single();
 
-        if (error) {
-          console.error('Error creating task status:', error);
-          throw error;
+        if (insertError) {
+          // Step 3: unique violation — fetch the concurrent winner's row
+          if (insertError.code === '23505') {
+            const { data: raceWinner, error: raceSelectError } = await supabase
+              .from('task_status')
+              .select('id, status, sort_order, completed_time, delivery_images, damage_images, eta_sent')
+              .eq('order_id', task.orderId)
+              .eq('task_type', task.type)
+              .eq('task_date', dateStr)
+              .single();
+            if (raceSelectError) throw raceSelectError;
+            return {
+              ...task,
+              taskStatus: {
+                id: raceWinner.id,
+                status: raceWinner.status,
+                sortOrder: raceWinner.sort_order ?? null,
+                completedTime: raceWinner.completed_time ?? null,
+                deliveryImages: (raceWinner.delivery_images as any) || [],
+                damageImages: (raceWinner.damage_images as any) || [],
+                etaSent: raceWinner.eta_sent || false,
+              },
+            };
+          }
+          console.error('Error creating task status:', insertError);
+          throw insertError;
         }
 
         return {
           ...task,
           taskStatus: {
-            id: data.id,
-            status: data.status,
-            sortOrder: 0,
+            id: inserted.id,
+            status: inserted.status,
+            sortOrder: inserted.sort_order ?? null,
             completedTime: null,
             deliveryImages: [] as string[],
             damageImages: [] as string[],

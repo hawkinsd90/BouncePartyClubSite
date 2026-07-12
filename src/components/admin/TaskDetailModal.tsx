@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { X, ChevronUp, ChevronDown, AlertTriangle, RefreshCw, ExternalLink, ArrowLeft, CheckCircle2 } from 'lucide-react';
@@ -94,37 +95,54 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
   const canMoveUp = stopNumber > 0 && currentIndex > 0;
   const canMoveDown = stopNumber > 0 && currentIndex !== -1 && currentIndex < tasksOfSameType.length - 1;
 
-  async function ensureTaskStatus() {
+  async function ensureTaskStatus(): Promise<string> {
     if (task.taskStatus?.id) return task.taskStatus.id;
-    const { data, error } = await supabase
+
+    const dateStr = format(task.date, 'yyyy-MM-dd');
+
+    // Step 1: check for an existing row (covers the case where taskStatus was
+    // not populated at load time but a row already exists in the DB)
+    const { data: existing, error: selectError } = await supabase
+      .from('task_status')
+      .select('id')
+      .eq('order_id', task.orderId)
+      .eq('task_type', task.type)
+      .eq('task_date', dateStr)
+      .maybeSingle();
+
+    if (selectError) throw selectError;
+    if (existing) return existing.id;
+
+    // Step 2: insert a minimal pending row — never overwrite status,
+    // timestamps, images, notes, or sort_order on an existing row
+    const { data: inserted, error: insertError } = await supabase
       .from('task_status')
       .insert({
         order_id: task.orderId,
         task_type: task.type,
-        task_date: task.date.toISOString().split('T')[0],
+        task_date: dateStr,
         status: 'pending',
-        task_id: null,
-        crew_notes: null,
-        admin_notes: null,
-        notes: null,
-        completed_at: null,
-        completed_time: null,
-        estimated_arrival: null,
-        sort_order: null,
-        en_route_time: null,
-        eta_sent: false,
-        waiver_reminder_sent: false,
-        payment_reminder_sent: false,
-        calculated_eta_minutes: null,
-        gps_lat: null,
-        gps_lng: null,
-        eta_calculation_error: null,
-        delivery_images: null,
-        damage_images: null,
       })
-      .select().single();
-    if (error) throw error;
-    return data.id;
+      .select('id')
+      .single();
+
+    if (insertError) {
+      // Step 3: unique violation 23505 means a concurrent request won the race
+      if (insertError.code === '23505') {
+        const { data: raceWinner, error: raceSelectError } = await supabase
+          .from('task_status')
+          .select('id')
+          .eq('order_id', task.orderId)
+          .eq('task_type', task.type)
+          .eq('task_date', dateStr)
+          .single();
+        if (raceSelectError) throw raceSelectError;
+        return raceWinner.id;
+      }
+      throw insertError;
+    }
+
+    return inserted.id;
   }
 
   async function handleEnRoute() {

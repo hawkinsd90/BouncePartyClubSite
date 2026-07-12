@@ -6,6 +6,23 @@ import { ORDER_STATUS } from '../lib/constants/statuses';
 
 export type PickupReadiness = 'projected' | 'blocked' | 'ready' | 'completed';
 
+function deriveWaiverType(
+  waiverSignedAt: string | null,
+  signatures: Array<{
+    electronic_consent_given: boolean;
+    physical_waiver_storage_path: string | null;
+    physical_waiver_upload_source?: string | null;
+  }>
+): 'digital' | 'paper_with_photo' | 'paper_no_photo' | null {
+  if (!waiverSignedAt) return null;
+  if (!signatures || signatures.length === 0) return null;
+  // Scan all rows — digital takes priority across the entire set
+  if (signatures.some(s => s.electronic_consent_given)) return 'digital';
+  if (signatures.some(s => s.physical_waiver_storage_path)) return 'paper_with_photo';
+  if (signatures.some(s => s.physical_waiver_upload_source === 'admin_no_photo')) return 'paper_no_photo';
+  return null;
+}
+
 export interface Task {
   id: string;
   orderId: string;
@@ -174,7 +191,7 @@ export function useCalendarTasks(currentMonth: Date) {
           customers (first_name, last_name, phone, email),
           addresses (line1, city, state, zip, lat, lng),
           payments (id, amount_cents, status, paid_at, type),
-          order_signatures!order_signatures_order_id_fkey (electronic_consent_given, waiver_version, physical_waiver_storage_path)
+          order_signatures!order_signatures_order_id_fkey (electronic_consent_given, waiver_version, physical_waiver_storage_path, physical_waiver_upload_source)
         `)
         .gte('event_date', format(queryStart, 'yyyy-MM-dd'))
         .lte('event_date', format(monthEnd, 'yyyy-MM-dd'))
@@ -269,14 +286,10 @@ export function useCalendarTasks(currentMonth: Date) {
           balancePaidCents: order.balance_paid_cents || 0,
           tipCents: order.tip_cents || 0,
           waiverSigned: !!order.waiver_signed_at,
-          waiverType: (() => {
-            if (!order.waiver_signed_at) return null;
-            const sig = (order.order_signatures as any[])?.[0];
-            if (!sig) return null;
-            if (sig.electronic_consent_given) return 'digital' as const;
-            if (sig.physical_waiver_storage_path) return 'paper_with_photo' as const;
-            return 'paper_no_photo' as const;
-          })(),
+          waiverType: deriveWaiverType(
+            order.waiver_signed_at,
+            (order.order_signatures as any[]) ?? []
+          ),
           balanceDue,
           stripePaymentMethodId: order.stripe_payment_method_id || null,
           paymentMethodBrand: order.payment_method_brand || null,
@@ -339,14 +352,10 @@ export function useCalendarTasks(currentMonth: Date) {
           balancePaidCents: order.balance_paid_cents || 0,
           tipCents: order.tip_cents || 0,
           waiverSigned: !!order.waiver_signed_at,
-          waiverType: (() => {
-            if (!order.waiver_signed_at) return null;
-            const sig = (order.order_signatures as any[])?.[0];
-            if (!sig) return null;
-            if (sig.electronic_consent_given) return 'digital' as const;
-            if (sig.physical_waiver_storage_path) return 'paper_with_photo' as const;
-            return 'paper_no_photo' as const;
-          })(),
+          waiverType: deriveWaiverType(
+            order.waiver_signed_at,
+            (order.order_signatures as any[]) ?? []
+          ),
           balanceDue,
           stripePaymentMethodId: order.stripe_payment_method_id || null,
           paymentMethodBrand: order.payment_method_brand || null,
