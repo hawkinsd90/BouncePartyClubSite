@@ -252,12 +252,9 @@ export function useCalendarTasks(currentMonth: Date) {
         const numInflatables = orderItemsForOrder
           .reduce((sum, item) => sum + (item.qty || 1), 0);
 
-        const total = (order.balance_due_cents || 0) + (order.deposit_due_cents || 0);
+        const total = order.total_cents || 0;
 
-        // Use the DB-stored balance_due_cents (which correctly accounts for deposit,
-        // custom fees, discounts, and all pricing) minus any balance already paid.
-        // This avoids raw-field math that misses custom fees and uses non-existent columns.
-        const balanceDue = Math.max(0, (order.balance_due_cents || 0) - (order.balance_paid_cents || 0));
+        const balanceDue = Math.max(0, order.balance_due_cents || 0);
 
         const eventDateStr = format(eventDate, 'yyyy-MM-dd');
         const dropOffStatus = taskStatuses?.find(
