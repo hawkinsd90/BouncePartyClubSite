@@ -616,6 +616,12 @@ export async function saveOrderChanges({
     const { error: updateError } = await supabase.from('orders').update(changes).eq('id', order.id);
     if (updateError) throw new Error(`Failed to update order: ${updateError.message}`);
 
+    if (hasCustomerVisibleChanges) {
+      const channel = supabase.channel(`portal-order-${order.id}`);
+      await channel.send({ type: 'broadcast', event: 'order_updated', payload: { id: order.id } });
+      supabase.removeChannel(channel);
+    }
+
     for (const [field, oldVal, newVal] of logs) {
       await logChangeFn(field, oldVal, newVal);
     }
