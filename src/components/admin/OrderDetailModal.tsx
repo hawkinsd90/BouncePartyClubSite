@@ -18,6 +18,7 @@ import { useOrderDetails } from '../../hooks/useOrderDetails';
 import { saveOrderChanges } from '../../lib/orderSaveService';
 import { sendOrderEditNotifications } from '../../lib/orderNotificationService';
 import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
+import { ORDER_STATUS } from '../../lib/constants/statuses';
 
 interface OrderDetailModalProps {
   order: any;
@@ -76,6 +77,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [customDepositCents, setCustomDepositCents] = useState<number | null>(null);
   const [customDepositInput, setCustomDepositInput] = useState('');
   const [currentOrderSummary, setCurrentOrderSummary] = useState<any>(null);
+  const [requireCardOnFile, setRequireCardOnFile] = useState(order.require_card_on_file ?? true);
+  const [manualDirty, setManualDirty] = useState(false);
 
   // Initialize taxWaived based on actual tax state and current settings
   // For old orders created before apply_taxes_by_default setting:
@@ -288,8 +291,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
     const itemsChanged = stagedItems.some(item => item.is_new || item.is_deleted);
 
-    setHasChanges(orderChanged || itemsChanged);
-  }, [editedOrder, stagedItems, order]);
+    setHasChanges(manualDirty || orderChanged || itemsChanged);
+  }, [editedOrder, stagedItems, order, manualDirty]);
 
   // Handle multi-day logic: if dates are different, lock to next_day pickup
   useEffect(() => {
@@ -435,6 +438,9 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         order_id: order.id,
         user_id: user?.id || null,
         field_changed: field,
+        field_name: field,
+        changed_by: user?.id || null,
+        notes: null,
         old_value: oldValue !== null && oldValue !== undefined ? String(oldValue) : null,
         new_value: newValue !== null && newValue !== undefined ? String(newValue) : null,
         change_type: action === 'update' ? 'edit' : action === 'add' ? 'add' : 'remove',
@@ -497,6 +503,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         adminOverrideApproval,
         availabilityIssues,
         depositCatchupMode,
+        requireCardOnFile,
         taxWaived,
         taxWaiveReason,
         travelFeeWaived,
@@ -515,6 +522,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         },
         onComplete: async () => {
           await loadOrderDetails();
+          setManualDirty(false);
           onUpdate();
           onClose();
         },
@@ -536,7 +544,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   // Memoized callbacks to prevent child component re-renders
   const handleOrderChange = useCallback((updates: any) => {
     setEditedOrder((prev: any) => ({ ...prev, ...updates }));
-    setHasChanges(true);
+    setManualDirty(true);
   }, []);
 
   const handleAddressSelect = useCallback((result: any) => {
@@ -549,7 +557,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       address_lat: result.lat || null,
       address_lng: result.lng || null,
     }));
-    setHasChanges(true);
+    setManualDirty(true);
   }, []);
 
   const handleClose = useCallback(() => {
@@ -573,7 +581,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
             </p>
           </div>
           <div className="flex items-center gap-1 md:gap-2 shrink-0">
-            {hasChanges && (
+            {hasChanges && order.status !== ORDER_STATUS.DRAFT && (
               <>
                 <label className="flex items-center gap-1.5 bg-amber-50 border border-amber-300 text-amber-900 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-medium cursor-pointer hover:bg-amber-100">
                   <input
@@ -678,57 +686,62 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               onDepositInputChange={setCustomDepositInput}
               onDepositApply={(amountCents) => {
                 setCustomDepositCents(amountCents);
-                setHasChanges(true);
+                setManualDirty(true);
               }}
               onDepositClear={() => {
                 setCustomDepositCents(null);
                 setCustomDepositInput('');
-                setHasChanges(true);
+                setManualDirty(true);
               }}
               onAdminMessageChange={(value) => {
                 setAdminMessage(value);
-                setHasChanges(true);
+                setManualDirty(true);
               }}
               onTaxWaivedToggle={(reason) => {
                 setTaxWaived(!taxWaived);
                 setTaxWaiveReason(reason);
-                setHasChanges(true);
+                setManualDirty(true);
               }}
               onTravelFeeWaivedToggle={(reason) => {
                 setTravelFeeWaived(!travelFeeWaived);
                 setTravelFeeWaiveReason(reason);
-                setHasChanges(true);
+                setManualDirty(true);
               }}
               onSameDayPickupFeeWaivedToggle={(reason) => {
                 setSameDayPickupFeeWaived(!sameDayPickupFeeWaived);
                 setSameDayPickupFeeWaiveReason(reason);
-                setHasChanges(true);
+                setManualDirty(true);
               }}
               surfaceFeeWaived={surfaceFeeWaived}
               surfaceFeeWaiveReason={surfaceFeeWaiveReason}
               onSurfaceFeeWaivedToggle={(reason) => {
                 setSurfaceFeeWaived(!surfaceFeeWaived);
                 setSurfaceFeeWaiveReason(reason);
-                setHasChanges(true);
+                setManualDirty(true);
               }}
               generatorFeeWaived={generatorFeeWaived}
               generatorFeeWaiveReason={generatorFeeWaiveReason}
               onGeneratorFeeWaivedToggle={(reason) => {
                 setGeneratorFeeWaived(!generatorFeeWaived);
                 setGeneratorFeeWaiveReason(reason);
-                setHasChanges(true);
+                setManualDirty(true);
               }}
               sameDayWeekdayDeliveryFeeWaived={sameDayWeekdayDeliveryFeeWaived}
               sameDayWeekdayDeliveryFeeWaiveReason={sameDayWeekdayDeliveryFeeWaiveReason}
               onSameDayWeekdayDeliveryFeeWaivedToggle={(reason) => {
                 setSameDayWeekdayDeliveryFeeWaived(!sameDayWeekdayDeliveryFeeWaived);
                 setSameDayWeekdayDeliveryFeeWaiveReason(reason);
-                setHasChanges(true);
+                setManualDirty(true);
               }}
               depositCatchupMode={depositCatchupMode}
               onDepositCatchupModeChange={setDepositCatchupMode}
+              requireCardOnFile={requireCardOnFile}
+              onRequireCardOnFileChange={(value) => {
+                setRequireCardOnFile(value);
+                setManualDirty(true);
+              }}
               onStatusChange={initiateStatusChange}
-              onMarkChanges={() => setHasChanges(true)}
+              onMarkChanges={() => setManualDirty(true)}
             />
           )}
 

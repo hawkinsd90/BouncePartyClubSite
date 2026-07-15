@@ -12,6 +12,8 @@ import { AdminMessage } from './AdminMessage';
 import { TaxWaiver } from './TaxWaiver';
 import { TravelFeeManager } from './TravelFeeManager';
 import { FeeWaiver } from '../shared/FeeWaiver';
+import { CardOnFileRequirement } from '../shared/CardOnFileRequirement';
+import { VALID_ADMIN_TRANSITIONS } from '../../lib/orderStateMachine';
 
 interface OrderDetailsTabProps {
   order: any;
@@ -62,6 +64,8 @@ interface OrderDetailsTabProps {
   onSameDayWeekdayDeliveryFeeWaivedToggle: (reason: string) => void;
   onStatusChange: (status: string) => void;
   onMarkChanges: () => void;
+  requireCardOnFile: boolean;
+  onRequireCardOnFileChange: (value: boolean) => void;
 }
 
 export function OrderDetailsTab({
@@ -113,12 +117,34 @@ export function OrderDetailsTab({
   onSameDayWeekdayDeliveryFeeWaivedToggle,
   onStatusChange,
   onMarkChanges,
+  requireCardOnFile,
+  onRequireCardOnFileChange,
 }: OrderDetailsTabProps) {
   const depositAlreadyCapturedCents = order.deposit_paid_cents || 0;
   const isConfirmedWithPayment = (order.status === ORDER_STATUS.CONFIRMED || order.status === ORDER_STATUS.IN_PROGRESS) && depositAlreadyCapturedCents > 0;
   const newDepositDueCents = customDepositCents !== null ? customDepositCents : (calculatedPricing?.deposit_due_cents ?? order.deposit_due_cents ?? 0);
   const depositDifferenceCents = Math.max(0, newDepositDueCents - depositAlreadyCapturedCents);
   const showCatchupPanel = isConfirmedWithPayment && hasChanges && depositDifferenceCents > 0;
+  const editModeMessage = (() => {
+    switch (order.status) {
+      case ORDER_STATUS.DRAFT:
+        return 'Saving changes keeps the order in Draft. The customer must accept the invoice to confirm the order.';
+      case ORDER_STATUS.PENDING:
+        return 'Make changes to order details and items below. Click "Save Changes" to apply all changes at once. The order status will be set to "Awaiting Customer Approval" when saved.';
+      case ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL:
+        return 'Make changes to order details and items below. Click "Save Changes" to apply all changes at once. The order remains in the customer approval workflow unless approval is skipped.';
+      case ORDER_STATUS.CONFIRMED:
+        return 'Make changes to order details and items below. Click "Save Changes" to apply all changes at once. A normal Save sends changes for customer approval. Use "Skip Customer Approval" to keep the order Confirmed without customer review.';
+      case ORDER_STATUS.IN_PROGRESS:
+      case ORDER_STATUS.COMPLETED:
+      case ORDER_STATUS.CANCELLED:
+      case ORDER_STATUS.VOID:
+        return 'Make changes to order details and items below. Click "Save Changes" to apply all changes at once. Changes will be saved without changing the order status.';
+      default:
+        return 'Make changes to order details and items below. Click "Save Changes" to apply all changes at once.';
+    }
+  })();
+
   return (
     <div className="space-y-6">
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
@@ -127,8 +153,7 @@ export function OrderDetailsTab({
           <h3 className="font-semibold text-amber-900">Edit Mode Active</h3>
         </div>
         <p className="text-sm text-amber-700">
-          Make changes to order details and items below. Click "Save Changes" to apply all changes at once.
-          The order status will be set to "Awaiting Customer Approval" when saved.
+          {editModeMessage}
         </p>
       </div>
 
@@ -336,6 +361,13 @@ export function OrderDetailsTab({
         onClear={onDepositClear}
       />
 
+      {newDepositDueCents === 0 && (
+        <CardOnFileRequirement
+          requireCardOnFile={requireCardOnFile}
+          onChange={onRequireCardOnFileChange}
+        />
+      )}
+
       <TaxWaiver
         taxCents={calculatedPricing?.tax_cents || order.tax_cents}
         taxWaived={taxWaived}
@@ -409,7 +441,7 @@ export function OrderDetailsTab({
       <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
         <h3 className="font-semibold text-slate-900 mb-3">Order Status</h3>
         <div className="flex flex-wrap gap-2">
-          {[ORDER_STATUS.PENDING, ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL, ORDER_STATUS.CONFIRMED, ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.COMPLETED, ORDER_STATUS.CANCELLED, ORDER_STATUS.VOID].map(status => (
+          {(VALID_ADMIN_TRANSITIONS[order.status as string] || []).map(status => (
             <button
               key={status}
               onClick={() => onStatusChange(status)}

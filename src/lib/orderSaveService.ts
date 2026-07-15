@@ -28,6 +28,7 @@ interface SaveOrderChangesParams {
   sameDayWeekdayDeliveryFeeWaived?: boolean;
   sameDayWeekdayDeliveryFeeWaiveReason?: string;
   depositCatchupMode?: 'require' | 'waive';
+  requireCardOnFile?: boolean;
   logChangeFn: (field: string, oldValue: any, newValue: any, action?: 'update' | 'add' | 'remove') => Promise<void>;
   sendNotificationsFn: () => Promise<void>;
   onComplete: () => void;
@@ -57,6 +58,7 @@ export async function saveOrderChanges({
   sameDayWeekdayDeliveryFeeWaived,
   sameDayWeekdayDeliveryFeeWaiveReason,
   depositCatchupMode,
+  requireCardOnFile,
   logChangeFn,
   sendNotificationsFn,
   onComplete,
@@ -239,8 +241,6 @@ export async function saveOrderChanges({
     // deposit_paid_cents and balance_paid_cents are mutually exclusive payment
     // classifications (each payment is one or the other, never both).
     // Summing them gives total collected without double-counting.
-    const totalAlreadyPaidCents =
-      (order.deposit_paid_cents || 0) + (order.balance_paid_cents || 0);
 
     // HOTFIX GUARD: For refunded orders, preserve stored balance_due_cents.
     // The formula below does not account for total_refunded_cents, so applying
@@ -248,18 +248,22 @@ export async function saveOrderChanges({
     // TODO: centralize refund-aware balance calculation in a shared RPC.
     const hasRefunds = (order.total_refunded_cents || 0) > 0;
 
+    const depositPaidCents = order.deposit_paid_cents || 0;
+    const balancePaidCents = order.balance_paid_cents || 0;
+    const excessDepositPaidCents = Math.max(0, depositPaidCents - finalDepositCents);
+
     let newBalanceDueCents: number;
     if (hasRefunds) {
       newBalanceDueCents = order.balance_due_cents ?? 0;
     } else if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'require') {
-      newBalanceDueCents = Math.max(0, effectiveTotalCents - totalAlreadyPaidCents);
+      newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents - balancePaidCents - excessDepositPaidCents);
       changes.deposit_catchup_cents = depositDifferenceCents;
       logs.push(['deposit_catchup', 0, depositDifferenceCents]);
     } else if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'waive') {
-      newBalanceDueCents = Math.max(0, effectiveTotalCents - totalAlreadyPaidCents);
+      newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents - balancePaidCents - excessDepositPaidCents);
       changes.deposit_catchup_cents = 0;
     } else {
-      newBalanceDueCents = Math.max(0, effectiveTotalCents - totalAlreadyPaidCents);
+      newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents - balancePaidCents - excessDepositPaidCents);
     }
 
     if (newBalanceDueCents !== order.balance_due_cents) {
@@ -375,16 +379,18 @@ export async function saveOrderChanges({
   // Handle item changes
   for (const item of stagedItems) {
     if (item.is_new && !item.is_deleted) {
-      await supabase.from('order_items').insert({
+      const { error: itemInsertError } = await supabase.from('order_items').insert({
         order_id: order.id,
         unit_id: item.unit_id,
         qty: item.qty,
         wet_or_dry: item.wet_or_dry,
         unit_price_cents: item.unit_price_cents,
       });
+      if (itemInsertError) throw new Error(`Failed to add item: ${itemInsertError.message}`);
       await logChangeFn('order_items', '', `${item.unit_name} (${item.wet_or_dry})`, 'add');
     } else if (item.is_deleted && item.id) {
-      await supabase.from('order_items').delete().eq('id', item.id);
+      const { error: itemDeleteError } = await supabase.from('order_items').delete().eq('id', item.id);
+      if (itemDeleteError) throw new Error(`Failed to remove item: ${itemDeleteError.message}`);
       await logChangeFn('order_items', `${item.unit_name} (${item.wet_or_dry})`, '', 'remove');
     }
   }
@@ -417,7 +423,8 @@ export async function saveOrderChanges({
     const deletedDiscounts = originalDiscounts.data.filter(od => !currentDiscountIds.includes(od.id));
     deletedDiscountCount = deletedDiscounts.length;
     for (const deleted of deletedDiscounts) {
-      await supabase.from('order_discounts').delete().eq('id', deleted.id);
+      const { error: discDeleteError } = await supabase.from('order_discounts').delete().eq('id', deleted.id);
+      if (discDeleteError) throw new Error(`Failed to remove discount: ${discDeleteError.message}`);
       await logChangeFn('discounts', deleted.name, '', 'remove');
     }
 
@@ -429,11 +436,12 @@ export async function saveOrderChanges({
       const amountChanged = (discount.amount_cents || 0) !== (original.amount_cents || 0);
       const percentageChanged = (discount.percentage || 0) !== (original.percentage || 0);
       if (nameChanged || amountChanged || percentageChanged) {
-        await supabase.from('order_discounts').update({
+        const { error: discUpdateError } = await supabase.from('order_discounts').update({
           name: discount.name,
           amount_cents: discount.amount_cents || 0,
           percentage: discount.percentage || 0,
         }).eq('id', discount.id);
+        if (discUpdateError) throw new Error(`Failed to update discount: ${discUpdateError.message}`);
         await logChangeFn('discounts', original.name, discount.name, 'update');
         updatedDiscountCount++;
       }
@@ -467,7 +475,8 @@ export async function saveOrderChanges({
     const deletedFees = originalCustomFees.data.filter(of => !currentFeeIds.includes(of.id));
     deletedFeeCount = deletedFees.length;
     for (const deleted of deletedFees) {
-      await supabase.from('order_custom_fees').delete().eq('id', deleted.id);
+      const { error: feeDeleteError } = await supabase.from('order_custom_fees').delete().eq('id', deleted.id);
+      if (feeDeleteError) throw new Error(`Failed to remove custom fee: ${feeDeleteError.message}`);
       await logChangeFn('custom_fees', deleted.name, '', 'remove');
     }
 
@@ -478,10 +487,11 @@ export async function saveOrderChanges({
       const nameChanged = fee.name !== original.name;
       const amountChanged = (fee.amount_cents || 0) !== (original.amount_cents || 0);
       if (nameChanged || amountChanged) {
-        await supabase.from('order_custom_fees').update({
+        const { error: feeUpdateError } = await supabase.from('order_custom_fees').update({
           name: fee.name,
           amount_cents: fee.amount_cents || 0,
         }).eq('id', fee.id);
+        if (feeUpdateError) throw new Error(`Failed to update custom fee: ${feeUpdateError.message}`);
         await logChangeFn('custom_fees', original.name, fee.name, 'update');
         updatedFeeCount++;
       }
@@ -494,6 +504,21 @@ export async function saveOrderChanges({
     if (adminMessage.trim() !== (order.admin_message || '')) {
       logs.push(['admin_message', order.admin_message || '', adminMessage.trim()]);
     }
+  }
+
+  // Card-on-file normalization: when the effective deposit is greater than
+  // zero, a stale hidden false value must not be stored. The customer payment
+  // flow ignores require_card_on_file when a deposit is due, so normalizing to
+  // true is consistent with the existing behavior.
+  const finalDepositForCard = customDepositCents !== null
+    ? customDepositCents
+    : calculatedPricing?.deposit_due_cents ?? order.deposit_due_cents ?? 0;
+  const normalizedRequireCardOnFile = finalDepositForCard > 0
+    ? true
+    : (requireCardOnFile ?? true);
+  if (normalizedRequireCardOnFile !== (order.require_card_on_file ?? true)) {
+    changes.require_card_on_file = normalizedRequireCardOnFile;
+    logs.push(['require_card_on_file', order.require_card_on_file ?? true, normalizedRequireCardOnFile]);
   }
 
   // Check if there are any real changes.
@@ -512,6 +537,7 @@ export async function saveOrderChanges({
   // already operational or terminal. Admin changes (fees, generators, items)
   // are saved as-is without touching status.
   const PRESERVE_STATUS = new Set([
+    ORDER_STATUS.DRAFT,
     ORDER_STATUS.IN_PROGRESS,
     ORDER_STATUS.COMPLETED,
     ORDER_STATUS.CANCELLED,
@@ -529,6 +555,13 @@ export async function saveOrderChanges({
         changes.status = ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL;
       }
     }
+
+    // Sentinel: guarantee a customer-facing Realtime UPDATE event fires
+    // after all relational writes (items, discounts, fees) have succeeded.
+    // Without this, relational-only changes (e.g. renaming a discount without
+    // changing the amount) can produce an empty changes object and no WAL
+    // entry, so the customer's open invoice never refreshes.
+    changes.customer_view_updated_at = new Date().toISOString();
 
     const { error: updateError } = await supabase.from('orders').update(changes).eq('id', order.id);
     if (updateError) throw new Error(`Failed to update order: ${updateError.message}`);

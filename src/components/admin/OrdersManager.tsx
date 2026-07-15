@@ -36,13 +36,16 @@ export function OrdersManager() {
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [visibleOrder, setVisibleOrder] = useState<any>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [archiving, setArchiving] = useState(false);
   const orderCardsRef = useRef<Map<string, { card: HTMLElement, actionButtons: HTMLElement | null }>>(new Map());
   const isRefetchingRef = useRef(false);
   const pendingRefetchRef = useRef(false);
 
   const fetchOrdersData = useCallback(async () => {
-    // Load up to 200 most recent orders by default for performance
+    // Load up to 200 orders with the earliest event dates for performance.
+    // Orders beyond this limit are not shown. Server-side pagination is future work.
     const { data, error } = await getAllOrdersWithContacts(200);
 
     if (error) throw error;
@@ -208,8 +211,59 @@ export function OrdersManager() {
       });
     }
 
+    // Apply sorting
+    if (sortColumn) {
+      const direction = sortDirection;
+      const getSortValue = (order: any): string | null => {
+        switch (sortColumn) {
+          case 'id':
+            return formatOrderId(order.id);
+          case 'created_at':
+            return order.created_at || null;
+          case 'customer': {
+            const biz = order.customers?.business_name;
+            if (biz && biz.trim()) return biz.trim();
+            const first = order.customers?.first_name || '';
+            const last = order.customers?.last_name || '';
+            const name = `${first} ${last}`.trim();
+            return name || null;
+          }
+          case 'event_date':
+            return order.event_date || null;
+          case 'location': {
+            const city = order.addresses?.city || '';
+            const state = order.addresses?.state || '';
+            const loc = `${city}, ${state}`.trim().replace(/^,\s*/, '');
+            return loc || null;
+          }
+          case 'status':
+            return order.status || null;
+          case 'workflow':
+            return order.workflow_status || 'pending';
+          default:
+            return null;
+        }
+      };
+
+      filtered = [...filtered].sort((a, b) => {
+        const aVal = getSortValue(a);
+        const bVal = getSortValue(b);
+        const aEmpty = aVal === null || aVal === undefined || (typeof aVal === 'string' && aVal.trim() === '');
+        const bEmpty = bVal === null || bVal === undefined || (typeof bVal === 'string' && bVal.trim() === '');
+        if (aEmpty && bEmpty) return 0;
+        if (aEmpty) return 1;
+        if (bEmpty) return -1;
+        const result = (aVal as string).localeCompare(bVal as string, undefined, { sensitivity: 'base' });
+        return direction === 'desc' ? -result : result;
+      });
+    } else if (activeTab === 'draft') {
+      filtered = [...filtered].sort((a, b) =>
+        (b.created_at || '').localeCompare(a.created_at || '')
+      );
+    }
+
     return filtered;
-  }, [categorizedOrders, activeTab, searchTerm]);
+  }, [categorizedOrders, activeTab, searchTerm, sortColumn, sortDirection]);
 
   // Memoize tab counts — past and cancelled respect the showArchived flag
   // so the badge count always matches what is actually visible in the list.
@@ -290,6 +344,8 @@ export function OrdersManager() {
 
   const handleTabChange = useCallback((tab: OrderTab) => {
     setActiveTab(tab);
+    setSortColumn(null);
+    setSortDirection('asc');
     const params = new URLSearchParams(searchParams);
     params.set('subtab', tab);
     if (tab !== 'single_order') {
@@ -526,17 +582,41 @@ export function OrdersManager() {
           ))}
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="min-w-full divide-y divide-slate-200">
+        <div className="bg-white rounded-lg shadow overflow-x-auto">
+          <table className="w-full min-w-[1000px] divide-y divide-slate-200">
             <thead className="bg-slate-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Order ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Created</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Customer</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Event Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Location</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Workflow</th>
+                {[['id', 'Order ID', 'asc'], ['created_at', 'Created', 'desc'], ['customer', 'Customer', 'asc'], ['event_date', 'Event Date', 'asc'], ['location', 'Location', 'asc'], ['status', 'Status', 'asc'], ['workflow', 'Workflow', 'asc']].map(([col, label, initialDir]) => {
+                  const isActive = sortColumn === col;
+                  const ariaSort = isActive ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none';
+                  return (
+                    <th
+                      key={col}
+                      className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase"
+                      aria-sort={ariaSort as 'ascending' | 'descending' | 'none'}
+                    >
+                      <button
+                        type="button"
+                        className="flex items-center gap-1 hover:text-slate-700 cursor-pointer"
+                        onClick={() => {
+                          if (sortColumn === col) {
+                            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setSortColumn(col);
+                            setSortDirection(initialDir as 'asc' | 'desc');
+                          }
+                        }}
+                      >
+                        {label}
+                        {isActive && (
+                          <span className="inline-block">
+                            {sortDirection === 'asc' ? '\u2191' : '\u2193'}
+                          </span>
+                        )}
+                      </button>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-slate-200">

@@ -45,6 +45,7 @@ export function InvoicesList() {
         customers (first_name, last_name, email),
         orders (event_date)
       `)
+      .order('invoice_date', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false });
     return result;
   }, []);

@@ -9,7 +9,7 @@ interface StatusTransition {
 const VALID_TRANSITIONS: StatusTransition[] = [
   {
     from: ORDER_STATUS.DRAFT,
-    to: [ORDER_STATUS.PENDING, ORDER_STATUS.CONFIRMED, ORDER_STATUS.CANCELLED, ORDER_STATUS.VOID]
+    to: [ORDER_STATUS.PENDING, ORDER_STATUS.CANCELLED, ORDER_STATUS.VOID]
   },
   {
     from: ORDER_STATUS.PENDING,
@@ -74,6 +74,10 @@ export function validateStatusTransition(
 
   return { valid: true };
 }
+
+export const VALID_ADMIN_TRANSITIONS: Record<string, string[]> = Object.fromEntries(
+  VALID_TRANSITIONS.map(t => [t.from, t.to])
+);
 
 export function getAvailableStatuses(currentStatus: string): string[] {
   const transition = VALID_TRANSITIONS.find(t => t.from === currentStatus);

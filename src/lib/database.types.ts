@@ -371,10 +371,10 @@ export interface Database {
           confirmed_admin_alerted: boolean
           referral_source: string | null
           referral_source_detail: string | null
+          customer_view_updated_at: string | null
           created_at: string
-          updated_at: string
         }
-        Insert: Pick<Database['public']['Tables']['orders']['Row'], 'customer_id' | 'address_id' | 'status' | 'event_date'> & Partial<Omit<Database['public']['Tables']['orders']['Row'], 'id' | 'order_number' | 'created_at' | 'updated_at' | 'customer_id' | 'address_id' | 'status' | 'event_date'>>
+        Insert: Pick<Database['public']['Tables']['orders']['Row'], 'customer_id' | 'address_id' | 'status' | 'event_date'> & Partial<Omit<Database['public']['Tables']['orders']['Row'], 'id' | 'order_number' | 'created_at' | 'customer_id' | 'address_id' | 'status' | 'event_date'>>
         Update: Partial<Database['public']['Tables']['orders']['Insert']>
         Relationships: []
       }

@@ -99,7 +99,7 @@ export async function updateOrderStatus(
     async () =>
       await supabase
         .from('orders')
-        .update({ status, updated_at: new Date().toISOString() })
+        .update({ status })
         .eq('id', orderId)
         .select()
         .single(),
