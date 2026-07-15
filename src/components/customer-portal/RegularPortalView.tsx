@@ -398,96 +398,108 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
               </div>
             </div>
 
-            <div className="relative mb-6">
-              <div className="pointer-events-none absolute left-0 top-0 bottom-2 w-6 bg-gradient-to-r from-white to-transparent z-10 sm:hidden" />
-              <div className="pointer-events-none absolute right-0 top-0 bottom-2 w-10 bg-gradient-to-l from-white to-transparent z-10" />
-              <p className="text-xs text-slate-400 mb-1 sm:hidden flex items-center gap-1">
-                <span>&#8592;</span> Swipe tabs to see more <span>&#8594;</span>
-              </p>
-            <div className="flex gap-1 border-b border-slate-200 overflow-x-auto scrollbar-hide pb-0">
-              <button
-                onClick={() => setActiveTab('details')}
-                className={`px-3 py-2.5 font-medium border-b-2 transition-colors whitespace-nowrap text-sm ${
-                  activeTab === 'details'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Details
-              </button>
-              <button
-                onClick={() => setActiveTab('lot-pictures')}
-                className={`px-3 py-2.5 font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap text-sm ${
-                  activeTab === 'lot-pictures'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <MapPin className="w-3.5 h-3.5" />
-                Lot Pics
-              </button>
-              <button
-                onClick={() => stepsUnlocked && setActiveTab('waiver')}
-                disabled={!stepsUnlocked}
-                className={`px-3 py-2.5 font-medium border-b-2 transition-colors whitespace-nowrap text-sm relative ${
-                  !stepsUnlocked
-                    ? 'border-transparent text-slate-400 cursor-not-allowed'
-                    : activeTab === 'waiver'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Waiver
-                {needsWaiver && stepsUnlocked && (
-                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-amber-500 rounded-full" />
-                )}
-              </button>
-              <button
-                onClick={() => stepsUnlocked && setActiveTab('payment')}
-                disabled={!stepsUnlocked}
-                className={`px-3 py-2.5 font-medium border-b-2 transition-colors whitespace-nowrap text-sm relative ${
-                  !stepsUnlocked
-                    ? 'border-transparent text-slate-400 cursor-not-allowed'
-                    : activeTab === 'payment'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Payment
-                {needsPayment && stepsUnlocked && (
-                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-amber-500 rounded-full" />
-                )}
-              </button>
-              <button
-                onClick={() => (isDelivered || orderDelivered) && setActiveTab('pictures')}
-                disabled={!isDelivered && !orderDelivered}
-                title={!isDelivered && !orderDelivered ? 'Available after equipment is delivered' : undefined}
-                className={`px-3 py-2.5 font-medium border-b-2 transition-colors whitespace-nowrap text-sm ${
-                  !isDelivered && !orderDelivered
-                    ? 'border-transparent text-slate-400 cursor-not-allowed'
-                    : activeTab === 'pictures'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Pictures
-              </button>
-              <button
-                onClick={() => deliveryPhotosAvailable && setActiveTab('delivery')}
-                disabled={!deliveryPhotosAvailable}
-                title={!deliveryPhotosAvailable ? 'Delivery photos will appear here after crew completes setup' : undefined}
-                className={`px-3 py-2.5 font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap text-sm ${
-                  !deliveryPhotosAvailable
-                    ? 'border-transparent text-slate-400 cursor-not-allowed'
-                    : activeTab === 'delivery'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Truck className="w-3.5 h-3.5" />
-                Delivery
-              </button>
-            </div>
+            <div className="mb-6">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setActiveTab('details')}
+                  className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all ${
+                    activeTab === 'details'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <Package className="w-4 h-4 flex-shrink-0" />
+                  Details
+                </button>
+                <button
+                  onClick={() => setActiveTab('lot-pictures')}
+                  className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all ${
+                    activeTab === 'lot-pictures'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <MapPin className="w-4 h-4 flex-shrink-0" />
+                  Lot Pics
+                  {lotPicturesRequested && (
+                    <span className={`w-2 h-2 rounded-full ${lotPicturesUploaded ? 'bg-green-400' : 'bg-amber-400'}`} />
+                  )}
+                </button>
+                <button
+                  onClick={() => stepsUnlocked && setActiveTab('waiver')}
+                  disabled={!stepsUnlocked}
+                  className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all ${
+                    !stepsUnlocked
+                      ? 'bg-slate-50 text-slate-400 cursor-not-allowed'
+                      : activeTab === 'waiver'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                      : needsWaiver
+                      ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-300'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <FileText className="w-4 h-4 flex-shrink-0" />
+                  Waiver
+                  {needsWaiver && stepsUnlocked && (
+                    <span className="w-2 h-2 rounded-full bg-amber-400" />
+                  )}
+                  {!needsWaiver && stepsUnlocked && (
+                    <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                  )}
+                </button>
+                <button
+                  onClick={() => stepsUnlocked && setActiveTab('payment')}
+                  disabled={!stepsUnlocked}
+                  className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all ${
+                    !stepsUnlocked
+                      ? 'bg-slate-50 text-slate-400 cursor-not-allowed'
+                      : activeTab === 'payment'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                      : needsPayment
+                      ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-300'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <CreditCard className="w-4 h-4 flex-shrink-0" />
+                  Payment
+                  {needsPayment && stepsUnlocked && (
+                    <span className="w-2 h-2 rounded-full bg-amber-400" />
+                  )}
+                  {!needsPayment && stepsUnlocked && (
+                    <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                  )}
+                </button>
+                <button
+                  onClick={() => (isDelivered || orderDelivered) && setActiveTab('pictures')}
+                  disabled={!isDelivered && !orderDelivered}
+                  title={!isDelivered && !orderDelivered ? 'Available after equipment is delivered' : undefined}
+                  className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all ${
+                    !isDelivered && !orderDelivered
+                      ? 'bg-slate-50 text-slate-400 cursor-not-allowed'
+                      : activeTab === 'pictures'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <ImageIcon className="w-4 h-4 flex-shrink-0" />
+                  Pictures
+                </button>
+                <button
+                  onClick={() => deliveryPhotosAvailable && setActiveTab('delivery')}
+                  disabled={!deliveryPhotosAvailable}
+                  title={!deliveryPhotosAvailable ? 'Delivery photos will appear here after crew completes setup' : undefined}
+                  className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all ${
+                    !deliveryPhotosAvailable
+                      ? 'bg-slate-50 text-slate-400 cursor-not-allowed'
+                      : activeTab === 'delivery'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <Truck className="w-4 h-4 flex-shrink-0" />
+                  Delivery
+                </button>
+              </div>
             </div>
 
             {activeTab === 'details' && (

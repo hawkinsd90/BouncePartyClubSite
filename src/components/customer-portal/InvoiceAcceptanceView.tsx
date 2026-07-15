@@ -23,7 +23,7 @@ import {
   generateConfirmationReceiptEmail,
   generateConfirmationSmsMessage,
 } from '../../lib/orderEmailTemplates';
-import { formatOrderId } from '../../lib/utils';
+import { formatOrderId, createShortPortalLink } from '../../lib/utils';
 import { ReferralSourceSelect } from '../shared/ReferralSourceSelect';
 
 interface InvoiceAcceptanceViewProps {
@@ -354,7 +354,8 @@ export function InvoiceAcceptanceView({
           phone,
         };
 
-        const smsMessage = generateConfirmationSmsMessage(order, firstName);
+        const portalUrl = await createShortPortalLink(order.id, supabase, order.event_date);
+        const smsMessage = generateConfirmationSmsMessage(order, firstName, portalUrl);
 
         const totalCents =
           orderSummary
