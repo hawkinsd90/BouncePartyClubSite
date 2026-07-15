@@ -19,6 +19,7 @@ import { saveOrderChanges } from '../../lib/orderSaveService';
 import { sendOrderEditNotifications } from '../../lib/orderNotificationService';
 import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
+import { showToast } from '../../lib/notifications';
 
 interface OrderDetailModalProps {
   order: any;
@@ -316,7 +317,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   useEffect(() => {
     if (stagedItems.length > 0 && editedOrder.event_date && editedOrder.event_end_date) {
       const timer = setTimeout(() => {
-        checkAvailability();
+        void checkAvailability().catch(error => {
+          console.error(
+            'Background availability check failed:',
+            error
+          );
+        });
       }, 500); // Debounce for 500ms
       return () => clearTimeout(timer);
     }
@@ -532,6 +538,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     } catch (error) {
       if (error instanceof Error && error.message !== 'Availability conflict') {
         console.error('Error saving changes:', error);
+        showToast(
+          `Failed to save changes: ${error.message}`,
+          'error'
+        );
       }
     } finally {
       setSaving(false);
