@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useLocation, useSearchParams } from 'react-router-dom';
 import { AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { ORDER_STATUS } from '../lib/constants/statuses';
 import { useOrderData } from '../hooks/useOrderData';
+import { useCustomerPortalRefresh } from '../hooks/useCustomerPortalRefresh';
 import { InvoiceAcceptanceView } from '../components/customer-portal/InvoiceAcceptanceView';
 import { OrderApprovalView } from '../components/customer-portal/OrderApprovalView';
 import { ApprovalSuccessView } from '../components/customer-portal/ApprovalSuccessView';
@@ -43,67 +44,29 @@ export function CustomerPortal() {
   const [approvalSuccess, setApprovalSuccess] = useState(invoicePaid);
   const [approvalProcessing, setApprovalProcessing] = useState(false);
   const [invoiceProcessing, setInvoiceProcessing] = useState(false);
+  const [refreshVersion, setRefreshVersion] = useState(0);
 
   const { data, loading, loadOrder } = useOrderData();
 
   const resolvedOrderId = orderId || (data?.order?.id);
 
-  const realtimeOrderId = resolvedOrderId;
-  const approvalSuccessRef = useRef(false);
-  approvalSuccessRef.current = approvalSuccess || approvalProcessing;
+  const reload = useCallback(async () => {
+    await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
+  }, [orderId, invoiceToken, isInvoiceLink, loadOrder]);
 
-  const reloadRef = useRef<() => Promise<void>>();
-  const isReloadingRef = useRef(false);
-  const pendingRefreshRef = useRef(false);
-  reloadRef.current = async () => {
-    if (approvalSuccessRef.current) return;
-    if (isReloadingRef.current) {
-      pendingRefreshRef.current = true;
-      return;
-    }
-    isReloadingRef.current = true;
-    pendingRefreshRef.current = false;
-    try {
-      await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
-    } finally {
-      isReloadingRef.current = false;
-      if (pendingRefreshRef.current) {
-        pendingRefreshRef.current = false;
-        reloadRef.current?.();
-      }
-    }
-  };
+  const onRefreshComplete = useCallback(() => {
+    setRefreshVersion((v) => v + 1);
+  }, []);
 
-  useEffect(() => {
-    if (!realtimeOrderId) return;
-
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const debouncedReload = () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => { reloadRef.current?.(); }, 600);
-    };
-
-    const channel = supabase
-      .channel(`portal-order-${realtimeOrderId}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${realtimeOrderId}` }, debouncedReload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments', filter: `order_id=eq.${realtimeOrderId}` }, debouncedReload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_signatures', filter: `order_id=eq.${realtimeOrderId}` }, debouncedReload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_status', filter: `order_id=eq.${realtimeOrderId}` }, debouncedReload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_lot_pictures', filter: `order_id=eq.${realtimeOrderId}` }, debouncedReload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_pictures', filter: `order_id=eq.${realtimeOrderId}` }, debouncedReload)
-      .on('broadcast', { event: 'order_updated' }, debouncedReload)
-      .subscribe();
-
-    return () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      supabase.removeChannel(channel);
-    };
-  }, [realtimeOrderId]);
+  useCustomerPortalRefresh({
+    orderId: resolvedOrderId,
+    reload,
+    isApprovalSuccess: approvalSuccess || approvalProcessing || invoiceProcessing,
+    onRefreshComplete,
+  });
 
   useEffect(() => {
     if (paymentSuccess && returnSessionId && orderId) {
-      // Path B balance payment: actively reconcile with Stripe before showing the portal.
-      // This is durable — even if the webhook hasn't fired yet, the portal will be correct.
       (async () => {
         try {
           const { data: reconcileData, error: reconcileError } = await supabase.functions.invoke('reconcile-balance-payment', {
@@ -136,9 +99,6 @@ export function CustomerPortal() {
             return;
           }
 
-          // The webhook handles status transition to confirmed for admin invoices.
-          // As a client-side fallback only (webhook may not have fired yet), call
-          // order-lifecycle directly with the anon key — no admin session required.
           const orderResult = await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
           const currentStatus = orderResult?.order?.status;
           const depositDue = orderResult?.order?.deposit_due_cents ?? 0;
@@ -146,9 +106,6 @@ export function CustomerPortal() {
 
           if (currentStatus !== ORDER_STATUS.CONFIRMED && currentStatus !== ORDER_STATUS.CANCELLED && currentStatus !== ORDER_STATUS.VOID) {
             if (depositDue > 0 && depositPaid < depositDue) {
-              // Card was saved but deposit_due_cents > 0 — charge the actual amount now.
-              // deposit_due_cents is the authoritative value: it already reflects any admin
-              // overrides (zero-out, partial, or full-payment overrides are encoded there).
               try {
                 const { data: chargeData, error: chargeErr } = await supabase.functions.invoke('charge-deposit', {
                   body: { orderId },
@@ -168,14 +125,19 @@ export function CustomerPortal() {
                 return;
               }
             } else {
-              // Genuinely zero deposit (deposit_due_cents === 0): card saved for future
-              // balance collection only. Safe to confirm without any charge.
               try {
                 await supabase.functions.invoke('order-lifecycle', {
                   body: { action: 'enter_confirmed', orderId, source: 'invoice_card_saved_fallback', paymentOutcome: 'zero_due_with_card' },
                 });
               } catch (lifecycleErr) {
                 console.error('[CustomerPortal] order-lifecycle fallback failed (non-fatal):', lifecycleErr instanceof Error ? lifecycleErr.message : 'unknown');
+              }
+              try {
+                await supabase.functions.invoke('send-booking-confirmation', {
+                  body: { orderId, source: 'invoice_card_saved_zero_deposit', invoiceToken: invoiceToken ?? null },
+                });
+              } catch (confErr) {
+                console.error('[CustomerPortal] booking confirmation failed (non-fatal):', confErr instanceof Error ? confErr.message : 'unknown');
               }
             }
             await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
@@ -197,14 +159,11 @@ export function CustomerPortal() {
             body: { sessionId: returnSessionId, orderId },
           });
           if (pmError) {
-            // BPC-SECURITY-HARDENING: raw pmError removed — could expose payment service internals in browser console.
             console.error('[CustomerPortal] save-payment-method-from-session invocation error.');
           } else if (!pmData?.success) {
-            // BPC-SECURITY-HARDENING: raw pmData?.error removed — could expose payment API response internals.
             console.error('[CustomerPortal] save-payment-method-from-session returned failure.');
           }
         } catch (err) {
-          // BPC-SECURITY-HARDENING: raw error removed — could expose payment API internals in browser console.
           console.error('[CustomerPortal] save-payment-method-from-session threw unexpectedly:', err instanceof Error ? err.message : 'unknown');
         }
         await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
@@ -252,7 +211,6 @@ export function CustomerPortal() {
 
   const shouldShowRegularPortal = isActive;
 
-
   if (!shouldShowRegularPortal && !needsApproval) {
     if (isDraft) {
       return (
@@ -299,6 +257,7 @@ export function CustomerPortal() {
       orderSummary={orderSummary}
       invoiceLinkToken={invoiceToken}
       onReload={handleReload}
+      refreshVersion={refreshVersion}
     />
   );
 }

@@ -102,10 +102,13 @@ export async function approveOrder(
       const totalCentsNoDeposit = calculateTotalFromOrder(orderData, orderDiscountsNoDeposit, orderCustomFeesNoDeposit);
 
       if (customerNoDeposit) {
-        const portalUrlNoDeposit = await createShortPortalLink(orderId, supabase, orderData.event_date);
-        const confirmMsg = generateConfirmationSmsMessage(orderData, customerNoDeposit.first_name, portalUrlNoDeposit);
-        try { await sendSms(confirmMsg); } catch { /* non-fatal */ }
-        await sendConfirmationEmail(orderWithRelationsNoDeposit, totalCentsNoDeposit);
+        try {
+          await supabase.functions.invoke('send-booking-confirmation', {
+            body: { orderId, source: 'admin_approve_zero_deposit' },
+          });
+        } catch (confErr) {
+          console.error('[orderApprovalService] booking confirmation failed (non-fatal):', confErr);
+        }
       }
 
       try {
@@ -286,15 +289,13 @@ export async function approveOrder(
     const customer = orderWithRelations?.customers as any;
 
     if (customer) {
-      const portalUrl = await createShortPortalLink(orderId, supabase, orderData.event_date);
-      const confirmationMessage = generateConfirmationSmsMessage(orderData, customer.first_name, portalUrl);
       try {
-        await sendSms(confirmationMessage);
-      } catch (smsError) {
-        console.error('Error sending confirmation SMS:', smsError);
+        await supabase.functions.invoke('send-booking-confirmation', {
+          body: { orderId, source: 'admin_approve_charge_deposit' },
+        });
+      } catch (confErr) {
+        console.error('[orderApprovalService] booking confirmation failed (non-fatal):', confErr);
       }
-
-      await sendConfirmationEmail(orderWithRelations, totalCents);
     }
 
     try {

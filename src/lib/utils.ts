@@ -106,45 +106,37 @@ export function formatOrderId(orderId: string): string {
   return orderId.slice(0, 8).toUpperCase();
 }
 
-const SHORT_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-
-function generateShortCode(): string {
-  let code = '';
-  const bytes = new Uint8Array(8);
-  crypto.getRandomValues(bytes);
-  for (let i = 0; i < 8; i++) {
-    code += SHORT_CODE_CHARS[bytes[i] % SHORT_CODE_CHARS.length];
-  }
-  return code;
-}
-
 export async function createShortPortalLink(
   orderId: string,
   supabaseClient: any,
-  eventDate?: string | null
+  eventDate?: string | null,
+  invoiceToken?: string | null
 ): Promise<string> {
-  try {
-    const shortCode = generateShortCode();
+  if (invoiceToken) {
+    const { data: rpcResult, error: rpcError } = await supabaseClient.rpc(
+      'create_portal_short_link',
+      { p_invoice_token: invoiceToken }
+    );
 
-    const expiresAt = eventDate
-      ? new Date(new Date(eventDate).getTime() + 3 * 24 * 60 * 60 * 1000)
-      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
-    const { error } = await supabaseClient
-      .from('invoice_links')
-      .insert({
-        order_id: orderId,
-        deposit_cents: 0,
-        customer_filled: true,
-        expires_at: expiresAt.toISOString(),
-        short_code: shortCode,
-        link_type: 'portal_shortlink',
-      });
-
-    if (!error) {
-      return `${window.location.origin}/i/${shortCode}`;
+    if (!rpcError && rpcResult?.success && rpcResult?.short_code) {
+      return `${window.location.origin}/i/${rpcResult.short_code}`;
     }
-  } catch {
+
+    console.error('[createShortPortalLink] secure RPC failed:', rpcError?.message || rpcResult?.error || 'unknown');
   }
+
+  if (invoiceToken) {
+    const { data: linkData } = await supabaseClient
+      .from('invoice_links')
+      .select('link_token')
+      .eq('link_token', invoiceToken)
+      .maybeSingle();
+
+    if (linkData) {
+      return `${window.location.origin}/invoice/${invoiceToken}`;
+    }
+  }
+
+  console.error('[createShortPortalLink] falling back to full portal URL for order:', orderId);
   return `${window.location.origin}/customer-portal/${orderId}`;
 }

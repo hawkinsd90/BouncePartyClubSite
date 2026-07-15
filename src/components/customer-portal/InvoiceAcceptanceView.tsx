@@ -354,83 +354,16 @@ export function InvoiceAcceptanceView({
           phone,
         };
 
-        const portalUrl = await createShortPortalLink(order.id, supabase, order.event_date);
-        const smsMessage = generateConfirmationSmsMessage(order, firstName, portalUrl);
-
-        const totalCents =
-          orderSummary
-            ? orderSummary.total + tipCents
-            : (order.subtotal_cents || 0) +
-              (order.travel_fee_cents || 0) +
-              (order.surface_fee_cents || 0) +
-              (order.same_day_pickup_fee_cents || 0) +
-              (order.generator_fee_cents || 0) +
-              (order.tax_cents || 0) +
-              tipCents;
-
-        const { data: fullItems } = await supabase
-          .from('order_items')
-          .select('*, units(*)')
-          .eq('order_id', order.id);
-
-        let notificationsSent = false;
-
-        const notificationTimeout = (ms: number) =>
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Notification timeout')), ms)
-          );
-
-        if (email) {
-          try {
-            const confirmationEmail = generateConfirmationReceiptEmail({
-              order,
-              customer,
-              address: order.addresses,
-              items: fullItems || [],
-              totalCents,
-            });
-
-            await Promise.race([
-              sendNotificationToCustomer({
-                email,
-                phone,
-                emailSubject: `Booking Confirmed - Receipt for Order #${formatOrderId(order.id)}`,
-                emailHtml: confirmationEmail,
-                smsMessage,
-                orderId: order.id,
-              }),
-              notificationTimeout(10000),
-            ]);
-
-            notificationsSent = true;
-          } catch (notifError) {
-            console.error('Error sending confirmation notifications:', notifError);
-          }
-        } else if (phone) {
-          try {
-            await Promise.race([
-              sendNotificationToCustomer({
-                email: '',
-                phone,
-                emailSubject: '',
-                emailHtml: '',
-                smsMessage,
-                orderId: order.id,
-              }),
-              notificationTimeout(10000),
-            ]);
-
-            notificationsSent = true;
-          } catch (notifError) {
-            console.error('Error sending SMS confirmation:', notifError);
-          }
-        }
-
-        if (notificationsSent) {
-          await supabase
-            .from('orders')
-            .update({ booking_confirmation_sent: true })
-            .eq('id', order.id);
+        try {
+          await supabase.functions.invoke('send-booking-confirmation', {
+            body: {
+              orderId: order.id,
+              source: 'invoice_acceptance_no_card',
+              invoiceToken: invoiceLink?.link_token ?? null,
+            },
+          });
+        } catch (notifError) {
+          console.error('[InvoiceAcceptanceView] booking confirmation failed (non-fatal):', notifError);
         }
 
         try {

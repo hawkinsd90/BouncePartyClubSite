@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
-import { FileText, CreditCard, CheckCircle, Image as ImageIcon, MapPin, Printer, Calendar, MapPin as MapPinIcon, Truck, Navigation, Clock, Package } from 'lucide-react';
+import { FileText, CreditCard, CheckCircle, Image as ImageIcon, MapPin, Printer, Calendar, MapPin as MapPinIcon, Truck, Navigation, Clock, Package, Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
@@ -31,30 +31,120 @@ interface RegularPortalViewProps {
   orderSummary: any;
   invoiceLinkToken?: string | null;
   onReload: () => void;
+  refreshVersion: number;
 }
 
-export function RegularPortalView({ order, orderId, orderItems: _orderItems, orderSummary, invoiceLinkToken, onReload }: RegularPortalViewProps) {
+type TabKey = 'details' | 'lot-pictures' | 'waiver' | 'payment' | 'pictures' | 'delivery';
+
+interface NavSection {
+  key: TabKey;
+  label: string;
+  icon: typeof Package;
+  status: string;
+  locked: boolean;
+  lockedReason?: string;
+}
+
+export function RegularPortalView({ order, orderId, orderItems: _orderItems, orderSummary, invoiceLinkToken, onReload, refreshVersion }: RegularPortalViewProps) {
   const navigate = useNavigate();
   const lotPicturesRequested = order.lot_pictures_requested || false;
-  const [activeTab, setActiveTab] = useState<'details' | 'lot-pictures' | 'waiver' | 'payment' | 'pictures' | 'delivery'>('details');
+  const [activeTab, setActiveTab] = useState<TabKey>('details');
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [payments, setPayments] = useState<any[]>([]);
   const [lotPicturesUploaded, setLotPicturesUploaded] = useState(false);
   const [deliveryPhotosAvailable, setDeliveryPhotosAvailable] = useState(false);
   const [isDelivered, setIsDelivered] = useState(false);
   const [existingPictures, setExistingPictures] = useState<any[]>([]);
-  // Preserved tip cents from a card-update redirect (?tab=payment&tip=NNN)
   const [restoredTipCents, setRestoredTipCents] = useState<number | null>(null);
 
-  useEffect(() => {
-    loadPayments();
-    loadLotPictures();
-    loadDeliveryStatus();
-    loadExistingPictures();
-  }, [order.status, orderId]);
+  const loadPayments = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setPayments(data || []);
+    } catch (error) {
+      console.error('Error loading payments:', error);
+      setPayments([]);
+    }
+  }, [orderId]);
+
+  const loadLotPictures = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('order_lot_pictures' as any)
+        .select('id')
+        .eq('order_id', orderId)
+        .limit(1);
+      if (error) throw error;
+      setLotPicturesUploaded((data || []).length > 0);
+    } catch (error) {
+      console.error('Error loading lot pictures:', error);
+      setLotPicturesUploaded(false);
+    }
+  }, [orderId]);
+
+  const loadDeliveryStatus = useCallback(async () => {
+    try {
+      const { data: rows, error } = await supabase
+        .from('task_status')
+        .select('delivery_images, status')
+        .eq('order_id', orderId)
+        .eq('task_type', 'drop-off')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      const row = rows && rows.length > 0 ? rows[0] : null;
+      if (row) {
+        const imgs: string[] = Array.isArray(row.delivery_images) ? row.delivery_images : [];
+        setDeliveryPhotosAvailable(imgs.length > 0);
+        setIsDelivered(row.status === 'completed');
+      } else {
+        setDeliveryPhotosAvailable(false);
+        setIsDelivered(false);
+      }
+    } catch (err) {
+      console.error('Error loading delivery status:', err);
+      setDeliveryPhotosAvailable(false);
+      setIsDelivered(false);
+    }
+  }, [orderId]);
+
+  const loadExistingPictures = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('order_pictures' as any)
+        .select('id, file_path, file_name, notes, created_at')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      const withUrls = (data || []).map((pic: any) => {
+        const { data: urlData } = supabase.storage
+          .from('order-pictures')
+          .getPublicUrl(pic.file_path);
+        return { ...pic, url: urlData.publicUrl };
+      });
+      setExistingPictures(withUrls);
+    } catch (err) {
+      console.error('Error loading existing pictures:', err);
+      setExistingPictures([]);
+    }
+  }, [orderId]);
 
   useEffect(() => {
-    // Check URL params for payment status and preserved tip state
+    const results = Promise.allSettled([
+      loadPayments(),
+      loadLotPictures(),
+      loadDeliveryStatus(),
+      loadExistingPictures(),
+    ]);
+    void results;
+  }, [orderId, refreshVersion, loadPayments, loadLotPictures, loadDeliveryStatus, loadExistingPictures]);
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const paymentStatus = params.get('payment');
     const tabParam = params.get('tab');
@@ -65,143 +155,34 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
       setActiveTab('payment');
       if (tipParam) {
         const parsed = parseInt(tipParam, 10);
-        if (!isNaN(parsed) && parsed > 0) {
-          setRestoredTipCents(parsed);
-        }
+        if (!isNaN(parsed) && parsed > 0) setRestoredTipCents(parsed);
       }
       window.history.replaceState({}, '', window.location.pathname);
     } else if (cardUpdated) {
-      // Customer returned from card-update Stripe Checkout for balance payment.
-      // CustomerPortal.tsx calls save-payment-method-from-session; we just restore
-      // the payment tab and any tip that was encoded in the return URL.
       setActiveTab('payment');
       if (tipParam) {
         const parsed = parseInt(tipParam, 10);
-        if (!isNaN(parsed) && parsed > 0) {
-          setRestoredTipCents(parsed);
-        }
+        if (!isNaN(parsed) && parsed > 0) setRestoredTipCents(parsed);
       }
       window.history.replaceState({}, '', window.location.pathname);
     } else if (paymentStatus === 'success') {
-      // CustomerPortal.tsx owns reconciliation and has already reloaded the order
-      // before this component mounts. Just show the toast and clean the URL.
       showToast('Payment successful! Thank you.', 'success');
       window.history.replaceState({}, '', window.location.pathname);
     } else if (paymentStatus === 'canceled') {
       showToast('Payment was canceled. You can try again anytime.', 'info');
-      // Clean up URL
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, [onReload]);
 
-  async function loadPayments() {
-    try {
-      const { data, error } = await supabase
-        .from('payments')
-        .select('*')
-        .eq('order_id', orderId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setPayments(data || []);
-    } catch (error) {
-      console.error('Error loading payments:', error);
-    }
-  }
-
-  async function loadLotPictures() {
-    try {
-      const { data, error } = await supabase
-        .from('order_lot_pictures' as any)
-        .select('id')
-        .eq('order_id', orderId)
-        .limit(1);
-
-      if (error) throw error;
-      setLotPicturesUploaded((data || []).length > 0);
-    } catch (error) {
-      console.error('Error loading lot pictures:', error);
-    }
-  }
-
-  async function loadDeliveryStatus() {
-    try {
-      const { data: rows } = await supabase
-        .from('task_status')
-        .select('delivery_images, status')
-        .eq('order_id', orderId)
-        .eq('task_type', 'drop-off')
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      const row = rows && rows.length > 0 ? rows[0] : null;
-      if (row) {
-        const imgs: string[] = Array.isArray(row.delivery_images) ? row.delivery_images : [];
-        setDeliveryPhotosAvailable(imgs.length > 0);
-        setIsDelivered(row.status === 'completed');
-      }
-    } catch (err) {
-      console.error('Error loading delivery status:', err);
-    }
-  }
-
-  const totalPaid = (order.deposit_paid_cents || 0) + (order.balance_paid_cents || 0);
-  const balanceDue = order.balance_due_cents;
-  const needsWaiver = !order.waiver_signed_at;
-  const needsPayment = balanceDue > 0;
-  const canCancel = (CANCELLABLE_STATUSES as readonly string[]).includes(order.status);
-  const isConfirmed = order.status === ORDER_STATUS.CONFIRMED;
-  const isActiveOrder = [
-    ORDER_STATUS.CONFIRMED,
-    ORDER_STATUS.IN_PROGRESS,
-    ORDER_STATUS.COMPLETED,
-  ].includes(order.status as any);
-  const stepsUnlocked = totalPaid > 0 || isActiveOrder;
-  const orderDelivered = ([ORDER_STATUS.COMPLETED, ORDER_STATUS.IN_PROGRESS] as string[]).includes(order.status) &&
-    ['setup_completed', 'pickup_scheduled', 'pickup_in_progress'].includes(order.workflow_status || '')
-    || order.status === ORDER_STATUS.COMPLETED;
-
-  async function loadExistingPictures() {
-    try {
-      const { data, error } = await supabase
-        .from('order_pictures' as any)
-        .select('id, file_path, file_name, notes, created_at')
-        .eq('order_id', orderId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      const withUrls = (data || []).map((pic: any) => {
-        const { data: urlData } = supabase.storage
-          .from('order-pictures')
-          .getPublicUrl(pic.file_path);
-        return { ...pic, url: urlData.publicUrl };
-      });
-
-      setExistingPictures(withUrls);
-    } catch (err) {
-      console.error('Error loading existing pictures:', err);
-    }
-  }
-
   async function handleSubmitPictures(files: File[], notes: string) {
     try {
       const uploadPromises = files.map(async (file) => {
-        // Create unique file path
         const fileExt = file.name.split('.').pop();
         const fileName = `${orderId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-
-        // Upload to storage
         const { error: uploadError } = await supabase.storage
           .from('order-pictures')
-          .upload(fileName, file, {
-            cacheControl: '3600',
-            upsert: false,
-          });
-
+          .upload(fileName, file, { cacheControl: '3600', upsert: false });
         if (uploadError) throw uploadError;
-
-        // Save metadata to database
         const { error: dbError } = await supabase
           .from('order_pictures' as any)
           .insert({
@@ -211,20 +192,13 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
             file_size: file.size,
             mime_type: file.type,
             notes: notes || null,
-            uploaded_by: null, // Anonymous upload from customer portal
+            uploaded_by: null,
           });
-
         if (dbError) throw dbError;
-
         return fileName;
       });
-
       await Promise.all(uploadPromises);
-
-      showToast(
-        `Successfully uploaded ${files.length} picture${files.length > 1 ? 's' : ''}`,
-        'success'
-      );
+      showToast(`Successfully uploaded ${files.length} picture${files.length > 1 ? 's' : ''}`, 'success');
       loadExistingPictures();
     } catch (error) {
       console.error('Error submitting pictures:', error);
@@ -232,6 +206,19 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
       throw error;
     }
   }
+
+  const totalPaid = (order.deposit_paid_cents || 0) + (order.balance_paid_cents || 0);
+  const balanceDue = order.balance_due_cents;
+  const needsWaiver = !order.waiver_signed_at;
+  const needsPayment = balanceDue > 0;
+  const canCancel = (CANCELLABLE_STATUSES as readonly string[]).includes(order.status);
+  const isActiveOrder = [
+    ORDER_STATUS.CONFIRMED, ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.COMPLETED,
+  ].includes(order.status as any);
+  const stepsUnlocked = totalPaid > 0 || isActiveOrder;
+  const orderDelivered = ([ORDER_STATUS.COMPLETED, ORDER_STATUS.IN_PROGRESS] as string[]).includes(order.status) &&
+    ['setup_completed', 'pickup_scheduled', 'pickup_in_progress'].includes(order.workflow_status || '')
+    || order.status === ORDER_STATUS.COMPLETED;
 
   const successfulPayments = payments.filter(p => p.status === 'succeeded');
 
@@ -246,6 +233,87 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
   const activeWorkflow = order.status === ORDER_STATUS.IN_PROGRESS && order.workflow_status
     ? workflowLabels[order.workflow_status]
     : null;
+
+  const sections: NavSection[] = [
+    {
+      key: 'details',
+      label: 'Details',
+      icon: Package,
+      status: 'Available',
+      locked: false,
+    },
+  ];
+
+  if (lotPicturesRequested) {
+    sections.push({
+      key: 'lot-pictures',
+      label: 'Lot Pictures',
+      icon: MapPin,
+      status: lotPicturesUploaded ? 'Complete' : 'Required',
+      locked: false,
+    });
+  }
+
+  sections.push({
+    key: 'waiver',
+    label: 'Waiver',
+    icon: FileText,
+    status: !stepsUnlocked ? 'Locked' : needsWaiver ? 'Required' : 'Complete',
+    locked: !stepsUnlocked,
+    lockedReason: !stepsUnlocked ? 'Available after payment' : undefined,
+  });
+
+  sections.push({
+    key: 'payment',
+    label: 'Payment',
+    icon: CreditCard,
+    status: !stepsUnlocked ? 'Locked' : needsPayment ? `${formatCurrency(balanceDue)} due` : 'Complete',
+    locked: !stepsUnlocked,
+    lockedReason: !stepsUnlocked ? 'Available after deposit' : undefined,
+  });
+
+  const picturesAvailable = isDelivered || orderDelivered;
+  sections.push({
+    key: 'pictures',
+    label: 'Pictures',
+    icon: ImageIcon,
+    status: picturesAvailable ? 'Optional' : 'Available after delivery',
+    locked: !picturesAvailable,
+    lockedReason: !picturesAvailable ? 'Available after equipment is delivered' : undefined,
+  });
+
+  sections.push({
+    key: 'delivery',
+    label: 'Delivery',
+    icon: Truck,
+    status: deliveryPhotosAvailable ? 'Available' : 'Available after setup',
+    locked: !deliveryPhotosAvailable,
+    lockedReason: !deliveryPhotosAvailable ? 'Delivery photos appear here after crew completes setup' : undefined,
+  });
+
+  function getSectionStyles(section: NavSection, isActive: boolean): string {
+    const base = 'flex flex-col items-center justify-center gap-1.5 rounded-xl p-3 min-h-[56px] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2';
+    if (section.locked) {
+      return `${base} bg-slate-50 text-slate-400 cursor-not-allowed aria-disabled:border-2 aria-disabled:border-slate-200`;
+    }
+    if (isActive) {
+      return `${base} bg-blue-600 text-white shadow-md shadow-blue-600/20`;
+    }
+    if (section.status === 'Required') {
+      return `${base} bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-300`;
+    }
+    if (section.status === 'Complete') {
+      return `${base} bg-green-50 text-green-800 hover:bg-green-100 border border-green-300`;
+    }
+    return `${base} bg-slate-100 text-slate-700 hover:bg-slate-200`;
+  }
+
+  function getSectionIcon(section: NavSection, isActive: boolean) {
+    const Icon = section.icon;
+    if (section.locked) return <Lock className="w-4 h-4 flex-shrink-0" aria-hidden="true" />;
+    if (section.status === 'Complete') return <CheckCircle className="w-4 h-4 flex-shrink-0 text-green-500" aria-hidden="true" />;
+    return <Icon className="w-4 h-4 flex-shrink-0" aria-hidden="true" />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -279,9 +347,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                   )}
                   <p className="text-xs sm:text-sm opacity-90 mt-1">
                     Event Date: {format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')}
-                    {order.start_window && (
-                      <> at {formatTimeStr(order.start_window)}</>
-                    )}
+                    {order.start_window && (<> at {formatTimeStr(order.start_window)}</>)}
                   </p>
                 </div>
               </div>
@@ -296,211 +362,35 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
             </div>
           </div>
 
-          <div className="px-8 py-6">
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold text-slate-900 mb-4">Complete These Steps</h2>
-              <div className={`grid grid-cols-1 ${lotPicturesRequested ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4 mb-4`}>
-                {lotPicturesRequested && (
-                  <button
-                    onClick={() => setActiveTab('lot-pictures')}
-                    className={`border rounded-lg p-4 transition-all ${
-                      !lotPicturesUploaded
-                        ? 'border-amber-500 bg-amber-50 hover:border-amber-600'
-                        : 'border-green-500 bg-green-50 hover:border-green-600'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      {!lotPicturesUploaded ? (
-                        <MapPin className="w-6 h-6 text-amber-600" />
-                      ) : (
-                        <CheckCircle className="w-6 h-6 text-green-600" />
-                      )}
-                      <div className="text-left">
-                        <p className="font-semibold text-slate-900">Lot Pictures</p>
-                        <p className="text-xs text-slate-600">
-                          {!lotPicturesUploaded ? 'Required' : 'Complete'}
-                        </p>
+          <div className="px-4 sm:px-8 py-6">
+            <nav aria-label="Portal sections" className="mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
+                {sections.map((section) => {
+                  const isActive = activeTab === section.key;
+                  const Icon = section.icon;
+                  return (
+                    <button
+                      key={section.key}
+                      onClick={() => !section.locked && setActiveTab(section.key)}
+                      disabled={section.locked}
+                      aria-current={isActive ? 'page' : undefined}
+                      aria-disabled={section.locked}
+                      aria-label={`${section.label} — ${section.status}${section.lockedReason ? `, ${section.lockedReason}` : ''}`}
+                      className={getSectionStyles(section, isActive)}
+                    >
+                      <div className="flex items-center gap-2">
+                        {getSectionIcon(section, isActive)}
+                        <span className="text-sm font-semibold">{section.label}</span>
                       </div>
-                    </div>
-                  </button>
-                )}
-
-                <button
-                  onClick={() => stepsUnlocked && setActiveTab('waiver')}
-                  disabled={!stepsUnlocked}
-                  className={`border rounded-lg p-4 transition-all ${
-                    !stepsUnlocked
-                      ? 'border-slate-300 bg-slate-100 cursor-not-allowed opacity-60'
-                      : needsWaiver
-                      ? 'border-amber-500 bg-amber-50 hover:border-amber-600'
-                      : 'border-green-500 bg-green-50 hover:border-green-600'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    {needsWaiver ? (
-                      <FileText className="w-6 h-6 text-amber-600" />
-                    ) : (
-                      <CheckCircle className="w-6 h-6 text-green-600" />
-                    )}
-                    <div className="text-left">
-                      <p className="font-semibold text-slate-900">Sign Waiver</p>
-                      <p className="text-xs text-slate-600">
-                        {needsWaiver ? 'Required' : 'Complete'}
-                      </p>
-                    </div>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => stepsUnlocked && setActiveTab('payment')}
-                  disabled={!stepsUnlocked}
-                  className={`border rounded-lg p-4 transition-all ${
-                    !stepsUnlocked
-                      ? 'border-slate-300 bg-slate-100 cursor-not-allowed opacity-60'
-                      : needsPayment
-                      ? 'border-amber-500 bg-amber-50 hover:border-amber-600'
-                      : 'border-green-500 bg-green-50 hover:border-green-600'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    {needsPayment ? (
-                      <CreditCard className="w-6 h-6 text-amber-600" />
-                    ) : (
-                      <CheckCircle className="w-6 h-6 text-green-600" />
-                    )}
-                    <div className="text-left">
-                      <p className="font-semibold text-slate-900">Payment</p>
-                      <p className="text-xs text-slate-600">
-                        {needsPayment ? `${formatCurrency(balanceDue)} due` : 'Complete'}
-                      </p>
-                    </div>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => (isDelivered || orderDelivered) && setActiveTab('pictures')}
-                  disabled={!isDelivered && !orderDelivered}
-                  title={!isDelivered && !orderDelivered ? 'Available after equipment is delivered' : undefined}
-                  className={`border rounded-lg p-4 transition-all ${
-                    !isDelivered && !orderDelivered
-                      ? 'border-slate-300 bg-slate-100 cursor-not-allowed opacity-60'
-                      : 'border-slate-300 bg-slate-50 hover:border-slate-400'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <ImageIcon className="w-6 h-6 text-slate-600" />
-                    <div className="text-left">
-                      <p className="font-semibold text-slate-900">Pictures</p>
-                      <p className="text-xs text-slate-600">{(isDelivered || orderDelivered) ? 'Optional' : 'After delivery'}</p>
-                    </div>
-                  </div>
-                </button>
+                      <span className="text-xs font-medium opacity-90">{section.status}</span>
+                      {section.locked && section.lockedReason && (
+                        <span className="text-[10px] leading-tight opacity-75 text-center">{section.lockedReason}</span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
-            </div>
-
-            <div className="mb-6">
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setActiveTab('details')}
-                  className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all ${
-                    activeTab === 'details'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  <Package className="w-4 h-4 flex-shrink-0" />
-                  Details
-                </button>
-                <button
-                  onClick={() => setActiveTab('lot-pictures')}
-                  className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all ${
-                    activeTab === 'lot-pictures'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  <MapPin className="w-4 h-4 flex-shrink-0" />
-                  Lot Pics
-                  {lotPicturesRequested && (
-                    <span className={`w-2 h-2 rounded-full ${lotPicturesUploaded ? 'bg-green-400' : 'bg-amber-400'}`} />
-                  )}
-                </button>
-                <button
-                  onClick={() => stepsUnlocked && setActiveTab('waiver')}
-                  disabled={!stepsUnlocked}
-                  className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all ${
-                    !stepsUnlocked
-                      ? 'bg-slate-50 text-slate-400 cursor-not-allowed'
-                      : activeTab === 'waiver'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                      : needsWaiver
-                      ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-300'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  <FileText className="w-4 h-4 flex-shrink-0" />
-                  Waiver
-                  {needsWaiver && stepsUnlocked && (
-                    <span className="w-2 h-2 rounded-full bg-amber-400" />
-                  )}
-                  {!needsWaiver && stepsUnlocked && (
-                    <CheckCircle className="w-3.5 h-3.5 text-green-500" />
-                  )}
-                </button>
-                <button
-                  onClick={() => stepsUnlocked && setActiveTab('payment')}
-                  disabled={!stepsUnlocked}
-                  className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all ${
-                    !stepsUnlocked
-                      ? 'bg-slate-50 text-slate-400 cursor-not-allowed'
-                      : activeTab === 'payment'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                      : needsPayment
-                      ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-300'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  <CreditCard className="w-4 h-4 flex-shrink-0" />
-                  Payment
-                  {needsPayment && stepsUnlocked && (
-                    <span className="w-2 h-2 rounded-full bg-amber-400" />
-                  )}
-                  {!needsPayment && stepsUnlocked && (
-                    <CheckCircle className="w-3.5 h-3.5 text-green-500" />
-                  )}
-                </button>
-                <button
-                  onClick={() => (isDelivered || orderDelivered) && setActiveTab('pictures')}
-                  disabled={!isDelivered && !orderDelivered}
-                  title={!isDelivered && !orderDelivered ? 'Available after equipment is delivered' : undefined}
-                  className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all ${
-                    !isDelivered && !orderDelivered
-                      ? 'bg-slate-50 text-slate-400 cursor-not-allowed'
-                      : activeTab === 'pictures'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  <ImageIcon className="w-4 h-4 flex-shrink-0" />
-                  Pictures
-                </button>
-                <button
-                  onClick={() => deliveryPhotosAvailable && setActiveTab('delivery')}
-                  disabled={!deliveryPhotosAvailable}
-                  title={!deliveryPhotosAvailable ? 'Delivery photos will appear here after crew completes setup' : undefined}
-                  className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all ${
-                    !deliveryPhotosAvailable
-                      ? 'bg-slate-50 text-slate-400 cursor-not-allowed'
-                      : activeTab === 'delivery'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  <Truck className="w-4 h-4 flex-shrink-0" />
-                  Delivery
-                </button>
-              </div>
-            </div>
+            </nav>
 
             {activeTab === 'details' && (
               <div className="space-y-6">
@@ -579,7 +469,6 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                         </p>
                       </div>
                     </div>
-
                     <div>
                       <p className="text-xs text-slate-600 mb-1">Time Window</p>
                       <p className="font-medium text-slate-900">{formatTimeStr(order.start_window)}</p>
@@ -610,12 +499,8 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                       <p className="text-sm font-semibold text-slate-700 mb-2">Items:</p>
                       {orderSummary.items.map((item: any, index: number) => (
                         <div key={index} className="flex justify-between text-sm mb-1">
-                          <span className="text-slate-600">
-                            {item.name} ({item.mode}) × {item.qty}
-                          </span>
-                          <span className="font-medium text-slate-900">
-                            {formatCurrency(item.lineTotal)}
-                          </span>
+                          <span className="text-slate-600">{item.name} ({item.mode}) × {item.qty}</span>
+                          <span className="font-medium text-slate-900">{formatCurrency(item.lineTotal)}</span>
                         </div>
                       ))}
                     </div>
@@ -624,9 +509,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-600">Subtotal:</span>
-                      <span className="font-semibold text-slate-900">
-                        {formatCurrency(order.subtotal_cents)}
-                      </span>
+                      <span className="font-semibold text-slate-900">{formatCurrency(order.subtotal_cents)}</span>
                     </div>
                     {orderSummary
                       ? orderSummary.fees.map((fee: any, i: number) => (
@@ -671,9 +554,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                     {order.tax_cents > 0 && (
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-600">Tax:</span>
-                        <span className="font-semibold text-slate-900">
-                          {formatCurrency(order.tax_cents)}
-                        </span>
+                        <span className="font-semibold text-slate-900">{formatCurrency(order.tax_cents)}</span>
                       </div>
                     )}
                     <div className="flex justify-between pt-2 border-t border-slate-300">
@@ -685,24 +566,18 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                     {order.tip_cents > 0 && (
                       <div className="flex justify-between text-sm bg-green-50 p-2 rounded">
                         <span className="text-green-800 font-medium">Crew Tip:</span>
-                        <span className="font-semibold text-green-700">
-                          {formatCurrency(order.tip_cents)}
-                        </span>
+                        <span className="font-semibold text-green-700">{formatCurrency(order.tip_cents)}</span>
                       </div>
                     )}
                     {totalPaid > 0 && (
                       <>
                         <div className="flex justify-between text-sm">
                           <span className="text-slate-600">Already Paid:</span>
-                          <span className="font-semibold text-green-700">
-                            {formatCurrency(totalPaid)}
-                          </span>
+                          <span className="font-semibold text-green-700">{formatCurrency(totalPaid)}</span>
                         </div>
                         <div className="flex justify-between pt-2 border-t border-slate-300">
                           <span className="font-semibold text-slate-900">Balance Due:</span>
-                          <span className="text-xl font-bold text-blue-600">
-                            {formatCurrency(balanceDue)}
-                          </span>
+                          <span className="text-xl font-bold text-blue-600">{formatCurrency(balanceDue)}</span>
                         </div>
                       </>
                     )}
@@ -714,25 +589,14 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                     <h3 className="text-lg font-semibold text-slate-900 mb-4">Payment Receipts</h3>
                     <div className="space-y-3">
                       {successfulPayments.map((payment) => (
-                        <div
-                          key={payment.id}
-                          className="flex items-center justify-between bg-white border border-slate-200 rounded-lg p-4"
-                        >
+                        <div key={payment.id} className="flex items-center justify-between bg-white border border-slate-200 rounded-lg p-4">
                           <div>
-                            <p className="font-medium text-slate-900">
-                              {formatCurrency(payment.amount_cents)}
-                            </p>
-                            <p className="text-xs text-slate-600">
-                              {format(new Date(payment.created_at), 'MMM d, yyyy h:mm a')}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {payment.payment_method === 'card' ? 'Credit Card' : payment.payment_method}
-                            </p>
+                            <p className="font-medium text-slate-900">{formatCurrency(payment.amount_cents)}</p>
+                            <p className="text-xs text-slate-600">{format(new Date(payment.created_at), 'MMM d, yyyy h:mm a')}</p>
+                            <p className="text-xs text-slate-500">{payment.payment_method === 'card' ? 'Credit Card' : payment.payment_method}</p>
                           </div>
                           <button
-                            onClick={() => {
-                              window.open(`/receipt/${orderId}/${payment.id}`, '_blank');
-                            }}
+                            onClick={() => window.open(`/receipt/${orderId}/${payment.id}`, '_blank')}
                             className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                           >
                             <Printer className="w-4 h-4" />
@@ -751,10 +615,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                 orderId={orderId}
                 orderNumber={order.order_number}
                 orderStatus={order.status}
-                onUploadComplete={() => {
-                  loadLotPictures();
-                  onReload();
-                }}
+                onUploadComplete={() => { loadLotPictures(); onReload(); }}
               />
             )}
 
@@ -789,13 +650,9 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
           customerEmail={order.customers?.email ?? ''}
           invoiceLinkToken={invoiceLinkToken}
           onClose={() => setShowCancelModal(false)}
-          onSuccess={() => {
-            onReload();
-            showToast('Your order has been cancelled', 'success');
-          }}
+          onSuccess={() => { onReload(); showToast('Your order has been cancelled', 'success'); }}
         />
       )}
-
     </div>
   );
 }
