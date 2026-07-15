@@ -256,13 +256,22 @@ export async function saveOrderChanges({
     if (hasRefunds) {
       newBalanceDueCents = order.balance_due_cents ?? 0;
     } else if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'require') {
+      // Admin requires the customer to pay the deposit difference now.
+      // The full new deposit is reserved against the total, so the
+      // event-day balance is total - newDeposit - balancePaid - excess.
+      // excess (deposit paid above new requirement) is credited to balance.
       newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents - balancePaidCents - excessDepositPaidCents);
       changes.deposit_catchup_cents = depositDifferenceCents;
       logs.push(['deposit_catchup', 0, depositDifferenceCents]);
     } else if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'waive') {
-      newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents - balancePaidCents - excessDepositPaidCents);
+      // Admin waives the deposit difference — no additional deposit due now.
+      // The waived amount rolls into the event-day balance, so only the
+      // deposit actually captured is credited, not the new requirement.
+      // balance = total - depositPaid - balancePaid
+      newBalanceDueCents = Math.max(0, effectiveTotalCents - depositPaidCents - balancePaidCents);
       changes.deposit_catchup_cents = 0;
     } else {
+      // No deposit catch-up applies. The full deposit due is reserved.
       newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents - balancePaidCents - excessDepositPaidCents);
     }
 
@@ -413,6 +422,7 @@ export async function saveOrderChanges({
   }
 
   const originalDiscounts = await supabase.from('order_discounts').select('*').eq('order_id', order.id);
+  if (originalDiscounts.error) throw new Error(`Failed to load existing discounts before saving: ${originalDiscounts.error.message}`);
   let deletedDiscountCount = 0;
   let updatedDiscountCount = 0;
   if (originalDiscounts.data) {
@@ -465,6 +475,7 @@ export async function saveOrderChanges({
   }
 
   const originalCustomFees = await supabase.from('order_custom_fees').select('*').eq('order_id', order.id);
+  if (originalCustomFees.error) throw new Error(`Failed to load existing custom fees before saving: ${originalCustomFees.error.message}`);
   let deletedFeeCount = 0;
   let updatedFeeCount = 0;
   if (originalCustomFees.data) {
@@ -533,6 +544,42 @@ export async function saveOrderChanges({
     || updatedFeeCount > 0;
   const hasFieldChanges = Object.keys(changes).length > 0;
 
+  // Classify whether any change is customer-visible. The Realtime sentinel
+  // (customer_view_updated_at) must only fire when the customer portal would
+  // display something different after this save. Internal-only changes
+  // (status transitions, payment-method clearing, changelog writes) do not
+  // affect what the customer sees, so they must not trigger the sentinel.
+  const CUSTOMER_VISIBLE_CHANGE_KEYS = new Set([
+    'location_type', 'surface', 'generator_qty',
+    'start_window', 'end_window',
+    'event_date', 'event_end_date',
+    'pickup_preference', 'overnight_allowed',
+    'address_id',
+    'subtotal_cents', 'generator_fee_cents',
+    'travel_fee_cents', 'travel_total_miles', 'travel_base_radius_miles',
+    'travel_chargeable_miles', 'travel_per_mile_cents', 'travel_is_flat_fee',
+    'surface_fee_cents', 'same_day_pickup_fee_cents',
+    'same_day_weekday_delivery_fee_cents', 'tax_cents',
+    'deposit_due_cents', 'balance_due_cents', 'deposit_catchup_cents',
+    'tax_waived', 'tax_waive_reason',
+    'travel_fee_waived', 'travel_fee_waive_reason',
+    'same_day_pickup_fee_waived', 'same_day_pickup_fee_waive_reason',
+    'surface_fee_waived', 'surface_fee_waive_reason',
+    'generator_fee_waived', 'generator_fee_waive_reason',
+    'same_day_weekday_delivery_fee_waived', 'same_day_weekday_delivery_fee_waive_reason',
+    'admin_message', 'require_card_on_file',
+  ]);
+  const hasCustomerVisibleChanges =
+    Object.keys(changes).some(k => CUSTOMER_VISIBLE_CHANGE_KEYS.has(k))
+    || stagedItems.some(item => item.is_new || item.is_deleted)
+    || discounts.some(d => d.is_new || d.is_deleted)
+    || customFees.some(f => f.is_new || f.is_deleted)
+    || deletedDiscountCount > 0
+    || deletedFeeCount > 0
+    || updatedDiscountCount > 0
+    || updatedFeeCount > 0
+    || logs.some(([field]) => field !== 'payment_method');
+
   // Statuses where we must never attempt a status transition — the order is
   // already operational or terminal. Admin changes (fees, generators, items)
   // are saved as-is without touching status.
@@ -558,10 +605,12 @@ export async function saveOrderChanges({
 
     // Sentinel: guarantee a customer-facing Realtime UPDATE event fires
     // after all relational writes (items, discounts, fees) have succeeded.
-    // Without this, relational-only changes (e.g. renaming a discount without
-    // changing the amount) can produce an empty changes object and no WAL
-    // entry, so the customer's open invoice never refreshes.
-    changes.customer_view_updated_at = new Date().toISOString();
+    // Only set when at least one customer-visible change exists — internal
+    // changes (status transitions, payment-method clearing) must not
+    // trigger a customer-portal refresh.
+    if (hasCustomerVisibleChanges) {
+      changes.customer_view_updated_at = new Date().toISOString();
+    }
 
     const { error: updateError } = await supabase.from('orders').update(changes).eq('id', order.id);
     if (updateError) throw new Error(`Failed to update order: ${updateError.message}`);

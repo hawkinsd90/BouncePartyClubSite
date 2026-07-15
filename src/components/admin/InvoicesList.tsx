@@ -11,7 +11,7 @@ interface Invoice {
   id: string;
   order_id: string;
   invoice_number: string;
-  invoice_date: string;
+  invoice_date: string | null;
   status: string;
   subtotal_cents: number;
   tax_cents: number;
@@ -122,7 +122,7 @@ export function InvoicesList() {
     const invoiceDetails = `
 BOUNCE PARTY CLUB
 Invoice: ${invoice.invoice_number}
-Date: ${format(new Date(invoice.invoice_date), 'MMMM d, yyyy')}
+Date: ${invoice.invoice_date ? format(new Date(`${invoice.invoice_date}T12:00:00`), 'MMMM d, yyyy') : 'No date'}
 
 Customer: ${invoice.customers?.first_name} ${invoice.customers?.last_name}
 Email: ${invoice.customers?.email}
@@ -264,7 +264,7 @@ Payment Method: ${invoice.payment_method || 'N/A'}
                 <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-slate-900">
                   <div className="flex items-center">
                     <Calendar className="w-3 sm:w-4 h-3 sm:h-4 mr-1 sm:mr-2 text-slate-400 flex-shrink-0" />
-                    {format(new Date(invoice.invoice_date), 'MMM d, yyyy')}
+                    {invoice.invoice_date ? format(new Date(`${invoice.invoice_date}T12:00:00`), 'MMM d, yyyy') : 'No date'}
                   </div>
                 </td>
                 <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-slate-900">

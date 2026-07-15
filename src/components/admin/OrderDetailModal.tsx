@@ -500,7 +500,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         calculatedPricing,
         customDepositCents,
         adminMessage,
-        adminOverrideApproval,
+        adminOverrideApproval: order.status === ORDER_STATUS.DRAFT ? false : adminOverrideApproval,
         availabilityIssues,
         depositCatchupMode,
         requireCardOnFile,
@@ -581,18 +581,20 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
             </p>
           </div>
           <div className="flex items-center gap-1 md:gap-2 shrink-0">
-            {hasChanges && order.status !== ORDER_STATUS.DRAFT && (
+            {hasChanges && (
               <>
-                <label className="flex items-center gap-1.5 bg-amber-50 border border-amber-300 text-amber-900 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-medium cursor-pointer hover:bg-amber-100">
-                  <input
-                    type="checkbox"
-                    checked={adminOverrideApproval}
-                    onChange={(e) => setAdminOverrideApproval(e.target.checked)}
-                    className="w-3.5 h-3.5 md:w-4 md:h-4"
-                  />
-                  <span className="hidden lg:inline">Skip Customer Approval</span>
-                  <span className="lg:hidden">Skip Approval</span>
-                </label>
+                {order.status !== ORDER_STATUS.DRAFT && (
+                  <label className="flex items-center gap-1.5 bg-amber-50 border border-amber-300 text-amber-900 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-medium cursor-pointer hover:bg-amber-100">
+                    <input
+                      type="checkbox"
+                      checked={adminOverrideApproval}
+                      onChange={(e) => setAdminOverrideApproval(e.target.checked)}
+                      className="w-3.5 h-3.5 md:w-4 md:h-4"
+                    />
+                    <span className="hidden lg:inline">Skip Customer Approval</span>
+                    <span className="lg:hidden">Skip Approval</span>
+                  </label>
+                )}
                 <button
                   onClick={handleSaveChanges}
                   disabled={saving}
