@@ -63,7 +63,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
   const [discounts, setDiscounts] = useState<any[]>([]);
   const [customFees, setCustomFees] = useState<any[]>([]);
-  const [adminMessage, setAdminMessage] = useState('');
+  const [adminMessage, setAdminMessage] = useState(order.admin_message || '');
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
@@ -339,10 +339,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
   }
 
-  async function checkAvailability() {
+  async function checkAvailability(): Promise<any[]> {
     if (!editedOrder.event_date || !editedOrder.event_end_date || stagedItems.length === 0) {
       setAvailabilityIssues([]);
-      return;
+      return [];
     }
 
     setCheckingAvailability(true);
@@ -352,7 +352,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         unitId: item.unit_id,
         eventStartDate: editedOrder.event_date,
         eventEndDate: editedOrder.event_end_date,
-        excludeOrderId: order.id, // Exclude current order from conflict check
+        excludeOrderId: order.id,
       }));
 
       const results = await checkMultipleUnitsAvailability(checks);
@@ -368,8 +368,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         });
 
       setAvailabilityIssues(issues);
+      return issues;
     } catch (error) {
       console.error('Error checking availability:', error);
+      throw error;
     } finally {
       setCheckingAvailability(false);
     }
@@ -487,10 +489,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   }, []);
 
   async function handleSaveChanges() {
-    await checkAvailability();
-
     setSaving(true);
     try {
+      const latestAvailabilityIssues = await checkAvailability();
+
       await saveOrderChanges({
         order,
         editedOrder,
@@ -501,7 +503,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         customDepositCents,
         adminMessage,
         adminOverrideApproval: order.status === ORDER_STATUS.DRAFT ? false : adminOverrideApproval,
-        availabilityIssues,
+        availabilityIssues: latestAvailabilityIssues,
         depositCatchupMode,
         requireCardOnFile,
         taxWaived,

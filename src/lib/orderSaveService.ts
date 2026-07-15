@@ -509,12 +509,13 @@ export async function saveOrderChanges({
     }
   }
 
-  // Save admin message
-  if (adminMessage.trim()) {
-    changes.admin_message = adminMessage.trim();
-    if (adminMessage.trim() !== (order.admin_message || '')) {
-      logs.push(['admin_message', order.admin_message || '', adminMessage.trim()]);
-    }
+  // Save admin message — normalized comparison allows clearing
+  const normalizedAdminMessage = adminMessage.trim();
+  const originalAdminMessage = order.admin_message || '';
+
+  if (normalizedAdminMessage !== originalAdminMessage) {
+    changes.admin_message = normalizedAdminMessage || null;
+    logs.push(['admin_message', originalAdminMessage, normalizedAdminMessage]);
   }
 
   // Card-on-file normalization: when the effective deposit is greater than
