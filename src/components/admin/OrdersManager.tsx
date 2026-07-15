@@ -221,7 +221,7 @@ export function OrdersManager() {
           case 'created_at':
             return order.created_at || null;
           case 'customer': {
-            const biz = order.customers?.business_name;
+            const biz = contactsMap.get(order.customers?.email)?.business_name;
             if (biz && biz.trim()) return biz.trim();
             const first = order.customers?.first_name || '';
             const last = order.customers?.last_name || '';
@@ -263,7 +263,7 @@ export function OrdersManager() {
     }
 
     return filtered;
-  }, [categorizedOrders, activeTab, searchTerm, sortColumn, sortDirection]);
+  }, [categorizedOrders, activeTab, searchTerm, sortColumn, sortDirection, contactsMap]);
 
   // Memoize tab counts — past and cancelled respect the showArchived flag
   // so the badge count always matches what is actually visible in the list.
