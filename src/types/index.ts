@@ -126,6 +126,88 @@ export interface BlackoutDate {
   created_at: string;
 }
 
+export interface InventoryProduct {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  total_quantity: number;
+  temp_unavailable_qty: number;
+  active: boolean;
+  public_visible: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductBundle {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  standalone_price_cents: number | null;
+  addon_price_cents: number | null;
+  standalone_enabled: boolean;
+  addon_enabled: boolean;
+  active: boolean;
+  public_visible: boolean;
+  menu_visible: boolean;
+  featured: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductBundleComponent {
+  id: string;
+  bundle_id: string;
+  product_id: string;
+  quantity_per_bundle: number;
+}
+
+export interface ProductPricing {
+  id: string;
+  product_id: string;
+  standalone_price_cents: number | null;
+  addon_price_cents: number | null;
+  standalone_enabled: boolean;
+  addon_enabled: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BundleComponentSnapshotItem {
+  product_id: string;
+  product_name: string;
+  quantity_per_bundle: number;
+}
+
+export interface BundleComponentSnapshot {
+  bundle_name: string;
+  bundle_description: string | null;
+  components: BundleComponentSnapshotItem[];
+}
+
+export interface ProductAvailabilityRequestItem {
+  product_id: string;
+  quantity: number;
+}
+
+export interface ProductAvailabilityResult {
+  product_id: string;
+  product_name: string;
+  total_quantity: number;
+  temp_unavailable_qty: number;
+  already_reserved: number;
+  quantity_requested: number;
+  available_before_request: number;
+  remaining_after_request: number;
+  is_allowed: boolean;
+}
+
 export interface FormErrors {
   [key: string]: string | undefined;
 }

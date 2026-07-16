@@ -424,15 +424,89 @@ export interface Database {
       order_items: {
         Row: {
           id: string
-          order_id: string
-          unit_id: string
-          qty: number
+          order_id: string | null
+          unit_id: string | null
+          qty: number | null
           wet_or_dry: string
           unit_price_cents: number
-          created_at: string
+          notes: string | null
+          product_id: string | null
+          bundle_id: string | null
+          item_name: string | null
+          component_snapshot: Json | null
+          pricing_context: string | null
         }
-        Insert: Omit<Database['public']['Tables']['order_items']['Row'], 'id' | 'created_at'>
+        Insert: Omit<Database['public']['Tables']['order_items']['Row'], 'id'>
         Update: Partial<Database['public']['Tables']['order_items']['Insert']>
+        Relationships: []
+      }
+      inventory_products: {
+        Row: {
+          id: string
+          slug: string
+          name: string
+          description: string | null
+          image_url: string | null
+          total_quantity: number
+          temp_unavailable_qty: number
+          active: boolean
+          public_visible: boolean
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['inventory_products']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Database['public']['Tables']['inventory_products']['Insert']>
+        Relationships: []
+      }
+      product_bundles: {
+        Row: {
+          id: string
+          slug: string
+          name: string
+          description: string | null
+          image_url: string | null
+          standalone_price_cents: number | null
+          addon_price_cents: number | null
+          standalone_enabled: boolean
+          addon_enabled: boolean
+          active: boolean
+          public_visible: boolean
+          menu_visible: boolean
+          featured: boolean
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['product_bundles']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Database['public']['Tables']['product_bundles']['Insert']>
+        Relationships: []
+      }
+      product_bundle_components: {
+        Row: {
+          id: string
+          bundle_id: string
+          product_id: string
+          quantity_per_bundle: number
+        }
+        Insert: Omit<Database['public']['Tables']['product_bundle_components']['Row'], 'id'>
+        Update: Partial<Database['public']['Tables']['product_bundle_components']['Insert']>
+        Relationships: []
+      }
+      product_pricing: {
+        Row: {
+          id: string
+          product_id: string
+          standalone_price_cents: number | null
+          addon_price_cents: number | null
+          standalone_enabled: boolean
+          addon_enabled: boolean
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['product_pricing']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Database['public']['Tables']['product_pricing']['Insert']>
         Relationships: []
       }
       order_lot_pictures: {
@@ -947,6 +1021,25 @@ export interface Database {
       approve_order: {
         Args: { p_order_id: string; p_user_id: string }
         Returns: boolean
+      }
+      check_product_availability: {
+        Args: {
+          p_requested_items: Json
+          p_start_date: string
+          p_end_date: string
+          p_exclude_order_id: string | null
+        }
+        Returns: Array<{
+          product_id: string
+          product_name: string
+          total_quantity: number
+          temp_unavailable_qty: number
+          already_reserved: number
+          quantity_requested: number
+          available_before_request: number
+          remaining_after_request: number
+          is_allowed: boolean
+        }>
       }
     }
     Enums: {}
