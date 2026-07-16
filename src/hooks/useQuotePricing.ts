@@ -11,11 +11,6 @@ export function useQuotePricing(cart: InflatableCartItem[], formData: QuoteFormD
   const [priceBreakdown, setPriceBreakdown] = useState<any>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const inflatableCart = cart.filter((item) => {
-    const itemType = (item as any).item_type;
-    return itemType === undefined || itemType === 'inflatable';
-  });
-
   useEffect(() => {
     // Clear existing timer
     if (debounceTimerRef.current) {
@@ -23,7 +18,7 @@ export function useQuotePricing(cart: InflatableCartItem[], formData: QuoteFormD
     }
 
     const hasRequiredPricingInputs =
-      inflatableCart.length > 0 &&
+      cart.length > 0 &&
       !!pricingRules &&
       !!formData.zip &&
       !!formData.lat &&
@@ -48,7 +43,7 @@ export function useQuotePricing(cart: InflatableCartItem[], formData: QuoteFormD
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [inflatableCart, pricingRules, formData]);
+  }, [cart, pricingRules, formData]);
 
   async function calculatePricing() {
     if (!pricingRules) return;
@@ -67,7 +62,7 @@ export function useQuotePricing(cart: InflatableCartItem[], formData: QuoteFormD
     const num_days = Math.max(1, daysDiff + 1);
 
     const breakdown = calculatePrice({
-      items: inflatableCart,
+      items: cart,
       location_type: formData.location_type ?? 'residential',
       surface: formData.can_stake === true ? 'grass' : 'cement',
       can_use_stakes: formData.can_stake ?? true,

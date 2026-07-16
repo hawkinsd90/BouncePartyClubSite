@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, Calendar, ShoppingCart, AlertCircle, Loader2, Plus, Minus, CheckCircle2 } from 'lucide-react';
+import { Package, Calendar, ShoppingCart, AlertCircle, Loader2, Plus, Minus, CheckCircle2, Lock } from 'lucide-react';
 import { getPublicBusinessSettings } from '../lib/adminSettingsCache';
 import { SafeStorage } from '../lib/safeStorage';
 import { fetchProductBundlesWithComponents, checkProductAvailability } from '../lib/queries/products';
 import { useQuoteCart } from '../hooks/useQuoteCart';
-import { buildBundleSnapshot, expandCartToProductQuantities } from '../lib/unifiedCart';
+import { buildBundleSnapshot, expandCartToProductQuantities, isInflatableCartItem } from '../lib/unifiedCart';
 import type {
   ProductBundleWithComponents,
   ProductAvailabilityResult,
@@ -50,8 +50,9 @@ export function EventEssentialsCatalog() {
         if (cancelled) return;
 
         if (!settings.event_essentials_page_enabled) {
-          setEnabled(false);
-          setLoading(false);
+          if (!cancelled) {
+            navigate('/catalog', { replace: true });
+          }
           return;
         }
 
@@ -171,13 +172,38 @@ export function EventEssentialsCatalog() {
     }
   }, [eventDate, eventEndDate, eventEssentialsCartItems.length, runAvailabilityCheck]);
 
-  function getBundlePrice(bundle: ProductBundleWithComponents): { unitPriceCents: number; isAddon: boolean } | null {
+  function hasQualifyingInflatable(): boolean {
+    return cart.some(
+      (item) => isInflatableCartItem(item) && item.qty > 0
+    );
+  }
+
+  function getBundlePrice(bundle: ProductBundleWithComponents): { unitPriceCents: number; isAddon: boolean; blocked: boolean; blockReason?: string } | null {
+    const hasInflatable = hasQualifyingInflatable();
+
+    if (hasInflatable) {
+      if (bundle.addon_enabled && bundle.addon_price_cents != null) {
+        return { unitPriceCents: bundle.addon_price_cents, isAddon: true, blocked: false };
+      }
+      if (bundle.standalone_enabled && bundle.standalone_price_cents != null) {
+        return { unitPriceCents: bundle.standalone_price_cents, isAddon: false, blocked: false };
+      }
+      return null;
+    }
+
     if (bundle.standalone_enabled && bundle.standalone_price_cents != null) {
-      return { unitPriceCents: bundle.standalone_price_cents, isAddon: false };
+      return { unitPriceCents: bundle.standalone_price_cents, isAddon: false, blocked: false };
     }
+
     if (bundle.addon_enabled && bundle.addon_price_cents != null) {
-      return { unitPriceCents: bundle.addon_price_cents, isAddon: true };
+      return {
+        unitPriceCents: bundle.addon_price_cents,
+        isAddon: true,
+        blocked: true,
+        blockReason: 'Add an inflatable to unlock this package.',
+      };
     }
+
     return null;
   }
 
@@ -196,31 +222,79 @@ export function EventEssentialsCatalog() {
     }));
   }
 
-  function handleAddBundle(bundle: ProductBundleWithComponents) {
+  const [addError, setAddError] = useState<string | null>(null);
+  const addingRef = useRef(false);
+
+  async function handleAddBundle(bundle: ProductBundleWithComponents) {
     const key = `bundle-${bundle.id}`;
     const qty = getQty(key);
     if (qty <= 0) return;
 
+    setAddError(null);
+
     const priceInfo = getBundlePrice(bundle);
     if (!priceInfo) {
-      setError('Pricing not available for this bundle.');
+      setAddError('Pricing not available for this bundle.');
       return;
     }
 
-    const pricingContext: PricingContext = priceInfo.isAddon ? 'addon' : 'standalone';
+    if (priceInfo.blocked) {
+      setAddError(priceInfo.blockReason || 'This package requires an inflatable in your cart.');
+      return;
+    }
 
-    const cartItem: EventEssentialBundleCartItem = {
-      item_type: 'event_essential_bundle',
-      bundle_id: bundle.id,
-      bundle_name: bundle.name,
-      unit_price_cents: priceInfo.unitPriceCents,
-      qty,
-      pricing_context: pricingContext,
-      component_snapshot: buildBundleSnapshot(bundle),
-    };
+    if (!eventDate || !eventEndDate) {
+      setAddError('Please select event dates before adding items to your cart.');
+      return;
+    }
 
-    addToCart(cartItem);
-    setQuantities((prev) => ({ ...prev, [key]: 0 }));
+    if (addingRef.current) return;
+    addingRef.current = true;
+
+    try {
+      const pricingContext: PricingContext = priceInfo.isAddon ? 'addon' : 'standalone';
+
+      const proposedItem: EventEssentialBundleCartItem = {
+        item_type: 'event_essential_bundle',
+        bundle_id: bundle.id,
+        bundle_name: bundle.name,
+        unit_price_cents: priceInfo.unitPriceCents,
+        qty,
+        pricing_context: pricingContext,
+        component_snapshot: buildBundleSnapshot(bundle),
+      };
+
+      const existingEEItems = cart.filter(
+        (item) => item.item_type === 'event_essential_product' || item.item_type === 'event_essential_bundle'
+      ) as (EventEssentialProductCartItem | EventEssentialBundleCartItem)[];
+
+      const proposedAllocation = expandCartToProductQuantities([...existingEEItems, proposedItem]);
+
+      const result = await checkProductAvailability(proposedAllocation, eventDate, eventEndDate, null);
+      const results = result.data ?? [];
+
+      const unavailableComponents: string[] = [];
+      for (const comp of proposedItem.component_snapshot.components) {
+        const found = results.find((r: ProductAvailabilityResult) => r.product_id === comp.product_id);
+        if (!found || found.is_allowed !== true) {
+          unavailableComponents.push(comp.product_name);
+        }
+      }
+
+      if (unavailableComponents.length > 0) {
+        setAddError(
+          `Cannot add "${bundle.name}" — insufficient inventory for: ${unavailableComponents.join(', ')}. Please choose different dates or reduce quantities.`
+        );
+        return;
+      }
+
+      addToCart(proposedItem);
+      setQuantities((prev) => ({ ...prev, [key]: 0 }));
+    } catch {
+      setAddError('Failed to check availability. Please try again.');
+    } finally {
+      addingRef.current = false;
+    }
   }
 
   const eventEssentialsSubtotalCents = eventEssentialsCartItems.reduce(
@@ -229,15 +303,7 @@ export function EventEssentialsCatalog() {
   );
 
   if (!enabled && !loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-        <div className="max-w-md text-center">
-          <Package className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">Event Essentials</h1>
-          <p className="text-slate-600">This page is not available.</p>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   if (loading) {
@@ -309,6 +375,17 @@ export function EventEssentialsCatalog() {
                   />
                 </div>
               </div>
+              {(!eventDate || !eventEndDate) && (
+                <p className="mt-3 text-xs text-amber-700 flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                  Select event dates to check availability and add items to your cart.
+                </p>
+              )}
+              {addError && (
+                <p className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  {addError}
+                </p>
+              )}
             </div>
 
             {bundles.length === 0 ? (
@@ -324,11 +401,14 @@ export function EventEssentialsCatalog() {
                   const priceInfo = getBundlePrice(bundle);
                   const unitPriceCents = priceInfo?.unitPriceCents ?? 0;
                   const isAddon = priceInfo?.isAddon ?? false;
+                  const isBlocked = priceInfo?.blocked ?? false;
 
                   return (
                     <div
                       key={bundle.id}
-                      className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 hover:shadow-md transition-shadow"
+                      className={`bg-white rounded-xl shadow-sm border p-4 sm:p-6 transition-shadow ${
+                        isBlocked ? 'border-slate-200 opacity-75' : 'border-slate-200 hover:shadow-md'
+                      }`}
                     >
                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                         <div className="flex-1 min-w-0">
@@ -356,6 +436,12 @@ export function EventEssentialsCatalog() {
                           <p className="text-lg font-bold text-blue-700">
                             ${((unitPriceCents / 100)).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                           </p>
+                          {isBlocked && (
+                            <p className="mt-2 text-sm text-amber-700 flex items-center gap-1.5">
+                              <Lock className="w-4 h-4 flex-shrink-0" />
+                              {priceInfo?.blockReason}
+                            </p>
+                          )}
                         </div>
 
                         <div className="flex flex-col items-stretch sm:items-end gap-2 sm:min-w-[140px]">
@@ -380,7 +466,7 @@ export function EventEssentialsCatalog() {
                           <button
                             type="button"
                             onClick={() => handleAddBundle(bundle)}
-                            disabled={qty <= 0}
+                            disabled={qty <= 0 || isBlocked || !eventDate || !eventEndDate}
                             className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <ShoppingCart className="w-4 h-4" />

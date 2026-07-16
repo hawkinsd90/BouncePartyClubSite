@@ -262,7 +262,8 @@ export function getInvalidAddOnItems(cart: UnifiedCartItem[]): UnifiedCartItem[]
   }
   return cart.filter(
     (item) =>
-      isEventEssentialProductCartItem(item) && item.pricing_context === 'addon'
+      (isEventEssentialProductCartItem(item) || isEventEssentialBundleCartItem(item)) &&
+      item.pricing_context === 'addon'
   );
 }
 

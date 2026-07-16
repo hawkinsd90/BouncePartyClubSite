@@ -368,9 +368,9 @@ export function Quote() {
       return;
     }
 
-    await checkAllCartAvailability(formData.event_date, formData.event_end_date);
+    const checkedCart = await checkAllCartAvailability(formData.event_date, formData.event_end_date);
 
-    const stillUnavailable = cart.filter((item) => item.isAvailable === false);
+    const stillUnavailable = checkedCart.filter((item) => item.isAvailable === false);
     if (stillUnavailable.length > 0) {
       const unavailableNames = stillUnavailable.map((item) => {
         if (item.item_type === 'event_essential_bundle') return item.bundle_name;

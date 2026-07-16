@@ -128,9 +128,9 @@ export function useQuoteCart() {
   }
 
   const checkAllCartAvailability = useCallback(
-    async (eventStartDate: string, eventEndDate: string) => {
+    async (eventStartDate: string, eventEndDate: string): Promise<UnifiedCartItem[]> => {
       if (!eventStartDate || !eventEndDate || cart.length === 0) {
-        return;
+        return cart;
       }
 
       const inflatableEntries: { item: InflatableCartItem; cartIndex: number }[] = [];
@@ -150,7 +150,7 @@ export function useQuoteCart() {
       const hasEventEssentials = eventEssentialsItems.length > 0;
 
       if (!hasInflatables && !hasEventEssentials) {
-        return;
+        return cart;
       }
 
       const inflatableRequests = inflatableEntries.map(({ item }) => ({
@@ -197,6 +197,7 @@ export function useQuoteCart() {
 
       setCart(mergedCart);
       persistCart(mergedCart);
+      return mergedCart;
     },
     [cart]
   );

@@ -74,7 +74,7 @@ export async function fetchProductBundlesWithComponents(options?: QueryOptions) 
         )
         .eq('active', true)
         .eq('public_visible', true)
-        .order('sort_order', { ascending: true }) as unknown as Promise<{ data: ProductBundleWithComponents[] | null; error: any }>,
+        .order('sort_order', { ascending: true }) as unknown as Promise<{ data: ProductBundleWithComponents[] | null; error: unknown }>,
     { context: 'fetchProductBundlesWithComponents', ...options }
   );
 }
