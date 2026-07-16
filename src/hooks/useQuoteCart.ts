@@ -19,6 +19,11 @@ import type {
   EventEssentialBundleCartItem,
 } from '../types';
 
+export interface CartAvailabilityResult {
+  cart: UnifiedCartItem[];
+  eventEssentialsCheckFailed: boolean;
+}
+
 const CART_STORAGE_KEY = 'bpc_cart';
 
 export function useQuoteCart() {
@@ -52,6 +57,7 @@ export function useQuoteCart() {
     const rawArrayLen = Array.isArray(savedCart) ? (savedCart as unknown[]).length : -1;
     if (normalized.length !== rawArrayLen) {
       SafeStorage.setItem(CART_STORAGE_KEY, normalized, { expirationDays: 7 });
+      window.dispatchEvent(new CustomEvent('bpc-cart-updated'));
     }
 
     const needsHydration = normalized.filter(
@@ -133,9 +139,9 @@ export function useQuoteCart() {
   }
 
   const checkAllCartAvailability = useCallback(
-    async (eventStartDate: string, eventEndDate: string): Promise<UnifiedCartItem[]> => {
+    async (eventStartDate: string, eventEndDate: string): Promise<CartAvailabilityResult> => {
       if (!eventStartDate || !eventEndDate || cart.length === 0) {
-        return cart;
+        return { cart, eventEssentialsCheckFailed: false };
       }
 
       const inflatableEntries: { item: InflatableCartItem; cartIndex: number }[] = [];
@@ -155,7 +161,7 @@ export function useQuoteCart() {
       const hasEventEssentials = eventEssentialsItems.length > 0;
 
       if (!hasInflatables && !hasEventEssentials) {
-        return cart;
+        return { cart, eventEssentialsCheckFailed: false };
       }
 
       const inflatableRequests = inflatableEntries.map(({ item }) => ({
@@ -166,14 +172,25 @@ export function useQuoteCart() {
 
       const productAllocation = expandCartToProductQuantities(eventEssentialsItems);
 
+      let eventEssentialsCheckFailed = false;
+
       const [inflatableResults, productResults] = await Promise.all([
         hasInflatables
           ? checkMultipleUnitsAvailability(inflatableRequests)
           : Promise.resolve([]),
         hasEventEssentials
           ? checkProductAvailability(productAllocation, eventStartDate, eventEndDate, null)
-              .then((res) => res.data ?? [])
-              .catch(() => [])
+              .then((res) => {
+                if (res.error) {
+                  eventEssentialsCheckFailed = true;
+                  return [];
+                }
+                return res.data ?? [];
+              })
+              .catch(() => {
+                eventEssentialsCheckFailed = true;
+                return [];
+              })
           : Promise.resolve([]),
       ]);
 
@@ -186,23 +203,25 @@ export function useQuoteCart() {
         };
       });
 
-      mergedCart.forEach((item, index) => {
-        if (isEventEssentialProductCartItem(item)) {
-          mergedCart[index] = {
-            ...item,
-            isAvailable: mapProductAvailabilityToItem(item, productResults),
-          };
-        } else if (isEventEssentialBundleCartItem(item)) {
-          mergedCart[index] = {
-            ...item,
-            isAvailable: mapBundleAvailabilityToItem(item, productResults),
-          };
-        }
-      });
+      if (!eventEssentialsCheckFailed) {
+        mergedCart.forEach((item, index) => {
+          if (isEventEssentialProductCartItem(item)) {
+            mergedCart[index] = {
+              ...item,
+              isAvailable: mapProductAvailabilityToItem(item, productResults),
+            };
+          } else if (isEventEssentialBundleCartItem(item)) {
+            mergedCart[index] = {
+              ...item,
+              isAvailable: mapBundleAvailabilityToItem(item, productResults),
+            };
+          }
+        });
+      }
 
       setCart(mergedCart);
       persistCart(mergedCart);
-      return mergedCart;
+      return { cart: mergedCart, eventEssentialsCheckFailed };
     },
     [cart]
   );

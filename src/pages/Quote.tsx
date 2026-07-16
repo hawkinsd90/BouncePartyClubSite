@@ -368,9 +368,19 @@ export function Quote() {
       return;
     }
 
-    const checkedCart = await checkAllCartAvailability(formData.event_date, formData.event_end_date);
+    const availabilityResult = await checkAllCartAvailability(formData.event_date, formData.event_end_date);
 
-    const stillUnavailable = checkedCart.filter((item) => item.isAvailable === false);
+    if (availabilityResult.eventEssentialsCheckFailed) {
+      flushSync(() => {
+        setValidationError('Unable to check Event Essentials availability right now. Please try again.');
+        setValidationErrorFieldId(null);
+        setShowBottomToast(true);
+      });
+      scrollToSection('cart');
+      return;
+    }
+
+    const stillUnavailable = availabilityResult.cart.filter((item) => item.isAvailable === false);
     if (stillUnavailable.length > 0) {
       const unavailableNames = stillUnavailable.map((item) => {
         if (item.item_type === 'event_essential_bundle') return item.bundle_name;
