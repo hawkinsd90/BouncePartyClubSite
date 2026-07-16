@@ -440,6 +440,21 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['order_items']['Insert']>
         Relationships: []
       }
+      product_categories: {
+        Row: {
+          id: string
+          slug: string
+          name: string
+          sort_order: number
+          active: boolean
+          public_visible: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['product_categories']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Database['public']['Tables']['product_categories']['Insert']>
+        Relationships: []
+      }
       inventory_products: {
         Row: {
           id: string
@@ -451,6 +466,7 @@ export interface Database {
           temp_unavailable_qty: number
           active: boolean
           public_visible: boolean
+          category_id: string | null
           sort_order: number
           created_at: string
           updated_at: string

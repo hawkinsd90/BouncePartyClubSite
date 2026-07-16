@@ -267,6 +267,36 @@ export function getInvalidAddOnItems(cart: UnifiedCartItem[]): UnifiedCartItem[]
   );
 }
 
+export function findMergeableProductIndex(
+  cart: UnifiedCartItem[],
+  item: EventEssentialProductCartItem
+): number {
+  return cart.findIndex(
+    (entry) =>
+      isEventEssentialProductCartItem(entry) &&
+      entry.product_id === item.product_id &&
+      entry.pricing_context === item.pricing_context
+  );
+}
+
+export function mergeProductIntoCart(
+  cart: UnifiedCartItem[],
+  item: EventEssentialProductCartItem
+): UnifiedCartItem[] {
+  const index = findMergeableProductIndex(cart, item);
+  if (index === -1) {
+    return [...cart, item];
+  }
+  const existing = cart[index] as EventEssentialProductCartItem;
+  const updated: EventEssentialProductCartItem = {
+    ...existing,
+    qty: existing.qty + item.qty,
+  };
+  const next = [...cart];
+  next[index] = updated;
+  return next;
+}
+
 export function mapProductAvailabilityToItem(
   item: EventEssentialProductCartItem,
   results: ProductAvailabilityResult[]

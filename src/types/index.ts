@@ -126,6 +126,17 @@ export interface BlackoutDate {
   created_at: string;
 }
 
+export interface ProductCategory {
+  id: string;
+  slug: string;
+  name: string;
+  sort_order: number;
+  active: boolean;
+  public_visible: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface InventoryProduct {
   id: string;
   slug: string;
@@ -136,6 +147,7 @@ export interface InventoryProduct {
   temp_unavailable_qty: number;
   active: boolean;
   public_visible: boolean;
+  category_id: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -213,6 +225,7 @@ export interface ProductBundleComponentWithProduct extends ProductBundleComponen
     id: string;
     slug: string;
     name: string;
+    category_id: string | null;
   } | null;
 }
 

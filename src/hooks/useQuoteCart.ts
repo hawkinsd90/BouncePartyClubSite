@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { SafeStorage } from '../lib/safeStorage';
 import { supabase } from '../lib/supabase';
@@ -11,6 +11,7 @@ import {
   expandCartToProductQuantities,
   mapProductAvailabilityToItem,
   mapBundleAvailabilityToItem,
+  mergeProductIntoCart,
 } from '../lib/unifiedCart';
 import type {
   UnifiedCartItem,
@@ -28,6 +29,7 @@ const CART_STORAGE_KEY = 'bpc_cart';
 
 export function useQuoteCart() {
   const [cart, setCart] = useState<UnifiedCartItem[]>([]);
+  const cartRef = useRef<UnifiedCartItem[]>([]);
 
   useEffect(() => {
     loadCart();
@@ -38,6 +40,7 @@ export function useQuoteCart() {
       expirationDays: 7,
     });
     if (!savedCart) {
+      cartRef.current = [];
       setCart([]);
       return;
     }
@@ -50,6 +53,7 @@ export function useQuoteCart() {
         SafeStorage.removeItem(CART_STORAGE_KEY);
         window.dispatchEvent(new CustomEvent('bpc-cart-updated'));
       }
+      cartRef.current = [];
       setCart([]);
       return;
     }
@@ -68,6 +72,7 @@ export function useQuoteCart() {
     );
 
     if (needsHydration.length === 0) {
+      cartRef.current = normalized;
       setCart(normalized);
       return;
     }
@@ -97,9 +102,11 @@ export function useQuoteCart() {
         };
       });
 
+      cartRef.current = hydrated;
       setCart(hydrated);
       SafeStorage.setItem(CART_STORAGE_KEY, hydrated, { expirationDays: 7 });
     } catch {
+      cartRef.current = normalized;
       setCart(normalized);
     }
   }
@@ -114,25 +121,34 @@ export function useQuoteCart() {
   }
 
   function addToCart(item: UnifiedCartItem) {
-    const newCart = [...cart, item];
+    let newCart: UnifiedCartItem[];
+    if (isEventEssentialProductCartItem(item)) {
+      newCart = mergeProductIntoCart(cartRef.current, item);
+    } else {
+      newCart = [...cartRef.current, item];
+    }
+    cartRef.current = newCart;
     setCart(newCart);
     persistCart(newCart);
   }
 
   function updateCartItem(index: number, updates: Partial<UnifiedCartItem>) {
-    const newCart = [...cart];
+    const newCart = [...cartRef.current];
     newCart[index] = { ...newCart[index], ...updates } as UnifiedCartItem;
+    cartRef.current = newCart;
     setCart(newCart);
     persistCart(newCart);
   }
 
   function removeFromCart(index: number) {
-    const newCart = cart.filter((_, i) => i !== index);
+    const newCart = cartRef.current.filter((_, i) => i !== index);
+    cartRef.current = newCart;
     setCart(newCart);
     persistCart(newCart);
   }
 
   function clearCart() {
+    cartRef.current = [];
     setCart([]);
     SafeStorage.removeItem(CART_STORAGE_KEY);
     notifyCartUpdate();
@@ -140,18 +156,18 @@ export function useQuoteCart() {
 
   const checkAllCartAvailability = useCallback(
     async (eventStartDate: string, eventEndDate: string): Promise<CartAvailabilityResult> => {
-      if (!eventStartDate || !eventEndDate || cart.length === 0) {
-        return { cart, eventEssentialsCheckFailed: false };
+      if (!eventStartDate || !eventEndDate || cartRef.current.length === 0) {
+        return { cart: cartRef.current, eventEssentialsCheckFailed: false };
       }
 
       const inflatableEntries: { item: InflatableCartItem; cartIndex: number }[] = [];
-      cart.forEach((item, cartIndex) => {
+      cartRef.current.forEach((item, cartIndex) => {
         if (isInflatableCartItem(item)) {
           inflatableEntries.push({ item, cartIndex });
         }
       });
 
-      const eventEssentialsItems = cart.filter(
+      const eventEssentialsItems = cartRef.current.filter(
         (item) =>
           isEventEssentialProductCartItem(item) ||
           isEventEssentialBundleCartItem(item)
@@ -161,7 +177,7 @@ export function useQuoteCart() {
       const hasEventEssentials = eventEssentialsItems.length > 0;
 
       if (!hasInflatables && !hasEventEssentials) {
-        return { cart, eventEssentialsCheckFailed: false };
+        return { cart: cartRef.current, eventEssentialsCheckFailed: false };
       }
 
       const inflatableRequests = inflatableEntries.map(({ item }) => ({
@@ -194,7 +210,7 @@ export function useQuoteCart() {
           : Promise.resolve([]),
       ]);
 
-      const mergedCart = [...cart];
+      const mergedCart = [...cartRef.current];
 
       inflatableEntries.forEach((entry, resultIndex) => {
         mergedCart[entry.cartIndex] = {
@@ -219,11 +235,12 @@ export function useQuoteCart() {
         });
       }
 
+      cartRef.current = mergedCart;
       setCart(mergedCart);
       persistCart(mergedCart);
       return { cart: mergedCart, eventEssentialsCheckFailed };
     },
-    [cart]
+    []
   );
 
   return {

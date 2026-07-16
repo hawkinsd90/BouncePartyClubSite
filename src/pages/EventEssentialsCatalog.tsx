@@ -1,17 +1,45 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, Calendar, ShoppingCart, AlertCircle, Loader2, Plus, Minus, CheckCircle2, Lock } from 'lucide-react';
+import {
+  Package,
+  Calendar,
+  ShoppingCart,
+  AlertCircle,
+  Loader2,
+  Plus,
+  Minus,
+  Lock,
+  ImageOff,
+  Tag,
+} from 'lucide-react';
 import { getPublicBusinessSettings } from '../lib/adminSettingsCache';
 import { SafeStorage } from '../lib/safeStorage';
-import { fetchProductBundlesWithComponents, checkProductAvailability } from '../lib/queries/products';
+import {
+  fetchProductBundlesWithComponents,
+  fetchProductPricing,
+  fetchProductCategories,
+  fetchInventoryProductsByCategory,
+  checkProductAvailability,
+} from '../lib/queries/products';
 import { useQuoteCart } from '../hooks/useQuoteCart';
-import { buildBundleSnapshot, expandCartToProductQuantities, isInflatableCartItem } from '../lib/unifiedCart';
+import {
+  buildBundleSnapshot,
+  expandCartToProductQuantities,
+  isInflatableCartItem,
+  isEventEssentialProductCartItem,
+  isEventEssentialBundleCartItem,
+} from '../lib/unifiedCart';
 import type {
   ProductBundleWithComponents,
+  ProductPricing,
+  ProductCategory,
+  InventoryProduct,
   ProductAvailabilityResult,
+  ProductAvailabilityRequestItem,
   EventEssentialProductCartItem,
   EventEssentialBundleCartItem,
   PricingContext,
+  UnifiedCartItem,
 } from '../types';
 import type { QuoteFormData } from '../hooks/useQuoteForm';
 
@@ -24,6 +52,18 @@ function getDefaultFormData(): Partial<QuoteFormData> {
   };
 }
 
+type ProductAvailabilityMap = Record<
+  string,
+  { available_before_request: number; maxAddable: number; error: boolean }
+>;
+
+function formatPrice(cents: number): string {
+  return `$${(cents / 100).toLocaleString('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })}`;
+}
+
 export function EventEssentialsCatalog() {
   const navigate = useNavigate();
   const { cart, addToCart } = useQuoteCart();
@@ -31,16 +71,25 @@ export function EventEssentialsCatalog() {
   const [enabled, setEnabled] = useState(false);
   const [minOrderCents, setMinOrderCents] = useState<number | null>(null);
   const [bundles, setBundles] = useState<ProductBundleWithComponents[]>([]);
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [categoryProducts, setCategoryProducts] = useState<InventoryProduct[]>([]);
+  const [allPricing, setAllPricing] = useState<ProductPricing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadingProducts, setLoadingProducts] = useState(false);
 
   const [eventDate, setEventDate] = useState('');
   const [eventEndDate, setEventEndDate] = useState('');
 
   const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const [availabilityCache, setAvailabilityCache] = useState<Record<string, boolean>>({});
-  const [availabilityCheckFailed, setAvailabilityCheckFailed] = useState(false);
+  const [productAvailability, setProductAvailability] = useState<ProductAvailabilityMap>({});
+  const [availabilityError, setAvailabilityError] = useState(false);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
+
+  const [addError, setAddError] = useState<string | null>(null);
+  const addingRef = useRef(false);
+  const availabilityRequestId = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,19 +109,29 @@ export function EventEssentialsCatalog() {
         setEnabled(true);
         setMinOrderCents(settings.min_event_essentials_order_cents);
 
-        const [bundlesResult] = await Promise.all([
+        const [bundlesResult, categoriesResult, pricingResult] = await Promise.all([
           fetchProductBundlesWithComponents(),
+          fetchProductCategories(),
+          fetchProductPricing(),
         ]);
 
         if (cancelled) return;
 
-        if (bundlesResult.error) {
+        if (bundlesResult.error || categoriesResult.error || pricingResult.error) {
           setError('Failed to load catalog. Please try again later.');
           setLoading(false);
           return;
         }
 
         setBundles(bundlesResult.data ?? []);
+        const cats = categoriesResult.data ?? [];
+        setCategories(cats);
+        setAllPricing(pricingResult.data ?? []);
+
+        if (cats.length > 0) {
+          setSelectedCategoryId(cats[0].id);
+        }
+
         setLoading(false);
       } catch {
         if (!cancelled) {
@@ -86,7 +145,7 @@ export function EventEssentialsCatalog() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     const saved = SafeStorage.getItem<QuoteFormData>(FORM_STORAGE_KEY, { expirationDays: 7 });
@@ -124,72 +183,106 @@ export function EventEssentialsCatalog() {
     persistDates(eventDate, newEndDate);
   }
 
-  const eventEssentialsCartItems = cart.filter(
-    (item) => item.item_type === 'event_essential_product' || item.item_type === 'event_essential_bundle'
-  ) as (EventEssentialProductCartItem | EventEssentialBundleCartItem)[];
+  useEffect(() => {
+    if (!selectedCategoryId) return;
 
-  const runAvailabilityCheck = useCallback(
-    async (date: string, endDate: string, items: (EventEssentialProductCartItem | EventEssentialBundleCartItem)[]) => {
-      if (!date || !endDate || items.length === 0) {
-        setAvailabilityCache({});
-        return;
+    let cancelled = false;
+    setLoadingProducts(true);
+
+    async function loadProducts() {
+      const result = await fetchInventoryProductsByCategory(selectedCategoryId!);
+      if (cancelled) return;
+      if (result.error) {
+        setCategoryProducts([]);
+      } else {
+        setCategoryProducts(result.data ?? []);
       }
+      setLoadingProducts(false);
+    }
 
-      setCheckingAvailability(true);
-      setAvailabilityCheckFailed(false);
-      try {
-        const allocation = expandCartToProductQuantities(items);
-        const result = await checkProductAvailability(allocation, date, endDate, null);
+    loadProducts();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCategoryId]);
 
-        if (result.error) {
-          setAvailabilityCheckFailed(true);
-          return;
-        }
+  const pricingByProductId = useMemo(() => {
+    const map = new Map<string, ProductPricing>();
+    for (const p of allPricing) {
+      map.set(p.product_id, p);
+    }
+    return map;
+  }, [allPricing]);
 
-        const results = result.data ?? [];
-        const cache: Record<string, boolean> = {};
-
-        for (const item of items) {
-          if (item.item_type === 'event_essential_product') {
-            const found = results.find((r: ProductAvailabilityResult) => r.product_id === item.product_id);
-            cache[`${item.item_type}-${item.product_id}`] = found != null && found.is_allowed === true;
-          } else {
-            const allOk = item.component_snapshot.components.every((comp) => {
-              const found = results.find((r: ProductAvailabilityResult) => r.product_id === comp.product_id);
-              return found != null && found.is_allowed === true;
-            });
-            cache[`${item.item_type}-${item.bundle_id}`] = allOk;
-          }
-        }
-
-        setAvailabilityCache(cache);
-      } catch {
-        setAvailabilityCheckFailed(true);
-      } finally {
-        setCheckingAvailability(false);
-      }
-    },
-    []
+  const eventEssentialsCartItems = useMemo(
+    () =>
+      cart.filter(
+        (item) => isEventEssentialProductCartItem(item) || isEventEssentialBundleCartItem(item)
+      ) as (EventEssentialProductCartItem | EventEssentialBundleCartItem)[],
+    [cart]
   );
 
-  useEffect(() => {
-    if (eventDate && eventEndDate && eventEssentialsCartItems.length > 0) {
-      runAvailabilityCheck(eventDate, eventEndDate, eventEssentialsCartItems);
-    } else {
-      setAvailabilityCache({});
-    }
-  }, [eventDate, eventEndDate, eventEssentialsCartItems.length, runAvailabilityCheck]);
+  const hasQualifyingInflatable = useMemo(
+    () => cart.some((item) => isInflatableCartItem(item) && item.qty > 0),
+    [cart]
+  );
 
-  function hasQualifyingInflatable(): boolean {
-    return cart.some(
-      (item) => isInflatableCartItem(item) && item.qty > 0
-    );
+  function resolveProductPrice(
+    product: InventoryProduct
+  ): {
+    unitPriceCents: number;
+    pricingContext: PricingContext;
+    blocked: boolean;
+    blockReason?: string;
+  } | null {
+    const pricing = pricingByProductId.get(product.id);
+    if (!pricing) return null;
+
+    if (hasQualifyingInflatable) {
+      if (pricing.addon_enabled && pricing.addon_price_cents != null) {
+        return {
+          unitPriceCents: pricing.addon_price_cents,
+          pricingContext: 'addon',
+          blocked: false,
+        };
+      }
+      if (pricing.standalone_enabled && pricing.standalone_price_cents != null) {
+        return {
+          unitPriceCents: pricing.standalone_price_cents,
+          pricingContext: 'standalone',
+          blocked: false,
+        };
+      }
+      return null;
+    }
+
+    if (pricing.standalone_enabled && pricing.standalone_price_cents != null) {
+      return {
+        unitPriceCents: pricing.standalone_price_cents,
+        pricingContext: 'standalone',
+        blocked: false,
+      };
+    }
+
+    if (pricing.addon_enabled && pricing.addon_price_cents != null) {
+      return {
+        unitPriceCents: pricing.addon_price_cents,
+        pricingContext: 'addon',
+        blocked: true,
+        blockReason: 'Available as an add-on with inflatable rental',
+      };
+    }
+
+    return null;
   }
 
-  function getBundlePrice(bundle: ProductBundleWithComponents): { unitPriceCents: number; isAddon: boolean; blocked: boolean; blockReason?: string } | null {
-    const hasInflatable = hasQualifyingInflatable();
-
-    if (hasInflatable) {
+  function getBundlePrice(bundle: ProductBundleWithComponents): {
+    unitPriceCents: number;
+    isAddon: boolean;
+    blocked: boolean;
+    blockReason?: string;
+  } | null {
+    if (hasQualifyingInflatable) {
       if (bundle.addon_enabled && bundle.addon_price_cents != null) {
         return { unitPriceCents: bundle.addon_price_cents, isAddon: true, blocked: false };
       }
@@ -215,12 +308,111 @@ export function EventEssentialsCatalog() {
     return null;
   }
 
+  const runAvailabilityPreview = useCallback(
+    async (date: string, endDate: string, products: InventoryProduct[], cartItems: UnifiedCartItem[]) => {
+      if (!date || !endDate) {
+        setProductAvailability({});
+        setAvailabilityError(false);
+        return;
+      }
+
+      const currentRequestId = ++availabilityRequestId.current;
+      setCheckingAvailability(true);
+      setAvailabilityError(false);
+
+      try {
+        const eeItems = cartItems.filter(
+          (item) => isEventEssentialProductCartItem(item) || isEventEssentialBundleCartItem(item)
+        ) as (EventEssentialProductCartItem | EventEssentialBundleCartItem)[];
+
+        const cartDemand = new Map<string, number>();
+        const expanded = expandCartToProductQuantities(eeItems);
+        for (const item of expanded) {
+          cartDemand.set(item.product_id, (cartDemand.get(item.product_id) ?? 0) + item.quantity);
+        }
+
+        const requestProductIds = new Set<string>();
+        for (const product of products) {
+          requestProductIds.add(product.id);
+        }
+        for (const [pid] of cartDemand) {
+          requestProductIds.add(pid);
+        }
+
+        const requestItems: ProductAvailabilityRequestItem[] = [];
+        for (const pid of requestProductIds) {
+          const demand = cartDemand.get(pid) ?? 0;
+          requestItems.push({
+            product_id: pid,
+            quantity: Math.max(1, demand),
+          });
+        }
+
+        if (requestItems.length === 0) {
+          if (currentRequestId !== availabilityRequestId.current) return;
+          setProductAvailability({});
+          return;
+        }
+
+        const result = await checkProductAvailability(requestItems, date, endDate, null);
+
+        if (currentRequestId !== availabilityRequestId.current) return;
+
+        if (result.error) {
+          setAvailabilityError(true);
+          setProductAvailability({});
+          return;
+        }
+
+        const results = result.data ?? [];
+        const resultMap = new Map<string, ProductAvailabilityResult>();
+        for (const r of results) {
+          resultMap.set(r.product_id, r);
+        }
+
+        const availMap: ProductAvailabilityMap = {};
+        for (const product of products) {
+          const found = resultMap.get(product.id);
+          if (!found) {
+            availMap[product.id] = { available_before_request: 0, maxAddable: 0, error: true };
+            continue;
+          }
+          const demand = cartDemand.get(product.id) ?? 0;
+          const maxAddable = Math.max(0, found.available_before_request - demand);
+          availMap[product.id] = {
+            available_before_request: found.available_before_request,
+            maxAddable,
+            error: false,
+          };
+        }
+
+        setProductAvailability(availMap);
+      } catch {
+        if (currentRequestId !== availabilityRequestId.current) return;
+        setAvailabilityError(true);
+        setProductAvailability({});
+      } finally {
+        if (currentRequestId === availabilityRequestId.current) {
+          setCheckingAvailability(false);
+        }
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    runAvailabilityPreview(eventDate, eventEndDate, categoryProducts, cart);
+  }, [eventDate, eventEndDate, categoryProducts, cart, runAvailabilityPreview]);
+
   function getQty(key: string): number {
     return quantities[key] ?? 0;
   }
 
-  function incrementQty(key: string) {
-    setQuantities((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + 1 }));
+  function incrementQty(key: string, max: number) {
+    setQuantities((prev) => ({
+      ...prev,
+      [key]: Math.min(max, (prev[key] ?? 0) + 1),
+    }));
   }
 
   function decrementQty(key: string) {
@@ -230,8 +422,95 @@ export function EventEssentialsCatalog() {
     }));
   }
 
-  const [addError, setAddError] = useState<string | null>(null);
-  const addingRef = useRef(false);
+  async function handleAddProduct(product: InventoryProduct) {
+    const key = `product-${product.id}`;
+    const qty = getQty(key);
+    if (qty <= 0) return;
+
+    setAddError(null);
+
+    const priceInfo = resolveProductPrice(product);
+    if (!priceInfo) {
+      setAddError('Pricing not yet configured for this product.');
+      return;
+    }
+
+    if (priceInfo.blocked) {
+      setAddError(priceInfo.blockReason || 'This product requires an inflatable in your cart.');
+      return;
+    }
+
+    if (!eventDate || !eventEndDate) {
+      setAddError('Please select event dates before adding items to your cart.');
+      return;
+    }
+
+    if (addingRef.current) return;
+    addingRef.current = true;
+
+    try {
+      const proposedItem: EventEssentialProductCartItem = {
+        item_type: 'event_essential_product',
+        product_id: product.id,
+        product_name: product.name,
+        qty,
+        unit_price_cents: priceInfo.unitPriceCents,
+        pricing_context: priceInfo.pricingContext,
+        isAvailable: true,
+      };
+
+      const existingEEItems = cart.filter(
+        (item) => isEventEssentialProductCartItem(item) || isEventEssentialBundleCartItem(item)
+      ) as (EventEssentialProductCartItem | EventEssentialBundleCartItem)[];
+
+      const proposedAllocation = expandCartToProductQuantities([...existingEEItems, proposedItem]);
+
+      const requestItems: ProductAvailabilityRequestItem[] = proposedAllocation.map((a) => ({
+        product_id: a.product_id,
+        quantity: Math.max(1, a.quantity),
+      }));
+
+      const result = await checkProductAvailability(requestItems, eventDate, eventEndDate, null);
+
+      if (result.error) {
+        setAddError('Unable to check availability right now. Please try again.');
+        return;
+      }
+
+      const results = result.data ?? [];
+      const resultMap = new Map<string, ProductAvailabilityResult>();
+      for (const r of results) {
+        resultMap.set(r.product_id, r);
+      }
+
+      const unavailable: string[] = [];
+      for (const alloc of proposedAllocation) {
+        const found = resultMap.get(alloc.product_id);
+        if (!found) {
+          setAddError('Unable to check availability right now. Please try again.');
+          return;
+        }
+        if (found.is_allowed !== true) {
+          const productEntry = categoryProducts.find((p) => p.id === alloc.product_id);
+          unavailable.push(productEntry?.name ?? alloc.product_id);
+        }
+      }
+
+      if (unavailable.length > 0) {
+        setAddError(
+          `Insufficient inventory for: ${unavailable.join(', ')}. Please choose different dates or reduce quantities.`
+        );
+        return;
+      }
+
+      addToCart(proposedItem);
+      setQuantities((prev) => ({ ...prev, [key]: 0 }));
+    } catch {
+      setAddError('Unable to check availability right now. Please try again.');
+    } finally {
+      addingRef.current = false;
+    }
+  }
 
   async function handleAddBundle(bundle: ProductBundleWithComponents) {
     const key = `bundle-${bundle.id}`;
@@ -273,12 +552,17 @@ export function EventEssentialsCatalog() {
       };
 
       const existingEEItems = cart.filter(
-        (item) => item.item_type === 'event_essential_product' || item.item_type === 'event_essential_bundle'
+        (item) => isEventEssentialProductCartItem(item) || isEventEssentialBundleCartItem(item)
       ) as (EventEssentialProductCartItem | EventEssentialBundleCartItem)[];
 
       const proposedAllocation = expandCartToProductQuantities([...existingEEItems, proposedItem]);
 
-      const result = await checkProductAvailability(proposedAllocation, eventDate, eventEndDate, null);
+      const requestItems: ProductAvailabilityRequestItem[] = proposedAllocation.map((a) => ({
+        product_id: a.product_id,
+        quantity: Math.max(1, a.quantity),
+      }));
+
+      const result = await checkProductAvailability(requestItems, eventDate, eventEndDate, null);
 
       if (result.error) {
         setAddError('Unable to check availability right now. Please try again.');
@@ -286,11 +570,19 @@ export function EventEssentialsCatalog() {
       }
 
       const results = result.data ?? [];
+      const resultMap = new Map<string, ProductAvailabilityResult>();
+      for (const r of results) {
+        resultMap.set(r.product_id, r);
+      }
 
       const unavailableComponents: string[] = [];
       for (const comp of proposedItem.component_snapshot.components) {
-        const found = results.find((r: ProductAvailabilityResult) => r.product_id === comp.product_id);
-        if (!found || found.is_allowed !== true) {
+        const found = resultMap.get(comp.product_id);
+        if (!found) {
+          setAddError('Unable to check availability right now. Please try again.');
+          return;
+        }
+        if (found.is_allowed !== true) {
           unavailableComponents.push(comp.product_name);
         }
       }
@@ -314,6 +606,19 @@ export function EventEssentialsCatalog() {
   const eventEssentialsSubtotalCents = eventEssentialsCartItems.reduce(
     (sum, item) => sum + item.unit_price_cents * item.qty,
     0
+  );
+
+  function getRelevantBundlesForCategory(category: ProductCategory | null): ProductBundleWithComponents[] {
+    if (!category) return bundles;
+    return bundles.filter((bundle) =>
+      bundle.product_bundle_components.some(
+        (comp) => comp.inventory_products?.category_id === category.id
+      )
+    );
+  }
+
+  const relevantBundles = getRelevantBundlesForCategory(
+    categories.find((c) => c.id === selectedCategoryId) ?? null
   );
 
   if (!enabled && !loading) {
@@ -358,6 +663,7 @@ export function EventEssentialsCatalog() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           <div className="lg:col-span-2 space-y-6">
+            {/* Event Date Selector */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6">
               <div className="flex items-center gap-3 mb-4">
                 <Calendar className="w-5 h-5 text-blue-600" />
@@ -402,14 +708,177 @@ export function EventEssentialsCatalog() {
               )}
             </div>
 
-            {bundles.length === 0 ? (
+            {/* Category Navigation */}
+            {categories.length > 0 && (
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6">
+                <div className="flex flex-wrap gap-2">
+                  {categories.map((category) => (
+                    <button
+                      key={category.id}
+                      type="button"
+                      onClick={() => setSelectedCategoryId(category.id)}
+                      className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
+                        selectedCategoryId === category.id
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {category.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Individual Product Cards */}
+            {loadingProducts ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+              </div>
+            ) : categoryProducts.length === 0 ? (
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center">
                 <Package className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                <p className="text-slate-600">No Event Essentials bundles are currently available.</p>
+                <p className="text-slate-600">No products are currently available in this category.</p>
               </div>
             ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {categoryProducts.map((product) => {
+                  const key = `product-${product.id}`;
+                  const qty = getQty(key);
+                  const priceInfo = resolveProductPrice(product);
+                  const avail = productAvailability[product.id];
+                  const datesSelected = !!eventDate && !!eventEndDate;
+                  const maxAddable = avail?.maxAddable ?? 0;
+                  const hasAvailError = avail?.error ?? availabilityError;
+                  const isBlocked = priceInfo?.blocked ?? false;
+                  const canAdd =
+                    datesSelected &&
+                    !hasAvailError &&
+                    !!priceInfo &&
+                    !priceInfo.blocked &&
+                    qty > 0 &&
+                    maxAddable > 0;
+
+                  return (
+                    <div
+                      key={product.id}
+                      className={`bg-white rounded-xl shadow-sm border p-4 sm:p-5 transition-shadow ${
+                        isBlocked ? 'border-slate-200 opacity-75' : 'border-slate-200 hover:shadow-md'
+                      }`}
+                    >
+                      {/* Product image or placeholder */}
+                      <div className="mb-3 aspect-video rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden">
+                        {product.image_url ? (
+                          <img
+                            src={product.image_url}
+                            alt={product.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              target.style.display = 'none';
+                              target.nextElementSibling?.classList.remove('hidden');
+                            }}
+                          />
+                        ) : null}
+                        {(!product.image_url) && (
+                          <div className="flex flex-col items-center justify-center text-slate-400">
+                            <ImageOff className="w-8 h-8 mb-1" />
+                            <span className="text-xs">No image</span>
+                          </div>
+                        )}
+                        {product.image_url && (
+                          <div className="hidden flex-col items-center justify-center text-slate-400">
+                            <ImageOff className="w-8 h-8 mb-1" />
+                            <span className="text-xs">No image</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <h3 className="text-base font-bold text-slate-900 mb-1">{product.name}</h3>
+                      {product.description && (
+                        <p className="text-sm text-slate-600 mb-3">{product.description}</p>
+                      )}
+
+                      {/* Price */}
+                      {priceInfo && !priceInfo.blocked ? (
+                        <p className="text-lg font-bold text-blue-700 mb-2">
+                          {formatPrice(priceInfo.unitPriceCents)}
+                          <span className="text-xs font-normal text-slate-500 ml-1">per unit</span>
+                        </p>
+                      ) : priceInfo?.blocked ? (
+                        <p className="text-sm text-amber-700 flex items-center gap-1.5 mb-2">
+                          <Lock className="w-4 h-4 flex-shrink-0" />
+                          {priceInfo.blockReason}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-slate-500 mb-2">Pricing not yet configured</p>
+                      )}
+
+                      {/* Availability status */}
+                      {!datesSelected ? (
+                        <p className="text-xs text-slate-500 mb-3">Select dates to check availability.</p>
+                      ) : hasAvailError ? (
+                        <p className="text-xs text-amber-700 mb-3">
+                          Availability unavailable — please try again.
+                        </p>
+                      ) : checkingAvailability ? (
+                        <p className="text-xs text-slate-400 flex items-center gap-1.5 mb-3">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Checking availability...
+                        </p>
+                      ) : avail ? (
+                        <p className="text-xs text-slate-600 mb-3">
+                          {maxAddable > 0
+                            ? `${maxAddable} available to add`
+                            : 'None available for selected dates'}
+                        </p>
+                      ) : null}
+
+                      {/* Quantity selector and Add button */}
+                      <div className="flex items-center justify-between gap-3 mt-auto">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => decrementQty(key)}
+                            className="w-8 h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors"
+                            disabled={qty <= 0}
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <span className="w-8 text-center font-semibold text-slate-900 text-sm">{qty}</span>
+                          <button
+                            type="button"
+                            onClick={() => incrementQty(key, maxAddable)}
+                            className="w-8 h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors"
+                            disabled={!datesSelected || hasAvailError || qty >= maxAddable}
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleAddProduct(product)}
+                          disabled={!canAdd}
+                          className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <ShoppingCart className="w-4 h-4" />
+                          Add
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Package Suggestions (secondary) */}
+            {relevantBundles.length > 0 && (
               <div className="space-y-4">
-                {bundles.map((bundle) => {
+                <div className="flex items-center gap-2 pt-4">
+                  <Tag className="w-5 h-5 text-slate-400" />
+                  <h2 className="text-lg font-bold text-slate-700">Package Suggestions</h2>
+                </div>
+                {relevantBundles.map((bundle) => {
                   const key = `bundle-${bundle.id}`;
                   const qty = getQty(key);
                   const priceInfo = getBundlePrice(bundle);
@@ -420,14 +889,14 @@ export function EventEssentialsCatalog() {
                   return (
                     <div
                       key={bundle.id}
-                      className={`bg-white rounded-xl shadow-sm border p-4 sm:p-6 transition-shadow ${
+                      className={`bg-white rounded-xl shadow-sm border p-4 sm:p-5 transition-shadow ${
                         isBlocked ? 'border-slate-200 opacity-75' : 'border-slate-200 hover:shadow-md'
                       }`}
                     >
-                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap mb-2">
-                            <h3 className="text-lg font-bold text-slate-900">{bundle.name}</h3>
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <h3 className="text-base font-bold text-slate-900">{bundle.name}</h3>
                             {isAddon && (
                               <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                 Add-on
@@ -435,9 +904,9 @@ export function EventEssentialsCatalog() {
                             )}
                           </div>
                           {bundle.description && (
-                            <p className="text-sm text-slate-600 mb-3">{bundle.description}</p>
+                            <p className="text-sm text-slate-600 mb-2">{bundle.description}</p>
                           )}
-                          <div className="flex flex-wrap gap-2 mb-3">
+                          <div className="flex flex-wrap gap-1.5 mb-2">
                             {bundle.product_bundle_components.map((comp) => (
                               <span
                                 key={comp.id}
@@ -447,9 +916,7 @@ export function EventEssentialsCatalog() {
                               </span>
                             ))}
                           </div>
-                          <p className="text-lg font-bold text-blue-700">
-                            ${((unitPriceCents / 100)).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                          </p>
+                          <p className="text-base font-bold text-blue-700">{formatPrice(unitPriceCents)}</p>
                           {isBlocked && (
                             <p className="mt-2 text-sm text-amber-700 flex items-center gap-1.5">
                               <Lock className="w-4 h-4 flex-shrink-0" />
@@ -458,21 +925,21 @@ export function EventEssentialsCatalog() {
                           )}
                         </div>
 
-                        <div className="flex flex-col items-stretch sm:items-end gap-2 sm:min-w-[140px]">
+                        <div className="flex flex-col items-stretch sm:items-end gap-2 sm:min-w-[130px]">
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
                               onClick={() => decrementQty(key)}
-                              className="w-9 h-9 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors"
+                              className="w-8 h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors"
                               disabled={qty <= 0}
                             >
                               <Minus className="w-4 h-4" />
                             </button>
-                            <span className="w-8 text-center font-semibold text-slate-900">{qty}</span>
+                            <span className="w-8 text-center font-semibold text-slate-900 text-sm">{qty}</span>
                             <button
                               type="button"
-                              onClick={() => incrementQty(key)}
-                              className="w-9 h-9 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors"
+                              onClick={() => incrementQty(key, 99)}
+                              className="w-8 h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors"
                             >
                               <Plus className="w-4 h-4" />
                             </button>
@@ -481,10 +948,10 @@ export function EventEssentialsCatalog() {
                             type="button"
                             onClick={() => handleAddBundle(bundle)}
                             disabled={qty <= 0 || isBlocked || !eventDate || !eventEndDate}
-                            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white font-semibold rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <ShoppingCart className="w-4 h-4" />
-                            Add to Cart
+                            Add Package
                           </button>
                         </div>
                       </div>
@@ -495,6 +962,7 @@ export function EventEssentialsCatalog() {
             )}
           </div>
 
+          {/* Cart Summary Sidebar */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:sticky lg:top-24">
               <h2 className="text-lg font-bold text-slate-900 mb-4">Your Event Essentials</h2>
@@ -507,11 +975,6 @@ export function EventEssentialsCatalog() {
                 <>
                   <div className="space-y-3 mb-4">
                     {eventEssentialsCartItems.map((item, index) => {
-                      const cacheKey =
-                        item.item_type === 'event_essential_bundle'
-                          ? `event_essential_bundle-${item.bundle_id}`
-                          : `event_essential_product-${item.product_id}`;
-                      const isAvailable = availabilityCache[cacheKey];
                       const lineTotal = item.unit_price_cents * item.qty;
 
                       return (
@@ -519,27 +982,22 @@ export function EventEssentialsCatalog() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-slate-700 font-medium break-words">
-                                {item.item_type === 'event_essential_bundle' ? item.bundle_name : item.product_name}
+                                {isEventEssentialBundleCartItem(item)
+                                  ? item.bundle_name
+                                  : item.product_name}
                               </span>
-                              {checkingAvailability && (
-                                <Loader2 className="w-3 h-3 text-slate-400 animate-spin" />
-                              )}
-                              {!checkingAvailability && availabilityCheckFailed && (
-                                <span className="text-xs text-amber-600 font-medium">(check failed)</span>
-                              )}
-                              {!checkingAvailability && !availabilityCheckFailed && isAvailable === true && (
-                                <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
-                              )}
-                              {!checkingAvailability && !availabilityCheckFailed && isAvailable === false && (
-                                <span className="text-xs text-red-600 font-medium">(unavailable)</span>
+                              {item.pricing_context === 'addon' && (
+                                <span className="px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  Add-on
+                                </span>
                               )}
                             </div>
                             <span className="text-xs text-slate-500">
-                              {item.qty} × ${((item.unit_price_cents / 100)).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                              {item.qty} × {formatPrice(item.unit_price_cents)}
                             </span>
                           </div>
                           <span className="font-semibold text-slate-900 flex-shrink-0">
-                            ${((lineTotal / 100)).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            {formatPrice(lineTotal)}
                           </span>
                         </div>
                       );
@@ -547,16 +1005,17 @@ export function EventEssentialsCatalog() {
                   </div>
 
                   <div className="flex items-center justify-between pt-3 border-t border-slate-200 mb-4">
-                    <span className="font-semibold text-slate-700 text-sm">Event Essentials Subtotal</span>
+                    <span className="font-semibold text-slate-700 text-sm">Subtotal</span>
                     <span className="text-lg font-bold text-blue-700">
-                      ${((eventEssentialsSubtotalCents / 100)).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      {formatPrice(eventEssentialsSubtotalCents)}
                     </span>
                   </div>
 
                   {minOrderCents != null && minOrderCents > 0 && eventEssentialsSubtotalCents < minOrderCents && (
                     <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-4">
                       <p className="text-xs text-amber-800">
-                        Minimum order: ${((minOrderCents / 100)).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}. Add ${(((minOrderCents - eventEssentialsSubtotalCents) / 100)).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} more.
+                        Minimum order: {formatPrice(minOrderCents)}. Add{' '}
+                        {formatPrice(minOrderCents - eventEssentialsSubtotalCents)} more.
                       </p>
                     </div>
                   )}

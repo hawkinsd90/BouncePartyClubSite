@@ -2,6 +2,7 @@ import { supabase } from '../supabase';
 import { executeQuery, QueryOptions } from './base';
 import type {
   InventoryProduct,
+  ProductCategory,
   ProductBundle,
   ProductBundleWithComponents,
   ProductPricing,
@@ -12,6 +13,36 @@ import type {
 // ---------------------------------------------------------------------------
 // Public catalog queries (RLS-restricted to active + public_visible)
 // ---------------------------------------------------------------------------
+
+export async function fetchProductCategories(options?: QueryOptions) {
+  return executeQuery<ProductCategory[]>(
+    async () =>
+      await supabase
+        .from('product_categories')
+        .select('*')
+        .eq('active', true)
+        .eq('public_visible', true)
+        .order('sort_order', { ascending: true }),
+    { context: 'fetchProductCategories', ...options }
+  );
+}
+
+export async function fetchInventoryProductsByCategory(
+  categoryId: string,
+  options?: QueryOptions
+) {
+  return executeQuery<InventoryProduct[]>(
+    async () =>
+      await supabase
+        .from('inventory_products')
+        .select('*')
+        .eq('category_id', categoryId)
+        .eq('active', true)
+        .eq('public_visible', true)
+        .order('sort_order', { ascending: true }),
+    { context: 'fetchInventoryProductsByCategory', ...options }
+  );
+}
 
 export async function fetchInventoryProducts(options?: QueryOptions) {
   return executeQuery<InventoryProduct[]>(
@@ -68,7 +99,8 @@ export async function fetchProductBundlesWithComponents(options?: QueryOptions) 
              inventory_products (
                id,
                slug,
-               name
+               name,
+               category_id
              )
            )`
         )
@@ -96,7 +128,8 @@ export async function fetchProductBundleById(
              inventory_products (
                id,
                slug,
-               name
+               name,
+               category_id
              )
            )`
         )
@@ -153,7 +186,8 @@ export async function fetchAdminProductBundles(options?: QueryOptions) {
              inventory_products (
                id,
                slug,
-               name
+               name,
+               category_id
              )
            )`
         )
