@@ -103,11 +103,9 @@ export async function approveOrder(
 
       if (customerNoDeposit) {
         try {
-          await supabase.functions.invoke('send-booking-confirmation', {
-            body: { orderId, source: 'admin_approve_zero_deposit' },
-          });
-        } catch (confErr) {
-          console.error('[orderApprovalService] booking confirmation failed (non-fatal):', confErr);
+          await sendConfirmationEmail(orderWithRelationsNoDeposit, totalCentsNoDeposit);
+        } catch (emailErr) {
+          console.error('[orderApprovalService] confirmation email failed (non-fatal):', emailErr);
         }
       }
 
@@ -290,11 +288,9 @@ export async function approveOrder(
 
     if (customer) {
       try {
-        await supabase.functions.invoke('send-booking-confirmation', {
-          body: { orderId, source: 'admin_approve_charge_deposit' },
-        });
-      } catch (confErr) {
-        console.error('[orderApprovalService] booking confirmation failed (non-fatal):', confErr);
+        await sendConfirmationEmail(orderWithRelations, totalCents);
+      } catch (emailErr) {
+        console.error('[orderApprovalService] confirmation email failed (non-fatal):', emailErr);
       }
     }
 

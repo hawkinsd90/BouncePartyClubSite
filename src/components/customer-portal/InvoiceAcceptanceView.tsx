@@ -355,15 +355,27 @@ export function InvoiceAcceptanceView({
         };
 
         try {
-          await supabase.functions.invoke('send-booking-confirmation', {
-            body: {
-              orderId: order.id,
-              source: 'invoice_acceptance_no_card',
-              invoiceToken: invoiceLink?.link_token ?? null,
-            },
+          const portalUrl = await createShortPortalLink(order.id, supabase, order.event_date, invoiceLink?.link_token ?? null);
+          const smsMessage = generateConfirmationSmsMessage(order, firstName, portalUrl);
+          const emailHtml = generateConfirmationReceiptEmail({
+            order,
+            customer,
+            address: order.addresses,
+            items: orderItems,
+            payment: null,
+            totalCents: order.balance_due_cents,
+          });
+
+          await sendNotificationToCustomer({
+            phone: smsConsent && phone ? phone : undefined,
+            email: email || undefined,
+            smsMessage,
+            emailSubject: `Booking Confirmed - Receipt for Order #${formatOrderId(order.id)}`,
+            emailHtml,
+            orderId: order.id,
           });
         } catch (notifError) {
-          console.error('[InvoiceAcceptanceView] booking confirmation failed (non-fatal):', notifError);
+          console.error('[InvoiceAcceptanceView] confirmation notification failed (non-fatal):', notifError);
         }
 
         try {

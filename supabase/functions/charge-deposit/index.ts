@@ -668,18 +668,6 @@ Deno.serve(async (req: Request) => {
       console.error("Failed to record payment (non-fatal):", paymentError);
     }
 
-    // Send centralized booking confirmation (email + SMS with short portal URL)
-    try {
-      const { error: confError } = await supabaseClient.functions.invoke("send-booking-confirmation", {
-        body: { orderId, source: "charge_deposit_charged" },
-      });
-      if (confError) {
-        console.error("[charge-deposit] booking confirmation transport error (non-fatal):", confError.message);
-      }
-    } catch (confErr) {
-      console.error("[charge-deposit] booking confirmation threw (non-fatal):", confErr instanceof Error ? confErr.message : "unknown");
-    }
-
     return new Response(
       JSON.stringify({
         success: true,

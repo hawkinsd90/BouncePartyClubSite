@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useLocation, useSearchParams } from 'react-router-dom';
 import { AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -50,8 +50,12 @@ export function CustomerPortal() {
 
   const resolvedOrderId = orderId || (data?.order?.id);
 
-  const reload = useCallback(async () => {
-    await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
+  const reloadPortalData = useCallback(async () => {
+    const result = await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
+    if (result?.order) {
+      setRefreshVersion((v) => v + 1);
+    }
+    return result;
   }, [orderId, invoiceToken, isInvoiceLink, loadOrder]);
 
   const onRefreshComplete = useCallback(() => {
@@ -60,7 +64,7 @@ export function CustomerPortal() {
 
   useCustomerPortalRefresh({
     orderId: resolvedOrderId,
-    reload,
+    reload: reloadPortalData,
     isApprovalSuccess: approvalSuccess || approvalProcessing || invoiceProcessing,
     onRefreshComplete,
   });
@@ -82,7 +86,7 @@ export function CustomerPortal() {
         } catch (err) {
           console.error('[CustomerPortal] reconcile-balance-payment threw:', err instanceof Error ? err.message : 'unknown');
         }
-        await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
+        await reloadPortalData();
       })();
     } else if (invoiceCardSaved && returnSessionId && orderId) {
       setInvoiceProcessing(true);
@@ -95,11 +99,11 @@ export function CustomerPortal() {
             console.error('[CustomerPortal] invoice save-pm failed.');
             showToast('Failed to save payment method. Please try again.', 'error');
             setInvoiceProcessing(false);
-            await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
+            await reloadPortalData();
             return;
           }
 
-          const orderResult = await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
+          const orderResult = await reloadPortalData();
           const currentStatus = orderResult?.order?.status;
           const depositDue = orderResult?.order?.deposit_due_cents ?? 0;
           const depositPaid = orderResult?.order?.deposit_paid_cents ?? 0;
@@ -114,14 +118,14 @@ export function CustomerPortal() {
                   console.error('[CustomerPortal] charge-deposit failed:', chargeErr?.message ?? chargeData?.error ?? 'unknown');
                   showToast('Payment could not be processed. Please try again or contact us.', 'error');
                   setInvoiceProcessing(false);
-                  await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
+                  await reloadPortalData();
                   return;
                 }
               } catch (chargeEx) {
                 console.error('[CustomerPortal] charge-deposit threw:', chargeEx instanceof Error ? chargeEx.message : 'unknown');
                 showToast('Payment could not be processed. Please try again or contact us.', 'error');
                 setInvoiceProcessing(false);
-                await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
+                await reloadPortalData();
                 return;
               }
             } else {
@@ -132,15 +136,8 @@ export function CustomerPortal() {
               } catch (lifecycleErr) {
                 console.error('[CustomerPortal] order-lifecycle fallback failed (non-fatal):', lifecycleErr instanceof Error ? lifecycleErr.message : 'unknown');
               }
-              try {
-                await supabase.functions.invoke('send-booking-confirmation', {
-                  body: { orderId, source: 'invoice_card_saved_zero_deposit', invoiceToken: invoiceToken ?? null },
-                });
-              } catch (confErr) {
-                console.error('[CustomerPortal] booking confirmation failed (non-fatal):', confErr instanceof Error ? confErr.message : 'unknown');
-              }
             }
-            await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
+            await reloadPortalData();
           }
 
           setInvoiceProcessing(false);
@@ -149,7 +146,7 @@ export function CustomerPortal() {
           console.error('[CustomerPortal] invoice card-saved error:', err instanceof Error ? err.message : 'unknown');
           showToast('Something went wrong. Please contact us.', 'error');
           setInvoiceProcessing(false);
-          await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
+          await reloadPortalData();
         }
       })();
     } else if (cardJustUpdated && returnSessionId && orderId) {
@@ -166,15 +163,15 @@ export function CustomerPortal() {
         } catch (err) {
           console.error('[CustomerPortal] save-payment-method-from-session threw unexpectedly:', err instanceof Error ? err.message : 'unknown');
         }
-        await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
+        await reloadPortalData();
       })();
     } else {
-      loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
+      reloadPortalData();
     }
   }, [orderId, token, isInvoiceLink, loadOrder]);
 
   const handleReload = async () => {
-    await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink);
+    await reloadPortalData();
   };
 
   if (approvalSuccess) {

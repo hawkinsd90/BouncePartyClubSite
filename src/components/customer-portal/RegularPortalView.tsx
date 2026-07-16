@@ -308,7 +308,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
     return `${base} bg-slate-100 text-slate-700 hover:bg-slate-200`;
   }
 
-  function getSectionIcon(section: NavSection, isActive: boolean) {
+  function getSectionIcon(section: NavSection) {
     const Icon = section.icon;
     if (section.locked) return <Lock className="w-4 h-4 flex-shrink-0" aria-hidden="true" />;
     if (section.status === 'Complete') return <CheckCircle className="w-4 h-4 flex-shrink-0 text-green-500" aria-hidden="true" />;
@@ -367,7 +367,6 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
                 {sections.map((section) => {
                   const isActive = activeTab === section.key;
-                  const Icon = section.icon;
                   return (
                     <button
                       key={section.key}
@@ -379,7 +378,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                       className={getSectionStyles(section, isActive)}
                     >
                       <div className="flex items-center gap-2">
-                        {getSectionIcon(section, isActive)}
+                        {getSectionIcon(section)}
                         <span className="text-sm font-semibold">{section.label}</span>
                       </div>
                       <span className="text-xs font-medium opacity-90">{section.status}</span>
