@@ -39,6 +39,7 @@ export function EventEssentialsCatalog() {
 
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [availabilityCache, setAvailabilityCache] = useState<Record<string, boolean>>({});
+  const [availabilityCheckFailed, setAvailabilityCheckFailed] = useState(false);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
 
   useEffect(() => {
@@ -135,9 +136,16 @@ export function EventEssentialsCatalog() {
       }
 
       setCheckingAvailability(true);
+      setAvailabilityCheckFailed(false);
       try {
         const allocation = expandCartToProductQuantities(items);
         const result = await checkProductAvailability(allocation, date, endDate, null);
+
+        if (result.error) {
+          setAvailabilityCheckFailed(true);
+          return;
+        }
+
         const results = result.data ?? [];
         const cache: Record<string, boolean> = {};
 
@@ -156,7 +164,7 @@ export function EventEssentialsCatalog() {
 
         setAvailabilityCache(cache);
       } catch {
-        setAvailabilityCache({});
+        setAvailabilityCheckFailed(true);
       } finally {
         setCheckingAvailability(false);
       }
@@ -271,6 +279,12 @@ export function EventEssentialsCatalog() {
       const proposedAllocation = expandCartToProductQuantities([...existingEEItems, proposedItem]);
 
       const result = await checkProductAvailability(proposedAllocation, eventDate, eventEndDate, null);
+
+      if (result.error) {
+        setAddError('Unable to check availability right now. Please try again.');
+        return;
+      }
+
       const results = result.data ?? [];
 
       const unavailableComponents: string[] = [];
@@ -291,7 +305,7 @@ export function EventEssentialsCatalog() {
       addToCart(proposedItem);
       setQuantities((prev) => ({ ...prev, [key]: 0 }));
     } catch {
-      setAddError('Failed to check availability. Please try again.');
+      setAddError('Unable to check availability right now. Please try again.');
     } finally {
       addingRef.current = false;
     }
@@ -510,10 +524,13 @@ export function EventEssentialsCatalog() {
                               {checkingAvailability && (
                                 <Loader2 className="w-3 h-3 text-slate-400 animate-spin" />
                               )}
-                              {!checkingAvailability && isAvailable === true && (
+                              {!checkingAvailability && availabilityCheckFailed && (
+                                <span className="text-xs text-amber-600 font-medium">(check failed)</span>
+                              )}
+                              {!checkingAvailability && !availabilityCheckFailed && isAvailable === true && (
                                 <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
                               )}
-                              {!checkingAvailability && isAvailable === false && (
+                              {!checkingAvailability && !availabilityCheckFailed && isAvailable === false && (
                                 <span className="text-xs text-red-600 font-medium">(unavailable)</span>
                               )}
                             </div>

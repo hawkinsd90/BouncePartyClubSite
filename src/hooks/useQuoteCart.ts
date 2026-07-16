@@ -40,6 +40,11 @@ export function useQuoteCart() {
     const normalized = normalizeCartItems(savedCart);
 
     if (normalized.length === 0) {
+      const hadEntries = Array.isArray(savedCart) && (savedCart as unknown[]).length > 0;
+      if (hadEntries) {
+        SafeStorage.removeItem(CART_STORAGE_KEY);
+        window.dispatchEvent(new CustomEvent('bpc-cart-updated'));
+      }
       setCart([]);
       return;
     }
