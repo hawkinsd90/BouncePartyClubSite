@@ -2,68 +2,79 @@ import { useState, useEffect, useCallback } from 'react';
 import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { SafeStorage } from '../lib/safeStorage';
 import { supabase } from '../lib/supabase';
-
-interface CartItem {
-  unit_id: string;
-  unit_name: string;
-  wet_or_dry: 'dry' | 'water';
-  unit_price_cents: number;
-  price_dry_cents?: number;
-  price_water_cents?: number;
-  qty: number;
-  is_combo?: boolean;
-  isAvailable?: boolean;
-}
+import { checkProductAvailability } from '../lib/queries/products';
+import {
+  normalizeCartItems,
+  isInflatableCartItem,
+  isEventEssentialProductCartItem,
+  isEventEssentialBundleCartItem,
+  expandCartToProductQuantities,
+  mapProductAvailabilityToItem,
+  mapBundleAvailabilityToItem,
+} from '../lib/unifiedCart';
+import type {
+  UnifiedCartItem,
+  InflatableCartItem,
+  EventEssentialProductCartItem,
+  EventEssentialBundleCartItem,
+} from '../types';
 
 const CART_STORAGE_KEY = 'bpc_cart';
 
-const validateCart = (data: any): boolean => {
-  return Array.isArray(data) && data.every(item =>
-    item.unit_id &&
-    typeof item.unit_id === 'string' &&
-    item.unit_id !== 'undefined' &&
-    typeof item.qty === 'number' &&
-    ['dry', 'water'].includes(item.wet_or_dry)
-  );
-};
-
 export function useQuoteCart() {
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<UnifiedCartItem[]>([]);
 
   useEffect(() => {
     loadCart();
   }, []);
 
   async function loadCart() {
-    const savedCart = SafeStorage.getItem<CartItem[]>(CART_STORAGE_KEY, {
-      validate: validateCart,
-      expirationDays: 7
+    const savedCart = SafeStorage.getItem<unknown>(CART_STORAGE_KEY, {
+      expirationDays: 7,
     });
-    if (!savedCart || savedCart.length === 0) {
+    if (!savedCart) {
       setCart([]);
       return;
     }
 
-    // Hydrate combo items that are missing both price fields (legacy carts)
-    const needsHydration = savedCart.filter(
-      item => item.is_combo && (item.price_dry_cents == null || item.price_water_cents == null)
+    const normalized = normalizeCartItems(savedCart);
+
+    if (normalized.length === 0) {
+      setCart([]);
+      return;
+    }
+
+    const rawArrayLen = Array.isArray(savedCart) ? (savedCart as unknown[]).length : -1;
+    if (normalized.length !== rawArrayLen) {
+      SafeStorage.setItem(CART_STORAGE_KEY, normalized, { expirationDays: 7 });
+    }
+
+    const needsHydration = normalized.filter(
+      (item): item is InflatableCartItem =>
+        isInflatableCartItem(item) &&
+        item.is_combo === true &&
+        (item.price_dry_cents == null || item.price_water_cents == null)
     );
 
     if (needsHydration.length === 0) {
-      setCart(savedCart);
+      setCart(normalized);
       return;
     }
 
     try {
-      const unitIds = [...new Set(needsHydration.map(i => i.unit_id))];
+      const unitIds = [...new Set(needsHydration.map((i) => i.unit_id))];
       const { data: units } = await supabase
         .from('units')
         .select('id, price_dry_cents, price_water_cents')
         .in('id', unitIds);
 
-      const priceMap = new Map((units || []).map(u => [u.id, u]));
-      const hydrated = savedCart.map(item => {
-        if (!item.is_combo || (item.price_dry_cents != null && item.price_water_cents != null)) {
+      const priceMap = new Map((units || []).map((u) => [u.id, u]));
+      const hydrated = normalized.map((item) => {
+        if (
+          !isInflatableCartItem(item) ||
+          !item.is_combo ||
+          (item.price_dry_cents != null && item.price_water_cents != null)
+        ) {
           return item;
         }
         const unit = priceMap.get(item.unit_id);
@@ -78,7 +89,7 @@ export function useQuoteCart() {
       setCart(hydrated);
       SafeStorage.setItem(CART_STORAGE_KEY, hydrated, { expirationDays: 7 });
     } catch {
-      setCart(savedCart);
+      setCart(normalized);
     }
   }
 
@@ -86,19 +97,28 @@ export function useQuoteCart() {
     window.dispatchEvent(new CustomEvent('bpc-cart-updated'));
   }
 
-  function updateCartItem(index: number, updates: Partial<CartItem>) {
-    const newCart = [...cart];
-    newCart[index] = { ...newCart[index], ...updates };
-    setCart(newCart);
+  function persistCart(newCart: UnifiedCartItem[]) {
     SafeStorage.setItem(CART_STORAGE_KEY, newCart, { expirationDays: 7 });
     notifyCartUpdate();
+  }
+
+  function addToCart(item: UnifiedCartItem) {
+    const newCart = [...cart, item];
+    setCart(newCart);
+    persistCart(newCart);
+  }
+
+  function updateCartItem(index: number, updates: Partial<UnifiedCartItem>) {
+    const newCart = [...cart];
+    newCart[index] = { ...newCart[index], ...updates } as UnifiedCartItem;
+    setCart(newCart);
+    persistCart(newCart);
   }
 
   function removeFromCart(index: number) {
     const newCart = cart.filter((_, i) => i !== index);
     setCart(newCart);
-    SafeStorage.setItem(CART_STORAGE_KEY, newCart, { expirationDays: 7 });
-    notifyCartUpdate();
+    persistCart(newCart);
   }
 
   function clearCart() {
@@ -107,36 +127,86 @@ export function useQuoteCart() {
     notifyCartUpdate();
   }
 
-  const checkCartAvailability = useCallback(
+  const checkAllCartAvailability = useCallback(
     async (eventStartDate: string, eventEndDate: string) => {
       if (!eventStartDate || !eventEndDate || cart.length === 0) {
         return;
       }
 
-      const checks = cart.map(item => ({
+      const inflatableEntries: { item: InflatableCartItem; cartIndex: number }[] = [];
+      cart.forEach((item, cartIndex) => {
+        if (isInflatableCartItem(item)) {
+          inflatableEntries.push({ item, cartIndex });
+        }
+      });
+
+      const eventEssentialsItems = cart.filter(
+        (item) =>
+          isEventEssentialProductCartItem(item) ||
+          isEventEssentialBundleCartItem(item)
+      ) as (EventEssentialProductCartItem | EventEssentialBundleCartItem)[];
+
+      const hasInflatables = inflatableEntries.length > 0;
+      const hasEventEssentials = eventEssentialsItems.length > 0;
+
+      if (!hasInflatables && !hasEventEssentials) {
+        return;
+      }
+
+      const inflatableRequests = inflatableEntries.map(({ item }) => ({
         unitId: item.unit_id,
         eventStartDate,
         eventEndDate,
       }));
 
-      const results = await checkMultipleUnitsAvailability(checks);
+      const productAllocation = expandCartToProductQuantities(eventEssentialsItems);
 
-      const updatedCart = cart.map((item, index) => ({
-        ...item,
-        isAvailable: results[index]?.isAvailable ?? true,
-      }));
+      const [inflatableResults, productResults] = await Promise.all([
+        hasInflatables
+          ? checkMultipleUnitsAvailability(inflatableRequests)
+          : Promise.resolve([]),
+        hasEventEssentials
+          ? checkProductAvailability(productAllocation, eventStartDate, eventEndDate, null)
+              .then((res) => res.data ?? [])
+              .catch(() => [])
+          : Promise.resolve([]),
+      ]);
 
-      setCart(updatedCart);
-      SafeStorage.setItem(CART_STORAGE_KEY, updatedCart, { expirationDays: 7 });
+      const mergedCart = [...cart];
+
+      inflatableEntries.forEach((entry, resultIndex) => {
+        mergedCart[entry.cartIndex] = {
+          ...entry.item,
+          isAvailable: inflatableResults[resultIndex]?.isAvailable ?? true,
+        };
+      });
+
+      mergedCart.forEach((item, index) => {
+        if (isEventEssentialProductCartItem(item)) {
+          mergedCart[index] = {
+            ...item,
+            isAvailable: mapProductAvailabilityToItem(item, productResults),
+          };
+        } else if (isEventEssentialBundleCartItem(item)) {
+          mergedCart[index] = {
+            ...item,
+            isAvailable: mapBundleAvailabilityToItem(item, productResults),
+          };
+        }
+      });
+
+      setCart(mergedCart);
+      persistCart(mergedCart);
     },
     [cart]
   );
 
   return {
     cart,
+    addToCart,
     updateCartItem,
     removeFromCart,
     clearCart,
-    checkCartAvailability,
+    checkAllCartAvailability,
   };
 }

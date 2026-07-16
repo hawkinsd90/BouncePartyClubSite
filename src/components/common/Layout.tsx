@@ -16,6 +16,7 @@ export function Layout() {
   const [businessEmail, setBusinessEmail] = useState('admin@bouncepartyclub.com');
   const [instagramUrl, setInstagramUrl] = useState('');
   const [facebookUrl, setFacebookUrl] = useState('');
+  const [eventEssentialsEnabled, setEventEssentialsEnabled] = useState(false);
 
   useEffect(() => {
     getPublicBusinessSettings().then(settings => {
@@ -24,6 +25,7 @@ export function Layout() {
       if (settings.business_email) setBusinessEmail(settings.business_email);
       if (settings.instagram_url) setInstagramUrl(settings.instagram_url);
       if (settings.facebook_url) setFacebookUrl(settings.facebook_url);
+      setEventEssentialsEnabled(settings.event_essentials_page_enabled);
     }).catch(err => {
       console.error('Exception loading business settings:', err);
     });
@@ -96,6 +98,14 @@ export function Layout() {
               >
                 Get Quote
               </Link>
+              {eventEssentialsEnabled && (
+                <Link
+                  to="/event-essentials"
+                  className="text-slate-700 hover:text-blue-600 font-medium transition-colors"
+                >
+                  Event Essentials
+                </Link>
+              )}
               <Link
                 to="/about"
                 className="text-slate-700 hover:text-blue-600 font-medium transition-colors"
@@ -202,6 +212,15 @@ export function Layout() {
               >
                 Get Quote
               </Link>
+              {eventEssentialsEnabled && (
+                <Link
+                  to="/event-essentials"
+                  className="block text-slate-700 hover:text-blue-600 font-medium py-3 px-2 transition-colors text-base rounded-lg hover:bg-blue-50"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Event Essentials
+                </Link>
+              )}
               <Link
                 to="/about"
                 className="block text-slate-700 hover:text-blue-600 font-medium py-3 px-2 transition-colors text-base rounded-lg hover:bg-blue-50"

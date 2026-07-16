@@ -34,6 +34,7 @@ const ForgotPassword = lazy(() => import('./pages/ForgotPassword').then(m => ({ 
 const ResetPassword = lazy(() => import('./pages/ResetPassword').then(m => ({ default: m.ResetPassword })));
 const Receipt = lazy(() => import('./pages/Receipt').then(m => ({ default: m.Receipt })));
 const ShortLink = lazy(() => import('./pages/ShortLink').then(m => ({ default: m.ShortLink })));
+const EventEssentialsCatalog = lazy(() => import('./pages/EventEssentialsCatalog').then(m => ({ default: m.EventEssentialsCatalog })));
 
 
 function OAuthRedirectHandler() {
@@ -94,6 +95,7 @@ function App() {
             <Route path="catalog" element={<Catalog />} />
             <Route path="units/:slug" element={<UnitDetail />} />
             <Route path="quote" element={<Quote />} />
+            <Route path="event-essentials" element={<EventEssentialsCatalog />} />
             <Route path="contact" element={<Contact />} />
             <Route path="checkout" element={<Checkout />} />
             <Route path="about" element={<About />} />

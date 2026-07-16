@@ -1,10 +1,4 @@
-interface CartItem {
-  unit_name: string;
-  wet_or_dry: 'dry' | 'water';
-  unit_price_cents: number;
-  qty: number;
-  isAvailable?: boolean;
-}
+import type { UnifiedCartItem, InflatableCartItem, EventEssentialProductCartItem, EventEssentialBundleCartItem } from '../../types';
 
 interface PriceBreakdown {
   travel_fee_cents: number;
@@ -17,12 +11,16 @@ interface PriceBreakdown {
 }
 
 interface QuoteSummarySectionProps {
-  cart: CartItem[];
+  cart: UnifiedCartItem[];
   priceBreakdown: PriceBreakdown | null;
 }
 
 function formatDollars(cents: number): string {
   return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+}
+
+function isInflatable(item: UnifiedCartItem): item is InflatableCartItem {
+  return item.item_type === undefined || item.item_type === 'inflatable';
 }
 
 export function QuoteSummarySection({ cart, priceBreakdown }: QuoteSummarySectionProps) {
@@ -37,7 +35,20 @@ export function QuoteSummarySection({ cart, priceBreakdown }: QuoteSummarySectio
     );
   }
 
-  const itemSubtotalCents = cart.reduce((sum, item) => sum + item.unit_price_cents * item.qty, 0);
+  const inflatableItems = cart.filter(isInflatable);
+  const eventEssentialsItems = cart.filter(
+    (item): item is EventEssentialProductCartItem | EventEssentialBundleCartItem =>
+      !isInflatable(item)
+  );
+
+  const inflatableSubtotalCents = inflatableItems.reduce(
+    (sum, item) => sum + item.unit_price_cents * item.qty,
+    0
+  );
+  const eventEssentialsSubtotalCents = eventEssentialsItems.reduce(
+    (sum, item) => sum + item.unit_price_cents * item.qty,
+    0
+  );
 
   const feesTotalCents = priceBreakdown
     ? priceBreakdown.travel_fee_cents +
@@ -48,7 +59,7 @@ export function QuoteSummarySection({ cart, priceBreakdown }: QuoteSummarySectio
       priceBreakdown.tax_cents
     : 0;
 
-  const estimatedTotalCents = itemSubtotalCents + feesTotalCents;
+  const estimatedTotalCents = inflatableSubtotalCents + feesTotalCents;
 
   const hasUnavailableItems = cart.some((item) => item.isAvailable === false);
 
@@ -57,29 +68,63 @@ export function QuoteSummarySection({ cart, priceBreakdown }: QuoteSummarySectio
       <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-4 sm:mb-6">Quote Summary</h2>
 
       <div className="space-y-4">
-        <div className="space-y-2">
-          <p className="text-xs sm:text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wide">Items:</p>
+        {inflatableItems.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs sm:text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wide">Inflatables:</p>
 
-          {cart.map((item, index) => (
-            <div key={index} className="flex items-start justify-between gap-2 py-1 text-xs sm:text-sm">
-              <div className="flex items-start gap-2 flex-1 min-w-0">
-                <span className="text-blue-600 flex-shrink-0 mt-0.5">•</span>
-                <span className="text-slate-700 break-words">
-                  {item.unit_name}{' '}
-                  <span className="text-slate-400">({item.wet_or_dry})</span>
+            {inflatableItems.map((item, index) => (
+              <div key={`inf-${index}`} className="flex items-start justify-between gap-2 py-1 text-xs sm:text-sm">
+                <div className="flex items-start gap-2 flex-1 min-w-0">
+                  <span className="text-blue-600 flex-shrink-0 mt-0.5">•</span>
+                  <span className="text-slate-700 break-words">
+                    {item.unit_name}{' '}
+                    <span className="text-slate-400">({item.wet_or_dry})</span>
+                  </span>
+                </div>
+                <span className="font-semibold text-slate-900 flex-shrink-0">
+                  {formatDollars(item.unit_price_cents * item.qty)}
                 </span>
               </div>
-              <span className="font-semibold text-slate-900 flex-shrink-0">
-                {formatDollars(item.unit_price_cents * item.qty)}
-              </span>
-            </div>
-          ))}
+            ))}
 
-          <div className="flex items-center justify-between pt-2 mt-2 border-t border-slate-100">
-            <span className="text-xs sm:text-sm font-semibold text-slate-700">Items subtotal</span>
-            <span className="text-sm sm:text-base font-bold text-slate-900">{formatDollars(itemSubtotalCents)}</span>
+            <div className="flex items-center justify-between pt-2 mt-2 border-t border-slate-100">
+              <span className="text-xs sm:text-sm font-semibold text-slate-700">Inflatables subtotal</span>
+              <span className="text-sm sm:text-base font-bold text-slate-900">{formatDollars(inflatableSubtotalCents)}</span>
+            </div>
           </div>
-        </div>
+        )}
+
+        {eventEssentialsItems.length > 0 && (
+          <div className="space-y-2 pt-2 border-t border-slate-200">
+            <p className="text-xs sm:text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wide">Event Essentials:</p>
+
+            {eventEssentialsItems.map((item, index) => (
+              <div key={`ee-${index}`} className="flex items-start justify-between gap-2 py-1 text-xs sm:text-sm">
+                <div className="flex items-start gap-2 flex-1 min-w-0">
+                  <span className="text-emerald-600 flex-shrink-0 mt-0.5">•</span>
+                  <span className="text-slate-700 break-words">
+                    {item.item_type === 'event_essential_bundle' ? item.bundle_name : item.product_name}
+                    {item.isAvailable === false && (
+                      <span className="ml-1 text-red-600 font-medium">(unavailable)</span>
+                    )}
+                  </span>
+                </div>
+                <span className="font-semibold text-slate-900 flex-shrink-0">
+                  {formatDollars(item.unit_price_cents * item.qty)}
+                </span>
+              </div>
+            ))}
+
+            <div className="flex items-center justify-between pt-2 mt-2 border-t border-slate-100">
+              <span className="text-xs sm:text-sm font-semibold text-slate-700">Event Essentials subtotal</span>
+              <span className="text-sm sm:text-base font-bold text-slate-900">{formatDollars(eventEssentialsSubtotalCents)}</span>
+            </div>
+
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Event Essentials subtotal is informational only. Final totals confirmed at checkout.
+            </p>
+          </div>
+        )}
 
         {priceBreakdown ? (
           <div className="space-y-2 pt-2 border-t border-slate-200">
@@ -116,8 +161,8 @@ export function QuoteSummarySection({ cart, priceBreakdown }: QuoteSummarySectio
             {priceBreakdown.generator_fee_cents > 0 && (
               <div className="flex items-center justify-between text-xs sm:text-sm">
                 <span className="text-slate-600">
-                  Generator Rental ({Math.ceil(cart.reduce((sum, item) => sum + item.qty, 0) / 2)} unit
-                  {Math.ceil(cart.reduce((sum, item) => sum + item.qty, 0) / 2) > 1 ? 's' : ''})
+                  Generator Rental ({Math.ceil(inflatableItems.reduce((sum, item) => sum + item.qty, 0) / 2)} unit
+                  {Math.ceil(inflatableItems.reduce((sum, item) => sum + item.qty, 0) / 2) > 1 ? 's' : ''})
                 </span>
                 <span className="font-semibold text-slate-800">{formatDollars(priceBreakdown.generator_fee_cents)}</span>
               </div>
@@ -152,7 +197,7 @@ export function QuoteSummarySection({ cart, priceBreakdown }: QuoteSummarySectio
         {hasUnavailableItems && (
           <div className="p-3 bg-red-50 border-2 border-red-300 rounded-lg">
             <p className="text-xs sm:text-sm text-red-800 font-medium text-center leading-relaxed">
-              Some inflatables are not available for the selected dates. Please choose different dates or remove
+              Some items are not available for the selected dates. Please choose different dates or remove
               unavailable items.
             </p>
           </div>

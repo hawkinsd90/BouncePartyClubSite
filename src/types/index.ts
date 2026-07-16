@@ -208,6 +208,60 @@ export interface ProductAvailabilityResult {
   is_allowed: boolean;
 }
 
+export interface ProductBundleComponentWithProduct extends ProductBundleComponent {
+  inventory_products: {
+    id: string;
+    slug: string;
+    name: string;
+  } | null;
+}
+
+export interface ProductBundleWithComponents extends ProductBundle {
+  product_bundle_components: ProductBundleComponentWithProduct[];
+}
+
+export type CartItemType = 'inflatable' | 'event_essential_product' | 'event_essential_bundle';
+export type PricingContext = 'standalone' | 'addon';
+
+export interface InflatableCartItem {
+  item_type?: 'inflatable';
+  unit_id: string;
+  unit_name: string;
+  wet_or_dry: 'dry' | 'water';
+  unit_price_cents: number;
+  price_dry_cents?: number;
+  price_water_cents?: number;
+  qty: number;
+  is_combo?: boolean;
+  isAvailable?: boolean;
+}
+
+export interface EventEssentialProductCartItem {
+  item_type: 'event_essential_product';
+  product_id: string;
+  product_name: string;
+  unit_price_cents: number;
+  qty: number;
+  pricing_context: PricingContext;
+  isAvailable?: boolean;
+}
+
+export interface EventEssentialBundleCartItem {
+  item_type: 'event_essential_bundle';
+  bundle_id: string;
+  bundle_name: string;
+  unit_price_cents: number;
+  qty: number;
+  pricing_context: PricingContext;
+  component_snapshot: BundleComponentSnapshot;
+  isAvailable?: boolean;
+}
+
+export type UnifiedCartItem =
+  | InflatableCartItem
+  | EventEssentialProductCartItem
+  | EventEssentialBundleCartItem;
+
 export interface FormErrors {
   [key: string]: string | undefined;
 }

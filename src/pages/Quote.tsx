@@ -13,6 +13,7 @@ import { supabase } from '../lib/supabase';
 import { checkDateBlackout } from '../lib/availability';
 import { validateQuote } from '../lib/quoteValidation';
 import type { PricingRules } from '../lib/pricing';
+import type { InflatableCartItem } from '../types';
 import { trackEvent, trackEventOnce } from '../lib/siteEvents';
 import { CartSection } from '../components/quote/CartSection';
 import { AddressSection } from '../components/quote/AddressSection';
@@ -60,7 +61,7 @@ export function Quote() {
     trackEvent('cart_started');
   }, []);
 
-  const { cart, updateCartItem, removeFromCart, clearCart, checkCartAvailability } = useQuoteCart();
+  const { cart, updateCartItem, removeFromCart, clearCart, checkAllCartAvailability } = useQuoteCart();
   const { formData, setFormData, updateFormData, addressInput, setAddressInput, saveFormData, clearForm, isInitialized, wasDuplicate } =
     useQuoteForm();
 
@@ -101,7 +102,10 @@ export function Quote() {
     { showErrorNotification: false }
   );
 
-  const { priceBreakdown, savePriceBreakdown } = useQuotePricing(cart, formData, pricingRules);
+  const inflatableCart = cart.filter(
+    (item): item is InflatableCartItem => item.item_type === undefined || item.item_type === 'inflatable'
+  );
+  const { priceBreakdown, savePriceBreakdown } = useQuotePricing(inflatableCart, formData, pricingRules);
 
   useQuotePrefill(user, formData, { setAddressInput, updateFormData }, sessionData);
 
@@ -155,7 +159,7 @@ export function Quote() {
   useEffect(() => {
     if (cart.length > 0 && formData.event_date && formData.event_end_date) {
       const timer = setTimeout(() => {
-        checkCartAvailability(formData.event_date, formData.event_end_date);
+        checkAllCartAvailability(formData.event_date, formData.event_end_date);
       }, 300);
       return () => clearTimeout(timer);
     }
@@ -328,7 +332,7 @@ export function Quote() {
     e.preventDefault();
     e.stopPropagation();
 
-    const validation = validateQuote(cart, formData);
+    const validation = validateQuote(inflatableCart, formData);
     if (!validation.isValid) {
       const errorMessage = validation.errorMessage || 'Please fix the errors below';
 
@@ -364,12 +368,16 @@ export function Quote() {
       return;
     }
 
-    await checkCartAvailability(formData.event_date, formData.event_end_date);
+    await checkAllCartAvailability(formData.event_date, formData.event_end_date);
 
     const stillUnavailable = cart.filter((item) => item.isAvailable === false);
     if (stillUnavailable.length > 0) {
-      const unavailableNames = stillUnavailable.map((item) => item.unit_name).join(', ');
-      const errorMessage = `Sorry, the following inflatables were just booked: ${unavailableNames}. Please choose different dates or remove these items.`;
+      const unavailableNames = stillUnavailable.map((item) => {
+        if (item.item_type === 'event_essential_bundle') return item.bundle_name;
+        if (item.item_type === 'event_essential_product') return item.product_name;
+        return item.unit_name;
+      }).join(', ');
+      const errorMessage = `Sorry, the following items were just booked: ${unavailableNames}. Please choose different dates or remove these items.`;
 
       flushSync(() => {
         setValidationError(errorMessage);

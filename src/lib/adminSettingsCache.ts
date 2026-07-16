@@ -15,6 +15,8 @@ export interface PublicBusinessSettings {
   home_address_city: string | null;
   home_address_state: string | null;
   home_address_zip: string | null;
+  event_essentials_page_enabled: boolean;
+  min_event_essentials_order_cents: number | null;
 }
 
 let publicSettingsCache: { data: PublicBusinessSettings; timestamp: number } | null = null;
@@ -26,6 +28,8 @@ export async function getPublicBusinessSettings(useCache = true): Promise<Public
   }
 
   const { data, error } = await supabase.rpc('get_public_business_settings');
+
+  const dataRecord = (data ?? {}) as Record<string, string>;
 
   const defaults: PublicBusinessSettings = {
     business_name: 'Bounce Party Club',
@@ -40,6 +44,8 @@ export async function getPublicBusinessSettings(useCache = true): Promise<Public
     home_address_city: 'Wayne',
     home_address_state: 'MI',
     home_address_zip: '48184',
+    event_essentials_page_enabled: false,
+    min_event_essentials_order_cents: null,
   };
 
   if (error || !data) {
@@ -48,22 +54,35 @@ export async function getPublicBusinessSettings(useCache = true): Promise<Public
   }
 
   const result: PublicBusinessSettings = {
-    business_name: data.business_name ?? defaults.business_name,
-    business_phone: data.business_phone ?? defaults.business_phone,
-    business_email: data.business_email ?? defaults.business_email,
-    logo_url: data.logo_url ?? defaults.logo_url,
-    instagram_url: data.instagram_url ?? defaults.instagram_url,
-    facebook_url: data.facebook_url ?? defaults.facebook_url,
-    business_address: data.business_address ?? defaults.business_address,
-    home_address_line1: data.home_address_line1 ?? defaults.home_address_line1,
-    home_address_line2: data.home_address_line2 ?? defaults.home_address_line2,
-    home_address_city: data.home_address_city ?? defaults.home_address_city,
-    home_address_state: data.home_address_state ?? defaults.home_address_state,
-    home_address_zip: data.home_address_zip ?? defaults.home_address_zip,
+    business_name: dataRecord.business_name ?? defaults.business_name,
+    business_phone: dataRecord.business_phone ?? defaults.business_phone,
+    business_email: dataRecord.business_email ?? defaults.business_email,
+    logo_url: dataRecord.logo_url ?? defaults.logo_url,
+    instagram_url: dataRecord.instagram_url ?? defaults.instagram_url,
+    facebook_url: dataRecord.facebook_url ?? defaults.facebook_url,
+    business_address: dataRecord.business_address ?? defaults.business_address,
+    home_address_line1: dataRecord.home_address_line1 ?? defaults.home_address_line1,
+    home_address_line2: dataRecord.home_address_line2 ?? defaults.home_address_line2,
+    home_address_city: dataRecord.home_address_city ?? defaults.home_address_city,
+    home_address_state: dataRecord.home_address_state ?? defaults.home_address_state,
+    home_address_zip: dataRecord.home_address_zip ?? defaults.home_address_zip,
+    event_essentials_page_enabled: dataRecord.event_essentials_page_enabled === 'true',
+    min_event_essentials_order_cents: parseMinOrderCents(dataRecord.min_event_essentials_order_cents),
   };
 
   publicSettingsCache = { data: result, timestamp: now };
   return result;
+}
+
+function parseMinOrderCents(raw: unknown): number | null {
+  if (typeof raw !== 'string' || raw.trim() === '') {
+    return null;
+  }
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0 || !Number.isInteger(parsed)) {
+    return null;
+  }
+  return parsed;
 }
 
 interface AdminSettingsCache {

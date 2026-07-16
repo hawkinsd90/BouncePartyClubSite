@@ -83,16 +83,8 @@ export function useCheckoutData(userId?: string) {
 
       const validCart = savedCart.filter((item: any) => {
         const isValid = item.unit_id && typeof item.unit_id === 'string' && item.unit_id !== 'undefined';
-        if (!isValid) {
-          // console.log('Checkout: Filtering out invalid cart item:', item);
-        }
         return isValid;
       });
-
-      if (validCart.length !== savedCart.length) {
-        // console.log(`Checkout: Removed ${savedCart.length - validCart.length} invalid cart items`);
-        SafeStorage.setItem('bpc_cart', validCart, { expirationDays: 7 });
-      }
 
       setCart(validCart);
 

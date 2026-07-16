@@ -1,23 +1,16 @@
 import { useNavigate } from 'react-router-dom';
-import { Trash2, Sun, Droplets, XCircle, AlertCircle } from 'lucide-react';
-
-interface CartItem {
-  unit_id: string;
-  unit_name: string;
-  wet_or_dry: 'dry' | 'water';
-  unit_price_cents: number;
-  price_dry_cents?: number;
-  price_water_cents?: number;
-  qty: number;
-  is_combo?: boolean;
-  isAvailable?: boolean;
-}
+import { Trash2, Sun, Droplets, XCircle, AlertCircle, Package, AlertTriangle } from 'lucide-react';
+import type { UnifiedCartItem, InflatableCartItem } from '../../types';
 
 interface CartSectionProps {
-  cart: CartItem[];
+  cart: UnifiedCartItem[];
   eventDate: string;
-  onUpdateItem: (index: number, updates: Partial<CartItem>) => void;
+  onUpdateItem: (index: number, updates: Partial<UnifiedCartItem>) => void;
   onRemoveItem: (index: number) => void;
+}
+
+function isInflatable(item: UnifiedCartItem): item is InflatableCartItem {
+  return item.item_type === undefined || item.item_type === 'inflatable';
 }
 
 export function CartSection({ cart, eventDate, onUpdateItem, onRemoveItem }: CartSectionProps) {
@@ -65,8 +58,78 @@ export function CartSection({ cart, eventDate, onUpdateItem, onRemoveItem }: Car
 
       <div className="space-y-3 sm:space-y-4">
         {cart.map((item, index) => {
-          // A combo item is "price-hydrated" when it has both dry and water prices stored.
-          // Legacy carts may be missing them if hydration from Supabase failed (e.g., offline).
+          if (!isInflatable(item)) {
+            const isAddOn = 'pricing_context' in item && item.pricing_context === 'addon';
+            const isInvalidAddOn = isAddOn && item.isAvailable !== false && !cart.some(isInflatable);
+
+            return (
+              <div
+                key={index}
+                className={`p-3 sm:p-4 border-2 rounded-lg sm:rounded-xl space-y-3 transition-all ${
+                  item.isAvailable === false
+                    ? 'border-red-300 bg-red-50'
+                    : isInvalidAddOn
+                    ? 'border-amber-300 bg-amber-50'
+                    : 'border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Package className="w-4 h-4 text-slate-500 flex-shrink-0" />
+                      <h3 className="font-semibold text-slate-900 text-sm sm:text-base break-words">
+                        {item.item_type === 'event_essential_bundle' ? item.bundle_name : item.product_name}
+                      </h3>
+                      {item.isAvailable === false && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 whitespace-nowrap">
+                          <XCircle className="w-3 h-3" />
+                          Not Available
+                        </span>
+                      )}
+                      {isInvalidAddOn && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 whitespace-nowrap">
+                          <AlertTriangle className="w-3 h-3" />
+                          Requires Inflatable
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs sm:text-sm text-slate-600">Qty: {item.qty}</span>
+                    {isAddOn && (
+                      <span className="ml-2 text-xs text-slate-400">(Add-on)</span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onRemoveItem(index)}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg p-2 transition-colors flex-shrink-0"
+                    aria-label="Remove from cart"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {item.isAvailable === false && eventDate && (
+                  <div className="text-xs sm:text-sm text-red-800 bg-red-100 px-3 py-2 rounded-lg border border-red-200">
+                    This item is not available for the selected dates. Please choose different dates or remove this item.
+                  </div>
+                )}
+
+                {isInvalidAddOn && (
+                  <div className="text-xs sm:text-sm text-amber-800 bg-amber-100 px-3 py-2 rounded-lg border border-amber-200">
+                    This add-on requires at least one inflatable in your cart. Add an inflatable or remove this item.
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between text-xs sm:text-sm text-slate-600 bg-slate-50 px-3 py-2 rounded-lg">
+                  <span>Unit Price</span>
+                  <span className="font-semibold text-slate-900">
+                    ${((item.unit_price_cents / 100)).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </span>
+                </div>
+              </div>
+            );
+          }
+
           const pricesReady = item.price_dry_cents != null && item.price_water_cents != null;
 
           return (

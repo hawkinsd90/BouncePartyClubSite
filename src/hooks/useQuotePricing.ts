@@ -3,19 +3,18 @@ import { calculatePrice, calculateDrivingDistance, isSameDayWeekdayDelivery, typ
 import { HOME_BASE } from '../lib/constants';
 import { SafeStorage } from '../lib/safeStorage';
 import type { QuoteFormData } from './useQuoteForm';
-
-interface CartItem {
-  unit_id: string;
-  wet_or_dry: 'dry' | 'water';
-  unit_price_cents: number;
-  qty: number;
-}
+import type { InflatableCartItem } from '../types';
 
 const PRICE_BREAKDOWN_STORAGE_KEY = 'bpc_price_breakdown';
 
-export function useQuotePricing(cart: CartItem[], formData: QuoteFormData, pricingRules: PricingRules | null) {
+export function useQuotePricing(cart: InflatableCartItem[], formData: QuoteFormData, pricingRules: PricingRules | null) {
   const [priceBreakdown, setPriceBreakdown] = useState<any>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const inflatableCart = cart.filter((item) => {
+    const itemType = (item as any).item_type;
+    return itemType === undefined || itemType === 'inflatable';
+  });
 
   useEffect(() => {
     // Clear existing timer
@@ -24,7 +23,7 @@ export function useQuotePricing(cart: CartItem[], formData: QuoteFormData, prici
     }
 
     const hasRequiredPricingInputs =
-      cart.length > 0 &&
+      inflatableCart.length > 0 &&
       !!pricingRules &&
       !!formData.zip &&
       !!formData.lat &&
@@ -49,7 +48,7 @@ export function useQuotePricing(cart: CartItem[], formData: QuoteFormData, prici
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [cart, pricingRules, formData]);
+  }, [inflatableCart, pricingRules, formData]);
 
   async function calculatePricing() {
     if (!pricingRules) return;
@@ -68,7 +67,7 @@ export function useQuotePricing(cart: CartItem[], formData: QuoteFormData, prici
     const num_days = Math.max(1, daysDiff + 1);
 
     const breakdown = calculatePrice({
-      items: cart,
+      items: inflatableCart,
       location_type: formData.location_type ?? 'residential',
       surface: formData.can_stake === true ? 'grass' : 'cement',
       can_use_stakes: formData.can_stake ?? true,

@@ -3,6 +3,7 @@ import { executeQuery, QueryOptions } from './base';
 import type {
   InventoryProduct,
   ProductBundle,
+  ProductBundleWithComponents,
   ProductPricing,
   ProductAvailabilityRequestItem,
   ProductAvailabilityResult,
@@ -53,11 +54,36 @@ export async function fetchProductBundles(options?: QueryOptions) {
   );
 }
 
+export async function fetchProductBundlesWithComponents(options?: QueryOptions) {
+  return executeQuery<ProductBundleWithComponents[]>(
+    async () =>
+      await supabase
+        .from('product_bundles')
+        .select(
+          `*,
+           product_bundle_components (
+             id,
+             product_id,
+             quantity_per_bundle,
+             inventory_products (
+               id,
+               slug,
+               name
+             )
+           )`
+        )
+        .eq('active', true)
+        .eq('public_visible', true)
+        .order('sort_order', { ascending: true }) as unknown as Promise<{ data: ProductBundleWithComponents[] | null; error: any }>,
+    { context: 'fetchProductBundlesWithComponents', ...options }
+  );
+}
+
 export async function fetchProductBundleById(
   id: string,
   options?: QueryOptions
 ) {
-  return executeQuery<ProductBundle>(
+  return executeQuery<ProductBundleWithComponents>(
     async () =>
       await supabase
         .from('product_bundles')
