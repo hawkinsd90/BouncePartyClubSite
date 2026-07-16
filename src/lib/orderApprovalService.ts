@@ -3,7 +3,6 @@ import { ORDER_STATUS } from './constants/statuses';
 import { sendEmail } from './notificationService';
 import {
   generateConfirmationReceiptEmail,
-  generateConfirmationSmsMessage,
   generateRejectionSmsMessage,
 } from './orderEmailTemplates';
 import { checkMultipleUnitsAvailability } from './availability';

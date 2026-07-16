@@ -58,15 +58,10 @@ export function CustomerPortal() {
     return result;
   }, [orderId, invoiceToken, isInvoiceLink, loadOrder]);
 
-  const onRefreshComplete = useCallback(() => {
-    setRefreshVersion((v) => v + 1);
-  }, []);
-
   useCustomerPortalRefresh({
     orderId: resolvedOrderId,
-    reload: reloadPortalData,
+    reload: async () => { await reloadPortalData(); },
     isApprovalSuccess: approvalSuccess || approvalProcessing || invoiceProcessing,
-    onRefreshComplete,
   });
 
   useEffect(() => {
@@ -168,7 +163,7 @@ export function CustomerPortal() {
     } else {
       reloadPortalData();
     }
-  }, [orderId, token, isInvoiceLink, loadOrder]);
+  }, [orderId, token, isInvoiceLink, reloadPortalData]);
 
   const handleReload = async () => {
     await reloadPortalData();

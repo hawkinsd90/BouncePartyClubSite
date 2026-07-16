@@ -276,13 +276,13 @@ export function InvoiceAcceptanceView({
       const tipCents = getTipCents();
 
       // Check unit availability before proceeding
-      const { data: orderItems } = await supabase
+      const { data: availabilityItems } = await supabase
         .from('order_items')
         .select('unit_id')
         .eq('order_id', order.id);
 
-      if (orderItems && orderItems.length > 0) {
-        const availabilityChecks = orderItems.map((item: any) => ({
+      if (availabilityItems && availabilityItems.length > 0) {
+        const availabilityChecks = availabilityItems.map((item: any) => ({
           unitId: item.unit_id,
           eventStartDate: order.event_date,
           eventEndDate: order.event_end_date || order.event_date,

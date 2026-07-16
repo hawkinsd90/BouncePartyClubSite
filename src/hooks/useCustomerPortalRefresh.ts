@@ -4,7 +4,6 @@ interface UseCustomerPortalRefreshOptions {
   orderId: string | undefined;
   reload: () => Promise<void>;
   isApprovalSuccess: boolean;
-  onRefreshComplete: () => void;
 }
 
 const POLL_INTERVAL_MS = 15_000;
@@ -14,7 +13,6 @@ export function useCustomerPortalRefresh({
   orderId,
   reload,
   isApprovalSuccess,
-  onRefreshComplete,
 }: UseCustomerPortalRefreshOptions) {
   const reloadRef = useRef(reload);
   reloadRef.current = reload;
@@ -34,7 +32,6 @@ export function useCustomerPortalRefresh({
     pendingRefreshRef.current = false;
     try {
       await reloadRef.current();
-      onRefreshComplete();
     } catch (err) {
       console.error('[useCustomerPortalRefresh] reload failed:', err);
     } finally {
@@ -44,7 +41,7 @@ export function useCustomerPortalRefresh({
         doReload();
       }
     }
-  }, [onRefreshComplete]);
+  }, []);
 
   useEffect(() => {
     if (!orderId) return;
