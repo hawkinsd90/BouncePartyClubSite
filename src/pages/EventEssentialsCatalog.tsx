@@ -424,6 +424,18 @@ export function EventEssentialsCatalog() {
     }));
   }
 
+  function setQty(key: string, value: string, max: number) {
+    const parsed = parseInt(value, 10);
+    if (isNaN(parsed)) {
+      setQuantities((prev) => ({ ...prev, [key]: 0 }));
+      return;
+    }
+    setQuantities((prev) => ({
+      ...prev,
+      [key]: Math.max(0, Math.min(max, parsed)),
+    }));
+  }
+
   async function handleAddProduct(product: InventoryProduct) {
     const key = `product-${product.id}`;
     const qty = getQty(key);
@@ -847,7 +859,14 @@ export function EventEssentialsCatalog() {
                           >
                             <Minus className="w-4 h-4" />
                           </button>
-                          <span className="w-8 text-center font-semibold text-slate-900 text-sm">{qty}</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={maxAddable}
+                            value={qty}
+                            onChange={(e) => setQty(key, e.target.value, maxAddable)}
+                            className="w-12 text-center font-semibold text-slate-900 text-sm border border-slate-300 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
                           <button
                             type="button"
                             onClick={() => incrementQty(key, maxAddable)}
@@ -941,7 +960,14 @@ export function EventEssentialsCatalog() {
                             >
                               <Minus className="w-4 h-4" />
                             </button>
-                            <span className="w-8 text-center font-semibold text-slate-900 text-sm">{qty}</span>
+                            <input
+                              type="number"
+                              min={0}
+                              value={qty}
+                              onChange={(e) => setQty(key, e.target.value, 99)}
+                              disabled={!hasPricing}
+                              className="w-12 text-center font-semibold text-slate-900 text-sm border border-slate-300 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                            />
                             <button
                               type="button"
                               onClick={() => incrementQty(key, 99)}

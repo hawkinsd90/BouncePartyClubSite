@@ -126,6 +126,20 @@ export function CartSection({ cart, eventDate, onUpdateItem, onRemoveItem }: Car
                     ${((item.unit_price_cents / 100)).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   </span>
                 </div>
+
+                {item.item_type === 'event_essential_bundle' && item.component_snapshot?.components?.length > 0 && (
+                  <div className="bg-slate-50 rounded-lg px-3 py-2 space-y-1">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Package includes:</p>
+                    <ul className="space-y-1">
+                      {item.component_snapshot.components.map((comp) => (
+                        <li key={comp.product_id} className="flex items-center justify-between text-xs sm:text-sm text-slate-700">
+                          <span>{comp.product_name}</span>
+                          <span className="font-semibold text-slate-600">×{comp.quantity_per_bundle * item.qty}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             );
           }
