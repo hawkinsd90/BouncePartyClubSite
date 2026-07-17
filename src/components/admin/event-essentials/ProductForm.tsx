@@ -7,6 +7,7 @@ import {
 import {
   notifySuccess,
   notifyError,
+  notifyWarning,
 } from '../../../lib/notifications';
 import { supabase } from '../../../lib/supabase';
 import { parseStoragePath } from '../../../lib/queries/products';
@@ -30,6 +31,7 @@ interface ProductFormProps {
 }
 
 const SLUG_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const PRICE_REGEX = /^\d+(\.\d{1,2})?$/;
 
 function generateSlug(name: string): string {
   return name
@@ -39,16 +41,18 @@ function generateSlug(name: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-/** Parse a dollar string to integer cents. Returns null for blank. Throws for malformed/negative. */
-function dollarsToCents(dollars: string): number | null {
+/**
+ * Strict currency string validation. Never throws.
+ * Returns { valid: true, cents: number | null } for valid input.
+ * Returns { valid: false, cents: null } for invalid input.
+ * Blank string is valid and returns cents: null.
+ */
+function parsePrice(dollars: string): { valid: boolean; cents: number | null } {
   const trimmed = dollars.trim();
-  if (trimmed === '') return null;
-  const num = parseFloat(trimmed);
-  if (isNaN(num) || num < 0) {
-    throw new Error('Invalid price value');
-  }
-  const cents = Math.round(num * 100);
-  return cents;
+  if (trimmed === '') return { valid: true, cents: null };
+  if (!PRICE_REGEX.test(trimmed)) return { valid: false, cents: null };
+  const cents = Math.round(parseFloat(trimmed) * 100);
+  return { valid: true, cents };
 }
 
 function centsToDollars(cents: number | null | undefined): string {
@@ -66,7 +70,6 @@ export function ProductForm({
   const isEdit = product !== null;
   const slugManuallyEdited = useRef(false);
 
-  // Generate one UUID at init for create; reuse existing for edit
   const productIdRef = useRef<string>(product?.id || crypto.randomUUID());
 
   const [formData, setFormData] = useState<ProductAdminFormData>(() => {
@@ -124,8 +127,6 @@ export function ProductForm({
 
   const imageUploadRef = useRef<AdminImageUploadHandle>(null);
   const prevImageUrl = useRef<string | null>(product?.image_url ?? null);
-
-  // Track whether we've already cleaned up to avoid double-close races
   const closedRef = useRef(false);
 
   useEffect(() => {
@@ -178,7 +179,8 @@ export function ProductForm({
 
     if (!formData.name.trim()) e.name = 'Name is required';
     if (!formData.slug.trim()) e.slug = 'Slug is required';
-    else if (!SLUG_REGEX.test(formData.slug)) e.slug = 'Slug must be lowercase, alphanumeric, hyphen-separated';
+    else if (!SLUG_REGEX.test(formData.slug))
+      e.slug = 'Slug must be lowercase, alphanumeric, hyphen-separated';
 
     if (!Number.isInteger(formData.total_quantity) || formData.total_quantity < 0)
       e.total_quantity = 'Must be a whole number >= 0';
@@ -187,22 +189,22 @@ export function ProductForm({
     if (formData.temp_unavailable_qty > formData.total_quantity)
       e.temp_unavailable_qty = 'Cannot exceed total inventory';
 
-    // Validate standalone price: required when enabled, validated when populated
+    // Standalone price: strict validation, no parseFloat exceptions
     const standaloneTrimmed = standalonePriceDisplay.trim();
+    const standaloneParsed = parsePrice(standalonePriceDisplay);
     if (formData.standalone_enabled && standaloneTrimmed === '') {
       e.standalone_price = 'Required when standalone is enabled';
-    } else if (standaloneTrimmed !== '') {
-      const cents = dollarsToCents(standalonePriceDisplay);
-      if (cents === null) e.standalone_price = 'Invalid price value';
+    } else if (standaloneTrimmed !== '' && !standaloneParsed.valid) {
+      e.standalone_price = 'Enter a valid dollar amount (e.g. 12, 12.50)';
     }
 
-    // Validate addon price: required when enabled, validated when populated
+    // Add-on price: strict validation, no parseFloat exceptions
     const addonTrimmed = addonPriceDisplay.trim();
+    const addonParsed = parsePrice(addonPriceDisplay);
     if (formData.addon_enabled && addonTrimmed === '') {
       e.addon_price = 'Required when add-on is enabled';
-    } else if (addonTrimmed !== '') {
-      const cents = dollarsToCents(addonPriceDisplay);
-      if (cents === null) e.addon_price = 'Invalid price value';
+    } else if (addonTrimmed !== '' && !addonParsed.valid) {
+      e.addon_price = 'Enter a valid dollar amount (e.g. 12, 12.50)';
     }
 
     if (formData.category_id) {
@@ -214,13 +216,25 @@ export function ProductForm({
     return Object.keys(e).length === 0;
   }
 
-  async function deleteStorageFile(url: string): Promise<void> {
+  async function deleteStorageFile(url: string): Promise<boolean> {
     const path = parseStoragePath(url);
-    if (!path) return;
+    if (!path) return true;
     try {
-      await supabase.storage.from('event-essentials-media').remove([path]);
+      const { error } = await supabase.storage.from('event-essentials-media').remove([path]);
+      if (error) {
+        console.error('Failed to delete old storage file:', path, error.message);
+        notifyWarning(
+          'The product was saved, but the old image file could not be deleted. Manual cleanup may be needed.'
+        );
+        return false;
+      }
+      return true;
     } catch (err) {
-      console.error('Failed to delete old storage file:', err);
+      console.error('Failed to delete old storage file:', path, err);
+      notifyWarning(
+        'The product was saved, but the old image file could not be deleted. Manual cleanup may be needed.'
+      );
+      return false;
     }
   }
 
@@ -230,9 +244,10 @@ export function ProductForm({
 
     if (!validate()) return;
 
-    // Parse prices: send parsed value when populated, null when blank, regardless of enabled
-    const standaloneCents = standalonePriceDisplay.trim() === '' ? null : dollarsToCents(standalonePriceDisplay);
-    const addonCents = addonPriceDisplay.trim() === '' ? null : dollarsToCents(addonPriceDisplay);
+    const standaloneParsed = parsePrice(standalonePriceDisplay);
+    const addonParsed = parsePrice(addonPriceDisplay);
+    const standaloneCents = standaloneParsed.cents;
+    const addonCents = addonParsed.cents;
 
     let imageUrl = formData.image_url;
 
@@ -274,7 +289,16 @@ export function ProductForm({
         notifyError(msg);
 
         if (imageAction === 'upload') {
-          await imageUploadRef.current?.deleteNewlyUploaded();
+          const deleted = await imageUploadRef.current?.deleteNewlyUploaded();
+          if (deleted) {
+            // Cleanup succeeded — reset state so second submit won't send deleted URL
+            setNewUploadedImage(null);
+            setImageAction('none');
+            imageUploadRef.current?.resetToCurrentImage();
+          } else {
+            // Cleanup failed — retain pending reference for retry
+            // Don't reset state; second submit will attempt cleanup again
+          }
         }
         return;
       }
@@ -301,7 +325,12 @@ export function ProductForm({
       notifyError(msg);
 
       if (imageAction === 'upload') {
-        await imageUploadRef.current?.deleteNewlyUploaded();
+        const deleted = await imageUploadRef.current?.deleteNewlyUploaded();
+        if (deleted) {
+          setNewUploadedImage(null);
+          setImageAction('none');
+          imageUploadRef.current?.resetToCurrentImage();
+        }
       }
     } finally {
       setIsSaving(false);
@@ -414,10 +443,14 @@ export function ProductForm({
                 min={0}
                 step={1}
                 value={formData.total_quantity}
-                onChange={(e) => handleFieldChange('total_quantity', Math.max(0, Math.floor(Number(e.target.value))))}
+                onChange={(e) =>
+                  handleFieldChange('total_quantity', Math.max(0, Math.floor(Number(e.target.value))))
+                }
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
               />
-              {errors.total_quantity && <p className="mt-1 text-xs text-red-600">{errors.total_quantity}</p>}
+              {errors.total_quantity && (
+                <p className="mt-1 text-xs text-red-600">{errors.total_quantity}</p>
+              )}
             </div>
 
             <div>
@@ -429,10 +462,17 @@ export function ProductForm({
                 min={0}
                 step={1}
                 value={formData.temp_unavailable_qty}
-                onChange={(e) => handleFieldChange('temp_unavailable_qty', Math.max(0, Math.floor(Number(e.target.value))))}
+                onChange={(e) =>
+                  handleFieldChange(
+                    'temp_unavailable_qty',
+                    Math.max(0, Math.floor(Number(e.target.value)))
+                  )
+                }
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
               />
-              {errors.temp_unavailable_qty && <p className="mt-1 text-xs text-red-600">{errors.temp_unavailable_qty}</p>}
+              {errors.temp_unavailable_qty && (
+                <p className="mt-1 text-xs text-red-600">{errors.temp_unavailable_qty}</p>
+              )}
             </div>
 
             <div>
@@ -460,7 +500,9 @@ export function ProductForm({
                 <span className="text-sm text-slate-700">Enable standalone purchase</span>
               </label>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Standalone Price ($)</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">
+                  Standalone Price ($)
+                </label>
                 <input
                   type="text"
                   inputMode="decimal"
@@ -469,7 +511,9 @@ export function ProductForm({
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
                   placeholder="0.00"
                 />
-                {errors.standalone_price && <p className="mt-1 text-xs text-red-600">{errors.standalone_price}</p>}
+                {errors.standalone_price && (
+                  <p className="mt-1 text-xs text-red-600">{errors.standalone_price}</p>
+                )}
               </div>
             </div>
           </div>
@@ -487,7 +531,9 @@ export function ProductForm({
                 <span className="text-sm text-slate-700">Enable as add-on</span>
               </label>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Add-on Price ($)</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">
+                  Add-on Price ($)
+                </label>
                 <input
                   type="text"
                   inputMode="decimal"
@@ -496,7 +542,9 @@ export function ProductForm({
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
                   placeholder="0.00"
                 />
-                {errors.addon_price && <p className="mt-1 text-xs text-red-600">{errors.addon_price}</p>}
+                {errors.addon_price && (
+                  <p className="mt-1 text-xs text-red-600">{errors.addon_price}</p>
+                )}
               </div>
             </div>
           </div>

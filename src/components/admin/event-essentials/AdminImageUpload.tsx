@@ -29,6 +29,8 @@ export interface AdminImageUploadHandle {
   commitUploadedImage: () => void;
   /** Whether an upload is currently in progress. */
   isBusy: () => boolean;
+  /** Reset preview to currentImageUrl and clear pending state. Called after RPC rollback. */
+  resetToCurrentImage: () => void;
 }
 
 interface AdminImageUploadProps {
@@ -51,7 +53,6 @@ export const AdminImageUpload = forwardRef<AdminImageUploadHandle, AdminImageUpl
     const [markedForRemoval, setMarkedForRemoval] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Refs for storage lifecycle
     const uploadedRef = useRef<UploadedImage | null>(null);
     const activeBlobRef = useRef<string | null>(null);
     const isUploadingRef = useRef(false);
@@ -67,12 +68,12 @@ export const AdminImageUpload = forwardRef<AdminImageUploadHandle, AdminImageUpl
       try {
         const { error } = await supabase.storage.from(BUCKET).remove([path]);
         if (error) {
-          console.error('Failed to delete storage file:', error.message);
+          console.error('Failed to delete storage file:', path, error.message);
           return false;
         }
         return true;
       } catch (err) {
-        console.error('Failed to delete storage file:', err);
+        console.error('Failed to delete storage file:', path, err);
         return false;
       }
     }, []);
@@ -94,7 +95,9 @@ export const AdminImageUpload = forwardRef<AdminImageUploadHandle, AdminImageUpl
         if (ok) {
           uploadedRef.current = null;
         } else {
-          notifyWarning('Failed to clean up an uploaded image. The orphaned file may need manual removal.');
+          notifyWarning(
+            'Failed to clean up an uploaded image. The orphaned file may need manual removal.'
+          );
         }
         return ok;
       },
@@ -103,6 +106,12 @@ export const AdminImageUpload = forwardRef<AdminImageUploadHandle, AdminImageUpl
         uploadedRef.current = null;
       },
       isBusy: () => isUploadingRef.current,
+      resetToCurrentImage: () => {
+        revokeActiveBlob();
+        uploadedRef.current = null;
+        setMarkedForRemoval(false);
+        setPreviewUrl(currentImageUrl);
+      },
     }));
 
     const handleFileSelect = useCallback(
@@ -121,6 +130,8 @@ export const AdminImageUpload = forwardRef<AdminImageUploadHandle, AdminImageUpl
           notifyError(validationError);
           return;
         }
+
+        const priorUpload = uploadedRef.current;
 
         // Revoke any prior blob before creating a new one
         revokeActiveBlob();
@@ -149,32 +160,57 @@ export const AdminImageUpload = forwardRef<AdminImageUploadHandle, AdminImageUpl
             .from(BUCKET)
             .getPublicUrl(path);
 
-          const img: UploadedImage = { url: urlData.publicUrl, path };
+          const newImg: UploadedImage = { url: urlData.publicUrl, path };
 
-          // If there was a previous unsaved upload, delete it now
-          const prevUpload = uploadedRef.current;
-          if (prevUpload) {
-            const deleted = await deleteFromStorage(prevUpload.path);
-            if (!deleted) {
-              notifyWarning('Could not delete the previous unsaved image. It may need manual cleanup.');
+          // If there was a previous pending upload, try to delete it now
+          if (priorUpload) {
+            const prevDeleted = await deleteFromStorage(priorUpload.path);
+            if (!prevDeleted) {
+              // A deletion failed — don't lose the prior path.
+              // Delete the newly uploaded B to avoid orphaning it, keep A as pending.
+              const newDeleted = await deleteFromStorage(newImg.path);
+              if (!newDeleted) {
+                notifyWarning(
+                  'Could not replace the previous image. Both cleanup attempts failed — manual removal may be needed.'
+                );
+              } else {
+                notifyWarning(
+                  'Could not delete the previous unsaved image. The new upload was discarded and the previous image is retained.'
+                );
+              }
+              // Keep priorUpload as the active pending upload
+              revokeActiveBlob();
+              setPreviewUrl(priorUpload.url);
+              // Don't change uploadedRef or call onImageChange — A is still pending
+              return;
             }
           }
 
-          uploadedRef.current = img;
+          // Success: make B the only pending upload
+          uploadedRef.current = newImg;
 
           // Swap preview from blob to the real public URL, then revoke blob
-          setPreviewUrl(img.url);
+          setPreviewUrl(newImg.url);
           revokeActiveBlob();
 
-          onImageChange(img, 'upload');
+          onImageChange(newImg, 'upload');
         } catch (err) {
           const msg = err instanceof Error ? err.message : 'Failed to upload image';
           setLocalError(msg);
           notifyError(msg);
+
           // Restore prior preview state
           revokeActiveBlob();
-          setPreviewUrl(currentImageUrl);
-          setMarkedForRemoval(false);
+
+          if (priorUpload) {
+            // A is still pending — restore A's public URL as preview
+            setPreviewUrl(priorUpload.url);
+            // A remains the pending upload; don't change uploadedRef or parent state
+          } else {
+            // No prior pending upload — restore currentImageUrl or empty
+            setPreviewUrl(currentImageUrl);
+            setMarkedForRemoval(false);
+          }
         } finally {
           setUploadState(false);
         }
@@ -183,21 +219,51 @@ export const AdminImageUpload = forwardRef<AdminImageUploadHandle, AdminImageUpl
     );
 
     const handleRemove = useCallback(async () => {
-      // If we have a pending unsaved upload, delete it from storage
-      const img = uploadedRef.current;
-      if (img) {
-        const ok = await deleteFromStorage(img.path);
+      const pendingImg = uploadedRef.current;
+
+      if (pendingImg) {
+        // Removing a pending unsaved upload — delete it, restore existing image or empty
+        const ok = await deleteFromStorage(pendingImg.path);
         if (!ok) {
-          notifyWarning('Failed to delete the uploaded image file. It may need manual removal.');
+          notifyWarning(
+            'Failed to delete the uploaded image file. It may need manual removal.'
+          );
+          // Don't clear uploadedRef — preserve path for retry
+          // Still restore preview to existing image
+          revokeActiveBlob();
+          if (currentImageUrl) {
+            setPreviewUrl(currentImageUrl);
+            setMarkedForRemoval(false);
+          } else {
+            setPreviewUrl(null);
+            setMarkedForRemoval(false);
+          }
+          // Reset parent action to none so save won't send a URL for a file that may be deleted
+          onImageChange(null, 'none');
+          return;
         }
         uploadedRef.current = null;
-      }
+        revokeActiveBlob();
 
-      revokeActiveBlob();
-      setPreviewUrl(null);
-      setMarkedForRemoval(true);
-      onImageChange(null, 'remove');
-    }, [deleteFromStorage, revokeActiveBlob, onImageChange]);
+        if (currentImageUrl) {
+          // Restore existing saved image as preview, action = none (not removal)
+          setPreviewUrl(currentImageUrl);
+          setMarkedForRemoval(false);
+          onImageChange(null, 'none');
+        } else {
+          // New product with no saved image — return to empty state
+          setPreviewUrl(null);
+          setMarkedForRemoval(false);
+          onImageChange(null, 'none');
+        }
+      } else {
+        // Removing the existing saved image itself — mark for removal
+        revokeActiveBlob();
+        setPreviewUrl(null);
+        setMarkedForRemoval(true);
+        onImageChange(null, 'remove');
+      }
+    }, [deleteFromStorage, revokeActiveBlob, onImageChange, currentImageUrl]);
 
     const handleUndo = useCallback(() => {
       revokeActiveBlob();
