@@ -1,5 +1,5 @@
 import { supabase } from '../supabase';
-import { executeQuery, type QueryOptions, type QueryResult } from './base';
+import { executeQuery, QueryOptions } from './base';
 import { handleError } from '../errorHandling';
 import type { Json } from '../database.types';
 import type {
@@ -10,113 +10,7 @@ import type {
   ProductPricing,
   ProductAvailabilityRequestItem,
   ProductAvailabilityResult,
-  InventoryProductWithPricing,
-  PackageAdminFormData,
-  PackageComponentFormRow,
 } from '../../types';
-
-// ---------------------------------------------------------------------------
-// Shared currency validation (used by ProductForm and PackageForm)
-// ---------------------------------------------------------------------------
-
-const PRICE_REGEX = /^\d+(\.\d{1,2})?$/;
-const MAX_PRICE_CENTS = 2147483647;
-
-export type PriceParseResult =
-  | { valid: true; cents: number | null }
-  | { valid: false; reason: 'format' | 'too_large' };
-
-export function parsePrice(dollars: string): PriceParseResult {
-  const trimmed = dollars.trim();
-  if (trimmed === '') return { valid: true, cents: null };
-  if (!PRICE_REGEX.test(trimmed)) return { valid: false, reason: 'format' };
-  const cents = Math.round(parseFloat(trimmed) * 100);
-  if (!Number.isSafeInteger(cents)) return { valid: false, reason: 'too_large' };
-  if (cents > MAX_PRICE_CENTS) return { valid: false, reason: 'too_large' };
-  return { valid: true, cents };
-}
-
-export function priceErrorMessage(reason: 'format' | 'too_large'): string {
-  return reason === 'too_large'
-    ? 'Price is too large.'
-    : 'Enter a valid dollar amount (e.g. 12, 12.50)';
-}
-
-export function centsToDollars(cents: number | null | undefined): string {
-  if (cents === null || cents === undefined) return '';
-  return (cents / 100).toFixed(2);
-}
-
-// ---------------------------------------------------------------------------
-// Slug generation
-// ---------------------------------------------------------------------------
-
-export function generateSlugFromName(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-// ---------------------------------------------------------------------------
-// Package form helpers
-// ---------------------------------------------------------------------------
-
-export function bundleToFormData(
-  bundle: ProductBundleWithComponents
-): PackageAdminFormData {
-  return {
-    id: bundle.id,
-    slug: bundle.slug,
-    name: bundle.name,
-    description: bundle.description || '',
-    image_url: bundle.image_url,
-    standalone_enabled: bundle.standalone_enabled,
-    standalone_price_cents: bundle.standalone_price_cents,
-    addon_enabled: bundle.addon_enabled,
-    addon_price_cents: bundle.addon_price_cents,
-    active: bundle.active,
-    public_visible: bundle.public_visible,
-    menu_visible: bundle.menu_visible,
-    featured: bundle.featured,
-    sort_order: bundle.sort_order,
-    components: bundle.product_bundle_components.map((c) => ({
-      product_id: c.product_id,
-      quantity_per_bundle: c.quantity_per_bundle,
-    })),
-  };
-}
-
-export function buildSaveBundleParams(
-  operation: 'create' | 'update',
-  bundleId: string,
-  data: PackageAdminFormData,
-  imageUrl: string | null,
-): SaveProductBundleParams {
-  const components: PackageComponentFormRow[] = data.components.map((c) => ({
-    product_id: c.product_id,
-    quantity_per_bundle: c.quantity_per_bundle,
-  }));
-  return {
-    p_operation: operation,
-    p_bundle_id: bundleId,
-    p_slug: data.slug,
-    p_name: data.name.trim(),
-    p_description: data.description.trim() || null,
-    p_image_url: imageUrl,
-    p_standalone_price_cents: data.standalone_price_cents,
-    p_addon_price_cents: data.addon_price_cents,
-    p_standalone_enabled: data.standalone_enabled,
-    p_addon_enabled: data.addon_enabled,
-    p_active: data.active,
-    p_public_visible: data.public_visible,
-    p_menu_visible: data.menu_visible,
-    p_featured: data.featured,
-    p_sort_order: data.sort_order,
-    p_components: components as unknown as Json,
-  };
-}
 
 // ---------------------------------------------------------------------------
 // RPC parameter types
@@ -461,22 +355,13 @@ export async function reorderProductCategories(
 // Admin helpers
 // ---------------------------------------------------------------------------
 
-export interface ProductBundleUsage {
-  id: string;
-  slug: string;
-  name: string;
-  active: boolean;
-  public_visible: boolean;
-  product_bundle_components: {
-    product_id: string;
-  }[];
-}
-
 export async function checkProductInUseByBundles(
   productId: string,
   options?: QueryOptions
 ) {
-  return executeQuery<ProductBundleUsage[]>(
+  return executeQuery<
+    Array<{ id: string; slug: string; name: string; active: boolean; public_visible: boolean }>
+  >(
     async () =>
       await supabase
         .from('product_bundles')
@@ -488,7 +373,7 @@ export async function checkProductInUseByBundles(
         )
         .eq('product_bundle_components.product_id', productId)
         .eq('active', true)
-        .eq('public_visible', true) as unknown as Promise<{ data: ProductBundleUsage[] | null; error: unknown }>,
+        .eq('public_visible', true),
     { context: 'checkProductInUseByBundles', ...options }
   );
 }
@@ -541,113 +426,4 @@ export async function deleteCategoryIfEmpty(
         .eq('id', categoryId),
     { context: 'deleteCategoryIfEmpty', ...options }
   );
-}
-
-export async function fetchAdminProductsByCategory(
-  options?: QueryOptions
-): Promise<QueryResult<Record<string, InventoryProductWithPricing[]>>> {
-  const [productsResult, pricingResult, categoriesResult] = await Promise.all([
-    fetchAdminInventoryProducts(options),
-    fetchAdminProductPricing(options),
-    fetchAdminProductCategories(options),
-  ]);
-
-  if (productsResult.error) return { data: null, error: productsResult.error };
-  if (pricingResult.error) return { data: null, error: pricingResult.error };
-  if (categoriesResult.error) return { data: null, error: categoriesResult.error };
-
-  const pricingMap = new Map<string, ProductPricing>();
-  for (const p of pricingResult.data || []) {
-    pricingMap.set(p.product_id, p);
-  }
-
-  const categoryMap = new Map<string, string>();
-  for (const c of categoriesResult.data || []) {
-    categoryMap.set(c.id, c.name);
-  }
-
-  const grouped: Record<string, InventoryProductWithPricing[]> = {};
-  for (const product of productsResult.data || []) {
-    const enriched: InventoryProductWithPricing = {
-      ...product,
-      pricing: pricingMap.get(product.id) || null,
-      category_name: product.category_id ? categoryMap.get(product.category_id) || null : null,
-    };
-    const key = product.category_id || 'uncategorized';
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(enriched);
-  }
-
-  return { data: grouped, error: null };
-}
-
-export async function fetchAdminProductsWithPricing(
-  options?: QueryOptions
-): Promise<QueryResult<InventoryProductWithPricing[]>> {
-  const [productsResult, pricingResult, categoriesResult] = await Promise.all([
-    fetchAdminInventoryProducts(options),
-    fetchAdminProductPricing(options),
-    fetchAdminProductCategories(options),
-  ]);
-
-  if (productsResult.error) return { data: null, error: productsResult.error };
-  if (pricingResult.error) return { data: null, error: pricingResult.error };
-  if (categoriesResult.error) return { data: null, error: categoriesResult.error };
-
-  const pricingMap = new Map<string, ProductPricing>();
-  for (const p of pricingResult.data || []) {
-    pricingMap.set(p.product_id, p);
-  }
-
-  const categoryMap = new Map<string, string>();
-  for (const c of categoriesResult.data || []) {
-    categoryMap.set(c.id, c.name);
-  }
-
-  const enriched: InventoryProductWithPricing[] = (productsResult.data || []).map(
-    (product) => ({
-      ...product,
-      pricing: pricingMap.get(product.id) || null,
-      category_name: product.category_id ? categoryMap.get(product.category_id) || null : null,
-    })
-  );
-
-  return { data: enriched, error: null };
-}
-
-export async function fetchCategoryProductCounts(
-  options?: QueryOptions
-): Promise<QueryResult<Record<string, number>>> {
-  const { data, error } = await supabase
-    .from('inventory_products')
-    .select('category_id')
-    .not('category_id', 'is', null);
-
-  if (error) {
-    handleError(error, 'fetchCategoryProductCounts');
-    if (options?.throwOnError) throw error;
-    return { data: null, error };
-  }
-
-  const counts: Record<string, number> = {};
-  for (const row of data || []) {
-    const catId = row.category_id as string;
-    if (catId) {
-      counts[catId] = (counts[catId] || 0) + 1;
-    }
-  }
-
-  return { data: counts, error: null };
-}
-
-export function parseStoragePath(url: string): string | null {
-  try {
-    const u = new URL(url);
-    const parts = u.pathname.split('/');
-    const bucketIdx = parts.findIndex((p) => p === 'event-essentials-media');
-    if (bucketIdx === -1 || bucketIdx + 1 >= parts.length) return null;
-    return parts.slice(bucketIdx + 1).join('/');
-  } catch {
-    return null;
-  }
 }
