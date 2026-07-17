@@ -239,10 +239,10 @@ export function CategoryManager() {
                       <td className="px-4 py-3">
                         <div className="flex flex-col gap-1">
                           <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded w-fit ${cat.active ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}`}>
-                            {cat.active ? 'Active' : 'Inactive'}
+                            {cat.active ? 'Available' : 'Unavailable'}
                           </span>
                           <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded w-fit ${cat.public_visible ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'}`}>
-                            {cat.public_visible ? 'Public' : 'Hidden'}
+                            {cat.public_visible ? 'Website: Shown' : 'Website: Hidden'}
                           </span>
                         </div>
                       </td>
@@ -272,18 +272,18 @@ export function CategoryManager() {
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => toggleField(cat, 'active', !cat.active, 'active status')}
+                            onClick={() => toggleField(cat, 'active', !cat.active, 'availability')}
                             disabled={isLoading}
                             className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-                            title={cat.active ? 'Deactivate' : 'Activate'}
+                            title={cat.active ? 'Mark Unavailable' : 'Mark Available'}
                           >
                             <Power className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => toggleField(cat, 'public_visible', !cat.public_visible, 'visibility')}
+                            onClick={() => toggleField(cat, 'public_visible', !cat.public_visible, 'website visibility')}
                             disabled={isLoading}
                             className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-                            title={cat.public_visible ? 'Hide from public' : 'Make public'}
+                            title={cat.public_visible ? 'Hide from Website' : 'Show on Website'}
                           >
                             {cat.public_visible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                           </button>
@@ -323,10 +323,10 @@ export function CategoryManager() {
 
                   <div className="flex items-center gap-2 mb-3">
                     <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded ${cat.active ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}`}>
-                      {cat.active ? 'Active' : 'Inactive'}
+                      {cat.active ? 'Available' : 'Unavailable'}
                     </span>
                     <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded ${cat.public_visible ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'}`}>
-                      {cat.public_visible ? 'Public' : 'Hidden'}
+                      {cat.public_visible ? 'Website: Shown' : 'Website: Hidden'}
                     </span>
                     <span className="text-xs text-slate-400">Sort: {cat.sort_order}</span>
                   </div>
@@ -353,14 +353,14 @@ export function CategoryManager() {
                       <Edit2 className="w-3.5 h-3.5" /> Edit
                     </button>
                     <button
-                      onClick={() => toggleField(cat, 'active', !cat.active, 'active status')}
+                      onClick={() => toggleField(cat, 'active', !cat.active, 'availability')}
                       disabled={isLoading}
                       className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
                     >
-                      <Power className="w-3.5 h-3.5" /> {cat.active ? 'Off' : 'On'}
+                      <Power className="w-3.5 h-3.5" /> {cat.active ? 'Unavailable' : 'Available'}
                     </button>
                     <button
-                      onClick={() => toggleField(cat, 'public_visible', !cat.public_visible, 'visibility')}
+                      onClick={() => toggleField(cat, 'public_visible', !cat.public_visible, 'website visibility')}
                       disabled={isLoading}
                       className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
                     >
@@ -529,24 +529,30 @@ function CategoryForm({
             {errors.slug && <p className="mt-1 text-xs text-red-600">{errors.slug}</p>}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <label className="flex items-center gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <label className="flex items-start gap-2">
               <input
                 type="checkbox"
                 checked={formData.active}
                 onChange={(e) => setFormData((prev) => ({ ...prev, active: e.target.checked }))}
-                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                className="w-4 h-4 mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-slate-700">Active</span>
+              <div>
+                <span className="text-sm text-slate-700 font-medium">Available for Use</span>
+                <p className="text-xs text-slate-500">Allows this item to be used in Event Essentials inventory and packages.</p>
+              </div>
             </label>
-            <label className="flex items-center gap-2">
+            <label className="flex items-start gap-2">
               <input
                 type="checkbox"
                 checked={formData.public_visible}
                 onChange={(e) => setFormData((prev) => ({ ...prev, public_visible: e.target.checked }))}
-                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                className="w-4 h-4 mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-slate-700">Public Visible</span>
+              <div>
+                <span className="text-sm text-slate-700 font-medium">Shown on Website</span>
+                <p className="text-xs text-slate-500">Displays this item to customers when it is also available for use and properly categorized.</p>
+              </div>
             </label>
           </div>
 

@@ -307,6 +307,29 @@ export interface CategoryAdminFormData {
   sort_order: number;
 }
 
+export interface PackageComponentFormRow {
+  product_id: string;
+  quantity_per_bundle: number;
+}
+
+export interface PackageAdminFormData {
+  id: string | null;
+  slug: string;
+  name: string;
+  description: string;
+  image_url: string | null;
+  standalone_enabled: boolean;
+  standalone_price_cents: number | null;
+  addon_enabled: boolean;
+  addon_price_cents: number | null;
+  active: boolean;
+  public_visible: boolean;
+  menu_visible: boolean;
+  featured: boolean;
+  sort_order: number;
+  components: PackageComponentFormRow[];
+}
+
 export interface FormErrors {
   [key: string]: string | undefined;
 }

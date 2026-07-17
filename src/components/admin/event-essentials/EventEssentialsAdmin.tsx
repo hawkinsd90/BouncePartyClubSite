@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Package, Tag } from 'lucide-react';
+import { Package, Tag, Layers } from 'lucide-react';
 import { ProductManager } from './ProductManager';
 import { CategoryManager } from './CategoryManager';
+import { PackageManager } from './PackageManager';
 
-type EETab = 'products' | 'categories';
+type EETab = 'products' | 'categories' | 'packages';
 
 export function EventEssentialsAdmin() {
   const [activeTab, setActiveTab] = useState<EETab>('products');
@@ -35,12 +36,24 @@ export function EventEssentialsAdmin() {
             <Tag className="w-4 h-4" />
             Categories
           </button>
+          <button
+            onClick={() => setActiveTab('packages')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'packages'
+                ? 'bg-white text-blue-700 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Layers className="w-4 h-4" />
+            Packages
+          </button>
         </div>
       </div>
 
       <div className="p-6">
         {activeTab === 'products' && <ProductManager />}
         {activeTab === 'categories' && <CategoryManager />}
+        {activeTab === 'packages' && <PackageManager />}
       </div>
     </div>
   );

@@ -2,6 +2,9 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { X, Save, AlertCircle } from 'lucide-react';
 import {
   saveInventoryProduct,
+  parsePrice,
+  priceErrorMessage,
+  centsToDollars,
   type SaveInventoryProductParams,
 } from '../../../lib/queries/products';
 import {
@@ -31,12 +34,6 @@ interface ProductFormProps {
 }
 
 const SLUG_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
-const PRICE_REGEX = /^\d+(\.\d{1,2})?$/;
-const MAX_PRICE_CENTS = 2147483647;
-
-type PriceParseResult =
-  | { valid: true; cents: number | null }
-  | { valid: false; reason: 'format' | 'too_large' };
 
 function generateSlug(name: string): string {
   return name
@@ -44,30 +41,6 @@ function generateSlug(name: string): string {
     .trim()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
-}
-
-/**
- * Strict currency string validation. Never throws.
- * Returns { valid: true, cents } for valid input (cents is null for blank).
- * Returns { valid: false, reason } for invalid input.
- */
-function parsePrice(dollars: string): PriceParseResult {
-  const trimmed = dollars.trim();
-  if (trimmed === '') return { valid: true, cents: null };
-  if (!PRICE_REGEX.test(trimmed)) return { valid: false, reason: 'format' };
-  const cents = Math.round(parseFloat(trimmed) * 100);
-  if (!Number.isSafeInteger(cents)) return { valid: false, reason: 'too_large' };
-  if (cents > MAX_PRICE_CENTS) return { valid: false, reason: 'too_large' };
-  return { valid: true, cents };
-}
-
-function priceErrorMessage(reason: 'format' | 'too_large'): string {
-  return reason === 'too_large' ? 'Price is too large.' : 'Enter a valid dollar amount (e.g. 12, 12.50)';
-}
-
-function centsToDollars(cents: number | null | undefined): string {
-  if (cents === null || cents === undefined) return '';
-  return (cents / 100).toFixed(2);
 }
 
 export function ProductForm({
@@ -603,23 +576,29 @@ export function ProductForm({
           </div>
 
           <div className="border-t border-slate-200 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <label className="flex items-center gap-2">
+            <label className="flex items-start gap-2">
               <input
                 type="checkbox"
                 checked={formData.active}
                 onChange={(e) => handleFieldChange('active', e.target.checked)}
-                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                className="w-4 h-4 mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-slate-700">Active</span>
+              <div>
+                <span className="text-sm text-slate-700 font-medium">Available for Use</span>
+                <p className="text-xs text-slate-500">Allows this item to be used in Event Essentials inventory and packages.</p>
+              </div>
             </label>
-            <label className="flex items-center gap-2">
+            <label className="flex items-start gap-2">
               <input
                 type="checkbox"
                 checked={formData.public_visible}
                 onChange={(e) => handleFieldChange('public_visible', e.target.checked)}
-                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                className="w-4 h-4 mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-slate-700">Public Visible</span>
+              <div>
+                <span className="text-sm text-slate-700 font-medium">Shown on Website</span>
+                <p className="text-xs text-slate-500">Displays this item to customers when it is also available for use and properly categorized.</p>
+              </div>
             </label>
           </div>
 

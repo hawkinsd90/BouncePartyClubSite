@@ -11,6 +11,7 @@ import {
   Lock,
   ImageOff,
   Tag,
+  LayoutGrid,
 } from 'lucide-react';
 import { getPublicBusinessSettings } from '../lib/adminSettingsCache';
 import { SafeStorage } from '../lib/safeStorage';
@@ -19,6 +20,7 @@ import {
   fetchProductPricing,
   fetchProductCategories,
   fetchInventoryProductsByCategory,
+  fetchInventoryProducts,
   checkProductAvailability,
 } from '../lib/queries/products';
 import { useQuoteCart } from '../hooks/useQuoteCart';
@@ -72,8 +74,9 @@ export function EventEssentialsCatalog() {
   const [minOrderCents, setMinOrderCents] = useState<number | null>(null);
   const [bundles, setBundles] = useState<ProductBundleWithComponents[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [selectedCategoryKey, setSelectedCategoryKey] = useState<string>('all');
   const [categoryProducts, setCategoryProducts] = useState<InventoryProduct[]>([]);
+  const [allProducts, setAllProducts] = useState<InventoryProduct[]>([]);
   const [allPricing, setAllPricing] = useState<ProductPricing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -128,9 +131,18 @@ export function EventEssentialsCatalog() {
         setCategories(cats);
         setAllPricing(pricingResult.data ?? []);
 
-        if (cats.length > 0) {
-          setSelectedCategoryId(cats[0].id);
+        // Load all public products upfront for the "All" filter
+        const allProductsResult = await fetchInventoryProducts();
+        if (cancelled) return;
+        if (allProductsResult.error) {
+          setError('Failed to load catalog. Please try again later.');
+          setLoading(false);
+          return;
         }
+        setAllProducts(allProductsResult.data ?? []);
+
+        // Default to All — shows every qualifying public product across categories
+        setSelectedCategoryKey('all');
 
         setLoading(false);
       } catch {
@@ -183,14 +195,63 @@ export function EventEssentialsCatalog() {
     persistDates(eventDate, newEndDate);
   }
 
+  // Build the set of category IDs that have at least one qualifying public product.
+  // A category tab is hidden when it contains zero qualifying public products.
+  // A product qualifies when: active=true, public_visible=true, category_id is not null,
+  // and the category exists, is active, and is public_visible.
+  const visibleCategoryIds = useMemo(() => {
+    const validCategoryIds = new Set(
+      categories.filter((c) => c.active && c.public_visible).map((c) => c.id)
+    );
+    const result = new Set<string>();
+    for (const product of allProducts) {
+      if (
+        product.active &&
+        product.public_visible &&
+        product.category_id &&
+        validCategoryIds.has(product.category_id)
+      ) {
+        result.add(product.category_id);
+      }
+    }
+    return result;
+  }, [allProducts, categories]);
+
+  // Categories to display as tabs: All first, then DB categories with qualifying products
+  const visibleCategories = useMemo(
+    () => categories.filter((c) => visibleCategoryIds.has(c.id)),
+    [categories, visibleCategoryIds],
+  );
+
+  // Products to display based on the selected filter
+  const displayProducts = useMemo(() => {
+    if (selectedCategoryKey === 'all') {
+      const validCategoryIds = new Set(
+        categories.filter((c) => c.active && c.public_visible).map((c) => c.id)
+      );
+      return allProducts.filter(
+        (p) =>
+          p.active &&
+          p.public_visible &&
+          p.category_id !== null &&
+          validCategoryIds.has(p.category_id),
+      );
+    }
+    return categoryProducts;
+  }, [selectedCategoryKey, allProducts, categories, categoryProducts]);
+
   useEffect(() => {
-    if (!selectedCategoryId) return;
+    if (selectedCategoryKey === 'all') {
+      setCategoryProducts([]);
+      setLoadingProducts(false);
+      return;
+    }
 
     let cancelled = false;
     setLoadingProducts(true);
 
     async function loadProducts() {
-      const result = await fetchInventoryProductsByCategory(selectedCategoryId!);
+      const result = await fetchInventoryProductsByCategory(selectedCategoryKey);
       if (cancelled) return;
       if (result.error) {
         setCategoryProducts([]);
@@ -204,7 +265,7 @@ export function EventEssentialsCatalog() {
     return () => {
       cancelled = true;
     };
-  }, [selectedCategoryId]);
+  }, [selectedCategoryKey]);
 
   const pricingByProductId = useMemo(() => {
     const map = new Map<string, ProductPricing>();
@@ -403,8 +464,8 @@ export function EventEssentialsCatalog() {
   );
 
   useEffect(() => {
-    runAvailabilityPreview(eventDate, eventEndDate, categoryProducts, cart);
-  }, [eventDate, eventEndDate, categoryProducts, cart, runAvailabilityPreview]);
+    runAvailabilityPreview(eventDate, eventEndDate, displayProducts, cart);
+  }, [eventDate, eventEndDate, displayProducts, cart, runAvailabilityPreview]);
 
   function getQty(key: string): number {
     return quantities[key] ?? 0;
@@ -505,7 +566,7 @@ export function EventEssentialsCatalog() {
           return;
         }
         if (found.is_allowed !== true) {
-          const productEntry = categoryProducts.find((p) => p.id === alloc.product_id);
+          const productEntry = displayProducts.find((p) => p.id === alloc.product_id);
           unavailable.push(productEntry?.name ?? alloc.product_id);
         }
       }
@@ -623,6 +684,7 @@ export function EventEssentialsCatalog() {
   );
 
   function getRelevantBundlesForCategory(category: ProductCategory | null): ProductBundleWithComponents[] {
+    // When All is selected, show all bundles — do not duplicate them per category.
     if (!category) return bundles;
     return bundles.filter((bundle) =>
       bundle.product_bundle_components.some(
@@ -632,7 +694,9 @@ export function EventEssentialsCatalog() {
   }
 
   const relevantBundles = getRelevantBundlesForCategory(
-    categories.find((c) => c.id === selectedCategoryId) ?? null
+    selectedCategoryKey === 'all'
+      ? null
+      : categories.find((c) => c.id === selectedCategoryKey) ?? null
   );
 
   if (!enabled && !loading) {
@@ -723,16 +787,29 @@ export function EventEssentialsCatalog() {
             </div>
 
             {/* Category Navigation */}
-            {categories.length > 0 && (
+            {(visibleCategories.length > 0 || selectedCategoryKey === 'all') && (
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6">
                 <div className="flex flex-wrap gap-2">
-                  {categories.map((category) => (
+                  <button
+                    key="all"
+                    type="button"
+                    onClick={() => setSelectedCategoryKey('all')}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
+                      selectedCategoryKey === 'all'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    <LayoutGrid className="w-4 h-4" />
+                    All
+                  </button>
+                  {visibleCategories.map((category) => (
                     <button
                       key={category.id}
                       type="button"
-                      onClick={() => setSelectedCategoryId(category.id)}
+                      onClick={() => setSelectedCategoryKey(category.id)}
                       className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
-                        selectedCategoryId === category.id
+                        selectedCategoryKey === category.id
                           ? 'bg-blue-600 text-white'
                           : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                       }`}
@@ -749,14 +826,14 @@ export function EventEssentialsCatalog() {
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
               </div>
-            ) : categoryProducts.length === 0 ? (
+            ) : displayProducts.length === 0 ? (
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center">
                 <Package className="w-12 h-12 text-slate-300 mx-auto mb-3" />
                 <p className="text-slate-600">No products are currently available in this category.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {categoryProducts.map((product) => {
+                {displayProducts.map((product) => {
                   const key = `product-${product.id}`;
                   const qty = getQty(key);
                   const priceInfo = resolveProductPrice(product);

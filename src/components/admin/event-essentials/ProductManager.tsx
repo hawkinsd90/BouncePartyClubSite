@@ -230,10 +230,10 @@ export function ProductManager() {
                       <td className="px-4 py-3">
                         <div className="flex flex-col gap-1">
                           <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded w-fit ${product.active ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}`}>
-                            {product.active ? 'Active' : 'Inactive'}
+                            {product.active ? 'Available' : 'Unavailable'}
                           </span>
                           <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded w-fit ${product.public_visible ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'}`}>
-                            {product.public_visible ? 'Public' : 'Hidden'}
+                            {product.public_visible ? 'Website: Shown' : 'Website: Hidden'}
                           </span>
                         </div>
                       </td>
@@ -247,18 +247,18 @@ export function ProductManager() {
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => toggleProductField(product, 'active', !product.active, 'active status')}
+                            onClick={() => toggleProductField(product, 'active', !product.active, 'availability')}
                             disabled={isLoading}
                             className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-                            title={product.active ? 'Deactivate' : 'Activate'}
+                            title={product.active ? 'Mark Unavailable' : 'Mark Available'}
                           >
                             <Power className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => toggleProductField(product, 'public_visible', !product.public_visible, 'visibility')}
+                            onClick={() => toggleProductField(product, 'public_visible', !product.public_visible, 'website visibility')}
                             disabled={isLoading}
                             className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-                            title={product.public_visible ? 'Hide from public' : 'Make public'}
+                            title={product.public_visible ? 'Hide from Website' : 'Show on Website'}
                           >
                             {product.public_visible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                           </button>
@@ -315,10 +315,10 @@ export function ProductManager() {
 
                   <div className="flex items-center gap-2 mb-3">
                     <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded ${product.active ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}`}>
-                      {product.active ? 'Active' : 'Inactive'}
+                      {product.active ? 'Available' : 'Unavailable'}
                     </span>
                     <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded ${product.public_visible ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'}`}>
-                      {product.public_visible ? 'Public' : 'Hidden'}
+                      {product.public_visible ? 'Website: Shown' : 'Website: Hidden'}
                     </span>
                   </div>
 
@@ -331,15 +331,15 @@ export function ProductManager() {
                       Edit
                     </button>
                     <button
-                      onClick={() => toggleProductField(product, 'active', !product.active, 'active status')}
+                      onClick={() => toggleProductField(product, 'active', !product.active, 'availability')}
                       disabled={isLoading}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
                     >
                       <Power className="w-3.5 h-3.5" />
-                      {product.active ? 'Deactivate' : 'Activate'}
+                      {product.active ? 'Unavailable' : 'Available'}
                     </button>
                     <button
-                      onClick={() => toggleProductField(product, 'public_visible', !product.public_visible, 'visibility')}
+                      onClick={() => toggleProductField(product, 'public_visible', !product.public_visible, 'website visibility')}
                       disabled={isLoading}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
                     >
