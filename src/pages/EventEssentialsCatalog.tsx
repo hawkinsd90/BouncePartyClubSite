@@ -310,13 +310,15 @@ export function EventEssentialsCatalog() {
 
   const runAvailabilityPreview = useCallback(
     async (date: string, endDate: string, products: InventoryProduct[], cartItems: UnifiedCartItem[]) => {
+      const currentRequestId = ++availabilityRequestId.current;
+
       if (!date || !endDate) {
         setProductAvailability({});
         setAvailabilityError(false);
+        setCheckingAvailability(false);
         return;
       }
 
-      const currentRequestId = ++availabilityRequestId.current;
       setCheckingAvailability(true);
       setAvailabilityError(false);
 
@@ -575,21 +577,21 @@ export function EventEssentialsCatalog() {
         resultMap.set(r.product_id, r);
       }
 
-      const unavailableComponents: string[] = [];
-      for (const comp of proposedItem.component_snapshot.components) {
-        const found = resultMap.get(comp.product_id);
+      const unavailableNames: string[] = [];
+      for (const alloc of proposedAllocation) {
+        const found = resultMap.get(alloc.product_id);
         if (!found) {
           setAddError('Unable to check availability right now. Please try again.');
           return;
         }
         if (found.is_allowed !== true) {
-          unavailableComponents.push(comp.product_name);
+          unavailableNames.push(found.product_name || 'Unknown product');
         }
       }
 
-      if (unavailableComponents.length > 0) {
+      if (unavailableNames.length > 0) {
         setAddError(
-          `Cannot add "${bundle.name}" — insufficient inventory for: ${unavailableComponents.join(', ')}. Please choose different dates or reduce quantities.`
+          `Cannot add "${bundle.name}" — insufficient inventory for: ${unavailableNames.join(', ')}. Please choose different dates or reduce quantities.`
         );
         return;
       }
@@ -882,9 +884,9 @@ export function EventEssentialsCatalog() {
                   const key = `bundle-${bundle.id}`;
                   const qty = getQty(key);
                   const priceInfo = getBundlePrice(bundle);
-                  const unitPriceCents = priceInfo?.unitPriceCents ?? 0;
                   const isAddon = priceInfo?.isAddon ?? false;
                   const isBlocked = priceInfo?.blocked ?? false;
+                  const hasPricing = !!priceInfo;
 
                   return (
                     <div
@@ -916,7 +918,11 @@ export function EventEssentialsCatalog() {
                               </span>
                             ))}
                           </div>
-                          <p className="text-base font-bold text-blue-700">{formatPrice(unitPriceCents)}</p>
+                          {hasPricing ? (
+                            <p className="text-base font-bold text-blue-700">{formatPrice(priceInfo!.unitPriceCents)}</p>
+                          ) : (
+                            <p className="text-base font-bold text-slate-400">Pricing not available</p>
+                          )}
                           {isBlocked && (
                             <p className="mt-2 text-sm text-amber-700 flex items-center gap-1.5">
                               <Lock className="w-4 h-4 flex-shrink-0" />
@@ -940,6 +946,7 @@ export function EventEssentialsCatalog() {
                               type="button"
                               onClick={() => incrementQty(key, 99)}
                               className="w-8 h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors"
+                              disabled={!hasPricing}
                             >
                               <Plus className="w-4 h-4" />
                             </button>
@@ -947,7 +954,7 @@ export function EventEssentialsCatalog() {
                           <button
                             type="button"
                             onClick={() => handleAddBundle(bundle)}
-                            disabled={qty <= 0 || isBlocked || !eventDate || !eventEndDate}
+                            disabled={qty <= 0 || isBlocked || !hasPricing || !eventDate || !eventEndDate}
                             className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white font-semibold rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <ShoppingCart className="w-4 h-4" />
