@@ -32,6 +32,11 @@ interface ProductFormProps {
 
 const SLUG_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const PRICE_REGEX = /^\d+(\.\d{1,2})?$/;
+const MAX_PRICE_CENTS = 2147483647;
+
+type PriceParseResult =
+  | { valid: true; cents: number | null }
+  | { valid: false; reason: 'format' | 'too_large' };
 
 function generateSlug(name: string): string {
   return name
@@ -43,16 +48,21 @@ function generateSlug(name: string): string {
 
 /**
  * Strict currency string validation. Never throws.
- * Returns { valid: true, cents: number | null } for valid input.
- * Returns { valid: false, cents: null } for invalid input.
- * Blank string is valid and returns cents: null.
+ * Returns { valid: true, cents } for valid input (cents is null for blank).
+ * Returns { valid: false, reason } for invalid input.
  */
-function parsePrice(dollars: string): { valid: boolean; cents: number | null } {
+function parsePrice(dollars: string): PriceParseResult {
   const trimmed = dollars.trim();
   if (trimmed === '') return { valid: true, cents: null };
-  if (!PRICE_REGEX.test(trimmed)) return { valid: false, cents: null };
+  if (!PRICE_REGEX.test(trimmed)) return { valid: false, reason: 'format' };
   const cents = Math.round(parseFloat(trimmed) * 100);
+  if (!Number.isSafeInteger(cents)) return { valid: false, reason: 'too_large' };
+  if (cents > MAX_PRICE_CENTS) return { valid: false, reason: 'too_large' };
   return { valid: true, cents };
+}
+
+function priceErrorMessage(reason: 'format' | 'too_large'): string {
+  return reason === 'too_large' ? 'Price is too large.' : 'Enter a valid dollar amount (e.g. 12, 12.50)';
 }
 
 function centsToDollars(cents: number | null | undefined): string {
@@ -157,20 +167,41 @@ export function ProductForm({
 
   const isBusy = isSaving || isUploading;
 
-  async function cleanupPendingUpload(): Promise<void> {
+  async function cleanupPendingUpload(): Promise<boolean> {
     const img = imageUploadRef.current?.getUploadedImage();
-    if (img) {
-      await imageUploadRef.current?.deleteNewlyUploaded();
+    if (!img) {
+      setNewUploadedImage(null);
+      setImageAction('none');
+      return true;
     }
-    setNewUploadedImage(null);
-    setImageAction('none');
+    const deleted = await imageUploadRef.current?.deleteNewlyUploaded();
+    if (deleted) {
+      setNewUploadedImage(null);
+      setImageAction('none');
+      return true;
+    }
+    // Deletion failed — preserve child and parent pending state.
+    // Re-affirm parent state points to the pending upload.
+    const current = imageUploadRef.current?.getUploadedImage();
+    if (current) {
+      setNewUploadedImage(current);
+      setImageAction('upload');
+    }
+    notifyWarning(
+      'Could not delete the pending image. The form will stay open so you can retry.'
+    );
+    return false;
   }
 
   async function handleClose(): Promise<void> {
     if (closedRef.current) return;
     if (isBusy) return;
+    const cleaned = await cleanupPendingUpload();
+    if (!cleaned) {
+      // Keep modal open so cleanup can be retried.
+      return;
+    }
     closedRef.current = true;
-    await cleanupPendingUpload();
     onClose();
   }
 
@@ -189,22 +220,22 @@ export function ProductForm({
     if (formData.temp_unavailable_qty > formData.total_quantity)
       e.temp_unavailable_qty = 'Cannot exceed total inventory';
 
-    // Standalone price: strict validation, no parseFloat exceptions
+    // Standalone price: strict validation even when disabled but populated
     const standaloneTrimmed = standalonePriceDisplay.trim();
     const standaloneParsed = parsePrice(standalonePriceDisplay);
     if (formData.standalone_enabled && standaloneTrimmed === '') {
       e.standalone_price = 'Required when standalone is enabled';
     } else if (standaloneTrimmed !== '' && !standaloneParsed.valid) {
-      e.standalone_price = 'Enter a valid dollar amount (e.g. 12, 12.50)';
+      e.standalone_price = priceErrorMessage(standaloneParsed.reason);
     }
 
-    // Add-on price: strict validation, no parseFloat exceptions
+    // Add-on price: strict validation even when disabled but populated
     const addonTrimmed = addonPriceDisplay.trim();
     const addonParsed = parsePrice(addonPriceDisplay);
     if (formData.addon_enabled && addonTrimmed === '') {
       e.addon_price = 'Required when add-on is enabled';
     } else if (addonTrimmed !== '' && !addonParsed.valid) {
-      e.addon_price = 'Enter a valid dollar amount (e.g. 12, 12.50)';
+      e.addon_price = priceErrorMessage(addonParsed.reason);
     }
 
     if (formData.category_id) {
@@ -246,15 +277,28 @@ export function ProductForm({
 
     const standaloneParsed = parsePrice(standalonePriceDisplay);
     const addonParsed = parsePrice(addonPriceDisplay);
+    if (!standaloneParsed.valid || !addonParsed.valid) return;
     const standaloneCents = standaloneParsed.cents;
     const addonCents = addonParsed.cents;
 
-    let imageUrl = formData.image_url;
+    // Sync parent image state with child pending state before save.
+    // If the child retains a pending upload (e.g. after a failed remove),
+    // treat it as the selected upload.
+    const childPending = imageUploadRef.current?.getUploadedImage() ?? null;
+    let effectiveAction = imageAction;
+    let effectiveImage = newUploadedImage;
+    if (childPending && (!newUploadedImage || newUploadedImage.url !== childPending.url)) {
+      effectiveImage = childPending;
+      effectiveAction = 'upload';
+      setNewUploadedImage(childPending);
+      setImageAction('upload');
+    }
 
-    if (imageAction === 'remove') {
+    let imageUrl = formData.image_url;
+    if (effectiveAction === 'remove') {
       imageUrl = null;
-    } else if (imageAction === 'upload' && newUploadedImage) {
-      imageUrl = newUploadedImage.url;
+    } else if (effectiveAction === 'upload' && effectiveImage) {
+      imageUrl = effectiveImage.url;
     }
 
     const productId = productIdRef.current;
@@ -288,32 +332,35 @@ export function ProductForm({
         setRpcError(msg);
         notifyError(msg);
 
-        if (imageAction === 'upload') {
+        if (effectiveAction === 'upload') {
           const deleted = await imageUploadRef.current?.deleteNewlyUploaded();
           if (deleted) {
-            // Cleanup succeeded — reset state so second submit won't send deleted URL
             setNewUploadedImage(null);
             setImageAction('none');
             imageUploadRef.current?.resetToCurrentImage();
           } else {
-            // Cleanup failed — retain pending reference for retry
-            // Don't reset state; second submit will attempt cleanup again
+            // Cleanup failed — retain pending reference for retry.
+            const retained = imageUploadRef.current?.getUploadedImage();
+            if (retained) {
+              setNewUploadedImage(retained);
+              setImageAction('upload');
+            }
           }
         }
         return;
       }
 
-      // RPC succeeded — commit the pending upload so close cleanup won't delete it
-      if (imageAction === 'upload') {
+      // RPC succeeded — commit the pending upload only when that exact image was submitted.
+      if (effectiveAction === 'upload' && effectiveImage) {
         imageUploadRef.current?.commitUploadedImage();
       }
 
       // Delete prior saved image only after RPC success
-      if (imageAction === 'upload' && newUploadedImage && prevImageUrl.current) {
+      if (effectiveAction === 'upload' && effectiveImage && prevImageUrl.current) {
         await deleteStorageFile(prevImageUrl.current);
       }
 
-      if (imageAction === 'remove' && prevImageUrl.current) {
+      if (effectiveAction === 'remove' && prevImageUrl.current) {
         await deleteStorageFile(prevImageUrl.current);
       }
 
@@ -324,12 +371,18 @@ export function ProductForm({
       setRpcError(msg);
       notifyError(msg);
 
-      if (imageAction === 'upload') {
+      if (effectiveAction === 'upload') {
         const deleted = await imageUploadRef.current?.deleteNewlyUploaded();
         if (deleted) {
           setNewUploadedImage(null);
           setImageAction('none');
           imageUploadRef.current?.resetToCurrentImage();
+        } else {
+          const retained = imageUploadRef.current?.getUploadedImage();
+          if (retained) {
+            setNewUploadedImage(retained);
+            setImageAction('upload');
+          }
         }
       }
     } finally {
