@@ -98,39 +98,41 @@ export function PackageManager() {
   ) {
     setActionLoading(bundle.id);
 
-    const formData: PackageAdminFormData = {
-      id: bundle.id,
-      slug: bundle.slug,
-      name: bundle.name,
-      description: bundle.description || '',
-      image_url: bundle.image_url,
-      standalone_enabled: bundle.standalone_enabled,
-      standalone_price_cents: bundle.standalone_price_cents,
-      addon_enabled: bundle.addon_enabled,
-      addon_price_cents: bundle.addon_price_cents,
-      active: makeAvailable,
-      public_visible: makeAvailable,
-      menu_visible: makeAvailable,
-      featured: bundle.featured,
-      sort_order: bundle.sort_order,
-      components: bundle.product_bundle_components.map((c) => ({
-        product_id: c.product_id,
-        quantity_per_bundle: c.quantity_per_bundle,
-      })),
-    };
+    try {
+      const formData: PackageAdminFormData = {
+        id: bundle.id,
+        slug: bundle.slug,
+        name: bundle.name,
+        description: bundle.description || '',
+        image_url: bundle.image_url,
+        standalone_enabled: bundle.standalone_enabled,
+        standalone_price_cents: bundle.standalone_price_cents,
+        addon_enabled: bundle.addon_enabled,
+        addon_price_cents: bundle.addon_price_cents,
+        active: makeAvailable,
+        public_visible: makeAvailable,
+        menu_visible: makeAvailable,
+        featured: bundle.featured,
+        sort_order: bundle.sort_order,
+        components: bundle.product_bundle_components.map((c) => ({
+          product_id: c.product_id,
+          quantity_per_bundle: c.quantity_per_bundle,
+        })),
+      };
 
-    const params = buildSaveBundleParams('update', bundle.id, formData, bundle.image_url);
+      const params = buildSaveBundleParams('update', bundle.id, formData, bundle.image_url);
 
-    const { error: rpcError } = await saveProductBundle(params);
+      const { error: rpcError } = await saveProductBundle(params);
 
-    if (rpcError) {
-      notifyError(rpcError.message || 'Failed to update availability');
-    } else {
-      notifySuccess(makeAvailable ? 'Package marked available' : 'Package marked unavailable');
-      await loadData();
+      if (rpcError) {
+        notifyError(rpcError.message || 'Failed to update availability');
+      } else {
+        notifySuccess(makeAvailable ? 'Package marked available' : 'Package marked unavailable');
+        await loadData();
+      }
+    } finally {
+      setActionLoading(null);
     }
-
-    setActionLoading(null);
   }
 
   function componentSummary(bundle: ProductBundleWithComponents): string {
