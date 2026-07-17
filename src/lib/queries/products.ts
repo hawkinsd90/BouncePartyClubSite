@@ -1,5 +1,5 @@
 import { supabase } from '../supabase';
-import { executeQuery, QueryOptions } from './base';
+import { executeQuery, type QueryOptions, type QueryResult } from './base';
 import { handleError } from '../errorHandling';
 import type { Json } from '../database.types';
 import type {
@@ -10,6 +10,7 @@ import type {
   ProductPricing,
   ProductAvailabilityRequestItem,
   ProductAvailabilityResult,
+  InventoryProductWithPricing,
 } from '../../types';
 
 // ---------------------------------------------------------------------------
@@ -435,4 +436,113 @@ export async function deleteCategoryIfEmpty(
         .eq('id', categoryId),
     { context: 'deleteCategoryIfEmpty', ...options }
   );
+}
+
+export async function fetchAdminProductsByCategory(
+  options?: QueryOptions
+): Promise<QueryResult<Record<string, InventoryProductWithPricing[]>>> {
+  const [productsResult, pricingResult, categoriesResult] = await Promise.all([
+    fetchAdminInventoryProducts(options),
+    fetchAdminProductPricing(options),
+    fetchAdminProductCategories(options),
+  ]);
+
+  if (productsResult.error) return { data: null, error: productsResult.error };
+  if (pricingResult.error) return { data: null, error: pricingResult.error };
+  if (categoriesResult.error) return { data: null, error: categoriesResult.error };
+
+  const pricingMap = new Map<string, ProductPricing>();
+  for (const p of pricingResult.data || []) {
+    pricingMap.set(p.product_id, p);
+  }
+
+  const categoryMap = new Map<string, string>();
+  for (const c of categoriesResult.data || []) {
+    categoryMap.set(c.id, c.name);
+  }
+
+  const grouped: Record<string, InventoryProductWithPricing[]> = {};
+  for (const product of productsResult.data || []) {
+    const enriched: InventoryProductWithPricing = {
+      ...product,
+      pricing: pricingMap.get(product.id) || null,
+      category_name: product.category_id ? categoryMap.get(product.category_id) || null : null,
+    };
+    const key = product.category_id || 'uncategorized';
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(enriched);
+  }
+
+  return { data: grouped, error: null };
+}
+
+export async function fetchAdminProductsWithPricing(
+  options?: QueryOptions
+): Promise<QueryResult<InventoryProductWithPricing[]>> {
+  const [productsResult, pricingResult, categoriesResult] = await Promise.all([
+    fetchAdminInventoryProducts(options),
+    fetchAdminProductPricing(options),
+    fetchAdminProductCategories(options),
+  ]);
+
+  if (productsResult.error) return { data: null, error: productsResult.error };
+  if (pricingResult.error) return { data: null, error: pricingResult.error };
+  if (categoriesResult.error) return { data: null, error: categoriesResult.error };
+
+  const pricingMap = new Map<string, ProductPricing>();
+  for (const p of pricingResult.data || []) {
+    pricingMap.set(p.product_id, p);
+  }
+
+  const categoryMap = new Map<string, string>();
+  for (const c of categoriesResult.data || []) {
+    categoryMap.set(c.id, c.name);
+  }
+
+  const enriched: InventoryProductWithPricing[] = (productsResult.data || []).map(
+    (product) => ({
+      ...product,
+      pricing: pricingMap.get(product.id) || null,
+      category_name: product.category_id ? categoryMap.get(product.category_id) || null : null,
+    })
+  );
+
+  return { data: enriched, error: null };
+}
+
+export async function fetchCategoryProductCounts(
+  options?: QueryOptions
+): Promise<QueryResult<Record<string, number>>> {
+  const { data, error } = await supabase
+    .from('inventory_products')
+    .select('category_id')
+    .not('category_id', 'is', null);
+
+  if (error) {
+    handleError(error, 'fetchCategoryProductCounts');
+    if (options?.throwOnError) throw error;
+    return { data: null, error };
+  }
+
+  const counts: Record<string, number> = {};
+  for (const row of data || []) {
+    const catId = row.category_id as string;
+    if (catId) {
+      counts[catId] = (counts[catId] || 0) + 1;
+    }
+  }
+
+  return { data: counts, error: null };
+}
+
+export function parseStoragePath(url: string): string | null {
+  try {
+    const u = new URL(url);
+    const parts = u.pathname.split('/');
+    const bucketIdx = parts.findIndex((p) => p === 'event-essentials-media');
+    if (bucketIdx === -1 || bucketIdx + 1 >= parts.length) return null;
+    return parts.slice(bucketIdx + 1).join('/');
+  } catch {
+    return null;
+  }
 }

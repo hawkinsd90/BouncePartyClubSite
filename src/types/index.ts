@@ -275,6 +275,38 @@ export type UnifiedCartItem =
   | EventEssentialProductCartItem
   | EventEssentialBundleCartItem;
 
+export interface InventoryProductWithPricing extends InventoryProduct {
+  pricing: ProductPricing | null;
+  category_name: string | null;
+}
+
+export interface ProductAdminFormData {
+  id: string | null;
+  slug: string;
+  name: string;
+  description: string;
+  image_url: string | null;
+  total_quantity: number;
+  temp_unavailable_qty: number;
+  active: boolean;
+  public_visible: boolean;
+  category_id: string | null;
+  sort_order: number;
+  standalone_enabled: boolean;
+  standalone_price_cents: number | null;
+  addon_enabled: boolean;
+  addon_price_cents: number | null;
+}
+
+export interface CategoryAdminFormData {
+  id: string | null;
+  slug: string;
+  name: string;
+  active: boolean;
+  public_visible: boolean;
+  sort_order: number;
+}
+
 export interface FormErrors {
   [key: string]: string | undefined;
 }
