@@ -91,15 +91,28 @@ export const AdminImageUpload = forwardRef<AdminImageUploadHandle, AdminImageUpl
       deleteNewlyUploaded: async (): Promise<boolean> => {
         const img = uploadedRef.current;
         if (!img) return true;
-        const ok = await deleteFromStorage(img.path);
-        if (ok) {
-          uploadedRef.current = null;
-        } else {
+        // Block concurrent cleanup: if another operation is running, wait for it
+        // to finish rather than starting a duplicate deletion of the same path.
+        if (isUploadingRef.current) {
+          // Operation in progress — uploadedRef may be mutated by it.
+          // Surface a warning via the parent path instead of racing.
           notifyWarning(
-            'Failed to clean up an uploaded image. The orphaned file may need manual removal.'
+            'Another image operation is in progress. Please wait for it to finish before closing.'
           );
+          return false;
         }
-        return ok;
+        setUploadState(true);
+        try {
+          const ok = await deleteFromStorage(img.path);
+          if (ok) {
+            uploadedRef.current = null;
+          } else {
+            // Parent (cleanupPendingUpload) reports its own warning on false.
+          }
+          return ok;
+        } finally {
+          setUploadState(false);
+        }
       },
       getUploadedImage: () => uploadedRef.current,
       commitUploadedImage: () => {
@@ -116,6 +129,9 @@ export const AdminImageUpload = forwardRef<AdminImageUploadHandle, AdminImageUpl
 
     const handleFileSelect = useCallback(
       async (file: File) => {
+        // Block concurrent file selection — state updates are async, so use the ref.
+        if (isUploadingRef.current) return;
+
         setLocalError(null);
 
         const validationError =
@@ -133,35 +149,39 @@ export const AdminImageUpload = forwardRef<AdminImageUploadHandle, AdminImageUpl
 
         const priorUpload = uploadedRef.current;
 
-        // If a pending unsaved image A already exists, delete A BEFORE uploading B.
-        if (priorUpload) {
-          const aDeleted = await deleteFromStorage(priorUpload.path);
-          if (!aDeleted) {
-            // Abort — keep A pending and visible, do not upload B.
-            notifyWarning(
-              'Could not delete the previous unsaved image. The new selection was cancelled — please retry.'
-            );
-            return;
-          }
-          // A deleted successfully — clear A from child state before uploading B.
-          uploadedRef.current = null;
-          setNewUploadedImageViaCallback(null, 'none');
-        }
-
-        revokeActiveBlob();
-
-        const objectUrl = URL.createObjectURL(file);
-        activeBlobRef.current = objectUrl;
-        setPreviewUrl(objectUrl);
-        setMarkedForRemoval(false);
+        // Enter busy state before ANY storage operation, including deleting A.
         setUploadState(true);
 
-        const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-        const timestamp = Date.now();
-        const random = Math.random().toString(36).substring(2, 8);
-        const path = `${folder}/${ownerId}/${timestamp}-${random}.${ext}`;
-
         try {
+          // If a pending unsaved image A already exists, delete A BEFORE uploading B.
+          if (priorUpload) {
+            const aDeleted = await deleteFromStorage(priorUpload.path);
+            if (!aDeleted) {
+              // Abort — keep A pending and visible, do not upload B.
+              notifyWarning(
+                'Could not delete the previous unsaved image. The new selection was cancelled — please retry.'
+              );
+              // A remains pending; re-affirm parent state.
+              onImageChange(priorUpload, 'upload');
+              return;
+            }
+            // A deleted successfully — clear A from child and parent state before uploading B.
+            uploadedRef.current = null;
+            onImageChange(null, 'none');
+          }
+
+          revokeActiveBlob();
+
+          const objectUrl = URL.createObjectURL(file);
+          activeBlobRef.current = objectUrl;
+          setPreviewUrl(objectUrl);
+          setMarkedForRemoval(false);
+
+          const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+          const timestamp = Date.now();
+          const random = Math.random().toString(36).substring(2, 8);
+          const path = `${folder}/${ownerId}/${timestamp}-${random}.${ext}`;
+
           const { error: uploadError } = await supabase.storage
             .from(BUCKET)
             .upload(path, file, { contentType: file.type });
@@ -201,55 +221,49 @@ export const AdminImageUpload = forwardRef<AdminImageUploadHandle, AdminImageUpl
       [folder, ownerId, currentImageUrl, onImageChange, deleteFromStorage, revokeActiveBlob, setUploadState]
     );
 
-    // Helper to clear parent state when A is deleted before B upload (avoids stale closure)
-    const setNewUploadedImageViaCallback = useCallback(
-      (image: UploadedImage | null, action: 'upload' | 'remove' | 'none') => {
-        onImageChange(image, action);
-      },
-      [onImageChange]
-    );
-
     const handleRemove = useCallback(async () => {
+      // Block concurrent removal.
+      if (isUploadingRef.current) return;
+
       const pendingImg = uploadedRef.current;
 
       if (pendingImg) {
-        // Removing a pending unsaved upload — delete it from storage
-        const ok = await deleteFromStorage(pendingImg.path);
-        if (!ok) {
-          // Deletion failed — keep pending image visible, keep uploadedRef,
-          // keep parent action pointing to this pending image as 'upload'.
-          // Do NOT restore currentImageUrl. Do NOT call onImageChange(null, 'none').
-          notifyWarning(
-            'Failed to delete the uploaded image. Removal did not complete — you can retry.'
-          );
-          // Re-affirm parent state points to the pending upload
-          onImageChange(pendingImg, 'upload');
-          return;
-        }
+        // Removing a pending unsaved upload — enter busy state before deleting.
+        setUploadState(true);
+        try {
+          const ok = await deleteFromStorage(pendingImg.path);
+          if (!ok) {
+            // Deletion failed — keep pending image visible, keep uploadedRef,
+            // keep parent action pointing to this pending image as 'upload'.
+            // Do NOT restore currentImageUrl. Do NOT call onImageChange(null, 'none').
+            notifyWarning(
+              'Failed to delete the uploaded image. Removal did not complete — you can retry.'
+            );
+            // Re-affirm parent state points to the pending upload
+            onImageChange(pendingImg, 'upload');
+            return;
+          }
 
-        // Deletion succeeded — restore existing image or empty state, reset action
-        uploadedRef.current = null;
-        revokeActiveBlob();
-
-        if (currentImageUrl) {
+          // Deletion succeeded — restore existing image or empty state, reset action
+          uploadedRef.current = null;
+          revokeActiveBlob();
           setPreviewUrl(currentImageUrl);
           setMarkedForRemoval(false);
           onImageChange(null, 'none');
-        } else {
-          setPreviewUrl(null);
-          setMarkedForRemoval(false);
-          onImageChange(null, 'none');
+        } finally {
+          setUploadState(false);
         }
       } else {
-        // Removing the existing saved image itself — mark for removal
+        // Removing the existing saved image itself — no storage deletion, synchronous.
         revokeActiveBlob();
         setPreviewUrl(null);
         setMarkedForRemoval(true);
         onImageChange(null, 'remove');
       }
-    }, [deleteFromStorage, revokeActiveBlob, onImageChange, currentImageUrl]);
+    }, [deleteFromStorage, revokeActiveBlob, onImageChange, currentImageUrl, setUploadState]);
 
     const handleUndo = useCallback(() => {
+      if (isUploadingRef.current) return;
       revokeActiveBlob();
       setMarkedForRemoval(false);
       setPreviewUrl(currentImageUrl);
@@ -262,6 +276,8 @@ export const AdminImageUpload = forwardRef<AdminImageUploadHandle, AdminImageUpl
 
     const handleDrop = (e: React.DragEvent) => {
       e.preventDefault();
+      // Block drag/drop while busy — do not bypass the disabled click controls.
+      if (isUploadingRef.current) return;
       const file = e.dataTransfer.files[0];
       if (file) handleFileSelect(file);
     };
@@ -344,7 +360,8 @@ export const AdminImageUpload = forwardRef<AdminImageUploadHandle, AdminImageUpl
           <button
             type="button"
             onClick={handleUndo}
-            className="mt-2 text-xs text-blue-600 hover:underline"
+            disabled={isUploading}
+            className="mt-2 text-xs text-blue-600 hover:underline disabled:opacity-50"
           >
             Undo removal
           </button>
