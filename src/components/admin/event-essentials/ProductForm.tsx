@@ -39,11 +39,14 @@ function generateSlug(name: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+/** Parse a dollar string to integer cents. Returns null for blank. Throws for malformed/negative. */
 function dollarsToCents(dollars: string): number | null {
   const trimmed = dollars.trim();
   if (trimmed === '') return null;
   const num = parseFloat(trimmed);
-  if (isNaN(num) || num < 0) return null;
+  if (isNaN(num) || num < 0) {
+    throw new Error('Invalid price value');
+  }
   const cents = Math.round(num * 100);
   return cents;
 }
@@ -62,6 +65,9 @@ export function ProductForm({
 }: ProductFormProps) {
   const isEdit = product !== null;
   const slugManuallyEdited = useRef(false);
+
+  // Generate one UUID at init for create; reuse existing for edit
+  const productIdRef = useRef<string>(product?.id || crypto.randomUUID());
 
   const [formData, setFormData] = useState<ProductAdminFormData>(() => {
     if (product) {
@@ -112,11 +118,15 @@ export function ProductForm({
   const [imageAction, setImageAction] = useState<'upload' | 'remove' | 'none'>('none');
   const [newUploadedImage, setNewUploadedImage] = useState<UploadedImage | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [rpcError, setRpcError] = useState<string | null>(null);
 
   const imageUploadRef = useRef<AdminImageUploadHandle>(null);
   const prevImageUrl = useRef<string | null>(product?.image_url ?? null);
+
+  // Track whether we've already cleaned up to avoid double-close races
+  const closedRef = useRef(false);
 
   useEffect(() => {
     if (!isEdit && !slugManuallyEdited.current) {
@@ -140,6 +150,29 @@ export function ProductForm({
     []
   );
 
+  const handleUploadStateChange = useCallback((busy: boolean) => {
+    setIsUploading(busy);
+  }, []);
+
+  const isBusy = isSaving || isUploading;
+
+  async function cleanupPendingUpload(): Promise<void> {
+    const img = imageUploadRef.current?.getUploadedImage();
+    if (img) {
+      await imageUploadRef.current?.deleteNewlyUploaded();
+    }
+    setNewUploadedImage(null);
+    setImageAction('none');
+  }
+
+  async function handleClose(): Promise<void> {
+    if (closedRef.current) return;
+    if (isBusy) return;
+    closedRef.current = true;
+    await cleanupPendingUpload();
+    onClose();
+  }
+
   function validate(): boolean {
     const e: Record<string, string> = {};
 
@@ -154,13 +187,22 @@ export function ProductForm({
     if (formData.temp_unavailable_qty > formData.total_quantity)
       e.temp_unavailable_qty = 'Cannot exceed total inventory';
 
-    if (formData.standalone_enabled) {
+    // Validate standalone price: required when enabled, validated when populated
+    const standaloneTrimmed = standalonePriceDisplay.trim();
+    if (formData.standalone_enabled && standaloneTrimmed === '') {
+      e.standalone_price = 'Required when standalone is enabled';
+    } else if (standaloneTrimmed !== '') {
       const cents = dollarsToCents(standalonePriceDisplay);
-      if (cents === null) e.standalone_price = 'Required when standalone is enabled';
+      if (cents === null) e.standalone_price = 'Invalid price value';
     }
-    if (formData.addon_enabled) {
+
+    // Validate addon price: required when enabled, validated when populated
+    const addonTrimmed = addonPriceDisplay.trim();
+    if (formData.addon_enabled && addonTrimmed === '') {
+      e.addon_price = 'Required when add-on is enabled';
+    } else if (addonTrimmed !== '') {
       const cents = dollarsToCents(addonPriceDisplay);
-      if (cents === null) e.addon_price = 'Required when add-on is enabled';
+      if (cents === null) e.addon_price = 'Invalid price value';
     }
 
     if (formData.category_id) {
@@ -188,8 +230,9 @@ export function ProductForm({
 
     if (!validate()) return;
 
-    const standaloneCents = dollarsToCents(standalonePriceDisplay);
-    const addonCents = dollarsToCents(addonPriceDisplay);
+    // Parse prices: send parsed value when populated, null when blank, regardless of enabled
+    const standaloneCents = standalonePriceDisplay.trim() === '' ? null : dollarsToCents(standalonePriceDisplay);
+    const addonCents = addonPriceDisplay.trim() === '' ? null : dollarsToCents(addonPriceDisplay);
 
     let imageUrl = formData.image_url;
 
@@ -199,11 +242,11 @@ export function ProductForm({
       imageUrl = newUploadedImage.url;
     }
 
-    const productId = formData.id || crypto.randomUUID();
+    const productId = productIdRef.current;
 
     const params: SaveInventoryProductParams = {
       p_operation: isEdit ? 'update' : 'create',
-      p_product_id: isEdit ? formData.id : productId,
+      p_product_id: productId,
       p_slug: formData.slug,
       p_name: formData.name.trim(),
       p_description: formData.description.trim() || null,
@@ -214,8 +257,8 @@ export function ProductForm({
       p_public_visible: formData.public_visible,
       p_category_id: formData.category_id,
       p_sort_order: formData.sort_order,
-      p_standalone_price_cents: formData.standalone_enabled ? standaloneCents : null,
-      p_addon_price_cents: formData.addon_enabled ? addonCents : null,
+      p_standalone_price_cents: standaloneCents,
+      p_addon_price_cents: addonCents,
       p_standalone_enabled: formData.standalone_enabled,
       p_addon_enabled: formData.addon_enabled,
     };
@@ -230,12 +273,18 @@ export function ProductForm({
         setRpcError(msg);
         notifyError(msg);
 
-        if (imageAction === 'upload' && newUploadedImage) {
+        if (imageAction === 'upload') {
           await imageUploadRef.current?.deleteNewlyUploaded();
         }
         return;
       }
 
+      // RPC succeeded — commit the pending upload so close cleanup won't delete it
+      if (imageAction === 'upload') {
+        imageUploadRef.current?.commitUploadedImage();
+      }
+
+      // Delete prior saved image only after RPC success
       if (imageAction === 'upload' && newUploadedImage && prevImageUrl.current) {
         await deleteStorageFile(prevImageUrl.current);
       }
@@ -251,7 +300,7 @@ export function ProductForm({
       setRpcError(msg);
       notifyError(msg);
 
-      if (imageAction === 'upload' && newUploadedImage) {
+      if (imageAction === 'upload') {
         await imageUploadRef.current?.deleteNewlyUploaded();
       }
     } finally {
@@ -267,8 +316,10 @@ export function ProductForm({
             {isEdit ? 'Edit Product' : 'Add Product'}
           </h3>
           <button
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+            onClick={handleClose}
+            disabled={isBusy}
+            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            title={isBusy ? 'Please wait...' : 'Close'}
           >
             <X className="w-5 h-5" />
           </button>
@@ -346,9 +397,10 @@ export function ProductForm({
           <AdminImageUpload
             ref={imageUploadRef}
             folder="products"
-            ownerId={formData.id || 'pending'}
+            ownerId={productIdRef.current}
             currentImageUrl={formData.image_url}
             onImageChange={handleImageChange}
+            onUploadStateChange={handleUploadStateChange}
             label="Product Image"
           />
 
@@ -473,14 +525,15 @@ export function ProductForm({
           <div className="flex gap-3 justify-end pt-4 border-t border-slate-200">
             <button
               type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+              onClick={handleClose}
+              disabled={isBusy}
+              className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Cancel
+              {isBusy ? 'Please wait...' : 'Cancel'}
             </button>
             <button
               type="submit"
-              disabled={isSaving}
+              disabled={isBusy}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 rounded-lg transition-colors"
             >
               <Save className="w-4 h-4" />
