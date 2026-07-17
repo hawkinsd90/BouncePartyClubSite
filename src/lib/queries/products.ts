@@ -48,6 +48,18 @@ export function centsToDollars(cents: number | null | undefined): string {
 }
 
 // ---------------------------------------------------------------------------
+// Slug generation
+// ---------------------------------------------------------------------------
+
+export function generateSlugFromName(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+// ---------------------------------------------------------------------------
 // Package form helpers
 // ---------------------------------------------------------------------------
 

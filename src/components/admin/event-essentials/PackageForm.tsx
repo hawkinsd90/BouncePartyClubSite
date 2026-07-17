@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { X, Save, AlertCircle, Plus, Trash2 } from 'lucide-react';
 import {
   saveProductBundle,
@@ -8,6 +8,7 @@ import {
   centsToDollars,
   parseStoragePath,
   bundleToFormData,
+  generateSlugFromName,
 } from '../../../lib/queries/products';
 import {
   notifySuccess,
@@ -28,7 +29,6 @@ import {
   type UploadedImage,
 } from './AdminImageUpload';
 
-const SLUG_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const MAX_INT = 2147483647;
 const QTY_REGEX = /^[0-9]+$/;
 
@@ -50,22 +50,23 @@ interface PackageFormProps {
   onSaved: () => void;
 }
 
-function generateSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+function deriveAvailable(bundle: ProductBundleWithComponents | null): boolean {
+  if (!bundle) return true;
+  return bundle.active && bundle.public_visible;
 }
 
 function initialFormData(
   bundle: ProductBundleWithComponents | null,
   nextSortOrder: number,
 ): PackageFormState {
+  const available = deriveAvailable(bundle);
   if (bundle) {
     const base = bundleToFormData(bundle);
     return {
       ...base,
+      active: available,
+      public_visible: available,
+      menu_visible: available,
       components: base.components.map((c) => ({
         product_id: c.product_id,
         quantity_input: String(c.quantity_per_bundle),
@@ -82,9 +83,9 @@ function initialFormData(
     standalone_price_cents: null,
     addon_enabled: false,
     addon_price_cents: null,
-    active: true,
-    public_visible: false,
-    menu_visible: false,
+    active: available,
+    public_visible: available,
+    menu_visible: available,
     featured: false,
     sort_order: nextSortOrder,
     components: [],
@@ -100,7 +101,6 @@ export function PackageForm({
   onSaved,
 }: PackageFormProps) {
   const isEdit = bundle !== null;
-  const slugManuallyEdited = useRef(false);
   const bundleIdRef = useRef<string>(bundle?.id || crypto.randomUUID());
 
   const [formData, setFormData] = useState<PackageFormState>(() =>
@@ -124,19 +124,21 @@ export function PackageForm({
   const prevImageUrl = useRef<string | null>(bundle?.image_url ?? null);
   const closedRef = useRef(false);
 
-  useEffect(() => {
-    if (!isEdit && !slugManuallyEdited.current) {
-      setFormData((prev) => ({ ...prev, slug: generateSlug(prev.name) }));
-    }
-  }, [formData.name, isEdit]);
-
   const handleFieldChange = useCallback(
     <K extends keyof PackageFormState>(field: K, value: PackageFormState[K]) => {
       setFormData((prev) => ({ ...prev, [field]: value }));
-      if (field === 'slug') slugManuallyEdited.current = true;
     },
     [],
   );
+
+  const handleAvailabilityChange = useCallback((checked: boolean) => {
+    setFormData((prev) => ({
+      ...prev,
+      active: checked,
+      public_visible: checked,
+      menu_visible: checked,
+    }));
+  }, []);
 
   const handleImageChange = useCallback(
     (image: UploadedImage | null, action: 'upload' | 'remove' | 'none') => {
@@ -227,9 +229,6 @@ export function PackageForm({
     const e: Record<string, string> = {};
 
     if (!formData.name.trim()) e.name = 'Name is required';
-    if (!formData.slug.trim()) e.slug = 'Slug is required';
-    else if (!SLUG_REGEX.test(formData.slug))
-      e.slug = 'Slug must be lowercase, alphanumeric, hyphen-separated';
 
     if (!Number.isInteger(formData.sort_order))
       e.sort_order = 'Sort order must be a whole integer';
@@ -286,11 +285,9 @@ export function PackageForm({
       }
     }
 
-    // Available + Shown package requires at least one component
-    if (formData.active && formData.public_visible && formData.components.length === 0) {
-      componentErrors.push(
-        'A package that is Available for Use and Shown on Website must have at least one component.',
-      );
+    // Available package requires at least one component
+    if (formData.active && formData.components.length === 0) {
+      componentErrors.push('An available package must have at least one component.');
     }
 
     if (componentErrors.length > 0) {
@@ -340,8 +337,11 @@ export function PackageForm({
       }),
     );
 
+    const slug = isEdit ? (bundle?.slug ?? formData.slug) : generateSlugFromName(formData.name.trim());
+
     const updatedData: PackageAdminFormData = {
       ...formData,
+      slug,
       name: formData.name.trim(),
       standalone_price_cents: standaloneParsed.cents,
       addon_price_cents: addonParsed.cents,
@@ -486,20 +486,6 @@ export function PackageForm({
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">
-              Slug <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={formData.slug}
-              onChange={(e) => handleFieldChange('slug', e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm font-mono"
-              placeholder="auto-generated-from-name"
-            />
-            {errors.slug && <p className="mt-1 text-xs text-red-600">{errors.slug}</p>}
-          </div>
-
-          <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">Description</label>
             <textarea
               value={formData.description}
@@ -596,68 +582,22 @@ export function PackageForm({
             </div>
           </div>
 
-          {/* Visibility + Flags */}
-          <div className="border-t border-slate-200 pt-4 space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <label className="flex items-start gap-2">
-                <input
-                  type="checkbox"
-                  checked={formData.active}
-                  onChange={(e) => handleFieldChange('active', e.target.checked)}
-                  className="w-4 h-4 mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                />
-                <div>
-                  <span className="text-sm text-slate-700 font-medium">Available for Use</span>
-                  <p className="text-xs text-slate-500">
-                    Allows this item to be used in Event Essentials inventory and packages.
-                  </p>
-                </div>
-              </label>
-              <label className="flex items-start gap-2">
-                <input
-                  type="checkbox"
-                  checked={formData.public_visible}
-                  onChange={(e) => handleFieldChange('public_visible', e.target.checked)}
-                  className="w-4 h-4 mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                />
-                <div>
-                  <span className="text-sm text-slate-700 font-medium">Shown on Website</span>
-                  <p className="text-xs text-slate-500">
-                    Displays this item to customers when it is also available for use and properly categorized.
-                  </p>
-                </div>
-              </label>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <label className="flex items-start gap-2">
-                <input
-                  type="checkbox"
-                  checked={formData.menu_visible}
-                  onChange={(e) => handleFieldChange('menu_visible', e.target.checked)}
-                  className="w-4 h-4 mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                />
-                <div>
-                  <span className="text-sm text-slate-700 font-medium">Shown on Menu</span>
-                  <p className="text-xs text-slate-500">
-                    Includes this package in customer-facing package and menu displays that use the menu visibility setting.
-                  </p>
-                </div>
-              </label>
-              <label className="flex items-start gap-2">
-                <input
-                  type="checkbox"
-                  checked={formData.featured}
-                  onChange={(e) => handleFieldChange('featured', e.target.checked)}
-                  className="w-4 h-4 mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                />
-                <div>
-                  <span className="text-sm text-slate-700 font-medium">Featured Package</span>
-                  <p className="text-xs text-slate-500">
-                    Highlights this package in customer-facing featured package sections.
-                  </p>
-                </div>
-              </label>
-            </div>
+          {/* Availability */}
+          <div className="border-t border-slate-200 pt-4">
+            <label className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                checked={formData.active}
+                onChange={(e) => handleAvailabilityChange(e.target.checked)}
+                className="w-4 h-4 mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <div>
+                <span className="text-sm text-slate-700 font-medium">Available</span>
+                <p className="text-xs text-slate-500">
+                  Available packages are shown to customers. Unavailable packages remain in Admin but are hidden from the Event Essentials page.
+                </p>
+              </div>
+            </label>
           </div>
 
           {/* Component Editor */}

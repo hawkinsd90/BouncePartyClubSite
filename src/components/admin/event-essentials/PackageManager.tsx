@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  Plus, Edit2, Eye, EyeOff, Power, AlertCircle, Package,
-  Star, Menu,
+  Plus, Edit2, Power, AlertCircle, Package,
 } from 'lucide-react';
 import { formatCurrency } from '../../../lib/pricing';
 import { notifySuccess, notifyError } from '../../../lib/notifications';
@@ -93,11 +92,9 @@ export function PackageManager() {
     await loadData();
   }
 
-  async function toggleBundleField(
+  async function toggleBundleAvailability(
     bundle: ProductBundleWithComponents,
-    field: 'active' | 'public_visible' | 'menu_visible' | 'featured',
-    newValue: boolean,
-    label: string,
+    makeAvailable: boolean,
   ) {
     setActionLoading(bundle.id);
 
@@ -111,10 +108,10 @@ export function PackageManager() {
       standalone_price_cents: bundle.standalone_price_cents,
       addon_enabled: bundle.addon_enabled,
       addon_price_cents: bundle.addon_price_cents,
-      active: field === 'active' ? newValue : bundle.active,
-      public_visible: field === 'public_visible' ? newValue : bundle.public_visible,
-      menu_visible: field === 'menu_visible' ? newValue : bundle.menu_visible,
-      featured: field === 'featured' ? newValue : bundle.featured,
+      active: makeAvailable,
+      public_visible: makeAvailable,
+      menu_visible: makeAvailable,
+      featured: bundle.featured,
       sort_order: bundle.sort_order,
       components: bundle.product_bundle_components.map((c) => ({
         product_id: c.product_id,
@@ -127,9 +124,9 @@ export function PackageManager() {
     const { error: rpcError } = await saveProductBundle(params);
 
     if (rpcError) {
-      notifyError(rpcError.message || `Failed to update ${label}`);
+      notifyError(rpcError.message || 'Failed to update availability');
     } else {
-      notifySuccess(`${label} updated successfully`);
+      notifySuccess(makeAvailable ? 'Package marked available' : 'Package marked unavailable');
       await loadData();
     }
 
@@ -244,20 +241,9 @@ export function PackageManager() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex flex-col gap-1">
-                          <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded w-fit ${bundle.active ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}`}>
-                            {bundle.active ? 'Available' : 'Unavailable'}
-                          </span>
-                          <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded w-fit ${bundle.public_visible ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'}`}>
-                            {bundle.public_visible ? 'Website: Shown' : 'Website: Hidden'}
-                          </span>
-                          <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded w-fit ${bundle.menu_visible ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-600'}`}>
-                            {bundle.menu_visible ? 'Menu: Shown' : 'Menu: Hidden'}
-                          </span>
-                          <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded w-fit ${bundle.featured ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}`}>
-                            {bundle.featured ? 'Featured' : 'Not Featured'}
-                          </span>
-                        </div>
+                        <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded ${bundle.active && bundle.public_visible ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}`}>
+                          {bundle.active && bundle.public_visible ? 'Available' : 'Unavailable'}
+                        </span>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
@@ -269,36 +255,12 @@ export function PackageManager() {
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => toggleBundleField(bundle, 'active', !bundle.active, 'availability')}
+                            onClick={() => toggleBundleAvailability(bundle, !(bundle.active && bundle.public_visible))}
                             disabled={isLoading}
                             className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-                            title={bundle.active ? 'Mark Unavailable' : 'Mark Available'}
+                            title={bundle.active && bundle.public_visible ? 'Mark Unavailable' : 'Mark Available'}
                           >
                             <Power className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => toggleBundleField(bundle, 'public_visible', !bundle.public_visible, 'website visibility')}
-                            disabled={isLoading}
-                            className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-                            title={bundle.public_visible ? 'Hide from Website' : 'Show on Website'}
-                          >
-                            {bundle.public_visible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                          <button
-                            onClick={() => toggleBundleField(bundle, 'menu_visible', !bundle.menu_visible, 'menu visibility')}
-                            disabled={isLoading}
-                            className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-                            title={bundle.menu_visible ? 'Hide from Menu' : 'Show on Menu'}
-                          >
-                            <Menu className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => toggleBundleField(bundle, 'featured', !bundle.featured, 'featured status')}
-                            disabled={isLoading}
-                            className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-                            title={bundle.featured ? 'Remove Featured' : 'Mark Featured'}
-                          >
-                            <Star className={`w-4 h-4 ${bundle.featured ? 'fill-amber-500 text-amber-500' : ''}`} />
                           </button>
                         </div>
                       </td>
@@ -347,17 +309,8 @@ export function PackageManager() {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-1.5 mb-3">
-                    <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded ${bundle.active ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}`}>
-                      {bundle.active ? 'Available' : 'Unavailable'}
-                    </span>
-                    <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded ${bundle.public_visible ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'}`}>
-                      {bundle.public_visible ? 'Website: Shown' : 'Website: Hidden'}
-                    </span>
-                    <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded ${bundle.menu_visible ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-600'}`}>
-                      {bundle.menu_visible ? 'Menu: Shown' : 'Menu: Hidden'}
-                    </span>
-                    <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded ${bundle.featured ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}`}>
-                      {bundle.featured ? 'Featured' : 'Not Featured'}
+                    <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded ${bundle.active && bundle.public_visible ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}`}>
+                      {bundle.active && bundle.public_visible ? 'Available' : 'Unavailable'}
                     </span>
                   </div>
 
@@ -370,36 +323,12 @@ export function PackageManager() {
                       Edit
                     </button>
                     <button
-                      onClick={() => toggleBundleField(bundle, 'active', !bundle.active, 'availability')}
+                      onClick={() => toggleBundleAvailability(bundle, !(bundle.active && bundle.public_visible))}
                       disabled={isLoading}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
                     >
                       <Power className="w-3.5 h-3.5" />
-                      {bundle.active ? 'Unavailable' : 'Available'}
-                    </button>
-                    <button
-                      onClick={() => toggleBundleField(bundle, 'public_visible', !bundle.public_visible, 'website visibility')}
-                      disabled={isLoading}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-                    >
-                      {bundle.public_visible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      {bundle.public_visible ? 'Hide' : 'Show'}
-                    </button>
-                    <button
-                      onClick={() => toggleBundleField(bundle, 'menu_visible', !bundle.menu_visible, 'menu visibility')}
-                      disabled={isLoading}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-                    >
-                      <Menu className="w-3.5 h-3.5" />
-                      {bundle.menu_visible ? 'Hide' : 'Show'}
-                    </button>
-                    <button
-                      onClick={() => toggleBundleField(bundle, 'featured', !bundle.featured, 'featured status')}
-                      disabled={isLoading}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-                    >
-                      <Star className={`w-3.5 h-3.5 ${bundle.featured ? 'fill-amber-500 text-amber-500' : ''}`} />
-                      {bundle.featured ? 'Unfeature' : 'Feature'}
+                      {bundle.active && bundle.public_visible ? 'Unavailable' : 'Available'}
                     </button>
                   </div>
                 </div>
