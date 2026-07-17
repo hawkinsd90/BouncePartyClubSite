@@ -1057,6 +1057,69 @@ export interface Database {
           is_allowed: boolean
         }>
       }
+      save_inventory_product: {
+        Args: {
+          p_operation: string
+          p_product_id: string | null
+          p_slug: string
+          p_name: string
+          p_description: string | null
+          p_image_url: string | null
+          p_total_quantity: number
+          p_temp_unavailable_qty: number
+          p_active: boolean
+          p_public_visible: boolean
+          p_category_id: string | null
+          p_sort_order: number
+          p_standalone_price_cents: number | null
+          p_addon_price_cents: number | null
+          p_standalone_enabled: boolean
+          p_addon_enabled: boolean
+        }
+        Returns: string
+      }
+      save_product_bundle: {
+        Args: {
+          p_operation: string
+          p_bundle_id: string | null
+          p_slug: string
+          p_name: string
+          p_description: string | null
+          p_image_url: string | null
+          p_standalone_price_cents: number | null
+          p_addon_price_cents: number | null
+          p_standalone_enabled: boolean
+          p_addon_enabled: boolean
+          p_active: boolean
+          p_public_visible: boolean
+          p_menu_visible: boolean
+          p_featured: boolean
+          p_sort_order: number
+          p_components: Json
+        }
+        Returns: string
+      }
+      save_product_category: {
+        Args: {
+          p_operation: string
+          p_category_id: string | null
+          p_slug: string
+          p_name: string
+          p_sort_order: number
+          p_active: boolean
+          p_public_visible: boolean
+        }
+        Returns: string
+      }
+      reorder_product_categories: {
+        Args: { p_ordered_category_ids: string[] }
+        Returns: Array<{
+          id: string
+          slug: string
+          name: string
+          sort_order: number
+        }>
+      }
     }
     Enums: {}
     CompositeTypes: {}
