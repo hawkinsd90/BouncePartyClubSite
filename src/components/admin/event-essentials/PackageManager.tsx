@@ -7,7 +7,7 @@ import { formatCurrency } from '../../../lib/pricing';
 import { notifySuccess, notifyError } from '../../../lib/notifications';
 import {
   fetchAdminProductBundles,
-  fetchAdminInventoryProducts,
+  fetchAdminProductsWithPricing,
   fetchAdminProductCategories,
   saveProductBundle,
   buildSaveBundleParams,
@@ -37,7 +37,7 @@ export function PackageManager() {
 
     const [bundlesResult, productsResult, categoriesResult] = await Promise.all([
       fetchAdminProductBundles(),
-      fetchAdminInventoryProducts(),
+      fetchAdminProductsWithPricing(),
       fetchAdminProductCategories(),
     ]);
 
@@ -58,7 +58,7 @@ export function PackageManager() {
     }
 
     setBundles(bundlesResult.data || []);
-    setProducts((productsResult.data as InventoryProductWithPricing[]) || []);
+    setProducts(productsResult.data || []);
     setCategories(categoriesResult.data || []);
     setLoading(false);
   }, []);
@@ -71,12 +71,6 @@ export function PackageManager() {
     () => (bundles.length > 0 ? Math.max(...bundles.map((b) => b.sort_order)) + 10 : 10),
     [bundles],
   );
-
-  const productNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const p of products) map.set(p.id, p.name);
-    return map;
-  }, [products]);
 
   function handleAddPackage() {
     setEditingBundle(null);

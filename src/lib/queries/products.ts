@@ -88,7 +88,7 @@ export function buildSaveBundleParams(
   }));
   return {
     p_operation: operation,
-    p_bundle_id: operation === 'create' ? bundleId : bundleId,
+    p_bundle_id: bundleId,
     p_slug: data.slug,
     p_name: data.name.trim(),
     p_description: data.description.trim() || null,

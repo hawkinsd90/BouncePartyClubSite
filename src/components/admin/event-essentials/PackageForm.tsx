@@ -7,6 +7,7 @@ import {
   priceErrorMessage,
   centsToDollars,
   parseStoragePath,
+  bundleToFormData,
 } from '../../../lib/queries/products';
 import {
   notifySuccess,
@@ -29,6 +30,16 @@ import {
 
 const SLUG_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const MAX_INT = 2147483647;
+const QTY_REGEX = /^[0-9]+$/;
+
+interface EditableComponentRow {
+  product_id: string;
+  quantity_input: string;
+}
+
+type PackageFormState = Omit<PackageAdminFormData, 'components'> & {
+  components: EditableComponentRow[];
+};
 
 interface PackageFormProps {
   bundle: ProductBundleWithComponents | null;
@@ -50,26 +61,14 @@ function generateSlug(name: string): string {
 function initialFormData(
   bundle: ProductBundleWithComponents | null,
   nextSortOrder: number,
-): PackageAdminFormData {
+): PackageFormState {
   if (bundle) {
+    const base = bundleToFormData(bundle);
     return {
-      id: bundle.id,
-      slug: bundle.slug,
-      name: bundle.name,
-      description: bundle.description || '',
-      image_url: bundle.image_url,
-      standalone_enabled: bundle.standalone_enabled,
-      standalone_price_cents: bundle.standalone_price_cents,
-      addon_enabled: bundle.addon_enabled,
-      addon_price_cents: bundle.addon_price_cents,
-      active: bundle.active,
-      public_visible: bundle.public_visible,
-      menu_visible: bundle.menu_visible,
-      featured: bundle.featured,
-      sort_order: bundle.sort_order,
-      components: bundle.product_bundle_components.map((c) => ({
+      ...base,
+      components: base.components.map((c) => ({
         product_id: c.product_id,
-        quantity_per_bundle: c.quantity_per_bundle,
+        quantity_input: String(c.quantity_per_bundle),
       })),
     };
   }
@@ -104,7 +103,7 @@ export function PackageForm({
   const slugManuallyEdited = useRef(false);
   const bundleIdRef = useRef<string>(bundle?.id || crypto.randomUUID());
 
-  const [formData, setFormData] = useState<PackageAdminFormData>(() =>
+  const [formData, setFormData] = useState<PackageFormState>(() =>
     initialFormData(bundle, nextSortOrder),
   );
   const [standalonePriceDisplay, setStandalonePriceDisplay] = useState(() =>
@@ -132,7 +131,7 @@ export function PackageForm({
   }, [formData.name, isEdit]);
 
   const handleFieldChange = useCallback(
-    <K extends keyof PackageAdminFormData>(field: K, value: PackageAdminFormData[K]) => {
+    <K extends keyof PackageFormState>(field: K, value: PackageFormState[K]) => {
       setFormData((prev) => ({ ...prev, [field]: value }));
       if (field === 'slug') slugManuallyEdited.current = true;
     },
@@ -191,7 +190,7 @@ export function PackageForm({
   const addComponent = useCallback(() => {
     setFormData((prev) => ({
       ...prev,
-      components: [...prev.components, { product_id: '', quantity_per_bundle: 1 }],
+      components: [...prev.components, { product_id: '', quantity_input: '1' }],
     }));
   }, []);
 
@@ -203,7 +202,7 @@ export function PackageForm({
   }, []);
 
   const updateComponent = useCallback(
-    (index: number, patch: Partial<PackageComponentFormRow>) => {
+    (index: number, patch: Partial<EditableComponentRow>) => {
       setFormData((prev) => ({
         ...prev,
         components: prev.components.map((c, i) =>
@@ -272,11 +271,18 @@ export function PackageForm({
         }
       }
 
-      const q = comp.quantity_per_bundle;
-      if (!Number.isInteger(q) || q < 1) {
-        componentErrors.push(`Component ${i + 1}: Quantity must be a whole number of at least 1.`);
-      } else if (q > MAX_INT) {
-        componentErrors.push(`Component ${i + 1}: Quantity is too large.`);
+      const qStr = comp.quantity_input.trim();
+      if (qStr === '') {
+        componentErrors.push(`Component ${i + 1}: Quantity is required.`);
+      } else if (!QTY_REGEX.test(qStr)) {
+        componentErrors.push(`Component ${i + 1}: Quantity must be a whole positive number.`);
+      } else {
+        const q = Number(qStr);
+        if (q < 1) {
+          componentErrors.push(`Component ${i + 1}: Quantity must be at least 1.`);
+        } else if (q > MAX_INT) {
+          componentErrors.push(`Component ${i + 1}: Quantity is too large.`);
+        }
       }
     }
 
@@ -327,11 +333,19 @@ export function PackageForm({
     const addonParsed = parsePrice(addonPriceDisplay);
     if (!standaloneParsed.valid || !addonParsed.valid) return;
 
+    const validatedComponents: PackageComponentFormRow[] = formData.components.map(
+      (comp) => ({
+        product_id: comp.product_id,
+        quantity_per_bundle: Number(comp.quantity_input),
+      }),
+    );
+
     const updatedData: PackageAdminFormData = {
       ...formData,
       name: formData.name.trim(),
       standalone_price_cents: standaloneParsed.cents,
       addon_price_cents: addonParsed.cents,
+      components: validatedComponents,
     };
 
     // Sync parent image state with child pending state before save.
@@ -675,7 +689,6 @@ export function PackageForm({
             ) : (
               <div className="space-y-2">
                 {formData.components.map((comp, index) => {
-                  const product = products.find((p) => p.id === comp.product_id);
                   const isSelectedElsewhere =
                     comp.product_id &&
                     formData.components.some(
@@ -726,22 +739,12 @@ export function PackageForm({
                       </div>
                       <div className="flex items-center gap-2 sm:flex-shrink-0">
                         <input
-                          type="number"
-                          min={1}
-                          max={MAX_INT}
-                          step={1}
-                          value={comp.quantity_per_bundle}
-                          onChange={(e) => {
-                            const raw = e.target.value;
-                            const parsed = parseInt(raw, 10);
-                            if (isNaN(parsed)) {
-                              updateComponent(index, { quantity_per_bundle: 0 });
-                            } else {
-                              updateComponent(index, {
-                                quantity_per_bundle: Math.min(MAX_INT, parsed),
-                              });
-                            }
-                          }}
+                          type="text"
+                          inputMode="numeric"
+                          value={comp.quantity_input}
+                          onChange={(e) =>
+                            updateComponent(index, { quantity_input: e.target.value })
+                          }
                           className="w-20 px-2.5 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm text-center"
                           placeholder="Qty"
                         />
