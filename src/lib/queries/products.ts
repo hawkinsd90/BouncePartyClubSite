@@ -355,13 +355,22 @@ export async function reorderProductCategories(
 // Admin helpers
 // ---------------------------------------------------------------------------
 
+export interface ProductBundleUsage {
+  id: string;
+  slug: string;
+  name: string;
+  active: boolean;
+  public_visible: boolean;
+  product_bundle_components: {
+    product_id: string;
+  }[];
+}
+
 export async function checkProductInUseByBundles(
   productId: string,
   options?: QueryOptions
 ) {
-  return executeQuery<
-    Array<{ id: string; slug: string; name: string; active: boolean; public_visible: boolean }>
-  >(
+  return executeQuery<ProductBundleUsage[]>(
     async () =>
       await supabase
         .from('product_bundles')
@@ -373,7 +382,7 @@ export async function checkProductInUseByBundles(
         )
         .eq('product_bundle_components.product_id', productId)
         .eq('active', true)
-        .eq('public_visible', true),
+        .eq('public_visible', true) as unknown as Promise<{ data: ProductBundleUsage[] | null; error: unknown }>,
     { context: 'checkProductInUseByBundles', ...options }
   );
 }
