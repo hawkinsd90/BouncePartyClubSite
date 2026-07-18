@@ -5,9 +5,9 @@ import { notifySuccess, notifyError, showConfirm } from '../../../lib/notificati
 import {
   fetchAdminProductsWithPricing,
   fetchAdminProductCategories,
-  saveInventoryProduct,
+  saveInventoryProductV2,
+  buildSaveInventoryProductV2Params,
   checkProductInUseByBundles,
-  type SaveInventoryProductParams,
 } from '../../../lib/queries/products';
 import type {
   InventoryProductWithPricing,
@@ -97,35 +97,46 @@ export function ProductManager() {
 
     setActionLoading(product.id);
 
-    const params: SaveInventoryProductParams = {
-      p_operation: 'update',
-      p_product_id: product.id,
-      p_slug: product.slug,
-      p_name: product.name,
-      p_description: product.description,
-      p_image_url: product.image_url,
-      p_total_quantity: product.total_quantity,
-      p_temp_unavailable_qty: product.temp_unavailable_qty,
-      p_active: field === 'active' ? (newValue as boolean) : product.active,
-      p_public_visible: field === 'public_visible' ? (newValue as boolean) : product.public_visible,
-      p_category_id: field === 'category_id' ? (newValue as string | null) : product.category_id,
-      p_sort_order: product.sort_order,
-      p_standalone_price_cents: product.pricing?.standalone_price_cents ?? null,
-      p_addon_price_cents: product.pricing?.addon_price_cents ?? null,
-      p_standalone_enabled: product.pricing?.standalone_enabled ?? false,
-      p_addon_enabled: product.pricing?.addon_enabled ?? false,
-    };
+    try {
+      const params = buildSaveInventoryProductV2Params(
+        'update',
+        product.id,
+        {
+          id: product.id,
+          slug: product.slug,
+          name: product.name,
+          description: product.description ?? '',
+          image_url: product.image_url,
+          total_quantity: product.total_quantity,
+          temp_unavailable_qty: product.temp_unavailable_qty,
+          active: field === 'active' ? (newValue as boolean) : product.active,
+          public_visible:
+            field === 'public_visible' ? (newValue as boolean) : product.public_visible,
+          category_id:
+            field === 'category_id' ? (newValue as string | null) : product.category_id,
+          sort_order: product.sort_order,
+          standalone_enabled: product.pricing?.standalone_enabled ?? false,
+          standalone_price_cents: product.pricing?.standalone_price_cents ?? null,
+          addon_enabled: product.pricing?.addon_enabled ?? false,
+          addon_price_cents: product.pricing?.addon_price_cents ?? null,
+          addon_qualifying_threshold_cents:
+            product.pricing?.addon_qualifying_threshold_cents ?? null,
+        },
+        product.image_url,
+        product.pricing?.addon_qualifying_threshold_cents ?? null,
+      );
 
-    const { error: rpcError } = await saveInventoryProduct(params);
+      const { error: rpcError } = await saveInventoryProductV2(params);
 
-    if (rpcError) {
-      notifyError(rpcError.message || `Failed to update ${label}`);
-    } else {
-      notifySuccess(`${label} updated successfully`);
-      await loadData();
+      if (rpcError) {
+        notifyError(rpcError.message || `Failed to update ${label}`);
+      } else {
+        notifySuccess(`${label} updated successfully`);
+        await loadData();
+      }
+    } finally {
+      setActionLoading(null);
     }
-
-    setActionLoading(null);
   }
 
   if (loading) {
@@ -222,7 +233,19 @@ export function ProductManager() {
                       </td>
                       <td className="px-4 py-3 text-sm">
                         {product.pricing?.addon_enabled ? (
-                          <span className="font-medium text-slate-900">{formatCurrency(product.pricing.addon_price_cents || 0)}</span>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium text-slate-900">{formatCurrency(product.pricing.addon_price_cents || 0)}</span>
+                            {product.pricing.addon_qualifying_threshold_cents === null ? (
+                              <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+                                <AlertCircle className="w-3 h-3" />
+                                Threshold not configured
+                              </span>
+                            ) : (
+                              <span className="text-xs text-slate-500">
+                                Qualifies at {formatCurrency(product.pricing.addon_qualifying_threshold_cents)}
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-slate-400">Disabled</span>
                         )}
@@ -308,7 +331,14 @@ export function ProductManager() {
                     </div>
                     <div className="text-slate-500">
                       Add-on: {product.pricing?.addon_enabled
-                        ? <span className="font-medium text-slate-900">{formatCurrency(product.pricing.addon_price_cents || 0)}</span>
+                        ? (
+                          <span>
+                            <span className="font-medium text-slate-900">{formatCurrency(product.pricing.addon_price_cents || 0)}</span>
+                            {product.pricing.addon_qualifying_threshold_cents === null
+                              ? <span className="block text-amber-600">Threshold not configured</span>
+                              : <span className="block text-slate-500">Qualifies at {formatCurrency(product.pricing.addon_qualifying_threshold_cents)}</span>}
+                          </span>
+                        )
                         : <span className="text-slate-400">Off</span>}
                     </div>
                   </div>

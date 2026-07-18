@@ -299,6 +299,7 @@ export interface ProductAdminFormData {
   standalone_price_cents: number | null;
   addon_enabled: boolean;
   addon_price_cents: number | null;
+  addon_qualifying_threshold_cents: number | null;
 }
 
 export interface CategoryAdminFormData {

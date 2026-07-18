@@ -16,6 +16,7 @@ import type {
   PackageComponentFormRow,
   PackageInflatableComponentFormRow,
   InflatableEligibilityMode,
+  ProductAdminFormData,
   SaveProductBundleV2Params,
   SaveInventoryProductV2Params,
 } from '../../types';
@@ -790,6 +791,34 @@ export async function saveProductBundleV2(
       }),
     { context: 'saveProductBundleV2', ...options },
   );
+}
+
+export function buildSaveInventoryProductV2Params(
+  operation: 'create' | 'update',
+  productId: string | null,
+  data: ProductAdminFormData,
+  imageUrl: string | null,
+  addonQualifyingThresholdCents: number | null,
+): SaveInventoryProductV2Params {
+  return {
+    p_operation: operation,
+    p_product_id: productId,
+    p_slug: data.slug,
+    p_name: data.name.trim(),
+    p_description: data.description.trim() || null,
+    p_image_url: imageUrl,
+    p_total_quantity: data.total_quantity,
+    p_temp_unavailable_qty: data.temp_unavailable_qty,
+    p_active: data.active,
+    p_public_visible: data.public_visible,
+    p_category_id: data.category_id,
+    p_sort_order: data.sort_order,
+    p_standalone_price_cents: data.standalone_price_cents,
+    p_addon_price_cents: data.addon_price_cents,
+    p_standalone_enabled: data.standalone_enabled,
+    p_addon_enabled: data.addon_enabled,
+    p_addon_qualifying_threshold_cents: addonQualifyingThresholdCents,
+  };
 }
 
 export async function saveInventoryProductV2(

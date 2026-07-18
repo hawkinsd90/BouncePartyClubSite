@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { X, Save, AlertCircle } from 'lucide-react';
 import {
-  saveInventoryProduct,
+  saveInventoryProductV2,
+  buildSaveInventoryProductV2Params,
   parsePrice,
   priceErrorMessage,
   centsToDollars,
-  type SaveInventoryProductParams,
 } from '../../../lib/queries/products';
 import {
   notifySuccess,
@@ -73,6 +73,8 @@ export function ProductForm({
         standalone_price_cents: product.pricing?.standalone_price_cents ?? null,
         addon_enabled: product.pricing?.addon_enabled ?? false,
         addon_price_cents: product.pricing?.addon_price_cents ?? null,
+        addon_qualifying_threshold_cents:
+          product.pricing?.addon_qualifying_threshold_cents ?? null,
       };
     }
     return {
@@ -91,6 +93,7 @@ export function ProductForm({
       standalone_price_cents: null,
       addon_enabled: false,
       addon_price_cents: null,
+      addon_qualifying_threshold_cents: null,
     };
   });
 
@@ -99,6 +102,9 @@ export function ProductForm({
   );
   const [addonPriceDisplay, setAddonPriceDisplay] = useState(() =>
     centsToDollars(product?.pricing?.addon_price_cents)
+  );
+  const [addonThresholdDisplay, setAddonThresholdDisplay] = useState(() =>
+    centsToDollars(product?.pricing?.addon_qualifying_threshold_cents)
   );
 
   const [imageAction, setImageAction] = useState<'upload' | 'remove' | 'none'>('none');
@@ -211,6 +217,17 @@ export function ProductForm({
       e.addon_price = priceErrorMessage(addonParsed.reason);
     }
 
+    // Add-on qualifying threshold: required when add-on enabled, optional otherwise
+    const thresholdTrimmed = addonThresholdDisplay.trim();
+    const thresholdParsed = parsePrice(addonThresholdDisplay);
+    if (formData.addon_enabled && thresholdTrimmed === '') {
+      e.addon_threshold = 'Required when add-on is enabled';
+    } else if (thresholdTrimmed !== '' && !thresholdParsed.valid) {
+      e.addon_threshold = priceErrorMessage(thresholdParsed.reason);
+    } else if (thresholdParsed.valid && thresholdParsed.cents !== null && thresholdParsed.cents > 2147483647) {
+      e.addon_threshold = 'Value is too large';
+    }
+
     if (formData.category_id) {
       const cat = categories.find((c) => c.id === formData.category_id);
       if (!cat) e.category_id = 'Selected category does not exist';
@@ -250,9 +267,13 @@ export function ProductForm({
 
     const standaloneParsed = parsePrice(standalonePriceDisplay);
     const addonParsed = parsePrice(addonPriceDisplay);
-    if (!standaloneParsed.valid || !addonParsed.valid) return;
+    const thresholdParsed = parsePrice(addonThresholdDisplay);
+    if (!standaloneParsed.valid || !addonParsed.valid || !thresholdParsed.valid) return;
     const standaloneCents = standaloneParsed.cents;
     const addonCents = addonParsed.cents;
+    // Threshold is NULL when add-on disabled or field blank
+    const thresholdCents =
+      formData.addon_enabled && thresholdParsed.cents !== null ? thresholdParsed.cents : null;
 
     // Sync parent image state with child pending state before save.
     // If the child retains a pending upload (e.g. after a failed remove),
@@ -276,29 +297,18 @@ export function ProductForm({
 
     const productId = productIdRef.current;
 
-    const params: SaveInventoryProductParams = {
-      p_operation: isEdit ? 'update' : 'create',
-      p_product_id: productId,
-      p_slug: formData.slug,
-      p_name: formData.name.trim(),
-      p_description: formData.description.trim() || null,
-      p_image_url: imageUrl,
-      p_total_quantity: formData.total_quantity,
-      p_temp_unavailable_qty: formData.temp_unavailable_qty,
-      p_active: formData.active,
-      p_public_visible: formData.public_visible,
-      p_category_id: formData.category_id,
-      p_sort_order: formData.sort_order,
-      p_standalone_price_cents: standaloneCents,
-      p_addon_price_cents: addonCents,
-      p_standalone_enabled: formData.standalone_enabled,
-      p_addon_enabled: formData.addon_enabled,
-    };
+    const params = buildSaveInventoryProductV2Params(
+      isEdit ? 'update' : 'create',
+      productId,
+      { ...formData, standalone_price_cents: standaloneCents, addon_price_cents: addonCents },
+      imageUrl,
+      thresholdCents,
+    );
 
     setIsSaving(true);
 
     try {
-      const { error } = await saveInventoryProduct(params);
+      const { error } = await saveInventoryProductV2(params);
 
       if (error) {
         const msg = error.message || 'Failed to save product';
@@ -570,6 +580,26 @@ export function ProductForm({
                 />
                 {errors.addon_price && (
                   <p className="mt-1 text-xs text-red-600">{errors.addon_price}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">
+                  Add-on Qualifying Subtotal ($)
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={addonThresholdDisplay}
+                  onChange={(e) => setAddonThresholdDisplay(e.target.value)}
+                  disabled={!formData.addon_enabled}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                  placeholder="0.00"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  The add-on price becomes available after the customer reaches this qualifying subtotal using eligible items outside this product's category.
+                </p>
+                {errors.addon_threshold && (
+                  <p className="mt-1 text-xs text-red-600">{errors.addon_threshold}</p>
                 )}
               </div>
             </div>
