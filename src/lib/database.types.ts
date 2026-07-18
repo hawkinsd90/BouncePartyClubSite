@@ -491,6 +491,8 @@ export interface Database {
           menu_visible: boolean
           featured: boolean
           sort_order: number
+          addon_qualifying_threshold_cents: number | null
+          inflatable_eligibility_mode: string
           created_at: string
           updated_at: string
         }
@@ -509,6 +511,39 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['product_bundle_components']['Insert']>
         Relationships: []
       }
+      product_bundle_excluded_categories: {
+        Row: {
+          bundle_id: string
+          category_id: string
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['product_bundle_excluded_categories']['Row'], 'created_at'>
+        Update: Partial<Database['public']['Tables']['product_bundle_excluded_categories']['Insert']>
+        Relationships: []
+      }
+      package_inflatable_eligibility: {
+        Row: {
+          bundle_id: string
+          unit_id: string
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['package_inflatable_eligibility']['Row'], 'created_at'>
+        Update: Partial<Database['public']['Tables']['package_inflatable_eligibility']['Insert']>
+        Relationships: []
+      }
+      package_inflatable_components: {
+        Row: {
+          id: string
+          bundle_id: string
+          unit_id: string
+          quantity_per_bundle: number
+          selection_mode: string
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['package_inflatable_components']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['package_inflatable_components']['Insert']>
+        Relationships: []
+      }
       product_pricing: {
         Row: {
           id: string
@@ -518,6 +553,7 @@ export interface Database {
           standalone_enabled: boolean
           addon_enabled: boolean
           sort_order: number
+          addon_qualifying_threshold_cents: number | null
           created_at: string
           updated_at: string
         }
@@ -1078,6 +1114,28 @@ export interface Database {
         }
         Returns: string
       }
+      save_inventory_product_v2: {
+        Args: {
+          p_operation: string
+          p_product_id: string | null
+          p_slug: string
+          p_name: string
+          p_description: string | null
+          p_image_url: string | null
+          p_total_quantity: number
+          p_temp_unavailable_qty: number
+          p_active: boolean
+          p_public_visible: boolean
+          p_category_id: string | null
+          p_sort_order: number
+          p_standalone_price_cents: number | null
+          p_addon_price_cents: number | null
+          p_standalone_enabled: boolean
+          p_addon_enabled: boolean
+          p_addon_qualifying_threshold_cents?: number | null
+        }
+        Returns: string
+      }
       save_product_bundle: {
         Args: {
           p_operation: string
@@ -1096,6 +1154,32 @@ export interface Database {
           p_featured: boolean
           p_sort_order: number
           p_components: Json
+        }
+        Returns: string
+      }
+      save_product_bundle_v2: {
+        Args: {
+          p_operation: string
+          p_bundle_id: string | null
+          p_slug: string
+          p_name: string
+          p_description: string | null
+          p_image_url: string | null
+          p_standalone_price_cents: number | null
+          p_addon_price_cents: number | null
+          p_standalone_enabled: boolean
+          p_addon_enabled: boolean
+          p_active: boolean
+          p_public_visible: boolean
+          p_menu_visible: boolean
+          p_featured: boolean
+          p_sort_order: number
+          p_components: Json
+          p_addon_qualifying_threshold_cents?: number | null
+          p_inflatable_eligibility_mode?: string
+          p_excluded_category_ids?: string[]
+          p_eligible_unit_ids?: string[]
+          p_inflatable_components?: Json
         }
         Returns: string
       }

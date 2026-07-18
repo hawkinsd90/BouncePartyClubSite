@@ -7,12 +7,17 @@ import type {
   ProductCategory,
   ProductBundle,
   ProductBundleWithComponents,
+  ProductBundleWithConfiguration,
   ProductPricing,
   ProductAvailabilityRequestItem,
   ProductAvailabilityResult,
   InventoryProductWithPricing,
   PackageAdminFormData,
   PackageComponentFormRow,
+  PackageInflatableComponentFormRow,
+  InflatableEligibilityMode,
+  SaveProductBundleV2Params,
+  SaveInventoryProductV2Params,
 } from '../../types';
 
 // ---------------------------------------------------------------------------
@@ -650,4 +655,202 @@ export function parseStoragePath(url: string): string | null {
   } catch {
     return null;
   }
+}
+
+// ===========================================================================
+// Stage B — Package pricing, inflatable eligibility, mixed components
+//
+// These helpers expose the new schema/RPCs added in Stage B. The existing
+// PackageForm and PackageManager continue to use the v1 helpers above; Stage C
+// Admin will switch to the v2 helpers. Nothing here changes current customer
+// pricing behavior.
+// ===========================================================================
+
+const STAGE_B_BUNDLE_RELATION_SELECT = `
+  *,
+  product_bundle_components (
+    id,
+    product_id,
+    quantity_per_bundle,
+    inventory_products (
+      id,
+      slug,
+      name,
+      active,
+      public_visible,
+      category_id,
+      image_url
+    )
+  ),
+  package_inflatable_components (
+    id,
+    bundle_id,
+    unit_id,
+    quantity_per_bundle,
+    selection_mode,
+    created_at,
+    units (
+      id,
+      slug,
+      name,
+      price_dry_cents,
+      price_water_cents,
+      active
+    )
+  ),
+  product_bundle_excluded_categories (
+    bundle_id,
+    category_id,
+    created_at,
+    product_categories (
+      id,
+      slug,
+      name
+    )
+  ),
+  package_inflatable_eligibility (
+    bundle_id,
+    unit_id,
+    created_at,
+    units (
+      id,
+      slug,
+      name,
+      active
+    )
+  )
+` as const;
+
+export function buildSaveProductBundleV2Params(
+  operation: 'create' | 'update',
+  bundleId: string | null,
+  formData: PackageAdminFormData,
+  imageUrl: string | null,
+  stageB: {
+    addon_qualifying_threshold_cents: number | null;
+    inflatable_eligibility_mode: InflatableEligibilityMode;
+    excluded_category_ids: string[];
+    eligible_unit_ids: string[];
+    inflatable_components: PackageInflatableComponentFormRow[];
+  },
+): SaveProductBundleV2Params {
+  return {
+    p_operation: operation,
+    p_bundle_id: bundleId,
+    p_slug: formData.slug,
+    p_name: formData.name,
+    p_description: formData.description || null,
+    p_image_url: imageUrl,
+    p_standalone_price_cents: formData.standalone_price_cents,
+    p_addon_price_cents: formData.addon_price_cents,
+    p_standalone_enabled: formData.standalone_enabled,
+    p_addon_enabled: formData.addon_enabled,
+    p_active: formData.active,
+    p_public_visible: formData.public_visible,
+    p_menu_visible: formData.menu_visible,
+    p_featured: formData.featured,
+    p_sort_order: formData.sort_order,
+    p_components: formData.components,
+    p_addon_qualifying_threshold_cents: stageB.addon_qualifying_threshold_cents,
+    p_inflatable_eligibility_mode: stageB.inflatable_eligibility_mode,
+    p_excluded_category_ids: stageB.excluded_category_ids,
+    p_eligible_unit_ids: stageB.eligible_unit_ids,
+    p_inflatable_components: stageB.inflatable_components,
+  };
+}
+
+export async function saveProductBundleV2(
+  params: SaveProductBundleV2Params,
+  options?: QueryOptions,
+) {
+  return executeQuery<string>(
+    async () =>
+      await supabase.rpc('save_product_bundle_v2', {
+        p_operation: params.p_operation,
+        p_bundle_id: params.p_bundle_id,
+        p_slug: params.p_slug,
+        p_name: params.p_name,
+        p_description: params.p_description,
+        p_image_url: params.p_image_url,
+        p_standalone_price_cents: params.p_standalone_price_cents,
+        p_addon_price_cents: params.p_addon_price_cents,
+        p_standalone_enabled: params.p_standalone_enabled,
+        p_addon_enabled: params.p_addon_enabled,
+        p_active: params.p_active,
+        p_public_visible: params.p_public_visible,
+        p_menu_visible: params.p_menu_visible,
+        p_featured: params.p_featured,
+        p_sort_order: params.p_sort_order,
+        p_components: params.p_components as unknown as Json,
+        p_addon_qualifying_threshold_cents: params.p_addon_qualifying_threshold_cents,
+        p_inflatable_eligibility_mode: params.p_inflatable_eligibility_mode,
+        p_excluded_category_ids: params.p_excluded_category_ids,
+        p_eligible_unit_ids: params.p_eligible_unit_ids,
+        p_inflatable_components: params.p_inflatable_components as unknown as Json,
+      }),
+    { context: 'saveProductBundleV2', ...options },
+  );
+}
+
+export async function saveInventoryProductV2(
+  params: SaveInventoryProductV2Params,
+  options?: QueryOptions,
+) {
+  return executeQuery<string>(
+    async () =>
+      await supabase.rpc('save_inventory_product_v2', {
+        p_operation: params.p_operation,
+        p_product_id: params.p_product_id,
+        p_slug: params.p_slug,
+        p_name: params.p_name,
+        p_description: params.p_description,
+        p_image_url: params.p_image_url,
+        p_total_quantity: params.p_total_quantity,
+        p_temp_unavailable_qty: params.p_temp_unavailable_qty,
+        p_active: params.p_active,
+        p_public_visible: params.p_public_visible,
+        p_category_id: params.p_category_id,
+        p_sort_order: params.p_sort_order,
+        p_standalone_price_cents: params.p_standalone_price_cents,
+        p_addon_price_cents: params.p_addon_price_cents,
+        p_standalone_enabled: params.p_standalone_enabled,
+        p_addon_enabled: params.p_addon_enabled,
+        p_addon_qualifying_threshold_cents: params.p_addon_qualifying_threshold_cents,
+      }),
+    { context: 'saveInventoryProductV2', ...options },
+  );
+}
+
+export async function fetchAdminProductBundlesWithConfiguration(
+  options?: QueryOptions,
+) {
+  return executeQuery<ProductBundleWithConfiguration[]>(
+    async () =>
+      await supabase
+        .from('product_bundles')
+        .select(STAGE_B_BUNDLE_RELATION_SELECT)
+        .order('sort_order', { ascending: true }) as unknown as Promise<{
+          data: ProductBundleWithConfiguration[] | null;
+          error: unknown;
+        }>,
+    { context: 'fetchAdminProductBundlesWithConfiguration', ...options },
+  );
+}
+
+export async function fetchProductBundlesWithAllComponents(
+  options?: QueryOptions,
+) {
+  return executeQuery<ProductBundleWithConfiguration[]>(
+    async () =>
+      await supabase
+        .from('product_bundles')
+        .select(STAGE_B_BUNDLE_RELATION_SELECT)
+        .eq('active', true)
+        .eq('public_visible', true)
+        .order('sort_order', { ascending: true }) as unknown as Promise<{
+          data: ProductBundleWithConfiguration[] | null;
+          error: unknown;
+        }>,
+    { context: 'fetchProductBundlesWithAllComponents', ...options },
+  );
 }

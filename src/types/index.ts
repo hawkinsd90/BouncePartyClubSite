@@ -168,6 +168,8 @@ export interface ProductBundle {
   menu_visible: boolean;
   featured: boolean;
   sort_order: number;
+  addon_qualifying_threshold_cents: number | null;
+  inflatable_eligibility_mode: string;
   created_at: string;
   updated_at: string;
 }
@@ -187,6 +189,7 @@ export interface ProductPricing {
   standalone_enabled: boolean;
   addon_enabled: boolean;
   sort_order: number;
+  addon_qualifying_threshold_cents: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -328,6 +331,119 @@ export interface PackageAdminFormData {
   featured: boolean;
   sort_order: number;
   components: PackageComponentFormRow[];
+}
+
+// ---------------------------------------------------------------------------
+// Stage B — Package pricing, inflatable eligibility, mixed components
+// ---------------------------------------------------------------------------
+
+export type InflatableEligibilityMode = 'none' | 'any' | 'selected';
+
+export type PackageInflatableSelectionMode = 'dry' | 'water' | 'customer_choice';
+
+export interface PackageInflatableComponent {
+  id: string;
+  bundle_id: string;
+  unit_id: string;
+  quantity_per_bundle: number;
+  selection_mode: PackageInflatableSelectionMode;
+  created_at: string;
+}
+
+export interface PackageInflatableComponentWithUnit extends PackageInflatableComponent {
+  unit: {
+    id: string;
+    slug: string;
+    name: string;
+    price_dry_cents: number;
+    price_water_cents: number | null;
+    active: boolean | null;
+  } | null;
+}
+
+export interface PackageInflatableEligibility {
+  bundle_id: string;
+  unit_id: string;
+  created_at: string;
+}
+
+export interface PackageInflatableEligibilityWithUnit extends PackageInflatableEligibility {
+  unit: {
+    id: string;
+    slug: string;
+    name: string;
+    active: boolean | null;
+  } | null;
+}
+
+export interface ProductBundleExcludedCategory {
+  bundle_id: string;
+  category_id: string;
+  created_at: string;
+}
+
+export interface ProductBundleExcludedCategoryWithCategory extends ProductBundleExcludedCategory {
+  category: {
+    id: string;
+    slug: string;
+    name: string;
+  } | null;
+}
+
+export interface ProductBundleWithConfiguration extends ProductBundleWithComponents {
+  package_inflatable_components: PackageInflatableComponentWithUnit[];
+  product_bundle_excluded_categories: ProductBundleExcludedCategoryWithCategory[];
+  package_inflatable_eligibility: PackageInflatableEligibilityWithUnit[];
+}
+
+export interface PackageInflatableComponentFormRow {
+  unit_id: string;
+  quantity_per_bundle: number;
+  selection_mode: PackageInflatableSelectionMode;
+}
+
+export interface SaveProductBundleV2Params {
+  p_operation: 'create' | 'update';
+  p_bundle_id: string | null;
+  p_slug: string;
+  p_name: string;
+  p_description: string | null;
+  p_image_url: string | null;
+  p_standalone_price_cents: number | null;
+  p_addon_price_cents: number | null;
+  p_standalone_enabled: boolean;
+  p_addon_enabled: boolean;
+  p_active: boolean;
+  p_public_visible: boolean;
+  p_menu_visible: boolean;
+  p_featured: boolean;
+  p_sort_order: number;
+  p_components: PackageComponentFormRow[];
+  p_addon_qualifying_threshold_cents: number | null;
+  p_inflatable_eligibility_mode: InflatableEligibilityMode;
+  p_excluded_category_ids: string[];
+  p_eligible_unit_ids: string[];
+  p_inflatable_components: PackageInflatableComponentFormRow[];
+}
+
+export interface SaveInventoryProductV2Params {
+  p_operation: 'create' | 'update';
+  p_product_id: string | null;
+  p_slug: string;
+  p_name: string;
+  p_description: string | null;
+  p_image_url: string | null;
+  p_total_quantity: number;
+  p_temp_unavailable_qty: number;
+  p_active: boolean;
+  p_public_visible: boolean;
+  p_category_id: string | null;
+  p_sort_order: number;
+  p_standalone_price_cents: number | null;
+  p_addon_price_cents: number | null;
+  p_standalone_enabled: boolean;
+  p_addon_enabled: boolean;
+  p_addon_qualifying_threshold_cents: number | null;
 }
 
 export interface FormErrors {
