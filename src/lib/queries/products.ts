@@ -689,7 +689,7 @@ const STAGE_B_BUNDLE_RELATION_SELECT = `
     quantity_per_bundle,
     selection_mode,
     created_at,
-    units (
+    unit:units (
       id,
       slug,
       name,
@@ -702,7 +702,7 @@ const STAGE_B_BUNDLE_RELATION_SELECT = `
     bundle_id,
     category_id,
     created_at,
-    product_categories (
+    category:product_categories (
       id,
       slug,
       name
@@ -712,7 +712,7 @@ const STAGE_B_BUNDLE_RELATION_SELECT = `
     bundle_id,
     unit_id,
     created_at,
-    units (
+    unit:units (
       id,
       slug,
       name,
