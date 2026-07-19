@@ -5,39 +5,52 @@ import {
 import { formatCurrency } from '../../../lib/pricing';
 import { notifySuccess, notifyError } from '../../../lib/notifications';
 import {
-  fetchAdminProductBundles,
+  fetchAdminProductBundlesWithConfiguration,
   fetchAdminProductsWithPricing,
   fetchAdminProductCategories,
-  saveProductBundle,
-  buildSaveBundleParams,
+  fetchAllProductCategoriesAdmin,
+  fetchAdminInflatableUnits,
+  saveProductBundleV2,
+  buildSaveProductBundleV2Params,
 } from '../../../lib/queries/products';
 import type {
-  ProductBundleWithComponents,
+  ProductBundleWithConfiguration,
   InventoryProductWithPricing,
   ProductCategory,
+  Unit,
   PackageAdminFormData,
 } from '../../../types';
 import { PackageForm } from './PackageForm';
 import { LoadingSpinner } from '../../common/LoadingSpinner';
 
 export function PackageManager() {
-  const [bundles, setBundles] = useState<ProductBundleWithComponents[]>([]);
+  const [bundles, setBundles] = useState<ProductBundleWithConfiguration[]>([]);
   const [products, setProducts] = useState<InventoryProductWithPricing[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [allCategories, setAllCategories] = useState<ProductCategory[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [editingBundle, setEditingBundle] = useState<ProductBundleWithComponents | null>(null);
+  const [editingBundle, setEditingBundle] = useState<ProductBundleWithConfiguration | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
 
-    const [bundlesResult, productsResult, categoriesResult] = await Promise.all([
-      fetchAdminProductBundles(),
+    const [
+      bundlesResult,
+      productsResult,
+      categoriesResult,
+      allCategoriesResult,
+      unitsResult,
+    ] = await Promise.all([
+      fetchAdminProductBundlesWithConfiguration(),
       fetchAdminProductsWithPricing(),
       fetchAdminProductCategories(),
+      fetchAllProductCategoriesAdmin(),
+      fetchAdminInflatableUnits(),
     ]);
 
     if (bundlesResult.error) {
@@ -55,10 +68,22 @@ export function PackageManager() {
       setLoading(false);
       return;
     }
+    if (allCategoriesResult.error) {
+      setError(allCategoriesResult.error.message || 'Failed to load all categories');
+      setLoading(false);
+      return;
+    }
+    if (unitsResult.error) {
+      setError(unitsResult.error.message || 'Failed to load inflatable units');
+      setLoading(false);
+      return;
+    }
 
     setBundles(bundlesResult.data || []);
     setProducts(productsResult.data || []);
     setCategories(categoriesResult.data || []);
+    setAllCategories(allCategoriesResult.data || []);
+    setUnits(unitsResult.data || []);
     setLoading(false);
   }, []);
 
@@ -71,12 +96,19 @@ export function PackageManager() {
     [bundles],
   );
 
+  const categoryNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of allCategories) map.set(c.id, c.name);
+    for (const c of categories) if (!map.has(c.id)) map.set(c.id, c.name);
+    return map;
+  }, [allCategories, categories]);
+
   function handleAddPackage() {
     setEditingBundle(null);
     setShowForm(true);
   }
 
-  function handleEditPackage(bundle: ProductBundleWithComponents) {
+  function handleEditPackage(bundle: ProductBundleWithConfiguration) {
     setEditingBundle(bundle);
     setShowForm(true);
   }
@@ -93,12 +125,15 @@ export function PackageManager() {
   }
 
   async function toggleBundleAvailability(
-    bundle: ProductBundleWithComponents,
+    bundle: ProductBundleWithConfiguration,
     makeAvailable: boolean,
   ) {
     setActionLoading(bundle.id);
 
     try {
+      // Build v2 payload preserving the complete current configuration.
+      // The threshold is preserved as-is (NULL stays NULL) so the RPC can
+      // apply its own validation; the UI surfaces the warning separately.
       const formData: PackageAdminFormData = {
         id: bundle.id,
         slug: bundle.slug,
@@ -118,11 +153,23 @@ export function PackageManager() {
           product_id: c.product_id,
           quantity_per_bundle: c.quantity_per_bundle,
         })),
+        addon_qualifying_threshold_cents: bundle.addon_qualifying_threshold_cents ?? null,
+        inflatable_eligibility_mode:
+          (bundle.inflatable_eligibility_mode as PackageAdminFormData['inflatable_eligibility_mode']) ||
+          'none',
+        excluded_category_ids: (bundle.product_bundle_excluded_categories ?? []).map(
+          (c) => c.category_id,
+        ),
+        eligible_unit_ids: (bundle.package_inflatable_eligibility ?? []).map((e) => e.unit_id),
+        inflatable_components: (bundle.package_inflatable_components ?? []).map((c) => ({
+          unit_id: c.unit_id,
+          quantity_per_bundle: c.quantity_per_bundle,
+          selection_mode: c.selection_mode,
+        })),
       };
 
-      const params = buildSaveBundleParams('update', bundle.id, formData, bundle.image_url);
-
-      const { error: rpcError } = await saveProductBundle(params);
+      const params = buildSaveProductBundleV2Params('update', bundle.id, formData, bundle.image_url);
+      const { error: rpcError } = await saveProductBundleV2(params);
 
       if (rpcError) {
         notifyError(rpcError.message || 'Failed to update availability');
@@ -135,14 +182,60 @@ export function PackageManager() {
     }
   }
 
-  function componentSummary(bundle: ProductBundleWithComponents): string {
-    if (bundle.product_bundle_components.length === 0) return 'No components';
-    return bundle.product_bundle_components
-      .map((c) => {
-        const name = c.inventory_products?.name ?? 'Unknown Product';
-        return `${c.quantity_per_bundle} × ${name}`;
-      })
+  function componentSummary(bundle: ProductBundleWithConfiguration): string {
+    const parts: string[] = [];
+    if (bundle.product_bundle_components.length > 0) {
+      const productPart = bundle.product_bundle_components
+        .map((c) => {
+          const name = c.inventory_products?.name ?? 'Unknown Product';
+          return `${c.quantity_per_bundle} × ${name}`;
+        })
+        .join(', ');
+      parts.push(productPart);
+    }
+    if (bundle.package_inflatable_components && bundle.package_inflatable_components.length > 0) {
+      const inflPart = bundle.package_inflatable_components
+        .map((c) => {
+          const name = c.unit?.name ?? 'Unknown Inflatable';
+          const mode =
+            c.selection_mode === 'customer_choice'
+              ? 'choice'
+              : c.selection_mode === 'water'
+                ? 'water'
+                : 'dry';
+          return `${c.quantity_per_bundle} × ${name} (${mode})`;
+        })
+        .join(', ');
+      parts.push(`Inflatables: ${inflPart}`);
+    }
+    return parts.length === 0 ? 'No components' : parts.join(' | ');
+  }
+
+  function eligibilityLabel(bundle: ProductBundleWithConfiguration): string {
+    const mode = bundle.inflatable_eligibility_mode || 'none';
+    if (mode === 'none') return 'None';
+    if (mode === 'any') return 'Any inflatable';
+    const count = bundle.package_inflatable_eligibility?.length ?? 0;
+    const names = (bundle.package_inflatable_eligibility ?? [])
+      .map((e) => e.unit?.name ?? 'Unknown')
+      .slice(0, 2)
       .join(', ');
+    const extra =
+      (bundle.package_inflatable_eligibility?.length ?? 0) > 2
+        ? ` +${(bundle.package_inflatable_eligibility?.length ?? 0) - 2} more`
+        : '';
+    return count === 0 ? 'Selected (none chosen)' : `Selected: ${names}${extra}`;
+  }
+
+  function excludedLabel(bundle: ProductBundleWithConfiguration): string {
+    const ids = (bundle.product_bundle_excluded_categories ?? []).map((c) => c.category_id);
+    if (ids.length === 0) return 'None';
+    const names = ids
+      .map((id) => categoryNameById.get(id) ?? 'Unknown')
+      .slice(0, 2)
+      .join(', ');
+    const extra = ids.length > 2 ? ` +${ids.length - 2} more` : '';
+    return `${names}${extra}`;
   }
 
   if (loading) {
@@ -185,7 +278,7 @@ export function PackageManager() {
         <div className="text-center py-12 bg-slate-50 rounded-lg">
           <Package className="w-10 h-10 text-slate-300 mx-auto mb-2" />
           <p className="text-sm text-slate-500">
-            No packages yet. Click "Add Package" to create one.
+            No packages yet. Click &quot;Add Package&quot; to create one.
           </p>
         </div>
       ) : (
@@ -199,6 +292,8 @@ export function PackageManager() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Components</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Standalone</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Add-on</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Infl. Req.</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Excl.</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Actions</th>
                 </tr>
@@ -206,6 +301,11 @@ export function PackageManager() {
               <tbody className="divide-y divide-slate-200">
                 {bundles.map((bundle) => {
                   const isLoading = actionLoading === bundle.id;
+                  const isAvailable = bundle.active && bundle.public_visible;
+                  const thresholdMissing =
+                    bundle.addon_enabled &&
+                    (bundle.addon_qualifying_threshold_cents === null ||
+                      bundle.addon_qualifying_threshold_cents === undefined);
                   return (
                     <tr key={bundle.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3">
@@ -237,14 +337,32 @@ export function PackageManager() {
                       </td>
                       <td className="px-4 py-3 text-sm">
                         {bundle.addon_enabled ? (
-                          <span className="font-medium text-slate-900">{formatCurrency(bundle.addon_price_cents || 0)}</span>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium text-slate-900">{formatCurrency(bundle.addon_price_cents || 0)}</span>
+                            {thresholdMissing ? (
+                              <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+                                <AlertCircle className="w-3 h-3" />
+                                Threshold not configured
+                              </span>
+                            ) : (
+                              <span className="text-xs text-slate-500">
+                                Qualifies at {formatCurrency(bundle.addon_qualifying_threshold_cents ?? 0)}
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-slate-400">Disabled</span>
                         )}
                       </td>
+                      <td className="px-4 py-3 text-xs text-slate-700 max-w-[12rem]">
+                        <span title={eligibilityLabel(bundle)}>{eligibilityLabel(bundle)}</span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-700 max-w-[10rem]">
+                        <span title={excludedLabel(bundle)}>{excludedLabel(bundle)}</span>
+                      </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded ${bundle.active && bundle.public_visible ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}`}>
-                          {bundle.active && bundle.public_visible ? 'Available' : 'Unavailable'}
+                        <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded ${isAvailable ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}`}>
+                          {isAvailable ? 'Available' : 'Unavailable'}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -257,10 +375,10 @@ export function PackageManager() {
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => toggleBundleAvailability(bundle, !(bundle.active && bundle.public_visible))}
+                            onClick={() => toggleBundleAvailability(bundle, !isAvailable)}
                             disabled={isLoading}
                             className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-                            title={bundle.active && bundle.public_visible ? 'Mark Unavailable' : 'Mark Available'}
+                            title={isAvailable ? 'Mark Unavailable' : 'Mark Available'}
                           >
                             <Power className="w-4 h-4" />
                           </button>
@@ -277,6 +395,11 @@ export function PackageManager() {
           <div className="lg:hidden space-y-3">
             {bundles.map((bundle) => {
               const isLoading = actionLoading === bundle.id;
+              const isAvailable = bundle.active && bundle.public_visible;
+              const thresholdMissing =
+                bundle.addon_enabled &&
+                (bundle.addon_qualifying_threshold_cents === null ||
+                  bundle.addon_qualifying_threshold_cents === undefined);
               return (
                 <div key={bundle.id} className="bg-white rounded-xl border border-slate-200 p-4">
                   <div className="flex items-start gap-3 mb-3">
@@ -305,33 +428,45 @@ export function PackageManager() {
                     </div>
                     <div className="text-slate-500">
                       Add-on: {bundle.addon_enabled
-                        ? <span className="font-medium text-slate-900">{formatCurrency(bundle.addon_price_cents || 0)}</span>
+                        ? (
+                          <span>
+                            <span className="font-medium text-slate-900">{formatCurrency(bundle.addon_price_cents || 0)}</span>
+                            {thresholdMissing
+                              ? <span className="block text-amber-600">Threshold not configured</span>
+                              : <span className="block text-slate-500">Qualifies at {formatCurrency(bundle.addon_qualifying_threshold_cents ?? 0)}</span>}
+                          </span>
+                        )
                         : <span className="text-slate-400">Off</span>}
+                    </div>
+                    <div className="text-slate-500">
+                      Infl. Req.: <span className="text-slate-700">{eligibilityLabel(bundle)}</span>
+                    </div>
+                    <div className="text-slate-500">
+                      Excl.: <span className="text-slate-700">{excludedLabel(bundle)}</span>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-1.5 mb-3">
-                    <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded ${bundle.active && bundle.public_visible ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}`}>
-                      {bundle.active && bundle.public_visible ? 'Available' : 'Unavailable'}
+                  <div className="flex items-center justify-between">
+                    <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded ${isAvailable ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}`}>
+                      {isAvailable ? 'Available' : 'Unavailable'}
                     </span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <button
-                      onClick={() => handleEditPackage(bundle)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => toggleBundleAvailability(bundle, !(bundle.active && bundle.public_visible))}
-                      disabled={isLoading}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-                    >
-                      <Power className="w-3.5 h-3.5" />
-                      {bundle.active && bundle.public_visible ? 'Unavailable' : 'Available'}
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleEditPackage(bundle)}
+                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Edit"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => toggleBundleAvailability(bundle, !isAvailable)}
+                        disabled={isLoading}
+                        className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
+                        title={isAvailable ? 'Mark Unavailable' : 'Mark Available'}
+                      >
+                        <Power className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -344,7 +479,8 @@ export function PackageManager() {
         <PackageForm
           bundle={editingBundle}
           products={products}
-          categories={categories}
+          categories={allCategories}
+          units={units}
           nextSortOrder={nextSortOrder}
           onClose={handleFormClose}
           onSaved={handleFormSaved}

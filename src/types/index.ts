@@ -48,16 +48,18 @@ export interface Unit {
   id: string;
   slug: string;
   name: string;
-  type: string;
+  type?: string;
+  types: string[];
   description?: string;
   price_dry_cents: number;
-  price_water_cents?: number;
+  price_water_cents?: number | null;
   quantity_available: number;
   active: boolean;
   is_combo: boolean;
   features_json?: string[];
   dimensions_dry?: string;
   dimensions_wet?: string;
+  sort_order?: number;
   created_at: string;
 }
 
@@ -332,6 +334,12 @@ export interface PackageAdminFormData {
   featured: boolean;
   sort_order: number;
   components: PackageComponentFormRow[];
+  // Stage C2 — Package pricing, eligibility, mixed components
+  addon_qualifying_threshold_cents: number | null;
+  inflatable_eligibility_mode: InflatableEligibilityMode;
+  excluded_category_ids: string[];
+  eligible_unit_ids: string[];
+  inflatable_components: PackageInflatableComponentFormRow[];
 }
 
 // ---------------------------------------------------------------------------

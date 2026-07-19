@@ -14,11 +14,11 @@ import type {
   InventoryProductWithPricing,
   PackageAdminFormData,
   PackageComponentFormRow,
-  PackageInflatableComponentFormRow,
   InflatableEligibilityMode,
   ProductAdminFormData,
   SaveProductBundleV2Params,
   SaveInventoryProductV2Params,
+  Unit,
 } from '../../types';
 
 // ---------------------------------------------------------------------------
@@ -70,8 +70,10 @@ export function generateSlugFromName(name: string): string {
 // ---------------------------------------------------------------------------
 
 export function bundleToFormData(
-  bundle: ProductBundleWithComponents
+  bundle: ProductBundleWithComponents | ProductBundleWithConfiguration,
 ): PackageAdminFormData {
+  const cfg = bundle as ProductBundleWithConfiguration;
+  const hasCfg = !!cfg.package_inflatable_components;
   return {
     id: bundle.id,
     slug: bundle.slug,
@@ -91,6 +93,23 @@ export function bundleToFormData(
       product_id: c.product_id,
       quantity_per_bundle: c.quantity_per_bundle,
     })),
+    addon_qualifying_threshold_cents:
+      cfg.addon_qualifying_threshold_cents ?? null,
+    inflatable_eligibility_mode:
+      (cfg.inflatable_eligibility_mode as InflatableEligibilityMode) ?? 'none',
+    excluded_category_ids: hasCfg
+      ? (cfg.product_bundle_excluded_categories ?? []).map((c) => c.category_id)
+      : [],
+    eligible_unit_ids: hasCfg
+      ? (cfg.package_inflatable_eligibility ?? []).map((e) => e.unit_id)
+      : [],
+    inflatable_components: hasCfg
+      ? (cfg.package_inflatable_components ?? []).map((c) => ({
+          unit_id: c.unit_id,
+          quantity_per_bundle: c.quantity_per_bundle,
+          selection_mode: c.selection_mode,
+        }))
+      : [],
   };
 }
 
@@ -727,13 +746,6 @@ export function buildSaveProductBundleV2Params(
   bundleId: string | null,
   formData: PackageAdminFormData,
   imageUrl: string | null,
-  stageB: {
-    addon_qualifying_threshold_cents: number | null;
-    inflatable_eligibility_mode: InflatableEligibilityMode;
-    excluded_category_ids: string[];
-    eligible_unit_ids: string[];
-    inflatable_components: PackageInflatableComponentFormRow[];
-  },
 ): SaveProductBundleV2Params {
   return {
     p_operation: operation,
@@ -752,11 +764,11 @@ export function buildSaveProductBundleV2Params(
     p_featured: formData.featured,
     p_sort_order: formData.sort_order,
     p_components: formData.components,
-    p_addon_qualifying_threshold_cents: stageB.addon_qualifying_threshold_cents,
-    p_inflatable_eligibility_mode: stageB.inflatable_eligibility_mode,
-    p_excluded_category_ids: stageB.excluded_category_ids,
-    p_eligible_unit_ids: stageB.eligible_unit_ids,
-    p_inflatable_components: stageB.inflatable_components,
+    p_addon_qualifying_threshold_cents: formData.addon_qualifying_threshold_cents,
+    p_inflatable_eligibility_mode: formData.inflatable_eligibility_mode,
+    p_excluded_category_ids: formData.excluded_category_ids,
+    p_eligible_unit_ids: formData.eligible_unit_ids,
+    p_inflatable_components: formData.inflatable_components,
   };
 }
 
@@ -881,5 +893,40 @@ export async function fetchProductBundlesWithAllComponents(
           error: unknown;
         }>,
     { context: 'fetchProductBundlesWithAllComponents', ...options },
+  );
+}
+
+// Stage C2 — Admin inflatable units selector.
+// Loads ALL units (including inactive) so unavailable packages can preserve
+// previously selected inactive units; active units are ordered first.
+export async function fetchAdminInflatableUnits(options?: QueryOptions) {
+  return executeQuery<Unit[]>(
+    async () =>
+      await supabase
+        .from('units')
+        .select('id, name, types, price_dry_cents, price_water_cents, active, sort_order')
+        .order('active', { ascending: false })
+        .order('name', { ascending: true }) as unknown as Promise<{
+          data: Unit[] | null;
+          error: unknown;
+        }>,
+    { context: 'fetchAdminInflatableUnits', ...options },
+  );
+}
+
+// Stage C2 — Admin product categories for the excluded-categories selector.
+// Loads ALL categories (including inactive) so previously selected hidden
+// categories remain visible to the admin.
+export async function fetchAllProductCategoriesAdmin(options?: QueryOptions) {
+  return executeQuery<ProductCategory[]>(
+    async () =>
+      await supabase
+        .from('product_categories')
+        .select('id, slug, name, sort_order, active, public_visible')
+        .order('sort_order', { ascending: true }) as unknown as Promise<{
+          data: ProductCategory[] | null;
+          error: unknown;
+        }>,
+    { context: 'fetchAllProductCategoriesAdmin', ...options },
   );
 }

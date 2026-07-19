@@ -1,8 +1,8 @@
 import { useState, useRef, useCallback } from 'react';
 import { X, Save, AlertCircle, Plus, Trash2 } from 'lucide-react';
 import {
-  saveProductBundle,
-  buildSaveBundleParams,
+  saveProductBundleV2,
+  buildSaveProductBundleV2Params,
   parsePrice,
   priceErrorMessage,
   centsToDollars,
@@ -17,11 +17,15 @@ import {
 } from '../../../lib/notifications';
 import { supabase } from '../../../lib/supabase';
 import type {
-  ProductBundleWithComponents,
+  ProductBundleWithConfiguration,
   InventoryProductWithPricing,
   ProductCategory,
   PackageAdminFormData,
   PackageComponentFormRow,
+  PackageInflatableComponentFormRow,
+  InflatableEligibilityMode,
+  PackageInflatableSelectionMode,
+  Unit,
 } from '../../../types';
 import {
   AdminImageUpload,
@@ -37,26 +41,34 @@ interface EditableComponentRow {
   quantity_input: string;
 }
 
-type PackageFormState = Omit<PackageAdminFormData, 'components'> & {
+interface EditableInflatableRow {
+  unit_id: string;
+  quantity_input: string;
+  selection_mode: PackageInflatableSelectionMode;
+}
+
+type PackageFormState = Omit<PackageAdminFormData, 'components' | 'inflatable_components'> & {
   components: EditableComponentRow[];
+  inflatable_components: EditableInflatableRow[];
 };
 
 interface PackageFormProps {
-  bundle: ProductBundleWithComponents | null;
+  bundle: ProductBundleWithConfiguration | null;
   products: InventoryProductWithPricing[];
   categories: ProductCategory[];
+  units: Unit[];
   nextSortOrder: number;
   onClose: () => void;
   onSaved: () => void;
 }
 
-function deriveAvailable(bundle: ProductBundleWithComponents | null): boolean {
+function deriveAvailable(bundle: ProductBundleWithConfiguration | null): boolean {
   if (!bundle) return true;
   return bundle.active && bundle.public_visible;
 }
 
 function initialFormData(
-  bundle: ProductBundleWithComponents | null,
+  bundle: ProductBundleWithConfiguration | null,
   nextSortOrder: number,
 ): PackageFormState {
   const available = deriveAvailable(bundle);
@@ -70,6 +82,11 @@ function initialFormData(
       components: base.components.map((c) => ({
         product_id: c.product_id,
         quantity_input: String(c.quantity_per_bundle),
+      })),
+      inflatable_components: base.inflatable_components.map((c) => ({
+        unit_id: c.unit_id,
+        quantity_input: String(c.quantity_per_bundle),
+        selection_mode: c.selection_mode,
       })),
     };
   }
@@ -89,13 +106,31 @@ function initialFormData(
     featured: false,
     sort_order: nextSortOrder,
     components: [],
+    addon_qualifying_threshold_cents: null,
+    inflatable_eligibility_mode: 'none',
+    excluded_category_ids: [],
+    eligible_unit_ids: [],
+    inflatable_components: [],
   };
+}
+
+function unitSupportsWater(unit: Unit): boolean {
+  return unit.price_water_cents !== null && unit.price_water_cents !== undefined;
+}
+
+function unitSupportsBoth(unit: Unit): boolean {
+  return unitSupportsWater(unit) && unit.price_dry_cents !== null;
+}
+
+function unitStatus(unit: Unit): string {
+  return unit.active ? '' : ' (Inactive)';
 }
 
 export function PackageForm({
   bundle,
   products,
   categories,
+  units,
   nextSortOrder,
   onClose,
   onSaved,
@@ -111,6 +146,9 @@ export function PackageForm({
   );
   const [addonPriceDisplay, setAddonPriceDisplay] = useState(() =>
     centsToDollars(bundle?.addon_price_cents),
+  );
+  const [addonThresholdDisplay, setAddonThresholdDisplay] = useState(() =>
+    centsToDollars(bundle?.addon_qualifying_threshold_cents),
   );
 
   const [imageAction, setImageAction] = useState<'upload' | 'remove' | 'none'>('none');
@@ -187,7 +225,7 @@ export function PackageForm({
     onClose();
   }
 
-  // --- Component editor helpers ---
+  // --- Event Essential component editor helpers ---
 
   const addComponent = useCallback(() => {
     setFormData((prev) => ({
@@ -215,13 +253,74 @@ export function PackageForm({
     [],
   );
 
-  const productNameById = useCallback(
-    (productId: string): string => {
-      const p = products.find((pr) => pr.id === productId);
-      return p?.name ?? 'Unknown Product';
+  // --- Inflatable component editor helpers ---
+
+  const addInflatableComponent = useCallback(() => {
+    setFormData((prev) => ({
+      ...prev,
+      inflatable_components: [
+        ...prev.inflatable_components,
+        { unit_id: '', quantity_input: '1', selection_mode: 'dry' },
+      ],
+    }));
+  }, []);
+
+  const removeInflatableComponent = useCallback((index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      inflatable_components: prev.inflatable_components.filter((_, i) => i !== index),
+    }));
+  }, []);
+
+  const updateInflatableComponent = useCallback(
+    (index: number, patch: Partial<EditableInflatableRow>) => {
+      setFormData((prev) => ({
+        ...prev,
+        inflatable_components: prev.inflatable_components.map((c, i) =>
+          i === index ? { ...c, ...patch } : c,
+        ),
+      }));
     },
-    [products],
+    [],
   );
+
+  // --- Eligibility helpers ---
+
+  const handleEligibilityModeChange = useCallback((mode: InflatableEligibilityMode) => {
+    setFormData((prev) => ({
+      ...prev,
+      inflatable_eligibility_mode: mode,
+      // Clear eligible units for none/any — v2 RPC atomic-replaces rows,
+      // so the submitted payload must reflect the current mode.
+      eligible_unit_ids: mode === 'selected' ? prev.eligible_unit_ids : [],
+    }));
+  }, []);
+
+  const toggleEligibleUnit = useCallback((unitId: string) => {
+    setFormData((prev) => {
+      const has = prev.eligible_unit_ids.includes(unitId);
+      return {
+        ...prev,
+        eligible_unit_ids: has
+          ? prev.eligible_unit_ids.filter((id) => id !== unitId)
+          : [...prev.eligible_unit_ids, unitId],
+      };
+    });
+  }, []);
+
+  // --- Excluded categories helpers ---
+
+  const toggleExcludedCategory = useCallback((categoryId: string) => {
+    setFormData((prev) => {
+      const has = prev.excluded_category_ids.includes(categoryId);
+      return {
+        ...prev,
+        excluded_category_ids: has
+          ? prev.excluded_category_ids.filter((id) => id !== categoryId)
+          : [...prev.excluded_category_ids, categoryId],
+      };
+    });
+  }, []);
 
   // --- Validation ---
 
@@ -249,9 +348,28 @@ export function PackageForm({
       e.addon_price = priceErrorMessage(addonParsed.reason);
     }
 
-    // Components validation
+    // Add-on qualifying threshold
+    const thresholdTrimmed = addonThresholdDisplay.trim();
+    const thresholdParsed = parsePrice(addonThresholdDisplay);
+    if (formData.addon_enabled && thresholdTrimmed === '') {
+      e.addon_threshold = 'Required when add-on is enabled';
+    } else if (thresholdTrimmed !== '' && !thresholdParsed.valid) {
+      e.addon_threshold = priceErrorMessage(thresholdParsed.reason);
+    } else if (
+      thresholdParsed.valid &&
+      thresholdParsed.cents !== null &&
+      thresholdParsed.cents > MAX_INT
+    ) {
+      e.addon_threshold = 'Value is too large';
+    }
+
+    // Event Essential components validation
     const componentErrors: string[] = [];
     const seenProductIds = new Set<string>();
+    const productNameById = (productId: string): string => {
+      const p = products.find((pr) => pr.id === productId);
+      return p?.name ?? 'Unknown Product';
+    };
 
     for (let i = 0; i < formData.components.length; i++) {
       const comp = formData.components[i];
@@ -285,13 +403,75 @@ export function PackageForm({
       }
     }
 
-    // Available package requires at least one component
-    if (formData.active && formData.components.length === 0) {
-      componentErrors.push('An available package must have at least one component.');
+    // Inflatable components validation
+    const inflatableErrors: string[] = [];
+    const seenUnitIds = new Set<string>();
+    const unitById = (unitId: string): Unit | undefined =>
+      units.find((u) => u.id === unitId);
+
+    for (let i = 0; i < formData.inflatable_components.length; i++) {
+      const comp = formData.inflatable_components[i];
+      if (!comp.unit_id) {
+        inflatableErrors.push(`Inflatable ${i + 1}: Select a unit.`);
+      } else {
+        if (seenUnitIds.has(comp.unit_id)) {
+          const u = unitById(comp.unit_id);
+          inflatableErrors.push(
+            `Inflatable ${i + 1}: Duplicate unit — ${u?.name ?? 'Unknown'} is already selected. Use one row per unit.`,
+          );
+        }
+        seenUnitIds.add(comp.unit_id);
+        const u = unitById(comp.unit_id);
+        if (!u) {
+          inflatableErrors.push(`Inflatable ${i + 1}: Selected unit no longer exists.`);
+        } else if (comp.selection_mode === 'water' && !unitSupportsWater(u)) {
+          inflatableErrors.push(
+            `Inflatable ${i + 1}: ${u.name} does not support water mode.`,
+          );
+        } else if (comp.selection_mode === 'customer_choice' && !unitSupportsBoth(u)) {
+          inflatableErrors.push(
+            `Inflatable ${i + 1}: ${u.name} does not support both dry and water; customer choice is unavailable.`,
+          );
+        }
+      }
+
+      const qStr = comp.quantity_input.trim();
+      if (qStr === '') {
+        inflatableErrors.push(`Inflatable ${i + 1}: Quantity is required.`);
+      } else if (!QTY_REGEX.test(qStr)) {
+        inflatableErrors.push(`Inflatable ${i + 1}: Quantity must be a whole positive number.`);
+      } else {
+        const q = Number(qStr);
+        if (q < 1) {
+          inflatableErrors.push(`Inflatable ${i + 1}: Quantity must be at least 1.`);
+        } else if (q > MAX_INT) {
+          inflatableErrors.push(`Inflatable ${i + 1}: Quantity is too large.`);
+        }
+      }
+    }
+
+    // Eligibility validation — selected requires at least one unit
+    if (
+      formData.inflatable_eligibility_mode === 'selected' &&
+      formData.eligible_unit_ids.length === 0
+    ) {
+      e.eligibility = 'Select at least one eligible inflatable when mode is "Only selected".';
+    }
+
+    // Available package must have at least one total component (product + inflatable)
+    const totalComponents = formData.components.length + formData.inflatable_components.length;
+    if (formData.active && totalComponents === 0) {
+      const bothEmpty = componentErrors.length === 0 && inflatableErrors.length === 0;
+      if (bothEmpty) {
+        e.components = 'An available package must have at least one component (Event Essential or Inflatable).';
+      }
     }
 
     if (componentErrors.length > 0) {
       e.components = componentErrors.join(' ');
+    }
+    if (inflatableErrors.length > 0) {
+      e.inflatable_components = inflatableErrors.join(' ');
     }
 
     setErrors(e);
@@ -328,7 +508,8 @@ export function PackageForm({
 
     const standaloneParsed = parsePrice(standalonePriceDisplay);
     const addonParsed = parsePrice(addonPriceDisplay);
-    if (!standaloneParsed.valid || !addonParsed.valid) return;
+    const thresholdParsed = parsePrice(addonThresholdDisplay);
+    if (!standaloneParsed.valid || !addonParsed.valid || !thresholdParsed.valid) return;
 
     const validatedComponents: PackageComponentFormRow[] = formData.components.map(
       (comp) => ({
@@ -337,7 +518,28 @@ export function PackageForm({
       }),
     );
 
-    const slug = isEdit ? (bundle?.slug ?? formData.slug) : generateSlugFromName(formData.name.trim());
+    const validatedInflatableComponents: PackageInflatableComponentFormRow[] =
+      formData.inflatable_components.map((comp) => ({
+        unit_id: comp.unit_id,
+        quantity_per_bundle: Number(comp.quantity_input),
+        selection_mode: comp.selection_mode,
+      }));
+
+    const slug = isEdit
+      ? bundle?.slug ?? formData.slug
+      : generateSlugFromName(formData.name.trim());
+
+    // Threshold: NULL when add-on disabled or field blank; else parsed cents
+    const thresholdCents =
+      formData.addon_enabled && thresholdParsed.cents !== null
+        ? thresholdParsed.cents
+        : null;
+
+    // Eligible units: empty array for none/any
+    const eligibleUnitIds =
+      formData.inflatable_eligibility_mode === 'selected'
+        ? formData.eligible_unit_ids
+        : [];
 
     const updatedData: PackageAdminFormData = {
       ...formData,
@@ -346,6 +548,9 @@ export function PackageForm({
       standalone_price_cents: standaloneParsed.cents,
       addon_price_cents: addonParsed.cents,
       components: validatedComponents,
+      addon_qualifying_threshold_cents: thresholdCents,
+      eligible_unit_ids: eligibleUnitIds,
+      inflatable_components: validatedInflatableComponents,
     };
 
     // Sync parent image state with child pending state before save.
@@ -367,7 +572,7 @@ export function PackageForm({
     }
 
     const bundleId = bundleIdRef.current;
-    const params = buildSaveBundleParams(
+    const params = buildSaveProductBundleV2Params(
       isEdit ? 'update' : 'create',
       bundleId,
       updatedData,
@@ -377,7 +582,7 @@ export function PackageForm({
     setIsSaving(true);
 
     try {
-      const { error: rpcErrorResult } = await saveProductBundle(params);
+      const { error: rpcErrorResult } = await saveProductBundleV2(params);
 
       if (rpcErrorResult) {
         const msg = rpcErrorResult.message || 'Failed to save package';
@@ -444,6 +649,10 @@ export function PackageForm({
 
   const selectedProductIds = new Set(
     formData.components.map((c) => c.product_id).filter(Boolean),
+  );
+
+  const selectedUnitIds = new Set(
+    formData.inflatable_components.map((c) => c.unit_id).filter(Boolean),
   );
 
   return (
@@ -579,7 +788,149 @@ export function PackageForm({
                   <p className="mt-1 text-xs text-red-600">{errors.addon_price}</p>
                 )}
               </div>
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-semibold text-slate-700 mb-1">
+                  Add-on Qualifying Subtotal ($)
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={addonThresholdDisplay}
+                  onChange={(e) => setAddonThresholdDisplay(e.target.value)}
+                  disabled={!formData.addon_enabled}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                  placeholder="0.00"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  The add-on package price becomes available after the customer reaches this qualifying subtotal using eligible cart items.
+                </p>
+                {errors.addon_threshold && (
+                  <p className="mt-1 text-xs text-red-600">{errors.addon_threshold}</p>
+                )}
+              </div>
             </div>
+          </div>
+
+          {/* Categories Excluded From Qualifying Subtotal */}
+          <div className="border-t border-slate-200 pt-4">
+            <h4 className="text-sm font-bold text-slate-700 mb-1">
+              Categories Excluded From Qualifying Subtotal
+            </h4>
+            <p className="text-xs text-slate-500 mb-3">
+              Spending in these categories will not count toward unlocking this package's add-on price.
+            </p>
+            <div
+              className={`grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 rounded-lg border border-slate-200 ${
+                !formData.addon_enabled ? 'bg-slate-50 opacity-60' : 'bg-white'
+              }`}
+            >
+              {categories.length === 0 ? (
+                <p className="text-xs text-slate-500 col-span-2">No categories available.</p>
+              ) : (
+                categories.map((cat) => {
+                  const checked = formData.excluded_category_ids.includes(cat.id);
+                  const statusParts: string[] = [];
+                  if (!cat.active) statusParts.push('Inactive');
+                  if (!cat.public_visible) statusParts.push('Hidden');
+                  const statusLabel =
+                    statusParts.length > 0 ? ` (${statusParts.join(', ')})` : '';
+                  return (
+                    <label
+                      key={cat.id}
+                      className="flex items-center gap-2 text-sm text-slate-700"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleExcludedCategory(cat.id)}
+                        disabled={!formData.addon_enabled}
+                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed"
+                      />
+                      <span>
+                        {cat.name}
+                        {statusLabel && (
+                          <span className="text-amber-600 text-xs">{statusLabel}</span>
+                        )}
+                      </span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              {formData.excluded_category_ids.length} categor
+              {formData.excluded_category_ids.length === 1 ? 'y' : 'ies'} excluded.
+              Selections are preserved even when add-on pricing is disabled.
+            </p>
+          </div>
+
+          {/* Inflatable Requirement */}
+          <div className="border-t border-slate-200 pt-4">
+            <h4 className="text-sm font-bold text-slate-700 mb-1">Inflatable Requirement</h4>
+            <p className="text-xs text-slate-500 mb-3">
+              This controls whether the customer must already have an inflatable in their cart before
+              selecting this package. It does not add an inflatable to the package.
+            </p>
+            <div className="flex flex-col gap-2">
+              {(
+                [
+                  { value: 'none', label: 'No inflatable required' },
+                  { value: 'any', label: 'Any inflatable required' },
+                  { value: 'selected', label: 'Only selected inflatables qualify' },
+                ] as { value: InflatableEligibilityMode; label: string }[]
+              ).map((opt) => (
+                <label key={opt.value} className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="radio"
+                    name="inflatable_eligibility_mode"
+                    checked={formData.inflatable_eligibility_mode === opt.value}
+                    onChange={() => handleEligibilityModeChange(opt.value)}
+                    className="w-4 h-4 border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  {opt.label}
+                </label>
+              ))}
+            </div>
+            {errors.eligibility && (
+              <p className="mt-1 text-xs text-red-600">{errors.eligibility}</p>
+            )}
+
+            {formData.inflatable_eligibility_mode === 'selected' && (
+              <div className="mt-3 p-3 border border-slate-200 rounded-lg bg-slate-50">
+                <h5 className="text-sm font-semibold text-slate-700 mb-2">Eligible Inflatables</h5>
+                {units.length === 0 ? (
+                  <p className="text-xs text-slate-500">No inflatable units available.</p>
+                ) : (
+                  <div className="max-h-48 overflow-y-auto space-y-1.5">
+                    {units.map((u) => {
+                      const checked = formData.eligible_unit_ids.includes(u.id);
+                      const water = unitSupportsWater(u);
+                      const supports = [`Dry${water ? ' / Water' : ''}`].join(', ');
+                      return (
+                        <label
+                          key={u.id}
+                          className="flex items-center gap-2 text-sm text-slate-700"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleEligibleUnit(u.id)}
+                            className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span>
+                            {u.name}
+                            {!u.active && (
+                              <span className="text-amber-600 text-xs"> (Inactive)</span>
+                            )}
+                            <span className="text-xs text-slate-400"> — {supports}</span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Availability */}
@@ -600,10 +951,10 @@ export function PackageForm({
             </label>
           </div>
 
-          {/* Component Editor */}
+          {/* Event Essential Components */}
           <div className="border-t border-slate-200 pt-4">
             <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-bold text-slate-700">Package Components</h4>
+              <h4 className="text-sm font-bold text-slate-700">Event Essential Components</h4>
               <button
                 type="button"
                 onClick={addComponent}
@@ -611,20 +962,13 @@ export function PackageForm({
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors disabled:opacity-50"
               >
                 <Plus className="w-3.5 h-3.5" />
-                Add Component
+                Add Product
               </button>
             </div>
 
-            {errors.components && (
-              <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
-                <AlertCircle className="w-4 h-4 inline mr-1 flex-shrink-0" />
-                {errors.components}
-              </div>
-            )}
-
             {formData.components.length === 0 ? (
               <p className="text-sm text-slate-500 py-4 text-center bg-slate-50 rounded-lg">
-                No components yet. Click "Add Component" to add products to this package.
+                No Event Essential components yet.
               </p>
             ) : (
               <div className="space-y-2">
@@ -706,10 +1050,155 @@ export function PackageForm({
                 })}
               </div>
             )}
-            <p className="mt-2 text-xs text-slate-500">
-              Each package must contain at least one component to be shown on the website.
-              Duplicate products are not allowed.
+            {errors.components && (
+              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+                <AlertCircle className="w-4 h-4 inline mr-1 flex-shrink-0" />
+                {errors.components}
+              </div>
+            )}
+          </div>
+
+          {/* Inflatable Components */}
+          <div className="border-t border-slate-200 pt-4">
+            <div className="flex items-center justify-between mb-1">
+              <h4 className="text-sm font-bold text-slate-700">Inflatable Components</h4>
+              <button
+                type="button"
+                onClick={addInflatableComponent}
+                disabled={isBusy}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add Inflatable
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 mb-3">
+              Inflatables added here are included inside the package. They are different from the inflatable requirement above.
             </p>
+
+            {formData.inflatable_components.length === 0 ? (
+              <p className="text-sm text-slate-500 py-4 text-center bg-slate-50 rounded-lg">
+                No inflatable components yet.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {formData.inflatable_components.map((comp, index) => {
+                  const selectedUnit = comp.unit_id
+                    ? units.find((u) => u.id === comp.unit_id)
+                    : null;
+                  const isSelectedElsewhere =
+                    comp.unit_id &&
+                    formData.inflatable_components.some(
+                      (c, i) => i !== index && c.unit_id === comp.unit_id,
+                    );
+                  const water = selectedUnit ? unitSupportsWater(selectedUnit) : false;
+                  const both = selectedUnit ? unitSupportsBoth(selectedUnit) : false;
+                  return (
+                    <div
+                      key={index}
+                      className="flex flex-col gap-2 p-2 bg-slate-50 rounded-lg"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 min-w-0">
+                          <select
+                            value={comp.unit_id}
+                            onChange={(e) =>
+                              updateInflatableComponent(index, {
+                                unit_id: e.target.value,
+                                // Reset to dry if current mode incompatible with new unit
+                                selection_mode:
+                                  e.target.value
+                                    ? (() => {
+                                        const u = units.find((x) => x.id === e.target.value);
+                                        if (!u) return 'dry' as const;
+                                        if (comp.selection_mode === 'water' && !unitSupportsWater(u))
+                                          return 'dry' as const;
+                                        if (
+                                          comp.selection_mode === 'customer_choice' &&
+                                          !unitSupportsBoth(u)
+                                        )
+                                          return 'dry' as const;
+                                        return comp.selection_mode;
+                                      })()
+                                    : 'dry' as const,
+                              })
+                            }
+                            className="w-full px-2.5 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm bg-white"
+                          >
+                            <option value="">— Select an inflatable —</option>
+                            {units.map((u) => {
+                              const statusLabel = unitStatus(u);
+                              return (
+                                <option
+                                  key={u.id}
+                                  value={u.id}
+                                  disabled={
+                                    selectedUnitIds.has(u.id) && u.id !== comp.unit_id
+                                  }
+                                >
+                                  {u.name}
+                                  {statusLabel}
+                                </option>
+                              );
+                            })}
+                          </select>
+                          {isSelectedElsewhere && (
+                            <p className="mt-1 text-xs text-red-600">
+                              This inflatable is selected in another component.
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeInflatableComponent(index)}
+                          disabled={isBusy}
+                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                          title="Remove inflatable component"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={comp.quantity_input}
+                          onChange={(e) =>
+                            updateInflatableComponent(index, { quantity_input: e.target.value })
+                          }
+                          className="w-20 px-2.5 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm text-center"
+                          placeholder="Qty"
+                        />
+                        <span className="text-xs text-slate-500">per package</span>
+                        <select
+                          value={comp.selection_mode}
+                          onChange={(e) =>
+                            updateInflatableComponent(index, {
+                              selection_mode: e.target.value as PackageInflatableSelectionMode,
+                            })
+                          }
+                          className="flex-1 px-2.5 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm bg-white"
+                        >
+                          <option value="dry">Dry only</option>
+                          <option value="water" disabled={!water}>
+                            Water only{!water ? ' (not supported)' : ''}
+                          </option>
+                          <option value="customer_choice" disabled={!both}>
+                            Customer chooses{!both ? ' (requires dry + water)' : ''}
+                          </option>
+                        </select>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {errors.inflatable_components && (
+              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+                <AlertCircle className="w-4 h-4 inline mr-1 flex-shrink-0" />
+                {errors.inflatable_components}
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3 justify-end pt-4 border-t border-slate-200">
