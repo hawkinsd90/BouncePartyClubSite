@@ -29,7 +29,13 @@ export interface InflatableUnitResolverConfig {
   active: boolean;
 }
 
-export async function getActiveInflatableUnitConfigs(
+// Loads id+active for ALL units (no active filter) so the E1 resolver can
+// distinguish known-active / known-inactive / unknown. Note: public RLS on
+// `units` is `USING (active = true)`, so anon-key requests still only receive
+// active rows — the absence of a client filter makes the intent honest and
+// ensures the resolver benefits immediately if RLS is ever widened. No
+// Admin-only fields are exposed.
+export async function getInflatableUnitResolverConfigs(
   options?: QueryOptions
 ) {
   return executeQuery<InflatableUnitResolverConfig[]>(
@@ -37,12 +43,11 @@ export async function getActiveInflatableUnitConfigs(
       await supabase
         .from('units')
         .select('id, active')
-        .eq('active', true)
         .order('name', { ascending: true }) as unknown as Promise<{
           data: InflatableUnitResolverConfig[] | null;
           error: unknown;
         }>,
-    { context: 'getActiveInflatableUnitConfigs', ...options }
+    { context: 'getInflatableUnitResolverConfigs', ...options }
   );
 }
 

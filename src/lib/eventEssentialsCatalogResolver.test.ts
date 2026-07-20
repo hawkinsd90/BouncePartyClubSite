@@ -588,6 +588,172 @@ function runTests(): void {
     ok('20 candidate lookup uses synthetic key',
       out !== null && out.resolvedUnitPriceCents === 6000 && out.addonQualified);
   }
+
+  // 21. Known active unit maps to active=true.
+  {
+    const units = [{ id: U_TROPICAL, active: true }];
+    const map = buildUnitMap(units);
+    ok('21 known active unit maps active=true', map[U_TROPICAL] !== undefined && map[U_TROPICAL].active === true);
+  }
+
+  // 22. Known inactive unit maps to active=false.
+  {
+    const units = [{ id: U_SLIDE, active: false }];
+    const map = buildUnitMap(units);
+    ok('22 known inactive unit maps active=false', map[U_SLIDE] !== undefined && map[U_SLIDE].active === false);
+  }
+
+  // 23. Unknown unit remains absent.
+  {
+    const map = buildUnitMap([{ id: U_TROPICAL, active: true }]);
+    ok('23 unknown unit absent', map[U_SLIDE] === undefined);
+  }
+
+  // 24. Selected prerequisite with known inactive unit produces UNIT_INACTIVE.
+  {
+    const categories = [makeCategory(C_TABLES)];
+    const units = [{ id: U_TROPICAL, active: false }];
+    const bundles = [
+      makeBundleConfigured('b_sel', {
+        standalone_price_cents: 30000,
+        standalone_enabled: true,
+        inflatable_eligibility_mode: 'selected',
+        package_inflatable_eligibility: [
+          { bundle_id: 'b_sel', unit_id: U_TROPICAL, created_at: '', unit: { id: U_TROPICAL, slug: U_TROPICAL, name: U_TROPICAL, active: false } },
+        ],
+      }),
+    ];
+    const ctx = buildCtx({
+      products: [], pricing: [], categories, bundles, units,
+      cart: [makeInflatableCart(U_TROPICAL, 15000)],
+    });
+    const out = evaluateBundleCandidate(ctx, { bundleId: 'b_sel', qty: 1 });
+    const vm = deriveCandidateViewModel(out, true);
+    ok('24 selected prereq inactive -> UNIT_INACTIVE',
+      out !== null && !out.prerequisiteMet && out.prerequisiteFailureReason === 'UNIT_INACTIVE' &&
+      vm.prereqBlocked && vm.prereqRequiresEligibleInflatable && !vm.prereqMisconfigured);
+  }
+
+  // 25. Selected prerequisite with unknown unit produces UNKNOWN_ELIGIBLE_UNIT.
+  {
+    const categories = [makeCategory(C_TABLES)];
+    const units = [{ id: U_TROPICAL, active: true }];
+    const bundles = [
+      makeBundleConfigured('b_sel', {
+        standalone_price_cents: 30000,
+        standalone_enabled: true,
+        inflatable_eligibility_mode: 'selected',
+        package_inflatable_eligibility: [
+          { bundle_id: 'b_sel', unit_id: U_SLIDE, created_at: '', unit: { id: U_SLIDE, slug: U_SLIDE, name: U_SLIDE, active: true } },
+        ],
+      }),
+    ];
+    const ctx = buildCtx({
+      products: [], pricing: [], categories, bundles, units,
+      cart: [makeInflatableCart(U_TROPICAL, 15000)],
+    });
+    const out = evaluateBundleCandidate(ctx, { bundleId: 'b_sel', qty: 1 });
+    const vm = deriveCandidateViewModel(out, true);
+    ok('25 selected prereq unknown -> UNKNOWN_ELIGIBLE_UNIT misconfigured',
+      out !== null && !out.prerequisiteMet && out.prerequisiteFailureReason === 'UNKNOWN_ELIGIBLE_UNIT' &&
+      vm.prereqBlocked && vm.prereqMisconfigured && !vm.prereqRequiresEligibleInflatable);
+  }
+
+  // 26. Blocked add-on-only maps from E1-shaped output (null context, null price,
+  //     NO_STANDALONE_AND_ADDON_NOT_QUALIFIED, positive remaining).
+  {
+    const products = [makeProduct('p_ao', C_TABLES)];
+    const pricing = [
+      makePricing('p_ao', {
+        standalone_price_cents: null,
+        standalone_enabled: false,
+        addon_price_cents: 6000,
+        addon_enabled: true,
+        addon_qualifying_threshold_cents: 15000,
+      }),
+    ];
+    const categories = [makeCategory(C_TABLES)];
+    const ctx = buildCtx({ products, pricing, categories, cart: [] });
+    const out = evaluateProductCandidate(ctx, { productId: 'p_ao', qty: 1 });
+    const vm = deriveCandidateViewModel(out, false);
+    ok('26 blocked addon-only E1-shaped output',
+      out !== null &&
+      out.resolvedPricingContext === null &&
+      out.resolvedUnitPriceCents === null &&
+      out.invalidReason === 'NO_STANDALONE_AND_ADDON_NOT_QUALIFIED' &&
+      out.remainingAmountCents !== null && out.remainingAmountCents > 0 &&
+      vm.priceState === 'blocked_addon_only' && !vm.selectable &&
+      vm.resolvedPriceCents === null && vm.remainingAmountCents === out.remainingAmountCents);
+  }
+
+  // 27. Blocked add-on-only customer message uses remaining amount.
+  {
+    const products = [makeProduct('p_ao', C_TABLES)];
+    const pricing = [
+      makePricing('p_ao', {
+        standalone_price_cents: null,
+        standalone_enabled: false,
+        addon_price_cents: 6000,
+        addon_enabled: true,
+        addon_qualifying_threshold_cents: 15000,
+      }),
+    ];
+    const categories = [makeCategory(C_TABLES)];
+    const ctx = buildCtx({ products, pricing, categories, cart: [] });
+    const out = evaluateProductCandidate(ctx, { productId: 'p_ao', qty: 1 });
+    const vm = deriveCandidateViewModel(out, false);
+    // Verify the view-model state that drives the "Add $X more ... unlock this item" copy.
+    ok('27 blocked addon-only message uses remaining',
+      vm.priceState === 'blocked_addon_only' && vm.remainingAmountCents !== null && vm.remainingAmountCents > 0);
+  }
+
+  // 28. NO_MATCHING_UNIT -> customer-actionable eligible inflatable (not misconfigured).
+  //     Both units in the map and active; cart has a non-eligible unit.
+  {
+    const categories = [makeCategory(C_TABLES)];
+    const units = [
+      { id: U_SLIDE, active: true },
+      { id: U_TROPICAL, active: true },
+    ];
+    const bundles = [
+      makeBundleConfigured('b_sel', {
+        standalone_price_cents: 30000,
+        standalone_enabled: true,
+        inflatable_eligibility_mode: 'selected',
+        package_inflatable_eligibility: [
+          { bundle_id: 'b_sel', unit_id: U_TROPICAL, created_at: '', unit: { id: U_TROPICAL, slug: U_TROPICAL, name: U_TROPICAL, active: true } },
+        ],
+      }),
+    ];
+    const ctx = buildCtx({
+      products: [], pricing: [], categories, bundles, units,
+      cart: [makeInflatableCart(U_SLIDE, 15000)],
+    });
+    const out = evaluateBundleCandidate(ctx, { bundleId: 'b_sel', qty: 1 });
+    const vm = deriveCandidateViewModel(out, true);
+    ok('28 NO_MATCHING_UNIT -> eligible inflatable actionable',
+      out !== null && out.prerequisiteFailureReason === 'NO_MATCHING_UNIT' &&
+      vm.prereqRequiresEligibleInflatable && !vm.prereqMisconfigured);
+  }
+
+  // 29. NO_ELIGIBLE_UNITS_CONFIGURED -> misconfigured (not customer-actionable).
+  {
+    const categories = [makeCategory(C_TABLES)];
+    const bundles = [
+      makeBundleConfigured('b_sel', {
+        standalone_price_cents: 30000,
+        standalone_enabled: true,
+        inflatable_eligibility_mode: 'selected',
+        package_inflatable_eligibility: [],
+      }),
+    ];
+    const ctx = buildCtx({ products: [], pricing: [], categories, bundles, cart: [] });
+    const out = evaluateBundleCandidate(ctx, { bundleId: 'b_sel', qty: 1 });
+    const vm = deriveCandidateViewModel(out, true);
+    ok('29 NO_ELIGIBLE_UNITS_CONFIGURED -> misconfigured',
+      out !== null && out.prerequisiteFailureReason === 'NO_ELIGIBLE_UNITS_CONFIGURED' &&
+      vm.prereqMisconfigured && !vm.prereqRequiresEligibleInflatable && !vm.prereqRequiresAnyInflatable);
+  }
 }
 
 runTests();

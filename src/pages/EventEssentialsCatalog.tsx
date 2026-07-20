@@ -23,7 +23,7 @@ import {
   fetchInventoryProducts,
   checkProductAvailability,
 } from '../lib/queries/products';
-import { getActiveInflatableUnitConfigs } from '../lib/queries/units';
+import { getInflatableUnitResolverConfigs } from '../lib/queries/units';
 import { useQuoteCart } from '../hooks/useQuoteCart';
 import {
   buildBundleSnapshot,
@@ -84,6 +84,7 @@ function formatPrice(cents: number | null): string {
 function qualificationMessage(vm: CandidateViewModel): string | null {
   if (vm.priceState === 'addon') return null;
   if (vm.prereqBlocked) {
+    if (vm.prereqMisconfigured) return 'This item is currently unavailable.';
     if (vm.prereqRequiresAnyInflatable) return 'Add an inflatable to your cart to select this package.';
     if (vm.prereqRequiresEligibleInflatable) return 'This package requires an eligible inflatable in your cart.';
     return 'This package is currently unavailable.';
@@ -154,7 +155,7 @@ export function EventEssentialsCatalog() {
           fetchProductBundlesWithAllComponents(),
           fetchProductCategories(),
           fetchProductPricing(),
-          getActiveInflatableUnitConfigs(),
+          getInflatableUnitResolverConfigs(),
         ]);
 
         if (cancelled) return;

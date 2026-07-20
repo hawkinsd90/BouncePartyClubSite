@@ -253,6 +253,7 @@ export interface CandidateViewModel {
   prereqBlocked: boolean;
   prereqRequiresAnyInflatable: boolean;
   prereqRequiresEligibleInflatable: boolean;
+  prereqMisconfigured: boolean;
   requiresCustomerChoice: boolean;
 }
 
@@ -270,7 +271,30 @@ export function deriveCandidateViewModel(
       prereqBlocked: false,
       prereqRequiresAnyInflatable: false,
       prereqRequiresEligibleInflatable: false,
+      prereqMisconfigured: false,
       requiresCustomerChoice: false,
+    };
+  }
+
+  // Blocked add-on-only: E1 returns resolvedPricingContext=null,
+  // resolvedUnitPriceCents=null, invalidReason=NO_STANDALONE_AND_ADDON_NOT_QUALIFIED,
+  // remainingAmountCents populated. Detect from invalidReason BEFORE resolved
+  // pricing, since the resolved-price branches below are unreachable for this case.
+  if (
+    out.invalidReason === 'NO_STANDALONE_AND_ADDON_NOT_QUALIFIED' &&
+    out.remainingAmountCents !== null
+  ) {
+    return {
+      selectable: false,
+      resolvedPriceCents: null,
+      priceState: 'blocked_addon_only',
+      remainingAmountCents: out.remainingAmountCents,
+      prereqMet: out.prerequisiteMet,
+      prereqBlocked: false,
+      prereqRequiresAnyInflatable: false,
+      prereqRequiresEligibleInflatable: false,
+      prereqMisconfigured: false,
+      requiresCustomerChoice: out.requiresCustomerChoice,
     };
   }
 
@@ -278,16 +302,21 @@ export function deriveCandidateViewModel(
   if (out.resolvedPricingContext === 'addon' && out.resolvedUnitPriceCents !== null) {
     priceState = 'addon';
   } else if (out.resolvedPricingContext === 'standalone' && out.resolvedUnitPriceCents !== null) {
-    if (!out.selectable && out.addonQualified === false && out.invalidReason === 'NO_STANDALONE_AND_ADDON_NOT_QUALIFIED') {
-      priceState = 'blocked_addon_only';
-    } else {
-      priceState = 'standalone';
-    }
+    priceState = 'standalone';
   } else {
     priceState = 'unavailable';
   }
 
   const prereqBlocked = isBundle && !out.prerequisiteMet;
+
+  // Customer-actionable prerequisite failures vs configuration failures.
+  // NO_DIRECT_INFLATABLE / NO_MATCHING_UNIT / UNIT_INACTIVE -> customer action.
+  // UNKNOWN_ELIGIBLE_UNIT / NO_ELIGIBLE_UNITS_CONFIGURED -> misconfiguration.
+  const prereqMisconfigured =
+    isBundle &&
+    !out.prerequisiteMet &&
+    (out.prerequisiteFailureReason === 'UNKNOWN_ELIGIBLE_UNIT' ||
+      out.prerequisiteFailureReason === 'NO_ELIGIBLE_UNITS_CONFIGURED');
 
   return {
     selectable: out.selectable && !prereqBlocked,
@@ -301,10 +330,10 @@ export function deriveCandidateViewModel(
     prereqRequiresEligibleInflatable:
       isBundle &&
       !out.prerequisiteMet &&
+      !prereqMisconfigured &&
       (out.prerequisiteFailureReason === 'NO_MATCHING_UNIT' ||
-        out.prerequisiteFailureReason === 'UNIT_INACTIVE' ||
-        out.prerequisiteFailureReason === 'UNKNOWN_ELIGIBLE_UNIT' ||
-        out.prerequisiteFailureReason === 'NO_ELIGIBLE_UNITS_CONFIGURED'),
+        out.prerequisiteFailureReason === 'UNIT_INACTIVE'),
+    prereqMisconfigured,
     requiresCustomerChoice: out.requiresCustomerChoice,
   };
 }
