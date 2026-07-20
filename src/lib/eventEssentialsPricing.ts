@@ -32,7 +32,6 @@ import type {
   ResolverOutputLine,
   ResolverProductConfig,
   ResolverResult,
-  ResolverUnitConfig,
   SelectableCode,
 } from './eventEssentialsPricingTypes';
 
@@ -108,10 +107,6 @@ function lookupBundle(
   return cfg;
 }
 
-// Reference lookupBundle so type-only consumers don't strip it; the function is
-// kept for symmetry with the other lookups and for future use.
-void lookupBundle;
-
 function lookupCategory(categoryId: string | undefined, input: ResolverInput) {
   if (!categoryId) return undefined;
   const cfg = input.categories[categoryId];
@@ -139,7 +134,8 @@ export type InflatableValidityCode =
   | 'INFLATABLE_UNIT_UNKNOWN'
   | 'INFLATABLE_UNIT_INACTIVE'
   | 'INFLATABLE_PRICE_INVALID'
-  | 'INFLATABLE_MODE_MISSING';
+  | 'INFLATABLE_MODE_MISSING'
+  | 'INFLATABLE_CONTRIBUTION_OVERFLOW';
 
 export interface InflatableValidity {
   valid: boolean;
@@ -184,7 +180,7 @@ function validateInflatable(line: ResolverInputLine, input: ResolverInput): Infl
   }
   const contribution = safeMul(line.selectedUnitPriceCents, line.qty);
   if (contribution === null) {
-    return { valid: false, code: 'INFLATABLE_PRICE_INVALID', contribution: null };
+    return { valid: false, code: 'INFLATABLE_CONTRIBUTION_OVERFLOW', contribution: null };
   }
   return { valid: true, code: 'VALID', contribution };
 }
@@ -193,36 +189,44 @@ function validateInflatable(line: ResolverInputLine, input: ResolverInput): Infl
 // Product contributor validation (Rule 5).
 // ---------------------------------------------------------------------------
 
+/** Outcome of a single contributor's value computation. */
+type ContributionOutcome =
+  | { status: 'ok'; value: number }
+  | { status: 'skip' }      // malformed contributor (missing/mismatched config, invalid price)
+  | { status: 'overflow' }; // arithmetic overflow during multiplication or addition
+
 /**
  * Contribution of a direct PRODUCT line toward another candidate's qualifying
- * subtotal. Returns the safe contribution in cents, or null when the
- * contributor is malformed (missing/mismatched config, missing/mismatched
- * category, invalid price, invalid qty, or overflow).
+ * subtotal. Returns the safe contribution, or a skip/overflow outcome.
  */
 function productContribution(
   line: ResolverInputLine,
   input: ResolverInput,
-): number | null {
-  if (line.itemType !== 'event_essential_product') return null;
-  if (!isPositiveSafeInt(line.qty)) return null;
+): ContributionOutcome {
+  if (line.itemType !== 'event_essential_product') return { status: 'skip' };
+  if (!isPositiveSafeInt(line.qty)) return { status: 'skip' };
   const cfg = lookupProduct(line.productId, input);
-  if (!cfg) return null;
+  if (!cfg) return { status: 'skip' };
   // Contributor's own category must resolve.
   const category = lookupCategory(cfg.categoryId, input);
-  if (!category) return null;
-  if (classifyNumeric(cfg.standalonePriceCents) !== 'valid') return null;
-  return safeMul(cfg.standalonePriceCents as number, line.qty);
+  if (!category) return { status: 'skip' };
+  if (classifyNumeric(cfg.standalonePriceCents) !== 'valid') return { status: 'skip' };
+  const v = safeMul(cfg.standalonePriceCents as number, line.qty);
+  if (v === null) return { status: 'overflow' };
+  return { status: 'ok', value: v };
 }
 
 /**
  * Contribution of a direct INFLATABLE line toward another candidate's
- * qualifying subtotal. Returns the safe contribution, or null when the
- * inflatable is malformed or overflows.
+ * qualifying subtotal. Returns the safe contribution, or a skip/overflow outcome.
  */
-function inflatableContribution(line: ResolverInputLine, input: ResolverInput): number | null {
-  if (line.itemType !== 'inflatable') return null;
+function inflatableContribution(line: ResolverInputLine, input: ResolverInput): ContributionOutcome {
+  if (line.itemType !== 'inflatable') return { status: 'skip' };
   const v = validateInflatable(line, input);
-  return v.valid ? v.contribution : null;
+  if (v.code === 'INFLATABLE_CONTRIBUTION_OVERFLOW') return { status: 'overflow' };
+  if (!v.valid) return { status: 'skip' };
+  if (v.contribution === null) return { status: 'overflow' };
+  return { status: 'ok', value: v.contribution };
 }
 
 // ---------------------------------------------------------------------------
@@ -250,22 +254,22 @@ function productQualifyingSubtotal(
     if (i === candidateIndex) continue; // self by position
     const line = input.lines[i];
     if (line.itemType === 'event_essential_bundle') continue; // packages never qualify products
+    let outcome: ContributionOutcome;
     if (line.itemType === 'event_essential_product') {
       const cfg = lookupProduct(line.productId, input);
       if (!cfg) continue;
       if (cfg.categoryId === ownCategoryId) continue; // own category excluded
-      const c = productContribution(line, input);
-      if (c === null) continue;
-      const next = safeAdd(total, c);
-      if (next === null) return null; // overflow -> null sentinel
-      total = next;
+      outcome = productContribution(line, input);
     } else if (line.itemType === 'inflatable') {
-      const c = inflatableContribution(line, input);
-      if (c === null) continue;
-      const next = safeAdd(total, c);
-      if (next === null) return null;
-      total = next;
+      outcome = inflatableContribution(line, input);
+    } else {
+      continue;
     }
+    if (outcome.status === 'skip') continue;
+    if (outcome.status === 'overflow') return null; // overflow -> fatal sentinel
+    const next = safeAdd(total, outcome.value);
+    if (next === null) return null; // addition overflow -> fatal sentinel
+    total = next;
   }
   return total;
 }
@@ -285,22 +289,22 @@ function packageQualifyingSubtotal(
     if (i === candidateIndex) continue; // self by position
     const line = input.lines[i];
     if (line.itemType === 'event_essential_bundle') continue; // packages never qualify packages
+    let outcome: ContributionOutcome;
     if (line.itemType === 'event_essential_product') {
       const cfg = lookupProduct(line.productId, input);
       if (!cfg) continue;
       if (excluded.has(cfg.categoryId)) continue; // package excluded category
-      const c = productContribution(line, input);
-      if (c === null) continue;
-      const next = safeAdd(total, c);
-      if (next === null) return null;
-      total = next;
+      outcome = productContribution(line, input);
     } else if (line.itemType === 'inflatable') {
-      const c = inflatableContribution(line, input);
-      if (c === null) continue;
-      const next = safeAdd(total, c);
-      if (next === null) return null;
-      total = next;
+      outcome = inflatableContribution(line, input);
+    } else {
+      continue;
     }
+    if (outcome.status === 'skip') continue;
+    if (outcome.status === 'overflow') return null; // overflow -> fatal sentinel
+    const next = safeAdd(total, outcome.value);
+    if (next === null) return null; // addition overflow -> fatal sentinel
+    total = next;
   }
   return total;
 }
@@ -319,6 +323,17 @@ interface PrerequisiteResult {
  * Only VALID direct inflatable cart lines (outside any package) may satisfy
  * the prerequisite. A package's own included inflatable components never
  * satisfy its prerequisite. Self-exclusion is by array position.
+ *
+ * Diagnostic priority for `selected` mode (corrected):
+ *   1. A valid active matching selected unit  -> met
+ *   2. A direct line matches an eligible configured unit but the unit is
+ *      inactive -> UNIT_INACTIVE (detected even though the line is invalid)
+ *   3. Eligible unit ID does not exist or has a map ID mismatch
+ *      -> UNKNOWN_ELIGIBLE_UNIT
+ *   4. No direct inflatable lines -> NO_DIRECT_INFLATABLE
+ *   5. Valid direct inflatable lines exist but none match -> NO_MATCHING_UNIT
+ * Invalid direct inflatable lines never satisfy the prerequisite but still
+ * help determine the correct failure reason.
  */
 function evaluatePrerequisite(
   candidateIndex: number,
@@ -331,19 +346,19 @@ function evaluatePrerequisite(
     return { met: true, failureReason: null, warning: null };
   }
 
-  // Collect VALID direct inflatables (excluding the candidate by position).
-  const validInflatables: ResolverInputLine[] = [];
+  // Collect ALL direct inflatables (excluding the candidate by position),
+  // retaining each line's validity so inactive/unknown matches are detectable.
+  const allDirect: { line: ResolverInputLine; valid: boolean }[] = [];
   for (let i = 0; i < input.lines.length; i++) {
     if (i === candidateIndex) continue;
     const line = input.lines[i];
     if (line.itemType !== 'inflatable') continue;
-    if (validateInflatable(line, input).valid) {
-      validInflatables.push(line);
-    }
+    allDirect.push({ line, valid: validateInflatable(line, input).valid });
   }
+  const validLines = allDirect.filter((d) => d.valid).map((d) => d.line);
 
   if (mode === 'any') {
-    if (validInflatables.length > 0) {
+    if (validLines.length > 0) {
       return { met: true, failureReason: null, warning: null };
     }
     return { met: false, failureReason: 'NO_DIRECT_INFLATABLE', warning: null };
@@ -356,47 +371,48 @@ function evaluatePrerequisite(
   }
 
   const units = input.units;
-  let matchedActive = false;
-  let sawUnknown = false;
+
+  // 1. A valid active matching selected unit -> met.
   for (const id of eligibleIds) {
-    const unit: ResolverUnitConfig | undefined = units[id];
-    if (!unit || unit.id !== id) {
-      sawUnknown = true;
-      continue;
-    }
-    if (!unit.active) continue;
-    const hasMatch = validInflatables.some((l) => l.unitId === id);
-    if (hasMatch) {
-      matchedActive = true;
-      break;
+    const u = units[id];
+    if (!u || u.id !== id || !u.active) continue;
+    if (validLines.some((l) => l.unitId === id)) {
+      return { met: true, failureReason: null, warning: null };
     }
   }
 
-  if (matchedActive) {
-    return { met: true, failureReason: null, warning: null };
-  }
-
-  let matchedInactive = false;
+  // 2. A direct line matches an eligible configured unit but the unit is
+  //    inactive. Inspect ALL direct lines (not just valid) so an inactive
+  //    matching unit is detected even though the line itself is invalid.
   for (const id of eligibleIds) {
-    const unit = units[id];
-    if (unit && unit.id === id && !unit.active) {
-      const hasMatch = validInflatables.some((l) => l.unitId === id);
-      if (hasMatch) {
-        matchedInactive = true;
-        break;
-      }
+    const u = units[id];
+    if (!u || u.id !== id || u.active) continue;
+    if (allDirect.some((d) => d.line.unitId === id)) {
+      return { met: false, failureReason: 'UNIT_INACTIVE', warning: 'SELECTED_MODE_UNIT_INACTIVE' };
     }
   }
-  if (matchedInactive) {
-    return { met: false, failureReason: 'UNIT_INACTIVE', warning: 'SELECTED_MODE_UNIT_INACTIVE' };
+
+  // 3. Eligible unit ID does not exist or has a map ID mismatch.
+  for (const id of eligibleIds) {
+    const u = units[id];
+    if (!u || u.id !== id) {
+      return { met: false, failureReason: 'UNKNOWN_ELIGIBLE_UNIT', warning: 'SELECTED_MODE_UNKNOWN_UNIT' };
+    }
   }
-  if (sawUnknown) {
-    return { met: false, failureReason: 'UNKNOWN_ELIGIBLE_UNIT', warning: 'SELECTED_MODE_UNKNOWN_UNIT' };
-  }
-  if (validInflatables.length === 0) {
+
+  // 4. No direct inflatable lines.
+  if (allDirect.length === 0) {
     return { met: false, failureReason: 'NO_DIRECT_INFLATABLE', warning: null };
   }
-  return { met: false, failureReason: 'NO_MATCHING_UNIT', warning: null };
+
+  // 5. Valid direct inflatable lines exist but none match.
+  if (validLines.length > 0) {
+    return { met: false, failureReason: 'NO_MATCHING_UNIT', warning: null };
+  }
+
+  // Direct lines exist but none are valid (e.g. invalid price, missing mode).
+  // No valid direct inflatable can satisfy the prerequisite.
+  return { met: false, failureReason: 'NO_DIRECT_INFLATABLE', warning: null };
 }
 
 // ---------------------------------------------------------------------------
@@ -426,6 +442,10 @@ interface PricePathResult {
 
 /**
  * Resolve pricing for a product or package.
+ *
+ * Evaluation order (corrected): a malformed standalone price is only fatal
+ * when the resolver actually needs the standalone path. A fully valid add-on
+ * path that qualifies must NOT be blocked by an unused invalid standalone.
  *
  * Missing-vs-invalid distinction (Rule 9):
  *   - NULL price/threshold -> 'missing' (incomplete config)
@@ -457,36 +477,26 @@ function resolvePricePath(params: {
 
   const standaloneValid =
     standaloneEnabled && standaloneStatus === 'valid' && standalonePriceCents !== null;
-
-  // Standalone enabled but price malformed -> standalone path invalid (not just missing).
-  if (standaloneEnabled && standaloneStatus === 'invalid') {
-    return {
-      addonQualified: false,
-      resolvedContext: null,
-      resolvedPrice: null,
-      remainingAmountCents: null,
-      invalidReason: 'STANDALONE_PRICE_INVALID',
-      warning: null,
-      selectableReason: 'STANDALONE_PRICE_INVALID',
-    };
-  }
+  const standaloneInvalid = standaloneEnabled && standaloneStatus === 'invalid';
 
   // Determine add-on path status.
   // addonConfigured = add-on enabled AND price valid AND threshold valid (0 ok).
   const addonPriceOk = addonEnabled && addonPriceStatus === 'valid' && addonPriceCents !== null;
   const thresholdOk = addonEnabled && thresholdStatus === 'valid' && addonQualifyingThresholdCents !== null;
 
-  // A. Add-on fully configured and threshold met -> add-on.
+  // A. Add-on fully configured. Evaluate threshold BEFORE considering standalone.
   if (addonPriceOk && thresholdOk) {
     const threshold = addonQualifyingThresholdCents as number;
     if (qualifyingSubtotal >= threshold) {
+      // Add-on qualified. An invalid standalone must NOT block this path; it
+      // surfaces as a non-fatal warning only.
       return {
         addonQualified: true,
         resolvedContext: 'addon',
         resolvedPrice: addonPriceCents as number,
         remainingAmountCents: 0,
         invalidReason: null,
-        warning: null,
+        warning: standaloneInvalid ? 'STANDALONE_PRICE_INVALID' : null,
         selectableReason: 'OK',
       };
     }
@@ -500,6 +510,20 @@ function resolvePricePath(params: {
         invalidReason: null,
         warning: null,
         selectableReason: 'OK',
+      };
+    }
+    // Threshold not met and standalone path unavailable. If standalone is
+    // enabled-but-invalid, that is the most accurate fatal reason; otherwise
+    // no standalone exists at all.
+    if (standaloneInvalid) {
+      return {
+        addonQualified: false,
+        resolvedContext: null,
+        resolvedPrice: null,
+        remainingAmountCents: remaining,
+        invalidReason: 'STANDALONE_PRICE_INVALID',
+        warning: null,
+        selectableReason: 'STANDALONE_PRICE_INVALID',
       };
     }
     // C. Threshold not met and no standalone.
@@ -552,6 +576,19 @@ function resolvePricePath(params: {
         selectableReason: 'OK',
       };
     }
+    // No valid standalone. If standalone is enabled-but-invalid, prefer that
+    // more specific fatal reason; otherwise use the add-on-config fatal code.
+    if (standaloneInvalid) {
+      return {
+        addonQualified: false,
+        resolvedContext: null,
+        resolvedPrice: null,
+        remainingAmountCents: null,
+        invalidReason: 'STANDALONE_PRICE_INVALID',
+        warning: null,
+        selectableReason: 'STANDALONE_PRICE_INVALID',
+      };
+    }
     // No standalone path -> fatal.
     return {
       addonQualified: false,
@@ -577,7 +614,19 @@ function resolvePricePath(params: {
     };
   }
 
-  // E. Both paths invalid / disabled.
+  // E. Both paths invalid / disabled. If standalone is enabled-but-invalid,
+  // surface that; otherwise no purchase path exists.
+  if (standaloneInvalid) {
+    return {
+      addonQualified: false,
+      resolvedContext: null,
+      resolvedPrice: null,
+      remainingAmountCents: null,
+      invalidReason: 'STANDALONE_PRICE_INVALID',
+      warning: null,
+      selectableReason: 'STANDALONE_PRICE_INVALID',
+    };
+  }
   return {
     addonQualified: false,
     resolvedContext: null,
@@ -688,6 +737,7 @@ function resolveInflatableLine(line: ResolverInputLine, input: ResolverInput): R
     INFLATABLE_UNIT_INACTIVE: { selectableReason: 'INFLATABLE_UNIT_INACTIVE', invalidReason: 'INFLATABLE_UNIT_INACTIVE' },
     INFLATABLE_PRICE_INVALID: { selectableReason: 'INFLATABLE_PRICE_INVALID', invalidReason: 'INFLATABLE_PRICE_INVALID' },
     INFLATABLE_MODE_MISSING: { selectableReason: 'INFLATABLE_MODE_MISSING', invalidReason: 'INFLATABLE_MODE_MISSING' },
+    INFLATABLE_CONTRIBUTION_OVERFLOW: { selectableReason: 'INFLATABLE_PRICE_INVALID', invalidReason: 'INFLATABLE_PRICE_INVALID' },
   };
   const mapped = reasonMap[v.code as Exclude<InflatableValidityCode, 'VALID'>];
   return {
@@ -736,10 +786,16 @@ function resolveProductLine(index: number, line: ResolverInputLine, input: Resol
   }
 
   const sub = productQualifyingSubtotal(index, cfg, input);
-  // Overflow sentinel -> treat as 0 contribution but mark invalid via NO_PURCHASE_PATH? No:
-  // an overflowed subtotal means we cannot safely compute. Treat as 0 (conservative) but
-  // the resolver still proceeds; the candidate simply cannot prove qualification.
-  const qualifyingSubtotal = sub === null ? 0 : sub;
+  // Overflow is a fatal calculation failure — NOT a valid $0 qualifying subtotal.
+  if (sub === null) {
+    return invalidLine(
+      line.resolverKey,
+      'QUALIFYING_SUBTOTAL_OVERFLOW',
+      'QUALIFYING_SUBTOTAL_OVERFLOW',
+      'NOT_AVAILABLE',
+    );
+  }
+  const qualifyingSubtotal = sub;
 
   const pricePath = resolvePricePath({
     standaloneEnabled: cfg.standaloneEnabled,
@@ -797,12 +853,13 @@ function resolveBundleLine(index: number, line: ResolverInputLine, input: Resolv
   if (!bundleId) {
     return invalidLine(line.resolverKey, 'BUNDLE_CONFIG_MISSING', 'BUNDLE_CONFIG_MISSING', 'NOT_AVAILABLE');
   }
-  const cfg = input.bundleConfigs[bundleId];
+  const cfg = lookupBundle(bundleId, input);
   if (!cfg) {
+    // lookupBundle returns undefined for both missing and id-mismatch. Distinguish.
+    if (input.bundleConfigs[bundleId]) {
+      return invalidLine(line.resolverKey, 'BUNDLE_CONFIG_ID_MISMATCH', 'BUNDLE_CONFIG_ID_MISMATCH', 'NOT_AVAILABLE');
+    }
     return invalidLine(line.resolverKey, 'BUNDLE_CONFIG_MISSING', 'BUNDLE_CONFIG_MISSING', 'NOT_AVAILABLE');
-  }
-  if (cfg.id !== bundleId) {
-    return invalidLine(line.resolverKey, 'BUNDLE_CONFIG_ID_MISMATCH', 'BUNDLE_CONFIG_ID_MISMATCH', 'NOT_AVAILABLE');
   }
 
   const requiresCustomerChoice = bundleRequiresCustomerChoice(cfg);
@@ -832,7 +889,16 @@ function resolveBundleLine(index: number, line: ResolverInputLine, input: Resolv
   }
 
   const sub = packageQualifyingSubtotal(index, cfg, input);
-  const qualifyingSubtotal = sub === null ? 0 : sub;
+  // Overflow is a fatal calculation failure — NOT a valid $0 qualifying subtotal.
+  if (sub === null) {
+    return invalidLine(
+      line.resolverKey,
+      'QUALIFYING_SUBTOTAL_OVERFLOW',
+      'QUALIFYING_SUBTOTAL_OVERFLOW',
+      'NOT_AVAILABLE',
+    );
+  }
+  const qualifyingSubtotal = sub;
 
   const pricePath = resolvePricePath({
     standaloneEnabled: cfg.standaloneEnabled,

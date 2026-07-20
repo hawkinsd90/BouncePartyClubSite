@@ -977,7 +977,7 @@ function testPackagePrerequisites(): void {
       ),
     );
     const l = findByKey(r, 'k42');
-    ok('42 selected inactive not met', !l.prerequisiteMet && l.prerequisiteFailureReason === 'NO_DIRECT_INFLATABLE' && !l.selectable);
+    ok('42 selected inactive not met', !l.prerequisiteMet && l.prerequisiteFailureReason === 'UNIT_INACTIVE' && l.configurationWarning === 'SELECTED_MODE_UNIT_INACTIVE' && !l.selectable);
   }
 
   // 43. selected with no configured unit IDs -> not met + no-units warning.
@@ -1496,7 +1496,7 @@ function testConfigurationAndMetadata(): void {
     ok('73 unsafe price invalid', !l.selectable && (l.invalidReason === 'STANDALONE_PRICE_INVALID' || l.invalidReason === 'NO_PURCHASE_PATH'));
   }
 
-  // 74. Multiplication overflow does not contribute.
+  // 74. Multiplication overflow is a fatal QUALIFYING_SUBTOTAL_OVERFLOW (not zero).
   {
     const huge = prod('p_huge', C_CHAIRS, {
       standalonePriceCents: Number.MAX_SAFE_INTEGER,
@@ -1510,7 +1510,396 @@ function testConfigurationAndMetadata(): void {
       ),
     );
     const l = findByKey(r, 'k74');
-    ok('74 multiplication overflow contributes zero', l.qualifyingSubtotalCents === 0 && !l.addonQualified);
+    ok('74 multiplication overflow fatal', !l.selectable && l.selectableReason === 'QUALIFYING_SUBTOTAL_OVERFLOW' && l.invalidReason === 'QUALIFYING_SUBTOTAL_OVERFLOW' && l.resolvedPricingContext === null && l.resolvedUnitPriceCents === null && l.qualifyingSubtotalCents === null && !l.addonQualified && l.customerMessageCode === 'NOT_AVAILABLE');
+  }
+}
+
+// ===========================================================================
+// CORRECTED BEHAVIORS — overflow, invalid-standalone/add-on ordering,
+// selected prerequisite diagnostics, unit map-id mismatch.
+// ===========================================================================
+
+function testCorrectedBehaviors(): void {
+  // ---- 1. QUALIFYING_SUBTOTAL_OVERFLOW ----
+
+  // A. One product contribution multiplication overflow.
+  {
+    const huge = prod('p_huge_a', C_CHAIRS, {
+      standalonePriceCents: Number.MAX_SAFE_INTEGER,
+      standaloneEnabled: true,
+      addonEnabled: false,
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [productLine('kA', 'p_tables', 1), productLine('kAhuge', 'p_huge_a', 2)],
+        { products: { p_tables: P_TABLES, p_huge_a: huge }, categories: baseCategories },
+      ),
+    );
+    const l = findByKey(r, 'kA');
+    ok('overflow-A product mul overflow fatal',
+      !l.selectable && l.selectableReason === 'QUALIFYING_SUBTOTAL_OVERFLOW' &&
+      l.invalidReason === 'QUALIFYING_SUBTOTAL_OVERFLOW' &&
+      l.resolvedPricingContext === null && l.resolvedUnitPriceCents === null &&
+      l.qualifyingSubtotalCents === null && !l.addonQualified &&
+      l.customerMessageCode === 'NOT_AVAILABLE');
+  }
+
+  // B. One inflatable contribution multiplication overflow.
+  {
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [productLine('kB', 'p_tables', 1),
+         inflatableLine('kBinf', U_TROPICAL, Number.MAX_SAFE_INTEGER, 2)],
+        { products: { p_tables: P_TABLES }, categories: baseCategories, units: baseUnits },
+      ),
+    );
+    const l = findByKey(r, 'kB');
+    ok('overflow-B inflatable mul overflow fatal',
+      !l.selectable && l.selectableReason === 'QUALIFYING_SUBTOTAL_OVERFLOW' &&
+      l.invalidReason === 'QUALIFYING_SUBTOTAL_OVERFLOW' &&
+      l.qualifyingSubtotalCents === null);
+  }
+
+  // C. Two individually safe contributions whose sum overflows.
+  {
+    const half = Math.floor(Number.MAX_SAFE_INTEGER / 2) + 10;
+    const big1 = prod('p_big1', C_CHAIRS, { standalonePriceCents: half, standaloneEnabled: true, addonEnabled: false });
+    const big2 = prod('p_big2', C_MISC, { standalonePriceCents: half, standaloneEnabled: true, addonEnabled: false });
+    const cats = { ...baseCategories, [C_MISC]: cat(C_MISC) };
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [productLine('kC', 'p_tables', 1), productLine('kC1', 'p_big1', 1), productLine('kC2', 'p_big2', 1)],
+        { products: { p_tables: P_TABLES, p_big1: big1, p_big2: big2 }, categories: cats },
+      ),
+    );
+    const l = findByKey(r, 'kC');
+    ok('overflow-C sum overflow fatal',
+      !l.selectable && l.selectableReason === 'QUALIFYING_SUBTOTAL_OVERFLOW' &&
+      l.invalidReason === 'QUALIFYING_SUBTOTAL_OVERFLOW');
+  }
+
+  // D. Package qualifying-subtotal overflow.
+  {
+    const b = bundle('b_ovl_d', {
+      standalonePriceCents: 30000,
+      standaloneEnabled: true,
+      addonEnabled: true,
+      addonPriceCents: 20000,
+      addonQualifyingThresholdCents: 15000,
+      inflatableEligibilityMode: 'none',
+    });
+    const huge = prod('p_huge_d', C_CHAIRS, {
+      standalonePriceCents: Number.MAX_SAFE_INTEGER,
+      standaloneEnabled: true,
+      addonEnabled: false,
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [bundleLine('kD', 'b_ovl_d', 1), productLine('kDhuge', 'p_huge_d', 2)],
+        { products: { p_huge_d: huge }, bundles: { b_ovl_d: b }, categories: baseCategories },
+      ),
+    );
+    const l = findByKey(r, 'kD');
+    ok('overflow-D package subtotal overflow fatal',
+      !l.selectable && l.selectableReason === 'QUALIFYING_SUBTOTAL_OVERFLOW' &&
+      l.invalidReason === 'QUALIFYING_SUBTOTAL_OVERFLOW' &&
+      l.resolvedPricingContext === null && l.qualifyingSubtotalCents === null);
+  }
+
+  // E. Product qualifying-subtotal overflow via inflatable contribution.
+  {
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [productLine('kE', 'p_tables', 1),
+         inflatableLine('kEinf', U_TROPICAL, Number.MAX_SAFE_INTEGER, 2),
+         productLine('kE2', 'p_chairs', 1)],
+        { products: { p_tables: P_TABLES, p_chairs: P_CHAIRS }, categories: baseCategories, units: baseUnits },
+      ),
+    );
+    const l = findByKey(r, 'kE');
+    ok('overflow-E product via inflatable overflow fatal',
+      !l.selectable && l.selectableReason === 'QUALIFYING_SUBTOTAL_OVERFLOW' &&
+      l.invalidReason === 'QUALIFYING_SUBTOTAL_OVERFLOW');
+  }
+
+  // ---- 2. VALID ADD-ON PATH MUST NOT BE BLOCKED BY INVALID STANDALONE ----
+
+  // A. Standalone enabled but invalid, add-on valid, threshold met -> addon + warning.
+  {
+    const cfg = prod('p_isv_a', C_TABLES, {
+      standalonePriceCents: -5,
+      standaloneEnabled: true,
+      addonEnabled: true,
+      addonPriceCents: 6000,
+      addonQualifyingThresholdCents: 15000,
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [productLine('kISV_A', 'p_isv_a', 1), inflatableLine('kISV_Ainf', U_TROPICAL, 15000)],
+        { products: { p_isv_a: cfg }, categories: baseCategories, units: baseUnits },
+      ),
+    );
+    const l = findByKey(r, 'kISV_A');
+    ok('isv-A invalid standalone + qualified addon -> addon',
+      l.selectable && l.addonQualified && l.resolvedPricingContext === 'addon' &&
+      l.resolvedUnitPriceCents === 6000 && l.configurationWarning === 'STANDALONE_PRICE_INVALID' &&
+      l.invalidReason === null && l.selectableReason === 'OK');
+  }
+
+  // B. Standalone enabled but invalid, add-on valid, threshold not met, no valid standalone -> fatal.
+  {
+    const cfg = prod('p_isv_b', C_TABLES, {
+      standalonePriceCents: -5,
+      standaloneEnabled: true,
+      addonEnabled: true,
+      addonPriceCents: 6000,
+      addonQualifyingThresholdCents: 15000,
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput([productLine('kISV_B', 'p_isv_b', 1)], { products: { p_isv_b: cfg }, categories: baseCategories }),
+    );
+    const l = findByKey(r, 'kISV_B');
+    ok('isv-B invalid standalone + unmet threshold -> fatal STANDALONE_PRICE_INVALID',
+      !l.selectable && !l.addonQualified && l.resolvedPricingContext === null &&
+      l.resolvedUnitPriceCents === null && l.remainingAmountCents === 15000 &&
+      l.invalidReason === 'STANDALONE_PRICE_INVALID' && l.selectableReason === 'STANDALONE_PRICE_INVALID');
+  }
+
+  // C. Standalone enabled but invalid, add-on valid, explicit threshold 0 -> addon + warning.
+  {
+    const cfg = prod('p_isv_c', C_TABLES, {
+      standalonePriceCents: -5,
+      standaloneEnabled: true,
+      addonEnabled: true,
+      addonPriceCents: 6000,
+      addonQualifyingThresholdCents: 0,
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput([productLine('kISV_C', 'p_isv_c', 1)], { products: { p_isv_c: cfg }, categories: baseCategories }),
+    );
+    const l = findByKey(r, 'kISV_C');
+    ok('isv-C invalid standalone + threshold-0 -> addon',
+      l.selectable && l.addonQualified && l.resolvedPricingContext === 'addon' &&
+      l.resolvedUnitPriceCents === 6000 && l.configurationWarning === 'STANDALONE_PRICE_INVALID' &&
+      l.invalidReason === null);
+  }
+
+  // D. Standalone enabled but invalid, add-on disabled -> fatal STANDALONE_PRICE_INVALID.
+  {
+    const cfg = prod('p_isv_d', C_TABLES, {
+      standalonePriceCents: -5,
+      standaloneEnabled: true,
+      addonEnabled: false,
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput([productLine('kISV_D', 'p_isv_d', 1)], { products: { p_isv_d: cfg }, categories: baseCategories }),
+    );
+    const l = findByKey(r, 'kISV_D');
+    ok('isv-D invalid standalone + addon disabled -> fatal',
+      !l.selectable && l.invalidReason === 'STANDALONE_PRICE_INVALID' &&
+      l.selectableReason === 'STANDALONE_PRICE_INVALID');
+  }
+
+  // D2. Standalone enabled but invalid, add-on enabled but threshold missing, no standalone -> fatal.
+  {
+    const cfg = prod('p_isv_d2', C_TABLES, {
+      standalonePriceCents: -5,
+      standaloneEnabled: true,
+      addonEnabled: true,
+      addonPriceCents: 6000,
+      addonQualifyingThresholdCents: null,
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput([productLine('kISV_D2', 'p_isv_d2', 1)], { products: { p_isv_d2: cfg }, categories: baseCategories }),
+    );
+    const l = findByKey(r, 'kISV_D2');
+    ok('isv-D2 invalid standalone + addon threshold missing -> fatal STANDALONE_PRICE_INVALID',
+      !l.selectable && l.invalidReason === 'STANDALONE_PRICE_INVALID' &&
+      l.selectableReason === 'STANDALONE_PRICE_INVALID');
+  }
+
+  // ---- 3. RESTORED INACTIVE-SELECTED-UNIT DIAGNOSTICS ----
+
+  // 3a. Selected matching line with inactive unit -> UNIT_INACTIVE (even though line invalid).
+  {
+    const b = bundle('b_prereq_3a', {
+      standalonePriceCents: 30000, standaloneEnabled: true,
+      inflatableEligibilityMode: 'selected', eligibleUnitIds: [U_TROPICAL],
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [bundleLine('k3a', 'b_prereq_3a', 1),
+         inflatableLine('k3ainf', U_TROPICAL, 15000)],
+        { bundles: { b_prereq_3a: b }, categories: baseCategories, units: { [U_TROPICAL]: unit(U_TROPICAL, false) } },
+      ),
+    );
+    const l = findByKey(r, 'k3a');
+    ok('prereq-3a inactive matching unit -> UNIT_INACTIVE',
+      !l.prerequisiteMet && l.prerequisiteFailureReason === 'UNIT_INACTIVE' &&
+      l.configurationWarning === 'SELECTED_MODE_UNIT_INACTIVE' && !l.selectable);
+  }
+
+  // 3b. Selected matching line with invalid price -> NO_MATCHING_UNIT (line invalid, not satisfying).
+  {
+    const b = bundle('b_prereq_3b', {
+      standalonePriceCents: 30000, standaloneEnabled: true,
+      inflatableEligibilityMode: 'selected', eligibleUnitIds: [U_TROPICAL],
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [bundleLine('k3b', 'b_prereq_3b', 1),
+         inflateRaw('k3binf', { selectedUnitPriceCents: -5 })],
+        { bundles: { b_prereq_3b: b }, categories: baseCategories, units: baseUnits },
+      ),
+    );
+    const l = findByKey(r, 'k3b');
+    ok('prereq-3b matching line invalid price -> not met',
+      !l.prerequisiteMet && !l.selectable);
+  }
+
+  // 3c. Selected matching line with missing mode -> not met.
+  {
+    const b = bundle('b_prereq_3c', {
+      standalonePriceCents: 30000, standaloneEnabled: true,
+      inflatableEligibilityMode: 'selected', eligibleUnitIds: [U_TROPICAL],
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [bundleLine('k3c', 'b_prereq_3c', 1),
+         inflateRaw('k3cinf', { wetOrDry: undefined })],
+        { bundles: { b_prereq_3c: b }, categories: baseCategories, units: baseUnits },
+      ),
+    );
+    const l = findByKey(r, 'k3c');
+    ok('prereq-3c matching line missing mode -> not met',
+      !l.prerequisiteMet && !l.selectable);
+  }
+
+  // 3d. Selected matching line with unknown unit -> UNKNOWN_ELIGIBLE_UNIT if eligible id unknown,
+  //     else NO_MATCHING_UNIT (line's unitId not in eligible set).
+  {
+    const b = bundle('b_prereq_3d', {
+      standalonePriceCents: 30000, standaloneEnabled: true,
+      inflatableEligibilityMode: 'selected', eligibleUnitIds: [U_TROPICAL],
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [bundleLine('k3d', 'b_prereq_3d', 1),
+         inflatableLine('k3dinf', 'unit_unknown', 15000)],
+        { bundles: { b_prereq_3d: b }, categories: baseCategories, units: baseUnits },
+      ),
+    );
+    const l = findByKey(r, 'k3d');
+    ok('prereq-3d unknown-unit matching line -> not met',
+      !l.prerequisiteMet && !l.selectable);
+  }
+
+  // 3e. Selected eligible unit id with map-id mismatch -> UNKNOWN_ELIGIBLE_UNIT.
+  {
+    const b = bundle('b_prereq_3e', {
+      standalonePriceCents: 30000, standaloneEnabled: true,
+      inflatableEligibilityMode: 'selected', eligibleUnitIds: [U_TROPICAL],
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [bundleLine('k3e', 'b_prereq_3e', 1),
+         inflatableLine('k3einf', U_TROPICAL, 15000)],
+        { bundles: { b_prereq_3e: b }, categories: baseCategories,
+          units: { [U_TROPICAL]: { id: 'wrong_id', active: true } } },
+      ),
+    );
+    const l = findByKey(r, 'k3e');
+    ok('prereq-3e eligible unit map-id mismatch -> UNKNOWN_ELIGIBLE_UNIT',
+      !l.prerequisiteMet && l.prerequisiteFailureReason === 'UNKNOWN_ELIGIBLE_UNIT' &&
+      l.configurationWarning === 'SELECTED_MODE_UNKNOWN_UNIT' && !l.selectable);
+  }
+
+  // 3f. any-mode with an inactive matching unit (line invalid) -> NO_DIRECT_INFLATABLE
+  //     (any mode only counts valid lines; inactive line is not valid).
+  {
+    const b = bundle('b_prereq_3f', {
+      standalonePriceCents: 30000, standaloneEnabled: true,
+      inflatableEligibilityMode: 'any',
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [bundleLine('k3f', 'b_prereq_3f', 1),
+         inflatableLine('k3finf', U_TROPICAL, 15000)],
+        { bundles: { b_prereq_3f: b }, categories: baseCategories, units: { [U_TROPICAL]: unit(U_TROPICAL, false) } },
+      ),
+    );
+    const l = findByKey(r, 'k3f');
+    ok('prereq-3f any + inactive line -> NO_DIRECT_INFLATABLE',
+      !l.prerequisiteMet && l.prerequisiteFailureReason === 'NO_DIRECT_INFLATABLE' && !l.selectable);
+  }
+
+  // ---- 5. UNIT MAP-ID-MISMATCH COVERAGE ----
+
+  // 5a. Direct inflatable with map-id-mismatched unit is unselectable.
+  {
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [inflatableLine('k5a', U_TROPICAL, 15000)],
+        { categories: baseCategories, units: { [U_TROPICAL]: { id: 'wrong_id', active: true } } },
+      ),
+    );
+    const l = findByKey(r, 'k5a');
+    ok('unitmismatch-5a inflatable unselectable',
+      !l.selectable && l.selectableReason === 'INFLATABLE_UNIT_UNKNOWN' &&
+      l.resolvedUnitPriceCents === null);
+  }
+
+  // 5b. Map-mismatched inflatable does not contribute toward product qualification.
+  {
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [productLine('k5b', 'p_tables', 1),
+         inflatableLine('k5binf', U_TROPICAL, 15000)],
+        { products: { p_tables: P_TABLES }, categories: baseCategories,
+          units: { [U_TROPICAL]: { id: 'wrong_id', active: true } } },
+      ),
+    );
+    const l = findByKey(r, 'k5b');
+    ok('unitmismatch-5b does not contribute',
+      l.qualifyingSubtotalCents === 0 && !l.addonQualified);
+  }
+
+  // 5c. Map-mismatched inflatable does not satisfy any prerequisite.
+  {
+    const b = bundle('b_5c', {
+      standalonePriceCents: 30000, standaloneEnabled: true,
+      inflatableEligibilityMode: 'any',
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [bundleLine('k5c', 'b_5c', 1),
+         inflatableLine('k5cinf', U_TROPICAL, 15000)],
+        { bundles: { b_5c: b }, categories: baseCategories,
+          units: { [U_TROPICAL]: { id: 'wrong_id', active: true } } },
+      ),
+    );
+    const l = findByKey(r, 'k5c');
+    ok('unitmismatch-5c does not satisfy any prereq',
+      !l.prerequisiteMet && l.prerequisiteFailureReason === 'NO_DIRECT_INFLATABLE');
+  }
+
+  // 5d. Map-mismatched inflatable does not satisfy selected prerequisite.
+  {
+    const b = bundle('b_5d', {
+      standalonePriceCents: 30000, standaloneEnabled: true,
+      inflatableEligibilityMode: 'selected', eligibleUnitIds: [U_TROPICAL],
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [bundleLine('k5d', 'b_5d', 1),
+         inflatableLine('k5dinf', U_TROPICAL, 15000)],
+        { bundles: { b_5d: b }, categories: baseCategories,
+          units: { [U_TROPICAL]: { id: 'wrong_id', active: true } } },
+      ),
+    );
+    const l = findByKey(r, 'k5d');
+    ok('unitmismatch-5d does not satisfy selected prereq',
+      !l.prerequisiteMet && !l.selectable);
   }
 }
 
@@ -1677,6 +2066,7 @@ function runAll(): void {
   testPackagePricing();
   testPackagePrerequisites();
   testConfigurationAndMetadata();
+  testCorrectedBehaviors();
   testDeterminism();
 
   console.log(`\nStage E1 resolver tests: ${passCount} passed, ${failCount} failed.`);
