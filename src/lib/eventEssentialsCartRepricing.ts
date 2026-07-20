@@ -383,15 +383,37 @@ export function deriveEventEssentialsValidationState(args: {
 }): DerivedValidationState {
   const { cartHasEE, configLoading, configError, configReady, currentResult, hasBlockingIssues: blocking } = args;
 
+  // Inflatable-only carts are never blocked by Event Essentials state,
+  // regardless of config state or stale issue arguments.
+  if (!cartHasEE) {
+    return {
+      validationPending: false,
+      validationFailed: false,
+      repricingWritePending: false,
+      canContinue: true,
+    };
+  }
+
+  // Pending and failed are mutually exclusive: a configuration failure is a
+  // terminal state for this render, not a pending one. This prevents Quote
+  // from showing the "please wait" message when configuration has actually
+  // failed.
+  const validationFailed = configError;
+
   const repricingWritePending =
-    cartHasEE && configReady && currentResult !== null && currentResult.changed;
+    !validationFailed &&
+    configReady &&
+    currentResult !== null &&
+    currentResult.changed;
 
   const validationPending =
-    cartHasEE && (configLoading || !configReady || repricingWritePending);
+    !validationFailed &&
+    (configLoading || !configReady || repricingWritePending);
 
-  const validationFailed = cartHasEE && configError;
-
-  const canContinue = !validationPending && !validationFailed && !blocking;
+  const canContinue =
+    !validationPending &&
+    !validationFailed &&
+    !blocking;
 
   return { validationPending, validationFailed, repricingWritePending, canContinue };
 }

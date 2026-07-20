@@ -184,6 +184,11 @@ export function useEventEssentialsCartRepricing(
     loadConfig();
     return () => {
       cancelled = true;
+      // Release the loading guard so a replacement effect (Strict Mode remount
+      // or remove/re-add during loading) can start a fresh request. A
+      // cancelled request must not later touch configMaps, configError,
+      // configLoading, or loadingRef after its replacement has started.
+      loadingRef.current = false;
     };
   }, [cartHasEE]);
 

@@ -961,57 +961,122 @@ function run() {
   }
 
   // ---------------------------------------------------------------------------
-  // State-derivation tests (deriveRepricingCheckoutState).
-  // These mirror the hook's derived `canContinue` logic exactly.
+  // Validation-state precedence tests (deriveEventEssentialsValidationState).
+  // These call the real exported production helper so pending/failed mutual
+  // exclusivity, write-pending, and config-ready are verified against the
+  // actual contract — not a duplicate implementation.
   // ---------------------------------------------------------------------------
 
-  function deriveRepricingCheckoutState(args: {
-    cartHasEE: boolean;
-    configLoading: boolean;
-    configError: boolean;
-    configReady: boolean;
-    hasBlockingIssues: boolean;
-  }): { validationPending: boolean; validationFailed: boolean; canContinue: boolean } {
-    const validationPending = args.cartHasEE && args.configLoading;
-    const validationFailed = args.cartHasEE && args.configError;
-    const canContinue = !validationPending && !validationFailed && !args.hasBlockingIssues;
-    return { validationPending, validationFailed, canContinue };
+  // 56. EE cart + config error: pending=false, failed=true, canContinue=false.
+  //     A config failure is terminal, not pending — must NOT show the waiting
+  //     message. This is the core mutual-exclusivity assertion.
+  {
+    const s = deriveEventEssentialsValidationState({
+      cartHasEE: true, configLoading: false, configError: true, configReady: false,
+      currentResult: null, hasBlockingIssues: false,
+    });
+    ok(
+      '56 EE+configError: pending=false, failed=true, canContinue=false',
+      s.validationPending === false && s.validationFailed === true &&
+        s.repricingWritePending === false && s.canContinue === false,
+    );
   }
 
-  // 56. EE cart + loading -> blocked.
+  // 57. EE cart + loading: pending=true, failed=false.
   {
-    const s = deriveRepricingCheckoutState({ cartHasEE: true, configLoading: true, configError: false, configReady: false, hasBlockingIssues: false });
-    ok('56 EE+loading blocked', s.validationPending === true && s.canContinue === false);
+    const s = deriveEventEssentialsValidationState({
+      cartHasEE: true, configLoading: true, configError: false, configReady: false,
+      currentResult: null, hasBlockingIssues: false,
+    });
+    ok(
+      '57 EE+loading: pending=true, failed=false',
+      s.validationPending === true && s.validationFailed === false && s.canContinue === false,
+    );
   }
 
-  // 57. EE cart + config error -> blocked.
+  // 58. EE cart + not ready and no error: pending=true, failed=false.
   {
-    const s = deriveRepricingCheckoutState({ cartHasEE: true, configLoading: false, configError: true, configReady: false, hasBlockingIssues: false });
-    ok('57 EE+error blocked', s.validationFailed === true && s.canContinue === false);
+    const s = deriveEventEssentialsValidationState({
+      cartHasEE: true, configLoading: false, configError: false, configReady: false,
+      currentResult: null, hasBlockingIssues: false,
+    });
+    ok(
+      '58 EE+not ready: pending=true, failed=false',
+      s.validationPending === true && s.validationFailed === false && s.canContinue === false,
+    );
   }
 
-  // 58. EE cart + ready + no issues -> allowed.
+  // 59. EE cart + changed result: writePending=true, pending=true, failed=false.
   {
-    const s = deriveRepricingCheckoutState({ cartHasEE: true, configLoading: false, configError: false, configReady: true, hasBlockingIssues: false });
-    ok('58 EE+ready+no issues allowed', s.validationPending === false && s.validationFailed === false && s.canContinue === true);
+    const inf = makeInflatable(U_TROPICAL, 20000);
+    const p1 = makeProductConfig('p1', C_TABLES, { addonQualifyingThresholdCents: 15000, addonPriceCents: 6000, standalonePriceCents: 10000 });
+    const prod = makeProductCart('p1', 'Tables', 10000, 'standalone');
+    const cart: UnifiedCartItem[] = [inf, prod];
+    const result = repriceEventEssentialsCart(buildInput(cart, { productConfigs: { p1 } }));
+    const s = deriveEventEssentialsValidationState({
+      cartHasEE: true, configLoading: false, configError: false, configReady: true,
+      currentResult: result, hasBlockingIssues: false,
+    });
+    ok(
+      '59 EE+changed: writePending=true, pending=true, failed=false',
+      s.repricingWritePending === true && s.validationPending === true &&
+        s.validationFailed === false && s.canContinue === false,
+    );
   }
 
-  // 59. EE cart + ready + blocking issue -> blocked.
+  // 60. EE cart + unchanged valid result: pending=false, failed=false, canContinue=true.
   {
-    const s = deriveRepricingCheckoutState({ cartHasEE: true, configLoading: false, configError: false, configReady: true, hasBlockingIssues: true });
-    ok('59 EE+ready+blocking blocked', s.canContinue === false);
+    const p1 = makeProductConfig('p1', C_TABLES, { standalonePriceCents: 10000, addonEnabled: false, addonPriceCents: null });
+    const prod = makeProductCart('p1', 'Tables', 10000, 'standalone');
+    const cart: UnifiedCartItem[] = [prod];
+    const result = repriceEventEssentialsCart(buildInput(cart, { productConfigs: { p1 } }));
+    const s = deriveEventEssentialsValidationState({
+      cartHasEE: true, configLoading: false, configError: false, configReady: true,
+      currentResult: result, hasBlockingIssues: false,
+    });
+    ok(
+      '60 EE+unchanged valid: pending=false, failed=false, canContinue=true',
+      s.validationPending === false && s.validationFailed === false &&
+        s.repricingWritePending === false && s.canContinue === true,
+    );
   }
 
-  // 60. Inflatable-only + loading -> allowed.
+  // 61. Inflatable-only + config error: pending=false, failed=false, canContinue=true.
   {
-    const s = deriveRepricingCheckoutState({ cartHasEE: false, configLoading: true, configError: false, configReady: false, hasBlockingIssues: false });
-    ok('60 inflatable+loading allowed', s.validationPending === false && s.canContinue === true);
+    const s = deriveEventEssentialsValidationState({
+      cartHasEE: false, configLoading: false, configError: true, configReady: false,
+      currentResult: null, hasBlockingIssues: false,
+    });
+    ok(
+      '61 inflatable-only+configError: not blocked',
+      s.validationPending === false && s.validationFailed === false &&
+        s.repricingWritePending === false && s.canContinue === true,
+    );
   }
 
-  // 61. Inflatable-only + config error -> allowed.
+  // 61b. Inflatable-only + loading: pending=false, failed=false, canContinue=true.
   {
-    const s = deriveRepricingCheckoutState({ cartHasEE: false, configLoading: false, configError: true, configReady: false, hasBlockingIssues: false });
-    ok('61 inflatable+error allowed', s.validationFailed === false && s.canContinue === true);
+    const s = deriveEventEssentialsValidationState({
+      cartHasEE: false, configLoading: true, configError: false, configReady: false,
+      currentResult: null, hasBlockingIssues: false,
+    });
+    ok(
+      '61b inflatable-only+loading: not blocked',
+      s.validationPending === false && s.validationFailed === false && s.canContinue === true,
+    );
+  }
+
+  // 61c. Inflatable-only + blocking argument true: canContinue=true because EE
+  //      state must never block an inflatable-only cart.
+  {
+    const s = deriveEventEssentialsValidationState({
+      cartHasEE: false, configLoading: true, configError: true, configReady: false,
+      currentResult: null, hasBlockingIssues: true,
+    });
+    ok(
+      '61c inflatable-only+blocking arg: canContinue=true',
+      s.validationPending === false && s.validationFailed === false && s.canContinue === true,
+    );
   }
 
   // =====================================================================
@@ -1251,14 +1316,24 @@ function run() {
   }
 
   // 75. Compare-and-apply rejection leaves the newer cart untouched.
+  //     Retain an exact reference to the newer water item, run the stale
+  //     reference comparison, and confirm the newer cart still contains that
+  //     exact reference with its water fields intact. (This is a pure
+  //     reference-comparison test; the actual compare-and-apply source is the
+  //     evidence that the mismatch path returns before setCart/persistCart.)
   {
     const dryCart: UnifiedCartItem[] = [makeInflatable(U_TROPICAL, 10000, 'dry')];
     const repricedDry: UnifiedCartItem[] = [...dryCart];
-    const waterCart: UnifiedCartItem[] = [makeInflatable(U_TROPICAL, 15000, 'water')];
+    const waterItem = makeInflatable(U_TROPICAL, 15000, 'water');
+    const waterCart: UnifiedCartItem[] = [waterItem];
     const applied = canApplyRepricedCart(waterCart, repricedDry);
+    const out = waterCart[0] as InflatableCartItem;
     ok(
-      '75 compare-and-apply rejection leaves newer cart untouched',
-      applied === false && waterCart[0] === waterCart[0],
+      '75 stale rejection leaves newer cart untouched',
+      applied === false &&
+        waterCart[0] === waterItem &&
+        out.wet_or_dry === 'water' &&
+        out.unit_price_cents === 15000,
     );
   }
 
