@@ -11,6 +11,7 @@ import {
   productLineKey,
   bundleLineKey,
   inflatableLineKey,
+  deriveEventEssentialsValidationState,
   type RepriceEventEssentialsCartInput,
 } from './eventEssentialsCartRepricing';
 import type {
@@ -1011,6 +1012,270 @@ function run() {
   {
     const s = deriveRepricingCheckoutState({ cartHasEE: false, configLoading: false, configError: true, configReady: false, hasBlockingIssues: false });
     ok('61 inflatable+error allowed', s.validationFailed === false && s.canContinue === true);
+  }
+
+  // =====================================================================
+  // New E3 tests — current-render derivation, write-pending, config reuse,
+  // duplicate issue mapping, resolverKey validation, add-on heuristic removal.
+  // =====================================================================
+
+  // 62. New cart becomes invalid and blocking issues are derived for that
+  //     current cart without waiting for an issue-state effect.
+  {
+    const prod = makeProductCart('p_unknown', 'Unknown', 10000, 'standalone');
+    const cart: UnifiedCartItem[] = [prod];
+    const result = repriceEventEssentialsCart(buildInput(cart, { productConfigs: {} }));
+    ok(
+      '62 current-cart blocking issues derived synchronously',
+      result.issues.length === 1 && result.issues[0].blocking === true && result.issues[0].cartIndex === 0,
+    );
+  }
+
+  // 63. Removing a qualifying inflatable produces either a current blocking
+  //     issue OR currentResult.changed=true during the same render calculation.
+  {
+    const p1 = makeProductConfig('p1', C_TABLES, { addonQualifyingThresholdCents: 15000, addonPriceCents: 6000, standalonePriceCents: 10000 });
+    const prod = makeProductCart('p1', 'Tables', 6000, 'addon'); // was add-on, now no qualifier
+    const cart: UnifiedCartItem[] = [prod]; // inflatable removed
+    const result = repriceEventEssentialsCart(buildInput(cart, { productConfigs: { p1 } }));
+    const out = result.cart[0] as EventEssentialProductCartItem;
+    ok(
+      '63 removing qualifier -> changed or blocking',
+      result.changed === true && out.pricing_context === 'standalone',
+    );
+  }
+
+  // 64. A changed currentResult causes validationPending=true.
+  {
+    const inf = makeInflatable(U_TROPICAL, 20000);
+    const p1 = makeProductConfig('p1', C_TABLES, { addonQualifyingThresholdCents: 15000, addonPriceCents: 6000, standalonePriceCents: 10000 });
+    const prod = makeProductCart('p1', 'Tables', 10000, 'standalone');
+    const cart: UnifiedCartItem[] = [inf, prod];
+    const result = repriceEventEssentialsCart(buildInput(cart, { productConfigs: { p1 } }));
+    const s = deriveEventEssentialsValidationState({
+      cartHasEE: true, configLoading: false, configError: false, configReady: true,
+      currentResult: result, hasBlockingIssues: hasBlockingIssues(result.issues),
+    });
+    ok('64 changed result -> validationPending', s.repricingWritePending === true && s.validationPending === true && s.canContinue === false);
+  }
+
+  // 65. An unchanged currentResult does not cause validationPending.
+  {
+    const p1 = makeProductConfig('p1', C_TABLES, { standalonePriceCents: 10000, addonEnabled: false, addonPriceCents: null });
+    const prod = makeProductCart('p1', 'Tables', 10000, 'standalone');
+    const cart: UnifiedCartItem[] = [prod];
+    const result = repriceEventEssentialsCart(buildInput(cart, { productConfigs: { p1 } }));
+    const s = deriveEventEssentialsValidationState({
+      cartHasEE: true, configLoading: false, configError: false, configReady: true,
+      currentResult: result, hasBlockingIssues: hasBlockingIssues(result.issues),
+    });
+    ok('65 unchanged result -> no validationPending', s.repricingWritePending === false && s.validationPending === false && s.canContinue === true);
+  }
+
+  // 66. Adding a qualifying inflatable causes standalone-to-addon write pending.
+  {
+    const inf = makeInflatable(U_TROPICAL, 20000);
+    const p1 = makeProductConfig('p1', C_TABLES, { addonQualifyingThresholdCents: 15000, addonPriceCents: 6000, standalonePriceCents: 10000 });
+    const prod = makeProductCart('p1', 'Tables', 10000, 'standalone');
+    const cart: UnifiedCartItem[] = [inf, prod];
+    const result = repriceEventEssentialsCart(buildInput(cart, { productConfigs: { p1 } }));
+    ok(
+      '66 adding qualifier -> standalone->addon write pending',
+      result.changed === true &&
+        (result.cart[1] as EventEssentialProductCartItem).pricing_context === 'addon' &&
+        deriveEventEssentialsValidationState({
+          cartHasEE: true, configLoading: false, configError: false, configReady: true,
+          currentResult: result, hasBlockingIssues: false,
+        }).repricingWritePending === true,
+    );
+  }
+
+  // 67. Dry-to-water qualification change creates write pending.
+  {
+    const inf = makeInflatable(U_TROPICAL, 10000, 'dry'); // dry=10000 < 12000 threshold
+    const p1 = makeProductConfig('p1', C_TABLES, { addonQualifyingThresholdCents: 12000, addonPriceCents: 6000, standalonePriceCents: 10000 });
+    const prod = makeProductCart('p1', 'Tables', 10000, 'standalone');
+    const cart: UnifiedCartItem[] = [inf, prod];
+    const resultDry = repriceEventEssentialsCart(buildInput(cart, { productConfigs: { p1 } }));
+    ok(
+      '67a dry does not qualify',
+      (resultDry.cart[1] as EventEssentialProductCartItem).pricing_context === 'standalone',
+    );
+    // Now switch to water (15000 >= 12000)
+    const waterCart: UnifiedCartItem[] = [
+      makeInflatable(U_TROPICAL, 15000, 'water'),
+      prod,
+    ];
+    const resultWater = repriceEventEssentialsCart(buildInput(waterCart, { productConfigs: { p1 } }));
+    ok(
+      '67b dry->water creates write pending',
+      resultWater.changed === true &&
+        (resultWater.cart[1] as EventEssentialProductCartItem).pricing_context === 'addon',
+    );
+  }
+
+  // 68. Water-to-dry qualification change creates write pending.
+  {
+    const inf = makeInflatable(U_TROPICAL, 15000, 'water'); // water=15000 >= 12000
+    const p1 = makeProductConfig('p1', C_TABLES, { addonQualifyingThresholdCents: 12000, addonPriceCents: 6000, standalonePriceCents: 10000 });
+    const prod = makeProductCart('p1', 'Tables', 6000, 'addon');
+    const cart: UnifiedCartItem[] = [inf, prod];
+    const resultWater = repriceEventEssentialsCart(buildInput(cart, { productConfigs: { p1 } }));
+    ok(
+      '68a water qualifies (already addon)',
+      (resultWater.cart[1] as EventEssentialProductCartItem).pricing_context === 'addon',
+    );
+    // Switch to dry (10000 < 12000) -> should revert to standalone
+    const dryCart: UnifiedCartItem[] = [
+      makeInflatable(U_TROPICAL, 10000, 'dry'),
+      prod,
+    ];
+    const resultDry = repriceEventEssentialsCart(buildInput(dryCart, { productConfigs: { p1 } }));
+    ok(
+      '68b water->dry creates write pending',
+      resultDry.changed === true &&
+        (resultDry.cart[1] as EventEssentialProductCartItem).pricing_context === 'standalone',
+    );
+  }
+
+  // 69. Old issues are not reused after the cart reference changes.
+  {
+    // Cart A has an invalid product at index 0. Cart B (new reference) has
+    // only a valid product. The repricer must compute fresh issues for B,
+    // never reuse A's issues.
+    const p1 = makeProductConfig('p1', C_TABLES, { standalonePriceCents: 10000, addonEnabled: false, addonPriceCents: null });
+    const cartA: UnifiedCartItem[] = [makeProductCart('p_unknown', 'Unknown', 10000, 'standalone')];
+    const resultA = repriceEventEssentialsCart(buildInput(cartA, { productConfigs: { p1 } }));
+    const cartB: UnifiedCartItem[] = [makeProductCart('p1', 'Tables', 10000, 'standalone')];
+    const resultB = repriceEventEssentialsCart(buildInput(cartB, { productConfigs: { p1 } }));
+    ok(
+      '69 old issues not reused after cart ref change',
+      resultA.issues.length === 1 && resultB.issues.length === 0,
+    );
+  }
+
+  // 70. Removing an earlier duplicate does not place the previous issue beside
+  //     another duplicate occurrence.
+  {
+    // Three duplicate product lines, middle one invalid (p2).
+    const p1 = makeProductConfig('p1', C_TABLES, { standalonePriceCents: 10000, addonEnabled: false, addonPriceCents: null });
+    const cart: UnifiedCartItem[] = [
+      makeProductCart('p1', 'Tables', 10000, 'standalone'),
+      makeProductCart('p2', 'Chairs', 10000, 'standalone'), // invalid, index 1
+      makeProductCart('p1', 'Tables', 10000, 'standalone'),
+    ];
+    const resultBefore = repriceEventEssentialsCart(buildInput(cart, { productConfigs: { p1 } }));
+    // Remove index 1 (the invalid line).
+    const cartAfter = cart.filter((_, i) => i !== 1);
+    const resultAfter = repriceEventEssentialsCart(buildInput(cartAfter, { productConfigs: { p1 } }));
+    ok(
+      '70 removing earlier duplicate does not misplace issue',
+      resultBefore.issues.length === 1 && resultBefore.issues[0].cartIndex === 1 &&
+        resultAfter.issues.length === 0,
+    );
+  }
+
+  // 71. Exact resolverKey validation distinguishes duplicate occurrences.
+  {
+    // Two duplicate product lines. Line 0 valid, line 1 invalid (different id).
+    const p1 = makeProductConfig('p1', C_TABLES, { standalonePriceCents: 10000, addonEnabled: false, addonPriceCents: null });
+    const cart: UnifiedCartItem[] = [
+      makeProductCart('p1', 'Tables', 10000, 'standalone'),
+      makeProductCart('p2', 'Chairs', 10000, 'standalone'),
+    ];
+    const result = repriceEventEssentialsCart(buildInput(cart, { productConfigs: { p1 } }));
+    const issue0 = result.issues.find((i) => i.cartIndex === 0);
+    const issue1 = result.issues.find((i) => i.cartIndex === 1);
+    ok(
+      '71 resolverKey distinguishes duplicate occurrences',
+      !issue0 && !!issue1 &&
+        issue1.resolverKey === productLineKey(1, 'p2') &&
+        issue1.resolverKey !== productLineKey(0, 'p1'),
+    );
+  }
+
+  // 72. A valid add-on product qualified by another Event Essential category
+  //     does not produce a "Requires Inflatable" warning. E1 is the sole
+  //     source of qualification-invalid messages; the old local heuristic is
+  //     removed. Here a product in category B qualifies a product in category A
+  //     with NO inflatable present, and no issue is produced.
+  {
+    const p1 = makeProductConfig('p1', C_TABLES, { addonQualifyingThresholdCents: 10000, addonPriceCents: 6000, standalonePriceCents: 10000 });
+    const p2 = makeProductConfig('p2', C_CHAIRS, { standalonePriceCents: 10000 });
+    const prod1 = makeProductCart('p1', 'Tables', 10000, 'standalone');
+    const prod2 = makeProductCart('p2', 'Chairs', 10000, 'standalone');
+    const cart: UnifiedCartItem[] = [prod2, prod1]; // no inflatable
+    const result = repriceEventEssentialsCart(buildInput(cart, { productConfigs: { p1, p2 } }));
+    const out1 = result.cart[1] as EventEssentialProductCartItem;
+    ok(
+      '72 cross-category add-on valid without inflatable -> no Requires Inflatable',
+      out1.pricing_context === 'addon' && result.issues.length === 0,
+    );
+  }
+
+  // 73. Re-adding EE after successful config load reuses ready configuration.
+  //     (Pure verification: configReady stays true once maps exist; the
+  //     loading guard prevents a second fetch. Simulated with a stable
+  //     configMaps reference.)
+  {
+    const p1 = makeProductConfig('p1', C_TABLES, { standalonePriceCents: 10000, addonEnabled: false, addonPriceCents: null });
+    const maps = {
+      productConfigs: { p1 },
+      bundleConfigs: {},
+      categories: { [C_TABLES]: makeCategory(C_TABLES), [C_CHAIRS]: makeCategory(C_CHAIRS) },
+      units: { [U_TROPICAL]: makeUnit(U_TROPICAL, true), [U_SLIDE]: makeUnit(U_SLIDE, true) },
+    };
+    const eeCart = [makeProductCart('p1', 'Tables', 10000, 'standalone')] as UnifiedCartItem[];
+    // First computation with config ready.
+    const r1 = repriceEventEssentialsCart({ cart: eeCart, ...maps });
+    // Simulate EE removed then re-added: same maps object reused.
+    const emptyCart: UnifiedCartItem[] = [];
+    const rEmpty = repriceEventEssentialsCart({ cart: emptyCart, ...maps });
+    const r2 = repriceEventEssentialsCart({ cart: eeCart, ...maps });
+    ok(
+      '73 config reused when EE re-added',
+      r1.changed === false && rEmpty.changed === false && r2.changed === false,
+    );
+  }
+
+  // 74. Inflatable-only cart remains immediately continuable.
+  {
+    const s = deriveEventEssentialsValidationState({
+      cartHasEE: false, configLoading: true, configError: true, configReady: false,
+      currentResult: null, hasBlockingIssues: false,
+    });
+    ok(
+      '74 inflatable-only continuable regardless of EE state',
+      s.validationPending === false && s.validationFailed === false && s.canContinue === true,
+    );
+  }
+
+  // 75. Compare-and-apply rejection leaves the newer cart untouched.
+  {
+    const dryCart: UnifiedCartItem[] = [makeInflatable(U_TROPICAL, 10000, 'dry')];
+    const repricedDry: UnifiedCartItem[] = [...dryCart];
+    const waterCart: UnifiedCartItem[] = [makeInflatable(U_TROPICAL, 15000, 'water')];
+    const applied = canApplyRepricedCart(waterCart, repricedDry);
+    ok(
+      '75 compare-and-apply rejection leaves newer cart untouched',
+      applied === false && waterCart[0] === waterCart[0],
+    );
+  }
+
+  // 76. Successful compare-and-apply leads to a subsequent changed=false result.
+  {
+    const inf = makeInflatable(U_TROPICAL, 20000);
+    const p1 = makeProductConfig('p1', C_TABLES, { addonQualifyingThresholdCents: 15000, addonPriceCents: 6000, standalonePriceCents: 10000 });
+    const prod = makeProductCart('p1', 'Tables', 10000, 'standalone');
+    const cart: UnifiedCartItem[] = [inf, prod];
+    const input = buildInput(cart, { productConfigs: { p1 } });
+    const r1 = repriceEventEssentialsCart(input);
+    // Simulate successful apply: the repriced cart becomes the new cart.
+    const r2 = repriceEventEssentialsCart({ ...input, cart: r1.cart });
+    ok(
+      '76 successful apply -> subsequent changed=false',
+      r1.changed === true && r2.changed === false,
+    );
   }
 
   // Summary

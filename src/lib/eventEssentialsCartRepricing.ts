@@ -355,6 +355,48 @@ export function hasBlockingIssues(issues: EventEssentialsCartIssue[]): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Pure checkout-state derivation.
+//
+// Mirrors the hook's derived state exactly so it can be unit-tested without
+// React. `currentResult` is the repriceEventEssentialsCart result computed for
+// the current cart during render (or null when config is not ready / cart has
+// no EE items). repricingWritePending is true when a repriced cart still needs
+// to be applied; validationPending covers config loading, config not ready,
+// and write-pending. validationFailed is true only for EE carts with a config
+// error. Inflatable-only carts are never blocked by EE state.
+// ---------------------------------------------------------------------------
+
+export interface DerivedValidationState {
+  validationPending: boolean;
+  validationFailed: boolean;
+  repricingWritePending: boolean;
+  canContinue: boolean;
+}
+
+export function deriveEventEssentialsValidationState(args: {
+  cartHasEE: boolean;
+  configLoading: boolean;
+  configError: boolean;
+  configReady: boolean;
+  currentResult: RepriceEventEssentialsCartResult | null;
+  hasBlockingIssues: boolean;
+}): DerivedValidationState {
+  const { cartHasEE, configLoading, configError, configReady, currentResult, hasBlockingIssues: blocking } = args;
+
+  const repricingWritePending =
+    cartHasEE && configReady && currentResult !== null && currentResult.changed;
+
+  const validationPending =
+    cartHasEE && (configLoading || !configReady || repricingWritePending);
+
+  const validationFailed = cartHasEE && configError;
+
+  const canContinue = !validationPending && !validationFailed && !blocking;
+
+  return { validationPending, validationFailed, repricingWritePending, canContinue };
+}
+
+// ---------------------------------------------------------------------------
 // Stale-write guard: compare-and-apply helper.
 //
 // Pure reference comparison. Returns true only when the current cart is the

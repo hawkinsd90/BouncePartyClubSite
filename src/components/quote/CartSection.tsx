@@ -1,8 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 import { Trash2, Sun, Droplets, XCircle, AlertCircle, Package, AlertTriangle } from 'lucide-react';
-import type { UnifiedCartItem, InflatableCartItem, EventEssentialProductCartItem, EventEssentialBundleCartItem } from '../../types';
+import type { UnifiedCartItem } from '../../types';
 import type { EventEssentialsCartIssue } from '../../lib/eventEssentialsCartRepricing';
 import { formatPriceCents } from '../../lib/eventEssentialsCatalogResolver';
+import { productLineKey, bundleLineKey } from '../../lib/eventEssentialsCartRepricing';
+import { isInflatableCartItem as isInflatable, isEventEssentialProductCartItem, isEventEssentialBundleCartItem } from '../../lib/unifiedCart';
 
 interface CartSectionProps {
   cart: UnifiedCartItem[];
@@ -10,10 +12,6 @@ interface CartSectionProps {
   onUpdateItem: (index: number, updates: Partial<UnifiedCartItem>) => void;
   onRemoveItem: (index: number) => void;
   eventEssentialsIssues?: EventEssentialsCartIssue[];
-}
-
-function isInflatable(item: UnifiedCartItem): item is InflatableCartItem {
-  return item.item_type === undefined || item.item_type === 'inflatable';
 }
 
 export function CartSection({ cart, eventDate, onUpdateItem, onRemoveItem, eventEssentialsIssues }: CartSectionProps) {
@@ -72,7 +70,6 @@ export function CartSection({ cart, eventDate, onUpdateItem, onRemoveItem, event
         {cart.map((item, index) => {
           if (!isInflatable(item)) {
             const isAddOn = 'pricing_context' in item && item.pricing_context === 'addon';
-            const isInvalidAddOn = isAddOn && item.isAvailable !== false && !cart.some(isInflatable);
 
             return (
               <div
@@ -80,8 +77,6 @@ export function CartSection({ cart, eventDate, onUpdateItem, onRemoveItem, event
                 className={`p-3 sm:p-4 border-2 rounded-lg sm:rounded-xl space-y-3 transition-all ${
                   item.isAvailable === false
                     ? 'border-red-300 bg-red-50'
-                    : isInvalidAddOn
-                    ? 'border-amber-300 bg-amber-50'
                     : 'border-slate-200 hover:border-slate-300'
                 }`}
               >
@@ -96,12 +91,6 @@ export function CartSection({ cart, eventDate, onUpdateItem, onRemoveItem, event
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 whitespace-nowrap">
                           <XCircle className="w-3 h-3" />
                           Not Available
-                        </span>
-                      )}
-                      {isInvalidAddOn && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 whitespace-nowrap">
-                          <AlertTriangle className="w-3 h-3" />
-                          Requires Inflatable
                         </span>
                       )}
                     </div>
@@ -126,21 +115,25 @@ export function CartSection({ cart, eventDate, onUpdateItem, onRemoveItem, event
                   </div>
                 )}
 
-                {isInvalidAddOn && (
-                  <div className="text-xs sm:text-sm text-amber-800 bg-amber-100 px-3 py-2 rounded-lg border border-amber-200">
-                    This add-on requires at least one inflatable in your cart. Add an inflatable or remove this item.
-                  </div>
-                )}
-
                 {(() => {
                   const issue = issueByIndex.get(index);
-                  // Harden mapping: validate the issue belongs to THIS line by
-                  // itemType + itemId, not just cartIndex. Prevents a stale
-                  // issue from rendering beside a different line after
-                  // add/remove/reprice shifts indices.
+                  // Validate the issue belongs to THIS exact line occurrence
+                  // by resolverKey (unique per cart index), itemType, and
+                  // itemId. Prevents a stale issue from a previous cart render
+                  // from appearing beside a different line after add/remove
+                  // or duplicate-index shifts.
                   if (!issue || !issue.blocking) return null;
-                  if (issue.itemType === 'event_essential_product' && issue.itemId !== (item as EventEssentialProductCartItem).product_id) return null;
-                  if (issue.itemType === 'event_essential_bundle' && issue.itemId !== (item as EventEssentialBundleCartItem).bundle_id) return null;
+                  if (isEventEssentialProductCartItem(item)) {
+                    if (issue.itemType !== 'event_essential_product') return null;
+                    if (issue.itemId !== item.product_id) return null;
+                    if (issue.resolverKey !== productLineKey(index, item.product_id)) return null;
+                  } else if (isEventEssentialBundleCartItem(item)) {
+                    if (issue.itemType !== 'event_essential_bundle') return null;
+                    if (issue.itemId !== item.bundle_id) return null;
+                    if (issue.resolverKey !== bundleLineKey(index, item.bundle_id)) return null;
+                  } else {
+                    return null;
+                  }
                   return (
                     <div className="flex items-start gap-2 text-xs sm:text-sm text-red-800 bg-red-100 px-3 py-2 rounded-lg border border-red-200">
                       <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
