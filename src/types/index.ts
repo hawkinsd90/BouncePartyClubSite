@@ -63,6 +63,20 @@ export interface Unit {
   created_at: string;
 }
 
+// Narrow projection of the units table for admin inflatable selectors.
+// Represents exactly the columns selected by fetchAdminInflatableUnits —
+// NOT a complete Unit row. Matches real schema nullability:
+// price_dry_cents NOT NULL, price_water_cents nullable, active nullable
+// (default true), types NOT NULL, id/name NOT NULL.
+export interface AdminInflatableUnit {
+  id: string;
+  name: string;
+  types: string[];
+  price_dry_cents: number;
+  price_water_cents: number | null;
+  active: boolean | null;
+}
+
 export interface Address {
   id: string;
   line1: string;

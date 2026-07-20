@@ -18,7 +18,7 @@ import type {
   ProductAdminFormData,
   SaveProductBundleV2Params,
   SaveInventoryProductV2Params,
-  Unit,
+  AdminInflatableUnit,
 } from '../../types';
 
 // ---------------------------------------------------------------------------
@@ -900,14 +900,14 @@ export async function fetchProductBundlesWithAllComponents(
 // Loads ALL units (including inactive) so unavailable packages can preserve
 // previously selected inactive units; active units are ordered first.
 export async function fetchAdminInflatableUnits(options?: QueryOptions) {
-  return executeQuery<Unit[]>(
+  return executeQuery<AdminInflatableUnit[]>(
     async () =>
       await supabase
         .from('units')
-        .select('id, name, types, price_dry_cents, price_water_cents, active, sort_order')
+        .select('id, name, types, price_dry_cents, price_water_cents, active')
         .order('active', { ascending: false })
         .order('name', { ascending: true }) as unknown as Promise<{
-          data: Unit[] | null;
+          data: AdminInflatableUnit[] | null;
           error: unknown;
         }>,
     { context: 'fetchAdminInflatableUnits', ...options },

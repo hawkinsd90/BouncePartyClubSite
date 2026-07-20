@@ -17,7 +17,7 @@ import type {
   ProductBundleWithConfiguration,
   InventoryProductWithPricing,
   ProductCategory,
-  Unit,
+  AdminInflatableUnit,
   PackageAdminFormData,
 } from '../../../types';
 import { PackageForm } from './PackageForm';
@@ -28,7 +28,7 @@ export function PackageManager() {
   const [products, setProducts] = useState<InventoryProductWithPricing[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [allCategories, setAllCategories] = useState<ProductCategory[]>([]);
-  const [units, setUnits] = useState<Unit[]>([]);
+  const [units, setUnits] = useState<AdminInflatableUnit[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);

@@ -25,7 +25,7 @@ import type {
   PackageInflatableComponentFormRow,
   InflatableEligibilityMode,
   PackageInflatableSelectionMode,
-  Unit,
+  AdminInflatableUnit,
 } from '../../../types';
 import {
   AdminImageUpload,
@@ -56,7 +56,7 @@ interface PackageFormProps {
   bundle: ProductBundleWithConfiguration | null;
   products: InventoryProductWithPricing[];
   categories: ProductCategory[];
-  units: Unit[];
+  units: AdminInflatableUnit[];
   nextSortOrder: number;
   onClose: () => void;
   onSaved: () => void;
@@ -114,15 +114,15 @@ function initialFormData(
   };
 }
 
-function unitSupportsWater(unit: Unit): boolean {
+function unitSupportsWater(unit: AdminInflatableUnit): boolean {
   return unit.price_water_cents !== null && unit.price_water_cents !== undefined;
 }
 
-function unitSupportsBoth(unit: Unit): boolean {
+function unitSupportsBoth(unit: AdminInflatableUnit): boolean {
   return unitSupportsWater(unit) && unit.price_dry_cents !== null;
 }
 
-function unitStatus(unit: Unit): string {
+function unitStatus(unit: AdminInflatableUnit): string {
   return unit.active ? '' : ' (Inactive)';
 }
 
@@ -406,7 +406,7 @@ export function PackageForm({
     // Inflatable components validation
     const inflatableErrors: string[] = [];
     const seenUnitIds = new Set<string>();
-    const unitById = (unitId: string): Unit | undefined =>
+    const unitById = (unitId: string): AdminInflatableUnit | undefined =>
       units.find((u) => u.id === unitId);
 
     for (let i = 0; i < formData.inflatable_components.length; i++) {
