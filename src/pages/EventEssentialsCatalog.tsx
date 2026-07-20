@@ -43,7 +43,6 @@ import {
   formatPriceCents,
   qualificationMessage,
   type CandidateEvalContext,
-  type CandidateViewModel,
 } from '../lib/eventEssentialsCatalogResolver';
 import type { ResolverOutputLine } from '../lib/eventEssentialsPricingTypes';
 import type {

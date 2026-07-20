@@ -362,12 +362,19 @@ export function deriveCandidateViewModel(
 // Pure; no React dependency so they are unit-testable directly.
 // ---------------------------------------------------------------------------
 
-// Formats integer cents as whole-dollar USD with thousands separators,
-// matching the project's customer display convention (whole dollars shown
-// without cents). 5000 -> "$50", 15000 -> "$150", 125000 -> "$1,250".
+// Formats cents as USD. Whole-dollar amounts show no decimals; amounts with
+// a fractional dollar preserve cents. Never rounds away stored cent values.
+// 5000 -> "$50", 15000 -> "$150", 125000 -> "$1,250", 5050 -> "$50.50",
+// 5099 -> "$50.99", 1 -> "$0.01", 0 -> "$0", null -> "".
 export function formatPriceCents(cents: number | null | undefined): string {
   if (cents === null || cents === undefined) return '';
-  return '$' + Math.round(cents / 100).toLocaleString('en-US');
+  const hasFractionalDollar = Math.abs(cents % 100) !== 0;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: hasFractionalDollar ? 2 : 0,
+    maximumFractionDigits: 2,
+  }).format(cents / 100);
 }
 
 // Customer-facing qualification message derived purely from the candidate

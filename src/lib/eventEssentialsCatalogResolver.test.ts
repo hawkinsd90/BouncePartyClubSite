@@ -943,6 +943,70 @@ function runTests(): void {
       vm.priceState === 'standalone' && vm.remainingAmountCents === 15000 &&
       msg === 'Add $150 more in eligible equipment to unlock the add-on price.');
   }
+
+  // 48. Currency formatting: 5050 -> "$50.50" (preserve cents).
+  {
+    ok('48 formatPriceCents 5050', formatPriceCents(5050) === '$50.50');
+  }
+
+  // 49. Currency formatting: 5099 -> "$50.99" (preserve cents).
+  {
+    ok('49 formatPriceCents 5099', formatPriceCents(5099) === '$50.99');
+  }
+
+  // 50. Currency formatting: 1 -> "$0.01" (single cent).
+  {
+    ok('50 formatPriceCents 1', formatPriceCents(1) === '$0.01');
+  }
+
+  // 51. Currency formatting: 0 -> "$0" (zero dollars).
+  {
+    ok('51 formatPriceCents 0', formatPriceCents(0) === '$0');
+  }
+
+  // 52. Blocked add-on copy preserves cent-level amounts.
+  {
+    const products = [makeProduct('p_ao_cents', C_TABLES)];
+    const pricing = [
+      makePricing('p_ao_cents', {
+        standalone_price_cents: null,
+        standalone_enabled: false,
+        addon_price_cents: 6000,
+        addon_enabled: true,
+        addon_qualifying_threshold_cents: 5050,
+      }),
+    ];
+    const categories = [makeCategory(C_TABLES)];
+    const ctx = buildCtx({ products, pricing, categories, cart: [] });
+    const out = evaluateProductCandidate(ctx, { productId: 'p_ao_cents', qty: 1 });
+    const vm = deriveCandidateViewModel(out, false);
+    const msg = qualificationMessage(vm);
+    ok('52 blocked addon copy preserves cents',
+      vm.priceState === 'blocked_addon_only' && vm.remainingAmountCents === 5050 &&
+      msg === 'Add $50.50 more in eligible equipment to unlock this item.');
+  }
+
+  // 53. Standalone qualification copy preserves cent-level amounts.
+  {
+    const products = [makeProduct('p_st_cents', C_TABLES)];
+    const pricing = [
+      makePricing('p_st_cents', {
+        standalone_price_cents: 10000,
+        standalone_enabled: true,
+        addon_price_cents: 6000,
+        addon_enabled: true,
+        addon_qualifying_threshold_cents: 12550,
+      }),
+    ];
+    const categories = [makeCategory(C_TABLES)];
+    const ctx = buildCtx({ products, pricing, categories, cart: [] });
+    const out = evaluateProductCandidate(ctx, { productId: 'p_st_cents', qty: 1 });
+    const vm = deriveCandidateViewModel(out, false);
+    const msg = qualificationMessage(vm);
+    ok('53 standalone qualification copy preserves cents',
+      vm.priceState === 'standalone' && vm.remainingAmountCents === 12550 &&
+      msg === 'Add $125.50 more in eligible equipment to unlock the add-on price.');
+  }
 }
 
 runTests();
