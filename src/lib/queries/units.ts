@@ -24,6 +24,28 @@ export async function getActiveUnits(options?: QueryOptions) {
   );
 }
 
+export interface InflatableUnitResolverConfig {
+  id: string;
+  active: boolean;
+}
+
+export async function getActiveInflatableUnitConfigs(
+  options?: QueryOptions
+) {
+  return executeQuery<InflatableUnitResolverConfig[]>(
+    async () =>
+      await supabase
+        .from('units')
+        .select('id, active')
+        .eq('active', true)
+        .order('name', { ascending: true }) as unknown as Promise<{
+          data: InflatableUnitResolverConfig[] | null;
+          error: unknown;
+        }>,
+    { context: 'getActiveInflatableUnitConfigs', ...options }
+  );
+}
+
 export async function getUnitById(unitId: string, options?: QueryOptions) {
   return executeQuery(
     async () =>

@@ -16,23 +16,36 @@ import {
 import { getPublicBusinessSettings } from '../lib/adminSettingsCache';
 import { SafeStorage } from '../lib/safeStorage';
 import {
-  fetchProductBundlesWithComponents,
+  fetchProductBundlesWithAllComponents,
   fetchProductPricing,
   fetchProductCategories,
   fetchInventoryProductsByCategory,
   fetchInventoryProducts,
   checkProductAvailability,
 } from '../lib/queries/products';
+import { getActiveInflatableUnitConfigs } from '../lib/queries/units';
 import { useQuoteCart } from '../hooks/useQuoteCart';
 import {
   buildBundleSnapshot,
   expandCartToProductQuantities,
-  isInflatableCartItem,
   isEventEssentialProductCartItem,
   isEventEssentialBundleCartItem,
 } from '../lib/unifiedCart';
+import {
+  buildProductConfigMap,
+  buildBundleConfigMap,
+  buildCategoryMap,
+  buildUnitMap,
+  normalizeCartLines,
+  evaluateProductCandidate,
+  evaluateBundleCandidate,
+  deriveCandidateViewModel,
+  type CandidateEvalContext,
+  type CandidateViewModel,
+} from '../lib/eventEssentialsCatalogResolver';
+import type { ResolverOutputLine } from '../lib/eventEssentialsPricingTypes';
 import type {
-  ProductBundleWithComponents,
+  ProductBundleWithConfiguration,
   ProductPricing,
   ProductCategory,
   InventoryProduct,
@@ -59,11 +72,35 @@ type ProductAvailabilityMap = Record<
   { available_before_request: number; maxAddable: number; error: boolean }
 >;
 
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toLocaleString('en-US', {
+function formatPrice(cents: number | null): string {
+  if (cents === null || cents === undefined) return '';
+  return `${(cents / 100).toLocaleString('en-US', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   })}`;
+}
+
+// Customer-facing qualification message derived purely from the candidate view model.
+function qualificationMessage(vm: CandidateViewModel): string | null {
+  if (vm.priceState === 'addon') return null;
+  if (vm.prereqBlocked) {
+    if (vm.prereqRequiresAnyInflatable) return 'Add an inflatable to your cart to select this package.';
+    if (vm.prereqRequiresEligibleInflatable) return 'This package requires an eligible inflatable in your cart.';
+    return 'This package is currently unavailable.';
+  }
+  if (vm.priceState === 'blocked_addon_only') {
+    if (vm.remainingAmountCents !== null && vm.remainingAmountCents > 0) {
+      return `Add ${formatPrice(vm.remainingAmountCents)} more in eligible equipment to unlock this item.`;
+    }
+    return 'This item is currently unavailable.';
+  }
+  if (vm.priceState === 'standalone') {
+    if (vm.remainingAmountCents !== null && vm.remainingAmountCents > 0) {
+      return `Add ${formatPrice(vm.remainingAmountCents)} more in eligible equipment to unlock the add-on price.`;
+    }
+    return null;
+  }
+  return 'This item is currently unavailable.';
 }
 
 export function EventEssentialsCatalog() {
@@ -72,12 +109,13 @@ export function EventEssentialsCatalog() {
 
   const [enabled, setEnabled] = useState(false);
   const [minOrderCents, setMinOrderCents] = useState<number | null>(null);
-  const [bundles, setBundles] = useState<ProductBundleWithComponents[]>([]);
+  const [bundles, setBundles] = useState<ProductBundleWithConfiguration[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [selectedCategoryKey, setSelectedCategoryKey] = useState<string>('all');
   const [categoryProducts, setCategoryProducts] = useState<InventoryProduct[]>([]);
   const [allProducts, setAllProducts] = useState<InventoryProduct[]>([]);
   const [allPricing, setAllPricing] = useState<ProductPricing[]>([]);
+  const [unitConfigs, setUnitConfigs] = useState<{ id: string; active: boolean }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -112,15 +150,16 @@ export function EventEssentialsCatalog() {
         setEnabled(true);
         setMinOrderCents(settings.min_event_essentials_order_cents);
 
-        const [bundlesResult, categoriesResult, pricingResult] = await Promise.all([
-          fetchProductBundlesWithComponents(),
+        const [bundlesResult, categoriesResult, pricingResult, unitsResult] = await Promise.all([
+          fetchProductBundlesWithAllComponents(),
           fetchProductCategories(),
           fetchProductPricing(),
+          getActiveInflatableUnitConfigs(),
         ]);
 
         if (cancelled) return;
 
-        if (bundlesResult.error || categoriesResult.error || pricingResult.error) {
+        if (bundlesResult.error || categoriesResult.error || pricingResult.error || unitsResult.error) {
           setError('Failed to load catalog. Please try again later.');
           setLoading(false);
           return;
@@ -130,6 +169,7 @@ export function EventEssentialsCatalog() {
         const cats = categoriesResult.data ?? [];
         setCategories(cats);
         setAllPricing(pricingResult.data ?? []);
+        setUnitConfigs(unitsResult.data ?? []);
 
         // Load all public products upfront for the "All" filter
         const allProductsResult = await fetchInventoryProducts();
@@ -267,13 +307,26 @@ export function EventEssentialsCatalog() {
     };
   }, [selectedCategoryKey]);
 
-  const pricingByProductId = useMemo(() => {
-    const map = new Map<string, ProductPricing>();
-    for (const p of allPricing) {
-      map.set(p.product_id, p);
-    }
-    return map;
-  }, [allPricing]);
+  // --- E2: build resolver configuration maps and normalized cart lines once
+  // per render. These are pure and depend only on loaded config + cart. ---
+  const resolverContext = useMemo<CandidateEvalContext>(() => {
+    const productConfigs = buildProductConfigMap(allProducts, allPricing);
+    const bundleConfigs = buildBundleConfigMap(bundles);
+    const categoryMap = buildCategoryMap(categories);
+    const units = buildUnitMap(unitConfigs);
+    const cartLines = normalizeCartLines(cart, productConfigs, bundleConfigs);
+    return { productConfigs, bundleConfigs, categories: categoryMap, units, cartLines };
+  }, [allProducts, allPricing, bundles, categories, unitConfigs, cart]);
+
+  // Evaluate a product candidate against the current cart via the E1 resolver.
+  function productCandidate(product: InventoryProduct, qty: number): ResolverOutputLine | null {
+    return evaluateProductCandidate(resolverContext, { productId: product.id, qty });
+  }
+
+  // Evaluate a bundle candidate against the current cart via the E1 resolver.
+  function bundleCandidate(bundle: ProductBundleWithConfiguration, qty: number): ResolverOutputLine | null {
+    return evaluateBundleCandidate(resolverContext, { bundleId: bundle.id, qty });
+  }
 
   const eventEssentialsCartItems = useMemo(
     () =>
@@ -282,92 +335,6 @@ export function EventEssentialsCatalog() {
       ) as (EventEssentialProductCartItem | EventEssentialBundleCartItem)[],
     [cart]
   );
-
-  const hasQualifyingInflatable = useMemo(
-    () => cart.some((item) => isInflatableCartItem(item) && item.qty > 0),
-    [cart]
-  );
-
-  function resolveProductPrice(
-    product: InventoryProduct
-  ): {
-    unitPriceCents: number;
-    pricingContext: PricingContext;
-    blocked: boolean;
-    blockReason?: string;
-  } | null {
-    const pricing = pricingByProductId.get(product.id);
-    if (!pricing) return null;
-
-    if (hasQualifyingInflatable) {
-      if (pricing.addon_enabled && pricing.addon_price_cents != null) {
-        return {
-          unitPriceCents: pricing.addon_price_cents,
-          pricingContext: 'addon',
-          blocked: false,
-        };
-      }
-      if (pricing.standalone_enabled && pricing.standalone_price_cents != null) {
-        return {
-          unitPriceCents: pricing.standalone_price_cents,
-          pricingContext: 'standalone',
-          blocked: false,
-        };
-      }
-      return null;
-    }
-
-    if (pricing.standalone_enabled && pricing.standalone_price_cents != null) {
-      return {
-        unitPriceCents: pricing.standalone_price_cents,
-        pricingContext: 'standalone',
-        blocked: false,
-      };
-    }
-
-    if (pricing.addon_enabled && pricing.addon_price_cents != null) {
-      return {
-        unitPriceCents: pricing.addon_price_cents,
-        pricingContext: 'addon',
-        blocked: true,
-        blockReason: 'Available as an add-on with inflatable rental',
-      };
-    }
-
-    return null;
-  }
-
-  function getBundlePrice(bundle: ProductBundleWithComponents): {
-    unitPriceCents: number;
-    isAddon: boolean;
-    blocked: boolean;
-    blockReason?: string;
-  } | null {
-    if (hasQualifyingInflatable) {
-      if (bundle.addon_enabled && bundle.addon_price_cents != null) {
-        return { unitPriceCents: bundle.addon_price_cents, isAddon: true, blocked: false };
-      }
-      if (bundle.standalone_enabled && bundle.standalone_price_cents != null) {
-        return { unitPriceCents: bundle.standalone_price_cents, isAddon: false, blocked: false };
-      }
-      return null;
-    }
-
-    if (bundle.standalone_enabled && bundle.standalone_price_cents != null) {
-      return { unitPriceCents: bundle.standalone_price_cents, isAddon: false, blocked: false };
-    }
-
-    if (bundle.addon_enabled && bundle.addon_price_cents != null) {
-      return {
-        unitPriceCents: bundle.addon_price_cents,
-        isAddon: true,
-        blocked: true,
-        blockReason: 'Add an inflatable to unlock this package.',
-      };
-    }
-
-    return null;
-  }
 
   const runAvailabilityPreview = useCallback(
     async (date: string, endDate: string, products: InventoryProduct[], cartItems: UnifiedCartItem[]) => {
@@ -497,6 +464,7 @@ export function EventEssentialsCatalog() {
     }));
   }
 
+  // --- E2: add-to-cart uses the latest candidate resolver output for price/context. ---
   async function handleAddProduct(product: InventoryProduct) {
     const key = `product-${product.id}`;
     const qty = getQty(key);
@@ -504,14 +472,11 @@ export function EventEssentialsCatalog() {
 
     setAddError(null);
 
-    const priceInfo = resolveProductPrice(product);
-    if (!priceInfo) {
-      setAddError('Pricing not yet configured for this product.');
-      return;
-    }
-
-    if (priceInfo.blocked) {
-      setAddError(priceInfo.blockReason || 'This product requires an inflatable in your cart.');
+    // Use the latest candidate result from current cart + config state.
+    const candidate = productCandidate(product, qty);
+    const vm = deriveCandidateViewModel(candidate, false);
+    if (!candidate || !vm.selectable || vm.resolvedPriceCents === null) {
+      setAddError(qualificationMessage(vm) ?? 'This item is currently unavailable.');
       return;
     }
 
@@ -524,13 +489,16 @@ export function EventEssentialsCatalog() {
     addingRef.current = true;
 
     try {
+      const pricingContext: PricingContext =
+        candidate.resolvedPricingContext === 'addon' ? 'addon' : 'standalone';
+
       const proposedItem: EventEssentialProductCartItem = {
         item_type: 'event_essential_product',
         product_id: product.id,
         product_name: product.name,
         qty,
-        unit_price_cents: priceInfo.unitPriceCents,
-        pricing_context: priceInfo.pricingContext,
+        unit_price_cents: vm.resolvedPriceCents,
+        pricing_context: pricingContext,
         isAvailable: true,
       };
 
@@ -587,21 +555,17 @@ export function EventEssentialsCatalog() {
     }
   }
 
-  async function handleAddBundle(bundle: ProductBundleWithComponents) {
+  async function handleAddBundle(bundle: ProductBundleWithConfiguration) {
     const key = `bundle-${bundle.id}`;
     const qty = getQty(key);
     if (qty <= 0) return;
 
     setAddError(null);
 
-    const priceInfo = getBundlePrice(bundle);
-    if (!priceInfo) {
-      setAddError('Pricing not available for this bundle.');
-      return;
-    }
-
-    if (priceInfo.blocked) {
-      setAddError(priceInfo.blockReason || 'This package requires an inflatable in your cart.');
+    const candidate = bundleCandidate(bundle, qty);
+    const vm = deriveCandidateViewModel(candidate, true);
+    if (!candidate || !vm.selectable || vm.resolvedPriceCents === null) {
+      setAddError(qualificationMessage(vm) ?? 'This package is currently unavailable.');
       return;
     }
 
@@ -614,13 +578,14 @@ export function EventEssentialsCatalog() {
     addingRef.current = true;
 
     try {
-      const pricingContext: PricingContext = priceInfo.isAddon ? 'addon' : 'standalone';
+      const pricingContext: PricingContext =
+        candidate.resolvedPricingContext === 'addon' ? 'addon' : 'standalone';
 
       const proposedItem: EventEssentialBundleCartItem = {
         item_type: 'event_essential_bundle',
         bundle_id: bundle.id,
         bundle_name: bundle.name,
-        unit_price_cents: priceInfo.unitPriceCents,
+        unit_price_cents: vm.resolvedPriceCents,
         qty,
         pricing_context: pricingContext,
         component_snapshot: buildBundleSnapshot(bundle),
@@ -683,7 +648,7 @@ export function EventEssentialsCatalog() {
     0
   );
 
-  function getRelevantBundlesForCategory(category: ProductCategory | null): ProductBundleWithComponents[] {
+  function getRelevantBundlesForCategory(category: ProductCategory | null): ProductBundleWithConfiguration[] {
     // When All is selected, show all bundles — do not duplicate them per category.
     if (!category) return bundles;
     return bundles.filter((bundle) =>
@@ -836,17 +801,21 @@ export function EventEssentialsCatalog() {
                 {displayProducts.map((product) => {
                   const key = `product-${product.id}`;
                   const qty = getQty(key);
-                  const priceInfo = resolveProductPrice(product);
+                  const candidate = productCandidate(product, Math.max(1, qty));
+                  const vm = deriveCandidateViewModel(candidate, false);
                   const avail = productAvailability[product.id];
                   const datesSelected = !!eventDate && !!eventEndDate;
                   const maxAddable = avail?.maxAddable ?? 0;
                   const hasAvailError = avail?.error ?? availabilityError;
-                  const isBlocked = priceInfo?.blocked ?? false;
+                  const resolverSelectable = vm.selectable;
+                  const hasResolvedPrice = vm.resolvedPriceCents !== null;
+                  const message = qualificationMessage(vm);
+                  // Add button requires BOTH existing availability AND resolver selectability.
                   const canAdd =
                     datesSelected &&
                     !hasAvailError &&
-                    !!priceInfo &&
-                    !priceInfo.blocked &&
+                    resolverSelectable &&
+                    hasResolvedPrice &&
                     qty > 0 &&
                     maxAddable > 0;
 
@@ -854,7 +823,7 @@ export function EventEssentialsCatalog() {
                     <div
                       key={product.id}
                       className={`bg-white rounded-xl shadow-sm border p-4 sm:p-5 transition-shadow ${
-                        isBlocked ? 'border-slate-200 opacity-75' : 'border-slate-200 hover:shadow-md'
+                        !resolverSelectable ? 'border-slate-200 opacity-75' : 'border-slate-200 hover:shadow-md'
                       }`}
                     >
                       {/* Product image or placeholder */}
@@ -890,19 +859,34 @@ export function EventEssentialsCatalog() {
                         <p className="text-sm text-slate-600 mb-3">{product.description}</p>
                       )}
 
-                      {/* Price */}
-                      {priceInfo && !priceInfo.blocked ? (
-                        <p className="text-lg font-bold text-blue-700 mb-2">
-                          {formatPrice(priceInfo.unitPriceCents)}
+                      {/* Price — driven by resolver view model */}
+                      {hasResolvedPrice && vm.priceState === 'addon' ? (
+                        <p className="text-lg font-bold text-blue-700 mb-1">
+                          {formatPrice(vm.resolvedPriceCents)}
                           <span className="text-xs font-normal text-slate-500 ml-1">per unit</span>
                         </p>
-                      ) : priceInfo?.blocked ? (
-                        <p className="text-sm text-amber-700 flex items-center gap-1.5 mb-2">
-                          <Lock className="w-4 h-4 flex-shrink-0" />
-                          {priceInfo.blockReason}
+                      ) : hasResolvedPrice && vm.priceState === 'standalone' ? (
+                        <p className="text-lg font-bold text-blue-700 mb-1">
+                          {formatPrice(vm.resolvedPriceCents)}
+                          <span className="text-xs font-normal text-slate-500 ml-1">per unit</span>
                         </p>
                       ) : (
-                        <p className="text-sm text-slate-500 mb-2">Pricing not yet configured</p>
+                        <p className="text-sm text-slate-500 mb-1">This item is currently unavailable</p>
+                      )}
+
+                      {/* Add-on unlocked indicator */}
+                      {vm.priceState === 'addon' && (
+                        <p className="text-xs font-medium text-blue-600 mb-2">
+                          Add-on price unlocked
+                        </p>
+                      )}
+
+                      {/* Customer-facing qualification message */}
+                      {message && (
+                        <p className="text-xs text-amber-700 flex items-center gap-1.5 mb-2">
+                          <Lock className="w-3.5 h-3.5 flex-shrink-0" />
+                          {message}
+                        </p>
                       )}
 
                       {/* Availability status */}
@@ -979,16 +963,23 @@ export function EventEssentialsCatalog() {
                 {relevantBundles.map((bundle) => {
                   const key = `bundle-${bundle.id}`;
                   const qty = getQty(key);
-                  const priceInfo = getBundlePrice(bundle);
-                  const isAddon = priceInfo?.isAddon ?? false;
-                  const isBlocked = priceInfo?.blocked ?? false;
-                  const hasPricing = !!priceInfo;
+                  const candidate = bundleCandidate(bundle, Math.max(1, qty));
+                  const vm = deriveCandidateViewModel(candidate, true);
+                  const isAddon = candidate?.resolvedPricingContext === 'addon';
+                  const hasResolvedPrice = vm.resolvedPriceCents !== null;
+                  const message = qualificationMessage(vm);
+                  const canAdd =
+                    vm.selectable &&
+                    hasResolvedPrice &&
+                    qty > 0 &&
+                    !!eventDate &&
+                    !!eventEndDate;
 
                   return (
                     <div
                       key={bundle.id}
                       className={`bg-white rounded-xl shadow-sm border p-4 sm:p-5 transition-shadow ${
-                        isBlocked ? 'border-slate-200 opacity-75' : 'border-slate-200 hover:shadow-md'
+                        !vm.selectable ? 'border-slate-200 opacity-75' : 'border-slate-200 hover:shadow-md'
                       }`}
                     >
                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
@@ -1014,15 +1005,25 @@ export function EventEssentialsCatalog() {
                               </span>
                             ))}
                           </div>
-                          {hasPricing ? (
-                            <p className="text-base font-bold text-blue-700">{formatPrice(priceInfo!.unitPriceCents)}</p>
+                          {hasResolvedPrice ? (
+                            <p className="text-base font-bold text-blue-700">{formatPrice(vm.resolvedPriceCents)}</p>
                           ) : (
-                            <p className="text-base font-bold text-slate-400">Pricing not available</p>
+                            <p className="text-base font-bold text-slate-400">This package is currently unavailable</p>
                           )}
-                          {isBlocked && (
+                          {vm.priceState === 'addon' && hasResolvedPrice && (
+                            <p className="text-xs font-medium text-blue-600 mt-1">
+                              Add-on price unlocked
+                            </p>
+                          )}
+                          {vm.requiresCustomerChoice && vm.selectable && (
+                            <p className="text-xs text-slate-500 mt-1">
+                              Includes an inflatable with a dry or water choice.
+                            </p>
+                          )}
+                          {message && (
                             <p className="mt-2 text-sm text-amber-700 flex items-center gap-1.5">
                               <Lock className="w-4 h-4 flex-shrink-0" />
-                              {priceInfo?.blockReason}
+                              {message}
                             </p>
                           )}
                         </div>
@@ -1042,14 +1043,14 @@ export function EventEssentialsCatalog() {
                               min={0}
                               value={qty}
                               onChange={(e) => setQty(key, e.target.value, 99)}
-                              disabled={!hasPricing}
+                              disabled={!vm.selectable}
                               className="w-12 text-center font-semibold text-slate-900 text-sm border border-slate-300 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                             />
                             <button
                               type="button"
                               onClick={() => incrementQty(key, 99)}
                               className="w-8 h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors"
-                              disabled={!hasPricing}
+                              disabled={!vm.selectable}
                             >
                               <Plus className="w-4 h-4" />
                             </button>
@@ -1057,7 +1058,7 @@ export function EventEssentialsCatalog() {
                           <button
                             type="button"
                             onClick={() => handleAddBundle(bundle)}
-                            disabled={qty <= 0 || isBlocked || !hasPricing || !eventDate || !eventEndDate}
+                            disabled={!canAdd}
                             className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white font-semibold rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <ShoppingCart className="w-4 h-4" />
