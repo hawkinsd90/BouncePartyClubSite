@@ -6,6 +6,11 @@
 
 import {
   repriceEventEssentialsCart,
+  hasBlockingIssues,
+  canApplyRepricedCart,
+  productLineKey,
+  bundleLineKey,
+  inflatableLineKey,
   type RepriceEventEssentialsCartInput,
 } from './eventEssentialsCartRepricing';
 import type {
@@ -269,7 +274,6 @@ function run() {
 
   // 9. Product in the candidate's own category does not qualify it.
   {
-    // Two products in the same category; neither qualifies the other for addon.
     const p1 = makeProductConfig('p1', C_TABLES, { addonQualifyingThresholdCents: 50000 });
     const p2 = makeProductConfig('p2', C_TABLES);
     const prod1 = makeProductCart('p1', 'Tables', 10000, 'standalone');
@@ -298,8 +302,6 @@ function run() {
 
   // 11. Stored product add-on price is not used as authoritative contribution.
   {
-    // Product stored as addon at 6000; another product should use the addon
-    // product's STANDALONE price (10000) for qualification, not the stored 6000.
     const p1 = makeProductConfig('p1', C_TABLES, { addonQualifyingThresholdCents: 10000 });
     const p2 = makeProductConfig('p2', C_CHAIRS, { standalonePriceCents: 10000 });
     const prod1 = makeProductCart('p1', 'Tables', 6000, 'addon');
@@ -308,7 +310,6 @@ function run() {
     const result = repriceEventEssentialsCart(
       buildInput(cart, { productConfigs: { p1, p2 } }),
     );
-    // prod2 contributes 10000 (standalone) >= 10000 threshold -> p1 qualifies for addon
     const out1 = result.cart[0] as EventEssentialProductCartItem;
     ok('11 stored addon price not used for contribution', out1.pricing_context === 'addon' && out1.unit_price_cents === 6000);
   }
@@ -324,7 +325,6 @@ function run() {
       buildInput(cart, { productConfigs: { p1 }, bundleConfigs: { b1: bundle } }),
     );
     const outProd = result.cart[1] as EventEssentialProductCartItem;
-    // Bundle contributes zero, so prod does not qualify for addon
     ok('12 package contributes zero', outProd.pricing_context === 'standalone');
   }
 
@@ -437,7 +437,7 @@ function run() {
   {
     const bundle = makeBundleConfig('b1', {
       inflatableEligibilityMode: 'selected',
-      eligibleUnitIds: [], // NO_ELIGIBLE_UNITS_CONFIGURED
+      eligibleUnitIds: [],
       standalonePriceCents: 30000,
     });
     const bCart = makeBundleCart('b1', 'Package', 30000, 'standalone');
@@ -455,7 +455,6 @@ function run() {
 
   // 21. Invalid add-on-only product creates a blocking issue.
   {
-    // Product with only addon enabled, no standalone, no qualifying inflatable.
     const p1 = makeProductConfig('p1', C_TABLES, {
       standaloneEnabled: false,
       standalonePriceCents: null,
@@ -478,7 +477,6 @@ function run() {
 
   // 22. Standalone fallback remains selectable and reprices correctly.
   {
-    // Product with valid standalone + addon not qualified -> stays standalone.
     const p1 = makeProductConfig('p1', C_TABLES, {
       standalonePriceCents: 12000,
       addonQualifyingThresholdCents: 50000,
@@ -630,9 +628,6 @@ function run() {
   // 33. Dry-to-water selected price changes qualification without changing the inflatable line.
   {
     const inf = makeInflatable(U_TROPICAL, 10000, 'dry'); // dry = 10000, water = 15000
-    // Threshold 12000: dry (10000) doesn't qualify, but water (15000) does.
-    // The inflatable line itself should not change, but the product should reprice
-    // based on the selected price (10000 dry) -> not qualified.
     const p1 = makeProductConfig('p1', C_TABLES, { addonQualifyingThresholdCents: 12000 });
     const prod = makeProductCart('p1', 'Tables', 10000, 'standalone');
     const cart: UnifiedCartItem[] = [inf, prod];
@@ -650,7 +645,6 @@ function run() {
   // 34. Water-to-dry selected price changes qualification without changing the inflatable line.
   {
     const inf = makeInflatable(U_TROPICAL, 15000, 'water'); // water = 15000 (unit_price), dry = 10000
-    // With water selected at 15000, threshold 12000 -> qualifies.
     const p1 = makeProductConfig('p1', C_TABLES, { addonQualifyingThresholdCents: 12000 });
     const prod = makeProductCart('p1', 'Tables', 10000, 'standalone');
     const cart: UnifiedCartItem[] = [inf, prod];
@@ -668,7 +662,6 @@ function run() {
   // 35. No Event Essential config load/result means no cart mutation.
   {
     const cart: UnifiedCartItem[] = [makeInflatable(U_TROPICAL, 20000)];
-    // Empty config maps, no event essentials in cart -> no mutation.
     const result = repriceEventEssentialsCart(buildInput(cart));
     ok('35 no EE config -> no mutation', result.cart === cart && result.changed === false);
   }
@@ -682,14 +675,13 @@ function run() {
       product_id: 'p1',
       product_name: 'Tables',
       unit_price_cents: 10000,
-      qty: NaN, // malformed
+      qty: NaN,
       pricing_context: 'standalone',
     };
     const cart: UnifiedCartItem[] = [inf, prod];
     const result = repriceEventEssentialsCart(
       buildInput(cart, { productConfigs: { p1 } }),
     );
-    // NaN qty -> E1 returns INVALID_QUANTITY -> blocking issue, line preserved.
     ok(
       '36 malformed qty -> blocking not invalid price',
       result.issues.length === 1 &&
@@ -698,44 +690,263 @@ function run() {
     );
   }
 
-  // 37. Duplicate legacy Event Essential lines are preserved as separate lines.
+  // 37. Duplicate product lines receive DIFFERENT resolver keys (index-based).
   {
-    const p1 = makeProductConfig('p1', C_TABLES, { standalonePriceCents: 10000, addonEnabled: false, addonPriceCents: null });
-    const prod1 = makeProductCart('p1', 'Tables', 10000, 'standalone');
-    const prod2 = makeProductCart('p1', 'Tables', 10000, 'standalone');
+    ok(
+      '37 dup products different keys',
+      productLineKey(0, 'p1') !== productLineKey(1, 'p1'),
+    );
+  }
+
+  // 38. Duplicate package lines receive DIFFERENT resolver keys (index-based).
+  {
+    ok(
+      '38 dup bundles different keys',
+      bundleLineKey(0, 'b1') !== bundleLineKey(1, 'b1'),
+    );
+  }
+
+  // 39. Duplicate inflatable lines receive DIFFERENT resolver keys (index-based).
+  {
+    ok(
+      '39 dup inflatables different keys',
+      inflatableLineKey(0, U_TROPICAL) !== inflatableLineKey(1, U_TROPICAL),
+    );
+  }
+
+  // 40. Duplicate product lines with DIFFERENT quantities map to their exact outputs.
+  {
+    // Two DIFFERENT products in different categories so they can qualify each other.
+    const p1 = makeProductConfig('p1', C_TABLES, { standalonePriceCents: 10000, addonPriceCents: 6000, addonQualifyingThresholdCents: 10000 });
+    const p2 = makeProductConfig('p2', C_CHAIRS, { standalonePriceCents: 10000, addonPriceCents: 6000, addonQualifyingThresholdCents: 10000 });
+    const prod1 = makeProductCart('p1', 'Tables', 10000, 'standalone', 1); // qty 1
+    const prod2 = makeProductCart('p2', 'Chairs', 10000, 'standalone', 3); // qty 3
+    // prod1 sees prod2's 30000 >= 10000 -> addon. prod2 sees prod1's 10000 >= 10000 -> addon.
+    const cart: UnifiedCartItem[] = [prod1, prod2];
+    const result = repriceEventEssentialsCart(
+      buildInput(cart, { productConfigs: { p1, p2 } }),
+    );
+    const out0 = result.cart[0] as EventEssentialProductCartItem;
+    const out1 = result.cart[1] as EventEssentialProductCartItem;
+    ok(
+      '40 dup products different qty map independently',
+      out0.qty === 1 && out1.qty === 3 &&
+        out0.pricing_context === 'addon' && out1.pricing_context === 'addon' &&
+        out0.unit_price_cents === 6000 && out1.unit_price_cents === 6000,
+    );
+  }
+
+  // 41. Duplicate product lines with different stored pricing contexts remain separate and are each corrected independently.
+  {
+    // No qualifying inflatable: addon-stored line must return to standalone.
+    const p1 = makeProductConfig('p1', C_TABLES, { standalonePriceCents: 10000, addonPriceCents: 6000, addonQualifyingThresholdCents: 15000 });
+    const prod1 = makeProductCart('p1', 'Tables', 10000, 'standalone'); // already correct
+    const prod2 = makeProductCart('p1', 'Tables', 6000, 'addon'); // stale, must correct to standalone
     const cart: UnifiedCartItem[] = [prod1, prod2];
     const result = repriceEventEssentialsCart(
       buildInput(cart, { productConfigs: { p1 } }),
     );
-    ok('37 duplicate lines preserved', result.cart.length === 2);
+    const out0 = result.cart[0] as EventEssentialProductCartItem;
+    const out1 = result.cart[1] as EventEssentialProductCartItem;
+    ok(
+      '41 dup products different context corrected independently',
+      out0.pricing_context === 'standalone' && out0.unit_price_cents === 10000 &&
+        out1.pricing_context === 'standalone' && out1.unit_price_cents === 10000 &&
+        result.cart[0] === prod1 && result.cart[1] !== prod2,
+    );
   }
 
-  // 38. Duplicate legacy lines receive deterministic resolver mapping.
+  // 42. One invalid duplicate line creates an issue for its EXACT cart index.
   {
-    // Both lines have the same resolverKey (cart-product-p1). E1 evaluates
-    // both by array position. The repricer maps by resolverKey, so both get
-    // the same output. This is acceptable — both are already correct.
+    // prod1 valid (config exists), prod2 invalid (config missing for p2).
     const p1 = makeProductConfig('p1', C_TABLES, { standalonePriceCents: 10000, addonEnabled: false, addonPriceCents: null });
     const prod1 = makeProductCart('p1', 'Tables', 10000, 'standalone');
-    const prod2 = makeProductCart('p1', 'Tables', 10000, 'standalone');
+    const prod2 = makeProductCart('p2', 'Chairs', 10000, 'standalone'); // p2 config missing
     const cart: UnifiedCartItem[] = [prod1, prod2];
     const result = repriceEventEssentialsCart(
       buildInput(cart, { productConfigs: { p1 } }),
     );
-    ok('38 deterministic mapping for duplicates', result.cart[0] === prod1 && result.cart[1] === prod2);
+    const issueFor1 = result.issues.find((i) => i.cartIndex === 0);
+    const issueFor2 = result.issues.find((i) => i.cartIndex === 1);
+    ok(
+      '42 invalid duplicate -> issue for exact index',
+      !issueFor1 && !!issueFor2 && issueFor2.blocking === true && issueFor2.itemId === 'p2',
+    );
   }
 
-  // 39. No automatic line removal occurs.
+  // 43. The other valid duplicate line does NOT inherit that issue.
   {
-    const prod = makeProductCart('p_unknown', 'Unknown', 10000, 'standalone');
-    const cart: UnifiedCartItem[] = [prod];
+    const p1 = makeProductConfig('p1', C_TABLES, { standalonePriceCents: 10000, addonEnabled: false, addonPriceCents: null });
+    const prod1 = makeProductCart('p1', 'Tables', 10000, 'standalone');
+    const prod2 = makeProductCart('p2', 'Chairs', 10000, 'standalone');
+    const cart: UnifiedCartItem[] = [prod1, prod2];
+    const result = repriceEventEssentialsCart(
+      buildInput(cart, { productConfigs: { p1 } }),
+    );
+    ok(
+      '43 valid duplicate no inherited issue',
+      result.issues.length === 1 && result.issues[0].cartIndex === 1,
+    );
+  }
+
+  // 44. Running the repricer twice remains idempotent with duplicates.
+  {
+    const inf = makeInflatable(U_TROPICAL, 20000);
+    const p1 = makeProductConfig('p1', C_TABLES, { addonQualifyingThresholdCents: 15000 });
+    const prod1 = makeProductCart('p1', 'Tables', 10000, 'standalone');
+    const prod2 = makeProductCart('p1', 'Tables', 10000, 'standalone');
+    const cart: UnifiedCartItem[] = [inf, prod1, prod2];
+    const input = buildInput(cart, { productConfigs: { p1 } });
+    const r1 = repriceEventEssentialsCart(input);
+    const r2 = repriceEventEssentialsCart({ ...input, cart: r1.cart });
+    ok(
+      '44 idempotent with duplicates',
+      r2.changed === false &&
+        (r2.cart[1] as EventEssentialProductCartItem).pricing_context === 'addon' &&
+        (r2.cart[2] as EventEssentialProductCartItem).pricing_context === 'addon',
+    );
+  }
+
+  // 45. No duplicates are merged or removed.
+  {
+    const p1 = makeProductConfig('p1', C_TABLES, { standalonePriceCents: 10000, addonEnabled: false, addonPriceCents: null });
+    const prod1 = makeProductCart('p1', 'Tables', 10000, 'standalone');
+    const prod2 = makeProductCart('p1', 'Tables', 10000, 'standalone');
+    const prod3 = makeProductCart('p1', 'Tables', 10000, 'standalone');
+    const cart: UnifiedCartItem[] = [prod1, prod2, prod3];
+    const result = repriceEventEssentialsCart(
+      buildInput(cart, { productConfigs: { p1 } }),
+    );
+    ok('45 no merge/removal of duplicates', result.cart.length === 3);
+  }
+
+  // 46. Cart order remains unchanged with duplicates.
+  {
+    const inf = makeInflatable(U_TROPICAL, 20000);
+    const p1 = makeProductConfig('p1', C_TABLES, { addonQualifyingThresholdCents: 15000, addonEnabled: false, addonPriceCents: null, standalonePriceCents: 10000 });
+    const prod1 = makeProductCart('p1', 'Tables', 10000, 'standalone');
+    const prod2 = makeProductCart('p1', 'Tables', 10000, 'standalone');
+    const cart: UnifiedCartItem[] = [prod1, inf, prod2];
+    const result = repriceEventEssentialsCart(
+      buildInput(cart, { productConfigs: { p1 } }),
+    );
+    ok(
+      '46 order unchanged with duplicates',
+      (result.cart[0] as EventEssentialProductCartItem).product_id === 'p1' &&
+        (result.cart[1] as InflatableCartItem).unit_id === U_TROPICAL &&
+        (result.cart[2] as EventEssentialProductCartItem).product_id === 'p1',
+    );
+  }
+
+  // 47. Stale-write guard: same reference returns true.
+  {
+    const cart: UnifiedCartItem[] = [makeInflatable(U_TROPICAL, 20000)];
+    ok('47 canApply same ref -> true', canApplyRepricedCart(cart, cart) === true);
+  }
+
+  // 48. Stale-write guard: different reference returns false.
+  {
+    const cart: UnifiedCartItem[] = [makeInflatable(U_TROPICAL, 20000)];
+    const newerCart: UnifiedCartItem[] = [...cart];
+    ok('48 canApply different ref -> false', canApplyRepricedCart(newerCart, cart) === false);
+  }
+
+  // 49. Stale-write guard: a newer cart (dry -> water) is not overwritten by an older repricing result.
+  {
+    // Simulate: repricer reads dry cart, then user switches to water before
+    // the repriced result is applied. The compare-and-apply must reject.
+    const dryCart: UnifiedCartItem[] = [makeInflatable(U_TROPICAL, 10000, 'dry')];
+    const waterCart: UnifiedCartItem[] = [
+      { ...makeInflatable(U_TROPICAL, 15000, 'water') },
+    ];
+    // Repricer produced a result based on dryCart. Current cart is now waterCart.
+    ok(
+      '49 stale dry repricing rejected for water cart',
+      canApplyRepricedCart(waterCart, dryCart) === false,
+    );
+  }
+
+  // 50. Removing an earlier cart item shifts issue mapping correctly.
+  {
+    // Cart: [invalidProd, validProd]. Issue at index 0.
+    // After removing index 0: [validProd]. No issue should remain.
+    const p1 = makeProductConfig('p1', C_TABLES, { standalonePriceCents: 10000, addonEnabled: false, addonPriceCents: null });
+    const invalidProd = makeProductCart('p_unknown', 'Unknown', 10000, 'standalone');
+    const validProd = makeProductCart('p1', 'Tables', 10000, 'standalone');
+    const cartBefore: UnifiedCartItem[] = [invalidProd, validProd];
+    const resultBefore = repriceEventEssentialsCart(
+      buildInput(cartBefore, { productConfigs: { p1 } }),
+    );
+    // Remove index 0 (the invalid line).
+    const cartAfter = cartBefore.filter((_, i) => i !== 0);
+    const resultAfter = repriceEventEssentialsCart(
+      buildInput(cartAfter, { productConfigs: { p1 } }),
+    );
+    ok(
+      '50 issue mapping shifts after removal',
+      resultBefore.issues.length === 1 && resultBefore.issues[0].cartIndex === 0 &&
+        resultAfter.issues.length === 0,
+    );
+  }
+
+  // 51. Duplicate items display only their own issues.
+  {
+    // prod1 valid, prod2 invalid (p2 missing config). Only prod2 gets an issue.
+    const p1 = makeProductConfig('p1', C_TABLES, { standalonePriceCents: 10000, addonEnabled: false, addonPriceCents: null });
+    const prod1 = makeProductCart('p1', 'Tables', 10000, 'standalone');
+    const prod2 = makeProductCart('p2', 'Chairs', 10000, 'standalone');
+    const cart: UnifiedCartItem[] = [prod1, prod2];
+    const result = repriceEventEssentialsCart(
+      buildInput(cart, { productConfigs: { p1 } }),
+    );
+    const issuesFor0 = result.issues.filter((i) => i.cartIndex === 0);
+    const issuesFor1 = result.issues.filter((i) => i.cartIndex === 1);
+    ok(
+      '51 duplicates show only own issues',
+      issuesFor0.length === 0 && issuesFor1.length === 1,
+    );
+  }
+
+  // 52. An inflatable at the same former index never receives an EE issue.
+  {
+    // Cart: [prod(invalid), inflatable]. Issue at index 0 only.
+    // Inflatable at index 1 must never receive an issue.
+    const inf = makeInflatable(U_TROPICAL, 20000);
+    const invalidProd = makeProductCart('p_unknown', 'Unknown', 10000, 'standalone');
+    const cart: UnifiedCartItem[] = [invalidProd, inf];
     const result = repriceEventEssentialsCart(
       buildInput(cart, { productConfigs: {} }),
     );
-    ok('39 no auto removal', result.cart.length === 1 && result.cart[0] === prod);
+    const issueForInflatable = result.issues.find((i) => i.cartIndex === 1);
+    ok(
+      '52 inflatable never receives EE issue',
+      !issueForInflatable && result.issues.length === 1 && result.issues[0].cartIndex === 0,
+    );
   }
 
-  // 40. No inflatable line ever receives pricing_context.
+  // 53. hasBlockingIssues returns true when at least one blocking issue exists.
+  {
+    const bundle = makeBundleConfig('b1', { inflatableEligibilityMode: 'any', standalonePriceCents: 30000 });
+    const bCart = makeBundleCart('b1', 'Package', 30000, 'standalone');
+    const cart: UnifiedCartItem[] = [bCart];
+    const result = repriceEventEssentialsCart(
+      buildInput(cart, { bundleConfigs: { b1: bundle } }),
+    );
+    ok('53 hasBlockingIssues true', hasBlockingIssues(result.issues) === true);
+  }
+
+  // 54. hasBlockingIssues returns false when no blocking issues exist.
+  {
+    const p1 = makeProductConfig('p1', C_TABLES);
+    const prod = makeProductCart('p1', 'Tables', 10000, 'standalone');
+    const cart: UnifiedCartItem[] = [prod];
+    const result = repriceEventEssentialsCart(
+      buildInput(cart, { productConfigs: { p1 } }),
+    );
+    ok('54 hasBlockingIssues false', hasBlockingIssues(result.issues) === false);
+  }
+
+  // 55. No inflatable line ever receives pricing_context.
   {
     const inf = makeInflatable(U_TROPICAL, 20000);
     const p1 = makeProductConfig('p1', C_TABLES, { addonQualifyingThresholdCents: 15000 });
@@ -745,7 +956,61 @@ function run() {
       buildInput(cart, { productConfigs: { p1 } }),
     );
     const outInf = result.cart[0] as InflatableCartItem;
-    ok('40 inflatable has no pricing_context', !('pricing_context' in outInf));
+    ok('55 inflatable has no pricing_context', !('pricing_context' in outInf));
+  }
+
+  // ---------------------------------------------------------------------------
+  // State-derivation tests (deriveRepricingCheckoutState).
+  // These mirror the hook's derived `canContinue` logic exactly.
+  // ---------------------------------------------------------------------------
+
+  function deriveRepricingCheckoutState(args: {
+    cartHasEE: boolean;
+    configLoading: boolean;
+    configError: boolean;
+    configReady: boolean;
+    hasBlockingIssues: boolean;
+  }): { validationPending: boolean; validationFailed: boolean; canContinue: boolean } {
+    const validationPending = args.cartHasEE && args.configLoading;
+    const validationFailed = args.cartHasEE && args.configError;
+    const canContinue = !validationPending && !validationFailed && !args.hasBlockingIssues;
+    return { validationPending, validationFailed, canContinue };
+  }
+
+  // 56. EE cart + loading -> blocked.
+  {
+    const s = deriveRepricingCheckoutState({ cartHasEE: true, configLoading: true, configError: false, configReady: false, hasBlockingIssues: false });
+    ok('56 EE+loading blocked', s.validationPending === true && s.canContinue === false);
+  }
+
+  // 57. EE cart + config error -> blocked.
+  {
+    const s = deriveRepricingCheckoutState({ cartHasEE: true, configLoading: false, configError: true, configReady: false, hasBlockingIssues: false });
+    ok('57 EE+error blocked', s.validationFailed === true && s.canContinue === false);
+  }
+
+  // 58. EE cart + ready + no issues -> allowed.
+  {
+    const s = deriveRepricingCheckoutState({ cartHasEE: true, configLoading: false, configError: false, configReady: true, hasBlockingIssues: false });
+    ok('58 EE+ready+no issues allowed', s.validationPending === false && s.validationFailed === false && s.canContinue === true);
+  }
+
+  // 59. EE cart + ready + blocking issue -> blocked.
+  {
+    const s = deriveRepricingCheckoutState({ cartHasEE: true, configLoading: false, configError: false, configReady: true, hasBlockingIssues: true });
+    ok('59 EE+ready+blocking blocked', s.canContinue === false);
+  }
+
+  // 60. Inflatable-only + loading -> allowed.
+  {
+    const s = deriveRepricingCheckoutState({ cartHasEE: false, configLoading: true, configError: false, configReady: false, hasBlockingIssues: false });
+    ok('60 inflatable+loading allowed', s.validationPending === false && s.canContinue === true);
+  }
+
+  // 61. Inflatable-only + config error -> allowed.
+  {
+    const s = deriveRepricingCheckoutState({ cartHasEE: false, configLoading: false, configError: true, configReady: false, hasBlockingIssues: false });
+    ok('61 inflatable+error allowed', s.validationFailed === false && s.canContinue === true);
   }
 
   // Summary

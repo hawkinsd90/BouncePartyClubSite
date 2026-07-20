@@ -2,12 +2,16 @@
 //
 // Loads customer pricing configuration (products, pricing, categories, bundles,
 // unit configs), builds E1 resolver configuration maps, calls the pure repricer
-// when relevant dependencies change, writes the cart only when the repricer
-// reports changed=true, and exposes Event Essential issues to the Quote UI.
+// when relevant dependencies change, writes the cart only via a
+// compare-and-apply guard that prevents stale repricing results from
+// overwriting a newer cart, and exposes derived checkout state
+// (validationPending / validationFailed / canContinue) plus Event Essential
+// issues to the Quote UI.
 //
-// Inflatable-only carts are never blocked by configuration load failures.
+// Inflatable-only carts are never blocked by Event Essentials configuration
+// loading or failure.
 
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import type { UnifiedCartItem } from '../types';
 import {
   fetchInventoryProducts,
@@ -38,7 +42,25 @@ export interface UseEventEssentialsCartRepricingResult {
   configLoading: boolean;
   configError: boolean;
   configReady: boolean;
+  /** True while EE config is loading for a cart that contains EE items. */
+  validationPending: boolean;
+  /** True when EE config failed to load for a cart that contains EE items. */
+  validationFailed: boolean;
+  /** False while EE validation is pending/failed OR blocking issues exist. */
+  canContinue: boolean;
 }
+
+/**
+ * Compare-and-apply callback. The hook passes the exact source cart the
+ * repricer read and the repriced result. The implementation must apply the
+ * repriced cart ONLY when its internal cartRef is still the same array
+ * reference as expectedCart. Returns true if applied, false if rejected
+ * (a newer cart is now present and will be repriced on the next render).
+ */
+export type ApplyRepricedCart = (
+  expectedCart: UnifiedCartItem[],
+  repricedCart: UnifiedCartItem[],
+) => boolean;
 
 interface RepricingConfigMaps {
   productConfigs: ReturnType<typeof buildProductConfigMap>;
@@ -57,28 +79,21 @@ function hasEventEssentialsInCart(cart: UnifiedCartItem[]): boolean {
 
 export function useEventEssentialsCartRepricing(
   cart: UnifiedCartItem[],
-  onCartReprice: (repricedCart: UnifiedCartItem[]) => void,
+  applyRepricedCart: ApplyRepricedCart,
 ): UseEventEssentialsCartRepricingResult {
   const [configMaps, setConfigMaps] = useState<RepricingConfigMaps | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
   const [configError, setConfigError] = useState(false);
   const [issues, setIssues] = useState<EventEssentialsCartIssue[]>([]);
 
-  const onCartRepriceRef = useRef(onCartReprice);
-  onCartRepriceRef.current = onCartReprice;
+  const applyRef = useRef(applyRepricedCart);
+  applyRef.current = applyRepricedCart;
 
-  // Track whether the cart contains any Event Essentials. If it doesn't, we
-  // never need to load config or write the cart — protecting inflatable-only
-  // customers from any EE config failure.
   const cartHasEE = hasEventEssentialsInCart(cart);
-  const cartHasEERef = useRef(cartHasEE);
-  cartHasEERef.current = cartHasEE;
 
   // Load configuration once when Event Essentials first appear in the cart.
-  // If the cart never has EE items, config is never loaded.
   useEffect(() => {
     if (!cartHasEE) {
-      // If EE items were removed, clear issues but don't touch the cart.
       if (issues.length > 0) {
         setIssues([]);
       }
@@ -136,65 +151,27 @@ export function useEventEssentialsCartRepricing(
     return () => {
       cancelled = true;
     };
-    // Only trigger when EE presence changes (false -> true). We intentionally
-    // do NOT depend on the full cart array here — that would reload config on
-    // every cart change. Config is loaded once and reused.
+    // Only trigger when EE presence changes (false -> true).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cartHasEE]);
 
-  // Reprice when config loads or the cart changes. This is the single effect
-  // that calls the pure repricer and writes the cart.
   const stableConfigMaps = useMemo(() => {
     if (!configMaps) return null;
     return configMaps;
   }, [configMaps]);
 
-  const lastRepricedCartRef = useRef<UnifiedCartItem[] | null>(null);
-
-  const runRepricing = useCallback(() => {
-    if (!stableConfigMaps) {
-      // Config not ready yet. Do NOT alter the cart. If there are EE items,
-      // we'll surface issues after config loads. If config failed, issues
-      // are set separately.
-      return;
-    }
-
-    const currentCart = cart;
-    if (!hasEventEssentialsInCart(currentCart)) {
-      // No EE items: clear any stale issues, never write the cart.
-      if (issues.length > 0) {
-        setIssues([]);
-      }
-      return;
-    }
-
-    const result = repriceEventEssentialsCart({
-      cart: currentCart,
-      ...stableConfigMaps,
-    });
-
-    // Always update issues (they may change even when cart doesn't).
-    const issuesChanged = JSON.stringify(result.issues) !== JSON.stringify(issues);
-    if (issuesChanged) {
-      setIssues(result.issues);
-    }
-
-    if (result.changed && result.cart !== currentCart) {
-      lastRepricedCartRef.current = result.cart;
-      onCartRepriceRef.current(result.cart);
-    }
-  }, [stableConfigMaps, cart, issues]);
-
+  // Reprice when config loads or the cart changes. This is the single effect
+  // that calls the pure repricer and writes the cart via compare-and-apply.
   useEffect(() => {
     if (configError) {
-      // Config failed to load. If there are EE items, create blocking issues
-      // for each one. If the cart is inflatable-only, no issues and no block.
-      if (cartHasEERef.current) {
+      // Config failed. If there are EE items, create blocking issues for each.
+      // If the cart is inflatable-only, no issues and no block.
+      if (cartHasEE) {
         const errorIssues: EventEssentialsCartIssue[] = cart
           .map((item, index) => {
             if (isEventEssentialProductCartItem(item)) {
               return {
-                resolverKey: `cart-product-${item.product_id}`,
+                resolverKey: `cart-line-${index}-product-${item.product_id}`,
                 cartIndex: index,
                 itemType: 'event_essential_product' as const,
                 itemId: item.product_id,
@@ -204,7 +181,7 @@ export function useEventEssentialsCartRepricing(
             }
             if (isEventEssentialBundleCartItem(item)) {
               return {
-                resolverKey: `cart-bundle-${item.bundle_id}`,
+                resolverKey: `cart-line-${index}-bundle-${item.bundle_id}`,
                 cartIndex: index,
                 itemType: 'event_essential_bundle' as const,
                 itemId: item.bundle_id,
@@ -232,16 +209,51 @@ export function useEventEssentialsCartRepricing(
       return;
     }
 
-    runRepricing();
-  }, [configError, configLoading, stableConfigMaps, cart, issues, runRepricing]);
+    if (!cartHasEE) {
+      if (issues.length > 0) {
+        setIssues([]);
+      }
+      return;
+    }
+
+    const sourceCart = cart;
+    const result = repriceEventEssentialsCart({
+      cart: sourceCart,
+      ...stableConfigMaps,
+    });
+
+    const issuesChanged = JSON.stringify(result.issues) !== JSON.stringify(issues);
+    if (issuesChanged) {
+      setIssues(result.issues);
+    }
+
+    if (result.changed && result.cart !== sourceCart) {
+      // Compare-and-apply: only write if the cart hasn't changed since the
+      // repricer read it. If a newer cart is present (e.g. the user toggled
+      // dry/water while repricing was pending), the apply callback returns
+      // false and the newer cart is repriced on the next render.
+      applyRef.current(sourceCart, result.cart);
+    }
+  }, [configError, configLoading, stableConfigMaps, cart, cartHasEE, issues]);
 
   const blocking = hasBlockingIssues(issues);
+  const configReady = !configLoading && !configError && stableConfigMaps !== null;
+
+  // Derived checkout state. An Event Essential cart is blocked while config is
+  // loading or has failed, OR when blocking issues exist. An inflatable-only
+  // cart is never blocked by EE state.
+  const validationPending = cartHasEE && configLoading;
+  const validationFailed = cartHasEE && configError;
+  const canContinue = !validationPending && !validationFailed && !blocking;
 
   return {
     issues,
     hasBlockingIssues: blocking,
     configLoading,
     configError,
-    configReady: !configLoading && !configError && stableConfigMaps !== null,
+    configReady,
+    validationPending,
+    validationFailed,
+    canContinue,
   };
 }

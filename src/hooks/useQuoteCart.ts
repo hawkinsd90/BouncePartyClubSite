@@ -147,10 +147,20 @@ export function useQuoteCart() {
     persistCart(newCart);
   }
 
-  function replaceCart(newCart: UnifiedCartItem[]) {
-    cartRef.current = newCart;
-    setCart(newCart);
-    persistCart(newCart);
+  function applyEventEssentialsRepricedCart(
+    expectedCart: UnifiedCartItem[],
+    repricedCart: UnifiedCartItem[],
+  ): boolean {
+    if (cartRef.current !== expectedCart) {
+      // A newer cart is present (e.g. user toggled dry/water or added/removed
+      // an item after the repricer read the source cart). Reject the stale
+      // repriced result; the newer cart will be repriced on the next render.
+      return false;
+    }
+    cartRef.current = repricedCart;
+    setCart(repricedCart);
+    persistCart(repricedCart);
+    return true;
   }
 
   function clearCart() {
@@ -254,7 +264,7 @@ export function useQuoteCart() {
     addToCart,
     updateCartItem,
     removeFromCart,
-    replaceCart,
+    applyEventEssentialsRepricedCart,
     clearCart,
     checkAllCartAvailability,
   };

@@ -1,7 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import { Trash2, Sun, Droplets, XCircle, AlertCircle, Package, AlertTriangle } from 'lucide-react';
-import type { UnifiedCartItem, InflatableCartItem } from '../../types';
+import type { UnifiedCartItem, InflatableCartItem, EventEssentialProductCartItem, EventEssentialBundleCartItem } from '../../types';
 import type { EventEssentialsCartIssue } from '../../lib/eventEssentialsCartRepricing';
+import { formatPriceCents } from '../../lib/eventEssentialsCatalogResolver';
 
 interface CartSectionProps {
   cart: UnifiedCartItem[];
@@ -17,6 +18,9 @@ function isInflatable(item: UnifiedCartItem): item is InflatableCartItem {
 
 export function CartSection({ cart, eventDate, onUpdateItem, onRemoveItem, eventEssentialsIssues }: CartSectionProps) {
   const navigate = useNavigate();
+  // Map issues by cartIndex. Identity (itemType + itemId) is validated at
+  // render time so a stale issue can never appear beside a different line
+  // after an add/remove shifts indices.
   const issueByIndex = new Map<number, EventEssentialsCartIssue>();
   if (eventEssentialsIssues) {
     for (const issue of eventEssentialsIssues) {
@@ -130,7 +134,13 @@ export function CartSection({ cart, eventDate, onUpdateItem, onRemoveItem, event
 
                 {(() => {
                   const issue = issueByIndex.get(index);
+                  // Harden mapping: validate the issue belongs to THIS line by
+                  // itemType + itemId, not just cartIndex. Prevents a stale
+                  // issue from rendering beside a different line after
+                  // add/remove/reprice shifts indices.
                   if (!issue || !issue.blocking) return null;
+                  if (issue.itemType === 'event_essential_product' && issue.itemId !== (item as EventEssentialProductCartItem).product_id) return null;
+                  if (issue.itemType === 'event_essential_bundle' && issue.itemId !== (item as EventEssentialBundleCartItem).bundle_id) return null;
                   return (
                     <div className="flex items-start gap-2 text-xs sm:text-sm text-red-800 bg-red-100 px-3 py-2 rounded-lg border border-red-200">
                       <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
@@ -142,7 +152,7 @@ export function CartSection({ cart, eventDate, onUpdateItem, onRemoveItem, event
                 <div className="flex items-center justify-between text-xs sm:text-sm text-slate-600 bg-slate-50 px-3 py-2 rounded-lg">
                   <span>Unit Price</span>
                   <span className="font-semibold text-slate-900">
-                    ${((item.unit_price_cents / 100)).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    {formatPriceCents(item.unit_price_cents)}
                   </span>
                 </div>
 

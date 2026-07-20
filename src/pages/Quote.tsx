@@ -62,8 +62,8 @@ export function Quote() {
     trackEvent('cart_started');
   }, []);
 
-  const { cart, updateCartItem, removeFromCart, replaceCart, clearCart, checkAllCartAvailability } = useQuoteCart();
-  const eventEssentialsRepricing = useEventEssentialsCartRepricing(cart, replaceCart);
+  const { cart, updateCartItem, removeFromCart, applyEventEssentialsRepricedCart, clearCart, checkAllCartAvailability } = useQuoteCart();
+  const eventEssentialsRepricing = useEventEssentialsCartRepricing(cart, applyEventEssentialsRepricedCart);
   const { formData, setFormData, updateFormData, addressInput, setAddressInput, saveFormData, clearForm, isInitialized, wasDuplicate } =
     useQuoteForm();
 
@@ -367,6 +367,28 @@ export function Quote() {
 
       // NO AUTO-DISMISS - user must fix error or manually dismiss
 
+      return;
+    }
+
+    // Stage E3 — Block checkout while Event Essential validation is pending.
+    if (eventEssentialsRepricing.validationPending) {
+      flushSync(() => {
+        setValidationError('Please wait while your Event Essential items are being verified.');
+        setValidationErrorFieldId(null);
+        setShowBottomToast(true);
+      });
+      scrollToSection('cart');
+      return;
+    }
+
+    // Stage E3 — Block checkout when Event Essential configuration failed.
+    if (eventEssentialsRepricing.validationFailed) {
+      flushSync(() => {
+        setValidationError('Unable to verify your Event Essential items. Please try again.');
+        setValidationErrorFieldId(null);
+        setShowBottomToast(true);
+      });
+      scrollToSection('cart');
       return;
     }
 

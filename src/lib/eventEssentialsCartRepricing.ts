@@ -6,7 +6,10 @@
 // bundle lines. Inflatable and unknown lines are preserved with their original
 // object references unchanged.
 //
-// E1 remains the sole owner of qualification and resolved-price rules.
+// Every actual cart occurrence receives a unique per-occurrence resolver key
+// derived from its cart index, so legacy duplicate lines never collide inside
+// a single resolver invocation. E1 remains the sole owner of qualification
+// and resolved-price rules.
 
 import { resolveEventEssentialsPricing } from './eventEssentialsPricing';
 import type {
@@ -47,7 +50,9 @@ export type EventEssentialsIssueItemType =
   | 'event_essential_bundle';
 
 export interface EventEssentialsCartIssue {
+  /** Unique per-occurrence key (cart-line-${index}-...). */
   resolverKey: string;
+  /** Exact cart index of the affected line. */
   cartIndex: number;
   itemType: EventEssentialsIssueItemType;
   itemId: string;
@@ -62,11 +67,32 @@ export interface RepriceEventEssentialsCartResult {
 }
 
 // ---------------------------------------------------------------------------
+// Unique per-occurrence resolver keys.
+//
+// Each actual cart occurrence receives a key derived from its cart index, so
+// duplicate product/bundle/inflatable lines never collide within a single
+// resolver invocation. E1 uses array position for self-exclusion, so duplicate
+// keys are evaluated correctly; we only need the keys to be unique for
+// unambiguous output mapping.
+// ---------------------------------------------------------------------------
+
+export function productLineKey(cartIndex: number, productId: string): string {
+  return `cart-line-${cartIndex}-product-${productId}`;
+}
+
+export function bundleLineKey(cartIndex: number, bundleId: string): string {
+  return `cart-line-${cartIndex}-bundle-${bundleId}`;
+}
+
+export function inflatableLineKey(cartIndex: number, unitId: string): string {
+  return `cart-line-${cartIndex}-inflatable-${unitId}`;
+}
+
+// ---------------------------------------------------------------------------
 // Cart → resolver input line normalization.
 //
-// Unlike E2's normalizeCartLines (which skips lines with missing config), E3
-// must preserve every cart line's position. Event Essential lines with missing
-// config are still sent to E1 (which returns PRODUCT_CONFIG_MISSING /
+// Every cart line that the resolver can evaluate is sent to E1. Event Essential
+// lines with missing config are still sent (E1 returns PRODUCT_CONFIG_MISSING /
 // BUNDLE_CONFIG_MISSING), so they produce a blocking issue. Unknown legacy
 // lines are excluded from the resolver input but preserved in the output cart.
 // ---------------------------------------------------------------------------
@@ -84,7 +110,7 @@ function buildResolverInputLines(
           ? (item.price_water_cents ?? item.unit_price_cents)
           : (item.price_dry_cents ?? item.unit_price_cents);
       lines.push({
-        resolverKey: `cart-inflatable-${item.unit_id}`,
+        resolverKey: inflatableLineKey(i, item.unit_id),
         itemType: 'inflatable',
         qty: item.qty,
         unitId: item.unit_id,
@@ -93,14 +119,14 @@ function buildResolverInputLines(
       });
     } else if (isEventEssentialProductCartItem(item)) {
       lines.push({
-        resolverKey: `cart-product-${item.product_id}`,
+        resolverKey: productLineKey(i, item.product_id),
         itemType: 'event_essential_product',
         qty: item.qty,
         productId: item.product_id,
       });
     } else if (isEventEssentialBundleCartItem(item)) {
       lines.push({
-        resolverKey: `cart-bundle-${item.bundle_id}`,
+        resolverKey: bundleLineKey(i, item.bundle_id),
         itemType: 'event_essential_bundle',
         qty: item.qty,
         bundleId: item.bundle_id,
@@ -190,12 +216,11 @@ export function repriceEventEssentialsCart(
     }
 
     if (isEventEssentialProductCartItem(item)) {
-      const key = `cart-product-${item.product_id}`;
+      const key = productLineKey(i, item.product_id);
       const out = outputByKey.get(key);
 
       if (!out) {
-        // No resolver output (e.g. config missing before resolver saw it).
-        // This shouldn't happen since we send all EE lines, but guard anyway.
+        // No resolver output. Preserve the line, create a blocking issue.
         nextCart[i] = item;
         issues.push({
           resolverKey: key,
@@ -243,7 +268,7 @@ export function repriceEventEssentialsCart(
     }
 
     if (isEventEssentialBundleCartItem(item)) {
-      const key = `cart-bundle-${item.bundle_id}`;
+      const key = bundleLineKey(i, item.bundle_id);
       const out = outputByKey.get(key);
 
       if (!out) {
@@ -327,4 +352,21 @@ export function repriceEventEssentialsCart(
 // Convenience: true when any issue is blocking.
 export function hasBlockingIssues(issues: EventEssentialsCartIssue[]): boolean {
   return issues.some((i) => i.blocking);
+}
+
+// ---------------------------------------------------------------------------
+// Stale-write guard: compare-and-apply helper.
+//
+// Pure reference comparison. Returns true only when the current cart is the
+// exact same array reference the repricer read. The hook uses this to decide
+// whether a repriced cart is still valid to write back, preventing an older
+// repricing result from overwriting a newer cart mutated after the repricer
+// ran.
+// ---------------------------------------------------------------------------
+
+export function canApplyRepricedCart(
+  currentCart: UnifiedCartItem[],
+  expectedCart: UnifiedCartItem[],
+): boolean {
+  return currentCart === expectedCart;
 }
