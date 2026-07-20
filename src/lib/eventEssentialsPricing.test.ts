@@ -111,6 +111,13 @@ function inflatableLine(
   };
 }
 
+/** Build an inflatable line with explicit field overrides (for malformed fixtures).
+ *  Defaults use U_TROPICAL (present in baseUnits) so overrides can target a
+ *  single field without triggering an unrelated UNIT_UNKNOWN failure. */
+function inflateRaw(resolverKey: string, overrides: Partial<ResolverInputLine>): ResolverInputLine {
+  return { resolverKey, itemType: 'inflatable', qty: 1, unitId: U_TROPICAL, selectedUnitPriceCents: 1000, wetOrDry: 'dry', ...overrides };
+}
+
 function productLine(resolverKey: string, productId: string, qty = 1): ResolverInputLine {
   return { resolverKey, itemType: 'event_essential_product', qty, productId };
 }
@@ -188,7 +195,7 @@ function testProductPricing(): void {
       buildInput([productLine('k1', 'p1')], { products: { p1: cfg }, categories: baseCategories }),
     );
     const l = findByKey(r, 'k1');
-    ok('1 addon-disabled standalone', l.selectable === true && l.resolvedPricingContext === 'standalone' && l.resolvedUnitPriceCents === 10000 && l.addonQualified === false);
+    ok('1 addon-disabled standalone', l.selectable === true && l.selectableReason === 'OK' && l.resolvedPricingContext === 'standalone' && l.resolvedUnitPriceCents === 10000 && l.addonQualified === false);
   }
 
   // 2. Standalone-only product.
@@ -203,7 +210,7 @@ function testProductPricing(): void {
       buildInput([productLine('k2', 'p2')], { products: { p2: cfg }, categories: baseCategories }),
     );
     const l = findByKey(r, 'k2');
-    ok('2 standalone-only', l.resolvedPricingContext === 'standalone' && !l.addonQualified);
+    ok('2 standalone-only', l.resolvedPricingContext === 'standalone' && !l.addonQualified && l.selectableReason === 'OK');
   }
 
   // 3. Add-on enabled, threshold NULL, standalone valid -> standalone + warning.
@@ -219,7 +226,7 @@ function testProductPricing(): void {
       buildInput([productLine('k3', 'p3')], { products: { p3: cfg }, categories: baseCategories }),
     );
     const l = findByKey(r, 'k3');
-    ok('3 null-threshold standalone fallback', l.selectable && l.resolvedPricingContext === 'standalone' && l.resolvedUnitPriceCents === 10000 && l.configurationWarning === 'ADDON_THRESHOLD_MISSING' && !l.addonQualified);
+    ok('3 null-threshold standalone fallback', l.selectable && l.selectableReason === 'OK' && l.resolvedPricingContext === 'standalone' && l.resolvedUnitPriceCents === 10000 && l.configurationWarning === 'ADDON_THRESHOLD_MISSING' && !l.addonQualified);
   }
 
   // 4. Add-on enabled, threshold NULL, no standalone -> invalid.
@@ -235,7 +242,7 @@ function testProductPricing(): void {
       buildInput([productLine('k4', 'p4')], { products: { p4: cfg }, categories: baseCategories }),
     );
     const l = findByKey(r, 'k4');
-    ok('4 null-threshold no-standalone invalid', !l.selectable && l.invalidReason === 'ADDON_THRESHOLD_MISSING_NO_STANDALONE' && l.resolvedPricingContext === null);
+    ok('4 null-threshold no-standalone invalid', !l.selectable && l.selectableReason === 'ADDON_THRESHOLD_MISSING_NO_STANDALONE' && l.invalidReason === 'ADDON_THRESHOLD_MISSING_NO_STANDALONE' && l.resolvedPricingContext === null);
   }
 
   // 5. Explicit threshold 0.
@@ -398,7 +405,7 @@ function testProductPricing(): void {
       buildInput([productLine('k16', 'p16', 1)], { products: { p16: cfg }, categories: baseCategories }),
     );
     const l = findByKey(r, 'k16');
-    ok('16 no-standalone invalid', !l.selectable && l.invalidReason === 'NO_STANDALONE_AND_ADDON_NOT_QUALIFIED' && l.remainingAmountCents === 15000);
+    ok('16 no-standalone invalid', !l.selectable && l.selectableReason === 'NO_STANDALONE_AND_ADDON_NOT_QUALIFIED' && l.invalidReason === 'NO_STANDALONE_AND_ADDON_NOT_QUALIFIED' && l.remainingAmountCents === 15000);
   }
 
   // 17. Two cross-category products mutually qualify using fixed standalone values.
@@ -430,14 +437,13 @@ function testProductPricing(): void {
   }
 
   // 18. Discounted resolved value does not reduce the fixed qualification contribution.
-  // A is resolved at add-on $60, but contributes its standalone $100 to B's threshold.
   {
     const cfgA = prod('p_a2', C_TABLES, {
       standalonePriceCents: 10000,
       standaloneEnabled: true,
       addonEnabled: true,
       addonPriceCents: 6000,
-      addonQualifyingThresholdCents: 0, // A qualifies immediately via threshold 0
+      addonQualifyingThresholdCents: 0,
     });
     const cfgB = prod('p_b2', C_CHAIRS, {
       standalonePriceCents: 20000,
@@ -455,8 +461,50 @@ function testProductPricing(): void {
     const a = findByKey(r, 'k18a');
     const b = findByKey(r, 'k18b');
     ok('18a A resolved addon', a.addonQualified && a.resolvedUnitPriceCents === 6000);
-    // A contributes its standalone 10000 even though it resolved to addon 6000.
     ok('18b B sees A standalone value', b.qualifyingSubtotalCents === 10000 && b.addonQualified);
+  }
+
+  // 18c. Malformed contributing product (missing category) does not count toward product qualification.
+  {
+    const bad = prod('p_bad', 'cat_missing', {
+      standalonePriceCents: 20000,
+      standaloneEnabled: true,
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [productLine('k18c', 'p_tables', 1), productLine('k18cbad', 'p_bad', 1)],
+        { products: { p_tables: P_TABLES, p_bad: bad }, categories: baseCategories },
+      ),
+    );
+    const l = findByKey(r, 'k18c');
+    ok('18c malformed product contributor excluded', l.qualifyingSubtotalCents === 0 && !l.addonQualified);
+  }
+
+  // 18d. Malformed contributing product (mismatched category id) does not count.
+  {
+    const bad = prod('p_bad2', C_CHAIRS, { standalonePriceCents: 20000, standaloneEnabled: true });
+    const cats = { ...baseCategories, [C_CHAIRS]: { id: 'wrong_id' } as ResolverCategory };
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [productLine('k18d', 'p_tables', 1), productLine('k18dbad', 'p_bad2', 1)],
+        { products: { p_tables: P_TABLES, p_bad2: bad }, categories: cats },
+      ),
+    );
+    const l = findByKey(r, 'k18d');
+    ok('18d mismatched-category contributor excluded', l.qualifyingSubtotalCents === 0 && !l.addonQualified);
+  }
+
+  // 18e. Malformed contributing product (invalid standalone price) does not count.
+  {
+    const bad = prod('p_bad3', C_CHAIRS, { standalonePriceCents: -5, standaloneEnabled: true });
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [productLine('k18e', 'p_tables', 1), productLine('k18ebad', 'p_bad3', 1)],
+        { products: { p_tables: P_TABLES, p_bad3: bad }, categories: baseCategories },
+      ),
+    );
+    const l = findByKey(r, 'k18e');
+    ok('18e invalid-price contributor excluded', l.qualifyingSubtotalCents === 0 && !l.addonQualified);
   }
 }
 
@@ -477,7 +525,7 @@ function testPackagePricing(): void {
       buildInput([bundleLine('k19', 'b19', 1)], { bundles: { b19: b }, categories: baseCategories }),
     );
     const l = findByKey(r, 'k19');
-    ok('19 addon-disabled standalone', l.resolvedPricingContext === 'standalone' && l.resolvedUnitPriceCents === 30000 && !l.addonQualified);
+    ok('19 addon-disabled standalone', l.resolvedPricingContext === 'standalone' && l.resolvedUnitPriceCents === 30000 && !l.addonQualified && l.selectableReason === 'OK');
   }
 
   // 20. Explicit package threshold 0.
@@ -528,7 +576,7 @@ function testPackagePricing(): void {
       buildInput([bundleLine('k22', 'b22', 1)], { bundles: { b22: b }, categories: baseCategories }),
     );
     const l = findByKey(r, 'k22');
-    ok('22 null-threshold no-standalone invalid', !l.selectable && l.invalidReason === 'ADDON_THRESHOLD_MISSING_NO_STANDALONE');
+    ok('22 null-threshold no-standalone invalid', !l.selectable && l.selectableReason === 'ADDON_THRESHOLD_MISSING_NO_STANDALONE' && l.invalidReason === 'ADDON_THRESHOLD_MISSING_NO_STANDALONE');
   }
 
   // 23. Below threshold.
@@ -706,30 +754,12 @@ function testPackagePricing(): void {
     ok('31 inflatable contributes', l.qualifyingSubtotalCents === 15000 && l.addonQualified);
   }
 
-  // 32. Package components do not contribute separately.
-  // (Stage E1 resolver does not decompose components into input lines at all;
-  //  we verify a package line never contributes to another candidate.)
+  // 32. Package lines are never decomposed by E1.
+  // E1 does not receive decomposed package component lines. Package lines
+  // contribute zero toward qualification. Package inflatable component
+  // metadata is used only for customer_choice detection. Package
+  // decomposition remains deferred to a later stage.
   {
-    const b = bundle('b32', {
-      standalonePriceCents: 30000,
-      standaloneEnabled: true,
-      addonEnabled: true,
-      addonPriceCents: 20000,
-      addonQualifyingThresholdCents: 15000,
-      inflatableEligibilityMode: 'any',
-      inflatableComponents: [{ selectionMode: 'dry' }],
-    });
-    const r = resolveEventEssentialsPricing(
-      buildInput(
-        [bundleLine('k32', 'b32', 1), bundleLine('k32b', 'b32', 1)],
-        { bundles: { b32: b }, categories: baseCategories, units: baseUnits },
-      ),
-    );
-    // 'any' mode with no direct inflatable -> prerequisite fails -> unselectable.
-    // Verify the prerequisite failure explicitly; qualifying subtotal is null
-    // in that path. A second assertion below confirms packages don't contribute
-    // to a product's qualifying subtotal.
-    ok('32a package self-prereq not met', !findByKey(r, 'k32').prerequisiteMet);
     const b2 = bundle('b32b', {
       standalonePriceCents: 30000,
       standaloneEnabled: true,
@@ -744,8 +774,29 @@ function testPackagePricing(): void {
         { products: { p_tables: P_TABLES }, bundles: { b32b: b2 }, categories: baseCategories },
       ),
     );
-    const prod = findByKey(r2, 'k32prod');
-    ok('32 package components do not contribute', prod.qualifyingSubtotalCents === 0 && !prod.addonQualified);
+    const prodLine = findByKey(r2, 'k32prod');
+    ok('32 package line contributes zero toward product', prodLine.qualifyingSubtotalCents === 0 && !prodLine.addonQualified);
+  }
+
+  // 32b. Malformed contributing product (missing category) does not count toward package qualification.
+  {
+    const b = bundle('b32b2', {
+      standalonePriceCents: 30000,
+      standaloneEnabled: true,
+      addonEnabled: true,
+      addonPriceCents: 20000,
+      addonQualifyingThresholdCents: 15000,
+      inflatableEligibilityMode: 'none',
+    });
+    const bad = prod('p_bad_pkg', 'cat_missing', { standalonePriceCents: 20000, standaloneEnabled: true });
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [bundleLine('k32b2', 'b32b2', 1), productLine('k32b2bad', 'p_bad_pkg', 1)],
+        { products: { p_bad_pkg: bad }, bundles: { b32b2: b }, categories: baseCategories },
+      ),
+    );
+    const l = findByKey(r, 'k32b2');
+    ok('32b malformed product contributor excluded from package', l.qualifyingSubtotalCents === 0 && !l.addonQualified);
   }
 
   // 33. Loss of qualification falls back to standalone.
@@ -786,7 +837,7 @@ function testPackagePricing(): void {
       buildInput([bundleLine('k34', 'b34', 1)], { bundles: { b34: b }, categories: baseCategories }),
     );
     const l = findByKey(r, 'k34');
-    ok('34 no-standalone invalid', !l.selectable && l.invalidReason === 'NO_STANDALONE_AND_ADDON_NOT_QUALIFIED' && l.remainingAmountCents === 15000);
+    ok('34 no-standalone invalid', !l.selectable && l.selectableReason === 'NO_STANDALONE_AND_ADDON_NOT_QUALIFIED' && l.invalidReason === 'NO_STANDALONE_AND_ADDON_NOT_QUALIFIED' && l.remainingAmountCents === 15000);
   }
 }
 
@@ -823,7 +874,7 @@ function testPackagePrerequisites(): void {
     ok('36 any no-inflatable not met', !l.prerequisiteMet && !l.selectable && l.prerequisiteFailureReason === 'NO_DIRECT_INFLATABLE' && l.resolvedPricingContext === null);
   }
 
-  // 37. any with direct inflatable qty > 0 -> met.
+  // 37. any with valid direct inflatable qty > 0 -> met.
   {
     const b = bundle('b37', {
       standalonePriceCents: 30000,
@@ -837,10 +888,10 @@ function testPackagePrerequisites(): void {
       ),
     );
     const l = findByKey(r, 'k37');
-    ok('37 any with-inflatable met', l.prerequisiteMet && l.selectable);
+    ok('37 any with-valid-inflatable met', l.prerequisiteMet && l.selectable);
   }
 
-  // 38. any with direct inflatable qty 0 -> not met.
+  // 38. any with direct inflatable qty 0 -> not met (qty 0 invalid as candidate; not valid as prereq satisfier).
   {
     const b = bundle('b38', {
       standalonePriceCents: 30000,
@@ -926,7 +977,7 @@ function testPackagePrerequisites(): void {
       ),
     );
     const l = findByKey(r, 'k42');
-    ok('42 selected inactive not met', !l.prerequisiteMet && l.prerequisiteFailureReason === 'UNIT_INACTIVE' && l.configurationWarning === 'SELECTED_MODE_UNIT_INACTIVE' && !l.selectable);
+    ok('42 selected inactive not met', !l.prerequisiteMet && l.prerequisiteFailureReason === 'NO_DIRECT_INFLATABLE' && !l.selectable);
   }
 
   // 43. selected with no configured unit IDs -> not met + no-units warning.
@@ -973,7 +1024,6 @@ function testPackagePrerequisites(): void {
       inflatableEligibilityMode: 'any',
       inflatableComponents: [{ selectionMode: 'dry' }],
     });
-    // Only line is the package itself; no direct inflatable.
     const r = resolveEventEssentialsPricing(
       buildInput([bundleLine('k45', 'b45', 1)], { bundles: { b45: b }, categories: baseCategories, units: baseUnits }),
     );
@@ -990,7 +1040,6 @@ function testPackagePrerequisites(): void {
       eligibleUnitIds: [U_TROPICAL],
       inflatableComponents: [{ selectionMode: 'dry' }],
     });
-    // Only line is the package itself. Its own component does not satisfy.
     const r = resolveEventEssentialsPricing(
       buildInput([bundleLine('k46', 'b46', 1)], { bundles: { b46: b }, categories: baseCategories, units: baseUnits }),
     );
@@ -1011,7 +1060,6 @@ function testPackagePrerequisites(): void {
       inflatableEligibilityMode: 'none',
       inflatableComponents: [{ selectionMode: 'dry' }],
     });
-    // Only package lines; no direct inflatable.
     const r = resolveEventEssentialsPricing(
       buildInput(
         [bundleLine('k47', 'b47', 1), bundleLine('k47other', 'b47other', 1)],
@@ -1037,6 +1085,91 @@ function testPackagePrerequisites(): void {
     );
     const l = findByKey(r, 'k48');
     ok('48 failed prereq blocks despite standalone', !l.selectable && l.resolvedPricingContext === null && l.resolvedUnitPriceCents === null && l.prerequisiteMet === false);
+  }
+
+  // 48a. any with unknown unit -> prerequisite not met.
+  {
+    const b = bundle('b48a', {
+      standalonePriceCents: 30000,
+      standaloneEnabled: true,
+      inflatableEligibilityMode: 'any',
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [bundleLine('k48a', 'b48a', 1), inflatableLine('k48ainf', 'unit_unknown', 15000)],
+        { bundles: { b48a: b }, categories: baseCategories, units: baseUnits },
+      ),
+    );
+    const l = findByKey(r, 'k48a');
+    ok('48a any unknown-unit inflatable not met', !l.prerequisiteMet && l.prerequisiteFailureReason === 'NO_DIRECT_INFLATABLE');
+  }
+
+  // 48b. any with inactive unit -> prerequisite not met.
+  {
+    const b = bundle('b48b', {
+      standalonePriceCents: 30000,
+      standaloneEnabled: true,
+      inflatableEligibilityMode: 'any',
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [bundleLine('k48b', 'b48b', 1), inflatableLine('k48binf', U_TROPICAL, 15000)],
+        { bundles: { b48b: b }, categories: baseCategories, units: { [U_TROPICAL]: unit(U_TROPICAL, false) } },
+      ),
+    );
+    const l = findByKey(r, 'k48b');
+    ok('48b any inactive-unit inflatable not met', !l.prerequisiteMet && l.prerequisiteFailureReason === 'NO_DIRECT_INFLATABLE');
+  }
+
+  // 48c. any with missing unitId -> prerequisite not met.
+  {
+    const b = bundle('b48c', {
+      standalonePriceCents: 30000,
+      standaloneEnabled: true,
+      inflatableEligibilityMode: 'any',
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [bundleLine('k48c', 'b48c', 1), inflateRaw('k48cinf', { unitId: undefined })],
+        { bundles: { b48c: b }, categories: baseCategories, units: baseUnits },
+      ),
+    );
+    const l = findByKey(r, 'k48c');
+    ok('48c any missing-unitId inflatable not met', !l.prerequisiteMet && l.prerequisiteFailureReason === 'NO_DIRECT_INFLATABLE');
+  }
+
+  // 48d. any with invalid price -> prerequisite not met.
+  {
+    const b = bundle('b48d', {
+      standalonePriceCents: 30000,
+      standaloneEnabled: true,
+      inflatableEligibilityMode: 'any',
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [bundleLine('k48d', 'b48d', 1), inflateRaw('k48dinf', { selectedUnitPriceCents: -5 })],
+        { bundles: { b48d: b }, categories: baseCategories, units: baseUnits },
+      ),
+    );
+    const l = findByKey(r, 'k48d');
+    ok('48d any invalid-price inflatable not met', !l.prerequisiteMet && l.prerequisiteFailureReason === 'NO_DIRECT_INFLATABLE');
+  }
+
+  // 48e. any with missing wetOrDry -> prerequisite not met.
+  {
+    const b = bundle('b48e', {
+      standalonePriceCents: 30000,
+      standaloneEnabled: true,
+      inflatableEligibilityMode: 'any',
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [bundleLine('k48e', 'b48e', 1), inflateRaw('k48einf', { wetOrDry: undefined })],
+        { bundles: { b48e: b }, categories: baseCategories, units: baseUnits },
+      ),
+    );
+    const l = findByKey(r, 'k48e');
+    ok('48e any missing-mode inflatable not met', !l.prerequisiteMet && l.prerequisiteFailureReason === 'NO_DIRECT_INFLATABLE');
   }
 }
 
@@ -1074,7 +1207,7 @@ function testConfigurationAndMetadata(): void {
       buildInput([productLine('k50', 'p50', 1)], { products: { p50: cfg }, categories: baseCategories }),
     );
     const l = findByKey(r, 'k50');
-    ok('50 missing addon price no-standalone invalid', !l.selectable && l.invalidReason === 'ADDON_PRICE_MISSING_NO_STANDALONE');
+    ok('50 missing addon price no-standalone invalid', !l.selectable && l.selectableReason === 'ADDON_PRICE_MISSING_NO_STANDALONE' && l.invalidReason === 'ADDON_PRICE_MISSING_NO_STANDALONE');
   }
 
   // 51. No purchase path.
@@ -1089,7 +1222,7 @@ function testConfigurationAndMetadata(): void {
       buildInput([productLine('k51', 'p51', 1)], { products: { p51: cfg }, categories: baseCategories }),
     );
     const l = findByKey(r, 'k51');
-    ok('51 no purchase path', !l.selectable && l.invalidReason === 'NO_PURCHASE_PATH');
+    ok('51 no purchase path', !l.selectable && l.selectableReason === 'NO_PURCHASE_PATH' && l.invalidReason === 'NO_PURCHASE_PATH');
   }
 
   // 52. Missing product config.
@@ -1098,7 +1231,7 @@ function testConfigurationAndMetadata(): void {
       buildInput([productLine('k52', 'p_missing', 1)], { categories: baseCategories }),
     );
     const l = findByKey(r, 'k52');
-    ok('52 missing product config', !l.selectable && l.invalidReason === 'PRODUCT_CONFIG_MISSING');
+    ok('52 missing product config', !l.selectable && l.selectableReason === 'PRODUCT_CONFIG_MISSING' && l.invalidReason === 'PRODUCT_CONFIG_MISSING');
   }
 
   // 53. Missing bundle config.
@@ -1107,7 +1240,7 @@ function testConfigurationAndMetadata(): void {
       buildInput([bundleLine('k53', 'b_missing', 1)], { categories: baseCategories }),
     );
     const l = findByKey(r, 'k53');
-    ok('53 missing bundle config', !l.selectable && l.invalidReason === 'BUNDLE_CONFIG_MISSING');
+    ok('53 missing bundle config', !l.selectable && l.selectableReason === 'BUNDLE_CONFIG_MISSING' && l.invalidReason === 'BUNDLE_CONFIG_MISSING');
   }
 
   // 54. Missing category.
@@ -1120,7 +1253,7 @@ function testConfigurationAndMetadata(): void {
       buildInput([productLine('k54', 'p54', 1)], { products: { p54: cfg }, categories: baseCategories }),
     );
     const l = findByKey(r, 'k54');
-    ok('54 missing category', !l.selectable && l.invalidReason === 'CATEGORY_MISSING');
+    ok('54 missing category', !l.selectable && l.selectableReason === 'CATEGORY_MISSING' && l.invalidReason === 'CATEGORY_MISSING');
   }
 
   // 55. Negative quantity.
@@ -1129,18 +1262,38 @@ function testConfigurationAndMetadata(): void {
       buildInput([productLine('k55', 'p_tables', -1)], { products: { p_tables: P_TABLES }, categories: baseCategories }),
     );
     const l = findByKey(r, 'k55');
-    ok('55 negative qty invalid', !l.selectable && l.invalidReason === 'INVALID_QUANTITY');
+    ok('55 negative qty invalid', !l.selectable && l.selectableReason === 'INVALID_QUANTITY' && l.invalidReason === 'INVALID_QUANTITY');
   }
 
-  // 56. Zero quantity behavior.
+  // 56. Zero quantity is now INVALID (was previously selectable).
   {
     const r = resolveEventEssentialsPricing(
       buildInput([productLine('k56', 'p_tables', 0), inflatableLine('k56inf', U_TROPICAL, 15000)], { products: { p_tables: P_TABLES }, categories: baseCategories, units: baseUnits }),
     );
     const l = findByKey(r, 'k56');
-    // Zero-qty product: still resolved (standalone fallback since inflatable doesn't count toward it... wait, it does count).
-    // Inflatable contributes 15000 >= 15000 threshold, so addon should qualify even at qty 0.
-    ok('56 zero-qty resolved', l.selectable && l.addonQualified && l.resolvedPricingContext === 'addon');
+    ok('56 zero-qty product invalid', !l.selectable && l.selectableReason === 'INVALID_QUANTITY' && l.invalidReason === 'INVALID_QUANTITY');
+  }
+
+  // 56b. Zero-qty bundle invalid.
+  {
+    const b56b = bundle('b56b', { standalonePriceCents: 30000, standaloneEnabled: true, inflatableEligibilityMode: 'none' });
+    const r = resolveEventEssentialsPricing(
+      buildInput([bundleLine('k56b', 'b56b', 0)], { bundles: { b56b }, categories: baseCategories }),
+    );
+    const l = findByKey(r, 'k56b');
+    ok('56b zero-qty bundle invalid', !l.selectable && l.invalidReason === 'INVALID_QUANTITY');
+  }
+
+  // 56c. Zero-qty inflatable invalid (and does not contribute/satisfy prereq).
+  {
+    const b56c = bundle('b56c', { standalonePriceCents: 30000, standaloneEnabled: true, inflatableEligibilityMode: 'any' });
+    const r = resolveEventEssentialsPricing(
+      buildInput([bundleLine('k56c', 'b56c', 1), inflatableLine('k56cinf', U_TROPICAL, 15000, 0)], { bundles: { b56c }, categories: baseCategories, units: baseUnits }),
+    );
+    const inf = findByKey(r, 'k56cinf');
+    const pkg = findByKey(r, 'k56c');
+    ok('56c zero-qty inflatable invalid', !inf.selectable && inf.invalidReason === 'INVALID_QUANTITY');
+    ok('56c2 zero-qty inflatable does not satisfy prereq', !pkg.prerequisiteMet && pkg.prerequisiteFailureReason === 'NO_DIRECT_INFLATABLE');
   }
 
   // 57. Unknown item type.
@@ -1149,7 +1302,7 @@ function testConfigurationAndMetadata(): void {
       buildInput([{ resolverKey: 'k57', itemType: 'something_else' as never, qty: 1 }], { categories: baseCategories }),
     );
     const l = findByKey(r, 'k57');
-    ok('57 unknown item type', !l.selectable && l.invalidReason === 'UNKNOWN_ITEM_TYPE');
+    ok('57 unknown item type', !l.selectable && l.selectableReason === 'UNKNOWN_ITEM_TYPE' && l.invalidReason === 'UNKNOWN_ITEM_TYPE');
   }
 
   // 58. customer_choice produces requiresCustomerChoice true.
@@ -1181,6 +1334,184 @@ function testConfigurationAndMetadata(): void {
     const l = findByKey(r, 'k59');
     ok('59 no customer_choice', l.requiresCustomerChoice === false);
   }
+
+  // 60. Inflatable validation: unknown unit.
+  {
+    const r = resolveEventEssentialsPricing(
+      buildInput([inflatableLine('k60', 'unit_unknown', 15000)], { categories: baseCategories, units: baseUnits }),
+    );
+    const l = findByKey(r, 'k60');
+    ok('60 inflatable unknown unit invalid', !l.selectable && l.selectableReason === 'INFLATABLE_UNIT_UNKNOWN' && l.invalidReason === 'INFLATABLE_UNIT_UNKNOWN');
+  }
+
+  // 61. Inflatable validation: inactive unit.
+  {
+    const r = resolveEventEssentialsPricing(
+      buildInput([inflatableLine('k61', U_TROPICAL, 15000)], { categories: baseCategories, units: { [U_TROPICAL]: unit(U_TROPICAL, false) } }),
+    );
+    const l = findByKey(r, 'k61');
+    ok('61 inflatable inactive unit invalid', !l.selectable && l.selectableReason === 'INFLATABLE_UNIT_INACTIVE' && l.invalidReason === 'INFLATABLE_UNIT_INACTIVE');
+  }
+
+  // 62. Inflatable validation: missing unitId.
+  {
+    const r = resolveEventEssentialsPricing(
+      buildInput([inflateRaw('k62', { unitId: undefined })], { categories: baseCategories, units: baseUnits }),
+    );
+    const l = findByKey(r, 'k62');
+    ok('62 inflatable missing unitId invalid', !l.selectable && l.selectableReason === 'INFLATABLE_UNIT_MISSING' && l.invalidReason === 'INFLATABLE_UNIT_MISSING');
+  }
+
+  // 63. Inflatable validation: invalid price.
+  {
+    const r = resolveEventEssentialsPricing(
+      buildInput([inflateRaw('k63', { selectedUnitPriceCents: -5 })], { categories: baseCategories, units: baseUnits }),
+    );
+    const l = findByKey(r, 'k63');
+    ok('63 inflatable invalid price invalid', !l.selectable && l.selectableReason === 'INFLATABLE_PRICE_INVALID' && l.invalidReason === 'INFLATABLE_PRICE_INVALID');
+  }
+
+  // 64. Inflatable validation: missing wetOrDry.
+  {
+    const r = resolveEventEssentialsPricing(
+      buildInput([inflateRaw('k64', { wetOrDry: undefined })], { categories: baseCategories, units: baseUnits }),
+    );
+    const l = findByKey(r, 'k64');
+    ok('64 inflatable missing mode invalid', !l.selectable && l.selectableReason === 'INFLATABLE_MODE_MISSING' && l.invalidReason === 'INFLATABLE_MODE_MISSING');
+  }
+
+  // 65. Product config id mismatch with map key.
+  {
+    const cfg = prod('wrong_id', C_TABLES, { standalonePriceCents: 10000, standaloneEnabled: true });
+    const r = resolveEventEssentialsPricing(
+      buildInput([productLine('k65', 'p_mismatch', 1)], { products: { p_mismatch: cfg }, categories: baseCategories }),
+    );
+    const l = findByKey(r, 'k65');
+    ok('65 product config id mismatch', !l.selectable && l.selectableReason === 'PRODUCT_CONFIG_ID_MISMATCH' && l.invalidReason === 'PRODUCT_CONFIG_ID_MISMATCH');
+  }
+
+  // 66. Bundle config id mismatch with map key.
+  {
+    const b = bundle('wrong_id', { standalonePriceCents: 30000, standaloneEnabled: true, inflatableEligibilityMode: 'none' });
+    const r = resolveEventEssentialsPricing(
+      buildInput([bundleLine('k66', 'b_mismatch', 1)], { bundles: { b_mismatch: b }, categories: baseCategories }),
+    );
+    const l = findByKey(r, 'k66');
+    ok('66 bundle config id mismatch', !l.selectable && l.selectableReason === 'BUNDLE_CONFIG_ID_MISMATCH' && l.invalidReason === 'BUNDLE_CONFIG_ID_MISMATCH');
+  }
+
+  // 67. Category id mismatch with map key.
+  {
+    const cfg = prod('p67', C_CHAIRS, { standalonePriceCents: 10000, standaloneEnabled: true });
+    const cats = { ...baseCategories, [C_CHAIRS]: { id: 'wrong_id' } as ResolverCategory };
+    const r = resolveEventEssentialsPricing(
+      buildInput([productLine('k67', 'p67', 1)], { products: { p67: cfg }, categories: cats }),
+    );
+    const l = findByKey(r, 'k67');
+    ok('67 category id mismatch', !l.selectable && l.selectableReason === 'CATEGORY_ID_MISMATCH' && l.invalidReason === 'CATEGORY_ID_MISMATCH');
+  }
+
+  // 68. Invalid (non-missing) add-on threshold with standalone fallback.
+  {
+    const cfg = prod('p68', C_TABLES, {
+      standalonePriceCents: 10000,
+      standaloneEnabled: true,
+      addonEnabled: true,
+      addonPriceCents: 6000,
+      addonQualifyingThresholdCents: -100,
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput([productLine('k68', 'p68', 1)], { products: { p68: cfg }, categories: baseCategories }),
+    );
+    const l = findByKey(r, 'k68');
+    ok('68 invalid threshold -> standalone warning', l.selectable && l.resolvedPricingContext === 'standalone' && l.configurationWarning === 'ADDON_THRESHOLD_INVALID');
+  }
+
+  // 69. Invalid add-on threshold without standalone -> fatal.
+  {
+    const cfg = prod('p69', C_TABLES, {
+      standalonePriceCents: null,
+      standaloneEnabled: false,
+      addonEnabled: true,
+      addonPriceCents: 6000,
+      addonQualifyingThresholdCents: -100,
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput([productLine('k69', 'p69', 1)], { products: { p69: cfg }, categories: baseCategories }),
+    );
+    const l = findByKey(r, 'k69');
+    ok('69 invalid threshold no-standalone fatal', !l.selectable && l.selectableReason === 'ADDON_THRESHOLD_INVALID_NO_STANDALONE' && l.invalidReason === 'ADDON_THRESHOLD_INVALID_NO_STANDALONE');
+  }
+
+  // 70. Invalid add-on price with standalone fallback.
+  {
+    const cfg = prod('p70', C_TABLES, {
+      standalonePriceCents: 10000,
+      standaloneEnabled: true,
+      addonEnabled: true,
+      addonPriceCents: -5,
+      addonQualifyingThresholdCents: 15000,
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput([productLine('k70', 'p70', 1)], { products: { p70: cfg }, categories: baseCategories }),
+    );
+    const l = findByKey(r, 'k70');
+    ok('70 invalid addon price -> standalone warning', l.selectable && l.resolvedPricingContext === 'standalone' && l.configurationWarning === 'ADDON_PRICE_INVALID');
+  }
+
+  // 71. Invalid standalone price (enabled, malformed) -> fatal.
+  {
+    const cfg = prod('p71', C_TABLES, {
+      standalonePriceCents: -5,
+      standaloneEnabled: true,
+      addonEnabled: false,
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput([productLine('k71', 'p71', 1)], { products: { p71: cfg }, categories: baseCategories }),
+    );
+    const l = findByKey(r, 'k71');
+    ok('71 invalid standalone price fatal', !l.selectable && l.selectableReason === 'STANDALONE_PRICE_INVALID' && l.invalidReason === 'STANDALONE_PRICE_INVALID');
+  }
+
+  // 72. Unsafe quantity (> Number.MAX_SAFE_INTEGER) invalid.
+  {
+    const r = resolveEventEssentialsPricing(
+      buildInput([productLine('k72', 'p_tables', Number.MAX_SAFE_INTEGER + 2)], { products: { p_tables: P_TABLES }, categories: baseCategories }),
+    );
+    const l = findByKey(r, 'k72');
+    ok('72 unsafe quantity invalid', !l.selectable && l.invalidReason === 'INVALID_QUANTITY');
+  }
+
+  // 73. Unsafe price invalid.
+  {
+    const cfg = prod('p73', C_TABLES, {
+      standalonePriceCents: Number.MAX_SAFE_INTEGER + 2,
+      standaloneEnabled: true,
+      addonEnabled: false,
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput([productLine('k73', 'p73', 1)], { products: { p73: cfg }, categories: baseCategories }),
+    );
+    const l = findByKey(r, 'k73');
+    ok('73 unsafe price invalid', !l.selectable && (l.invalidReason === 'STANDALONE_PRICE_INVALID' || l.invalidReason === 'NO_PURCHASE_PATH'));
+  }
+
+  // 74. Multiplication overflow does not contribute.
+  {
+    const huge = prod('p_huge', C_CHAIRS, {
+      standalonePriceCents: Number.MAX_SAFE_INTEGER,
+      standaloneEnabled: true,
+      addonEnabled: false,
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [productLine('k74', 'p_tables', 1), productLine('k74huge', 'p_huge', 2)],
+        { products: { p_tables: P_TABLES, p_huge: huge }, categories: baseCategories },
+      ),
+    );
+    const l = findByKey(r, 'k74');
+    ok('74 multiplication overflow contributes zero', l.qualifyingSubtotalCents === 0 && !l.addonQualified);
+  }
 }
 
 // ===========================================================================
@@ -1188,7 +1519,6 @@ function testConfigurationAndMetadata(): void {
 // ===========================================================================
 
 function testDeterminism(): void {
-  // Shared fixture for determinism tests.
   const cfgA = prod('pA', C_TABLES, {
     standalonePriceCents: 10000,
     standaloneEnabled: true,
@@ -1224,7 +1554,7 @@ function testDeterminism(): void {
     units: baseUnits,
   });
 
-  // 60. Reordering input lines produces equivalent keyed results.
+  // 75. Reordering input lines produces equivalent keyed results.
   {
     const order1 = resolveEventEssentialsPricing(sharedInput);
     const shuffled: ResolverInput = {
@@ -1242,40 +1572,55 @@ function testDeterminism(): void {
         break;
       }
     }
-    ok('60 reorder equivalent', same);
+    ok('75 reorder equivalent', same);
   }
 
-  // 61. Repeating resolver with same input produces deep-equal output.
+  // 76. Repeating resolver with same input produces deep-equal output.
   {
     const r1 = resolveEventEssentialsPricing(sharedInput);
     const r2 = resolveEventEssentialsPricing(sharedInput);
-    eq('61 idempotent deep-equal', r1, r2);
+    eq('76 idempotent deep-equal', r1, r2);
   }
 
-  // 62. Results preserve resolverKey.
+  // 77. Results preserve resolverKey.
   {
     const r = resolveEventEssentialsPricing(sharedInput);
     const keys = r.lines.map((l) => l.resolverKey).sort();
     const expected = ['kA', 'kB', 'kB1', 'kInf'].sort();
-    eq('62 resolverKey preserved', keys, expected);
+    eq('77 resolverKey preserved', keys, expected);
   }
 
-  // 63. Duplicate product input lines are resolved independently.
+  // 78. Duplicate product input lines are resolved independently.
   {
     const r = resolveEventEssentialsPricing(
       buildInput(
-        [productLine('k63a', 'pA', 1), productLine('k63b', 'pA', 1)],
+        [productLine('k78', 'pA', 1), productLine('k78', 'pA', 1)],
         { products: { pA: cfgA, pB: cfgB }, categories: baseCategories },
       ),
     );
-    const a = findByKey(r, 'k63a');
-    const b = findByKey(r, 'k63b');
-    // Each sees the other (cross-category via... no, same product same category).
-    // Same category excluded -> neither qualifies the other. Both standalone.
-    ok('63 duplicate independent', a.addonQualified === false && b.addonQualified === false && a.resolverKey === 'k63a' && b.resolverKey === 'k63b');
+    ok('78 duplicate resolverKey both resolved', r.lines.length === 2 && r.lines.every((l) => l.resolverKey === 'k78'));
+    // Same product same category -> neither qualifies the other. Both standalone.
+    ok('78b duplicate independent standalone', r.lines.every((l) => !l.addonQualified && l.resolvedPricingContext === 'standalone'));
   }
 
-  // 64. Package lines never create circular qualification.
+  // 79. Distinct lines sharing resolverKey: self-exclusion by position, not key.
+  // Two distinct products sharing a resolverKey must each still be evaluated
+  // against the other (cross-category) without incorrectly excluding both.
+  {
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [productLine('k79', 'pA', 1), productLine('k79', 'pB', 1)],
+        { products: { pA: cfgA, pB: cfgB }, categories: baseCategories },
+      ),
+    );
+    // Both share resolverKey 'k79' but are different products (cross-category).
+    // Each should see the other's contribution and qualify (threshold 8000,
+    // standalone 10000 >= 8000). Position-based self-exclusion means line 0
+    // excludes only line 0, and line 1 excludes only line 1.
+    ok('79 shared-key cross-category both qualify', r.lines.length === 2 && r.lines.every((l) => l.addonQualified && l.resolvedPricingContext === 'addon'));
+  }
+
+  // 80. Package lines never create circular qualification.
   {
     const bp = bundle('bp', {
       standalonePriceCents: 30000,
@@ -1295,36 +1640,31 @@ function testDeterminism(): void {
     });
     const r = resolveEventEssentialsPricing(
       buildInput(
-        [bundleLine('k64p', 'bp', 1), bundleLine('k64q', 'bq', 1)],
+        [bundleLine('k80p', 'bp', 1), bundleLine('k80q', 'bq', 1)],
         { bundles: { bp, bq }, categories: baseCategories },
       ),
     );
-    const p = findByKey(r, 'k64p');
-    const q = findByKey(r, 'k64q');
-    // Neither qualifies the other (packages don't qualify packages).
-    ok('64 no circular package qualification', !p.addonQualified && !q.addonQualified && p.qualifyingSubtotalCents === 0 && q.qualifyingSubtotalCents === 0);
+    const p = findByKey(r, 'k80p');
+    const q = findByKey(r, 'k80q');
+    ok('80 no circular package qualification', !p.addonQualified && !q.addonQualified && p.qualifyingSubtotalCents === 0 && q.qualifyingSubtotalCents === 0);
   }
 
-  // 65. Product cross-category qualification remains stable after both
-  // receive add-on pricing (fixed standalone basis prevents oscillation).
+  // 81. Product cross-category qualification remains stable after both receive add-on pricing.
   {
     const r1 = resolveEventEssentialsPricing(
       buildInput(
-        [productLine('k65a', 'pA', 1), productLine('k65b', 'pB', 1)],
+        [productLine('k81a', 'pA', 1), productLine('k81b', 'pB', 1)],
         { products: { pA: cfgA, pB: cfgB }, categories: baseCategories },
       ),
     );
-    // Re-resolve with the output as input again (simulating re-evaluation after
-    // both flipped to addon). Since the resolver uses standalone basis, the
-    // second pass must produce identical results.
     const r2 = resolveEventEssentialsPricing(
       buildInput(
-        [productLine('k65a', 'pA', 1), productLine('k65b', 'pB', 1)],
+        [productLine('k81a', 'pA', 1), productLine('k81b', 'pB', 1)],
         { products: { pA: cfgA, pB: cfgB }, categories: baseCategories },
       ),
     );
-    eq('65 stable after both addon', r1, r2);
-    ok('65 both qualified', findByKey(r1, 'k65a').addonQualified && findByKey(r1, 'k65b').addonQualified);
+    eq('81 stable after both addon', r1, r2);
+    ok('81 both qualified', findByKey(r1, 'k81a').addonQualified && findByKey(r1, 'k81b').addonQualified);
   }
 }
 
