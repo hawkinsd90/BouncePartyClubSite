@@ -16,6 +16,7 @@ import type { PricingRules } from '../lib/pricing';
 import type { InflatableCartItem } from '../types';
 import { trackEvent, trackEventOnce } from '../lib/siteEvents';
 import { CartSection } from '../components/quote/CartSection';
+import { useEventEssentialsCartRepricing } from '../hooks/useEventEssentialsCartRepricing';
 import { AddressSection } from '../components/quote/AddressSection';
 import { EventDetailsSection } from '../components/quote/EventDetailsSection';
 import { SetupDetailsSection } from '../components/quote/SetupDetailsSection';
@@ -61,7 +62,8 @@ export function Quote() {
     trackEvent('cart_started');
   }, []);
 
-  const { cart, updateCartItem, removeFromCart, clearCart, checkAllCartAvailability } = useQuoteCart();
+  const { cart, updateCartItem, removeFromCart, replaceCart, clearCart, checkAllCartAvailability } = useQuoteCart();
+  const eventEssentialsRepricing = useEventEssentialsCartRepricing(cart, replaceCart);
   const { formData, setFormData, updateFormData, addressInput, setAddressInput, saveFormData, clearForm, isInitialized, wasDuplicate } =
     useQuoteForm();
 
@@ -368,6 +370,17 @@ export function Quote() {
       return;
     }
 
+    // Stage E3 — Block checkout when Event Essential items have blocking issues.
+    if (eventEssentialsRepricing.hasBlockingIssues) {
+      flushSync(() => {
+        setValidationError('Please resolve the unavailable Event Essential items before continuing.');
+        setValidationErrorFieldId(null);
+        setShowBottomToast(true);
+      });
+      scrollToSection('cart');
+      return;
+    }
+
     const availabilityResult = await checkAllCartAvailability(formData.event_date, formData.event_end_date);
 
     if (availabilityResult.eventEssentialsCheckFailed) {
@@ -507,6 +520,7 @@ export function Quote() {
                   eventDate={formData.event_date}
                   onUpdateItem={updateCartItem}
                   onRemoveItem={removeFromCart}
+                  eventEssentialsIssues={eventEssentialsRepricing.issues}
                 />
               </div>
 

@@ -1,20 +1,28 @@
 import { useNavigate } from 'react-router-dom';
 import { Trash2, Sun, Droplets, XCircle, AlertCircle, Package, AlertTriangle } from 'lucide-react';
 import type { UnifiedCartItem, InflatableCartItem } from '../../types';
+import type { EventEssentialsCartIssue } from '../../lib/eventEssentialsCartRepricing';
 
 interface CartSectionProps {
   cart: UnifiedCartItem[];
   eventDate: string;
   onUpdateItem: (index: number, updates: Partial<UnifiedCartItem>) => void;
   onRemoveItem: (index: number) => void;
+  eventEssentialsIssues?: EventEssentialsCartIssue[];
 }
 
 function isInflatable(item: UnifiedCartItem): item is InflatableCartItem {
   return item.item_type === undefined || item.item_type === 'inflatable';
 }
 
-export function CartSection({ cart, eventDate, onUpdateItem, onRemoveItem }: CartSectionProps) {
+export function CartSection({ cart, eventDate, onUpdateItem, onRemoveItem, eventEssentialsIssues }: CartSectionProps) {
   const navigate = useNavigate();
+  const issueByIndex = new Map<number, EventEssentialsCartIssue>();
+  if (eventEssentialsIssues) {
+    for (const issue of eventEssentialsIssues) {
+      issueByIndex.set(issue.cartIndex, issue);
+    }
+  }
 
   if (cart.length === 0) {
     return (
@@ -119,6 +127,17 @@ export function CartSection({ cart, eventDate, onUpdateItem, onRemoveItem }: Car
                     This add-on requires at least one inflatable in your cart. Add an inflatable or remove this item.
                   </div>
                 )}
+
+                {(() => {
+                  const issue = issueByIndex.get(index);
+                  if (!issue || !issue.blocking) return null;
+                  return (
+                    <div className="flex items-start gap-2 text-xs sm:text-sm text-red-800 bg-red-100 px-3 py-2 rounded-lg border border-red-200">
+                      <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <span>{issue.message}</span>
+                    </div>
+                  );
+                })()}
 
                 <div className="flex items-center justify-between text-xs sm:text-sm text-slate-600 bg-slate-50 px-3 py-2 rounded-lg">
                   <span>Unit Price</span>

@@ -147,6 +147,12 @@ export function useQuoteCart() {
     persistCart(newCart);
   }
 
+  function replaceCart(newCart: UnifiedCartItem[]) {
+    cartRef.current = newCart;
+    setCart(newCart);
+    persistCart(newCart);
+  }
+
   function clearCart() {
     cartRef.current = [];
     setCart([]);
@@ -248,6 +254,7 @@ export function useQuoteCart() {
     addToCart,
     updateCartItem,
     removeFromCart,
+    replaceCart,
     clearCart,
     checkAllCartAvailability,
   };
