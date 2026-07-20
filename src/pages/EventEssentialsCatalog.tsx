@@ -40,6 +40,8 @@ import {
   evaluateProductCandidate,
   evaluateBundleCandidate,
   deriveCandidateViewModel,
+  formatPriceCents,
+  qualificationMessage,
   type CandidateEvalContext,
   type CandidateViewModel,
 } from '../lib/eventEssentialsCatalogResolver';
@@ -72,36 +74,8 @@ type ProductAvailabilityMap = Record<
   { available_before_request: number; maxAddable: number; error: boolean }
 >;
 
-function formatPrice(cents: number | null): string {
-  if (cents === null || cents === undefined) return '';
-  return `${(cents / 100).toLocaleString('en-US', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })}`;
-}
-
-// Customer-facing qualification message derived purely from the candidate view model.
-function qualificationMessage(vm: CandidateViewModel): string | null {
-  if (vm.priceState === 'addon') return null;
-  if (vm.prereqBlocked) {
-    if (vm.prereqMisconfigured) return 'This item is currently unavailable.';
-    if (vm.prereqRequiresAnyInflatable) return 'Add an inflatable to your cart to select this package.';
-    if (vm.prereqRequiresEligibleInflatable) return 'This package requires an eligible inflatable in your cart.';
-    return 'This package is currently unavailable.';
-  }
-  if (vm.priceState === 'blocked_addon_only') {
-    if (vm.remainingAmountCents !== null && vm.remainingAmountCents > 0) {
-      return `Add ${formatPrice(vm.remainingAmountCents)} more in eligible equipment to unlock this item.`;
-    }
-    return 'This item is currently unavailable.';
-  }
-  if (vm.priceState === 'standalone') {
-    if (vm.remainingAmountCents !== null && vm.remainingAmountCents > 0) {
-      return `Add ${formatPrice(vm.remainingAmountCents)} more in eligible equipment to unlock the add-on price.`;
-    }
-    return null;
-  }
-  return 'This item is currently unavailable.';
+function formatPrice(cents: number | null | undefined): string {
+  return formatPriceCents(cents);
 }
 
 export function EventEssentialsCatalog() {

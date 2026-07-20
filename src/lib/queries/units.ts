@@ -29,12 +29,17 @@ export interface InflatableUnitResolverConfig {
   active: boolean;
 }
 
-// Loads id+active for ALL units (no active filter) so the E1 resolver can
-// distinguish known-active / known-inactive / unknown. Note: public RLS on
-// `units` is `USING (active = true)`, so anon-key requests still only receive
-// active rows — the absence of a client filter makes the intent honest and
-// ensures the resolver benefits immediately if RLS is ever widened. No
-// Admin-only fields are exposed.
+// Loads id+active for ALL units (no client-side active filter) so the E1
+// resolver can distinguish known-active / known-inactive / unknown when rows
+// are supplied to it. buildUnitMap preserves active=false.
+//
+// Current anonymous runtime RLS limitation: the public SELECT policy on
+// `units` is `USING (active = true)`, so anon-key requests receive ONLY active
+// rows. Inactive and unknown units are therefore indistinguishable in the live
+// anonymous catalog today (both are absent). The resolver code is correct for
+// the three-state case; if RLS is ever widened to expose inactive rows, the
+// resolver works end-to-end without adapter changes. No RLS change is made in
+// E2. No Admin-only fields are exposed.
 export async function getInflatableUnitResolverConfigs(
   options?: QueryOptions
 ) {

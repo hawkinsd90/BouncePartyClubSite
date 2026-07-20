@@ -169,11 +169,30 @@ export function normalizeCartLines(
 // Candidate evaluation (pure; one resolver call per catalog item).
 // ---------------------------------------------------------------------------
 
-let candidateKeyCounter = 0;
+// Deterministic candidate key namespaces. Cart lines use the `cart-*`
+// namespace (see normalizeCartLines), so `catalog-candidate-*` keys can never
+// collide with normalized cart lines. Each candidate is evaluated in its own
+// resolver call, so the key only needs to be unique within that single input;
+// identity is derived from the candidate id alone — no module-level counter,
+// random value, timestamp, or UUID.
+function productCandidateKey(productId: string): string {
+  return `catalog-candidate-product-${productId}`;
+}
 
-function nextCandidateKey(prefix: string): string {
-  candidateKeyCounter += 1;
-  return `${prefix}-candidate-${candidateKeyCounter}`;
+function bundleCandidateKey(bundleId: string): string {
+  return `catalog-candidate-bundle-${bundleId}`;
+}
+
+// Normalizes a requested candidate quantity into a valid evaluable quantity.
+// Positive safe integers pass through unchanged; every malformed value
+// (0, negative, fraction, NaN, Infinity, unsafe integer) collapses to 1.
+// Values are NOT rounded — fractional quantities are rejected, not truncated.
+export function normalizeCandidateQuantity(qty: number): number {
+  if (typeof qty !== 'number' || !Number.isFinite(qty)) return 1;
+  if (!Number.isInteger(qty)) return 1;
+  if (qty < 1) return 1;
+  if (!Number.isSafeInteger(qty)) return 1;
+  return qty;
 }
 
 export interface CandidateEvalContext {
@@ -200,8 +219,8 @@ export function evaluateProductCandidate(
 ): ResolverOutputLine | null {
   const cfg = ctx.productConfigs[req.productId];
   if (!cfg) return null;
-  const qty = Math.max(1, req.qty);
-  const candidateKey = nextCandidateKey(`product-${req.productId}`);
+  const qty = normalizeCandidateQuantity(req.qty);
+  const candidateKey = productCandidateKey(req.productId);
   const input: ResolverInput = {
     lines: [...ctx.cartLines, { resolverKey: candidateKey, itemType: 'event_essential_product', qty, productId: req.productId }],
     productConfigs: ctx.productConfigs,
@@ -220,8 +239,8 @@ export function evaluateBundleCandidate(
 ): ResolverOutputLine | null {
   const cfg = ctx.bundleConfigs[req.bundleId];
   if (!cfg) return null;
-  const qty = Math.max(1, req.qty);
-  const candidateKey = nextCandidateKey(`bundle-${req.bundleId}`);
+  const qty = normalizeCandidateQuantity(req.qty);
+  const candidateKey = bundleCandidateKey(req.bundleId);
   const input: ResolverInput = {
     lines: [...ctx.cartLines, { resolverKey: candidateKey, itemType: 'event_essential_bundle', qty, bundleId: req.bundleId }],
     productConfigs: ctx.productConfigs,
@@ -336,6 +355,44 @@ export function deriveCandidateViewModel(
     prereqMisconfigured,
     requiresCustomerChoice: out.requiresCustomerChoice,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Currency formatting + customer-facing qualification message.
+// Pure; no React dependency so they are unit-testable directly.
+// ---------------------------------------------------------------------------
+
+// Formats integer cents as whole-dollar USD with thousands separators,
+// matching the project's customer display convention (whole dollars shown
+// without cents). 5000 -> "$50", 15000 -> "$150", 125000 -> "$1,250".
+export function formatPriceCents(cents: number | null | undefined): string {
+  if (cents === null || cents === undefined) return '';
+  return '$' + Math.round(cents / 100).toLocaleString('en-US');
+}
+
+// Customer-facing qualification message derived purely from the candidate
+// view model. All currency values are formatted via formatPriceCents.
+export function qualificationMessage(vm: CandidateViewModel): string | null {
+  if (vm.priceState === 'addon') return null;
+  if (vm.prereqBlocked) {
+    if (vm.prereqMisconfigured) return 'This item is currently unavailable.';
+    if (vm.prereqRequiresAnyInflatable) return 'Add an inflatable to your cart to select this package.';
+    if (vm.prereqRequiresEligibleInflatable) return 'This package requires an eligible inflatable in your cart.';
+    return 'This package is currently unavailable.';
+  }
+  if (vm.priceState === 'blocked_addon_only') {
+    if (vm.remainingAmountCents !== null && vm.remainingAmountCents > 0) {
+      return 'Add ' + formatPriceCents(vm.remainingAmountCents) + ' more in eligible equipment to unlock this item.';
+    }
+    return 'This item is currently unavailable.';
+  }
+  if (vm.priceState === 'standalone') {
+    if (vm.remainingAmountCents !== null && vm.remainingAmountCents > 0) {
+      return 'Add ' + formatPriceCents(vm.remainingAmountCents) + ' more in eligible equipment to unlock the add-on price.';
+    }
+    return null;
+  }
+  return 'This item is currently unavailable.';
 }
 
 export { isInflatableCartItem, isEventEssentialProductCartItem, isEventEssentialBundleCartItem };

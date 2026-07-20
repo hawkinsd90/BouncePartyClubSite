@@ -9,9 +9,12 @@ import {
   buildCategoryMap,
   buildUnitMap,
   normalizeCartLines,
+  normalizeCandidateQuantity,
   evaluateProductCandidate,
   evaluateBundleCandidate,
   deriveCandidateViewModel,
+  formatPriceCents,
+  qualificationMessage,
   type CandidateEvalContext,
 } from './eventEssentialsCatalogResolver';
 import type {
@@ -753,6 +756,192 @@ function runTests(): void {
     ok('29 NO_ELIGIBLE_UNITS_CONFIGURED -> misconfigured',
       out !== null && out.prerequisiteFailureReason === 'NO_ELIGIBLE_UNITS_CONFIGURED' &&
       vm.prereqMisconfigured && !vm.prereqRequiresEligibleInflatable && !vm.prereqRequiresAnyInflatable);
+  }
+
+  // 30. (A) evaluateProductCandidate twice with identical input -> deep-equal output.
+  {
+    const products = [makeProduct('p_deterministic', C_TABLES)];
+    const pricing = [
+      makePricing('p_deterministic', {
+        standalone_price_cents: 10000,
+        standalone_enabled: true,
+        addon_price_cents: 6000,
+        addon_enabled: true,
+        addon_qualifying_threshold_cents: 15000,
+      }),
+    ];
+    const categories = [makeCategory(C_TABLES)];
+    const units = [{ id: U_TROPICAL, active: true }];
+    const cart: UnifiedCartItem[] = [makeInflatableCart(U_TROPICAL, 15000)];
+    const ctx = buildCtx({ products, pricing, categories, units, cart });
+    const a = evaluateProductCandidate(ctx, { productId: 'p_deterministic', qty: 1 });
+    const b = evaluateProductCandidate(ctx, { productId: 'p_deterministic', qty: 1 });
+    ok('30 product eval deterministic across calls',
+      a !== null && b !== null && JSON.stringify(a) === JSON.stringify(b));
+  }
+
+  // 31. (B) evaluateBundleCandidate twice with identical input -> deep-equal output.
+  {
+    const categories = [makeCategory(C_TABLES)];
+    const bundles = [
+      makeBundleConfigured('b_det', { standalone_price_cents: 30000, standalone_enabled: true }),
+    ];
+    const ctx = buildCtx({ products: [], pricing: [], categories, bundles, cart: [] });
+    const a = evaluateBundleCandidate(ctx, { bundleId: 'b_det', qty: 1 });
+    const b = evaluateBundleCandidate(ctx, { bundleId: 'b_det', qty: 1 });
+    ok('31 bundle eval deterministic across calls',
+      a !== null && b !== null && JSON.stringify(a) === JSON.stringify(b));
+  }
+
+  // 32. (C) Evaluate A, then B, then A again -> both A evaluations identical.
+  {
+    const products = [makeProduct('p_a', C_TABLES), makeProduct('p_b', C_CHAIRS)];
+    const pricing = [
+      makePricing('p_a', { standalone_price_cents: 10000, standalone_enabled: true }),
+      makePricing('p_b', { standalone_price_cents: 8000, standalone_enabled: true }),
+    ];
+    const categories = [makeCategory(C_TABLES), makeCategory(C_CHAIRS)];
+    const ctx = buildCtx({ products, pricing, categories, cart: [] });
+    const a1 = evaluateProductCandidate(ctx, { productId: 'p_a', qty: 1 });
+    evaluateProductCandidate(ctx, { productId: 'p_b', qty: 1 });
+    const a2 = evaluateProductCandidate(ctx, { productId: 'p_a', qty: 1 });
+    ok('32 interleaved eval order-independent',
+      a1 !== null && a2 !== null && JSON.stringify(a1) === JSON.stringify(a2));
+  }
+
+  // 33. (D) Synthetic product candidate key uses reserved product namespace.
+  {
+    const products = [makeProduct('p_key', C_TABLES)];
+    const pricing = [makePricing('p_key', { standalone_price_cents: 10000, standalone_enabled: true })];
+    const categories = [makeCategory(C_TABLES)];
+    const ctx = buildCtx({ products, pricing, categories, cart: [] });
+    const out = evaluateProductCandidate(ctx, { productId: 'p_key', qty: 1 });
+    ok('33 product candidate key reserved namespace',
+      out !== null && out.resolverKey === 'catalog-candidate-product-p_key');
+  }
+
+  // 34. (E) Synthetic bundle candidate key uses reserved bundle namespace.
+  {
+    const categories = [makeCategory(C_TABLES)];
+    const bundles = [makeBundleConfigured('b_key', { standalone_price_cents: 30000, standalone_enabled: true })];
+    const ctx = buildCtx({ products: [], pricing: [], categories, bundles, cart: [] });
+    const out = evaluateBundleCandidate(ctx, { bundleId: 'b_key', qty: 1 });
+    ok('34 bundle candidate key reserved namespace',
+      out !== null && out.resolverKey === 'catalog-candidate-bundle-b_key');
+  }
+
+  // 35. (F) Synthetic candidate keys cannot equal normalized cart keys.
+  {
+    const products = [makeProduct('p_col', C_TABLES)];
+    const pricing = [makePricing('p_col', { standalone_price_cents: 10000, standalone_enabled: true })];
+    const categories = [makeCategory(C_TABLES)];
+    const cart: UnifiedCartItem[] = [makeProductCart('p_col', 1, 10000, 'standalone')];
+    const ctx = buildCtx({ products, pricing, categories, cart });
+    const candidateOut = evaluateProductCandidate(ctx, { productId: 'p_col', qty: 1 });
+    const cartKeys = ctx.cartLines.map((l) => l.resolverKey);
+    ok('35 candidate key never collides with cart keys',
+      candidateOut !== null && cartKeys.every((k) => k !== candidateOut.resolverKey) &&
+      !candidateOut.resolverKey.startsWith('cart-'));
+  }
+
+  // 36. Quantity normalization: 0 -> 1.
+  {
+    ok('36 qty 0 -> 1', normalizeCandidateQuantity(0) === 1);
+  }
+
+  // 37. Quantity normalization: fractional -> 1.
+  {
+    ok('37 qty fractional -> 1', normalizeCandidateQuantity(2.5) === 1);
+  }
+
+  // 38. Quantity normalization: NaN -> 1.
+  {
+    ok('38 qty NaN -> 1', normalizeCandidateQuantity(NaN) === 1);
+  }
+
+  // 39. Quantity normalization: unsafe integer -> 1.
+  {
+    ok('39 qty unsafe integer -> 1', normalizeCandidateQuantity(Number.MAX_SAFE_INTEGER + 1) === 1);
+  }
+
+  // 40. Quantity normalization: valid positive safe integer unchanged.
+  {
+    ok('40 qty valid safe integer unchanged', normalizeCandidateQuantity(3) === 3);
+  }
+
+  // 41. Candidate remains evaluable with malformed qty (collapses to 1).
+  {
+    const products = [makeProduct('p_qty', C_TABLES)];
+    const pricing = [makePricing('p_qty', { standalone_price_cents: 10000, standalone_enabled: true })];
+    const categories = [makeCategory(C_TABLES)];
+    const ctx = buildCtx({ products, pricing, categories, cart: [] });
+    const out = evaluateProductCandidate(ctx, { productId: 'p_qty', qty: NaN });
+    ok('41 malformed qty still evaluable as 1',
+      out !== null && out.resolvedUnitPriceCents === 10000 && out.selectable);
+  }
+
+  // 42. Currency formatting: 5000 -> "$50".
+  {
+    ok('42 formatPriceCents 5000', formatPriceCents(5000) === '$50');
+  }
+
+  // 43. Currency formatting: 15000 -> "$150".
+  {
+    ok('43 formatPriceCents 15000', formatPriceCents(15000) === '$150');
+  }
+
+  // 44. Currency formatting: 125000 -> "$1,250".
+  {
+    ok('44 formatPriceCents 125000', formatPriceCents(125000) === '$1,250');
+  }
+
+  // 45. Currency formatting: null -> empty string.
+  {
+    ok('45 formatPriceCents null', formatPriceCents(null) === '');
+  }
+
+  // 46. Blocked add-on copy includes formatted currency.
+  {
+    const products = [makeProduct('p_ao', C_TABLES)];
+    const pricing = [
+      makePricing('p_ao', {
+        standalone_price_cents: null,
+        standalone_enabled: false,
+        addon_price_cents: 6000,
+        addon_enabled: true,
+        addon_qualifying_threshold_cents: 5000,
+      }),
+    ];
+    const categories = [makeCategory(C_TABLES)];
+    const ctx = buildCtx({ products, pricing, categories, cart: [] });
+    const out = evaluateProductCandidate(ctx, { productId: 'p_ao', qty: 1 });
+    const vm = deriveCandidateViewModel(out, false);
+    const msg = qualificationMessage(vm);
+    ok('46 blocked addon copy formatted',
+      vm.priceState === 'blocked_addon_only' && vm.remainingAmountCents === 5000 &&
+      msg === 'Add $50 more in eligible equipment to unlock this item.');
+  }
+
+  // 47. Standalone qualification copy includes formatted currency.
+  {
+    const products = [makeProduct('p_st', C_TABLES)];
+    const pricing = [
+      makePricing('p_st', {
+        standalone_price_cents: 10000,
+        standalone_enabled: true,
+        addon_price_cents: 6000,
+        addon_enabled: true,
+        addon_qualifying_threshold_cents: 15000,
+      }),
+    ];
+    const categories = [makeCategory(C_TABLES)];
+    const ctx = buildCtx({ products, pricing, categories, cart: [] });
+    const out = evaluateProductCandidate(ctx, { productId: 'p_st', qty: 1 });
+    const vm = deriveCandidateViewModel(out, false);
+    const msg = qualificationMessage(vm);
+    ok('47 standalone qualification copy formatted',
+      vm.priceState === 'standalone' && vm.remainingAmountCents === 15000 &&
+      msg === 'Add $150 more in eligible equipment to unlock the add-on price.');
   }
 }
 
