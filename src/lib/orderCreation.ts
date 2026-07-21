@@ -109,7 +109,20 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     }
   }
 
-  // Compute unified totals including Event Essentials.
+  // 0d. Generator Workflow Unification: defensive invariant — a new order
+  // must not contain both a legacy Generator charge and an EE Generator item.
+  const hasLegacyGenerator = (quoteData.has_generator || false) || (quoteData.generator_qty || 0) > 0;
+  if (hasLegacyGenerator) {
+    const hasEEGeneratorItem = cart.some(
+      (item) => item.item_type === 'event_essential_product' && (item as any).product_id,
+    );
+    if (hasEEGeneratorItem) {
+      throw new Error(
+        'This order contains both a legacy Generator charge and an Event Essentials Generator item. Remove one before saving.',
+      );
+    }
+  }
+
   // tax_applied comes from the inflatable breakdown — the authoritative tax setting.
   const taxApplied = priceBreakdown.tax_applied ?? true;
   const eventEssentialsSubtotalCents = calculateEventEssentialsSubtotalCents(cart);

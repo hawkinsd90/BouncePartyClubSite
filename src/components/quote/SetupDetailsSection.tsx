@@ -1,12 +1,20 @@
-import { Zap, AlertCircle, CheckCircle2, Anchor } from 'lucide-react';
-import type { QuoteFormData } from '../../hooks/useQuoteForm';
+import { Zap, AlertCircle, CheckCircle2, Anchor, CheckCircle } from 'lucide-react';
+import type { GeneratorCheckboxState } from '../../hooks/useGeneratorCheckbox';
 
 interface SetupDetailsSectionProps {
-  formData: QuoteFormData;
-  onFormDataChange: (updates: Partial<QuoteFormData>) => void;
+  formData: {
+    can_stake: boolean | null;
+  };
+  onFormDataChange: (updates: Partial<{ can_stake: boolean | null }>) => void;
+  generatorState: GeneratorCheckboxState;
+  onGeneratorToggle: (checked: boolean) => void;
 }
 
-export function SetupDetailsSection({ formData, onFormDataChange }: SetupDetailsSectionProps) {
+export function SetupDetailsSection({ formData, onFormDataChange, generatorState, onGeneratorToggle }: SetupDetailsSectionProps) {
+  const generatorChecked = generatorState.checked;
+  const packageHasGenerator = generatorState.packageContainedQty > 0;
+  const directQty = generatorState.directQty;
+
   return (
     <div className="bg-white rounded-xl shadow-md p-6">
       <h2 className="text-2xl font-bold text-slate-900 mb-6">Setup Details</h2>
@@ -82,25 +90,58 @@ export function SetupDetailsSection({ formData, onFormDataChange }: SetupDetails
             <p className="text-sm text-amber-800">Please verify electrical requirements</p>
           </div>
         </div>
-        <label className="flex items-start cursor-pointer p-4 bg-white rounded-lg border-2 border-amber-300 hover:border-amber-500 transition-colors">
-          <input
-            type="checkbox"
-            checked={formData.has_generator}
-            onChange={(e) => onFormDataChange({ has_generator: e.target.checked })}
-            className="mt-1 mr-4 w-5 h-5"
-          />
-          <div>
-            <p className="text-base font-bold text-slate-900 mb-2">
-              I need a generator (no power outlet available)
-            </p>
-            <p className="text-sm text-slate-700 leading-relaxed">
-              <strong>Check this box if:</strong> There is NO standard electrical outlet within 50
-              feet of the setup location. We'll provide a generator to power the inflatable blower.
-              Each generator can power up to 2 blowers.{' '}
-              <strong className="text-amber-800">Additional rental fees apply.</strong>
-            </p>
+
+        {packageHasGenerator ? (
+          <div className="flex items-start gap-3 p-4 bg-green-50 rounded-lg border-2 border-green-300">
+            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-base font-bold text-slate-900 mb-1">
+                Generator included in your selected package.
+              </p>
+              <p className="text-sm text-slate-700">
+                Your selected package already includes a Generator. No additional Generator is needed.
+              </p>
+            </div>
           </div>
-        </label>
+        ) : (
+          <label className="flex items-start cursor-pointer p-4 bg-white rounded-lg border-2 border-amber-300 hover:border-amber-500 transition-colors">
+            <input
+              type="checkbox"
+              checked={generatorChecked}
+              disabled={generatorState.loading}
+              onChange={(e) => onGeneratorToggle(e.target.checked)}
+              className="mt-1 mr-4 w-5 h-5"
+            />
+            <div>
+              <p className="text-base font-bold text-slate-900 mb-2">
+                I need a generator (no power outlet available)
+              </p>
+              <p className="text-sm text-slate-700 leading-relaxed">
+                <strong>Check this box if:</strong> There is NO standard electrical outlet within 50
+                feet of the setup location. We'll provide a generator to power the inflatable blower.
+                Each generator can power up to 2 blowers.{' '}
+                <strong className="text-amber-800">Additional rental fees apply.</strong>
+              </p>
+              {directQty > 1 && (
+                <p className="text-xs text-slate-500 mt-2">
+                  {directQty} Generators in your cart. Adjust quantities on the Event Essentials page.
+                </p>
+              )}
+            </div>
+          </label>
+        )}
+
+        {generatorState.message && generatorState.messageType && (
+          <div
+            className={`mt-3 p-3 rounded-lg text-sm ${
+              generatorState.messageType === 'error'
+                ? 'bg-red-50 border border-red-200 text-red-700'
+                : 'bg-blue-50 border border-blue-200 text-blue-700'
+            }`}
+          >
+            {generatorState.message}
+          </div>
+        )}
       </div>
 
       <div className="mt-6">
@@ -110,8 +151,8 @@ export function SetupDetailsSection({ formData, onFormDataChange }: SetupDetails
           needs we should know about?
         </p>
         <textarea
-          value={formData.special_details}
-          onChange={(e) => onFormDataChange({ special_details: e.target.value })}
+          value={(formData as any).special_details || ''}
+          onChange={(e) => onFormDataChange({ special_details: e.target.value } as any)}
           rows={6}
           className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none"
           placeholder="Example: It's my daughter's 8th birthday party! We're expecting about 20 kids. Please call 15 minutes before arrival so we can make sure the driveway is clear."

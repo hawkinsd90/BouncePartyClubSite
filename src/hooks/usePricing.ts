@@ -218,8 +218,8 @@ export function usePricing() {
         distance_miles,
         city: eventDetails.address_city,
         zip: eventDetails.address_zip,
-        has_generator: (eventDetails.generator_qty || 0) > 0,
-        generator_qty: eventDetails.generator_qty || 0,
+        has_generator: false,
+        generator_qty: 0,
         rules: pricingRules,
         is_same_day_weekday_delivery: isSameDayWeekday,
       });

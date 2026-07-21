@@ -71,8 +71,11 @@ export function useQuotePricing(cart: InflatableCartItem[], formData: QuoteFormD
       distance_miles,
       city: formData.city,
       zip: formData.zip,
-      has_generator: formData.has_generator || formData.generator_qty > 0,
-      generator_qty: formData.generator_qty || 0,
+      // Generator Workflow Unification: the Quote checkbox now controls the
+      // EE Generator product in the cart. has_generator/generator_qty must NOT
+      // create a separate legacy generator_fee_cents for new customer quotes.
+      has_generator: false,
+      generator_qty: 0,
       rules: pricingRules,
       is_same_day_weekday_delivery: isSameDayWeekdayDelivery(formData.event_date),
     });

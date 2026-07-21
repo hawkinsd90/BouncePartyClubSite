@@ -64,6 +64,19 @@ export async function saveOrderChanges({
   const changes: any = {};
   const logs = [];
 
+  // Generator Workflow Unification: defensive invariant — a single order must
+  // not contain both a legacy Generator charge and an EE Generator product item.
+  const hasLegacyGenerator = (editedOrder.generator_qty || 0) > 0 || (editedOrder.generator_fee_cents || 0) > 0;
+  if (hasLegacyGenerator && stagedItems) {
+    const hasEEGeneratorItem = stagedItems.some(
+      (item: any) => item.product_id && !item.unit_id && !item.is_deleted,
+    );
+    if (hasEEGeneratorItem) {
+      showToast('This order contains both a legacy Generator charge and an Event Essentials Generator item. Remove one before saving.', 'error');
+      throw new Error('Mixed Generator state: both legacy and EE Generator present.');
+    }
+  }
+
   if (editedOrder.location_type !== order.location_type) {
     changes.location_type = editedOrder.location_type;
     logs.push(['location_type', order.location_type, editedOrder.location_type]);

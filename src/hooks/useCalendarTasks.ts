@@ -240,10 +240,28 @@ export function useCalendarTasks(currentMonth: Date) {
         const orderItemsForOrder = orderItems?.filter(item => item.order_id === order.id) || [];
 
         const items = orderItemsForOrder
-          .map(item => `${(item.units as any)?.name || 'Unknown'} (${item.wet_or_dry === 'water' ? 'Water' : 'Dry'})`);
+          .map(item => {
+            if (item.unit_id && (item.units as any)?.name) {
+              return `${(item.units as any).name} (${item.wet_or_dry === 'water' ? 'Water' : 'Dry'})`;
+            }
+            // Event Essential product or package item
+            if (item.item_name) {
+              return item.item_name;
+            }
+            return 'Unknown';
+          });
 
-        if (order.generator_qty > 0) {
-          items.push(`Generator${order.generator_qty > 1 ? ` (${order.generator_qty}x)` : ''}`);
+        // Generator Workflow Unification: determine Generator quantity using precedence:
+        // 1. EE Generator order-item quantity (new orders)
+        // 2. Legacy generator_qty (historical orders only)
+        // Never add both together.
+        const eeGeneratorQty = orderItemsForOrder
+          .filter(item => item.product_id != null && item.unit_id == null && item.item_name && /generator/i.test(item.item_name))
+          .reduce((sum, item) => sum + (item.qty || 0), 0);
+        const legacyGeneratorQty = eeGeneratorQty > 0 ? 0 : (order.generator_qty || 0);
+        const totalGeneratorQty = eeGeneratorQty > 0 ? eeGeneratorQty : legacyGeneratorQty;
+        if (totalGeneratorQty > 0) {
+          items.push(`Generator${totalGeneratorQty > 1 ? ` (${totalGeneratorQty}x)` : ''}`);
         }
         const equipmentIds = orderItemsForOrder
           .map(item => item.unit_id)
@@ -295,7 +313,7 @@ export function useCalendarTasks(currentMonth: Date) {
           surface: order.surface,
           lat,
           lng,
-          generatorQty: order.generator_qty || 0,
+          generatorQty: totalGeneratorQty,
           hasPets: order.has_pets || false,
           payments: order.payments as any || [],
           taskStatus: dropOffStatus ? {
@@ -361,7 +379,7 @@ export function useCalendarTasks(currentMonth: Date) {
           surface: order.surface,
           lat,
           lng,
-          generatorQty: order.generator_qty || 0,
+          generatorQty: totalGeneratorQty,
           hasPets: order.has_pets || false,
           payments: order.payments as any || [],
           taskStatus: pickUpStatus ? {

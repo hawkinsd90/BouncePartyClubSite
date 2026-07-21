@@ -8,6 +8,7 @@ interface EventDetailsEditorProps {
   onAddressSelect: (addressData: any) => void;
   compact?: boolean;
   showUntilEndOfDay?: boolean;
+  isLegacyGeneratorOrder?: boolean;
 }
 
 export function EventDetailsEditor({
@@ -17,6 +18,7 @@ export function EventDetailsEditor({
   onAddressSelect,
   compact = false,
   showUntilEndOfDay = false,
+  isLegacyGeneratorOrder = false,
 }: EventDetailsEditorProps) {
   const containerClass = compact ? 'bg-white rounded-lg shadow p-4 sm:p-6 min-w-0 overflow-hidden' : 'space-y-6';
   const sectionClass = compact ? 'min-w-0 overflow-hidden' : 'bg-white border border-slate-200 rounded-lg p-4';
@@ -223,7 +225,9 @@ export function EventDetailsEditor({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Generators</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      {isLegacyGeneratorOrder ? 'Legacy Generator Rental' : 'Generators'}
+                    </label>
                     <input
                       type="number"
                       min="0"
@@ -236,17 +240,9 @@ export function EventDetailsEditor({
                     />
                     {editedOrder.generator_qty > 0 && pricingRules && (
                       <p className="text-xs text-blue-600 mt-1">
-                        {(() => {
-                          const singleFee = pricingRules.generator_fee_single_cents || 0;
-                          const multipleFee = pricingRules.generator_fee_multiple_cents || 0;
-
-                          if (editedOrder.generator_qty === 1) {
-                            return `${editedOrder.generator_qty} × ${formatCurrency(singleFee)} = ${formatCurrency(singleFee)}`;
-                          } else {
-                            const total = singleFee + (multipleFee * (editedOrder.generator_qty - 1));
-                            return `1 × ${formatCurrency(singleFee)} + ${editedOrder.generator_qty - 1} × ${formatCurrency(multipleFee)} = ${formatCurrency(total)}`;
-                          }
-                        })()}
+                        {isLegacyGeneratorOrder
+                          ? `Legacy: ${formatCurrency(editedOrder.generator_fee_cents || 0)} (stored, not repriced)`
+                          : `${editedOrder.generator_qty} × ${formatCurrency(pricingRules.generator_fee_single_cents || 0)} = ${formatCurrency((pricingRules.generator_fee_single_cents || 0) * editedOrder.generator_qty)}`}
                       </p>
                     )}
                   </div>
@@ -312,7 +308,9 @@ export function EventDetailsEditor({
               </div>
 
               <div className="min-w-0 overflow-hidden">
-                <label className={labelClass}>Generators</label>
+                <label className={labelClass}>
+                  {isLegacyGeneratorOrder ? 'Legacy Generator' : 'Generators'}
+                </label>
                 <input
                   type="number"
                   min="0"
@@ -322,17 +320,9 @@ export function EventDetailsEditor({
                 />
                 {editedOrder.generator_qty > 0 && pricingRules && (
                   <p className="text-xs text-blue-600 mt-1 break-words">
-                    {(() => {
-                      const singleFee = pricingRules.generator_fee_single_cents || 0;
-                      const multipleFee = pricingRules.generator_fee_multiple_cents || 0;
-
-                      if (editedOrder.generator_qty === 1) {
-                        return `${editedOrder.generator_qty} × ${formatCurrency(singleFee)} = ${formatCurrency(singleFee)}`;
-                      } else {
-                        const total = singleFee + (multipleFee * (editedOrder.generator_qty - 1));
-                        return `1 × ${formatCurrency(singleFee)} + ${editedOrder.generator_qty - 1} × ${formatCurrency(multipleFee)} = ${formatCurrency(total)}`;
-                      }
-                    })()}
+                    {isLegacyGeneratorOrder
+                      ? `Legacy: ${formatCurrency(editedOrder.generator_fee_cents || 0)}`
+                      : `${editedOrder.generator_qty} × ${formatCurrency(pricingRules.generator_fee_single_cents || 0)} = ${formatCurrency((pricingRules.generator_fee_single_cents || 0) * editedOrder.generator_qty)}`}
                   </p>
                 )}
               </div>

@@ -1,9 +1,10 @@
-// Stage E4 — Generator duplicate-charge guard.
+// Generator Workflow Unification — low-level invariant validation only.
 //
-// Detects when both the legacy generator checkbox (formData.has_generator)
-// and an Event Essential Generator product are selected in the same cart.
-// Uses the stable product category slug "generators" to identify the EE
-// Generator product — never matches by customer-visible name.
+// The customer-facing conflict guard has been removed because the unified
+// Quote checkbox and Event Essentials catalog now control the same Generator
+// product. This module retains only the defensive data-integrity check that
+// prevents an order from being saved with both a legacy Generator charge and
+// an EE Generator product item.
 
 import type { UnifiedCartItem } from '../types';
 import { isEventEssentialProductCartItem, isEventEssentialBundleCartItem } from './unifiedCart';
@@ -41,7 +42,6 @@ export function isGeneratorConflict(
   return cartContainsGeneratorProduct(cart, generatorProductIds);
 }
 
-// Server-side lookup — imports supabase lazily so pure functions remain testable.
 export async function findGeneratorProductIds(): Promise<Set<string>> {
   const { supabase } = await import('./supabase');
   const { data: catData } = await supabase

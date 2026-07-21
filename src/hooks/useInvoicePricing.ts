@@ -108,8 +108,8 @@ export function useInvoicePricing(
         distance_miles: distance,
         city: eventDetails.city,
         zip: eventDetails.zip,
-        has_generator: eventDetails.generator_qty > 0,
-        generator_qty: eventDetails.generator_qty,
+        has_generator: false,
+        generator_qty: 0,
         rules: pricingRules,
         is_same_day_weekday_delivery: isSameDayWeekdayDelivery(eventDetails.event_date),
       });

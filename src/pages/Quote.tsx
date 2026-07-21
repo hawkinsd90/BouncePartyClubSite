@@ -17,7 +17,7 @@ import type { InflatableCartItem } from '../types';
 import { trackEvent, trackEventOnce } from '../lib/siteEvents';
 import { CartSection } from '../components/quote/CartSection';
 import { useEventEssentialsCartRepricing } from '../hooks/useEventEssentialsCartRepricing';
-import { checkGeneratorConflict } from '../lib/generatorConflictGuard';
+import { useGeneratorCheckbox } from '../hooks/useGeneratorCheckbox';
 import { AddressSection } from '../components/quote/AddressSection';
 import { EventDetailsSection } from '../components/quote/EventDetailsSection';
 import { SetupDetailsSection } from '../components/quote/SetupDetailsSection';
@@ -63,10 +63,19 @@ export function Quote() {
     trackEvent('cart_started');
   }, []);
 
-  const { cart, updateCartItem, removeFromCart, applyEventEssentialsRepricedCart, clearCart, checkAllCartAvailability } = useQuoteCart();
+  const { cart, addToCart, updateCartItem, removeFromCart, removeEventEssentialProduct, applyEventEssentialsRepricedCart, clearCart, checkAllCartAvailability } = useQuoteCart();
   const eventEssentialsRepricing = useEventEssentialsCartRepricing(cart, applyEventEssentialsRepricedCart);
   const { formData, setFormData, updateFormData, addressInput, setAddressInput, saveFormData, clearForm, isInitialized, wasDuplicate } =
     useQuoteForm();
+
+  const generatorCheckbox = useGeneratorCheckbox({
+    cart,
+    formData,
+    addToCart,
+    removeEventEssentialProduct,
+    isInitialized,
+    onFormDataChange: updateFormData,
+  });
 
   const fetchPricingRules = useCallback(async () => {
     const { data, error } = await supabase
@@ -404,11 +413,12 @@ export function Quote() {
       return;
     }
 
-    // Stage E4 — Block checkout when both legacy generator and EE Generator are selected.
-    const generatorConflict = await checkGeneratorConflict(cart, formData);
-    if (generatorConflict) {
+    // Stage E4 — Generator unification: no conflict guard needed.
+    // The unified checkbox controls the EE Generator product directly.
+    // Legacy browser-storage conversion is handled by useGeneratorCheckbox.
+    if (generatorCheckbox.legacyConversionNeeded) {
       flushSync(() => {
-        setValidationError('A generator is selected in both Setup Details and Event Essentials. Remove one generator selection before continuing.');
+        setValidationError('Your saved Generator selection needs to be reviewed before continuing.');
         setValidationErrorFieldId(null);
         setShowBottomToast(true);
       });
@@ -580,7 +590,9 @@ export function Quote() {
               <div ref={setupRef} id="section-setup" style={{ scrollMarginTop: '100px' }}>
                 <SetupDetailsSection
                   formData={formData}
-                  onFormDataChange={(updates) => setFormData({ ...formData, ...updates })}
+                  onFormDataChange={updateFormData}
+                  generatorState={generatorCheckbox.state}
+                  onGeneratorToggle={generatorCheckbox.toggle}
                 />
               </div>
             </div>
