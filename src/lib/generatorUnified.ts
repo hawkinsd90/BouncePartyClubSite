@@ -216,9 +216,11 @@ export function aggregateOrderEquipment(
             // Ignore malformed snapshot
           }
         }
-        if (!itemContainsGenerator) {
-          genericItems.push(item.item_name);
-        }
+        // Always preserve the package display name for crew visibility,
+        // even when it contains a Generator. The Generator itself is
+        // counted separately and displayed once via totalGeneratorQty.
+        void itemContainsGenerator; // tracked but does not suppress display
+        genericItems.push(item.item_name);
       }
     }
   }
@@ -451,6 +453,173 @@ export async function lookupGeneratorProduct(): Promise<GeneratorProductLookupRe
         standalone_enabled: pricingRows.standalone_enabled === true,
         addon_enabled: pricingRows.addon_enabled === true,
       },
+    };
+  } catch (err: any) {
+    return { status: 'configuration_failed', error: err?.message || 'Unknown error' };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Shared Admin Generator resolver adapter
+// ---------------------------------------------------------------------------
+//
+// resolveGeneratorSelection is the single shared typed adapter used by
+// Customer Quote, Admin Invoice, and Admin Edit Order. It loads the
+// authoritative Generator product, builds the Event Essentials resolver
+// config from inventory products / pricing / categories / bundles / units,
+// evaluates pricing through evaluateProductCandidate + deriveCandidateViewModel,
+// and checks product availability via the check_product_availability RPC.
+//
+// It NEVER reads pricingRules.generator_fee_single_cents or any legacy field
+// for new-item pricing. Legacy fields are preserved only for historical orders.
+
+export type ResolvedGeneratorSelection =
+  | {
+      status: 'resolved';
+      productId: string;
+      productName: string;
+      quantity: number;
+      unitPriceCents: number;
+      pricingContext: 'standalone' | 'addon';
+    }
+  | {
+      status: 'unavailable';
+      availableQuantity: number;
+    }
+  | {
+      status: 'invalid_dates';
+    }
+  | {
+      status: 'configuration_failed';
+      error: string;
+    };
+
+export interface GeneratorResolverConfig {
+  productConfigs: Record<string, any>;
+  bundleConfigs: Record<string, any>;
+  categories: Record<string, any>;
+  units: Record<string, any>;
+  cartLines: any[];
+}
+
+export async function loadGeneratorResolverConfig(
+  _generatorProductId: string,
+): Promise<GeneratorResolverConfig | null> {
+  try {
+    const { supabase } = await import('./supabase');
+    const {
+      buildProductConfigMap,
+      buildBundleConfigMap,
+      buildCategoryMap,
+      buildUnitMap,
+    } = await import('./eventEssentialsCatalogResolver');
+
+    const [productsRes, pricingRes, categoriesRes, bundlesRes, unitsRes] = await Promise.all([
+      supabase.from('inventory_products').select('*').eq('active', true),
+      supabase.from('product_pricing').select('*'),
+      supabase.from('product_categories').select('*').eq('active', true),
+      supabase.from('product_bundles').select('*, product_bundle_components(*, inventory_products(category_id)), product_bundle_excluded_categories(*), package_inflatable_eligibility(*), package_inflatable_components(*)').eq('active', true) as any,
+      supabase.from('units').select('id, active').eq('active', true),
+    ]);
+
+    if (productsRes.error || pricingRes.error || categoriesRes.error || bundlesRes.error || unitsRes.error) {
+      return null;
+    }
+
+    const productConfigs = buildProductConfigMap(productsRes.data || [], pricingRes.data || []);
+    const bundleConfigs = buildBundleConfigMap(bundlesRes.data || []);
+    const categories = buildCategoryMap(categoriesRes.data || []);
+    const units = buildUnitMap(unitsRes.data || []);
+
+    return {
+      productConfigs,
+      bundleConfigs,
+      categories,
+      units,
+      cartLines: [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function resolveGeneratorSelection(params: {
+  generatorProductId: string;
+  quantity: number;
+  eventDate: string;
+  eventEndDate: string;
+  resolverConfig: GeneratorResolverConfig;
+  excludeOrderId?: string | null;
+}): Promise<ResolvedGeneratorSelection> {
+  const { generatorProductId, quantity, eventDate, eventEndDate, resolverConfig, excludeOrderId } = params;
+
+  if (!isValidEventDateRange(eventDate, eventEndDate)) {
+    return { status: 'invalid_dates' };
+  }
+
+  if (!Number.isSafeInteger(quantity) || quantity < 0) {
+    return { status: 'configuration_failed', error: 'Invalid quantity.' };
+  }
+
+  if (quantity === 0) {
+    return {
+      status: 'resolved',
+      productId: generatorProductId,
+      productName: 'Generator',
+      quantity: 0,
+      unitPriceCents: 0,
+      pricingContext: 'standalone',
+    };
+  }
+
+  try {
+    const { evaluateProductCandidate, deriveCandidateViewModel } = await import('./eventEssentialsCatalogResolver');
+
+    const ctx = {
+      productConfigs: resolverConfig.productConfigs,
+      bundleConfigs: resolverConfig.bundleConfigs,
+      categories: resolverConfig.categories,
+      units: resolverConfig.units,
+      cartLines: resolverConfig.cartLines,
+    };
+
+    const out = evaluateProductCandidate(ctx, { productId: generatorProductId, qty: quantity });
+    const vm = deriveCandidateViewModel(out, false);
+
+    if (!vm.selectable || vm.resolvedPriceCents === null || vm.resolvedPriceCents === 0) {
+      return { status: 'configuration_failed', error: 'Unable to resolve Generator pricing.' };
+    }
+
+    // Check product availability
+    const { checkProductAvailability } = await import('./queries/products');
+    const availResult = await checkProductAvailability(
+      [{ product_id: generatorProductId, quantity }],
+      eventDate,
+      eventEndDate,
+      excludeOrderId ?? null,
+    );
+
+    if (availResult.error || !availResult.data) {
+      return { status: 'configuration_failed', error: 'Availability check failed.' };
+    }
+
+    const avail = availResult.data.find((r: any) => r.product_id === generatorProductId);
+    if (!avail || !avail.is_allowed) {
+      return {
+        status: 'unavailable',
+        availableQuantity: (avail as any)?.available_quantity ?? 0,
+      };
+    }
+
+    const pricingContext = vm.priceState === 'addon' ? 'addon' : 'standalone';
+
+    return {
+      status: 'resolved',
+      productId: generatorProductId,
+      productName: (out as any)?.productName || 'Generator',
+      quantity,
+      unitPriceCents: vm.resolvedPriceCents,
+      pricingContext,
     };
   } catch (err: any) {
     return { status: 'configuration_failed', error: err?.message || 'Unknown error' };

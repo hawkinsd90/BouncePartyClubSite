@@ -41,6 +41,8 @@ import type {
 } from '../types';
 import type { PricingContext } from '../types';
 
+export type GeneratorConfigurationStatus = 'loading' | 'ready' | 'failed';
+
 export interface GeneratorCheckboxState {
   checked: boolean;
   packageContainedQty: number;
@@ -49,6 +51,7 @@ export interface GeneratorCheckboxState {
   messageType: 'info' | 'error' | null;
   loading: boolean;
   legacyConversionNeeded: boolean;
+  configurationStatus: GeneratorConfigurationStatus;
   configurationLoading: boolean;
   configurationReady: boolean;
   configurationFailed: boolean;
@@ -98,6 +101,7 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
   const [conversionInFlight, setConversionInFlight] = useState(false);
   const [conversionCompleted, setConversionCompleted] = useState(false);
   const autoConversionAttempted = useRef(false);
+  const genResultRef = useRef<{ status: string } | null>(null);
 
   // Load the authoritative Generator product + shared resolver config once.
   useEffect(() => {
@@ -112,6 +116,8 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
           fetchProductBundlesWithAllComponents(),
           getInflatableUnitResolverConfigs(),
         ]);
+
+      genResultRef.current = genResult;
 
       if (cancelled) return;
 
@@ -411,7 +417,12 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
 
   const configurationLoading = !generatorProduct || !resolverConfig || packageConfigs === null;
   const configurationReady = !!generatorProduct && !!resolverConfig && packageConfigs !== null && !packageConfigFailed;
-  const configurationFailed = packageConfigFailed || (!!generatorProduct && !resolverConfig);
+  const configurationFailed = packageConfigFailed || (!!generatorProduct && !resolverConfig) || (!!genResultRef.current && genResultRef.current.status !== 'configured');
+  const configurationStatus: GeneratorConfigurationStatus = configurationLoading
+    ? 'loading'
+    : configurationFailed
+      ? 'failed'
+      : 'ready';
 
   return {
     state: {
@@ -425,6 +436,7 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
       configurationLoading,
       configurationReady,
       configurationFailed,
+      configurationStatus,
       conversionInFlight,
     },
     generatorProduct,

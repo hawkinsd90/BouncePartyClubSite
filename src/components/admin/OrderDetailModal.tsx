@@ -20,7 +20,7 @@ import { sendOrderEditNotifications } from '../../lib/orderNotificationService';
 import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
 import { showToast } from '../../lib/notifications';
-import { lookupGeneratorProduct, deriveAdminGeneratorMode } from '../../lib/generatorUnified';
+import { lookupGeneratorProduct, deriveAdminGeneratorMode, resolveGeneratorSelection, loadGeneratorResolverConfig } from '../../lib/generatorUnified';
 
 interface OrderDetailModalProps {
   order: any;
@@ -39,6 +39,8 @@ interface StagedItem {
   wet_or_dry?: 'dry' | 'water';
   unit_price_cents: number;
   pricing_context?: string;
+  bundle_id?: string; // preserved for package conflict detection
+  component_snapshot?: any; // preserved for package conflict detection
   is_new?: boolean;
   is_deleted?: boolean;
   is_updated?: boolean;
@@ -265,6 +267,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           qty: item.qty,
           unit_price_cents: item.unit_price_cents,
           pricing_context: item.pricing_context,
+          bundle_id: item.bundle_id,
+          component_snapshot: item.component_snapshot,
           is_new: false,
           is_deleted: false,
         };
@@ -557,6 +561,37 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     try {
       const latestAvailabilityIssues = await checkAvailability();
 
+      // Recheck Event Essentials Generator availability before save
+      const activeGeneratorItem = stagedItems.find(
+        (item) => !item.is_deleted && !item.unit_id && item.product_id && generatorProductId && item.product_id === generatorProductId,
+      );
+      if (activeGeneratorItem && generatorProductId && editedOrder.event_date && editedOrder.event_end_date) {
+        const resolverConfig = await loadGeneratorResolverConfig(generatorProductId);
+        if (!resolverConfig) {
+          showToast('Unable to verify Generator availability. Please try again.', 'error');
+          setSaving(false);
+          return;
+        }
+        const genResult = await resolveGeneratorSelection({
+          generatorProductId,
+          quantity: activeGeneratorItem.qty,
+          eventDate: editedOrder.event_date,
+          eventEndDate: editedOrder.event_end_date,
+          resolverConfig,
+          excludeOrderId: order.id,
+        });
+        if (genResult.status !== 'resolved') {
+          const msg = genResult.status === 'unavailable'
+            ? `Generator is not available for the selected dates (available: ${genResult.availableQuantity}).`
+            : genResult.status === 'invalid_dates'
+              ? 'Event dates are invalid.'
+              : genResult.error || 'Generator availability check failed.';
+          showToast(`Cannot save: ${msg}`, 'error');
+          setSaving(false);
+          return;
+        }
+      }
+
       await saveOrderChanges({
         order,
         editedOrder,
@@ -661,38 +696,61 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       return;
     }
 
-    // Resolve pricing from existing staged item or use pricing rules
-    let unitPriceCents = 0;
-    let itemName = 'Generator';
-    if (existingIdx >= 0) {
-      unitPriceCents = stagedItems[existingIdx].unit_price_cents;
-      itemName = stagedItems[existingIdx].item_name || stagedItems[existingIdx].product_name || 'Generator';
-    } else {
-      unitPriceCents = (pricingRules as any)?.generator_fee_single_cents || 0;
-      itemName = 'Generator';
+    // Resolve pricing and availability through the Event Essentials resolver
+    const resolverConfig = await loadGeneratorResolverConfig(generatorProductId);
+    if (!resolverConfig) {
+      showToast('Unable to load Event Essentials configuration. Please try again.', 'error');
+      return;
     }
+
+    const result = await resolveGeneratorSelection({
+      generatorProductId,
+      quantity: qty,
+      eventDate: editedOrder.event_date,
+      eventEndDate: editedOrder.event_end_date,
+      resolverConfig,
+      excludeOrderId: order.id,
+    });
+
+    if (result.status === 'unavailable') {
+      showToast(`Generator is not available for the selected dates (available: ${result.availableQuantity}). Quantity not changed.`, 'error');
+      return;
+    }
+
+    if (result.status === 'invalid_dates') {
+      showToast('Event dates are invalid. Please check the date range.', 'error');
+      return;
+    }
+
+    if (result.status === 'configuration_failed') {
+      showToast(result.error || 'Unable to resolve Generator pricing. Please try again.', 'error');
+      return;
+    }
+
+    // Only proceed with resolved status — never use legacy pricing or zero-dollar fallback
+    const { unitPriceCents, productName, pricingContext } = result;
 
     setStagedItems(prev => {
       if (existingIdx >= 0) {
         return prev.map((item, i) =>
           i === existingIdx
-            ? { ...item, qty, unit_price_cents: unitPriceCents, is_updated: true, is_deleted: false }
+            ? { ...item, qty, unit_price_cents: unitPriceCents, item_name: productName, pricing_context: pricingContext, is_updated: true, is_deleted: false }
             : item,
         );
       }
       return [...prev, {
         product_id: generatorProductId,
-        product_name: itemName,
-        item_name: itemName,
+        product_name: productName,
+        item_name: productName,
         qty,
         unit_price_cents: unitPriceCents,
-        pricing_context: 'standalone',
+        pricing_context: pricingContext,
         is_new: true,
         is_deleted: false,
       } as StagedItem];
     });
     setManualDirty(true);
-  }, [generatorProductId, stagedItems, editedOrder, setStagedItems, setManualDirty]);
+  }, [generatorProductId, stagedItems, editedOrder, order.id, setStagedItems, setManualDirty]);
 
   const handleClose = useCallback(() => {
     if (hasChanges) {

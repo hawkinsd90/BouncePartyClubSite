@@ -259,7 +259,7 @@ export function EventDetailsEditor({
                           ? `Legacy: ${formatCurrency(editedOrder.generator_fee_cents || 0)} (stored, not repriced)`
                           : genUnitPrice != null
                             ? `${displayGenQty} × ${formatCurrency(genUnitPrice)} = ${formatCurrency(genUnitPrice * displayGenQty)}`
-                            : `${displayGenQty} × ${formatCurrency(pricingRules?.generator_fee_single_cents || 0)} = ${formatCurrency((pricingRules?.generator_fee_single_cents || 0) * displayGenQty)}`}
+                            : `${displayGenQty} × ${formatCurrency(0)} = ${formatCurrency(0)}`}
                       </p>
                     )}
                   </div>
@@ -348,7 +348,7 @@ export function EventDetailsEditor({
                       ? `Legacy: ${formatCurrency(editedOrder.generator_fee_cents || 0)}`
                       : genUnitPrice != null
                         ? `${displayGenQty} × ${formatCurrency(genUnitPrice)} = ${formatCurrency(genUnitPrice * displayGenQty)}`
-                        : `${displayGenQty} × ${formatCurrency(pricingRules?.generator_fee_single_cents || 0)} = ${formatCurrency((pricingRules?.generator_fee_single_cents || 0) * displayGenQty)}`}
+                        : `${displayGenQty} × ${formatCurrency(0)} = ${formatCurrency(0)}`}
                   </p>
                 )}
               </div>
