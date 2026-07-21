@@ -140,7 +140,7 @@ export function isWayneCountyOrder(orderId: string): boolean {
 }
 
 export function buildWayneCountySection(): string {
-  return `15. WAYNE COUNTY AND WAYNE COUNTY PARKS — INDEPENDENT PROVIDER
+  return `15. WAYNE COUNTY PARKS ACKNOWLEDGMENT
 
 The inflatable equipment is provided, installed, and operated solely by Bounce Party Club LLC and not by Wayne County or Wayne County Parks.
 

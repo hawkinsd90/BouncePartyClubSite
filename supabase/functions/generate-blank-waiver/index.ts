@@ -139,7 +139,7 @@ ${businessName} does not provide medical or liability insurance for injuries sus
     // "INDEPENDENT PROVIDER" is therefore placed in the first body paragraph.
     return baseText + `
 
-15. WAYNE COUNTY AND WAYNE COUNTY PARKS
+15. WAYNE COUNTY PARKS ACKNOWLEDGMENT
 
 INDEPENDENT PROVIDER: The inflatable equipment is provided, installed, and operated solely by Bounce Party Club LLC and not by Wayne County or Wayne County Parks.
 
