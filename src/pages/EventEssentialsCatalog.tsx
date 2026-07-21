@@ -11,6 +11,7 @@ import {
   ImageOff,
   Tag,
   LayoutGrid,
+  Trash2,
 } from 'lucide-react';
 import { getPublicBusinessSettings } from '../lib/adminSettingsCache';
 import { SafeStorage } from '../lib/safeStorage';
@@ -78,7 +79,7 @@ function formatPrice(cents: number | null | undefined): string {
 
 export function EventEssentialsCatalog() {
   const navigate = useNavigate();
-  const { cart, addToCart } = useQuoteCart();
+  const { cart, addToCart, removeFromCart } = useQuoteCart();
 
   const [enabled, setEnabled] = useState(false);
   const [minOrderCents, setMinOrderCents] = useState<number | null>(null);
@@ -198,10 +199,13 @@ export function EventEssentialsCatalog() {
   function handleDateChange(newDate: string) {
     setEventDate(newDate);
 
-    const nextEndDate =
-      newDate && eventEndDate && eventEndDate >= newDate
-        ? eventEndDate
-        : '';
+    let nextEndDate = eventEndDate;
+
+    if (!newDate) {
+      nextEndDate = '';
+    } else if (!nextEndDate || nextEndDate < newDate) {
+      nextEndDate = newDate;
+    }
 
     if (nextEndDate !== eventEndDate) {
       setEventEndDate(nextEndDate);
@@ -801,6 +805,25 @@ export function EventEssentialsCatalog() {
                   const resolverSelectable = vm.selectable;
                   const hasResolvedPrice = vm.resolvedPriceCents !== null;
                   const message = qualificationMessage(vm);
+
+                  const inCartQty = cart.reduce<number>((sum, item) => {
+                    if (
+                      isEventEssentialProductCartItem(item) &&
+                      item.product_id === product.id
+                    ) {
+                      return sum + item.qty;
+                    }
+                    return sum;
+                  }, 0);
+
+                  function handleRemoveProduct() {
+                    const index = cart.findIndex(
+                      (item) =>
+                        isEventEssentialProductCartItem(item) &&
+                        item.product_id === product.id,
+                    );
+                    if (index !== -1) removeFromCart(index);
+                  }
                   // Add button requires BOTH existing availability AND resolver selectability.
                   const canAdd =
                     datesValid &&
@@ -893,9 +916,13 @@ export function EventEssentialsCatalog() {
                         </p>
                       ) : avail ? (
                         <p className="text-xs text-slate-600 mb-3">
-                          {maxAddable > 0
-                            ? `${maxAddable} available to add`
-                            : 'None available for selected dates'}
+                          {inCartQty > 0 && maxAddable > 0
+                            ? `${inCartQty} in cart · ${maxAddable} more available to add`
+                            : inCartQty > 0 && maxAddable === 0
+                              ? `${inCartQty} in cart · No more available for selected dates`
+                              : maxAddable > 0
+                                ? `${maxAddable} available to add`
+                                : 'None available for selected dates'}
                         </p>
                       ) : null}
 
@@ -938,6 +965,22 @@ export function EventEssentialsCatalog() {
                           {datesValid ? 'Add' : 'Select dates to add'}
                         </button>
                       </div>
+
+                      {inCartQty > 0 && (
+                        <div className="mt-3 pt-3 border-t border-slate-100">
+                          <p className="text-xs font-medium text-slate-600 mb-2">
+                            In cart: {inCartQty}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={handleRemoveProduct}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 font-medium rounded-lg text-xs transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Remove from Cart
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -964,6 +1007,25 @@ export function EventEssentialsCatalog() {
                     vm.selectable &&
                     hasResolvedPrice &&
                     qty > 0;
+
+                  const inCartQty = cart.reduce<number>((sum, item) => {
+                    if (
+                      isEventEssentialBundleCartItem(item) &&
+                      item.bundle_id === bundle.id
+                    ) {
+                      return sum + item.qty;
+                    }
+                    return sum;
+                  }, 0);
+
+                  function handleRemoveBundle() {
+                    const index = cart.findIndex(
+                      (item) =>
+                        isEventEssentialBundleCartItem(item) &&
+                        item.bundle_id === bundle.id,
+                    );
+                    if (index !== -1) removeFromCart(index);
+                  }
 
                   return (
                     <div
@@ -1055,6 +1117,22 @@ export function EventEssentialsCatalog() {
                           </button>
                         </div>
                       </div>
+
+                      {inCartQty > 0 && (
+                        <div className="mt-3 pt-3 border-t border-slate-100">
+                          <p className="text-xs font-medium text-slate-600 mb-2">
+                            In cart: {inCartQty}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={handleRemoveBundle}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 font-medium rounded-lg text-xs transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Remove from Cart
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
