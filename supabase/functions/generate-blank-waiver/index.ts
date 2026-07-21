@@ -131,11 +131,17 @@ If I am not the parent or legal guardian of participating minors, I affirm I hav
 ${businessName} does not provide medical or liability insurance for injuries sustained while using the equipment.`;
 
   if (orderId === WAYNE_COUNTY_ORDER_ID) {
+    // NOTE: The section header must be UPPERCASE LETTERS AND SPACES ONLY.
+    // The frontend Sign page detects section headers with the regex
+    //   /^\d+\.\s+[A-Z\s]+$/
+    // and renders matching lines in bold. Punctuation like an em dash (—)
+    // would break that match and the header would render as normal text.
+    // "INDEPENDENT PROVIDER" is therefore placed in the first body paragraph.
     return baseText + `
 
-15. WAYNE COUNTY AND WAYNE COUNTY PARKS — INDEPENDENT PROVIDER
+15. WAYNE COUNTY AND WAYNE COUNTY PARKS
 
-The inflatable equipment is provided, installed, and operated solely by Bounce Party Club LLC and not by Wayne County or Wayne County Parks.
+INDEPENDENT PROVIDER: The inflatable equipment is provided, installed, and operated solely by Bounce Party Club LLC and not by Wayne County or Wayne County Parks.
 
 The renter acknowledges that Wayne County and Wayne County Parks are not responsible for the operation, supervision, maintenance, or use of the inflatable equipment.`;
   }
