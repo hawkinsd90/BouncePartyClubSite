@@ -1,4 +1,6 @@
 import type { UnifiedCartItem, InflatableCartItem, EventEssentialProductCartItem, EventEssentialBundleCartItem } from '../../types';
+import { composeUnifiedQuoteTotals } from '../../lib/unifiedTotals';
+import { calculateEventEssentialsSubtotalCents } from '../../lib/eventEssentialsMoney';
 
 interface PriceBreakdown {
   travel_fee_cents: number;
@@ -8,6 +10,9 @@ interface PriceBreakdown {
   same_day_weekday_delivery_fee_cents: number;
   generator_fee_cents: number;
   tax_cents: number;
+  subtotal_cents: number;
+  deposit_due_cents: number;
+  total_cents: number;
 }
 
 interface QuoteSummarySectionProps {
@@ -41,11 +46,17 @@ export function QuoteSummarySection({ cart, priceBreakdown }: QuoteSummarySectio
       !isInflatable(item)
   );
 
+  const eventEssentialsSubtotalCents = calculateEventEssentialsSubtotalCents(cart);
+
+  const totals = priceBreakdown
+    ? composeUnifiedQuoteTotals({
+        inflatableBreakdown: priceBreakdown as any,
+        cart,
+        applyTaxes: true,
+      })
+    : null;
+
   const inflatableSubtotalCents = inflatableItems.reduce(
-    (sum, item) => sum + item.unit_price_cents * item.qty,
-    0
-  );
-  const eventEssentialsSubtotalCents = eventEssentialsItems.reduce(
     (sum, item) => sum + item.unit_price_cents * item.qty,
     0
   );
@@ -56,10 +67,12 @@ export function QuoteSummarySection({ cart, priceBreakdown }: QuoteSummarySectio
       priceBreakdown.same_day_pickup_fee_cents +
       priceBreakdown.same_day_weekday_delivery_fee_cents +
       priceBreakdown.generator_fee_cents +
-      priceBreakdown.tax_cents
+      (totals?.taxCents ?? priceBreakdown.tax_cents)
     : 0;
 
-  const estimatedTotalCents = inflatableSubtotalCents + feesTotalCents;
+  const estimatedTotalCents = totals
+    ? totals.totalCents
+    : inflatableSubtotalCents + eventEssentialsSubtotalCents + feesTotalCents;
 
   const hasUnavailableItems = cart.some((item) => item.isAvailable === false);
 
@@ -121,7 +134,7 @@ export function QuoteSummarySection({ cart, priceBreakdown }: QuoteSummarySectio
             </div>
 
             <p className="text-xs text-slate-500 leading-relaxed">
-              Event Essentials subtotal is informational only. Final totals confirmed at checkout.
+              Estimate based on your address and event details. Includes Event Essentials.
             </p>
           </div>
         )}

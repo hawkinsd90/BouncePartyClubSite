@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase';
 import { SafeStorage } from '../lib/safeStorage';
 import { useAuth } from '../contexts/AuthContext';
 import { useCustomerProfile } from '../contexts/CustomerProfileContext';
+import type { UnifiedCartItem, InflatableCartItem, EventEssentialProductCartItem, EventEssentialBundleCartItem } from '../types';
+import { isInflatableCartItem } from '../lib/unifiedCart';
 
 interface ContactData {
   first_name: string;
@@ -17,7 +19,7 @@ export function useCheckoutData(userId?: string) {
   const { sessionData, loading: profileLoading } = useCustomerProfile();
   const [quoteData, setQuoteData] = useState<any>(null);
   const [priceBreakdown, setPriceBreakdown] = useState<any>(null);
-  const [cart, setCart] = useState<any[]>([]);
+  const [cart, setCart] = useState<UnifiedCartItem[]>([]);
   const [contactData, setContactData] = useState<ContactData>({
     first_name: '',
     last_name: '',
@@ -81,9 +83,12 @@ export function useCheckoutData(userId?: string) {
       setQuoteData(savedForm);
       setPriceBreakdown(savedBreakdown);
 
-      const validCart = savedCart.filter((item: any) => {
-        const isValid = item.unit_id && typeof item.unit_id === 'string' && item.unit_id !== 'undefined';
-        return isValid;
+      const validCart: UnifiedCartItem[] = savedCart.filter((item: any) => {
+        // Keep inflatables with valid unit_id AND Event Essential items
+        if (isInflatableCartItem(item)) {
+          return item.unit_id && typeof item.unit_id === 'string' && item.unit_id !== 'undefined';
+        }
+        return item.item_type === 'event_essential_product' || item.item_type === 'event_essential_bundle';
       });
 
       setCart(validCart);
@@ -156,6 +161,11 @@ export function useCheckoutData(userId?: string) {
     quoteData,
     priceBreakdown,
     cart,
+    inflatableCart: cart.filter((item): item is InflatableCartItem => isInflatableCartItem(item)),
+    eventEssentialsCart: cart.filter(
+      (item): item is EventEssentialProductCartItem | EventEssentialBundleCartItem =>
+        !isInflatableCartItem(item)
+    ),
     contactData,
     setContactData,
     billingAddress,

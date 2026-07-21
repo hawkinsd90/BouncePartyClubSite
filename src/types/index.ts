@@ -17,6 +17,7 @@ export interface Order {
   surface: 'grass' | 'cement';
   pickup_preference: 'same_day' | 'next_day';
   subtotal_cents: number;
+  event_essentials_subtotal_cents?: number;
   travel_fee_cents: number;
   travel_total_miles: number;
   surface_fee_cents: number;
@@ -37,9 +38,14 @@ export interface Order {
 export interface OrderItem {
   id: string;
   order_id: string;
-  unit_id: string;
+  unit_id: string | null;
+  product_id?: string | null;
+  bundle_id?: string | null;
+  item_name?: string | null;
+  pricing_context?: 'standalone' | 'addon' | null;
+  component_snapshot?: BundleComponentSnapshot | null;
   qty: number;
-  wet_or_dry: 'dry' | 'water';
+  wet_or_dry: 'dry' | 'water' | null;
   unit_price_cents: number;
   created_at: string;
 }

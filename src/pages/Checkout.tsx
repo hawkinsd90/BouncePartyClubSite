@@ -9,6 +9,8 @@ import { useCheckoutData } from '../hooks/useCheckoutData';
 import { getPaymentAmountCents, getTipAmountCents, buildOrderSummary } from '../lib/checkoutUtils';
 import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { showToast } from '../lib/notifications';
+import { composeUnifiedQuoteTotals } from '../lib/unifiedTotals';
+import { hasInflatablesInCart, hasEventEssentialsInCart } from '../lib/eventEssentialsOrderItems';
 import { ContactInformationForm } from '../components/checkout/ContactInformationForm';
 import { BillingAddressForm } from '../components/checkout/BillingAddressForm';
 import { PaymentAmountSelector } from '../components/checkout/PaymentAmountSelector';
@@ -33,6 +35,8 @@ export function Checkout() {
     quoteData,
     priceBreakdown,
     cart,
+    inflatableCart,
+    // eventEssentialsCart retained by useCheckoutData for future use but not needed in Checkout UI yet
     contactData,
     setContactData,
     billingAddress,
@@ -57,6 +61,18 @@ export function Checkout() {
   const [billingSameAsEvent, setBillingSameAsEvent] = useState(true);
   const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
   const [customAmount, setCustomAmount] = useState('');
+
+  // Block EE-only carts at the current stage (E4 supports mixed carts only)
+  const isEEOnlyCart = cart.length > 0 && !hasInflatablesInCart(cart) && hasEventEssentialsInCart(cart);
+
+  // Compute unified totals for payment amount display
+  const unifiedTotals = priceBreakdown
+    ? composeUnifiedQuoteTotals({
+        inflatableBreakdown: priceBreakdown as any,
+        cart,
+        applyTaxes: true,
+      })
+    : null;
 
   const handleViewInvoice = () => {
     const invoiceData = {
@@ -89,9 +105,15 @@ export function Checkout() {
     }
     setReferralError('');
 
-    const paymentCents = getPaymentAmountCents(paymentAmount, customAmount, priceBreakdown);
-    if (paymentAmount === 'custom' && paymentCents < priceBreakdown.deposit_due_cents) {
-      showToast(`Minimum payment is ${formatCurrency(priceBreakdown.deposit_due_cents)}`, 'error');
+    // Block EE-only carts
+    if (isEEOnlyCart) {
+      showToast('Standalone Event Essentials checkout is not available yet. Add an inflatable or contact us for assistance.', 'error');
+      return;
+    }
+
+    const paymentCents = getPaymentAmountCents(paymentAmount, customAmount, unifiedTotals ? { ...priceBreakdown, total_cents: unifiedTotals.totalCents, deposit_due_cents: unifiedTotals.depositCents } as any : priceBreakdown);
+    if (paymentAmount === 'custom' && paymentCents < (unifiedTotals?.depositCents ?? priceBreakdown.deposit_due_cents)) {
+      showToast(`Minimum payment is ${formatCurrency(unifiedTotals?.depositCents ?? priceBreakdown.deposit_due_cents)}`, 'error');
       return;
     }
 
@@ -99,18 +121,21 @@ export function Checkout() {
 
     try {
       // Re-check availability before creating order (prevent race conditions)
-      const availabilityChecks = cart.map(item => ({
+      // Only check inflatable availability — EE availability was checked on Quote
+      const availabilityChecks = inflatableCart.map(item => ({
         unitId: item.unit_id,
         eventStartDate: quoteData.event_date,
         eventEndDate: quoteData.event_end_date,
       }));
 
-      const availabilityResults = await checkMultipleUnitsAvailability(availabilityChecks);
+      const availabilityResults = availabilityChecks.length > 0
+        ? await checkMultipleUnitsAvailability(availabilityChecks)
+        : [];
       const unavailableUnits = availabilityResults.filter(result => !result.isAvailable);
 
       if (unavailableUnits.length > 0) {
         const unitNames = unavailableUnits.map(u => {
-          const cartItem = cart.find(item => item.unit_id === u.unitId);
+          const cartItem = inflatableCart.find(item => item.unit_id === u.unitId);
           return cartItem?.unit_name || 'Unknown unit';
         }).join(', ');
 
@@ -122,8 +147,8 @@ export function Checkout() {
         return;
       }
 
-      const paymentCents = getPaymentAmountCents(paymentAmount, customAmount, priceBreakdown);
-      const tipCents = getTipAmountCents(tipAmount, customTip, priceBreakdown.total_cents);
+      const paymentCents = getPaymentAmountCents(paymentAmount, customAmount, unifiedTotals ? { ...priceBreakdown, total_cents: unifiedTotals.totalCents, deposit_due_cents: unifiedTotals.depositCents } as any : priceBreakdown);
+      const tipCents = getTipAmountCents(tipAmount, customTip, unifiedTotals?.totalCents ?? priceBreakdown.total_cents);
 
       const orderId = await createOrderBeforePayment({
         contactData,
@@ -202,8 +227,30 @@ export function Checkout() {
     return null;
   }
 
-  const tipCents = getTipAmountCents(tipAmount, customTip, priceBreakdown.total_cents);
-  const orderSummary = buildOrderSummary(priceBreakdown, cart, quoteData, tipCents);
+  if (isEEOnlyCart) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 lg:py-16">
+          <div className="bg-white rounded-xl shadow-md p-6 sm:p-8 text-center">
+            <h2 className="text-2xl font-bold text-slate-900 mb-4">Event Essentials Only</h2>
+            <p className="text-slate-600 mb-6">
+              Standalone Event Essentials checkout is not available yet. Add an inflatable or contact us for assistance.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/catalog')}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+            >
+              Browse Inflatables
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const tipCents = getTipAmountCents(tipAmount, customTip, unifiedTotals?.totalCents ?? priceBreakdown.total_cents);
+  const orderSummary = buildOrderSummary(priceBreakdown, cart, quoteData, tipCents, true);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white">

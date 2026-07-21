@@ -2,7 +2,9 @@ import { OrderSummaryDisplay } from './orderSummary';
 import { dollarsToCents } from './utils';
 import { buildOrderSummaryDisplay } from './orderSummaryHelpers';
 import type { PriceBreakdown } from './pricing';
-import type { CartItem } from '../types';
+import type { UnifiedCartItem } from '../types';
+import { composeUnifiedQuoteTotals } from './unifiedTotals';
+import { isInflatableCartItem } from './unifiedCart';
 
 interface QuoteData {
   pickup_preference?: 'same_day' | 'next_day';
@@ -38,18 +40,38 @@ export function getTipAmountCents(
 
 export function buildOrderSummary(
   priceBreakdown: PriceBreakdown,
-  cart: CartItem[],
+  cart: UnifiedCartItem[],
   quoteData: QuoteData,
-  tipCents: number
+  tipCents: number,
+  applyTaxes: boolean = true,
 ): OrderSummaryDisplay | null {
   if (!priceBreakdown || !cart) return null;
 
-  const items = cart.map(item => ({
-    name: item.unit_name,
-    mode: item.wet_or_dry === 'water' ? 'Water' : 'Dry',
-    price: item.unit_price_cents,
-    qty: 1,
-  }));
+  const totals = composeUnifiedQuoteTotals({
+    inflatableBreakdown: priceBreakdown,
+    cart,
+    applyTaxes,
+  });
+
+  const items = cart.map(item => {
+    if (isInflatableCartItem(item)) {
+      return {
+        name: item.unit_name,
+        mode: item.wet_or_dry === 'water' ? 'Water' : 'Dry',
+        price: item.unit_price_cents,
+        qty: item.qty,
+      };
+    }
+    // Event Essential item
+    const name = item.item_type === 'event_essential_bundle' ? item.bundle_name : item.product_name;
+    const isAddOn = item.pricing_context === 'addon';
+    return {
+      name: isAddOn ? `${name} (Add-on)` : name,
+      mode: 'Essential',
+      price: item.unit_price_cents,
+      qty: item.qty,
+    };
+  });
 
   return buildOrderSummaryDisplay({
     items,
@@ -63,13 +85,13 @@ export function buildOrderSummary(
     },
     discounts: [],
     customFees: [],
-    subtotal_cents: priceBreakdown.subtotal_cents,
-    tax_cents: priceBreakdown.tax_cents,
+    subtotal_cents: totals.equipmentSubtotalCents,
+    tax_cents: totals.taxCents,
     tip_cents: tipCents,
-    total_cents: priceBreakdown.total_cents,
-    deposit_due_cents: priceBreakdown.deposit_due_cents,
+    total_cents: totals.totalCents,
+    deposit_due_cents: totals.depositCents,
     deposit_paid_cents: 0,
-    balance_due_cents: priceBreakdown.balance_due_cents,
+    balance_due_cents: totals.balanceDueCents,
     pickup_preference: quoteData?.pickup_preference || 'next_day',
   });
 }

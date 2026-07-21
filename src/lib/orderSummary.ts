@@ -335,6 +335,7 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
 
 export function calculateTotalFromOrder(order: any, discounts: OrderDiscount[], customFees: OrderCustomFee[]): number {
   const subtotal = order.subtotal_cents || 0;
+  const eventEssentialsSubtotal = order.event_essentials_subtotal_cents || 0;
   const travelFee = order.travel_fee_cents || 0;
   const surfaceFee = order.surface_fee_cents || 0;
   const sameDayFee = order.same_day_pickup_fee_cents || 0;
@@ -345,15 +346,17 @@ export function calculateTotalFromOrder(order: any, discounts: OrderDiscount[], 
   const totalFees = travelFee + surfaceFee + sameDayFee + sameDayWeekdayDeliveryFee + generatorFee;
   const totalCustomFees = customFees.reduce((sum, fee) => sum + (fee.amount_cents || 0), 0);
 
+  const combinedSubtotal = subtotal + eventEssentialsSubtotal;
+
   const discountTotal = discounts.reduce((sum, discount) => {
     if (discount.percentage) {
-      return sum + Math.round(subtotal * (discount.percentage / 100));
+      return sum + Math.round(combinedSubtotal * (discount.percentage / 100));
     }
     return sum + (discount.amount_cents || 0);
   }, 0);
 
   // Tip is tracked separately and should NOT be included in order total
-  return subtotal + totalFees + totalCustomFees - discountTotal + tax;
+  return combinedSubtotal + totalFees + totalCustomFees - discountTotal + tax;
 }
 
 export function formatOrderSummary(data: OrderSummaryData): OrderSummaryDisplay {

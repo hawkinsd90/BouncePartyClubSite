@@ -2,6 +2,10 @@ import { supabase } from './supabase';
 import { checkMultipleUnitsAvailability, checkDateBlackout } from './availability';
 import { upsertCanonicalAddress } from './addressService';
 import { ORDER_STATUS } from './constants/statuses';
+import { composeUnifiedQuoteTotals } from './unifiedTotals';
+import { calculateEventEssentialsSubtotalCents } from './eventEssentialsMoney';
+import { mapCartToOrderItems } from './eventEssentialsOrderItems';
+import type { UnifiedCartItem, InflatableCartItem } from '../types';
 
 interface OrderData {
   contactData: {
@@ -13,7 +17,7 @@ interface OrderData {
   };
   quoteData: any;
   priceBreakdown: any;
-  cart: any[];
+  cart: UnifiedCartItem[];
   billingAddress: any;
   billingSameAsEvent: boolean;
   smsConsent: boolean;
@@ -65,18 +69,21 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
   }
 
   // 0b. CRITICAL SAFETY CHECK: Verify unit availability before creating order
-  const availabilityChecks = cart.map(item => ({
+  const inflatableCart = cart.filter((item): item is InflatableCartItem => item.item_type === undefined || item.item_type === 'inflatable');
+  const availabilityChecks = inflatableCart.map(item => ({
     unitId: item.unit_id,
     eventStartDate: quoteData.event_date,
     eventEndDate: quoteData.event_end_date,
   }));
 
-  const availabilityResults = await checkMultipleUnitsAvailability(availabilityChecks);
+  const availabilityResults = availabilityChecks.length > 0
+    ? await checkMultipleUnitsAvailability(availabilityChecks)
+    : [];
   const unavailableUnits = availabilityResults.filter(result => !result.isAvailable);
 
   if (unavailableUnits.length > 0) {
     const unitNames = unavailableUnits.map(u => {
-      const cartItem = cart.find(item => item.unit_id === u.unitId);
+      const cartItem = inflatableCart.find(item => item.unit_id === u.unitId);
       return cartItem?.unit_name || 'Unknown unit';
     }).join(', ');
 
@@ -84,6 +91,16 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       `Cannot create order: The following units are not available for the selected dates: ${unitNames}. Please select different units or dates.`
     );
   }
+
+  // Compute unified totals including Event Essentials
+  const eventEssentialsSubtotalCents = calculateEventEssentialsSubtotalCents(cart);
+  const totals = priceBreakdown
+    ? composeUnifiedQuoteTotals({
+        inflatableBreakdown: priceBreakdown,
+        cart,
+        applyTaxes: applyTaxesByDefault,
+      })
+    : null;
 
   // 1. Create or update customer
   let customer;
@@ -186,7 +203,8 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       billing_city: billingSameAsEvent ? null : (billingAddress.city || null),
       billing_state: billingSameAsEvent ? null : (billingAddress.state || null),
       billing_zip: billingSameAsEvent ? null : (billingAddress.zip || null),
-      subtotal_cents: priceBreakdown.subtotal_cents,
+      subtotal_cents: totals ? totals.equipmentSubtotalCents : priceBreakdown.subtotal_cents,
+      event_essentials_subtotal_cents: eventEssentialsSubtotalCents,
       travel_fee_cents: priceBreakdown.travel_fee_cents,
       travel_total_miles: priceBreakdown.travel_total_miles,
       travel_base_radius_miles: priceBreakdown.travel_base_radius_miles,
@@ -197,7 +215,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       same_day_pickup_fee_cents: priceBreakdown.same_day_pickup_fee_cents || 0,
       same_day_weekday_delivery_fee_cents: priceBreakdown.same_day_weekday_delivery_fee_cents || 0,
       generator_fee_cents: priceBreakdown.generator_fee_cents || 0,
-      tax_cents: applyTaxesByDefault ? priceBreakdown.tax_cents : 0,
+      tax_cents: applyTaxesByDefault ? (totals ? totals.taxCents : priceBreakdown.tax_cents) : 0,
       tax_waived: false,
       tax_waive_reason: null,
       travel_fee_waived: false,
@@ -205,13 +223,13 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       same_day_pickup_fee_waived: false,
       same_day_pickup_fee_waive_reason: null,
       tip_cents: tipCents,
-      deposit_due_cents: customerSelectedPaymentCents || priceBreakdown.deposit_due_cents,
+      deposit_due_cents: customerSelectedPaymentCents || (totals ? totals.depositCents : priceBreakdown.deposit_due_cents),
       deposit_paid_cents: 0,
       balance_due_cents: applyTaxesByDefault
-        ? Math.max(0, priceBreakdown.total_cents - (customerSelectedPaymentCents || priceBreakdown.deposit_due_cents))
-        : Math.max(0, (priceBreakdown.total_cents - priceBreakdown.tax_cents) - (customerSelectedPaymentCents || priceBreakdown.deposit_due_cents)),
+        ? Math.max(0, (totals ? totals.totalCents : priceBreakdown.total_cents) - (customerSelectedPaymentCents || (totals ? totals.depositCents : priceBreakdown.deposit_due_cents)))
+        : Math.max(0, ((totals ? totals.totalCents : priceBreakdown.total_cents) - (totals ? totals.taxCents : priceBreakdown.tax_cents)) - (customerSelectedPaymentCents || (totals ? totals.depositCents : priceBreakdown.deposit_due_cents))),
       custom_deposit_cents: null,
-      customer_selected_payment_cents: customerSelectedPaymentCents || priceBreakdown.deposit_due_cents,
+      customer_selected_payment_cents: customerSelectedPaymentCents || (totals ? totals.depositCents : priceBreakdown.deposit_due_cents),
       customer_selected_payment_type: customerSelectedPaymentType || 'deposit',
       card_on_file_consent: cardOnFileConsent,
       admin_message: null,
@@ -230,23 +248,14 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
 
   if (orderError) throw orderError;
 
-  // 5. Create order items
-  for (const item of cart) {
-    // console.log('Creating order item:', {
-    //   order_id: order.id,
-    //   unit_id: item.unit_id,
-    //   wet_or_dry: item.wet_or_dry,
-    //   unit_price_cents: item.unit_price_cents,
-    //   qty: item.qty || 1
-    // });
+  // 5. Create order items (inflatables + Event Essentials)
+  const orderItems = mapCartToOrderItems(cart).map(item => ({
+    ...item,
+    order_id: order.id,
+  }));
 
-    const { error: itemError } = await supabase.from('order_items').insert({
-      order_id: order.id,
-      unit_id: item.unit_id,
-      wet_or_dry: item.wet_or_dry,
-      unit_price_cents: item.unit_price_cents,
-      qty: item.qty || 1,
-    });
+  for (const item of orderItems) {
+    const { error: itemError } = await (supabase as any).from('order_items').insert(item);
 
     if (itemError) {
       console.error('Order item insert error:', itemError);
