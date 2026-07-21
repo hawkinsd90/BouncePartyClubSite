@@ -20,7 +20,6 @@ import { sendOrderEditNotifications } from '../../lib/orderNotificationService';
 import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
 import { showToast } from '../../lib/notifications';
-import { lookupGeneratorProduct, deriveAdminGeneratorMode } from '../../lib/generatorUnified';
 
 interface OrderDetailModalProps {
   order: any;
@@ -68,7 +67,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     pickup_preference: order.pickup_preference || 'next_day',
   });
   const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
-  const [generatorProductId, setGeneratorProductId] = useState<string | null | undefined>(undefined);
   const [discounts, setDiscounts] = useState<any[]>([]);
   const [customFees, setCustomFees] = useState<any[]>([]);
   const [adminMessage, setAdminMessage] = useState(order.admin_message || '');
@@ -225,19 +223,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   useEffect(() => {
     loadOrderDetails();
     loadAdminSettings();
-    // Load generator product ID via authoritative lookup
-    (async () => {
-      try {
-        const lookup = await lookupGeneratorProduct();
-        if (lookup.status === 'configured') {
-          setGeneratorProductId(lookup.product.product_id);
-        } else {
-          setGeneratorProductId(null);
-        }
-      } catch {
-        setGeneratorProductId(null);
-      }
-    })();
   }, [order.id]);
 
   // Initialize staged items from order items (inflatables and EE products)
@@ -630,70 +615,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     setManualDirty(true);
   }, []);
 
-  const handleGeneratorQuantityChange = useCallback(async (qty: number) => {
-    if (!Number.isSafeInteger(qty) || qty < 0) return;
-    if (!editedOrder.event_date || !editedOrder.event_end_date) return;
-
-    const genMode = deriveAdminGeneratorMode({
-      generatorProductId,
-      stagedItems,
-      legacyGeneratorQty: editedOrder.generator_qty || 0,
-      legacyGeneratorFeeCents: editedOrder.generator_fee_cents || 0,
-    });
-
-    if (genMode === 'legacy') return;
-
-    if (!generatorProductId) {
-      showToast('Generator product is not configured. Cannot add Event Essential Generator.', 'error');
-      return;
-    }
-
-    const existingIdx = stagedItems.findIndex(
-      (item) => item.product_id === generatorProductId && !item.unit_id && !item.is_deleted,
-    );
-
-    if (qty === 0) {
-      if (existingIdx >= 0) {
-        setStagedItems(prev => prev.map((item, i) =>
-          i === existingIdx ? { ...item, is_deleted: true } : item,
-        ));
-      }
-      return;
-    }
-
-    // Resolve pricing from existing staged item or use pricing rules
-    let unitPriceCents = 0;
-    let itemName = 'Generator';
-    if (existingIdx >= 0) {
-      unitPriceCents = stagedItems[existingIdx].unit_price_cents;
-      itemName = stagedItems[existingIdx].item_name || stagedItems[existingIdx].product_name || 'Generator';
-    } else {
-      unitPriceCents = (pricingRules as any)?.generator_fee_single_cents || 0;
-      itemName = 'Generator';
-    }
-
-    setStagedItems(prev => {
-      if (existingIdx >= 0) {
-        return prev.map((item, i) =>
-          i === existingIdx
-            ? { ...item, qty, unit_price_cents: unitPriceCents, is_updated: true, is_deleted: false }
-            : item,
-        );
-      }
-      return [...prev, {
-        product_id: generatorProductId,
-        product_name: itemName,
-        item_name: itemName,
-        qty,
-        unit_price_cents: unitPriceCents,
-        pricing_context: 'standalone',
-        is_new: true,
-        is_deleted: false,
-      } as StagedItem];
-    });
-    setManualDirty(true);
-  }, [generatorProductId, stagedItems, editedOrder, setStagedItems, setManualDirty]);
-
   const handleClose = useCallback(() => {
     if (hasChanges) {
       setShowCloseConfirm(true);
@@ -876,16 +797,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 setRequireCardOnFile(value);
                 setManualDirty(true);
               }}
-              generatorMode={deriveAdminGeneratorMode({
-                generatorProductId,
-                stagedItems,
-                legacyGeneratorQty: editedOrder.generator_qty || 0,
-                legacyGeneratorFeeCents: editedOrder.generator_fee_cents || 0,
-              })}
-              generatorStagedItem={stagedItems.find(
-                (item) => item.product_id && item.product_id === generatorProductId && !item.is_deleted
-              )}
-              onGeneratorQuantityChange={handleGeneratorQuantityChange}
               onStatusChange={initiateStatusChange}
               onMarkChanges={() => setManualDirty(true)}
             />

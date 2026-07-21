@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { lookupGeneratorProduct, aggregateOrderEquipment } from '../lib/generatorUnified';
 import { formatOrderId } from '../lib/utils';
 import { format, startOfMonth, endOfMonth, parseISO, addDays } from 'date-fns';
 import { ORDER_STATUS } from '../lib/constants/statuses';
@@ -113,7 +112,6 @@ export function derivePickupBlockReason(
 export function useCalendarTasks(currentMonth: Date) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [generatorProductId, setGeneratorProductId] = useState<string | null | undefined>(undefined); // undefined = loading, null = not found, string = resolved
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLoadingRef = useRef(false);
   const pendingRefreshRef = useRef(false);
@@ -133,32 +131,8 @@ export function useCalendarTasks(currentMonth: Date) {
   });
 
   useEffect(() => {
-    // Wait for generatorProductId to be resolved (or null) before loading tasks.
-    // This prevents the first task load from processing with unknown Generator identity.
-    if (generatorProductId === undefined) return; // still loading
     loadTasksForMonth(currentMonth);
-  }, [currentMonth, generatorProductId]);
-
-  // Load the authoritative Generator product ID once.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const result = await lookupGeneratorProduct();
-        if (cancelled) return;
-        if (result.status === 'configured') {
-          setGeneratorProductId(result.product.product_id);
-        } else {
-          // not_found, ambiguous, configuration_failed — all resolve to null
-          // so the loading state terminates and tasks can load.
-          setGeneratorProductId(null);
-        }
-      } catch {
-        if (!cancelled) setGeneratorProductId(null);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+  }, [currentMonth]);
 
   useEffect(() => {
     const channel = supabase
@@ -265,16 +239,15 @@ export function useCalendarTasks(currentMonth: Date) {
 
         const orderItemsForOrder = orderItems?.filter(item => item.order_id === order.id) || [];
 
-        const aggResult = aggregateOrderEquipment(
-          orderItemsForOrder as any,
-          generatorProductId ?? null,
-          order.generator_qty || 0,
-        );
-
-        const items = aggResult.displayItems;
-        const equipmentIds = aggResult.equipmentIds;
-        const numInflatables = aggResult.numInflatables;
-        const totalGeneratorQty = aggResult.totalGeneratorQty;
+        const items = orderItemsForOrder.map((item: any) => {
+          if (item.units?.name) {
+            return `${item.units.name} (${item.wet_or_dry === 'water' ? 'Water' : 'Dry'})`;
+          }
+          return item.item_name || 'Unknown item';
+        });
+        const equipmentIds = orderItemsForOrder.filter((i: any) => i.unit_id).map((i: any) => i.unit_id);
+        const numInflatables = orderItemsForOrder.filter((i: any) => i.unit_id).reduce((s: number, i: any) => s + (i.qty || 1), 0);
+        const totalGeneratorQty = order.generator_qty || 0;
 
         const total = order.total_cents || 0;
 

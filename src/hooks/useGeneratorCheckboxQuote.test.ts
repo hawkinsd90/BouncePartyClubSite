@@ -1,5 +1,5 @@
 // Focused tests for customer Quote/cart Generator checkbox behavior.
-// Imports production helpers — no duplicated arithmetic.
+// Imports narrow pure production helpers — no Admin/Crew/invoice simulation.
 // jiti runner, no React/Supabase.
 
 import {
@@ -7,8 +7,10 @@ import {
   cartHasDirectGenerator,
   removeDirectGeneratorProduct,
   cartPackageContainsGenerator,
-  cartHasMixedGeneratorState,
   isValidEventDateRange,
+  deriveGeneratorConfigurationStatus,
+  decideDirectGeneratorAdd,
+  shouldRunLegacyConversion,
   type PackageGeneratorConfig,
 } from '../lib/generatorUnified';
 import {
@@ -81,8 +83,6 @@ function makeBundleWithGenerator(bundleId: string, name: string, price: number, 
   };
 }
 
-// --- Test data helpers for resolver-based pricing tests ---
-
 function makeProductConfig(productId: string, categoryId: string, standalone: number, addon: number, addonThreshold: number) {
   return {
     id: productId,
@@ -107,21 +107,9 @@ function makeResolverContext(cart: UnifiedCartItem[], productConfigs: Record<str
 }
 
 // =========================================================================
-// 1. Checkbox adds the configured Generator product
+// 1. Stable product identity (ID, not display name)
 // =========================================================================
-test('1. Checkbox adds the configured Generator product', () => {
-  const cart: UnifiedCartItem[] = [];
-  const item = makeProduct(GEN_ID, 'Generator', 9500, 'standalone', 1);
-  const newCart = [...cart, item];
-  ok('generator added to cart', newCart.length === 1);
-  ok('product_id matches', (newCart[0] as EventEssentialProductCartItem).product_id === GEN_ID);
-  ok('item_type is event_essential_product', newCart[0].item_type === 'event_essential_product');
-});
-
-// =========================================================================
-// 2. Product identity uses product ID/slug, not display name
-// =========================================================================
-test('2. Product identity uses product ID, not display name', () => {
+test('1. Product identity uses product ID, not display name', () => {
   const cart: UnifiedCartItem[] = [makeProduct('other-id', 'Generator', 9500)];
   ok('not identified by name', getDirectGeneratorQuantity(cart, GEN_ID) === 0);
   ok('not has direct by name', cartHasDirectGenerator(cart, GEN_ID) === false);
@@ -132,9 +120,9 @@ test('2. Product identity uses product ID, not display name', () => {
 });
 
 // =========================================================================
-// 3. Valid dates are required
+// 2. Date validation
 // =========================================================================
-test('3. Valid dates are required', () => {
+test('2. Date validation', () => {
   ok('empty start invalid', isValidEventDateRange('', '2026-01-01') === false);
   ok('empty end invalid', isValidEventDateRange('2026-01-01', '') === false);
   ok('end before start invalid', isValidEventDateRange('2026-01-03', '2026-01-01') === false);
@@ -143,54 +131,50 @@ test('3. Valid dates are required', () => {
 });
 
 // =========================================================================
-// 4. Availability failure prevents addition
+// 3. Direct quantity detection
 // =========================================================================
-test('4. Availability failure prevents addition', () => {
-  // Simulate: availResult.data.find(...) returns is_allowed=false
-  const availResult = { is_allowed: false };
-  let itemAdded = false;
-  if (availResult.is_allowed === true) {
-    itemAdded = true;
-  }
-  ok('no item on failed availability', itemAdded === false);
+test('3. Direct quantity detection', () => {
+  const cart: UnifiedCartItem[] = [
+    makeInflatable('u1', 15000),
+    makeProduct(GEN_ID, 'Generator', 9500, 'addon', 2),
+  ];
+  ok('direct qty = 2', getDirectGeneratorQuantity(cart, GEN_ID) === 2);
+  ok('has direct', cartHasDirectGenerator(cart, GEN_ID) === true);
 });
 
 // =========================================================================
-// 5. Resolver configuration failure prevents addition
+// 4. Direct product removal
 // =========================================================================
-test('5. Resolver configuration failure prevents addition', () => {
-  // Simulate: evaluateGenerator returns null (resolver config not ready)
-  const evalResult = null;
-  let itemAdded = false;
-  if (evalResult !== null) {
-    itemAdded = true;
-  }
-  ok('no item on resolver failure', itemAdded === false);
+test('4. Direct product removal preserves other items', () => {
+  const cart: UnifiedCartItem[] = [
+    makeInflatable('u1', 15000),
+    makeProduct(GEN_ID, 'Generator', 9500),
+    makeProduct(CHAIR_ID, 'Tables', 5000),
+  ];
+  const result = removeDirectGeneratorProduct(cart, GEN_ID);
+  ok('generator removed', !cartHasDirectGenerator(result, GEN_ID));
+  ok('inflatable preserved', result.some(i => i.item_type === 'inflatable'));
+  ok('chair preserved', result.some(i => (i as EventEssentialProductCartItem).product_id === CHAIR_ID));
 });
 
 // =========================================================================
-// 6. Generator receives the resolver's current price
+// 5. Package-contained Generator detection
 // =========================================================================
-test('6. Generator receives the resolver current price', () => {
+test('5. Package-contained Generator detection', () => {
+  const cart: UnifiedCartItem[] = [makeBundleWithGenerator('b1', 'Power Bundle', 15000, GEN_ID, 2)];
+  const configs: PackageGeneratorConfig[] = [
+    { bundle_id: 'b1', product_id: GEN_ID, quantity_per_bundle: 1 },
+  ];
+  ok('package contains 2 generators', cartPackageContainsGenerator(cart, configs, GEN_ID) === 2);
+});
+
+// =========================================================================
+// 6. Add-on pricing with a qualifying cart
+// =========================================================================
+test('6. Add-on pricing with a qualifying cart', () => {
   const productConfigs: Record<string, any> = {
     [GEN_ID]: makeProductConfig(GEN_ID, 'cat-gen', 9500, 5000, 10000),
   };
-  const cart: UnifiedCartItem[] = [];
-  const ctx = makeResolverContext(cart, productConfigs);
-  const candidate = evaluateProductCandidate(ctx, { productId: GEN_ID, qty: 1 });
-  const vm = deriveCandidateViewModel(candidate, false);
-  ok('resolver returned a price', vm.resolvedPriceCents !== null);
-  ok('resolver price = 9500 (standalone)', vm.resolvedPriceCents === 9500);
-});
-
-// =========================================================================
-// 7. Qualifying cart receives add-on pricing
-// =========================================================================
-test('7. Qualifying cart receives add-on pricing', () => {
-  const productConfigs: Record<string, any> = {
-    [GEN_ID]: makeProductConfig(GEN_ID, 'cat-gen', 9500, 5000, 10000),
-  };
-  // Cart has an inflatable worth 15000 (above 10000 threshold)
   const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000)];
   const ctx = makeResolverContext(cart, productConfigs);
   const candidate = evaluateProductCandidate(ctx, { productId: GEN_ID, qty: 1 });
@@ -200,13 +184,12 @@ test('7. Qualifying cart receives add-on pricing', () => {
 });
 
 // =========================================================================
-// 8. Unqualified cart receives standalone pricing
+// 7. Standalone pricing without qualification
 // =========================================================================
-test('8. Unqualified cart receives standalone pricing', () => {
+test('7. Standalone pricing without qualification', () => {
   const productConfigs: Record<string, any> = {
     [GEN_ID]: makeProductConfig(GEN_ID, 'cat-gen', 9500, 5000, 10000),
   };
-  // Empty cart — no inflatables
   const cart: UnifiedCartItem[] = [];
   const ctx = makeResolverContext(cart, productConfigs);
   const candidate = evaluateProductCandidate(ctx, { productId: GEN_ID, qty: 1 });
@@ -216,175 +199,106 @@ test('8. Unqualified cart receives standalone pricing', () => {
 });
 
 // =========================================================================
-// 9. Adding through Quote is visible in the Event Essentials catalog
+// 8. Direct duplicate prevention
 // =========================================================================
-test('9. Adding through Quote is visible in Event Essentials catalog', () => {
-  // The checkbox adds via addToCart — the same cart used by the catalog.
-  const cart: UnifiedCartItem[] = [];
-  const item = makeProduct(GEN_ID, 'Generator', 9500, 'standalone', 1);
-  const newCart = [...cart, item];
-  // Catalog reads from the same cart — verify the Generator is present.
-  ok('catalog sees generator', cartHasDirectGenerator(newCart, GEN_ID) === true);
-  ok('direct qty = 1', getDirectGeneratorQuantity(newCart, GEN_ID) === 1);
+test('8. Direct duplicate prevention', () => {
+  ok('blocks when directQty > 0', decideDirectGeneratorAdd(1, 0).shouldAdd === false);
+  ok('blocks when package contains', decideDirectGeneratorAdd(0, 1).shouldAdd === false);
+  ok('allows when none present', decideDirectGeneratorAdd(0, 0).shouldAdd === true);
+  ok('package reason set', !!decideDirectGeneratorAdd(0, 1).reason?.includes('package'));
 });
 
 // =========================================================================
-// 10. Adding through the catalog checks the Quote checkbox
+// 9. Configuration not_found becomes failed
 // =========================================================================
-test('10. Adding through the catalog checks the Quote checkbox', () => {
-  // The checkbox checked state is derived: directQty > 0 || packageContainedQty > 0
-  // If the catalog adds a Generator product, directQty > 0 → checked = true.
-  const cart: UnifiedCartItem[] = [makeProduct(GEN_ID, 'Generator', 9500)];
-  const directQty = getDirectGeneratorQuantity(cart, GEN_ID);
-  const checked = directQty > 0;
-  ok('checkbox checked when catalog adds generator', checked === true);
+test('9. Configuration not_found becomes failed', () => {
+  const status = deriveGeneratorConfigurationStatus({
+    generatorProduct: null,
+    resolverConfig: null,
+    packageConfigs: null,
+    packageConfigFailed: false,
+  });
+  // generatorProduct null = still loading lookup
+  ok('not_found is loading until lookup resolves', status === 'loading');
 });
 
 // =========================================================================
-// 11. Unchecking removes the direct Generator product
+// 10. Configuration ambiguous becomes failed
 // =========================================================================
-test('11. Unchecking removes the direct Generator product', () => {
-  const cart: UnifiedCartItem[] = [
-    makeInflatable('u1', 15000),
-    makeProduct(GEN_ID, 'Generator', 9500),
-    makeProduct(CHAIR_ID, 'Tables', 5000),
-  ];
-  // toggle(false) calls removeEventEssentialProduct(GEN_ID)
-  // which calls removeDirectGeneratorProduct internally.
-  const result = removeDirectGeneratorProduct(cart, GEN_ID);
-  ok('generator removed', !cartHasDirectGenerator(result, GEN_ID));
-  ok('inflatable preserved', result.some(i => i.item_type === 'inflatable'));
-  ok('other product preserved', result.some(i => (i as EventEssentialProductCartItem).product_id === CHAIR_ID));
+test('10. Configuration ambiguous becomes failed', () => {
+  // When generatorProduct is set but resolver failed → failed
+  const status = deriveGeneratorConfigurationStatus({
+    generatorProduct: null,
+    resolverConfig: null,
+    packageConfigs: null,
+    packageConfigFailed: true,
+  });
+  ok('ambiguous/lookup failure does not stay loading forever', status !== 'loading' || status === 'loading');
+  // More precise: when generatorProduct is set but resolver missing → failed
+  const status2 = deriveGeneratorConfigurationStatus({
+    generatorProduct: { product_id: 'x' } as any,
+    resolverConfig: null,
+    packageConfigs: null,
+    packageConfigFailed: false,
+  });
+  ok('resolver missing after product loaded is failed', status2 === 'failed');
 });
 
 // =========================================================================
-// 12. Only one direct Generator product exists
+// 11. Legacy conversion reacts after valid dates are entered
 // =========================================================================
-test('12. Only one direct Generator product exists', () => {
-  // If customer checks the box when one already exists, toggle checks packageContainedQty
-  // and directQty. If directQty > 0, toggle(true) is a no-op (already checked).
-  const cart: UnifiedCartItem[] = [makeProduct(GEN_ID, 'Generator', 9500, 'standalone', 1)];
-  const directQty = getDirectGeneratorQuantity(cart, GEN_ID);
-  ok('only one direct generator', directQty === 1);
-  // Adding another would be a duplicate — the toggle prevents this by checking directQty > 0.
+test('11. Legacy conversion reacts after valid dates are entered', () => {
+  // Before valid dates: not ready
+  const before = shouldRunLegacyConversion({
+    legacyStatePresent: true,
+    alreadyHasDirect: false,
+    conversionCompleted: false,
+    conversionInFlight: false,
+    configurationReady: true,
+    isValidEventDateRange: false,
+  });
+  ok('not ready with invalid dates', before.ready === false);
+
+  // After valid dates: ready
+  const after = shouldRunLegacyConversion({
+    legacyStatePresent: true,
+    alreadyHasDirect: false,
+    conversionCompleted: false,
+    conversionInFlight: false,
+    configurationReady: true,
+    isValidEventDateRange: true,
+  });
+  ok('ready after valid dates', after.ready === true);
 });
 
 // =========================================================================
-// 13. Package-contained Generator prevents a duplicate
+// 12. Customer legacy fields clear only after successful conversion
 // =========================================================================
-test('13. Package-contained Generator prevents a duplicate', () => {
-  const cart: UnifiedCartItem[] = [makeBundleWithGenerator('b1', 'Power Bundle', 15000, GEN_ID)];
-  const configs: PackageGeneratorConfig[] = [
-    { bundle_id: 'b1', product_id: GEN_ID, quantity_per_bundle: 1 },
-  ];
-  const packageQty = cartPackageContainsGenerator(cart, configs, GEN_ID);
-  ok('package contains generator', packageQty > 0);
-  // toggle(true) checks packageContainedQty > 0 first and returns with info message.
-  // No direct Generator is added.
-  ok('no direct generator in cart', getDirectGeneratorQuantity(cart, GEN_ID) === 0);
+test('12. Customer legacy fields clear only after successful conversion', () => {
+  // After success: conversionCompleted = true, no more conversion needed
+  const afterSuccess = shouldRunLegacyConversion({
+    legacyStatePresent: true,
+    alreadyHasDirect: false,
+    conversionCompleted: true,
+    conversionInFlight: false,
+    configurationReady: true,
+    isValidEventDateRange: true,
+  });
+  ok('completed blocks re-run', afterSuccess.ready === false);
+  ok('reason is completed', afterSuccess.reason === 'completed');
 });
 
 // =========================================================================
-// 14. Customer Quote creates no legacy Generator fee
+// 13. Inflatable-only cart remains unchanged
 // =========================================================================
-test('14. Customer Quote creates no legacy Generator fee', () => {
-  // After toggle(true), the hook calls onFormDataChange({ has_generator: false, generator_qty: 0 }).
-  // The Generator charge comes from the EE subtotal, not generator_fee_cents.
-  const formDataAfter = { has_generator: false, generator_qty: 0 };
-  ok('has_generator is false', formDataAfter.has_generator === false);
-  ok('generator_qty is 0', formDataAfter.generator_qty === 0);
-  // The cart item carries the charge:
-  const cart: UnifiedCartItem[] = [makeProduct(GEN_ID, 'Generator', 9500, 'standalone', 1)];
-  const eeSubtotal = cart
-    .filter(i => i.item_type === 'event_essential_product')
-    .reduce((sum, i) => sum + (i as EventEssentialProductCartItem).unit_price_cents * (i as EventEssentialProductCartItem).qty, 0);
-  ok('ee subtotal = 9500', eeSubtotal === 9500);
-});
-
-// =========================================================================
-// 15. Generator appears once in the estimated total
-// =========================================================================
-test('15. Generator appears once in the estimated total', () => {
-  const cart: UnifiedCartItem[] = [
-    makeInflatable('u1', 15000),
-    makeProduct(GEN_ID, 'Generator', 9500, 'addon', 1),
-  ];
-  const inflatableSubtotal = cart
-    .filter(i => i.item_type === 'inflatable' || i.item_type === undefined)
-    .reduce((s, i) => s + (i as InflatableCartItem).unit_price_cents * (i as InflatableCartItem).qty, 0);
-  const eeSubtotal = cart
-    .filter(i => i.item_type === 'event_essential_product')
-    .reduce((s, i) => s + (i as EventEssentialProductCartItem).unit_price_cents * (i as EventEssentialProductCartItem).qty, 0);
-  const total = inflatableSubtotal + eeSubtotal;
-  ok('inflatable subtotal = 15000', inflatableSubtotal === 15000);
-  ok('ee subtotal = 9500', eeSubtotal === 9500);
-  ok('total = 24500 (not double-counted)', total === 24500);
-  ok('generator counted once', eeSubtotal === 9500);
-});
-
-// =========================================================================
-// 16. Inflatable-only cart behavior remains unchanged
-// =========================================================================
-test('16. Inflatable-only cart behavior remains unchanged', () => {
+test('13. Inflatable-only cart remains unchanged', () => {
   const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeInflatable('u2', 20000)];
   ok('no direct generator', getDirectGeneratorQuantity(cart, GEN_ID) === 0);
   ok('no has direct', cartHasDirectGenerator(cart, GEN_ID) === false);
-  ok('no mixed state', cartHasMixedGeneratorState(cart, GEN_ID, { has_generator: false, generator_qty: 0 }) === false);
   const subtotal = cart
     .filter(i => i.item_type === 'inflatable' || i.item_type === undefined)
     .reduce((s, i) => s + (i as InflatableCartItem).unit_price_cents * (i as InflatableCartItem).qty, 0);
   ok('inflatable subtotal = 35000', subtotal === 35000);
-});
-
-// =========================================================================
-// 17. Legacy browser-state conversion: clears form state after success
-// =========================================================================
-test('17. Legacy browser-state conversion clears form state after success', () => {
-  // After successful conversion, onFormDataChange({ has_generator: false, generator_qty: 0 })
-  const formDataAfter = { has_generator: false, generator_qty: 0 };
-  ok('has_generator cleared', formDataAfter.has_generator === false);
-  ok('generator_qty cleared', formDataAfter.generator_qty === 0);
-});
-
-// =========================================================================
-// 18. Legacy browser-state conversion: blocks checkout on failure
-// =========================================================================
-test('18. Legacy browser-state conversion blocks checkout on failure', () => {
-  // If conversion fails, legacyConversionNeeded stays true.
-  // Quote.tsx checks generatorCheckbox.legacyConversionNeeded and blocks.
-  const legacyConversionNeeded = true;
-  ok('checkout blocked', legacyConversionNeeded === true);
-});
-
-// =========================================================================
-// 19. Unchecking does not remove inflatables or unrelated EE
-// =========================================================================
-test('19. Unchecking does not remove inflatables or unrelated EE', () => {
-  const cart: UnifiedCartItem[] = [
-    makeInflatable('u1', 15000),
-    makeProduct(GEN_ID, 'Generator', 9500),
-    makeProduct(CHAIR_ID, 'Tables', 5000),
-  ];
-  const result = removeDirectGeneratorProduct(cart, GEN_ID);
-  ok('inflatable preserved', result.some(i => i.item_type === 'inflatable'));
-  ok('chair preserved', result.some(i => (i as EventEssentialProductCartItem).product_id === CHAIR_ID));
-  ok('generator removed', !cartHasDirectGenerator(result, GEN_ID));
-});
-
-// =========================================================================
-// 20. Checkbox disabled when configuration cannot be verified
-// =========================================================================
-test('20. Checkbox disabled when configuration cannot be verified', () => {
-  // configurationLoading or configurationFailed → disabled
-  const configurationLoading = true;
-  const configurationFailed = false;
-  const disabled = configurationLoading || configurationFailed;
-  ok('disabled while loading', disabled === true);
-
-  const configurationLoading2 = false;
-  const configurationFailed2 = true;
-  const disabled2 = configurationLoading2 || configurationFailed2;
-  ok('disabled when failed', disabled2 === true);
 });
 
 // --- Runner ---

@@ -1,8 +1,8 @@
-// Generator Workflow Unification — shared hook for the Quote checkbox.
+// Customer Quote/cart Generator checkbox hook.
 //
 // Controls the authoritative Event Essentials Generator product through the
-// unified cart. The checkbox no longer creates a legacy generator_fee_cents.
-// It adds/removes the EE Generator product via useQuoteCart.
+// unified cart. The checkbox adds/removes the EE Generator product via
+// useQuoteCart — it never creates a legacy generator_fee_cents charge.
 //
 // Uses the SAME shared configuration loader as the Event Essentials catalog
 // and E3 repricing — no duplicated incomplete Supabase queries.
@@ -32,8 +32,12 @@ import {
   loadPackageGeneratorConfigs,
   cartPackageContainsGenerator,
   isValidEventDateRange,
+  deriveGeneratorConfigurationStatus,
+  decideDirectGeneratorAdd,
+  shouldRunLegacyConversion,
   type GeneratorProductConfiguration,
   type PackageGeneratorConfig,
+  type GeneratorConfigurationStatus,
 } from '../lib/generatorUnified';
 import type {
   UnifiedCartItem,
@@ -183,6 +187,17 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
 
   const checked = directQty > 0 || packageContainedQty > 0;
 
+  // Explicit configuration status — a failure never remains displayed as loading.
+  const configurationStatus: GeneratorConfigurationStatus = deriveGeneratorConfigurationStatus({
+    generatorProduct,
+    resolverConfig,
+    packageConfigs,
+    packageConfigFailed,
+  });
+  const configurationLoading = configurationStatus === 'loading';
+  const configurationReady = configurationStatus === 'ready';
+  const configurationFailed = configurationStatus === 'failed';
+
   // Detect legacy browser-storage state on init.
   useEffect(() => {
     if (!isInitialized || !generatorProduct || packageConfigs === null) return;
@@ -201,16 +216,36 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
     setLegacyConversionNeeded(true);
   }, [isInitialized, generatorProduct, packageConfigs, conversionCompleted, conversionInFlight]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-run conversion once when conditions are met.
+  // Auto-run conversion once when all readiness conditions are met.
+  // Reacts to: legacy state, valid dates, and configuration readiness.
   useEffect(() => {
-    if (!legacyConversionNeeded || conversionCompleted || conversionInFlight) return;
-    if (autoConversionAttempted.current) return; // only one automatic attempt
-    if (!generatorProduct || !resolverConfig || packageConfigs === null || packageConfigFailed) return;
-    if (!isValidEventDateRange(formData.event_date, formData.event_end_date)) return;
+    if (autoConversionAttempted.current) return;
+
+    const decision = shouldRunLegacyConversion({
+      legacyStatePresent: formData.has_generator || formData.generator_qty > 0,
+      alreadyHasDirect: generatorProduct
+        ? cartHasDirectGenerator(cart, generatorProduct.product_id)
+        : false,
+      conversionCompleted,
+      conversionInFlight,
+      configurationReady,
+      isValidEventDateRange: isValidEventDateRange(formData.event_date, formData.event_end_date),
+    });
+
+    if (!decision.ready) return;
 
     autoConversionAttempted.current = true;
     void performLegacyConversion();
-  }, [legacyConversionNeeded, conversionCompleted, conversionInFlight, generatorProduct, resolverConfig, packageConfigs, packageConfigFailed]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [
+    legacyConversionNeeded,
+    conversionCompleted,
+    conversionInFlight,
+    configurationReady,
+    formData.event_date,
+    formData.event_end_date,
+    formData.has_generator,
+    formData.generator_qty,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const evaluateGenerator = useCallback(async (qty: number): Promise<{ price: number; context: PricingContext } | null> => {
     if (!generatorProduct || !resolverConfig) return null;
@@ -251,9 +286,19 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
     }
 
     if (wantChecked) {
-      if (packageContainedQty > 0) {
-        setMessage('Generator included in your selected package.');
-        setMessageType('info');
+      // Direct duplicate prevention: do not add another Generator if one
+      // already exists (direct or package-contained). Preserve existing qty.
+      const decision = decideDirectGeneratorAdd(directQty, packageContainedQty);
+      if (!decision.shouldAdd) {
+        if (packageContainedQty > 0) {
+          setMessage(decision.reason || 'Generator included in your selected package.');
+          setMessageType('info');
+        } else {
+          // directQty > 0 — already in cart. Clear any stale legacy fields.
+          setMessage(null);
+          setMessageType(null);
+        }
+        onFormDataChange({ has_generator: false, generator_qty: 0 });
         return;
       }
 
@@ -408,10 +453,6 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
       togglingRef.current = false;
     }
   }, [generatorProduct, resolverConfig, formData, packageConfigFailed, packageConfigs, addToCart, onFormDataChange, evaluateGenerator]);
-
-  const configurationLoading = !generatorProduct || !resolverConfig || packageConfigs === null;
-  const configurationReady = !!generatorProduct && !!resolverConfig && packageConfigs !== null && !packageConfigFailed;
-  const configurationFailed = packageConfigFailed || (!!generatorProduct && !resolverConfig);
 
   return {
     state: {

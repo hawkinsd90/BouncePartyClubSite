@@ -8,11 +8,6 @@ interface EventDetailsEditorProps {
   onAddressSelect: (addressData: any) => void;
   compact?: boolean;
   showUntilEndOfDay?: boolean;
-  isLegacyGeneratorOrder?: boolean;
-  generatorMode?: 'none' | 'event_essential' | 'legacy';
-  generatorQty?: number;
-  generatorUnitPriceCents?: number | null;
-  onGeneratorQuantityChange?: (qty: number) => void;
 }
 
 export function EventDetailsEditor({
@@ -22,15 +17,7 @@ export function EventDetailsEditor({
   onAddressSelect,
   compact = false,
   showUntilEndOfDay = false,
-  isLegacyGeneratorOrder = false,
-  generatorMode = 'none',
-  generatorQty,
-  generatorUnitPriceCents,
-  onGeneratorQuantityChange,
 }: EventDetailsEditorProps) {
-  const genMode = generatorMode === 'legacy' || isLegacyGeneratorOrder ? 'legacy' : generatorMode;
-  const displayGenQty = generatorQty ?? editedOrder.generator_qty ?? 0;
-  const genUnitPrice = generatorUnitPriceCents ?? null;
   const containerClass = compact ? 'bg-white rounded-lg shadow p-4 sm:p-6 min-w-0 overflow-hidden' : 'space-y-6';
   const sectionClass = compact ? 'min-w-0 overflow-hidden' : 'bg-white border border-slate-200 rounded-lg p-4';
   const labelClass = compact ? 'block text-sm font-medium text-slate-700 mb-1' : 'block text-sm font-medium text-slate-700 mb-2';
@@ -236,30 +223,20 @@ export function EventDetailsEditor({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      {genMode === 'legacy' ? 'Legacy Generator Rental' : 'Generators'}
-                    </label>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Generators</label>
                     <input
                       type="number"
                       min="0"
-                      value={displayGenQty}
+                      value={editedOrder.generator_qty ?? 0}
                       onChange={(e) => {
                         const qty = parseInt(e.target.value) || 0;
-                        if (onGeneratorQuantityChange && genMode === 'event_essential') {
-                          onGeneratorQuantityChange(qty);
-                        } else {
-                          onOrderChange({ generator_qty: qty });
-                        }
+                        onOrderChange({ generator_qty: qty });
                       }}
                       className="w-full px-3 py-2 border border-slate-300 rounded"
                     />
-                    {displayGenQty > 0 && (
+                    {(editedOrder.generator_qty ?? 0) > 0 && (
                       <p className="text-xs text-blue-600 mt-1">
-                        {genMode === 'legacy'
-                          ? `Legacy: ${formatCurrency(editedOrder.generator_fee_cents || 0)} (stored, not repriced)`
-                          : genUnitPrice != null
-                            ? `${displayGenQty} × ${formatCurrency(genUnitPrice)} = ${formatCurrency(genUnitPrice * displayGenQty)}`
-                            : `${displayGenQty} × ${formatCurrency(pricingRules?.generator_fee_single_cents || 0)} = ${formatCurrency((pricingRules?.generator_fee_single_cents || 0) * displayGenQty)}`}
+                        {(editedOrder.generator_qty ?? 0)} × {formatCurrency(pricingRules?.generator_fee_single_cents || 0)} = {formatCurrency((pricingRules?.generator_fee_single_cents || 0) * (editedOrder.generator_qty ?? 0))}
                       </p>
                     )}
                   </div>
@@ -325,30 +302,20 @@ export function EventDetailsEditor({
               </div>
 
               <div className="min-w-0 overflow-hidden">
-                <label className={labelClass}>
-                  {genMode === 'legacy' ? 'Legacy Generator' : 'Generators'}
-                </label>
+                <label className={labelClass}>Generators</label>
                 <input
                   type="number"
                   min="0"
-                  value={displayGenQty}
+                  value={editedOrder.generator_qty ?? 0}
                   onChange={(e) => {
                     const qty = parseInt(e.target.value) || 0;
-                    if (onGeneratorQuantityChange && genMode === 'event_essential') {
-                      onGeneratorQuantityChange(qty);
-                    } else {
-                      onOrderChange({ generator_qty: qty });
-                    }
+                    onOrderChange({ generator_qty: qty });
                   }}
                   className={inputClass}
                 />
-                {displayGenQty > 0 && (
+                {(editedOrder.generator_qty ?? 0) > 0 && (
                   <p className="text-xs text-blue-600 mt-1 break-words">
-                    {genMode === 'legacy'
-                      ? `Legacy: ${formatCurrency(editedOrder.generator_fee_cents || 0)}`
-                      : genUnitPrice != null
-                        ? `${displayGenQty} × ${formatCurrency(genUnitPrice)} = ${formatCurrency(genUnitPrice * displayGenQty)}`
-                        : `${displayGenQty} × ${formatCurrency(pricingRules?.generator_fee_single_cents || 0)} = ${formatCurrency((pricingRules?.generator_fee_single_cents || 0) * displayGenQty)}`}
+                    {(editedOrder.generator_qty ?? 0)} × {formatCurrency(pricingRules?.generator_fee_single_cents || 0)} = {formatCurrency((pricingRules?.generator_fee_single_cents || 0) * (editedOrder.generator_qty ?? 0))}
                   </p>
                 )}
               </div>

@@ -1,9 +1,10 @@
-// Generator Workflow Unification — authoritative product lookup + identity helpers.
+// Customer Quote/cart Generator helpers.
 //
 // The Event Essentials Generator product (slug "generator", category slug
-// "generators") is the single authoritative Generator rental product.
-// Legacy has_generator/generator_qty/generator_fee_cents fields remain only
-// for historical-order compatibility.
+// "generators") is the single authoritative Generator rental product for the
+// customer Quote/cart checkbox. Legacy has_generator/generator_qty/
+// generator_fee_cents fields remain only for historical-order compatibility
+// and are not touched by this module.
 
 import type { UnifiedCartItem } from '../types';
 import {
@@ -109,255 +110,113 @@ export function cartPackageContainsGenerator(
   return total;
 }
 
-export interface OrderItemLike {
-  product_id?: string | null;
-  qty?: number | null;
+// ---------------------------------------------------------------------------
+// Configuration-state transition (pure)
+// ---------------------------------------------------------------------------
+
+export type GeneratorConfigurationStatus = 'loading' | 'ready' | 'failed';
+
+export interface GeneratorConfigurationInputs {
+  generatorProduct: GeneratorProductConfiguration | null;
+  resolverConfig: unknown | null;
+  packageConfigs: PackageGeneratorConfig[] | null;
+  packageConfigFailed: boolean;
 }
 
-export function getGeneratorOrderItemQuantity(
-  orderItems: OrderItemLike[],
-  generatorProductId: string,
-): number {
-  let qty = 0;
-  for (const item of orderItems) {
-    if (item.product_id === generatorProductId && item.qty && item.qty > 0) {
-      qty += item.qty;
+export function deriveGeneratorConfigurationStatus(
+  inputs: GeneratorConfigurationInputs,
+): GeneratorConfigurationStatus {
+  const { generatorProduct, resolverConfig, packageConfigs, packageConfigFailed } = inputs;
+
+  if (!generatorProduct) {
+    // lookup not yet resolved OR resolver/packaged queries failed alongside.
+    if (packageConfigFailed || (packageConfigs === null && !packageConfigFailed)) {
+      // packageConfigFailed implies generatorProduct was set then package load failed.
+      // But if generatorProduct is null we are still loading the generator lookup itself.
+      return 'loading';
     }
+    return 'loading';
   }
-  return qty;
-}
 
-export function isLegacyGeneratorOrder(order: {
-  generator_qty?: number | null;
-  generator_fee_cents?: number | null;
-}, generatorOrderItemQty: number): boolean {
-  const hasLegacy = (order.generator_qty || 0) > 0 || (order.generator_fee_cents || 0) > 0;
-  return hasLegacy && generatorOrderItemQty === 0;
-}
+  if (!resolverConfig) {
+    return 'failed';
+  }
 
-export function hasMixedGeneratorState(
-  order: { generator_qty?: number | null; generator_fee_cents?: number | null },
-  generatorOrderItemQty: number,
-): boolean {
-  const hasLegacy = (order.generator_qty || 0) > 0 || (order.generator_fee_cents || 0) > 0;
-  return hasLegacy && generatorOrderItemQty > 0;
-}
+  if (packageConfigs === null) {
+    if (packageConfigFailed) return 'failed';
+    return 'loading';
+  }
 
-export function cartHasMixedGeneratorState(
-  cart: UnifiedCartItem[],
-  generatorProductId: string,
-  legacyFormData: { has_generator?: boolean; generator_qty?: number },
-): boolean {
-  const hasLegacy = !!(legacyFormData.has_generator || (legacyFormData.generator_qty && legacyFormData.generator_qty > 0));
-  if (!hasLegacy) return false;
-  return cartHasDirectGenerator(cart, generatorProductId);
+  if (packageConfigFailed) {
+    return 'failed';
+  }
+
+  return 'ready';
 }
 
 // ---------------------------------------------------------------------------
-// Crew equipment aggregation (pure, extracted for testing)
+// Duplicate-add decision (pure)
 // ---------------------------------------------------------------------------
 
-export interface OrderItemForAggregation {
-  unit_id?: string | null;
-  units?: { name?: string } | null;
-  item_name?: string | null;
-  product_id?: string | null;
-  qty?: number;
-  wet_or_dry?: string;
-  component_snapshot?: any;
+export interface DuplicateAddDecision {
+  shouldAdd: boolean;
+  reason?: string;
 }
 
-export interface EquipmentAggregationResult {
-  genericItems: string[];
-  equipmentIds: string[];
-  numInflatables: number;
-  eeGeneratorQty: number;
-  packageGeneratorQty: number;
-  totalGeneratorQty: number;
-  displayItems: string[];
-}
-
-export function aggregateOrderEquipment(
-  orderItems: OrderItemForAggregation[],
-  generatorProductId: string | null,
-  legacyGeneratorQty: number,
-): EquipmentAggregationResult {
-  let eeGeneratorQty = 0;
-  let packageGeneratorQty = 0;
-  const genericItems: string[] = [];
-  const equipmentIds: string[] = [];
-  let numInflatables = 0;
-
-  for (const item of orderItems) {
-    if (item.unit_id && item.units?.name) {
-      genericItems.push(`${item.units.name} (${item.wet_or_dry === 'water' ? 'Water' : 'Dry'})`);
-      equipmentIds.push(item.unit_id);
-      numInflatables += item.qty || 1;
-    } else if (item.item_name) {
-      if (generatorProductId && item.product_id === generatorProductId) {
-        eeGeneratorQty += item.qty || 0;
-      } else {
-        let itemContainsGenerator = false;
-        if (item.component_snapshot && generatorProductId) {
-          try {
-            const snapshot =
-              typeof item.component_snapshot === 'string'
-                ? JSON.parse(item.component_snapshot)
-                : item.component_snapshot;
-            if (snapshot?.components) {
-              for (const comp of snapshot.components) {
-                if (comp.product_id === generatorProductId) {
-                  packageGeneratorQty += (comp.quantity_per_bundle || 0) * (item.qty || 0);
-                  itemContainsGenerator = true;
-                }
-              }
-            }
-          } catch {
-            // Ignore malformed snapshot
-          }
-        }
-        if (!itemContainsGenerator) {
-          genericItems.push(item.item_name);
-        }
-      }
-    }
-  }
-
-  const newGeneratorQty = eeGeneratorQty + packageGeneratorQty;
-  const effectiveLegacyQty = newGeneratorQty > 0 ? 0 : legacyGeneratorQty;
-  const totalGeneratorQty = newGeneratorQty > 0 ? newGeneratorQty : effectiveLegacyQty;
-
-  const displayItems = [...genericItems];
-  if (totalGeneratorQty > 0) {
-    displayItems.push(`Generator${totalGeneratorQty > 1 ? ` (${totalGeneratorQty}x)` : ''}`);
-  }
-
-  return {
-    genericItems,
-    equipmentIds,
-    numInflatables,
-    eeGeneratorQty,
-    packageGeneratorQty,
-    totalGeneratorQty,
-    displayItems,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Admin Generator mode derivation (pure)
-// ---------------------------------------------------------------------------
-
-export interface AdminGeneratorModeInput {
-  generatorProductId: string | null | undefined;
-  stagedItems: Array<{
-    product_id?: string | null;
-    unit_id?: string | null;
-    is_deleted?: boolean;
-  }>;
-  legacyGeneratorQty: number;
-  legacyGeneratorFeeCents: number;
-}
-
-export type AdminGeneratorMode = 'none' | 'event_essential' | 'legacy';
-
-export function deriveAdminGeneratorMode(input: AdminGeneratorModeInput): AdminGeneratorMode {
-  const { generatorProductId, stagedItems, legacyGeneratorQty, legacyGeneratorFeeCents } = input;
-
-  if (generatorProductId) {
-    const hasActiveEEGenerator = stagedItems.some(
-      (item) =>
-        !item.is_deleted &&
-        !item.unit_id &&
-        item.product_id === generatorProductId,
-    );
-    if (hasActiveEEGenerator) return 'event_essential';
-  }
-
-  if (legacyGeneratorQty > 0 || legacyGeneratorFeeCents > 0) {
-    return 'legacy';
-  }
-
-  return 'none';
-}
-
-// ---------------------------------------------------------------------------
-// Package-contained generator detection for save invariants (pure)
-// ---------------------------------------------------------------------------
-
-export interface StagedItemLike {
-  product_id?: string | null;
-  unit_id?: string | null;
-  bundle_id?: string | null;
-  is_deleted?: boolean;
-  component_snapshot?: any;
-}
-
-export function stagedItemContainsGenerator(
-  item: StagedItemLike,
-  generatorProductId: string,
-): boolean {
-  if (!item.bundle_id || item.is_deleted) return false;
-  if (item.product_id === generatorProductId) return true;
-  if (item.component_snapshot) {
-    try {
-      const snapshot =
-        typeof item.component_snapshot === 'string'
-          ? JSON.parse(item.component_snapshot)
-          : item.component_snapshot;
-      if (snapshot?.components) {
-        return snapshot.components.some(
-          (comp: any) => comp.product_id === generatorProductId,
-        );
-      }
-    } catch {
-      return false;
-    }
-  }
-  return false;
-}
-
-export function detectMixedGeneratorConflict(
-  generatorProductId: string | null,
-  stagedItems: StagedItemLike[],
-  legacyGeneratorQty: number,
-  legacyGeneratorFeeCents: number,
-): { conflict: boolean; reason?: string } {
-  const hasLegacy = legacyGeneratorQty > 0 || legacyGeneratorFeeCents > 0;
-  if (!hasLegacy) return { conflict: false };
-
-  if (!generatorProductId) {
+export function decideDirectGeneratorAdd(
+  directQty: number,
+  packageContainedQty: number,
+): DuplicateAddDecision {
+  if (packageContainedQty > 0) {
     return {
-      conflict: true,
-      reason: 'Generator product is not configured — cannot validate mixed state.',
+      shouldAdd: false,
+      reason: 'Generator included in your selected package.',
     };
   }
-
-  const hasDirectGenerator = stagedItems.some(
-    (item) =>
-      !item.is_deleted &&
-      !item.unit_id &&
-      item.product_id === generatorProductId,
-  );
-  if (hasDirectGenerator) {
+  if (directQty > 0) {
     return {
-      conflict: true,
-      reason:
-        'Order contains both a legacy Generator charge and a direct Event Essentials Generator item.',
+      shouldAdd: false,
+      reason: 'Generator already in cart.',
     };
   }
+  return { shouldAdd: true };
+}
 
-  const hasPackageGenerator = stagedItems.some((item) =>
-    stagedItemContainsGenerator(item, generatorProductId),
-  );
-  if (hasPackageGenerator) {
-    return {
-      conflict: true,
-      reason:
-        'Order contains both a legacy Generator charge and a package containing a Generator.',
-    };
+// ---------------------------------------------------------------------------
+// Legacy-conversion readiness (pure)
+// ---------------------------------------------------------------------------
+
+export interface LegacyConversionReadinessInputs {
+  legacyStatePresent: boolean;
+  alreadyHasDirect: boolean;
+  conversionCompleted: boolean;
+  conversionInFlight: boolean;
+  configurationReady: boolean;
+  isValidEventDateRange: boolean;
+}
+
+export function shouldRunLegacyConversion(
+  inputs: LegacyConversionReadinessInputs,
+): { ready: boolean; reason?: 'already_converted' | 'no_legacy' | 'in_flight' | 'completed' | 'config_not_ready' | 'invalid_dates' } {
+  if (inputs.alreadyHasDirect) {
+    return { ready: false, reason: 'already_converted' };
   }
-
-  return { conflict: false };
+  if (!inputs.legacyStatePresent) {
+    return { ready: false, reason: 'no_legacy' };
+  }
+  if (inputs.conversionInFlight) {
+    return { ready: false, reason: 'in_flight' };
+  }
+  if (inputs.conversionCompleted) {
+    return { ready: false, reason: 'completed' };
+  }
+  if (!inputs.configurationReady) {
+    return { ready: false, reason: 'config_not_ready' };
+  }
+  if (!inputs.isValidEventDateRange) {
+    return { ready: false, reason: 'invalid_dates' };
+  }
+  return { ready: true };
 }
 
 // ---------------------------------------------------------------------------

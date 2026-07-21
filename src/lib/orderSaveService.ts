@@ -4,7 +4,6 @@ import { upsertCanonicalAddress } from './addressService';
 import { ORDER_STATUS } from './constants/statuses';
 import { calculateTotalFromOrder } from './orderSummary';
 import { notifyPortalRefresh } from './customerPortalRefreshSignal';
-import { lookupGeneratorProduct, detectMixedGeneratorConflict } from './generatorUnified';
 
 interface SaveOrderChangesParams {
   order: any;
@@ -64,32 +63,6 @@ export async function saveOrderChanges({
 
   const changes: any = {};
   const logs = [];
-
-  // Generator Workflow Unification: defensive invariant — a single order must
-  // not contain both a legacy Generator charge and an EE Generator product item.
-  // Uses exact Generator product ID, not a blanket EE-product check.
-  const hasLegacyGenerator = (editedOrder.generator_qty || 0) > 0 || (editedOrder.generator_fee_cents || 0) > 0;
-  if (hasLegacyGenerator && stagedItems) {
-    let genProductId: string | null = null;
-    try {
-      const genLookup = await lookupGeneratorProduct();
-      if (genLookup.status === 'configured') {
-        genProductId = genLookup.product.product_id;
-      }
-    } catch (err) {
-      showToast('Unable to verify Generator configuration. Please try again or contact support.', 'error');
-      throw new Error('Generator product lookup failed — cannot validate mixed state.');
-    }
-    if (!genProductId) {
-      showToast('Generator product is not configured. Remove the legacy Generator charge before saving.', 'error');
-      throw new Error('Generator product not configured — cannot validate mixed state.');
-    }
-    const conflict = detectMixedGeneratorConflict(genProductId, stagedItems, editedOrder.generator_qty || 0, editedOrder.generator_fee_cents || 0);
-    if (conflict.conflict) {
-      showToast(conflict.reason || 'Mixed Generator state detected.', 'error');
-      throw new Error(conflict.reason || 'Mixed Generator state detected.');
-    }
-  }
 
   if (editedOrder.location_type !== order.location_type) {
     changes.location_type = editedOrder.location_type;

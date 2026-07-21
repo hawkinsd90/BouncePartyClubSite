@@ -66,9 +66,6 @@ interface OrderDetailsTabProps {
   onMarkChanges: () => void;
   requireCardOnFile: boolean;
   onRequireCardOnFileChange: (value: boolean) => void;
-  generatorMode?: 'none' | 'event_essential' | 'legacy';
-  generatorStagedItem?: any;
-  onGeneratorQuantityChange?: (qty: number) => void;
 }
 
 export function OrderDetailsTab({
@@ -122,9 +119,6 @@ export function OrderDetailsTab({
   onMarkChanges,
   requireCardOnFile,
   onRequireCardOnFileChange,
-  generatorMode = 'legacy',
-  generatorStagedItem,
-  onGeneratorQuantityChange,
 }: OrderDetailsTabProps) {
   const depositAlreadyCapturedCents = order.deposit_paid_cents || 0;
   const isConfirmedWithPayment = (order.status === ORDER_STATUS.CONFIRMED || order.status === ORDER_STATUS.IN_PROGRESS) && depositAlreadyCapturedCents > 0;
@@ -292,10 +286,6 @@ export function OrderDetailsTab({
         pricingRules={pricingRules}
         onOrderChange={onOrderChange}
         onAddressSelect={onAddressSelect}
-        generatorMode={generatorMode}
-        generatorQty={generatorStagedItem?.qty}
-        generatorUnitPriceCents={generatorStagedItem?.unit_price_cents ?? null}
-        onGeneratorQuantityChange={onGeneratorQuantityChange}
       />
 
       <ItemsEditor

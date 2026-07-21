@@ -17,7 +17,6 @@ interface StatusChangeDialogProps {
     id?: string;
     unit_id?: string;
     unit_name?: string;
-    product_id?: string;
     qty: number;
     wet_or_dry?: 'dry' | 'water';
     is_deleted?: boolean;
