@@ -38,13 +38,22 @@ export function CartSection({ cart, eventDate, onUpdateItem, onRemoveItem, event
         <div className="text-center py-8 sm:py-12">
           <Trash2 className="w-12 h-12 sm:w-16 sm:h-16 text-slate-300 mx-auto mb-4" />
           <p className="text-slate-600 mb-4 text-sm sm:text-base">Your cart is empty</p>
-          <button
-            type="button"
-            onClick={() => navigate('/catalog')}
-            className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold text-sm sm:text-base transition-colors"
-          >
-            Browse Inflatables →
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              type="button"
+              onClick={() => navigate('/catalog')}
+              className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold text-sm sm:text-base transition-colors"
+            >
+              Browse Inflatables →
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/event-essentials')}
+              className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold text-sm sm:text-base transition-colors"
+            >
+              Browse Event Essentials →
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -281,6 +290,13 @@ export function CartSection({ cart, eventDate, onUpdateItem, onRemoveItem, event
           className="w-full py-3 sm:py-3.5 border-2 border-dashed border-slate-300 rounded-lg sm:rounded-xl text-slate-600 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 transition-all font-medium text-sm sm:text-base"
         >
           + Add More Inflatables
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate('/event-essentials')}
+          className="w-full py-3 sm:py-3.5 border-2 border-dashed border-slate-300 rounded-lg sm:rounded-xl text-slate-600 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 transition-all font-medium text-sm sm:text-base"
+        >
+          + Add Event Essentials
         </button>
       </div>
     </div>

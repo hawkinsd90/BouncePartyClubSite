@@ -424,6 +424,9 @@ export function ProductForm({
               placeholder="auto-generated-from-name"
             />
             {errors.slug && <p className="mt-1 text-xs text-red-600">{errors.slug}</p>}
+            <p className="mt-1 text-xs text-slate-500">
+              URL-friendly identifier generated from the product name.
+            </p>
           </div>
 
           <div>
@@ -491,7 +494,7 @@ export function ProductForm({
 
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">
-                Temp. Unavailable <span className="text-red-500">*</span>
+                Temporarily Out of Service <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -509,6 +512,9 @@ export function ProductForm({
               {errors.temp_unavailable_qty && (
                 <p className="mt-1 text-xs text-red-600">{errors.temp_unavailable_qty}</p>
               )}
+              <p className="mt-1 text-xs text-slate-500">
+                Items currently damaged, under repair, or otherwise unavailable for rental.
+              </p>
             </div>
 
             <div>
@@ -520,6 +526,9 @@ export function ProductForm({
                 onChange={(e) => handleFieldChange('sort_order', Math.floor(Number(e.target.value)))}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
               />
+              <p className="mt-1 text-xs text-slate-500">
+                Lower numbers appear first in the customer catalog.
+              </p>
             </div>
           </div>
 

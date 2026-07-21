@@ -83,6 +83,15 @@ export interface ResolverBundleConfig {
   eligibleUnitIds: string[];
   /** Inflatable components — sufficient to detect customer_choice. */
   inflatableComponents: ResolverBundleInflatableComponent[];
+  /**
+   * Category ids of the Event Essential product components contained in this
+   * package. Populated from product_bundle_components → inventory_products →
+   * category_id. Used to decide whether the package may contribute toward a
+   * normal product candidate's qualifying subtotal: the package contributes
+   * only when none of its component categories match the candidate's category.
+   * Empty array or missing entries mean the package never contributes.
+   */
+  containedProductCategoryIds: string[];
 }
 
 // ---------------------------------------------------------------------------

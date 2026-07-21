@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/pricing';
 import { Plus, Edit2, Trash2, Wind, PartyPopper } from 'lucide-react';
@@ -25,9 +25,37 @@ interface InventorySectionProps {
 
 type InventorySubtab = 'inflatables' | 'event-essentials';
 
+const VALID_SUBTABS: InventorySubtab[] = ['inflatables', 'event-essentials'];
+
+function isValidSubtab(v: string | null): v is InventorySubtab {
+  return v !== null && VALID_SUBTABS.includes(v as InventorySubtab);
+}
+
 export function InventorySection({ units, onRefetch }: InventorySectionProps) {
   const navigate = useNavigate();
-  const [activeSubtab, setActiveSubtab] = useState<InventorySubtab>('inflatables');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const paramSubtab = searchParams.get('inventoryTab');
+  const [activeSubtab, setActiveSubtab] = useState<InventorySubtab>(
+    isValidSubtab(paramSubtab) ? paramSubtab : 'inflatables',
+  );
+
+  useEffect(() => {
+    const v = searchParams.get('inventoryTab');
+    if (isValidSubtab(v) && v !== activeSubtab) {
+      setActiveSubtab(v);
+    } else if (!isValidSubtab(v) && activeSubtab !== 'inflatables') {
+      // Reset to default if param is invalid/missing
+      setActiveSubtab('inflatables');
+    }
+  }, [searchParams]);
+
+  function handleSubtabChange(tab: InventorySubtab) {
+    setActiveSubtab(tab);
+    const next = new URLSearchParams(searchParams);
+    next.set('inventoryTab', tab);
+    setSearchParams(next, { replace: true });
+  }
 
   async function checkFutureBookings(unitId: string) {
     const today = new Date().toISOString().split('T')[0];
@@ -94,7 +122,7 @@ export function InventorySection({ units, onRefetch }: InventorySectionProps) {
     <div className="space-y-4">
       <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
         <button
-          onClick={() => setActiveSubtab('inflatables')}
+          onClick={() => handleSubtabChange('inflatables')}
           className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
             activeSubtab === 'inflatables'
               ? 'bg-white text-blue-700 shadow-sm'
@@ -105,7 +133,7 @@ export function InventorySection({ units, onRefetch }: InventorySectionProps) {
           Inflatables
         </button>
         <button
-          onClick={() => setActiveSubtab('event-essentials')}
+          onClick={() => handleSubtabChange('event-essentials')}
           className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
             activeSubtab === 'event-essentials'
               ? 'bg-white text-blue-700 shadow-sm'

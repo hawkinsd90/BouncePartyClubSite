@@ -8,7 +8,6 @@ import {
   Loader2,
   Plus,
   Minus,
-  Lock,
   ImageOff,
   Tag,
   LayoutGrid,
@@ -681,7 +680,9 @@ export function EventEssentialsCatalog() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           <div className="lg:col-span-2 space-y-6">
             {/* Event Date Selector */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6">
+            <div className={`bg-white rounded-xl shadow-sm border-2 p-4 sm:p-6 transition-colors ${
+              (!eventDate || !eventEndDate) ? 'border-blue-400 ring-2 ring-blue-100' : 'border-slate-200'
+            }`}>
               <div className="flex items-center gap-3 mb-4">
                 <Calendar className="w-5 h-5 text-blue-600" />
                 <h2 className="text-lg font-bold text-slate-900">Event Dates</h2>
@@ -713,10 +714,14 @@ export function EventEssentialsCatalog() {
                 </div>
               </div>
               {(!eventDate || !eventEndDate) && (
-                <p className="mt-3 text-xs text-amber-700 flex items-center gap-1.5">
-                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-                  Select event dates to check availability and add items to your cart.
-                </p>
+                <div className="mt-4 p-4 rounded-lg bg-blue-50 border-2 border-blue-300">
+                  <h4 className="text-sm font-bold text-blue-900 mb-1">
+                    Choose your event dates
+                  </h4>
+                  <p className="text-sm text-blue-700">
+                    Select a start and end date to check availability and add Event Essentials.
+                  </p>
+                </div>
               )}
               {addError && (
                 <p className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
@@ -848,17 +853,16 @@ export function EventEssentialsCatalog() {
                         <p className="text-sm text-slate-500 mb-1">This item is currently unavailable</p>
                       )}
 
-                      {/* Add-on unlocked indicator */}
+                      {/* Add-on context label */}
                       {vm.priceState === 'addon' && (
                         <p className="text-xs font-medium text-blue-600 mb-2">
-                          Add-on price unlocked
+                          Add-on
                         </p>
                       )}
 
                       {/* Customer-facing qualification message */}
                       {message && (
-                        <p className="text-xs text-amber-700 flex items-center gap-1.5 mb-2">
-                          <Lock className="w-3.5 h-3.5 flex-shrink-0" />
+                        <p className="text-xs text-slate-500 mb-2">
                           {message}
                         </p>
                       )}
@@ -918,7 +922,7 @@ export function EventEssentialsCatalog() {
                           className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <ShoppingCart className="w-4 h-4" />
-                          Add
+                          {datesSelected ? 'Add' : 'Select dates to add'}
                         </button>
                       </div>
                     </div>
@@ -986,7 +990,7 @@ export function EventEssentialsCatalog() {
                           )}
                           {vm.priceState === 'addon' && hasResolvedPrice && (
                             <p className="text-xs font-medium text-blue-600 mt-1">
-                              Add-on price unlocked
+                              Add-on
                             </p>
                           )}
                           {vm.requiresCustomerChoice && vm.selectable && (
@@ -995,8 +999,7 @@ export function EventEssentialsCatalog() {
                             </p>
                           )}
                           {message && (
-                            <p className="mt-2 text-sm text-amber-700 flex items-center gap-1.5">
-                              <Lock className="w-4 h-4 flex-shrink-0" />
+                            <p className="mt-2 text-sm text-slate-500">
                               {message}
                             </p>
                           )}
@@ -1036,7 +1039,7 @@ export function EventEssentialsCatalog() {
                             className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white font-semibold rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <ShoppingCart className="w-4 h-4" />
-                            Add Package
+                            {(!!eventDate && !!eventEndDate) ? 'Add Package' : 'Select dates to add'}
                           </button>
                         </div>
                       </div>

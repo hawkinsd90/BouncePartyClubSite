@@ -917,9 +917,9 @@ function runTests(): void {
     const out = evaluateProductCandidate(ctx, { productId: 'p_ao', qty: 1 });
     const vm = deriveCandidateViewModel(out, false);
     const msg = qualificationMessage(vm);
-    ok('46 blocked addon copy formatted',
+    ok('46 blocked addon neutral copy',
       vm.priceState === 'blocked_addon_only' && vm.remainingAmountCents === 5000 &&
-      msg === 'Add $50 more in eligible equipment to unlock this item.');
+      msg === 'Currently unavailable for this cart.');
   }
 
   // 47. Standalone qualification copy includes formatted currency.
@@ -939,9 +939,9 @@ function runTests(): void {
     const out = evaluateProductCandidate(ctx, { productId: 'p_st', qty: 1 });
     const vm = deriveCandidateViewModel(out, false);
     const msg = qualificationMessage(vm);
-    ok('47 standalone qualification copy formatted',
+    ok('47 standalone no qualification copy',
       vm.priceState === 'standalone' && vm.remainingAmountCents === 15000 &&
-      msg === 'Add $150 more in eligible equipment to unlock the add-on price.');
+      msg === null);
   }
 
   // 48. Currency formatting: 5050 -> "$50.50" (preserve cents).
@@ -981,9 +981,9 @@ function runTests(): void {
     const out = evaluateProductCandidate(ctx, { productId: 'p_ao_cents', qty: 1 });
     const vm = deriveCandidateViewModel(out, false);
     const msg = qualificationMessage(vm);
-    ok('52 blocked addon copy preserves cents',
+    ok('52 blocked addon neutral copy preserves cents',
       vm.priceState === 'blocked_addon_only' && vm.remainingAmountCents === 5050 &&
-      msg === 'Add $50.50 more in eligible equipment to unlock this item.');
+      msg === 'Currently unavailable for this cart.');
   }
 
   // 53. Standalone qualification copy preserves cent-level amounts.
@@ -1003,9 +1003,148 @@ function runTests(): void {
     const out = evaluateProductCandidate(ctx, { productId: 'p_st_cents', qty: 1 });
     const vm = deriveCandidateViewModel(out, false);
     const msg = qualificationMessage(vm);
-    ok('53 standalone qualification copy preserves cents',
+    ok('53 standalone no qualification copy preserves cents',
       vm.priceState === 'standalone' && vm.remainingAmountCents === 12550 &&
-      msg === 'Add $125.50 more in eligible equipment to unlock the add-on price.');
+      msg === null);
+  }
+
+  // 54. Package with unrelated component categories qualifies a normal product candidate.
+  {
+    const genCat = 'cat_generators';
+    const products = [
+      makeProduct('p_gen', genCat),
+      makeProduct('p_tables', C_TABLES),
+      makeProduct('p_chairs', C_CHAIRS),
+    ];
+    const pricing = [
+      makePricing('p_gen', { standalone_price_cents: 20000, standalone_enabled: true, addon_price_cents: 10000, addon_enabled: true, addon_qualifying_threshold_cents: 15000 }),
+    ];
+    const categories = [makeCategory(genCat), makeCategory(C_TABLES), makeCategory(C_CHAIRS)];
+    const bundles = [
+      makeBundleConfigured('b_celebration', {
+        name: 'Celebration Seating',
+        standalone_price_cents: 15000,
+        standalone_enabled: true,
+        inflatable_eligibility_mode: 'none',
+        product_bundle_components: [
+          { id: 'c1', bundle_id: 'b_celebration', product_id: 'p_tables', quantity_per_bundle: 1, inventory_products: { id: 'p_tables', slug: 'p_tables', name: 'Tables', category_id: C_TABLES } },
+          { id: 'c2', bundle_id: 'b_celebration', product_id: 'p_chairs', quantity_per_bundle: 1, inventory_products: { id: 'p_chairs', slug: 'p_chairs', name: 'Chairs', category_id: C_CHAIRS } },
+        ],
+      }),
+    ];
+    const ctx = buildCtx({
+      products, pricing, categories, bundles,
+      cart: [makeBundleCart('b_celebration', 1, 15000, 'standalone')],
+    });
+    const out = evaluateProductCandidate(ctx, { productId: 'p_gen', qty: 1 });
+    ok('54 package qualifies product candidate',
+      out !== null && out.addonQualified && out.qualifyingSubtotalCents === 15000 && out.resolvedPricingContext === 'addon');
+  }
+
+  // 55. Package containing candidate's category does NOT qualify it.
+  {
+    const products = [makeProduct('p_tables', C_TABLES)];
+    const pricing = [
+      makePricing('p_tables', { standalone_price_cents: 10000, standalone_enabled: true, addon_price_cents: 6000, addon_enabled: true, addon_qualifying_threshold_cents: 15000 }),
+    ];
+    const categories = [makeCategory(C_TABLES), makeCategory(C_CHAIRS)];
+    const bundles = [
+      makeBundleConfigured('b_pkg', {
+        standalone_price_cents: 15000,
+        standalone_enabled: true,
+        inflatable_eligibility_mode: 'none',
+        product_bundle_components: [
+          { id: 'c1', bundle_id: 'b_pkg', product_id: 'p_tables', quantity_per_bundle: 1, inventory_products: { id: 'p_tables', slug: 'p_tables', name: 'Tables', category_id: C_TABLES } },
+        ],
+      }),
+    ];
+    const ctx = buildCtx({
+      products, pricing, categories, bundles,
+      cart: [makeBundleCart('b_pkg', 1, 15000, 'standalone')],
+    });
+    const out = evaluateProductCandidate(ctx, { productId: 'p_tables', qty: 1 });
+    ok('55 package same-category excluded from product',
+      out !== null && !out.addonQualified && out.qualifyingSubtotalCents === 0);
+  }
+
+  // 56. Package with empty component categories (malformed) contributes zero.
+  {
+    const genCat = 'cat_generators';
+    const products = [makeProduct('p_gen', genCat)];
+    const pricing = [
+      makePricing('p_gen', { standalone_price_cents: 20000, standalone_enabled: true, addon_price_cents: 10000, addon_enabled: true, addon_qualifying_threshold_cents: 15000 }),
+    ];
+    const categories = [makeCategory(genCat)];
+    const bundles = [
+      makeBundleConfigured('b_malformed', {
+        standalone_price_cents: 15000,
+        standalone_enabled: true,
+        inflatable_eligibility_mode: 'none',
+        product_bundle_components: [], // no components -> empty containedProductCategoryIds
+      }),
+    ];
+    const ctx = buildCtx({
+      products, pricing, categories, bundles,
+      cart: [makeBundleCart('b_malformed', 1, 15000, 'standalone')],
+    });
+    const out = evaluateProductCandidate(ctx, { productId: 'p_gen', qty: 1 });
+    ok('56 malformed package contributes zero',
+      out !== null && !out.addonQualified && out.qualifyingSubtotalCents === 0);
+  }
+
+  // 57. Package qty multiplication in product qualification.
+  {
+    const genCat = 'cat_generators';
+    const products = [makeProduct('p_gen', genCat)];
+    const pricing = [
+      makePricing('p_gen', { standalone_price_cents: 20000, standalone_enabled: true, addon_price_cents: 10000, addon_enabled: true, addon_qualifying_threshold_cents: 30000 }),
+    ];
+    const categories = [makeCategory(genCat), makeCategory(C_TABLES)];
+    const bundles = [
+      makeBundleConfigured('b_pkg2', {
+        standalone_price_cents: 15000,
+        standalone_enabled: true,
+        inflatable_eligibility_mode: 'none',
+        product_bundle_components: [
+          { id: 'c1', bundle_id: 'b_celebration', product_id: 'p_tables', quantity_per_bundle: 1, inventory_products: { id: 'p_tables', slug: 'p_tables', name: 'Tables', category_id: C_TABLES } },
+        ],
+      }),
+    ];
+    const ctx = buildCtx({
+      products, pricing, categories, bundles,
+      cart: [makeBundleCart('b_pkg2', 2, 15000, 'standalone')],
+    });
+    const out = evaluateProductCandidate(ctx, { productId: 'p_gen', qty: 1 });
+    ok('57 package qty multiplication',
+      out !== null && out.addonQualified && out.qualifyingSubtotalCents === 30000);
+  }
+
+  // 58. Existing inflatable qualification unchanged when package also present.
+  {
+    const genCat = 'cat_generators';
+    const products = [makeProduct('p_gen', genCat)];
+    const pricing = [
+      makePricing('p_gen', { standalone_price_cents: 20000, standalone_enabled: true, addon_price_cents: 10000, addon_enabled: true, addon_qualifying_threshold_cents: 30000 }),
+    ];
+    const categories = [makeCategory(genCat), makeCategory(C_TABLES)];
+    const units = [{ id: U_TROPICAL, active: true }];
+    const bundles = [
+      makeBundleConfigured('b_pkg3', {
+        standalone_price_cents: 15000,
+        standalone_enabled: true,
+        inflatable_eligibility_mode: 'none',
+        product_bundle_components: [
+          { id: 'c1', bundle_id: 'b_celebration', product_id: 'p_tables', quantity_per_bundle: 1, inventory_products: { id: 'p_tables', slug: 'p_tables', name: 'Tables', category_id: C_TABLES } },
+        ],
+      }),
+    ];
+    const ctx = buildCtx({
+      products, pricing, categories, bundles, units,
+      cart: [makeInflatableCart(U_TROPICAL, 15000), makeBundleCart('b_pkg3', 1, 15000, 'standalone')],
+    });
+    const out = evaluateProductCandidate(ctx, { productId: 'p_gen', qty: 1 });
+    ok('58 inflatable+package combined qualification',
+      out !== null && out.addonQualified && out.qualifyingSubtotalCents === 30000);
   }
 }
 

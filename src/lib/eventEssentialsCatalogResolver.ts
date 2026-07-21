@@ -86,6 +86,9 @@ export function buildBundleConfigMap(
       inflatableComponents: (bundle.package_inflatable_components ?? []).map((c) => ({
         selectionMode: c.selection_mode,
       })),
+      containedProductCategoryIds: (bundle.product_bundle_components ?? [])
+        .map((c) => c.inventory_products?.category_id)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0),
     };
   }
   return map;
@@ -378,7 +381,8 @@ export function formatPriceCents(cents: number | null | undefined): string {
 }
 
 // Customer-facing qualification message derived purely from the candidate
-// view model. All currency values are formatted via formatPriceCents.
+// view model. Threshold-spend copy is intentionally omitted — customers never
+// see qualification thresholds, qualifying subtotals, or remaining amounts.
 export function qualificationMessage(vm: CandidateViewModel): string | null {
   if (vm.priceState === 'addon') return null;
   if (vm.prereqBlocked) {
@@ -388,15 +392,9 @@ export function qualificationMessage(vm: CandidateViewModel): string | null {
     return 'This package is currently unavailable.';
   }
   if (vm.priceState === 'blocked_addon_only') {
-    if (vm.remainingAmountCents !== null && vm.remainingAmountCents > 0) {
-      return 'Add ' + formatPriceCents(vm.remainingAmountCents) + ' more in eligible equipment to unlock this item.';
-    }
-    return 'This item is currently unavailable.';
+    return 'Currently unavailable for this cart.';
   }
   if (vm.priceState === 'standalone') {
-    if (vm.remainingAmountCents !== null && vm.remainingAmountCents > 0) {
-      return 'Add ' + formatPriceCents(vm.remainingAmountCents) + ' more in eligible equipment to unlock the add-on price.';
-    }
     return null;
   }
   return 'This item is currently unavailable.';

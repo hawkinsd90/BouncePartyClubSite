@@ -253,7 +253,6 @@ function productQualifyingSubtotal(
   for (let i = 0; i < input.lines.length; i++) {
     if (i === candidateIndex) continue; // self by position
     const line = input.lines[i];
-    if (line.itemType === 'event_essential_bundle') continue; // packages never qualify products
     let outcome: ContributionOutcome;
     if (line.itemType === 'event_essential_product') {
       const cfg = lookupProduct(line.productId, input);
@@ -262,6 +261,21 @@ function productQualifyingSubtotal(
       outcome = productContribution(line, input);
     } else if (line.itemType === 'inflatable') {
       outcome = inflatableContribution(line, input);
+    } else if (line.itemType === 'event_essential_bundle') {
+      // A package may contribute toward a normal product candidate using its
+      // authoritative standalone package price × qty, but only when none of its
+      // product component categories match the candidate's own category. The
+      // package's stored cart price and add-on price are never used. Malformed
+      // or missing component-category info means the package contributes zero.
+      const bundleCfg = lookupBundle(line.bundleId, input);
+      if (!bundleCfg) continue;
+      if (!Array.isArray(bundleCfg.containedProductCategoryIds)) continue;
+      if (bundleCfg.containedProductCategoryIds.length === 0) continue; // missing/malformed
+      if (bundleCfg.containedProductCategoryIds.includes(ownCategoryId)) continue;
+      if (classifyNumeric(bundleCfg.standalonePriceCents) !== 'valid') continue;
+      const v = safeMul(bundleCfg.standalonePriceCents as number, line.qty);
+      if (v === null) return null; // overflow -> fatal sentinel
+      outcome = { status: 'ok', value: v };
     } else {
       continue;
     }

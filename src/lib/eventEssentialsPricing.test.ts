@@ -90,6 +90,7 @@ function bundle(
     excludedCategoryIds: [],
     eligibleUnitIds: [],
     inflatableComponents: [],
+    containedProductCategoryIds: [],
     ...opts,
   };
 }
@@ -374,6 +375,232 @@ function testProductPricing(): void {
     );
     const l = findByKey(r, 'k14');
     ok('14 package excluded', l.qualifyingSubtotalCents === 0 && !l.addonQualified);
+  }
+
+  // 14a. Package with unrelated component categories qualifies a normal product.
+  // Celebration Seating (contains Tables+Chairs) qualifies a Generator candidate.
+  {
+    const b = bundle('b14a', {
+      standalonePriceCents: 15000,
+      standaloneEnabled: true,
+      inflatableEligibilityMode: 'none',
+      containedProductCategoryIds: [C_TABLES, C_CHAIRS],
+    });
+    const genCat = 'cat_generators';
+    const gen = prod('p_gen', genCat, {
+      standalonePriceCents: 20000,
+      standaloneEnabled: true,
+      addonEnabled: true,
+      addonPriceCents: 10000,
+      addonQualifyingThresholdCents: 15000,
+    });
+    const cats = { ...baseCategories, [genCat]: { id: genCat } as ResolverCategory };
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [productLine('k14a', 'p_gen', 1), bundleLine('k14ab', 'b14a', 1)],
+        { products: { p_gen: gen }, bundles: { b14a: b }, categories: cats },
+      ),
+    );
+    const l = findByKey(r, 'k14a');
+    ok('14a package qualifies product', l.qualifyingSubtotalCents === 15000 && l.addonQualified && l.resolvedPricingContext === 'addon' && l.resolvedUnitPriceCents === 10000);
+  }
+
+  // 14b. Package qty multiplication — 2 packages contribute 2x standalone price.
+  {
+    const b = bundle('b14b', {
+      standalonePriceCents: 15000,
+      standaloneEnabled: true,
+      inflatableEligibilityMode: 'none',
+      containedProductCategoryIds: [C_TABLES, C_CHAIRS],
+    });
+    const genCat = 'cat_generators';
+    const gen = prod('p_gen2', genCat, {
+      standalonePriceCents: 20000,
+      standaloneEnabled: true,
+      addonEnabled: true,
+      addonPriceCents: 10000,
+      addonQualifyingThresholdCents: 25000,
+    });
+    const cats = { ...baseCategories, [genCat]: { id: genCat } as ResolverCategory };
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [productLine('k14b', 'p_gen2', 1), bundleLine('k14bb', 'b14b', 2)],
+        { products: { p_gen2: gen }, bundles: { b14b: b }, categories: cats },
+      ),
+    );
+    const l = findByKey(r, 'k14b');
+    ok('14b package qty multiplication', l.qualifyingSubtotalCents === 30000 && l.addonQualified);
+  }
+
+  // 14c. Package containing candidate's category does NOT qualify it.
+  // Package contains Tables; candidate is a Tables product -> contributes $0.
+  {
+    const b = bundle('b14c', {
+      standalonePriceCents: 15000,
+      standaloneEnabled: true,
+      inflatableEligibilityMode: 'none',
+      containedProductCategoryIds: [C_TABLES, C_CHAIRS],
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [productLine('k14c', 'p_tables', 1), bundleLine('k14cb', 'b14c', 1)],
+        { products: { p_tables: P_TABLES }, bundles: { b14c: b }, categories: baseCategories },
+      ),
+    );
+    const l = findByKey(r, 'k14c');
+    ok('14c package same-category excluded', l.qualifyingSubtotalCents === 0 && !l.addonQualified);
+  }
+
+  // 14d. Package with only unrelated categories qualifies a Chairs product.
+  {
+    const b = bundle('b14d', {
+      standalonePriceCents: 15000,
+      standaloneEnabled: true,
+      inflatableEligibilityMode: 'none',
+      containedProductCategoryIds: [C_TABLES, 'cat_generators'],
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [productLine('k14d', 'p_chairs', 1), bundleLine('k14db', 'b14d', 1)],
+        { products: { p_chairs: P_CHAIRS }, bundles: { b14d: b }, categories: baseCategories },
+      ),
+    );
+    const l = findByKey(r, 'k14d');
+    ok('14d package unrelated categories qualifies chairs', l.qualifyingSubtotalCents === 15000 && l.addonQualified);
+  }
+
+  // 14e. Add-on-priced stored package still contributes authoritative standalone value.
+  {
+    const b = bundle('b14e', {
+      standalonePriceCents: 15000,
+      standaloneEnabled: true,
+      addonEnabled: true,
+      addonPriceCents: 8000,
+      addonQualifyingThresholdCents: 10000,
+      inflatableEligibilityMode: 'none',
+      containedProductCategoryIds: [C_TABLES, C_CHAIRS],
+    });
+    const genCat = 'cat_generators';
+    const gen = prod('p_gen3', genCat, {
+      standalonePriceCents: 20000,
+      standaloneEnabled: true,
+      addonEnabled: true,
+      addonPriceCents: 10000,
+      addonQualifyingThresholdCents: 15000,
+    });
+    const cats = { ...baseCategories, [genCat]: { id: genCat } as ResolverCategory };
+    // Bundle stored at add-on price 8000; must contribute 15000 (standalone), not 8000.
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [productLine('k14e', 'p_gen3', 1), bundleLine('k14eb', 'b14e', 1)],
+        { products: { p_gen3: gen }, bundles: { b14e: b }, categories: cats },
+      ),
+    );
+    const l = findByKey(r, 'k14e');
+    ok('14e addon-priced package contributes standalone', l.qualifyingSubtotalCents === 15000 && l.addonQualified);
+  }
+
+  // 14f. Malformed package component category (empty array) contributes zero.
+  {
+    const b = bundle('b14f', {
+      standalonePriceCents: 15000,
+      standaloneEnabled: true,
+      inflatableEligibilityMode: 'none',
+      containedProductCategoryIds: [], // malformed/missing
+    });
+    const genCat = 'cat_generators';
+    const gen = prod('p_gen4', genCat, {
+      standalonePriceCents: 20000,
+      standaloneEnabled: true,
+      addonEnabled: true,
+      addonPriceCents: 10000,
+      addonQualifyingThresholdCents: 15000,
+    });
+    const cats = { ...baseCategories, [genCat]: { id: genCat } as ResolverCategory };
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [productLine('k14f', 'p_gen4', 1), bundleLine('k14fb', 'b14f', 1)],
+        { products: { p_gen4: gen }, bundles: { b14f: b }, categories: cats },
+      ),
+    );
+    const l = findByKey(r, 'k14f');
+    ok('14f malformed package contributes zero', l.qualifyingSubtotalCents === 0 && !l.addonQualified);
+  }
+
+  // 14g. Package still contributes zero toward a package candidate.
+  {
+    const bContrib = bundle('b14g_contrib', {
+      standalonePriceCents: 15000,
+      standaloneEnabled: true,
+      inflatableEligibilityMode: 'none',
+      containedProductCategoryIds: [C_TABLES, C_CHAIRS],
+    });
+    const bCand = bundle('b14g_cand', {
+      standalonePriceCents: 30000,
+      standaloneEnabled: true,
+      addonEnabled: true,
+      addonPriceCents: 20000,
+      addonQualifyingThresholdCents: 15000,
+      inflatableEligibilityMode: 'none',
+    });
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [bundleLine('k14g', 'b14g_cand', 1), bundleLine('k14gcontrib', 'b14g_contrib', 1)],
+        { bundles: { b14g_cand: bCand, b14g_contrib: bContrib }, categories: baseCategories },
+      ),
+    );
+    const l = findByKey(r, 'k14g');
+    ok('14g package zero toward package candidate', l.qualifyingSubtotalCents === 0 && !l.addonQualified);
+  }
+
+  // 14h. No package self-qualification (package line cannot qualify itself as product).
+  {
+    const b = bundle('b14h', {
+      standalonePriceCents: 15000,
+      standaloneEnabled: true,
+      inflatableEligibilityMode: 'none',
+      containedProductCategoryIds: [C_TABLES],
+    });
+    // Only the package itself in cart, no product candidate — but verify
+    // a product in the SAME category as the package components is not qualified
+    // by the package (self-qualification guard is the candidate-skip by position).
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [productLine('k14h', 'p_tables', 1), bundleLine('k14hb', 'b14h', 1)],
+        { products: { p_tables: P_TABLES }, bundles: { b14h: b }, categories: baseCategories },
+      ),
+    );
+    const l = findByKey(r, 'k14h');
+    // Package contains Tables, candidate is Tables -> excluded.
+    ok('14h no package self-qualification', l.qualifyingSubtotalCents === 0 && !l.addonQualified);
+  }
+
+  // 14i. Existing inflatable qualification unchanged when package also present.
+  {
+    const b = bundle('b14i', {
+      standalonePriceCents: 15000,
+      standaloneEnabled: true,
+      inflatableEligibilityMode: 'none',
+      containedProductCategoryIds: [C_TABLES, C_CHAIRS],
+    });
+    const genCat = 'cat_generators';
+    const gen = prod('p_gen5', genCat, {
+      standalonePriceCents: 20000,
+      standaloneEnabled: true,
+      addonEnabled: true,
+      addonPriceCents: 10000,
+      addonQualifyingThresholdCents: 30000,
+    });
+    const cats = { ...baseCategories, [genCat]: { id: genCat } as ResolverCategory };
+    // Inflatable 15000 + package 15000 = 30000, meets threshold 30000.
+    const r = resolveEventEssentialsPricing(
+      buildInput(
+        [productLine('k14i', 'p_gen5', 1), inflatableLine('k14inf', U_TROPICAL, 15000), bundleLine('k14ib', 'b14i', 1)],
+        { products: { p_gen5: gen }, bundles: { b14i: b }, categories: cats, units: baseUnits },
+      ),
+    );
+    const l = findByKey(r, 'k14i');
+    ok('14i inflatable+package combined qualification', l.qualifyingSubtotalCents === 30000 && l.addonQualified);
   }
 
   // 15. Loss of qualification falls back to standalone.

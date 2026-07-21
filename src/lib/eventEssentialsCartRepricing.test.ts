@@ -90,6 +90,7 @@ function makeBundleConfig(
     excludedCategoryIds: [],
     eligibleUnitIds: [],
     inflatableComponents: [],
+    containedProductCategoryIds: [],
     ...opts,
   };
 }
@@ -1350,6 +1351,108 @@ function run() {
     ok(
       '76 successful apply -> subsequent changed=false',
       r1.changed === true && r2.changed === false,
+    );
+  }
+
+  // 77. Regression: existing inflatable qualification unchanged when package also in cart.
+  // The package must not alter the inflatable's contribution to a product candidate.
+  {
+    const inf = makeInflatable(U_TROPICAL, 15000);
+    const genCat = 'cat_generators';
+    const gen = makeProductConfig('p_gen', genCat, {
+      standalonePriceCents: 20000,
+      addonPriceCents: 10000,
+      addonEnabled: true,
+      addonQualifyingThresholdCents: 15000,
+    });
+    const bCfg = makeBundleConfig('b_pkg', {
+      standalonePriceCents: 15000,
+      standaloneEnabled: true,
+      containedProductCategoryIds: [C_TABLES],
+    });
+    const prod = makeProductCart('p_gen', 'Generator', 20000, 'standalone');
+    const bcart = makeBundleCart('b_pkg', 'Package', 15000, 'standalone');
+    const cart: UnifiedCartItem[] = [inf, prod, bcart];
+    const input = buildInput(cart, {
+      productConfigs: { p_gen: gen },
+      bundleConfigs: { b_pkg: bCfg },
+      categories: { [C_TABLES]: makeCategory(C_TABLES), [genCat]: makeCategory(genCat) },
+    });
+    const result = repriceEventEssentialsCart(input);
+    const genLine = result.cart.find(
+      (l) => l.item_type === 'event_essential_product' && l.product_id === 'p_gen',
+    );
+    ok(
+      '77 inflatable qualification unchanged with package present',
+      genLine !== undefined &&
+        (genLine as any).pricing_context === 'addon' &&
+        genLine.unit_price_cents === 10000,
+    );
+  }
+
+  // 78. Regression: package with candidate's category does not qualify the product.
+  {
+    const bCfg = makeBundleConfig('b_pkg', {
+      standalonePriceCents: 15000,
+      standaloneEnabled: true,
+      containedProductCategoryIds: [C_TABLES],
+    });
+    const p1 = makeProductConfig('p_tables', C_TABLES, {
+      standalonePriceCents: 10000,
+      addonPriceCents: 6000,
+      addonEnabled: true,
+      addonQualifyingThresholdCents: 15000,
+    });
+    const prod = makeProductCart('p_tables', 'Tables', 10000, 'standalone');
+    const bcart = makeBundleCart('b_pkg', 'Package', 15000, 'standalone');
+    const cart: UnifiedCartItem[] = [prod, bcart];
+    const input = buildInput(cart, {
+      productConfigs: { p_tables: p1 },
+      bundleConfigs: { b_pkg: bCfg },
+    });
+    const result = repriceEventEssentialsCart(input);
+    const tablesLine = result.cart.find(
+      (l) => l.item_type === 'event_essential_product' && l.product_id === 'p_tables',
+    );
+    ok(
+      '78 package same-category does not qualify product',
+      tablesLine !== undefined &&
+        (tablesLine as any).pricing_context === 'standalone' &&
+        tablesLine.unit_price_cents === 10000,
+    );
+  }
+
+  // 79. Regression: package with unrelated categories qualifies a product candidate.
+  {
+    const genCat = 'cat_generators';
+    const gen = makeProductConfig('p_gen', genCat, {
+      standalonePriceCents: 20000,
+      addonPriceCents: 10000,
+      addonEnabled: true,
+      addonQualifyingThresholdCents: 15000,
+    });
+    const bCfg = makeBundleConfig('b_pkg', {
+      standalonePriceCents: 15000,
+      standaloneEnabled: true,
+      containedProductCategoryIds: [C_TABLES, C_CHAIRS],
+    });
+    const prod = makeProductCart('p_gen', 'Generator', 20000, 'standalone');
+    const bcart = makeBundleCart('b_pkg', 'Package', 15000, 'standalone');
+    const cart: UnifiedCartItem[] = [prod, bcart];
+    const input = buildInput(cart, {
+      productConfigs: { p_gen: gen },
+      bundleConfigs: { b_pkg: bCfg },
+      categories: { [C_TABLES]: makeCategory(C_TABLES), [C_CHAIRS]: makeCategory(C_CHAIRS), [genCat]: makeCategory(genCat) },
+    });
+    const result = repriceEventEssentialsCart(input);
+    const genLine = result.cart.find(
+      (l) => l.item_type === 'event_essential_product' && l.product_id === 'p_gen',
+    );
+    ok(
+      '79 package unrelated categories qualifies product',
+      genLine !== undefined &&
+        (genLine as any).pricing_context === 'addon' &&
+        genLine.unit_price_cents === 10000,
     );
   }
 

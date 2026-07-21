@@ -717,6 +717,7 @@ export function PackageForm({
 
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">Sort Order</label>
+            <p className="text-xs text-slate-500 mb-1">Lower numbers appear first in the customer catalog.</p>
             <input
               type="number"
               step={1}
@@ -945,7 +946,7 @@ export function PackageForm({
               <div>
                 <span className="text-sm text-slate-700 font-medium">Available</span>
                 <p className="text-xs text-slate-500">
-                  Available packages are shown to customers. Unavailable packages remain in Admin but are hidden from the Event Essentials page.
+                  Available packages are shown to customers. Unavailable packages remain in Admin but are hidden from the Event Essentials page. Lower sort order numbers appear first.
                 </p>
               </div>
             </label>
