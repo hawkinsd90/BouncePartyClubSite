@@ -3,7 +3,7 @@ import { dollarsToCents } from './utils';
 import { buildOrderSummaryDisplay } from './orderSummaryHelpers';
 import type { PriceBreakdown } from './pricing';
 import type { UnifiedCartItem } from '../types';
-import { composeUnifiedQuoteTotals } from './unifiedTotals';
+import { composeUnifiedQuoteTotals, type UnifiedQuoteTotals } from './unifiedTotals';
 import { isInflatableCartItem } from './unifiedCart';
 
 interface QuoteData {
@@ -11,10 +11,24 @@ interface QuoteData {
   [key: string]: unknown;
 }
 
+export function getPaymentAmountCentsFromTotals(
+  paymentAmount: 'deposit' | 'full' | 'custom',
+  customAmount: string,
+  totals: UnifiedQuoteTotals,
+): number {
+  if (paymentAmount === 'full') {
+    return totals.totalCents;
+  } else if (paymentAmount === 'custom') {
+    const customCents = dollarsToCents(customAmount || '0');
+    return Math.max(totals.depositCents, Math.min(customCents, totals.totalCents));
+  }
+  return totals.depositCents;
+}
+
 export function getPaymentAmountCents(
   paymentAmount: 'deposit' | 'full' | 'custom',
   customAmount: string,
-  priceBreakdown: PriceBreakdown
+  priceBreakdown: PriceBreakdown,
 ): number {
   if (paymentAmount === 'full') {
     return priceBreakdown.total_cents;
@@ -28,7 +42,7 @@ export function getPaymentAmountCents(
 export function getTipAmountCents(
   tipAmount: 'none' | '10' | '15' | '20' | 'custom',
   customTip: string,
-  totalCents: number
+  totalCents: number,
 ): number {
   if (tipAmount === 'none') return 0;
   if (tipAmount === 'custom') {
@@ -43,17 +57,16 @@ export function buildOrderSummary(
   cart: UnifiedCartItem[],
   quoteData: QuoteData,
   tipCents: number,
-  applyTaxes: boolean = true,
 ): OrderSummaryDisplay | null {
   if (!priceBreakdown || !cart) return null;
 
   const totals = composeUnifiedQuoteTotals({
     inflatableBreakdown: priceBreakdown,
     cart,
-    applyTaxes,
+    taxApplied: priceBreakdown.tax_applied,
   });
 
-  const items = cart.map(item => {
+  const items = cart.map((item) => {
     if (isInflatableCartItem(item)) {
       return {
         name: item.unit_name,
@@ -62,12 +75,11 @@ export function buildOrderSummary(
         qty: item.qty,
       };
     }
-    // Event Essential item
     const name = item.item_type === 'event_essential_bundle' ? item.bundle_name : item.product_name;
     const isAddOn = item.pricing_context === 'addon';
     return {
       name: isAddOn ? `${name} (Add-on)` : name,
-      mode: 'Essential',
+      mode: 'Event Essential',
       price: item.unit_price_cents,
       qty: item.qty,
     };

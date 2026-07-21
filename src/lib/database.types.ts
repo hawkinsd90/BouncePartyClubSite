@@ -285,6 +285,7 @@ export interface Database {
           same_day_responsibility_accepted: boolean
           overnight_responsibility_accepted: boolean
           subtotal_cents: number
+          event_essentials_subtotal_cents: number | null
           travel_fee_cents: number
           travel_total_miles: number
           travel_base_radius_miles: number
@@ -427,7 +428,7 @@ export interface Database {
           order_id: string | null
           unit_id: string | null
           qty: number | null
-          wet_or_dry: string
+          wet_or_dry: string | null
           unit_price_cents: number
           notes: string | null
           product_id: string | null

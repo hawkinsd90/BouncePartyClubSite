@@ -17,6 +17,7 @@ import type { InflatableCartItem } from '../types';
 import { trackEvent, trackEventOnce } from '../lib/siteEvents';
 import { CartSection } from '../components/quote/CartSection';
 import { useEventEssentialsCartRepricing } from '../hooks/useEventEssentialsCartRepricing';
+import { checkGeneratorConflict } from '../lib/generatorConflictGuard';
 import { AddressSection } from '../components/quote/AddressSection';
 import { EventDetailsSection } from '../components/quote/EventDetailsSection';
 import { SetupDetailsSection } from '../components/quote/SetupDetailsSection';
@@ -400,6 +401,18 @@ export function Quote() {
         setShowBottomToast(true);
       });
       scrollToSection('cart');
+      return;
+    }
+
+    // Stage E4 — Block checkout when both legacy generator and EE Generator are selected.
+    const generatorConflict = await checkGeneratorConflict(cart, formData);
+    if (generatorConflict) {
+      flushSync(() => {
+        setValidationError('A generator is selected in both Setup Details and Event Essentials. Remove one generator selection before continuing.');
+        setValidationErrorFieldId(null);
+        setShowBottomToast(true);
+      });
+      scrollToSection('setup');
       return;
     }
 

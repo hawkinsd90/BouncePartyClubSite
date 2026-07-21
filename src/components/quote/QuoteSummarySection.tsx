@@ -1,6 +1,7 @@
 import type { UnifiedCartItem, InflatableCartItem, EventEssentialProductCartItem, EventEssentialBundleCartItem } from '../../types';
 import { composeUnifiedQuoteTotals } from '../../lib/unifiedTotals';
 import { calculateEventEssentialsSubtotalCents } from '../../lib/eventEssentialsMoney';
+import { formatCurrency } from '../../lib/pricing';
 
 interface PriceBreakdown {
   travel_fee_cents: number;
@@ -10,6 +11,7 @@ interface PriceBreakdown {
   same_day_weekday_delivery_fee_cents: number;
   generator_fee_cents: number;
   tax_cents: number;
+  tax_applied: boolean;
   subtotal_cents: number;
   deposit_due_cents: number;
   total_cents: number;
@@ -18,10 +20,6 @@ interface PriceBreakdown {
 interface QuoteSummarySectionProps {
   cart: UnifiedCartItem[];
   priceBreakdown: PriceBreakdown | null;
-}
-
-function formatDollars(cents: number): string {
-  return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 function isInflatable(item: UnifiedCartItem): item is InflatableCartItem {
@@ -52,7 +50,7 @@ export function QuoteSummarySection({ cart, priceBreakdown }: QuoteSummarySectio
     ? composeUnifiedQuoteTotals({
         inflatableBreakdown: priceBreakdown as any,
         cart,
-        applyTaxes: true,
+        taxApplied: priceBreakdown.tax_applied ?? true,
       })
     : null;
 
@@ -66,8 +64,7 @@ export function QuoteSummarySection({ cart, priceBreakdown }: QuoteSummarySectio
       priceBreakdown.surface_fee_cents +
       priceBreakdown.same_day_pickup_fee_cents +
       priceBreakdown.same_day_weekday_delivery_fee_cents +
-      priceBreakdown.generator_fee_cents +
-      (totals?.taxCents ?? priceBreakdown.tax_cents)
+      priceBreakdown.generator_fee_cents
     : 0;
 
   const estimatedTotalCents = totals
@@ -95,14 +92,14 @@ export function QuoteSummarySection({ cart, priceBreakdown }: QuoteSummarySectio
                   </span>
                 </div>
                 <span className="font-semibold text-slate-900 flex-shrink-0">
-                  {formatDollars(item.unit_price_cents * item.qty)}
+                  {formatCurrency(item.unit_price_cents * item.qty)}
                 </span>
               </div>
             ))}
 
             <div className="flex items-center justify-between pt-2 mt-2 border-t border-slate-100">
               <span className="text-xs sm:text-sm font-semibold text-slate-700">Inflatables subtotal</span>
-              <span className="text-sm sm:text-base font-bold text-slate-900">{formatDollars(inflatableSubtotalCents)}</span>
+              <span className="text-sm sm:text-base font-bold text-slate-900">{formatCurrency(inflatableSubtotalCents)}</span>
             </div>
           </div>
         )}
@@ -123,14 +120,14 @@ export function QuoteSummarySection({ cart, priceBreakdown }: QuoteSummarySectio
                   </span>
                 </div>
                 <span className="font-semibold text-slate-900 flex-shrink-0">
-                  {formatDollars(item.unit_price_cents * item.qty)}
+                  {formatCurrency(item.unit_price_cents * item.qty)}
                 </span>
               </div>
             ))}
 
             <div className="flex items-center justify-between pt-2 mt-2 border-t border-slate-100">
               <span className="text-xs sm:text-sm font-semibold text-slate-700">Event Essentials subtotal</span>
-              <span className="text-sm sm:text-base font-bold text-slate-900">{formatDollars(eventEssentialsSubtotalCents)}</span>
+              <span className="text-sm sm:text-base font-bold text-slate-900">{formatCurrency(eventEssentialsSubtotalCents)}</span>
             </div>
 
             <p className="text-xs text-slate-500 leading-relaxed">
@@ -146,28 +143,28 @@ export function QuoteSummarySection({ cart, priceBreakdown }: QuoteSummarySectio
             {priceBreakdown.travel_fee_cents > 0 && (
               <div className="flex items-center justify-between text-xs sm:text-sm">
                 <span className="text-slate-600">{priceBreakdown.travel_fee_display_name || 'Travel Fee'}</span>
-                <span className="font-semibold text-slate-800">{formatDollars(priceBreakdown.travel_fee_cents)}</span>
+                <span className="font-semibold text-slate-800">{formatCurrency(priceBreakdown.travel_fee_cents)}</span>
               </div>
             )}
 
             {priceBreakdown.surface_fee_cents > 0 && (
               <div className="flex items-center justify-between text-xs sm:text-sm">
                 <span className="text-slate-600">Sandbag Fee</span>
-                <span className="font-semibold text-slate-800">{formatDollars(priceBreakdown.surface_fee_cents)}</span>
+                <span className="font-semibold text-slate-800">{formatCurrency(priceBreakdown.surface_fee_cents)}</span>
               </div>
             )}
 
             {priceBreakdown.same_day_pickup_fee_cents > 0 && (
               <div className="flex items-center justify-between text-xs sm:text-sm">
                 <span className="text-slate-600">Same-Day Pickup</span>
-                <span className="font-semibold text-slate-800">{formatDollars(priceBreakdown.same_day_pickup_fee_cents)}</span>
+                <span className="font-semibold text-slate-800">{formatCurrency(priceBreakdown.same_day_pickup_fee_cents)}</span>
               </div>
             )}
 
             {priceBreakdown.same_day_weekday_delivery_fee_cents > 0 && (
               <div className="flex items-center justify-between text-xs sm:text-sm">
                 <span className="text-slate-600">Same-Day Delivery</span>
-                <span className="font-semibold text-slate-800">{formatDollars(priceBreakdown.same_day_weekday_delivery_fee_cents)}</span>
+                <span className="font-semibold text-slate-800">{formatCurrency(priceBreakdown.same_day_weekday_delivery_fee_cents)}</span>
               </div>
             )}
 
@@ -177,20 +174,20 @@ export function QuoteSummarySection({ cart, priceBreakdown }: QuoteSummarySectio
                   Generator Rental ({Math.ceil(inflatableItems.reduce((sum, item) => sum + item.qty, 0) / 2)} unit
                   {Math.ceil(inflatableItems.reduce((sum, item) => sum + item.qty, 0) / 2) > 1 ? 's' : ''})
                 </span>
-                <span className="font-semibold text-slate-800">{formatDollars(priceBreakdown.generator_fee_cents)}</span>
+                <span className="font-semibold text-slate-800">{formatCurrency(priceBreakdown.generator_fee_cents)}</span>
               </div>
             )}
 
-            {priceBreakdown.tax_cents > 0 && (
+            {(totals ? totals.taxCents : priceBreakdown.tax_cents) > 0 && (
               <div className="flex items-center justify-between text-xs sm:text-sm">
                 <span className="text-slate-600">Tax (6%)</span>
-                <span className="font-semibold text-slate-800">{formatDollars(priceBreakdown.tax_cents)}</span>
+                <span className="font-semibold text-slate-800">{formatCurrency(totals ? totals.taxCents : priceBreakdown.tax_cents)}</span>
               </div>
             )}
 
             <div className="flex items-center justify-between pt-3 mt-2 border-t-2 border-slate-200">
               <span className="text-sm sm:text-base font-bold text-slate-900">Estimated Total</span>
-              <span className="text-lg sm:text-xl font-bold text-blue-700">{formatDollars(estimatedTotalCents)}</span>
+              <span className="text-lg sm:text-xl font-bold text-blue-700">{formatCurrency(estimatedTotalCents)}</span>
             </div>
 
             <p className="text-xs text-slate-500 leading-relaxed">

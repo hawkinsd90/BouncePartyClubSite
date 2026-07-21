@@ -6,7 +6,7 @@ import { RentalTerms } from '../components/waiver/RentalTerms';
 import { createOrderBeforePayment } from '../lib/orderCreation';
 import { useAuth } from '../contexts/AuthContext';
 import { useCheckoutData } from '../hooks/useCheckoutData';
-import { getPaymentAmountCents, getTipAmountCents, buildOrderSummary } from '../lib/checkoutUtils';
+import { getPaymentAmountCentsFromTotals, getTipAmountCents, buildOrderSummary } from '../lib/checkoutUtils';
 import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { showToast } from '../lib/notifications';
 import { composeUnifiedQuoteTotals } from '../lib/unifiedTotals';
@@ -36,7 +36,6 @@ export function Checkout() {
     priceBreakdown,
     cart,
     inflatableCart,
-    // eventEssentialsCart retained by useCheckoutData for future use but not needed in Checkout UI yet
     contactData,
     setContactData,
     billingAddress,
@@ -65,12 +64,12 @@ export function Checkout() {
   // Block EE-only carts at the current stage (E4 supports mixed carts only)
   const isEEOnlyCart = cart.length > 0 && !hasInflatablesInCart(cart) && hasEventEssentialsInCart(cart);
 
-  // Compute unified totals for payment amount display
+  // Compute unified totals using the inflatable breakdown's tax_applied setting
   const unifiedTotals = priceBreakdown
     ? composeUnifiedQuoteTotals({
-        inflatableBreakdown: priceBreakdown as any,
+        inflatableBreakdown: priceBreakdown,
         cart,
-        applyTaxes: true,
+        taxApplied: priceBreakdown.tax_applied ?? true,
       })
     : null;
 
@@ -111,18 +110,22 @@ export function Checkout() {
       return;
     }
 
-    const paymentCents = getPaymentAmountCents(paymentAmount, customAmount, unifiedTotals ? { ...priceBreakdown, total_cents: unifiedTotals.totalCents, deposit_due_cents: unifiedTotals.depositCents } as any : priceBreakdown);
-    if (paymentAmount === 'custom' && paymentCents < (unifiedTotals?.depositCents ?? priceBreakdown.deposit_due_cents)) {
-      showToast(`Minimum payment is ${formatCurrency(unifiedTotals?.depositCents ?? priceBreakdown.deposit_due_cents)}`, 'error');
+    if (!unifiedTotals) {
+      showToast('Unable to calculate order totals. Please return to your quote and try again.', 'error');
+      return;
+    }
+
+    const paymentCents = getPaymentAmountCentsFromTotals(paymentAmount, customAmount, unifiedTotals);
+    if (paymentAmount === 'custom' && paymentCents < unifiedTotals.depositCents) {
+      showToast(`Minimum payment is ${formatCurrency(unifiedTotals.depositCents)}`, 'error');
       return;
     }
 
     setProcessing(true);
 
     try {
-      // Re-check availability before creating order (prevent race conditions)
-      // Only check inflatable availability — EE availability was checked on Quote
-      const availabilityChecks = inflatableCart.map(item => ({
+      // Re-check inflatable availability before creating order (prevent race conditions)
+      const availabilityChecks = inflatableCart.map((item) => ({
         unitId: item.unit_id,
         eventStartDate: quoteData.event_date,
         eventEndDate: quoteData.event_end_date,
@@ -131,11 +134,11 @@ export function Checkout() {
       const availabilityResults = availabilityChecks.length > 0
         ? await checkMultipleUnitsAvailability(availabilityChecks)
         : [];
-      const unavailableUnits = availabilityResults.filter(result => !result.isAvailable);
+      const unavailableUnits = availabilityResults.filter((result) => !result.isAvailable);
 
       if (unavailableUnits.length > 0) {
-        const unitNames = unavailableUnits.map(u => {
-          const cartItem = inflatableCart.find(item => item.unit_id === u.unitId);
+        const unitNames = unavailableUnits.map((u) => {
+          const cartItem = inflatableCart.find((item) => item.unit_id === u.unitId);
           return cartItem?.unit_name || 'Unknown unit';
         }).join(', ');
 
@@ -147,8 +150,7 @@ export function Checkout() {
         return;
       }
 
-      const paymentCents = getPaymentAmountCents(paymentAmount, customAmount, unifiedTotals ? { ...priceBreakdown, total_cents: unifiedTotals.totalCents, deposit_due_cents: unifiedTotals.depositCents } as any : priceBreakdown);
-      const tipCents = getTipAmountCents(tipAmount, customTip, unifiedTotals?.totalCents ?? priceBreakdown.total_cents);
+      const tipCents = getTipAmountCents(tipAmount, customTip, unifiedTotals.totalCents);
 
       const orderId = await createOrderBeforePayment({
         contactData,
@@ -166,7 +168,9 @@ export function Checkout() {
         referralSourceDetail,
       });
 
-      const depositCents = paymentCents;
+      // For bookingMode, Stripe uses Setup Mode (card save only, no charge).
+      // depositCents in metadata = the inflatable-only deposit for later admin approval.
+      const depositCents = unifiedTotals.depositCents;
 
       try {
         const response = await fetch(
@@ -180,7 +184,7 @@ export function Checkout() {
             body: JSON.stringify({
               orderId,
               depositCents,
-              tipCents: getTipAmountCents(tipAmount, customTip, priceBreakdown.total_cents),
+              tipCents,
               customerEmail: contactData.email,
               customerName: `${contactData.first_name} ${contactData.last_name}`,
               origin: window.location.origin,
@@ -249,8 +253,9 @@ export function Checkout() {
     );
   }
 
-  const tipCents = getTipAmountCents(tipAmount, customTip, unifiedTotals?.totalCents ?? priceBreakdown.total_cents);
-  const orderSummary = buildOrderSummary(priceBreakdown, cart, quoteData, tipCents, true);
+  const tipCents = getTipAmountCents(tipAmount, customTip, unifiedTotals!.totalCents);
+  const orderSummary = buildOrderSummary(priceBreakdown, cart, quoteData, tipCents);
+  const paymentAmountCents = getPaymentAmountCentsFromTotals(paymentAmount, customAmount, unifiedTotals!);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white">
@@ -307,7 +312,8 @@ export function Checkout() {
             <PaymentAmountSelector
               paymentAmount={paymentAmount}
               customAmount={customAmount}
-              priceBreakdown={priceBreakdown}
+              depositCents={unifiedTotals!.depositCents}
+              totalCents={unifiedTotals!.totalCents}
               onPaymentAmountChange={setPaymentAmount}
               onCustomAmountChange={setCustomAmount}
             />
@@ -315,7 +321,7 @@ export function Checkout() {
             <TipSection
               tipAmount={tipAmount}
               customTip={customTip}
-              totalCents={priceBreakdown.total_cents}
+              totalCents={unifiedTotals!.totalCents}
               tipCents={tipCents}
               onTipAmountChange={setTipAmount}
               onCustomTipChange={setCustomTip}
@@ -353,7 +359,7 @@ export function Checkout() {
               smsConsent={smsConsent}
               referralSource={referralSource}
               tipCents={tipCents}
-              paymentAmountCents={getPaymentAmountCents(paymentAmount, customAmount, priceBreakdown)}
+              paymentAmountCents={paymentAmountCents}
               onViewInvoice={handleViewInvoice}
             />
           </div>

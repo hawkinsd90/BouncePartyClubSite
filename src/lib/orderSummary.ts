@@ -41,14 +41,19 @@ async function estimateDistanceFromFee(travelFeeCents: number): Promise<number> 
 
 export interface OrderItem {
   id?: string;
-  unit_id: string;
+  unit_id: string | null;
+  product_id?: string | null;
+  bundle_id?: string | null;
+  item_name?: string | null;
+  pricing_context?: 'standalone' | 'addon' | null;
+  component_snapshot?: import('../types').BundleComponentSnapshot | null;
   qty: number;
-  wet_or_dry: 'dry' | 'water';
+  wet_or_dry: 'dry' | 'water' | null;
   unit_price_cents: number;
   is_new?: boolean;
   units?: {
     name: string;
-  };
+  } | null;
 }
 
 export interface OrderDiscount {
@@ -334,8 +339,9 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
 }
 
 export function calculateTotalFromOrder(order: any, discounts: OrderDiscount[], customFees: OrderCustomFee[]): number {
+  // subtotal_cents already includes event_essentials_subtotal_cents.
+  // Do NOT add event_essentials_subtotal_cents again.
   const subtotal = order.subtotal_cents || 0;
-  const eventEssentialsSubtotal = order.event_essentials_subtotal_cents || 0;
   const travelFee = order.travel_fee_cents || 0;
   const surfaceFee = order.surface_fee_cents || 0;
   const sameDayFee = order.same_day_pickup_fee_cents || 0;
@@ -346,27 +352,40 @@ export function calculateTotalFromOrder(order: any, discounts: OrderDiscount[], 
   const totalFees = travelFee + surfaceFee + sameDayFee + sameDayWeekdayDeliveryFee + generatorFee;
   const totalCustomFees = customFees.reduce((sum, fee) => sum + (fee.amount_cents || 0), 0);
 
-  const combinedSubtotal = subtotal + eventEssentialsSubtotal;
-
   const discountTotal = discounts.reduce((sum, discount) => {
     if (discount.percentage) {
-      return sum + Math.round(combinedSubtotal * (discount.percentage / 100));
+      return sum + Math.round(subtotal * (discount.percentage / 100));
     }
     return sum + (discount.amount_cents || 0);
   }, 0);
 
   // Tip is tracked separately and should NOT be included in order total
-  return combinedSubtotal + totalFees + totalCustomFees - discountTotal + tax;
+  return subtotal + totalFees + totalCustomFees - discountTotal + tax;
 }
 
 export function formatOrderSummary(data: OrderSummaryData): OrderSummaryDisplay {
-  const items = data.items.map(item => ({
-    name: item.units?.name || 'Unknown Item',
-    mode: item.wet_or_dry === 'water' ? 'Water' : 'Dry',
-    price: item.unit_price_cents,
-    qty: item.qty,
-    isNew: item.is_new || false,
-  }));
+  const items = data.items.map(item => {
+    const isInflatable = !!item.unit_id && !!item.units?.name;
+    if (isInflatable) {
+      return {
+        name: item.units!.name,
+        mode: item.wet_or_dry === 'water' ? 'Water' : 'Dry',
+        price: item.unit_price_cents,
+        qty: item.qty,
+        isNew: item.is_new || false,
+      };
+    }
+    // Event Essential product or package
+    const name = item.item_name || 'Event Essential';
+    const isAddOn = item.pricing_context === 'addon';
+    return {
+      name: isAddOn ? `${name} (Add-on)` : name,
+      mode: 'Event Essential',
+      price: item.unit_price_cents,
+      qty: item.qty,
+      isNew: item.is_new || false,
+    };
+  });
 
   return buildOrderSummaryDisplay({
     items,

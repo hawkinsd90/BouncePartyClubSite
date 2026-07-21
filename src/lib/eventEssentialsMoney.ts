@@ -8,16 +8,20 @@
 import type { UnifiedCartItem } from '../types';
 import { isInflatableCartItem } from './unifiedCart';
 
+const MAX_SAFE_CENTS = Number.MAX_SAFE_INTEGER;
+
 function safeCents(value: unknown): number {
   const n = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(n) || n < 0) return 0;
-  return Math.trunc(n);
+  const truncated = Math.trunc(n);
+  return truncated > MAX_SAFE_CENTS ? 0 : truncated;
 }
 
 function safeQty(value: unknown): number {
   const n = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return Math.trunc(n);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  const truncated = Math.trunc(n);
+  return truncated > MAX_SAFE_CENTS ? 0 : truncated;
 }
 
 export function calculateEventEssentialsSubtotalCents(
@@ -32,7 +36,11 @@ export function calculateEventEssentialsSubtotalCents(
     }
     const price = safeCents(item.unit_price_cents);
     const qty = safeQty(item.qty);
-    sum += price * qty;
+    if (price === 0 || qty === 0) continue;
+    const lineTotal = price * qty;
+    if (!Number.isSafeInteger(lineTotal)) return 0;
+    sum += lineTotal;
+    if (sum > MAX_SAFE_CENTS) return 0;
   }
   return Math.trunc(sum);
 }

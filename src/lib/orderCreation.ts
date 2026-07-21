@@ -46,18 +46,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     referralSourceDetail,
   } = data;
 
-  // Fetch the current pricing rules to check apply_taxes_by_default setting
-  const { data: pricingRulesData } = await supabase
-    .from('pricing_rules')
-    .select('apply_taxes_by_default')
-    .limit(1)
-    .maybeSingle();
-
-  const applyTaxesByDefault = pricingRulesData?.apply_taxes_by_default ?? true;
-
   // 0a. CLIENT-SIDE EARLY REJECTION: Check blackout dates before writing anything to the DB.
-  // NOTE: This is browser code and can be bypassed. The trusted enforcement gate is in
-  // the stripe-checkout edge function. This check exists only to reduce orphaned draft orders.
   const blackout = await checkDateBlackout(quoteData.event_date, quoteData.event_end_date || quoteData.event_date);
   if (blackout.is_full_blocked) {
     throw new Error('This date is not available for booking. Please contact us or choose a different date.');
@@ -68,9 +57,11 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     throw new Error('Same-day pickups are not available for this date. Please choose next-day pickup or select a different date.');
   }
 
-  // 0b. CRITICAL SAFETY CHECK: Verify unit availability before creating order
-  const inflatableCart = cart.filter((item): item is InflatableCartItem => item.item_type === undefined || item.item_type === 'inflatable');
-  const availabilityChecks = inflatableCart.map(item => ({
+  // 0b. CRITICAL SAFETY CHECK: Verify inflatable availability before creating order
+  const inflatableCart = cart.filter(
+    (item): item is InflatableCartItem => item.item_type === undefined || item.item_type === 'inflatable',
+  );
+  const availabilityChecks = inflatableCart.map((item) => ({
     unitId: item.unit_id,
     eventStartDate: quoteData.event_date,
     eventEndDate: quoteData.event_end_date,
@@ -79,26 +70,54 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
   const availabilityResults = availabilityChecks.length > 0
     ? await checkMultipleUnitsAvailability(availabilityChecks)
     : [];
-  const unavailableUnits = availabilityResults.filter(result => !result.isAvailable);
+  const unavailableUnits = availabilityResults.filter((result) => !result.isAvailable);
 
   if (unavailableUnits.length > 0) {
-    const unitNames = unavailableUnits.map(u => {
-      const cartItem = inflatableCart.find(item => item.unit_id === u.unitId);
+    const unitNames = unavailableUnits.map((u) => {
+      const cartItem = inflatableCart.find((item) => item.unit_id === u.unitId);
       return cartItem?.unit_name || 'Unknown unit';
     }).join(', ');
 
     throw new Error(
-      `Cannot create order: The following units are not available for the selected dates: ${unitNames}. Please select different units or dates.`
+      `Cannot create order: The following units are not available for the selected dates: ${unitNames}. Please select different units or dates.`,
     );
   }
 
-  // Compute unified totals including Event Essentials
+  // 0c. Event Essential availability check
+  const eeCart = cart.filter((item) => !inflatableCart.includes(item as any));
+  if (eeCart.length > 0) {
+    const { expandCartToProductQuantities } = await import('./unifiedCart');
+    const { checkProductAvailability } = await import('./queries/products');
+    const productQuantities = expandCartToProductQuantities(eeCart as any);
+    if (productQuantities.length > 0) {
+      const eeAvailability = await checkProductAvailability(
+        productQuantities,
+        quoteData.event_date,
+        quoteData.event_end_date || quoteData.event_date,
+      );
+      if (eeAvailability.error || !eeAvailability.data) {
+        throw new Error(
+          'Cannot create order: Unable to verify Event Essential availability. Please try again or contact us for assistance.',
+        );
+      }
+      const allAvailable = eeAvailability.data.every((r) => r.is_allowed === true);
+      if (!allAvailable) {
+        throw new Error(
+          'Cannot create order: One or more Event Essential items are not available for the selected dates. Please return to your cart and remove unavailable items.',
+        );
+      }
+    }
+  }
+
+  // Compute unified totals including Event Essentials.
+  // tax_applied comes from the inflatable breakdown — the authoritative tax setting.
+  const taxApplied = priceBreakdown.tax_applied ?? true;
   const eventEssentialsSubtotalCents = calculateEventEssentialsSubtotalCents(cart);
   const totals = priceBreakdown
     ? composeUnifiedQuoteTotals({
         inflatableBreakdown: priceBreakdown,
         cart,
-        applyTaxes: applyTaxesByDefault,
+        taxApplied,
       })
     : null;
 
@@ -141,8 +160,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     customer = newCustomer;
   }
 
-  // 2. Create or update contact via SECURITY DEFINER RPC so repeat-customer upserts
-  // succeed even when anon/authenticated RLS blocks the UPDATE path.
+  // 2. Create or update contact via SECURITY DEFINER RPC
   const { error: contactError } = await supabase.rpc('upsert_contact_from_checkout', {
     p_first_name: contactData.first_name,
     p_last_name: contactData.last_name,
@@ -157,8 +175,6 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
   }
 
   // 3. Create or reuse canonical address
-  // The event/delivery address ALWAYS comes from quoteData — never from billingAddress.
-  // billingAddress is only stored in the billing_address_* columns below.
   const eventAddr = {
     line1: quoteData.address_line1,
     line2: quoteData.address_line2 || null,
@@ -179,6 +195,12 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     lat: eventAddr.lat,
     lng: eventAddr.lng,
   });
+
+  // Deposit: inflatable-only deposit from the breakdown, NOT customerSelectedPaymentCents.
+  // customerSelectedPaymentCents is stored separately and used for payment flow only.
+  const inflatableDepositCents = totals ? totals.depositCents : priceBreakdown.deposit_due_cents;
+  const totalCents = totals ? totals.totalCents : priceBreakdown.total_cents;
+  const taxCents = totals ? totals.taxCents : priceBreakdown.tax_cents;
 
   // 4. Create order with 'draft' status (unpaid invoice)
   const { data: order, error: orderError } = await supabase
@@ -203,6 +225,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       billing_city: billingSameAsEvent ? null : (billingAddress.city || null),
       billing_state: billingSameAsEvent ? null : (billingAddress.state || null),
       billing_zip: billingSameAsEvent ? null : (billingAddress.zip || null),
+      // subtotal_cents = combined equipment subtotal (inflatable + EE)
       subtotal_cents: totals ? totals.equipmentSubtotalCents : priceBreakdown.subtotal_cents,
       event_essentials_subtotal_cents: eventEssentialsSubtotalCents,
       travel_fee_cents: priceBreakdown.travel_fee_cents,
@@ -215,7 +238,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       same_day_pickup_fee_cents: priceBreakdown.same_day_pickup_fee_cents || 0,
       same_day_weekday_delivery_fee_cents: priceBreakdown.same_day_weekday_delivery_fee_cents || 0,
       generator_fee_cents: priceBreakdown.generator_fee_cents || 0,
-      tax_cents: applyTaxesByDefault ? (totals ? totals.taxCents : priceBreakdown.tax_cents) : 0,
+      tax_cents: taxApplied ? taxCents : 0,
       tax_waived: false,
       tax_waive_reason: null,
       travel_fee_waived: false,
@@ -223,13 +246,13 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       same_day_pickup_fee_waived: false,
       same_day_pickup_fee_waive_reason: null,
       tip_cents: tipCents,
-      deposit_due_cents: customerSelectedPaymentCents || (totals ? totals.depositCents : priceBreakdown.deposit_due_cents),
+      // deposit_due_cents = inflatable-only deposit, NOT customerSelectedPaymentCents
+      deposit_due_cents: inflatableDepositCents,
       deposit_paid_cents: 0,
-      balance_due_cents: applyTaxesByDefault
-        ? Math.max(0, (totals ? totals.totalCents : priceBreakdown.total_cents) - (customerSelectedPaymentCents || (totals ? totals.depositCents : priceBreakdown.deposit_due_cents)))
-        : Math.max(0, ((totals ? totals.totalCents : priceBreakdown.total_cents) - (totals ? totals.taxCents : priceBreakdown.tax_cents)) - (customerSelectedPaymentCents || (totals ? totals.depositCents : priceBreakdown.deposit_due_cents))),
+      balance_due_cents: Math.max(0, totalCents - inflatableDepositCents),
       custom_deposit_cents: null,
-      customer_selected_payment_cents: customerSelectedPaymentCents || (totals ? totals.depositCents : priceBreakdown.deposit_due_cents),
+      // customer_selected_payment_cents stored separately for payment flow
+      customer_selected_payment_cents: customerSelectedPaymentCents || inflatableDepositCents,
       customer_selected_payment_type: customerSelectedPaymentType || 'deposit',
       card_on_file_consent: cardOnFileConsent,
       admin_message: null,
@@ -249,23 +272,24 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
   if (orderError) throw orderError;
 
   // 5. Create order items (inflatables + Event Essentials)
-  const orderItems = mapCartToOrderItems(cart).map(item => ({
-    ...item,
-    order_id: order.id,
-  }));
+  const orderItems = mapCartToOrderItems(cart);
+  if (orderItems.length === 0 && cart.length > 0) {
+    throw new Error('Cannot create order: cart contains invalid items with malformed prices or quantities.');
+  }
 
   for (const item of orderItems) {
-    const { error: itemError } = await (supabase as any).from('order_items').insert(item);
+    const { error: itemError } = await supabase.from('order_items').insert({
+      ...item,
+      order_id: order.id,
+    } as any);
 
     if (itemError) {
       console.error('Order item insert error:', itemError);
-      console.error('Failed cart item:', item);
       throw itemError;
     }
   }
 
   // 6. Task status records will be auto-created by trigger when order is confirmed
-  // (Previously created route_stops here, but that table is now deprecated in favor of task_status)
 
   // 7. Create consent records
   const consentRecords = [];
@@ -293,9 +317,9 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
   }
 
   if (consentRecords.length > 0) {
-    const { error: consentError } = await (supabase as any)
+    const { error: consentError } = await supabase
       .from('consent_records')
-      .insert(consentRecords);
+      .insert(consentRecords as any);
 
     if (consentError) {
       console.error('Error creating consent records:', consentError);

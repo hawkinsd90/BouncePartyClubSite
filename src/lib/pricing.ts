@@ -63,6 +63,7 @@ export interface PriceBreakdown {
   same_day_weekday_delivery_fee_cents: number;
   generator_fee_cents: number;
   tax_cents: number;
+  tax_applied: boolean;
   total_cents: number;
   deposit_due_cents: number;
   balance_due_cents: number;
@@ -163,7 +164,6 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
     }
   }
 
-  // Only calculate taxes if apply_taxes_by_default is true (defaults to true for backward compatibility)
   const shouldApplyTaxes = rules.apply_taxes_by_default ?? true;
   const tax_cents = shouldApplyTaxes
     ? Math.round((subtotal_cents + travel_fee_cents + surface_fee_cents + generator_fee_cents) * 0.06)
@@ -203,6 +203,7 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
     same_day_weekday_delivery_fee_cents,
     generator_fee_cents,
     tax_cents,
+    tax_applied: shouldApplyTaxes,
     total_cents,
     deposit_due_cents,
     balance_due_cents,

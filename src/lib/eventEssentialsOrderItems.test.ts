@@ -1,4 +1,4 @@
-// Stage E4 — Order-item mapping tests.
+// Stage E4 — Order-item mapping tests (corrected).
 // jiti runner, no React/Supabase.
 
 import { mapCartToOrderItems, hasEventEssentialsInCart, hasInflatablesInCart } from './eventEssentialsOrderItems';
@@ -165,6 +165,41 @@ function run() {
     ok('13a inflatable-only', hasInflatablesInCart([makeInflatable('u1', 100)]) === true && hasEventEssentialsInCart([makeInflatable('u1', 100)]) === false);
     ok('13b mixed', hasInflatablesInCart([makeInflatable('u1', 100), makeProduct('p1', 'Gen', 95)]) === true && hasEventEssentialsInCart([makeInflatable('u1', 100), makeProduct('p1', 'Gen', 95)]) === true);
     ok('13c EE-only', hasInflatablesInCart([makeProduct('p1', 'Gen', 95)]) === false && hasEventEssentialsInCart([makeProduct('p1', 'Gen', 95)]) === true);
+  }
+
+  // 14. Invalid qty=0 rejects the entire cart (returns empty array).
+  {
+    const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeProduct('p1', 'Bad', 9500, 'addon', 0)];
+    const items = mapCartToOrderItems(cart);
+    ok('14 qty=0 rejected', items.length === 0);
+  }
+
+  // 15. Invalid NaN qty rejects the entire cart.
+  {
+    const cart: UnifiedCartItem[] = [makeProduct('p1', 'Bad', 9500, 'addon', NaN)];
+    const items = mapCartToOrderItems(cart);
+    ok('15 NaN qty rejected', items.length === 0);
+  }
+
+  // 16. Product order item has item_name set to product_name.
+  {
+    const cart: UnifiedCartItem[] = [makeProduct('p1', 'Generator', 9500, 'addon')];
+    const items = mapCartToOrderItems(cart);
+    ok('16 product item_name', items[0].item_name === 'Generator');
+  }
+
+  // 17. Package order item has item_name set to bundle_name.
+  {
+    const cart: UnifiedCartItem[] = [makeBundle('b1', 'Celebration Package', 15000, 'standalone')];
+    const items = mapCartToOrderItems(cart);
+    ok('17 package item_name', items[0].item_name === 'Celebration Package');
+  }
+
+  // 18. EE order item has wet_or_dry = null.
+  {
+    const cart: UnifiedCartItem[] = [makeProduct('p1', 'Generator', 9500, 'addon')];
+    const items = mapCartToOrderItems(cart);
+    ok('18 EE wet_or_dry null', items[0].wet_or_dry === null);
   }
 }
 
