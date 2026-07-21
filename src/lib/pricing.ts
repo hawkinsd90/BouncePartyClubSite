@@ -47,6 +47,7 @@ export interface PriceCalculationInput {
   generator_qty?: number;
   is_same_day_weekday_delivery?: boolean;
   rules: PricingRules;
+  generator_present_for_same_day_matrix?: boolean;
 }
 
 export interface PriceBreakdown {
@@ -93,7 +94,13 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
     generator_qty = 0,
     is_same_day_weekday_delivery = false,
     rules,
+    generator_present_for_same_day_matrix,
   } = input;
+
+  // Operational Generator presence for the same-day matrix.
+  // Defaults to has_generator for backward compatibility with callers that
+  // still use the legacy fee path. New unified paths pass this explicitly.
+  const _generatorPresentForMatrix = generator_present_for_same_day_matrix ?? has_generator;
 
   let day_1_subtotal = items.reduce((sum, item) => {
     return sum + item.unit_price_cents * item.qty;

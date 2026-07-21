@@ -111,16 +111,30 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
 
   // 0d. Generator Workflow Unification: defensive invariant — a new order
   // must not contain both a legacy Generator charge and an EE Generator item.
+  // Uses exact Generator product ID, not a blanket EE-product check.
   const hasLegacyGenerator = (quoteData.has_generator || false) || (quoteData.generator_qty || 0) > 0;
   if (hasLegacyGenerator) {
-    const hasEEGeneratorItem = cart.some(
-      (item) => item.item_type === 'event_essential_product' && (item as any).product_id,
-    );
-    if (hasEEGeneratorItem) {
-      throw new Error(
-        'This order contains both a legacy Generator charge and an Event Essentials Generator item. Remove one before saving.',
+    // Look up the authoritative Generator product ID.
+    const { lookupGeneratorProduct } = await import('./generatorUnified');
+    const genLookup = await lookupGeneratorProduct();
+    if (genLookup.status === 'configured') {
+      const genProductId = genLookup.product.product_id;
+      const hasEEGeneratorItem = cart.some(
+        (item) => item.item_type === 'event_essential_product' && (item as any).product_id === genProductId,
       );
+      if (hasEEGeneratorItem) {
+        throw new Error(
+          'This order contains both a legacy Generator charge and an Event Essentials Generator item. Remove one before saving.',
+        );
+      }
     }
+  }
+
+  // Reject unresolved legacy form state before any writes.
+  if (hasLegacyGenerator) {
+    throw new Error(
+      'Cannot create order: Your saved Generator selection needs to be reviewed before continuing.',
+    );
   }
 
   // tax_applied comes from the inflatable breakdown — the authoritative tax setting.
@@ -231,7 +245,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       until_end_of_day: quoteData.until_end_of_day || false,
       same_day_responsibility_accepted: quoteData.same_day_responsibility_accepted || false,
       overnight_responsibility_accepted: quoteData.overnight_responsibility_accepted || false,
-      generator_qty: quoteData.generator_qty || (quoteData.has_generator ? 1 : 0),
+      generator_qty: 0,
       address_id: address.id,
       billing_address_line1: billingSameAsEvent ? null : (billingAddress.line1 || null),
       billing_address_line2: billingSameAsEvent ? null : (billingAddress.line2 || null),
@@ -250,7 +264,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       surface_fee_cents: priceBreakdown.surface_fee_cents,
       same_day_pickup_fee_cents: priceBreakdown.same_day_pickup_fee_cents || 0,
       same_day_weekday_delivery_fee_cents: priceBreakdown.same_day_weekday_delivery_fee_cents || 0,
-      generator_fee_cents: priceBreakdown.generator_fee_cents || 0,
+      generator_fee_cents: 0,
       tax_cents: taxApplied ? taxCents : 0,
       tax_waived: false,
       tax_waive_reason: null,

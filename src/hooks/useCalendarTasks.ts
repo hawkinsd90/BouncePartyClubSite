@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { lookupGeneratorProduct } from '../lib/generatorUnified';
 import { formatOrderId } from '../lib/utils';
 import { format, startOfMonth, endOfMonth, parseISO, addDays } from 'date-fns';
 import { ORDER_STATUS } from '../lib/constants/statuses';
@@ -112,6 +113,7 @@ export function derivePickupBlockReason(
 export function useCalendarTasks(currentMonth: Date) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [generatorProductId, setGeneratorProductId] = useState<string | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLoadingRef = useRef(false);
   const pendingRefreshRef = useRef(false);
@@ -133,6 +135,19 @@ export function useCalendarTasks(currentMonth: Date) {
   useEffect(() => {
     loadTasksForMonth(currentMonth);
   }, [currentMonth]);
+
+  // Load the authoritative Generator product ID once.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const result = await lookupGeneratorProduct();
+      if (cancelled) return;
+      if (result.status === 'configured') {
+        setGeneratorProductId(result.product.product_id);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     const channel = supabase
@@ -239,35 +254,62 @@ export function useCalendarTasks(currentMonth: Date) {
 
         const orderItemsForOrder = orderItems?.filter(item => item.order_id === order.id) || [];
 
-        const items = orderItemsForOrder
-          .map(item => {
-            if (item.unit_id && (item.units as any)?.name) {
-              return `${(item.units as any).name} (${item.wet_or_dry === 'water' ? 'Water' : 'Dry'})`;
+        // Generator Workflow Unification: determine Generator quantity using
+        // exact product ID (loaded once per task load), not item_name regex.
+        // Precedence: 1. Direct EE Generator order item, 2. Package-contained,
+        // 3. Legacy generator_qty fallback. Never add both together.
+        let eeGeneratorQty = 0;
+        let packageGeneratorQty = 0;
+        const genericItems: string[] = [];
+        for (const item of orderItemsForOrder) {
+          if (item.unit_id && (item.units as any)?.name) {
+            genericItems.push(`${(item.units as any).name} (${item.wet_or_dry === 'water' ? 'Water' : 'Dry'})`);
+          } else if (item.item_name) {
+            // Check if this is the authoritative Generator product
+            if (generatorProductId && item.product_id === generatorProductId) {
+              eeGeneratorQty += item.qty || 0;
+            } else {
+              // Check package component_snapshot for contained Generators
+              if (item.component_snapshot && generatorProductId) {
+                try {
+                  const snapshot = typeof item.component_snapshot === 'string'
+                    ? JSON.parse(item.component_snapshot)
+                    : item.component_snapshot;
+                  if (snapshot?.components) {
+                    for (const comp of snapshot.components) {
+                      if (comp.product_id === generatorProductId) {
+                        packageGeneratorQty += (comp.quantity_per_bundle || 0) * (item.qty || 0);
+                      }
+                    }
+                  }
+                } catch {
+                  // Ignore malformed snapshot
+                }
+              }
+              if (!packageGeneratorQty) {
+                genericItems.push(item.item_name);
+              }
             }
-            // Event Essential product or package item
-            if (item.item_name) {
-              return item.item_name;
-            }
-            return 'Unknown';
-          });
+          }
+        }
 
-        // Generator Workflow Unification: determine Generator quantity using precedence:
-        // 1. EE Generator order-item quantity (new orders)
-        // 2. Legacy generator_qty (historical orders only)
-        // Never add both together.
-        const eeGeneratorQty = orderItemsForOrder
-          .filter(item => item.product_id != null && item.unit_id == null && item.item_name && /generator/i.test(item.item_name))
-          .reduce((sum, item) => sum + (item.qty || 0), 0);
-        const legacyGeneratorQty = eeGeneratorQty > 0 ? 0 : (order.generator_qty || 0);
-        const totalGeneratorQty = eeGeneratorQty > 0 ? eeGeneratorQty : legacyGeneratorQty;
+        const newGeneratorQty = eeGeneratorQty + packageGeneratorQty;
+        const legacyGeneratorQty = newGeneratorQty > 0 ? 0 : (order.generator_qty || 0);
+        const totalGeneratorQty = newGeneratorQty > 0 ? newGeneratorQty : legacyGeneratorQty;
+
+        const items = [...genericItems];
         if (totalGeneratorQty > 0) {
           items.push(`Generator${totalGeneratorQty > 1 ? ` (${totalGeneratorQty}x)` : ''}`);
         }
+
         const equipmentIds = orderItemsForOrder
           .map(item => item.unit_id)
           .filter((id): id is string => !!id);
 
+        // numInflatables counts only order items with a unit_id (inflatables).
+        // EE products, packages, and Generators must not inflate this count.
         const numInflatables = orderItemsForOrder
+          .filter(item => !!item.unit_id)
           .reduce((sum, item) => sum + (item.qty || 1), 0);
 
         const total = order.total_cents || 0;

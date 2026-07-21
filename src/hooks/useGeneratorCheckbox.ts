@@ -3,17 +3,18 @@
 // Controls the authoritative Event Essentials Generator product through the
 // unified cart. The checkbox no longer creates a legacy generator_fee_cents.
 // It adds/removes the EE Generator product via useQuoteCart.
+//
+// Uses the SAME shared configuration loader as the Event Essentials catalog
+// and E3 repricing — no duplicated incomplete Supabase queries.
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '../lib/supabase';
 import {
-  lookupGeneratorProduct,
-  cartHasDirectGenerator,
-  getDirectGeneratorQuantity,
-  loadPackageGeneratorConfigs,
-  cartPackageContainsGenerator,
-  type GeneratorProductConfiguration,
-} from '../lib/generatorUnified';
+  fetchInventoryProducts,
+  fetchProductPricing,
+  fetchProductCategories,
+  fetchProductBundlesWithAllComponents,
+} from '../lib/queries/products';
+import { getInflatableUnitResolverConfigs } from '../lib/queries/units';
 import {
   buildProductConfigMap,
   buildBundleConfigMap,
@@ -24,6 +25,16 @@ import {
   deriveCandidateViewModel,
 } from '../lib/eventEssentialsCatalogResolver';
 import { checkProductAvailability } from '../lib/queries/products';
+import {
+  lookupGeneratorProduct,
+  cartHasDirectGenerator,
+  getDirectGeneratorQuantity,
+  loadPackageGeneratorConfigs,
+  cartPackageContainsGenerator,
+  isValidEventDateRange,
+  type GeneratorProductConfiguration,
+  type PackageGeneratorConfig,
+} from '../lib/generatorUnified';
 import type {
   UnifiedCartItem,
   EventEssentialProductCartItem,
@@ -37,6 +48,7 @@ export interface GeneratorCheckboxState {
   message: string | null;
   messageType: 'info' | 'error' | null;
   loading: boolean;
+  legacyConversionNeeded: boolean;
 }
 
 export interface UseGeneratorCheckboxResult {
@@ -61,31 +73,64 @@ interface UseGeneratorCheckboxParams {
   onFormDataChange: (updates: Partial<{ event_date: string; event_end_date: string; has_generator: boolean; generator_qty: number }>) => void;
 }
 
-function datesValid(fd: { event_date: string; event_end_date: string }): boolean {
-  return !!(fd.event_date && fd.event_end_date);
+interface ResolverConfig {
+  productConfigs: ReturnType<typeof buildProductConfigMap>;
+  bundleConfigs: ReturnType<typeof buildBundleConfigMap>;
+  categories: ReturnType<typeof buildCategoryMap>;
+  units: ReturnType<typeof buildUnitMap>;
 }
 
 export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGeneratorCheckboxResult {
   const { cart, formData, addToCart, removeEventEssentialProduct, isInitialized, onFormDataChange } = params;
   const [generatorProduct, setGeneratorProduct] = useState<GeneratorProductConfiguration | null>(null);
+  const [resolverConfig, setResolverConfig] = useState<ResolverConfig | null>(null);
+  const [packageConfigs, setPackageConfigs] = useState<PackageGeneratorConfig[] | null>(null);
+  const [packageConfigFailed, setPackageConfigFailed] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<'info' | 'error' | null>(null);
   const [loading, setLoading] = useState(false);
   const [legacyConversionNeeded, setLegacyConversionNeeded] = useState(false);
   const togglingRef = useRef(false);
+  const conversionRanRef = useRef(false);
 
-  // Load the authoritative Generator product once.
+  // Load the authoritative Generator product + shared resolver config once.
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const result = await lookupGeneratorProduct();
+      const [genResult, productsResult, pricingResult, categoriesResult, bundlesResult, unitsResult] =
+        await Promise.all([
+          lookupGeneratorProduct(),
+          fetchInventoryProducts(),
+          fetchProductPricing(),
+          fetchProductCategories(),
+          fetchProductBundlesWithAllComponents(),
+          getInflatableUnitResolverConfigs(),
+        ]);
+
       if (cancelled) return;
-      if (result.status === 'configured') {
-        setGeneratorProduct(result.product);
-      } else if (result.status === 'ambiguous') {
+
+      if (genResult.status === 'configured') {
+        setGeneratorProduct(genResult.product);
+
+        if (
+          productsResult.error || pricingResult.error || categoriesResult.error ||
+          bundlesResult.error || unitsResult.error
+        ) {
+          setMessage('Unable to verify Generator availability. Please try again.');
+          setMessageType('error');
+          return;
+        }
+
+        setResolverConfig({
+          productConfigs: buildProductConfigMap(productsResult.data ?? [], pricingResult.data ?? []),
+          bundleConfigs: buildBundleConfigMap(bundlesResult.data ?? []),
+          categories: buildCategoryMap(categoriesResult.data ?? []),
+          units: buildUnitMap(unitsResult.data ?? []),
+        });
+      } else if (genResult.status === 'ambiguous') {
         setMessage('Generator configuration is ambiguous. Please contact us.');
         setMessageType('error');
-      } else if (result.status === 'configuration_failed') {
+      } else if (genResult.status === 'configuration_failed') {
         setMessage('Unable to verify Generator availability. Please try again.');
         setMessageType('error');
       }
@@ -93,58 +138,116 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
     return () => { cancelled = true; };
   }, []);
 
-  // Detect legacy browser-storage state on init.
-  useEffect(() => {
-    if (!isInitialized || !generatorProduct) return;
-    const hasLegacyState = formData.has_generator || formData.generator_qty > 0;
-    if (!hasLegacyState) return;
-    const alreadyHasDirect = cartHasDirectGenerator(cart, generatorProduct.product_id);
-    if (alreadyHasDirect) {
-      // Clear legacy fields since the EE item already exists.
-      onFormDataChange({ has_generator: false, generator_qty: 0 });
-      return;
-    }
-    setLegacyConversionNeeded(true);
-  }, [isInitialized, generatorProduct]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const directQty = generatorProduct ? getDirectGeneratorQuantity(cart, generatorProduct.product_id) : 0;
-  const [packageContainedQty, setPackageContainedQty] = useState(0);
-
-  // Check if any selected package contains a Generator.
+  // Load package generator configs (fail-closed).
   useEffect(() => {
     if (!generatorProduct) {
-      setPackageContainedQty(0);
+      setPackageConfigs(null);
+      setPackageConfigFailed(false);
       return;
     }
     let cancelled = false;
     (async () => {
-      const configs = await loadPackageGeneratorConfigs(generatorProduct.product_id);
+      const result = await loadPackageGeneratorConfigs(generatorProduct.product_id);
       if (cancelled) return;
-      const qty = cartPackageContainsGenerator(cart, configs, generatorProduct.product_id);
-      setPackageContainedQty(qty);
+      if (result.status === 'loaded') {
+        setPackageConfigs(result.configs);
+        setPackageConfigFailed(false);
+      } else {
+        setPackageConfigs(null);
+        setPackageConfigFailed(true);
+      }
     })();
     return () => { cancelled = true; };
-  }, [generatorProduct, cart]);
+  }, [generatorProduct]);
+
+  const directQty = generatorProduct ? getDirectGeneratorQuantity(cart, generatorProduct.product_id) : 0;
+  const [packageContainedQty, setPackageContainedQty] = useState(0);
+
+  useEffect(() => {
+    if (!generatorProduct || packageConfigs === null) {
+      setPackageContainedQty(0);
+      return;
+    }
+    const qty = cartPackageContainsGenerator(cart, packageConfigs, generatorProduct.product_id);
+    setPackageContainedQty(qty);
+  }, [generatorProduct, packageConfigs, cart]);
 
   const checked = directQty > 0 || packageContainedQty > 0;
 
+  // Detect legacy browser-storage state on init.
+  useEffect(() => {
+    if (!isInitialized || !generatorProduct || packageConfigs === null) return;
+    if (conversionRanRef.current) return;
+
+    const hasLegacyState = formData.has_generator || formData.generator_qty > 0;
+    if (!hasLegacyState) return;
+
+    const alreadyHasDirect = cartHasDirectGenerator(cart, generatorProduct.product_id);
+    if (alreadyHasDirect) {
+      conversionRanRef.current = true;
+      onFormDataChange({ has_generator: false, generator_qty: 0 });
+      return;
+    }
+
+    setLegacyConversionNeeded(true);
+  }, [isInitialized, generatorProduct, packageConfigs]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-run conversion once when conditions are met.
+  useEffect(() => {
+    if (!legacyConversionNeeded || conversionRanRef.current) return;
+    if (!generatorProduct || !resolverConfig || packageConfigs === null || packageConfigFailed) return;
+    if (!isValidEventDateRange(formData.event_date, formData.event_end_date)) return;
+
+    conversionRanRef.current = true;
+    performLegacyConversion();
+  }, [legacyConversionNeeded, generatorProduct, resolverConfig, packageConfigs, packageConfigFailed]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const evaluateGenerator = useCallback(async (qty: number): Promise<{ price: number; context: PricingContext } | null> => {
+    if (!generatorProduct || !resolverConfig) return null;
+
+    const cartLines = normalizeCartLines(cart, resolverConfig.productConfigs, resolverConfig.bundleConfigs);
+    const candidate = evaluateProductCandidate(
+      {
+        productConfigs: resolverConfig.productConfigs,
+        bundleConfigs: resolverConfig.bundleConfigs,
+        categories: resolverConfig.categories,
+        units: resolverConfig.units,
+        cartLines,
+      },
+      { productId: generatorProduct.product_id, qty },
+    );
+    const vm = deriveCandidateViewModel(candidate, false);
+
+    if (!candidate || !vm.selectable || vm.resolvedPriceCents === null) return null;
+
+    const pricingContext: PricingContext =
+      candidate.resolvedPricingContext === 'addon' ? 'addon' : 'standalone';
+
+    return { price: vm.resolvedPriceCents, context: pricingContext };
+  }, [generatorProduct, resolverConfig, cart]);
+
   const toggle = useCallback(async (wantChecked: boolean) => {
     if (togglingRef.current) return;
-    if (!generatorProduct) {
+    if (!generatorProduct || !resolverConfig) {
       setMessage('Unable to verify Generator availability. Please try again.');
       setMessageType('error');
       return;
     }
 
+    if (packageConfigFailed) {
+      setMessage('Unable to verify whether your selected package includes a Generator. Please try again.');
+      setMessageType('error');
+      return;
+    }
+
     if (wantChecked) {
-      // If package already includes a Generator, don't add a direct one.
       if (packageContainedQty > 0) {
         setMessage('Generator included in your selected package.');
         setMessageType('info');
         return;
       }
 
-      if (!datesValid(formData)) {
+      if (!isValidEventDateRange(formData.event_date, formData.event_end_date)) {
         setMessage('Select your event dates before adding a Generator.');
         setMessageType('error');
         return;
@@ -153,7 +256,6 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
       togglingRef.current = true;
       setLoading(true);
       try {
-        // Check availability for qty 1.
         const availResult = await checkProductAvailability(
           [{ product_id: generatorProduct.product_id, quantity: 1 }],
           formData.event_date,
@@ -174,56 +276,24 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
           return;
         }
 
-        // Evaluate through the EE resolver using the current cart.
-        const { data: allProducts } = await supabase
-          .from('inventory_products')
-          .select('id, slug, name, active, category_id, total_quantity, temp_unavailable_qty') as any;
-        const { data: allPricing } = await supabase
-          .from('product_pricing')
-          .select('product_id, standalone_price_cents, addon_price_cents, standalone_enabled, addon_enabled, addon_qualifying_threshold_cents') as any;
-        const { data: allBundles } = await supabase
-          .from('product_bundles')
-          .select('id, standalone_price_cents, addon_price_cents, standalone_enabled, addon_enabled, addon_qualifying_threshold_cents, inflatable_eligibility_mode') as any;
-        const { data: allCategories } = await supabase
-          .from('product_categories')
-          .select('id, slug, name, active') as any;
-        const { data: allUnits } = await supabase
-          .from('units')
-          .select('id, active') as any;
-
-        const productConfigs = buildProductConfigMap(allProducts || [], allPricing || []);
-        const bundleConfigs = buildBundleConfigMap(allBundles || []);
-        const categoryMap = buildCategoryMap(allCategories || []);
-        const unitMap = buildUnitMap(allUnits || []);
-        const cartLines = normalizeCartLines(cart, productConfigs, bundleConfigs);
-
-        const candidate = evaluateProductCandidate(
-          { productConfigs, bundleConfigs, categories: categoryMap, units: unitMap, cartLines },
-          { productId: generatorProduct.product_id, qty: 1 },
-        );
-        const vm = deriveCandidateViewModel(candidate, false);
-
-        if (!candidate || !vm.selectable || vm.resolvedPriceCents === null) {
+        const evalResult = await evaluateGenerator(1);
+        if (!evalResult) {
           setMessage('Unable to verify Generator availability. Please try again.');
           setMessageType('error');
           return;
         }
-
-        const pricingContext: PricingContext =
-          candidate.resolvedPricingContext === 'addon' ? 'addon' : 'standalone';
 
         const item: EventEssentialProductCartItem = {
           item_type: 'event_essential_product',
           product_id: generatorProduct.product_id,
           product_name: generatorProduct.product_name,
           qty: 1,
-          unit_price_cents: vm.resolvedPriceCents,
-          pricing_context: pricingContext,
+          unit_price_cents: evalResult.price,
+          pricing_context: evalResult.context,
           isAvailable: true,
         };
 
         addToCart(item);
-        // Clear legacy form fields.
         onFormDataChange({ has_generator: false, generator_qty: 0 });
         setMessage(null);
         setMessageType(null);
@@ -235,7 +305,6 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
         togglingRef.current = false;
       }
     } else {
-      // Unchecking: remove the complete direct Generator selection.
       if (directQty > 0) {
         removeEventEssentialProduct(generatorProduct.product_id);
       }
@@ -243,12 +312,19 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
       setMessage(null);
       setMessageType(null);
     }
-  }, [generatorProduct, packageContainedQty, directQty, formData, cart, addToCart, removeEventEssentialProduct, onFormDataChange]);
+  }, [generatorProduct, resolverConfig, packageConfigFailed, packageContainedQty, directQty, formData, addToCart, removeEventEssentialProduct, onFormDataChange, evaluateGenerator]);
 
   const performLegacyConversion = useCallback(async () => {
-    if (!generatorProduct) return;
-    if (!datesValid(formData)) {
+    if (!generatorProduct || !resolverConfig) return;
+
+    if (!isValidEventDateRange(formData.event_date, formData.event_end_date)) {
       setMessage('Your saved Generator selection needs to be reviewed before continuing.');
+      setMessageType('error');
+      return;
+    }
+
+    if (packageConfigFailed) {
+      setMessage('Unable to verify whether your selected package includes a Generator. Please try again.');
       setMessageType('error');
       return;
     }
@@ -278,51 +354,20 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
         return;
       }
 
-      // Evaluate through resolver.
-      const { data: allProducts } = await supabase
-        .from('inventory_products')
-        .select('id, slug, name, active, category_id, total_quantity, temp_unavailable_qty') as any;
-      const { data: allPricing } = await supabase
-        .from('product_pricing')
-        .select('product_id, standalone_price_cents, addon_price_cents, standalone_enabled, addon_enabled, addon_qualifying_threshold_cents') as any;
-      const { data: allBundles } = await supabase
-        .from('product_bundles')
-        .select('id, standalone_price_cents, addon_price_cents, standalone_enabled, addon_enabled, addon_qualifying_threshold_cents, inflatable_eligibility_mode') as any;
-      const { data: allCategories } = await supabase
-        .from('product_categories')
-        .select('id, slug, name, active') as any;
-      const { data: allUnits } = await supabase
-        .from('units')
-        .select('id, active') as any;
-
-      const productConfigs = buildProductConfigMap(allProducts || [], allPricing || []);
-      const bundleConfigs = buildBundleConfigMap(allBundles || []);
-      const categoryMap = buildCategoryMap(allCategories || []);
-      const unitMap = buildUnitMap(allUnits || []);
-      const cartLines = normalizeCartLines(cart, productConfigs, bundleConfigs);
-
-      const candidate = evaluateProductCandidate(
-        { productConfigs, bundleConfigs, categories: categoryMap, units: unitMap, cartLines },
-        { productId: generatorProduct.product_id, qty: legacyQty },
-      );
-      const vm = deriveCandidateViewModel(candidate, false);
-
-      if (!candidate || !vm.selectable || vm.resolvedPriceCents === null) {
+      const evalResult = await evaluateGenerator(legacyQty);
+      if (!evalResult) {
         setMessage('Your saved Generator selection needs to be reviewed before continuing.');
         setMessageType('error');
         return;
       }
-
-      const pricingContext: PricingContext =
-        candidate.resolvedPricingContext === 'addon' ? 'addon' : 'standalone';
 
       const item: EventEssentialProductCartItem = {
         item_type: 'event_essential_product',
         product_id: generatorProduct.product_id,
         product_name: generatorProduct.product_name,
         qty: legacyQty,
-        unit_price_cents: vm.resolvedPriceCents,
-        pricing_context: pricingContext,
+        unit_price_cents: evalResult.price,
+        pricing_context: evalResult.context,
         isAvailable: true,
       };
 
@@ -338,7 +383,7 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
       setLoading(false);
       togglingRef.current = false;
     }
-  }, [generatorProduct, formData, cart, addToCart, onFormDataChange]);
+  }, [generatorProduct, resolverConfig, formData, packageConfigFailed, addToCart, onFormDataChange, evaluateGenerator]);
 
   return {
     state: {
@@ -348,6 +393,7 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
       message,
       messageType,
       loading,
+      legacyConversionNeeded,
     },
     generatorProduct,
     toggle,

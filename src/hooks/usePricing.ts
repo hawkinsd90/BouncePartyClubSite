@@ -61,6 +61,8 @@ interface CalculatePricingParams {
     deposit_paid_cents?: number;
     event_date?: string;
     same_day_weekday_delivery_fee_cents?: number;
+    generator_fee_cents?: number;
+    generator_qty?: number;
   };
 }
 
@@ -222,6 +224,7 @@ export function usePricing() {
         generator_qty: 0,
         rules: pricingRules,
         is_same_day_weekday_delivery: isSameDayWeekday,
+        generator_present_for_same_day_matrix: (eventDetails.generator_qty || 0) > 0,
       });
 
       // Prepare items for display
@@ -249,7 +252,10 @@ export function usePricing() {
       const originalSameDayPickupFeeCents = useSavedSameDayFee && existingOrder?.same_day_pickup_fee_cents
         ? existingOrder.same_day_pickup_fee_cents
         : priceBreakdown.same_day_pickup_fee_cents;
-      const originalGeneratorFeeCents = priceBreakdown.generator_fee_cents;
+      const originalGeneratorFeeCents =
+        existingOrder && (existingOrder.generator_fee_cents ?? null) !== null && (existingOrder.generator_fee_cents ?? 0) > 0
+          ? existingOrder.generator_fee_cents!
+          : priceBreakdown.generator_fee_cents;
       const originalSameDayWeekdayDeliveryFeeCents = useSavedWeekdayDeliveryFee && existingOrder?.same_day_weekday_delivery_fee_cents !== undefined
         ? (existingOrder.same_day_weekday_delivery_fee_cents ?? 0)
         : priceBreakdown.same_day_weekday_delivery_fee_cents;

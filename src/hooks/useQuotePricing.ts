@@ -78,6 +78,9 @@ export function useQuotePricing(cart: InflatableCartItem[], formData: QuoteFormD
       generator_qty: 0,
       rules: pricingRules,
       is_same_day_weekday_delivery: isSameDayWeekdayDelivery(formData.event_date),
+      generator_present_for_same_day_matrix: cart.some(
+        (item) => (item as any).item_type === 'event_essential_product' && (item as any).product_id,
+      ),
     });
 
     setPriceBreakdown(breakdown);

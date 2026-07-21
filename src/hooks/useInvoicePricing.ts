@@ -112,6 +112,7 @@ export function useInvoicePricing(
         generator_qty: 0,
         rules: pricingRules,
         is_same_day_weekday_delivery: isSameDayWeekdayDelivery(eventDetails.event_date),
+        generator_present_for_same_day_matrix: eventDetails.generator_qty > 0,
       });
 
       setPriceBreakdown(breakdown);

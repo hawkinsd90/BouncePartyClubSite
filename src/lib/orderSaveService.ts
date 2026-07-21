@@ -66,10 +66,25 @@ export async function saveOrderChanges({
 
   // Generator Workflow Unification: defensive invariant — a single order must
   // not contain both a legacy Generator charge and an EE Generator product item.
+  // Uses exact Generator product ID, not a blanket EE-product check.
   const hasLegacyGenerator = (editedOrder.generator_qty || 0) > 0 || (editedOrder.generator_fee_cents || 0) > 0;
   if (hasLegacyGenerator && stagedItems) {
+    let genProductId: string | null = null;
+    try {
+      const { lookupGeneratorProduct } = await import('./generatorUnified');
+      const genLookup = await lookupGeneratorProduct();
+      if (genLookup.status === 'configured') {
+        genProductId = genLookup.product.product_id;
+      }
+    } catch {
+      // If lookup fails, fall back to checking any EE product item
+    }
     const hasEEGeneratorItem = stagedItems.some(
-      (item: any) => item.product_id && !item.unit_id && !item.is_deleted,
+      (item: any) => {
+        if (!item.product_id || item.unit_id || item.is_deleted) return false;
+        if (genProductId) return item.product_id === genProductId;
+        return false;
+      },
     );
     if (hasEEGeneratorItem) {
       showToast('This order contains both a legacy Generator charge and an Event Essentials Generator item. Remove one before saving.', 'error');
@@ -311,16 +326,38 @@ export async function saveOrderChanges({
 
   for (const item of stagedItems) {
     if (item.is_new && !item.is_deleted) {
-      const { error: itemInsertError } = await supabase.from('order_items').insert({
-        order_id: order.id, unit_id: item.unit_id, qty: item.qty,
-        wet_or_dry: item.wet_or_dry, unit_price_cents: item.unit_price_cents,
-      });
-      if (itemInsertError) throw new Error(`Failed to add item: ${itemInsertError.message}`);
-      await logChangeFn('order_items', '', `${item.unit_name} (${item.wet_or_dry})`, 'add');
+      // Event Essential product item (not an inflatable)
+      if (item.product_id && !item.unit_id) {
+        const { error: itemInsertError } = await supabase.from('order_items').insert({
+          order_id: order.id,
+          product_id: item.product_id,
+          item_name: item.item_name || item.product_name || null,
+          qty: item.qty,
+          unit_price_cents: item.unit_price_cents,
+          pricing_context: item.pricing_context || null,
+          wet_or_dry: null,
+          unit_id: null,
+          bundle_id: null,
+          component_snapshot: null,
+        } as any);
+        if (itemInsertError) throw new Error(`Failed to add item: ${itemInsertError.message}`);
+        await logChangeFn('order_items', '', item.item_name || item.product_name || 'Event Essential', 'add');
+      } else {
+        // Existing inflatable insert behavior (unchanged)
+        const { error: itemInsertError } = await supabase.from('order_items').insert({
+          order_id: order.id, unit_id: item.unit_id, qty: item.qty,
+          wet_or_dry: item.wet_or_dry, unit_price_cents: item.unit_price_cents,
+        } as any);
+        if (itemInsertError) throw new Error(`Failed to add item: ${itemInsertError.message}`);
+        await logChangeFn('order_items', '', `${item.unit_name} (${item.wet_or_dry})`, 'add');
+      }
     } else if (item.is_deleted && item.id) {
       const { error: itemDeleteError } = await supabase.from('order_items').delete().eq('id', item.id);
       if (itemDeleteError) throw new Error(`Failed to remove item: ${itemDeleteError.message}`);
-      await logChangeFn('order_items', `${item.unit_name} (${item.wet_or_dry})`, '', 'remove');
+      const itemLabel = item.product_id && !item.unit_id
+        ? (item.item_name || item.product_name || 'Event Essential')
+        : `${item.unit_name} (${item.wet_or_dry})`;
+      await logChangeFn('order_items', itemLabel, '', 'remove');
     }
   }
 
