@@ -18,12 +18,15 @@ const corsHeaders = {
   "Access-Control-Expose-Headers": "Content-Disposition",
 };
 
+// Order that requires the additional Wayne County / Wayne County Parks section.
+const WAYNE_COUNTY_ORDER_ID = "4ae9723c-936f-4155-ad93-2e47ef844feb";
+
 // IMPORTANT: This function must stay in sync with src/lib/waiverContent.ts generateWaiverText().
 // The digital signing flow stores a snapshot of that text at signing time. If these diverge,
 // the blank waiver shown to customers will not match what they ultimately sign electronically.
 // When updating either copy, update BOTH files.
-function generateWaiverText(businessName: string, businessLegalEntity: string, businessAddress: string, businessPhone: string, businessEmail: string): string {
-  return `${businessLegalEntity}
+function generateWaiverText(businessName: string, businessLegalEntity: string, businessAddress: string, businessPhone: string, businessEmail: string, orderId: string): string {
+  const baseText = `${businessLegalEntity}
 ${businessAddress} | ${businessPhone} | ${businessEmail}
 
 IMPORTANT: THIS IS A LEGAL DOCUMENT. PLEASE READ CAREFULLY BEFORE SIGNING.
@@ -126,6 +129,24 @@ If I am not the parent or legal guardian of participating minors, I affirm I hav
 14. INSURANCE DISCLAIMER
 
 ${businessName} does not provide medical or liability insurance for injuries sustained while using the equipment.`;
+
+  if (orderId === WAYNE_COUNTY_ORDER_ID) {
+    // NOTE: The section header must be UPPERCASE LETTERS AND SPACES ONLY.
+    // The frontend Sign page detects section headers with the regex
+    //   /^\d+\.\s+[A-Z\s]+$/
+    // and renders matching lines in bold. Punctuation like an em dash (—)
+    // would break that match and the header would render as normal text.
+    // "INDEPENDENT PROVIDER" is therefore placed in the first body paragraph.
+    return baseText + `
+
+15. WAYNE COUNTY PARKS ACKNOWLEDGMENT
+
+INDEPENDENT PROVIDER: The inflatable equipment is provided, installed, and operated solely by Bounce Party Club LLC and not by Wayne County or Wayne County Parks.
+
+The renter acknowledges that Wayne County and Wayne County Parks are not responsible for the operation, supervision, maintenance, or use of the inflatable equipment.`;
+  }
+
+  return baseText;
 }
 
 Deno.serve(async (req: Request) => {
@@ -204,7 +225,7 @@ Deno.serve(async (req: Request) => {
       [businessAddress, businessPhone, businessEmail].filter(Boolean).join(" | "),
     ].filter(Boolean).join("  ");
 
-    const waiverText = generateWaiverText(businessName, businessLegalEntity, businessAddress, businessPhone, businessEmail);
+    const waiverText = generateWaiverText(businessName, businessLegalEntity, businessAddress, businessPhone, businessEmail, orderId);
 
     const customer = order.customers as any;
     const address = order.addresses as any;
