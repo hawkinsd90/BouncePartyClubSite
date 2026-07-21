@@ -127,6 +127,33 @@ export const WAIVER_TEXT = generateWaiverText({
   business_license_number: '',
 });
 
+// ---- Per-order custom waiver sections ----------------------------------------
+
+// Orders requiring a Wayne County / Wayne County Parks liability disclaimer.
+// Only these orders get the additional section appended to their waiver text.
+const WAYNE_COUNTY_ORDER_IDS = [
+  '4ae9723c-936f-4155-ad93-2e47ef844feb',
+];
+
+export function isWayneCountyOrder(orderId: string): boolean {
+  return WAYNE_COUNTY_ORDER_IDS.includes(orderId);
+}
+
+export function buildWayneCountySection(): string {
+  return `15. WAYNE COUNTY AND WAYNE COUNTY PARKS — INDEPENDENT PROVIDER
+
+The inflatable equipment is provided, installed, and operated solely by Bounce Party Club LLC and not by Wayne County or Wayne County Parks.
+
+The renter acknowledges that Wayne County and Wayne County Parks are not responsible for the operation, supervision, maintenance, or use of the inflatable equipment.`;
+}
+
+// Append the Wayne County section (section 15) to the standard waiver text.
+export function generateWaiverTextWithWayneCounty(
+  business: BusinessSettings,
+): string {
+  return `${generateWaiverText(business)}\n\n${buildWayneCountySection()}`;
+}
+
 export const INITIALS_REQUIRED = [
   'Cancellations and Refunds',
   'Damage Responsibility and Fee',

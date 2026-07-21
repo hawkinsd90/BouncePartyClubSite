@@ -10,7 +10,10 @@ import {
   WAIVER_VERSION,
   INITIALS_REQUIRED,
   ELECTRONIC_CONSENT_TEXT,
+  isWayneCountyOrder,
+  generateWaiverTextWithWayneCounty,
 } from '../lib/waiverContent';
+import { useBusinessSettings } from '../contexts/BusinessContext';
 
 interface OrderData {
   id: string;
@@ -69,6 +72,30 @@ export default function Sign() {
   const [homeState, setHomeState] = useState('');
   const [homeZip, setHomeZip] = useState('');
   const [sameAsEventAddress, setSameAsEventAddress] = useState(false);
+  const [effectiveWaiverText, setEffectiveWaiverText] = useState(WAIVER_TEXT);
+  const businessSettings = useBusinessSettings();
+
+  // Build order-specific waiver text. For orders requiring a Wayne County
+  // liability disclaimer, append section 15 to the standard waiver text.
+  useEffect(() => {
+    if (orderId && isWayneCountyOrder(orderId)) {
+      const fallbackSettings = {
+        business_name: 'Bounce Party Club',
+        business_name_short: 'Bounce Party Club',
+        business_legal_entity: 'Bounce Party Club LLC',
+        business_address: '',
+        business_phone: '(313) 889-3860',
+        business_email: 'BouncePartyClub@gmail.com',
+        business_website: 'https://bouncepartyclub.com',
+        business_license_number: '',
+      };
+      setEffectiveWaiverText(
+        generateWaiverTextWithWayneCounty(businessSettings ?? fallbackSettings),
+      );
+    } else {
+      setEffectiveWaiverText(WAIVER_TEXT);
+    }
+  }, [orderId, businessSettings]);
 
   useEffect(() => {
     if (orderId) trackEvent('waiver_link_opened', { orderId });
@@ -254,7 +281,7 @@ export default function Sign() {
             initialsData: initials,
             typedName,
             waiverVersion: WAIVER_VERSION,
-            waiverText: WAIVER_TEXT,
+            waiverText: effectiveWaiverText,
             electronicConsentText: ELECTRONIC_CONSENT_TEXT,
             sendEmailConfirmation,
           }),
@@ -352,7 +379,7 @@ export default function Sign() {
               </h3>
               <WaiverViewer
                 ref={waiverViewerRef}
-                waiverText={WAIVER_TEXT}
+                waiverText={effectiveWaiverText}
                 onScrollToBottom={setHasScrolledToBottom}
                 initialsRequired={INITIALS_REQUIRED}
                 onInitialsChange={handleInitialsChange}

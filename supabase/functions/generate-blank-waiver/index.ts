@@ -128,6 +128,24 @@ If I am not the parent or legal guardian of participating minors, I affirm I hav
 ${businessName} does not provide medical or liability insurance for injuries sustained while using the equipment.`;
 }
 
+// ---- Per-order custom waiver sections ----------------------------------------
+// Must stay in sync with src/lib/waiverContent.ts WAYNE_COUNTY_ORDER_IDS.
+const WAYNE_COUNTY_ORDER_IDS: string[] = [
+  "4ae9723c-936f-4155-ad93-2e47ef844feb",
+];
+
+function isWayneCountyOrder(orderId: string): boolean {
+  return WAYNE_COUNTY_ORDER_IDS.includes(orderId);
+}
+
+function buildWayneCountySection(): string {
+  return `15. WAYNE COUNTY AND WAYNE COUNTY PARKS — INDEPENDENT PROVIDER
+
+The inflatable equipment is provided, installed, and operated solely by Bounce Party Club LLC and not by Wayne County or Wayne County Parks.
+
+The renter acknowledges that Wayne County and Wayne County Parks are not responsible for the operation, supervision, maintenance, or use of the inflatable equipment.`;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -204,7 +222,9 @@ Deno.serve(async (req: Request) => {
       [businessAddress, businessPhone, businessEmail].filter(Boolean).join(" | "),
     ].filter(Boolean).join("  ");
 
-    const waiverText = generateWaiverText(businessName, businessLegalEntity, businessAddress, businessPhone, businessEmail);
+    const waiverText = isWayneCountyOrder(orderId)
+      ? `${generateWaiverText(businessName, businessLegalEntity, businessAddress, businessPhone, businessEmail)}\n\n${buildWayneCountySection()}`
+      : generateWaiverText(businessName, businessLegalEntity, businessAddress, businessPhone, businessEmail);
 
     const customer = order.customers as any;
     const address = order.addresses as any;
