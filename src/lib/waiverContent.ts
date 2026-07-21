@@ -144,7 +144,9 @@ export function buildWayneCountySection(): string {
 
 The inflatable equipment is provided, installed, and operated solely by Bounce Party Club LLC and not by Wayne County or Wayne County Parks.
 
-The renter acknowledges that Wayne County and Wayne County Parks are not responsible for the operation, supervision, maintenance, or use of the inflatable equipment.`;
+The renter acknowledges that Wayne County and Wayne County Parks are not responsible for the operation, supervision, maintenance, or use of the inflatable equipment.
+
+Nothing in this Agreement shall be construed as creating any duty or responsibility on the part of Wayne County or Wayne County Parks for the operation, supervision, maintenance, or use of the inflatable equipment.`;
 }
 
 // Append the Wayne County section (section 15) to the standard waiver text.
