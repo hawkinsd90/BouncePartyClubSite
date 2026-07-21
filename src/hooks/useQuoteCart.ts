@@ -12,6 +12,8 @@ import {
   mapProductAvailabilityToItem,
   mapBundleAvailabilityToItem,
   mergeProductIntoCart,
+  filterOutEventEssentialProduct,
+  filterOutEventEssentialBundle,
 } from '../lib/unifiedCart';
 import type {
   UnifiedCartItem,
@@ -147,6 +149,26 @@ export function useQuoteCart() {
     persistCart(newCart);
   }
 
+  function removeEventEssentialProduct(productId: string): boolean {
+    const before = cartRef.current;
+    const nextCart = filterOutEventEssentialProduct(before, productId);
+    if (nextCart.length === before.length) return false;
+    cartRef.current = nextCart;
+    setCart(nextCart);
+    persistCart(nextCart);
+    return true;
+  }
+
+  function removeEventEssentialBundle(bundleId: string): boolean {
+    const before = cartRef.current;
+    const nextCart = filterOutEventEssentialBundle(before, bundleId);
+    if (nextCart.length === before.length) return false;
+    cartRef.current = nextCart;
+    setCart(nextCart);
+    persistCart(nextCart);
+    return true;
+  }
+
   function applyEventEssentialsRepricedCart(
     expectedCart: UnifiedCartItem[],
     repricedCart: UnifiedCartItem[],
@@ -264,6 +286,8 @@ export function useQuoteCart() {
     addToCart,
     updateCartItem,
     removeFromCart,
+    removeEventEssentialProduct,
+    removeEventEssentialBundle,
     applyEventEssentialsRepricedCart,
     clearCart,
     checkAllCartAvailability,

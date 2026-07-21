@@ -25,6 +25,7 @@ import {
 } from '../lib/queries/products';
 import { getInflatableUnitResolverConfigs } from '../lib/queries/units';
 import { useQuoteCart } from '../hooks/useQuoteCart';
+import { useEventEssentialsCartRepricing } from '../hooks/useEventEssentialsCartRepricing';
 import {
   buildBundleSnapshot,
   expandCartToProductQuantities,
@@ -79,7 +80,8 @@ function formatPrice(cents: number | null | undefined): string {
 
 export function EventEssentialsCatalog() {
   const navigate = useNavigate();
-  const { cart, addToCart, removeFromCart } = useQuoteCart();
+  const { cart, addToCart, removeEventEssentialProduct, removeEventEssentialBundle, applyEventEssentialsRepricedCart } = useQuoteCart();
+  useEventEssentialsCartRepricing(cart, applyEventEssentialsRepricedCart);
 
   const [enabled, setEnabled] = useState(false);
   const [minOrderCents, setMinOrderCents] = useState<number | null>(null);
@@ -817,12 +819,7 @@ export function EventEssentialsCatalog() {
                   }, 0);
 
                   function handleRemoveProduct() {
-                    const index = cart.findIndex(
-                      (item) =>
-                        isEventEssentialProductCartItem(item) &&
-                        item.product_id === product.id,
-                    );
-                    if (index !== -1) removeFromCart(index);
+                    removeEventEssentialProduct(product.id);
                   }
                   // Add button requires BOTH existing availability AND resolver selectability.
                   const canAdd =
@@ -1019,12 +1016,7 @@ export function EventEssentialsCatalog() {
                   }, 0);
 
                   function handleRemoveBundle() {
-                    const index = cart.findIndex(
-                      (item) =>
-                        isEventEssentialBundleCartItem(item) &&
-                        item.bundle_id === bundle.id,
-                    );
-                    if (index !== -1) removeFromCart(index);
+                    removeEventEssentialBundle(bundle.id);
                   }
 
                   return (

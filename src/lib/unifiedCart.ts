@@ -314,3 +314,29 @@ export function mapBundleAvailabilityToItem(
     return result != null && result.is_allowed === true;
   });
 }
+
+export function filterOutEventEssentialProduct(
+  cart: UnifiedCartItem[],
+  productId: string,
+): UnifiedCartItem[] {
+  return cart.filter(
+    (item) =>
+      !(
+        isEventEssentialProductCartItem(item) &&
+        item.product_id === productId
+      ),
+  );
+}
+
+export function filterOutEventEssentialBundle(
+  cart: UnifiedCartItem[],
+  bundleId: string,
+): UnifiedCartItem[] {
+  return cart.filter(
+    (item) =>
+      !(
+        isEventEssentialBundleCartItem(item) &&
+        item.bundle_id === bundleId
+      ),
+  );
+}
