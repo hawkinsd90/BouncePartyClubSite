@@ -197,18 +197,20 @@ export function EventEssentialsCatalog() {
 
   function handleDateChange(newDate: string) {
     setEventDate(newDate);
-    let newEndDate = eventEndDate;
-    if (!newEndDate || newEndDate < newDate) {
-      newEndDate = newDate;
-      setEventEndDate(newDate);
+
+    const nextEndDate =
+      newDate && eventEndDate && eventEndDate >= newDate
+        ? eventEndDate
+        : '';
+
+    if (nextEndDate !== eventEndDate) {
+      setEventEndDate(nextEndDate);
     }
-    persistDates(newDate, newEndDate);
+
+    persistDates(newDate, nextEndDate);
   }
 
   function handleEndDateChange(newEndDate: string) {
-    if (!newEndDate || newEndDate < eventDate) {
-      newEndDate = eventDate;
-    }
     setEventEndDate(newEndDate);
     persistDates(eventDate, newEndDate);
   }
@@ -958,11 +960,10 @@ export function EventEssentialsCatalog() {
                   const hasResolvedPrice = vm.resolvedPriceCents !== null;
                   const message = qualificationMessage(vm);
                   const canAdd =
+                    datesValid &&
                     vm.selectable &&
                     hasResolvedPrice &&
-                    qty > 0 &&
-                    !!eventDate &&
-                    !!eventEndDate;
+                    qty > 0;
 
                   return (
                     <div

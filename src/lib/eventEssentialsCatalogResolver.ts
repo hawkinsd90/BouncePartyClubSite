@@ -73,11 +73,14 @@ function extractContainedProductCategoryIds(
   for (const component of components) {
     const categoryId = component.inventory_products?.category_id;
 
-    if (typeof categoryId !== 'string' || categoryId.length === 0) {
+    const normalizedCategoryId =
+      typeof categoryId === 'string' ? categoryId.trim() : '';
+
+    if (!normalizedCategoryId) {
       return [];
     }
 
-    ids.push(categoryId);
+    ids.push(normalizedCategoryId);
   }
 
   return [...new Set(ids)];

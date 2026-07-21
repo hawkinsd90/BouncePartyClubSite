@@ -1358,6 +1358,55 @@ function runTests(): void {
     ok('67 valid Celebration Seating does not qualify Chairs',
       out !== null && !out.addonQualified && out.qualifyingSubtotalCents === 0);
   }
+
+  // 68. extractContainedProductCategoryIds: whitespace-only category_id -> [].
+  {
+    const bundles = [
+      makeBundleConfigured('b_ws_cat', {
+        product_bundle_components: [
+          { id: 'c1', bundle_id: 'b_ws_cat', product_id: 'p_tables', quantity_per_bundle: 1, inventory_products: { id: 'p_tables', slug: 'p_tables', name: 'Tables', category_id: C_TABLES } },
+          { id: 'c2', bundle_id: 'b_ws_cat', product_id: 'p_chairs', quantity_per_bundle: 1, inventory_products: { id: 'p_chairs', slug: 'p_chairs', name: 'Chairs', category_id: '   ' } },
+        ],
+      }),
+    ];
+    const ctx = buildCtx({ products: [], pricing: [], categories: [makeCategory(C_TABLES)], bundles, cart: [] });
+    const cfg = ctx.bundleConfigs['b_ws_cat'];
+    ok('68 whitespace-only category_id returns empty',
+      cfg !== undefined && cfg.containedProductCategoryIds.length === 0);
+  }
+
+  // 69. Malformed (whitespace) package does not qualify a product.
+  {
+    const genCat = 'cat_generators';
+    const products = [
+      makeProduct('p_gen', genCat),
+      makeProduct('p_tables', C_TABLES),
+      makeProduct('p_chairs', C_CHAIRS),
+    ];
+    const pricing = [
+      makePricing('p_gen', { standalone_price_cents: 20000, standalone_enabled: true, addon_price_cents: 9500, addon_enabled: true, addon_qualifying_threshold_cents: 15000 }),
+    ];
+    const categories = [makeCategory(genCat), makeCategory(C_TABLES), makeCategory(C_CHAIRS)];
+    const bundles = [
+      makeBundleConfigured('b_ws_celebration', {
+        name: 'Celebration Seating',
+        standalone_price_cents: 15000,
+        standalone_enabled: true,
+        inflatable_eligibility_mode: 'none',
+        product_bundle_components: [
+          { id: 'c1', bundle_id: 'b_ws_celebration', product_id: 'p_tables', quantity_per_bundle: 1, inventory_products: { id: 'p_tables', slug: 'p_tables', name: 'Tables', category_id: C_TABLES } },
+          { id: 'c2', bundle_id: 'b_ws_celebration', product_id: 'p_chairs', quantity_per_bundle: 1, inventory_products: { id: 'p_chairs', slug: 'p_chairs', name: 'Chairs', category_id: '   ' } },
+        ],
+      }),
+    ];
+    const ctx = buildCtx({
+      products, pricing, categories, bundles,
+      cart: [makeBundleCart('b_ws_celebration', 1, 15000, 'standalone')],
+    });
+    const out = evaluateProductCandidate(ctx, { productId: 'p_gen', qty: 1 });
+    ok('69 whitespace-malformed package does not qualify Generator',
+      out !== null && !out.addonQualified && out.qualifyingSubtotalCents === 0);
+  }
 }
 
 runTests();
