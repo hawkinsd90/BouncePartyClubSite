@@ -200,7 +200,7 @@ export function OrderDetailsTab({
       )}
 
       {(() => {
-        const itemsChanged = stagedItems.some(item => item.is_new || item.is_deleted || item.is_updated);
+        const itemsChanged = stagedItems.some(item => item.is_new || item.is_deleted);
         const finalDepositCents = customDepositCents !== null ? customDepositCents : (calculatedPricing?.deposit_due_cents || order.deposit_due_cents);
         const currentPaidAmount = order.deposit_paid_cents || 0;
         const originalTotal = calculateStoredOrderTotal(order);
@@ -220,7 +220,7 @@ export function OrderDetailsTab({
             </div>
             <p className="text-sm text-amber-700 mb-2">
               {itemsChanged
-                ? "Since you're adding, removing, or updating order items, the saved payment method will be cleared."
+                ? "Since you're adding or removing units, the saved payment method will be cleared."
                 : finalDepositCents > currentPaidAmount
                 ? `The new deposit (${formatCurrency(finalDepositCents)}) is higher than the amount already paid (${formatCurrency(currentPaidAmount)}), so the payment method will be cleared.`
                 : `The customer paid the full amount (${formatCurrency(currentPaidAmount)}), but the new total (${formatCurrency(newTotal)}) exceeds this, so the payment method will be cleared.`

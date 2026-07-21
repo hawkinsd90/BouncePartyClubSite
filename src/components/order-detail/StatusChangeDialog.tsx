@@ -109,50 +109,6 @@ export function StatusChangeDialog({
           setIsChanging(false);
           return;
         }
-
-        // Recheck Event Essentials Generator availability
-        const activeGeneratorItem = stagedItems.find(
-          (item) => !item.is_deleted && !item.unit_id && item.product_id,
-        );
-        if (activeGeneratorItem && activeGeneratorItem.product_id) {
-          try {
-            const { lookupGeneratorProduct, resolveGeneratorSelection, loadGeneratorResolverConfig } = await import('../../lib/generatorUnified');
-            const lookup = await lookupGeneratorProduct();
-            if (lookup.status === 'configured') {
-              const resolverConfig = await loadGeneratorResolverConfig(lookup.product.product_id);
-              if (!resolverConfig) {
-                showToast('Cannot confirm: Unable to verify Generator availability. Please try again.', 'error');
-                setIsChanging(false);
-                return;
-              }
-              const result = await resolveGeneratorSelection({
-                generatorProductId: lookup.product.product_id,
-                quantity: activeGeneratorItem.qty,
-                eventDate,
-                eventEndDate,
-                resolverConfig,
-                excludeOrderId: orderId,
-              });
-              if (result.status === 'unavailable') {
-                showToast(
-                  `Cannot confirm order: Generator is not available for the selected dates (available: ${result.availableQuantity}). Please adjust the order before confirming.`,
-                  'error'
-                );
-                setIsChanging(false);
-                return;
-              }
-              if (result.status === 'invalid_dates' || result.status === 'configuration_failed') {
-                showToast('Cannot confirm order: Unable to verify Generator availability. Please check event dates and try again.', 'error');
-                setIsChanging(false);
-                return;
-              }
-            }
-          } catch {
-            showToast('Cannot confirm order: Generator availability check failed. Please try again.', 'error');
-            setIsChanging(false);
-            return;
-          }
-        }
       }
 
       // Update order status; include cancellation metadata when cancelling

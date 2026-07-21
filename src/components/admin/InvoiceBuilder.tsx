@@ -16,7 +16,7 @@ import { InvoiceSuccessMessage } from '../invoice/InvoiceSuccessMessage';
 import { AdminMessage } from '../order-detail/AdminMessage';
 import { useInvoiceData } from '../../hooks/useInvoiceData';
 import { usePricing } from '../../hooks/usePricing';
-import { lookupGeneratorProduct, deriveAdminGeneratorMode, resolveGeneratorSelection, loadGeneratorResolverConfig } from '../../lib/generatorUnified';
+import { lookupGeneratorProduct, deriveAdminGeneratorMode } from '../../lib/generatorUnified';
 import { useCartManagement } from '../../hooks/useCartManagement';
 import { useCustomerManagement } from '../../hooks/useCustomerManagement';
 import { useEventDetails } from '../../hooks/useEventDetails';
@@ -56,10 +56,7 @@ export function InvoiceBuilder() {
   const [generatorProductId, setGeneratorProductId] = useState<string | null | undefined>(undefined);
   const [generatorProductName, setGeneratorProductName] = useState('Generator');
   const [generatorQty, setGeneratorQty] = useState(0);
-  const [generatorUnitPriceCents, setGeneratorUnitPriceCents] = useState(0);
-  const [generatorPricingContext, setGeneratorPricingContext] = useState<'standalone' | 'addon'>('standalone');
   const [generatorConfigError, setGeneratorConfigError] = useState<string | null>(null);
-  const [generatorResolving, setGeneratorResolving] = useState(false);
 
   const { orderSummary, calculatedPricing, calculatePricing } = usePricing();
 
@@ -109,7 +106,7 @@ export function InvoiceBuilder() {
       }));
 
       const eeProductItems = generatorQty > 0 && generatorProductId
-        ? [{ product_id: generatorProductId, product_name: generatorProductName, qty: generatorQty, unit_price_cents: generatorUnitPriceCents, is_new: false, is_deleted: false }]
+        ? [{ product_id: generatorProductId, product_name: generatorProductName, qty: generatorQty, unit_price_cents: pricingRules?.generator_fee_single_cents || 0, is_new: false, is_deleted: false }]
         : [];
 
       calculatePricing({
@@ -171,8 +168,6 @@ export function InvoiceBuilder() {
     generatorQty,
     generatorProductId,
     generatorProductName,
-    generatorUnitPriceCents,
-    generatorPricingContext,
   ]);
 
   // Check availability whenever cart items or dates change
@@ -287,7 +282,7 @@ export function InvoiceBuilder() {
           customerId: customerManagement.selectedCustomer || null,
           cartItems,
           eeProductItems: generatorQty > 0 && generatorProductId
-            ? [{ product_id: generatorProductId, product_name: generatorProductName, qty: generatorQty, unit_price_cents: generatorUnitPriceCents, pricing_context: generatorPricingContext }]
+            ? [{ product_id: generatorProductId, product_name: generatorProductName, qty: generatorQty, unit_price_cents: pricingRules?.generator_fee_single_cents || 0, pricing_context: 'standalone' }]
             : [],
           eventDetails: { ...eventDetails, generator_qty: 0 },
           priceBreakdown: {
@@ -424,64 +419,15 @@ export function InvoiceBuilder() {
               legacyGeneratorFeeCents: 0,
             })}
             generatorQty={generatorQty}
-            generatorUnitPriceCents={generatorUnitPriceCents || null}
-            onGeneratorQuantityChange={async (qty) => {
+            generatorUnitPriceCents={pricingRules?.generator_fee_single_cents || null}
+            onGeneratorQuantityChange={(qty) => {
               if (generatorConfigError) {
                 showToast(generatorConfigError, 'error');
                 return;
               }
               if (!generatorProductId) return;
-
-              if (qty === 0) {
-                setGeneratorQty(0);
-                setGeneratorUnitPriceCents(0);
-                return;
-              }
-
-              if (!eventDetails.event_date || !eventDetails.event_end_date) {
-                showToast('Select event dates before adding a Generator.', 'error');
-                return;
-              }
-
-              setGeneratorResolving(true);
-              try {
-                const resolverConfig = await loadGeneratorResolverConfig(generatorProductId);
-                if (!resolverConfig) {
-                  showToast('Unable to load Event Essentials configuration. Please try again.', 'error');
-                  return;
-                }
-
-                const result = await resolveGeneratorSelection({
-                  generatorProductId,
-                  quantity: qty,
-                  eventDate: eventDetails.event_date,
-                  eventEndDate: eventDetails.event_end_date,
-                  resolverConfig,
-                });
-
-                if (result.status === 'unavailable') {
-                  showToast(`Generator is not available for the selected dates (available: ${result.availableQuantity}). Quantity not changed.`, 'error');
-                  return;
-                }
-                if (result.status === 'invalid_dates') {
-                  showToast('Event dates are invalid. Please check the date range.', 'error');
-                  return;
-                }
-                if (result.status === 'configuration_failed') {
-                  showToast(result.error || 'Unable to resolve Generator pricing. Please try again.', 'error');
-                  return;
-                }
-
-                setGeneratorQty(result.quantity);
-                setGeneratorUnitPriceCents(result.unitPriceCents);
-                setGeneratorPricingContext(result.pricingContext);
-                setGeneratorProductName(result.productName);
-                if (qty > 0) updateEventDetails({ generator_qty: 0 });
-              } catch {
-                showToast('Unable to resolve Generator pricing. Please try again.', 'error');
-              } finally {
-                setGeneratorResolving(false);
-              }
+              setGeneratorQty(qty);
+              if (qty > 0) updateEventDetails({ generator_qty: 0 });
             }}
           />
 
@@ -528,48 +474,6 @@ export function InvoiceBuilder() {
             title="Items"
             removeByIndex={true}
           />
-
-          {generatorQty > 0 && generatorProductId && (
-            <div className="bg-white border border-slate-200 rounded-lg p-3 sm:p-4">
-              <h4 className="text-sm font-semibold text-slate-900 mb-3">Event Essentials</h4>
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-slate-900">{generatorProductName}</span>
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
-                      {generatorPricingContext === 'addon' ? 'Add-on' : 'Standalone'}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {generatorQty} × ${(generatorUnitPriceCents / 100).toFixed(2)} = ${((generatorUnitPriceCents * generatorQty) / 100).toFixed(2)}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min="0"
-                    value={generatorQty}
-                    disabled={generatorResolving}
-                    onChange={(e) => {
-                      const qty = parseInt(e.target.value) || 0;
-                      const event = new CustomEvent('generator-qty-change', { detail: qty });
-                      window.dispatchEvent(event);
-                    }}
-                    className="w-16 px-2 py-1 border border-slate-300 rounded text-sm"
-                  />
-                  <button
-                    onClick={() => {
-                      setGeneratorQty(0);
-                      setGeneratorUnitPriceCents(0);
-                    }}
-                    className="text-xs text-red-600 hover:text-red-700 font-medium"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="space-y-4 sm:space-y-6 min-w-0">
