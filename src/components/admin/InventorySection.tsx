@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/pricing';
@@ -35,26 +34,14 @@ export function InventorySection({ units, onRefetch }: InventorySectionProps) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const paramSubtab = searchParams.get('inventoryTab');
-  const [activeSubtab, setActiveSubtab] = useState<InventorySubtab>(
-    isValidSubtab(paramSubtab) ? paramSubtab : 'inflatables',
-  );
-
-  useEffect(() => {
-    const v = searchParams.get('inventoryTab');
-    if (isValidSubtab(v) && v !== activeSubtab) {
-      setActiveSubtab(v);
-    } else if (!isValidSubtab(v) && activeSubtab !== 'inflatables') {
-      // Reset to default if param is invalid/missing
-      setActiveSubtab('inflatables');
-    }
-  }, [searchParams]);
+  const activeSubtab: InventorySubtab = isValidSubtab(searchParams.get('inventoryTab'))
+    ? searchParams.get('inventoryTab') as InventorySubtab
+    : 'inflatables';
 
   function handleSubtabChange(tab: InventorySubtab) {
-    setActiveSubtab(tab);
     const next = new URLSearchParams(searchParams);
     next.set('inventoryTab', tab);
-    setSearchParams(next, { replace: true });
+    setSearchParams(next);
   }
 
   async function checkFutureBookings(unitId: string) {

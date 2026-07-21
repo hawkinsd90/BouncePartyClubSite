@@ -61,6 +61,28 @@ export function buildProductConfigMap(
   return map;
 }
 
+function extractContainedProductCategoryIds(
+  bundle: ProductBundleWithConfiguration,
+): string[] {
+  const components = bundle.product_bundle_components ?? [];
+
+  if (components.length === 0) return [];
+
+  const ids: string[] = [];
+
+  for (const component of components) {
+    const categoryId = component.inventory_products?.category_id;
+
+    if (typeof categoryId !== 'string' || categoryId.length === 0) {
+      return [];
+    }
+
+    ids.push(categoryId);
+  }
+
+  return [...new Set(ids)];
+}
+
 export function buildBundleConfigMap(
   bundles: ProductBundleWithConfiguration[],
 ): Record<string, ResolverBundleConfig> {
@@ -86,9 +108,7 @@ export function buildBundleConfigMap(
       inflatableComponents: (bundle.package_inflatable_components ?? []).map((c) => ({
         selectionMode: c.selection_mode,
       })),
-      containedProductCategoryIds: (bundle.product_bundle_components ?? [])
-        .map((c) => c.inventory_products?.category_id)
-        .filter((id): id is string => typeof id === 'string' && id.length > 0),
+      containedProductCategoryIds: extractContainedProductCategoryIds(bundle),
     };
   }
   return map;

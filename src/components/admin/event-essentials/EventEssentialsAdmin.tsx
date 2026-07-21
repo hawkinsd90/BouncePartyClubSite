@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Package, Tag, Layers } from 'lucide-react';
 import { ProductManager } from './ProductManager';
@@ -16,25 +15,14 @@ function isValidEETab(v: string | null): v is EETab {
 export function EventEssentialsAdmin() {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const paramTab = searchParams.get('eventEssentialsTab');
-  const [activeTab, setActiveTab] = useState<EETab>(
-    isValidEETab(paramTab) ? paramTab : 'products',
-  );
-
-  useEffect(() => {
-    const v = searchParams.get('eventEssentialsTab');
-    if (isValidEETab(v) && v !== activeTab) {
-      setActiveTab(v);
-    } else if (!isValidEETab(v) && activeTab !== 'products') {
-      setActiveTab('products');
-    }
-  }, [searchParams]);
+  const activeTab: EETab = isValidEETab(searchParams.get('eventEssentialsTab'))
+    ? searchParams.get('eventEssentialsTab') as EETab
+    : 'products';
 
   function handleTabChange(tab: EETab) {
-    setActiveTab(tab);
     const next = new URLSearchParams(searchParams);
     next.set('eventEssentialsTab', tab);
-    setSearchParams(next, { replace: true });
+    setSearchParams(next);
   }
 
   return (

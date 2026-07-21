@@ -1146,6 +1146,218 @@ function runTests(): void {
     ok('58 inflatable+package combined qualification',
       out !== null && out.addonQualified && out.qualifyingSubtotalCents === 30000);
   }
+
+  // 59. extractContainedProductCategoryIds: all valid -> returns all expected IDs.
+  {
+    const bundles = [
+      makeBundleConfigured('b_valid', {
+        product_bundle_components: [
+          { id: 'c1', bundle_id: 'b_valid', product_id: 'p_tables', quantity_per_bundle: 1, inventory_products: { id: 'p_tables', slug: 'p_tables', name: 'Tables', category_id: C_TABLES } },
+          { id: 'c2', bundle_id: 'b_valid', product_id: 'p_chairs', quantity_per_bundle: 1, inventory_products: { id: 'p_chairs', slug: 'p_chairs', name: 'Chairs', category_id: C_CHAIRS } },
+        ],
+      }),
+    ];
+    const ctx = buildCtx({ products: [], pricing: [], categories: [makeCategory(C_TABLES), makeCategory(C_CHAIRS)], bundles, cart: [] });
+    const cfg = ctx.bundleConfigs['b_valid'];
+    ok('59 all valid category IDs returned',
+      cfg !== undefined &&
+      cfg.containedProductCategoryIds.length === 2 &&
+      cfg.containedProductCategoryIds.includes(C_TABLES) &&
+      cfg.containedProductCategoryIds.includes(C_CHAIRS));
+  }
+
+  // 60. extractContainedProductCategoryIds: duplicate categories -> unique IDs.
+  {
+    const bundles = [
+      makeBundleConfigured('b_dup', {
+        product_bundle_components: [
+          { id: 'c1', bundle_id: 'b_dup', product_id: 'p_t1', quantity_per_bundle: 1, inventory_products: { id: 'p_t1', slug: 'p_t1', name: 'T1', category_id: C_TABLES } },
+          { id: 'c2', bundle_id: 'b_dup', product_id: 'p_t2', quantity_per_bundle: 1, inventory_products: { id: 'p_t2', slug: 'p_t2', name: 'T2', category_id: C_TABLES } },
+        ],
+      }),
+    ];
+    const ctx = buildCtx({ products: [], pricing: [], categories: [makeCategory(C_TABLES)], bundles, cart: [] });
+    const cfg = ctx.bundleConfigs['b_dup'];
+    ok('60 duplicate categories deduplicated',
+      cfg !== undefined &&
+      cfg.containedProductCategoryIds.length === 1 &&
+      cfg.containedProductCategoryIds[0] === C_TABLES);
+  }
+
+  // 61. extractContainedProductCategoryIds: missing inventory_products join -> [].
+  {
+    const bundles = [
+      makeBundleConfigured('b_missing_join', {
+        product_bundle_components: [
+          { id: 'c1', bundle_id: 'b_missing_join', product_id: 'p_tables', quantity_per_bundle: 1, inventory_products: { id: 'p_tables', slug: 'p_tables', name: 'Tables', category_id: C_TABLES } },
+          { id: 'c2', bundle_id: 'b_missing_join', product_id: 'p_chairs', quantity_per_bundle: 1, inventory_products: null as any },
+        ],
+      }),
+    ];
+    const ctx = buildCtx({ products: [], pricing: [], categories: [makeCategory(C_TABLES)], bundles, cart: [] });
+    const cfg = ctx.bundleConfigs['b_missing_join'];
+    ok('61 missing inventory_products join returns empty',
+      cfg !== undefined && cfg.containedProductCategoryIds.length === 0);
+  }
+
+  // 62. extractContainedProductCategoryIds: null category_id -> [].
+  {
+    const bundles = [
+      makeBundleConfigured('b_null_cat', {
+        product_bundle_components: [
+          { id: 'c1', bundle_id: 'b_null_cat', product_id: 'p_tables', quantity_per_bundle: 1, inventory_products: { id: 'p_tables', slug: 'p_tables', name: 'Tables', category_id: C_TABLES } },
+          { id: 'c2', bundle_id: 'b_null_cat', product_id: 'p_chairs', quantity_per_bundle: 1, inventory_products: { id: 'p_chairs', slug: 'p_chairs', name: 'Chairs', category_id: null as any } },
+        ],
+      }),
+    ];
+    const ctx = buildCtx({ products: [], pricing: [], categories: [makeCategory(C_TABLES)], bundles, cart: [] });
+    const cfg = ctx.bundleConfigs['b_null_cat'];
+    ok('62 null category_id returns empty',
+      cfg !== undefined && cfg.containedProductCategoryIds.length === 0);
+  }
+
+  // 63. extractContainedProductCategoryIds: empty-string category_id -> [].
+  {
+    const bundles = [
+      makeBundleConfigured('b_empty_cat', {
+        product_bundle_components: [
+          { id: 'c1', bundle_id: 'b_empty_cat', product_id: 'p_tables', quantity_per_bundle: 1, inventory_products: { id: 'p_tables', slug: 'p_tables', name: 'Tables', category_id: C_TABLES } },
+          { id: 'c2', bundle_id: 'b_empty_cat', product_id: 'p_chairs', quantity_per_bundle: 1, inventory_products: { id: 'p_chairs', slug: 'p_chairs', name: 'Chairs', category_id: '' } },
+        ],
+      }),
+    ];
+    const ctx = buildCtx({ products: [], pricing: [], categories: [makeCategory(C_TABLES)], bundles, cart: [] });
+    const cfg = ctx.bundleConfigs['b_empty_cat'];
+    ok('63 empty-string category_id returns empty',
+      cfg !== undefined && cfg.containedProductCategoryIds.length === 0);
+  }
+
+  // 64. Partially malformed Celebration Seating does not qualify Generator.
+  {
+    const genCat = 'cat_generators';
+    const products = [
+      makeProduct('p_gen', genCat),
+      makeProduct('p_tables', C_TABLES),
+      makeProduct('p_chairs', C_CHAIRS),
+    ];
+    const pricing = [
+      makePricing('p_gen', { standalone_price_cents: 20000, standalone_enabled: true, addon_price_cents: 9500, addon_enabled: true, addon_qualifying_threshold_cents: 15000 }),
+    ];
+    const categories = [makeCategory(genCat), makeCategory(C_TABLES), makeCategory(C_CHAIRS)];
+    const bundles = [
+      makeBundleConfigured('b_malformed_celebration', {
+        name: 'Celebration Seating',
+        standalone_price_cents: 15000,
+        standalone_enabled: true,
+        inflatable_eligibility_mode: 'none',
+        // One component has a null category_id -> entire package is malformed.
+        product_bundle_components: [
+          { id: 'c1', bundle_id: 'b_malformed_celebration', product_id: 'p_tables', quantity_per_bundle: 1, inventory_products: { id: 'p_tables', slug: 'p_tables', name: 'Tables', category_id: C_TABLES } },
+          { id: 'c2', bundle_id: 'b_malformed_celebration', product_id: 'p_chairs', quantity_per_bundle: 1, inventory_products: { id: 'p_chairs', slug: 'p_chairs', name: 'Chairs', category_id: null as any } },
+        ],
+      }),
+    ];
+    const ctx = buildCtx({
+      products, pricing, categories, bundles,
+      cart: [makeBundleCart('b_malformed_celebration', 1, 15000, 'standalone')],
+    });
+    const out = evaluateProductCandidate(ctx, { productId: 'p_gen', qty: 1 });
+    ok('64 malformed Celebration Seating does not qualify Generator',
+      out !== null && !out.addonQualified && out.qualifyingSubtotalCents === 0);
+  }
+
+  // 65. Fully valid Celebration Seating qualifies Generator at exact $150 threshold.
+  {
+    const genCat = 'cat_generators';
+    const products = [
+      makeProduct('p_gen', genCat),
+      makeProduct('p_tables', C_TABLES),
+      makeProduct('p_chairs', C_CHAIRS),
+    ];
+    const pricing = [
+      makePricing('p_gen', { standalone_price_cents: 20000, standalone_enabled: true, addon_price_cents: 9500, addon_enabled: true, addon_qualifying_threshold_cents: 15000 }),
+    ];
+    const categories = [makeCategory(genCat), makeCategory(C_TABLES), makeCategory(C_CHAIRS)];
+    const bundles = [
+      makeBundleConfigured('b_celebration_valid', {
+        name: 'Celebration Seating',
+        standalone_price_cents: 15000,
+        standalone_enabled: true,
+        inflatable_eligibility_mode: 'none',
+        product_bundle_components: [
+          { id: 'c1', bundle_id: 'b_celebration_valid', product_id: 'p_tables', quantity_per_bundle: 1, inventory_products: { id: 'p_tables', slug: 'p_tables', name: 'Tables', category_id: C_TABLES } },
+          { id: 'c2', bundle_id: 'b_celebration_valid', product_id: 'p_chairs', quantity_per_bundle: 1, inventory_products: { id: 'p_chairs', slug: 'p_chairs', name: 'Chairs', category_id: C_CHAIRS } },
+        ],
+      }),
+    ];
+    const ctx = buildCtx({
+      products, pricing, categories, bundles,
+      cart: [makeBundleCart('b_celebration_valid', 1, 15000, 'standalone')],
+    });
+    const out = evaluateProductCandidate(ctx, { productId: 'p_gen', qty: 1 });
+    ok('65 valid Celebration Seating qualifies Generator at $150',
+      out !== null && out.addonQualified && out.qualifyingSubtotalCents === 15000 && out.resolvedPricingContext === 'addon' && out.resolvedUnitPriceCents === 9500);
+  }
+
+  // 66. Fully valid Celebration Seating does not qualify Tables.
+  {
+    const products = [
+      makeProduct('p_tables', C_TABLES),
+      makeProduct('p_chairs', C_CHAIRS),
+    ];
+    const pricing = [
+      makePricing('p_tables', { standalone_price_cents: 10000, standalone_enabled: true, addon_price_cents: 6000, addon_enabled: true, addon_qualifying_threshold_cents: 15000 }),
+    ];
+    const categories = [makeCategory(C_TABLES), makeCategory(C_CHAIRS)];
+    const bundles = [
+      makeBundleConfigured('b_celebration_t', {
+        standalone_price_cents: 15000,
+        standalone_enabled: true,
+        inflatable_eligibility_mode: 'none',
+        product_bundle_components: [
+          { id: 'c1', bundle_id: 'b_celebration_t', product_id: 'p_tables', quantity_per_bundle: 1, inventory_products: { id: 'p_tables', slug: 'p_tables', name: 'Tables', category_id: C_TABLES } },
+          { id: 'c2', bundle_id: 'b_celebration_t', product_id: 'p_chairs', quantity_per_bundle: 1, inventory_products: { id: 'p_chairs', slug: 'p_chairs', name: 'Chairs', category_id: C_CHAIRS } },
+        ],
+      }),
+    ];
+    const ctx = buildCtx({
+      products, pricing, categories, bundles,
+      cart: [makeBundleCart('b_celebration_t', 1, 15000, 'standalone')],
+    });
+    const out = evaluateProductCandidate(ctx, { productId: 'p_tables', qty: 1 });
+    ok('66 valid Celebration Seating does not qualify Tables',
+      out !== null && !out.addonQualified && out.qualifyingSubtotalCents === 0);
+  }
+
+  // 67. Fully valid Celebration Seating does not qualify Chairs.
+  {
+    const products = [
+      makeProduct('p_tables', C_TABLES),
+      makeProduct('p_chairs', C_CHAIRS),
+    ];
+    const pricing = [
+      makePricing('p_chairs', { standalone_price_cents: 5000, standalone_enabled: true, addon_price_cents: 3000, addon_enabled: true, addon_qualifying_threshold_cents: 15000 }),
+    ];
+    const categories = [makeCategory(C_TABLES), makeCategory(C_CHAIRS)];
+    const bundles = [
+      makeBundleConfigured('b_celebration_c', {
+        standalone_price_cents: 15000,
+        standalone_enabled: true,
+        inflatable_eligibility_mode: 'none',
+        product_bundle_components: [
+          { id: 'c1', bundle_id: 'b_celebration_c', product_id: 'p_tables', quantity_per_bundle: 1, inventory_products: { id: 'p_tables', slug: 'p_tables', name: 'Tables', category_id: C_TABLES } },
+          { id: 'c2', bundle_id: 'b_celebration_c', product_id: 'p_chairs', quantity_per_bundle: 1, inventory_products: { id: 'p_chairs', slug: 'p_chairs', name: 'Chairs', category_id: C_CHAIRS } },
+        ],
+      }),
+    ];
+    const ctx = buildCtx({
+      products, pricing, categories, bundles,
+      cart: [makeBundleCart('b_celebration_c', 1, 15000, 'standalone')],
+    });
+    const out = evaluateProductCandidate(ctx, { productId: 'p_chairs', qty: 1 });
+    ok('67 valid Celebration Seating does not qualify Chairs',
+      out !== null && !out.addonQualified && out.qualifyingSubtotalCents === 0);
+  }
 }
 
 runTests();

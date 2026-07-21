@@ -105,6 +105,11 @@ export function EventEssentialsCatalog() {
   const addingRef = useRef(false);
   const availabilityRequestId = useRef(0);
 
+  const datesValid =
+    eventDate !== '' &&
+    eventEndDate !== '' &&
+    eventEndDate >= eventDate;
+
   useEffect(() => {
     let cancelled = false;
 
@@ -404,8 +409,14 @@ export function EventEssentialsCatalog() {
   );
 
   useEffect(() => {
+    if (!datesValid) {
+      setProductAvailability({});
+      setAvailabilityError(false);
+      setCheckingAvailability(false);
+      return;
+    }
     runAvailabilityPreview(eventDate, eventEndDate, displayProducts, cart);
-  }, [eventDate, eventEndDate, displayProducts, cart, runAvailabilityPreview]);
+  }, [datesValid, eventDate, eventEndDate, displayProducts, cart, runAvailabilityPreview]);
 
   function getQty(key: string): number {
     return quantities[key] ?? 0;
@@ -453,8 +464,8 @@ export function EventEssentialsCatalog() {
       return;
     }
 
-    if (!eventDate || !eventEndDate) {
-      setAddError('Please select event dates before adding items to your cart.');
+    if (!datesValid) {
+      setAddError('Please select valid event dates before adding items to your cart.');
       return;
     }
 
@@ -542,8 +553,8 @@ export function EventEssentialsCatalog() {
       return;
     }
 
-    if (!eventDate || !eventEndDate) {
-      setAddError('Please select event dates before adding items to your cart.');
+    if (!datesValid) {
+      setAddError('Please select valid event dates before adding items to your cart.');
       return;
     }
 
@@ -681,7 +692,7 @@ export function EventEssentialsCatalog() {
           <div className="lg:col-span-2 space-y-6">
             {/* Event Date Selector */}
             <div className={`bg-white rounded-xl shadow-sm border-2 p-4 sm:p-6 transition-colors ${
-              (!eventDate || !eventEndDate) ? 'border-blue-400 ring-2 ring-blue-100' : 'border-slate-200'
+              (!datesValid) ? 'border-blue-400 ring-2 ring-blue-100' : 'border-slate-200'
             }`}>
               <div className="flex items-center gap-3 mb-4">
                 <Calendar className="w-5 h-5 text-blue-600" />
@@ -713,7 +724,7 @@ export function EventEssentialsCatalog() {
                   />
                 </div>
               </div>
-              {(!eventDate || !eventEndDate) && (
+              {!datesValid && (
                 <div className="mt-4 p-4 rounded-lg bg-blue-50 border-2 border-blue-300">
                   <h4 className="text-sm font-bold text-blue-900 mb-1">
                     Choose your event dates
@@ -783,7 +794,6 @@ export function EventEssentialsCatalog() {
                   const candidate = productCandidate(product, Math.max(1, qty));
                   const vm = deriveCandidateViewModel(candidate, false);
                   const avail = productAvailability[product.id];
-                  const datesSelected = !!eventDate && !!eventEndDate;
                   const maxAddable = avail?.maxAddable ?? 0;
                   const hasAvailError = avail?.error ?? availabilityError;
                   const resolverSelectable = vm.selectable;
@@ -791,7 +801,7 @@ export function EventEssentialsCatalog() {
                   const message = qualificationMessage(vm);
                   // Add button requires BOTH existing availability AND resolver selectability.
                   const canAdd =
-                    datesSelected &&
+                    datesValid &&
                     !hasAvailError &&
                     resolverSelectable &&
                     hasResolvedPrice &&
@@ -868,7 +878,7 @@ export function EventEssentialsCatalog() {
                       )}
 
                       {/* Availability status */}
-                      {!datesSelected ? (
+                      {!datesValid ? (
                         <p className="text-xs text-slate-500 mb-3">Select dates to check availability.</p>
                       ) : hasAvailError ? (
                         <p className="text-xs text-amber-700 mb-3">
@@ -893,8 +903,8 @@ export function EventEssentialsCatalog() {
                           <button
                             type="button"
                             onClick={() => decrementQty(key)}
-                            className="w-8 h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors"
-                            disabled={qty <= 0}
+                            className="w-8 h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={!datesValid || qty <= 0}
                           >
                             <Minus className="w-4 h-4" />
                           </button>
@@ -904,13 +914,14 @@ export function EventEssentialsCatalog() {
                             max={maxAddable}
                             value={qty}
                             onChange={(e) => setQty(key, e.target.value, maxAddable)}
-                            className="w-12 text-center font-semibold text-slate-900 text-sm border border-slate-300 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            disabled={!datesValid || hasAvailError}
+                            className="w-12 text-center font-semibold text-slate-900 text-sm border border-slate-300 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                           />
                           <button
                             type="button"
                             onClick={() => incrementQty(key, maxAddable)}
-                            className="w-8 h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors"
-                            disabled={!datesSelected || hasAvailError || qty >= maxAddable}
+                            className="w-8 h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={!datesValid || hasAvailError || qty >= maxAddable}
                           >
                             <Plus className="w-4 h-4" />
                           </button>
@@ -922,7 +933,7 @@ export function EventEssentialsCatalog() {
                           className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <ShoppingCart className="w-4 h-4" />
-                          {datesSelected ? 'Add' : 'Select dates to add'}
+                          {datesValid ? 'Add' : 'Select dates to add'}
                         </button>
                       </div>
                     </div>
@@ -1010,8 +1021,8 @@ export function EventEssentialsCatalog() {
                             <button
                               type="button"
                               onClick={() => decrementQty(key)}
-                              className="w-8 h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors"
-                              disabled={qty <= 0}
+                              className="w-8 h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              disabled={!datesValid || qty <= 0}
                             >
                               <Minus className="w-4 h-4" />
                             </button>
@@ -1020,14 +1031,14 @@ export function EventEssentialsCatalog() {
                               min={0}
                               value={qty}
                               onChange={(e) => setQty(key, e.target.value, 99)}
-                              disabled={!vm.selectable}
-                              className="w-12 text-center font-semibold text-slate-900 text-sm border border-slate-300 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                              disabled={!datesValid || !vm.selectable}
+                              className="w-12 text-center font-semibold text-slate-900 text-sm border border-slate-300 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                             <button
                               type="button"
                               onClick={() => incrementQty(key, 99)}
-                              className="w-8 h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors"
-                              disabled={!vm.selectable}
+                              className="w-8 h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              disabled={!datesValid || !vm.selectable}
                             >
                               <Plus className="w-4 h-4" />
                             </button>
@@ -1039,7 +1050,7 @@ export function EventEssentialsCatalog() {
                             className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white font-semibold rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <ShoppingCart className="w-4 h-4" />
-                            {(!!eventDate && !!eventEndDate) ? 'Add Package' : 'Select dates to add'}
+                            {datesValid ? 'Add Package' : 'Select dates to add'}
                           </button>
                         </div>
                       </div>
