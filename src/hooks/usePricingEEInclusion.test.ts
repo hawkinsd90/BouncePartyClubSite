@@ -1,109 +1,71 @@
-// usePricing/useInvoicePricing EE product inclusion tests.
+// Tests importing actual production helpers from generatorUnified.ts
 // jiti runner, no React/Supabase.
+
+import { aggregateOrderEquipment } from '../lib/generatorUnified';
 
 let passed = 0;
 let failed = 0;
 
 function ok(label: string, condition: boolean): void {
-  if (condition) {
-    passed++;
-  } else {
-    failed++;
-    console.error(`FAIL: ${label}`);
-  }
+  if (condition) { passed++; } else { failed++; console.error(`FAIL: ${label}`); }
 }
 
 function test(name: string, fn: () => void): void {
-  try {
-    fn();
-  } catch (err) {
-    failed++;
-    console.error(`FAIL: ${name}:`, err);
-  }
+  try { fn(); } catch (err) { failed++; console.error(`FAIL: ${name}:`, err); }
 }
 
-function calculateTotals(
-  inflatableItems: Array<{ unit_price_cents: number; qty: number; is_deleted?: boolean }>,
-  eeProductItems: Array<{ unit_price_cents: number; qty: number; is_deleted?: boolean }>,
-): { subtotal: number; eeSubtotal: number; subtotalWithEE: number } {
-  const activeItems = inflatableItems.filter(item => !item.is_deleted);
-  const activeEEItems = eeProductItems.filter(item => !item.is_deleted);
-  const subtotal = activeItems.reduce((sum, item) => sum + item.unit_price_cents * item.qty, 0);
-  const eeSubtotal = activeEEItems.reduce((sum, item) => sum + item.unit_price_cents * item.qty, 0);
-  const subtotalWithEE = subtotal + eeSubtotal;
-  return { subtotal, eeSubtotal, subtotalWithEE };
-}
+const generatorProductId = 'gen-abc';
 
-function calculateInvoiceSubtotal(
-  cartItems: Array<{ adjusted_price_cents: number; qty: number }>,
-  eeProductItems: Array<{ unit_price_cents: number; qty: number; is_deleted?: boolean }>,
-): number {
-  return (
-    cartItems.reduce((sum, item) => sum + item.adjusted_price_cents * item.qty, 0) +
-    eeProductItems
-      .filter(i => !i.is_deleted)
-      .reduce((sum, item) => sum + item.unit_price_cents * item.qty, 0)
-  );
-}
-
-// --- usePricing tests ---
-
-test('should include EE products in subtotal', () => {
-  const inflatables = [{ unit_price_cents: 25000, qty: 1 }];
-  const eeProducts = [{ unit_price_cents: 7500, qty: 2 }];
-  const result = calculateTotals(inflatables, eeProducts);
-  ok('inflatable subtotal', result.subtotal === 25000);
-  ok('ee subtotal', result.eeSubtotal === 15000);
-  ok('total with EE', result.subtotalWithEE === 40000);
-});
-
-test('should exclude deleted EE products from subtotal', () => {
-  const inflatables = [{ unit_price_cents: 25000, qty: 1 }];
-  const eeProducts = [
-    { unit_price_cents: 7500, qty: 2 },
-    { unit_price_cents: 5000, qty: 1, is_deleted: true },
+test('should preserve unrelated EE items after a package containing Generator', () => {
+  const orderItems = [
+    { unit_id: 'unit-1', units: { name: 'Castle Bounce' }, qty: 1, wet_or_dry: 'dry' },
+    { item_name: 'Party Package', product_id: 'pkg-1', qty: 1, component_snapshot: { components: [{ product_id: generatorProductId, quantity_per_bundle: 1 }] } },
+    { item_name: 'Tables (6)', product_id: 'tables-1', qty: 1 },
   ];
-  const result = calculateTotals(inflatables, eeProducts);
-  ok('deleted EE excluded', result.eeSubtotal === 15000);
-  ok('subtotal with EE', result.subtotalWithEE === 40000);
+  const result = aggregateOrderEquipment(orderItems as any, generatorProductId, 0);
+  ok('package generator qty = 1', result.packageGeneratorQty === 1);
+  ok('ee generator qty = 0', result.eeGeneratorQty === 0);
+  ok('tables preserved', result.genericItems.includes('Tables (6)'));
 });
 
-test('should handle empty EE products', () => {
-  const inflatables = [{ unit_price_cents: 25000, qty: 1 }];
-  const result = calculateTotals(inflatables, []);
-  ok('subtotal with no EE', result.subtotalWithEE === 25000);
-  ok('ee subtotal is 0', result.eeSubtotal === 0);
-});
-
-test('should handle empty inflatables with only EE products', () => {
-  const eeProducts = [{ unit_price_cents: 7500, qty: 3 }];
-  const result = calculateTotals([], eeProducts);
-  ok('inflatable subtotal is 0', result.subtotal === 0);
-  ok('ee subtotal', result.eeSubtotal === 22500);
-  ok('total with EE', result.subtotalWithEE === 22500);
-});
-
-// --- useInvoicePricing tests ---
-
-test('should include EE products in invoice subtotal', () => {
-  const cartItems = [{ adjusted_price_cents: 30000, qty: 1 }];
-  const eeProducts = [{ unit_price_cents: 7500, qty: 1 }];
-  ok('invoice subtotal includes EE', calculateInvoiceSubtotal(cartItems, eeProducts) === 37500);
-});
-
-test('should exclude deleted EE products from invoice subtotal', () => {
-  const cartItems = [{ adjusted_price_cents: 30000, qty: 1 }];
-  const eeProducts = [
-    { unit_price_cents: 7500, qty: 1 },
-    { unit_price_cents: 5000, qty: 1, is_deleted: true },
+test('should not double-count direct EE Generator + package Generator', () => {
+  const orderItems = [
+    { item_name: 'Party Package', product_id: 'pkg-1', qty: 1, component_snapshot: { components: [{ product_id: generatorProductId, quantity_per_bundle: 1 }] } },
+    { item_name: 'Generator', product_id: generatorProductId, qty: 2 },
   ];
-  ok('deleted EE excluded from invoice', calculateInvoiceSubtotal(cartItems, eeProducts) === 37500);
+  const result = aggregateOrderEquipment(orderItems as any, generatorProductId, 0);
+  ok('package generator qty = 1', result.packageGeneratorQty === 1);
+  ok('ee generator qty = 2', result.eeGeneratorQty === 2);
+  ok('generator not in generic items', !result.genericItems.includes('Generator'));
 });
 
-// --- Runner ---
+test('should handle items without component_snapshot as generic items', () => {
+  const orderItems = [{ item_name: 'Chairs (10)', product_id: 'chairs-1', qty: 2 }];
+  const result = aggregateOrderEquipment(orderItems as any, generatorProductId, 0);
+  ok('chairs in generic items', result.genericItems.includes('Chairs (10)'));
+  ok('ee generator qty = 0', result.eeGeneratorQty === 0);
+  ok('package generator qty = 0', result.packageGeneratorQty === 0);
+});
 
-console.log('\nusePricing/useInvoicePricing EE inclusion tests:');
+test('should handle malformed component_snapshot gracefully', () => {
+  const orderItems = [{ item_name: 'Broken Package', product_id: 'pkg-broken', qty: 1, component_snapshot: 'not valid json{{' }];
+  const result = aggregateOrderEquipment(orderItems as any, generatorProductId, 0);
+  ok('broken package in generic items', result.genericItems.includes('Broken Package'));
+  ok('package generator qty = 0', result.packageGeneratorQty === 0);
+});
+
+test('legacy fallback used only when no new generator quantity exists', () => {
+  const orderItems = [{ unit_id: 'unit-1', units: { name: 'Castle' }, qty: 1, wet_or_dry: 'dry' }];
+  const result = aggregateOrderEquipment(orderItems as any, generatorProductId, 3);
+  ok('legacy generator qty = 3', result.totalGeneratorQty === 3);
+});
+
+test('new generator takes precedence over legacy', () => {
+  const orderItems = [{ item_name: 'Generator', product_id: generatorProductId, qty: 1 }];
+  const result = aggregateOrderEquipment(orderItems as any, generatorProductId, 3);
+  ok('new generator wins', result.totalGeneratorQty === 1);
+});
+
+console.log('\nuseCalendarTasks aggregation tests (importing production helper):');
 console.log(`${passed} passed, ${failed} failed`);
-if (failed > 0) {
-  process.exit(1);
-}
+if (failed > 0) { process.exit(1); }

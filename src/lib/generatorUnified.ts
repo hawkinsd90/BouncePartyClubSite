@@ -154,6 +154,213 @@ export function cartHasMixedGeneratorState(
 }
 
 // ---------------------------------------------------------------------------
+// Crew equipment aggregation (pure, extracted for testing)
+// ---------------------------------------------------------------------------
+
+export interface OrderItemForAggregation {
+  unit_id?: string | null;
+  units?: { name?: string } | null;
+  item_name?: string | null;
+  product_id?: string | null;
+  qty?: number;
+  wet_or_dry?: string;
+  component_snapshot?: any;
+}
+
+export interface EquipmentAggregationResult {
+  genericItems: string[];
+  equipmentIds: string[];
+  numInflatables: number;
+  eeGeneratorQty: number;
+  packageGeneratorQty: number;
+  totalGeneratorQty: number;
+  displayItems: string[];
+}
+
+export function aggregateOrderEquipment(
+  orderItems: OrderItemForAggregation[],
+  generatorProductId: string | null,
+  legacyGeneratorQty: number,
+): EquipmentAggregationResult {
+  let eeGeneratorQty = 0;
+  let packageGeneratorQty = 0;
+  const genericItems: string[] = [];
+  const equipmentIds: string[] = [];
+  let numInflatables = 0;
+
+  for (const item of orderItems) {
+    if (item.unit_id && item.units?.name) {
+      genericItems.push(`${item.units.name} (${item.wet_or_dry === 'water' ? 'Water' : 'Dry'})`);
+      equipmentIds.push(item.unit_id);
+      numInflatables += item.qty || 1;
+    } else if (item.item_name) {
+      if (generatorProductId && item.product_id === generatorProductId) {
+        eeGeneratorQty += item.qty || 0;
+      } else {
+        let itemContainsGenerator = false;
+        if (item.component_snapshot && generatorProductId) {
+          try {
+            const snapshot =
+              typeof item.component_snapshot === 'string'
+                ? JSON.parse(item.component_snapshot)
+                : item.component_snapshot;
+            if (snapshot?.components) {
+              for (const comp of snapshot.components) {
+                if (comp.product_id === generatorProductId) {
+                  packageGeneratorQty += (comp.quantity_per_bundle || 0) * (item.qty || 0);
+                  itemContainsGenerator = true;
+                }
+              }
+            }
+          } catch {
+            // Ignore malformed snapshot
+          }
+        }
+        if (!itemContainsGenerator) {
+          genericItems.push(item.item_name);
+        }
+      }
+    }
+  }
+
+  const newGeneratorQty = eeGeneratorQty + packageGeneratorQty;
+  const effectiveLegacyQty = newGeneratorQty > 0 ? 0 : legacyGeneratorQty;
+  const totalGeneratorQty = newGeneratorQty > 0 ? newGeneratorQty : effectiveLegacyQty;
+
+  const displayItems = [...genericItems];
+  if (totalGeneratorQty > 0) {
+    displayItems.push(`Generator${totalGeneratorQty > 1 ? ` (${totalGeneratorQty}x)` : ''}`);
+  }
+
+  return {
+    genericItems,
+    equipmentIds,
+    numInflatables,
+    eeGeneratorQty,
+    packageGeneratorQty,
+    totalGeneratorQty,
+    displayItems,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Admin Generator mode derivation (pure)
+// ---------------------------------------------------------------------------
+
+export interface AdminGeneratorModeInput {
+  generatorProductId: string | null | undefined;
+  stagedItems: Array<{
+    product_id?: string | null;
+    unit_id?: string | null;
+    is_deleted?: boolean;
+  }>;
+  legacyGeneratorQty: number;
+  legacyGeneratorFeeCents: number;
+}
+
+export type AdminGeneratorMode = 'none' | 'event_essential' | 'legacy';
+
+export function deriveAdminGeneratorMode(input: AdminGeneratorModeInput): AdminGeneratorMode {
+  const { generatorProductId, stagedItems, legacyGeneratorQty, legacyGeneratorFeeCents } = input;
+
+  if (generatorProductId) {
+    const hasActiveEEGenerator = stagedItems.some(
+      (item) =>
+        !item.is_deleted &&
+        !item.unit_id &&
+        item.product_id === generatorProductId,
+    );
+    if (hasActiveEEGenerator) return 'event_essential';
+  }
+
+  if (legacyGeneratorQty > 0 || legacyGeneratorFeeCents > 0) {
+    return 'legacy';
+  }
+
+  return 'none';
+}
+
+// ---------------------------------------------------------------------------
+// Package-contained generator detection for save invariants (pure)
+// ---------------------------------------------------------------------------
+
+export interface StagedItemLike {
+  product_id?: string | null;
+  unit_id?: string | null;
+  bundle_id?: string | null;
+  is_deleted?: boolean;
+  component_snapshot?: any;
+}
+
+export function stagedItemContainsGenerator(
+  item: StagedItemLike,
+  generatorProductId: string,
+): boolean {
+  if (!item.bundle_id || item.is_deleted) return false;
+  if (item.product_id === generatorProductId) return true;
+  if (item.component_snapshot) {
+    try {
+      const snapshot =
+        typeof item.component_snapshot === 'string'
+          ? JSON.parse(item.component_snapshot)
+          : item.component_snapshot;
+      if (snapshot?.components) {
+        return snapshot.components.some(
+          (comp: any) => comp.product_id === generatorProductId,
+        );
+      }
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+export function detectMixedGeneratorConflict(
+  generatorProductId: string | null,
+  stagedItems: StagedItemLike[],
+  legacyGeneratorQty: number,
+  legacyGeneratorFeeCents: number,
+): { conflict: boolean; reason?: string } {
+  const hasLegacy = legacyGeneratorQty > 0 || legacyGeneratorFeeCents > 0;
+  if (!hasLegacy) return { conflict: false };
+
+  if (!generatorProductId) {
+    return {
+      conflict: true,
+      reason: 'Generator product is not configured — cannot validate mixed state.',
+    };
+  }
+
+  const hasDirectGenerator = stagedItems.some(
+    (item) =>
+      !item.is_deleted &&
+      !item.unit_id &&
+      item.product_id === generatorProductId,
+  );
+  if (hasDirectGenerator) {
+    return {
+      conflict: true,
+      reason:
+        'Order contains both a legacy Generator charge and a direct Event Essentials Generator item.',
+    };
+  }
+
+  const hasPackageGenerator = stagedItems.some((item) =>
+    stagedItemContainsGenerator(item, generatorProductId),
+  );
+  if (hasPackageGenerator) {
+    return {
+      conflict: true,
+      reason:
+        'Order contains both a legacy Generator charge and a package containing a Generator.',
+    };
+  }
+
+  return { conflict: false };
+}
+
+// ---------------------------------------------------------------------------
 // Authoritative lookup (supabase-dependent — lazy import for testability)
 // ---------------------------------------------------------------------------
 

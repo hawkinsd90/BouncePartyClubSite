@@ -97,6 +97,7 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
   const togglingRef = useRef(false);
   const [conversionInFlight, setConversionInFlight] = useState(false);
   const [conversionCompleted, setConversionCompleted] = useState(false);
+  const autoConversionAttempted = useRef(false);
 
   // Load the authoritative Generator product + shared resolver config once.
   useEffect(() => {
@@ -132,6 +133,9 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
           categories: buildCategoryMap(categoriesResult.data ?? []),
           units: buildUnitMap(unitsResult.data ?? []),
         });
+      } else if (genResult.status === 'not_found') {
+        setMessage('Generator is not configured. Please contact us.');
+        setMessageType('error');
       } else if (genResult.status === 'ambiguous') {
         setMessage('Generator configuration is ambiguous. Please contact us.');
         setMessageType('error');
@@ -200,9 +204,11 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
   // Auto-run conversion once when conditions are met.
   useEffect(() => {
     if (!legacyConversionNeeded || conversionCompleted || conversionInFlight) return;
+    if (autoConversionAttempted.current) return; // only one automatic attempt
     if (!generatorProduct || !resolverConfig || packageConfigs === null || packageConfigFailed) return;
     if (!isValidEventDateRange(formData.event_date, formData.event_end_date)) return;
 
+    autoConversionAttempted.current = true;
     void performLegacyConversion();
   }, [legacyConversionNeeded, conversionCompleted, conversionInFlight, generatorProduct, resolverConfig, packageConfigs, packageConfigFailed]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -392,6 +398,8 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
       setMessage(null);
       setMessageType(null);
     } catch {
+      // Failed: keep legacyConversionNeeded=true so Retry button shows.
+      // autoConversionAttempted stays true so no automatic retry.
       setMessage('Your saved Generator selection needs to be reviewed before continuing.');
       setMessageType('error');
     } finally {

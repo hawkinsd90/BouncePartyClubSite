@@ -67,6 +67,7 @@ export interface PriceBreakdown {
   total_cents: number;
   deposit_due_cents: number;
   balance_due_cents: number;
+  event_essentials_subtotal_cents: number;
 }
 
 export function isSameDayWeekdayDelivery(eventDateYMD: string): boolean {
@@ -207,6 +208,7 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
     total_cents,
     deposit_due_cents,
     balance_due_cents,
+    event_essentials_subtotal_cents: 0,
   };
 }
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { lookupGeneratorProduct } from '../lib/generatorUnified';
+import { lookupGeneratorProduct, aggregateOrderEquipment } from '../lib/generatorUnified';
 import { formatOrderId } from '../lib/utils';
 import { format, startOfMonth, endOfMonth, parseISO, addDays } from 'date-fns';
 import { ORDER_STATUS } from '../lib/constants/statuses';
@@ -143,10 +143,18 @@ export function useCalendarTasks(currentMonth: Date) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const result = await lookupGeneratorProduct();
-      if (cancelled) return;
-      if (result.status === 'configured') {
-        setGeneratorProductId(result.product.product_id);
+      try {
+        const result = await lookupGeneratorProduct();
+        if (cancelled) return;
+        if (result.status === 'configured') {
+          setGeneratorProductId(result.product.product_id);
+        } else {
+          // not_found, ambiguous, configuration_failed — all resolve to null
+          // so the loading state terminates and tasks can load.
+          setGeneratorProductId(null);
+        }
+      } catch {
+        if (!cancelled) setGeneratorProductId(null);
       }
     })();
     return () => { cancelled = true; };
@@ -257,67 +265,16 @@ export function useCalendarTasks(currentMonth: Date) {
 
         const orderItemsForOrder = orderItems?.filter(item => item.order_id === order.id) || [];
 
-        // Generator Workflow Unification: determine Generator quantity using
-        // exact product ID (loaded once per task load), not item_name regex.
-        // Precedence: 1. Direct EE Generator order item, 2. Package-contained,
-        // 3. Legacy generator_qty fallback. Never add both together.
-        let eeGeneratorQty = 0;
-        let packageGeneratorQty = 0;
-        const genericItems: string[] = [];
-        for (const item of orderItemsForOrder) {
-          if (item.unit_id && (item.units as any)?.name) {
-            genericItems.push(`${(item.units as any).name} (${item.wet_or_dry === 'water' ? 'Water' : 'Dry'})`);
-          } else if (item.item_name) {
-            // Check if this is the authoritative Generator product
-            if (generatorProductId && item.product_id === generatorProductId) {
-              eeGeneratorQty += item.qty || 0;
-            } else {
-              // Check package component_snapshot for contained Generators
-              let itemContainsGenerator = false;
-              if (item.component_snapshot && generatorProductId) {
-                try {
-                  const snapshot = typeof item.component_snapshot === 'string'
-                    ? JSON.parse(item.component_snapshot)
-                    : item.component_snapshot;
-                  if (snapshot?.components) {
-                    for (const comp of snapshot.components) {
-                      if (comp.product_id === generatorProductId) {
-                        packageGeneratorQty += (comp.quantity_per_bundle || 0) * (item.qty || 0);
-                        itemContainsGenerator = true;
-                      }
-                    }
-                  }
-                } catch {
-                  // Ignore malformed snapshot
-                }
-              }
-              // Always preserve unrelated Event Essential items, regardless of
-              // whether a previous package contained a Generator.
-              if (!itemContainsGenerator) {
-                genericItems.push(item.item_name);
-              }
-            }
-          }
-        }
+        const aggResult = aggregateOrderEquipment(
+          orderItemsForOrder as any,
+          generatorProductId ?? null,
+          order.generator_qty || 0,
+        );
 
-        const newGeneratorQty = eeGeneratorQty + packageGeneratorQty;
-        const legacyGeneratorQty = newGeneratorQty > 0 ? 0 : (order.generator_qty || 0);
-        const totalGeneratorQty = newGeneratorQty > 0 ? newGeneratorQty : legacyGeneratorQty;
-
-        const items = [...genericItems];
-        if (totalGeneratorQty > 0) {
-          items.push(`Generator${totalGeneratorQty > 1 ? ` (${totalGeneratorQty}x)` : ''}`);
-        }
-
-        const equipmentIds = orderItemsForOrder
-          .map(item => item.unit_id)
-          .filter((id): id is string => !!id);
-
-        // numInflatables counts only order items with a unit_id (inflatables).
-        // EE products, packages, and Generators must not inflate this count.
-        const numInflatables = orderItemsForOrder
-          .filter(item => !!item.unit_id)
-          .reduce((sum, item) => sum + (item.qty || 1), 0);
+        const items = aggResult.displayItems;
+        const equipmentIds = aggResult.equipmentIds;
+        const numInflatables = aggResult.numInflatables;
+        const totalGeneratorQty = aggResult.totalGeneratorQty;
 
         const total = order.total_cents || 0;
 

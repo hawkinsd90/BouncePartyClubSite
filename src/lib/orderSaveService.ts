@@ -4,6 +4,7 @@ import { upsertCanonicalAddress } from './addressService';
 import { ORDER_STATUS } from './constants/statuses';
 import { calculateTotalFromOrder } from './orderSummary';
 import { notifyPortalRefresh } from './customerPortalRefreshSignal';
+import { lookupGeneratorProduct, detectMixedGeneratorConflict } from './generatorUnified';
 
 interface SaveOrderChangesParams {
   order: any;
@@ -71,7 +72,6 @@ export async function saveOrderChanges({
   if (hasLegacyGenerator && stagedItems) {
     let genProductId: string | null = null;
     try {
-      const { lookupGeneratorProduct } = await import('./generatorUnified');
       const genLookup = await lookupGeneratorProduct();
       if (genLookup.status === 'configured') {
         genProductId = genLookup.product.product_id;
@@ -84,15 +84,10 @@ export async function saveOrderChanges({
       showToast('Generator product is not configured. Remove the legacy Generator charge before saving.', 'error');
       throw new Error('Generator product not configured — cannot validate mixed state.');
     }
-    const hasEEGeneratorItem = stagedItems.some(
-      (item: any) => {
-        if (!item.product_id || item.unit_id || item.is_deleted) return false;
-        return item.product_id === genProductId;
-      },
-    );
-    if (hasEEGeneratorItem) {
-      showToast('This order contains both a legacy Generator charge and an Event Essentials Generator item. Remove one before saving.', 'error');
-      throw new Error('Mixed Generator state: both legacy and EE Generator present.');
+    const conflict = detectMixedGeneratorConflict(genProductId, stagedItems, editedOrder.generator_qty || 0, editedOrder.generator_fee_cents || 0);
+    if (conflict.conflict) {
+      showToast(conflict.reason || 'Mixed Generator state detected.', 'error');
+      throw new Error(conflict.reason || 'Mixed Generator state detected.');
     }
   }
 
@@ -176,6 +171,11 @@ export async function saveOrderChanges({
     if (calculatedPricing.generator_fee_cents !== (order.generator_fee_cents || 0)) {
       changes.generator_fee_cents = calculatedPricing.generator_fee_cents;
       logs.push(['generator_fee', order.generator_fee_cents || 0, calculatedPricing.generator_fee_cents]);
+    }
+    const eeSubtotal = calculatedPricing.event_essentials_subtotal_cents || 0;
+    if (eeSubtotal !== (order.event_essentials_subtotal_cents || 0)) {
+      changes.event_essentials_subtotal_cents = eeSubtotal;
+      logs.push(['event_essentials_subtotal', order.event_essentials_subtotal_cents || 0, eeSubtotal]);
     }
     if (calculatedPricing.travel_fee_cents !== (order.travel_fee_cents || 0)) {
       changes.travel_fee_cents = calculatedPricing.travel_fee_cents;
@@ -304,7 +304,7 @@ export async function saveOrderChanges({
   }
 
   let shouldClearPayment = false;
-  const itemsChanged = stagedItems.some(item => item.is_new || item.is_deleted);
+  const itemsChanged = stagedItems.some(item => item.is_new || item.is_deleted || item.is_updated);
 
   if (itemsChanged) {
     shouldClearPayment = true;
@@ -362,8 +362,8 @@ export async function saveOrderChanges({
         ? (item.item_name || item.product_name || 'Event Essential')
         : `${item.unit_name} (${item.wet_or_dry})`;
       await logChangeFn('order_items', itemLabel, '', 'remove');
-    } else if (item.id && !item.is_new && !item.is_deleted) {
-      // Update existing item (EE product qty/price change or inflatable change)
+    } else if (item.id && !item.is_new && !item.is_deleted && item.is_updated) {
+      // Update existing item only when explicitly marked as updated
       const { error: itemUpdateError } = await supabase.from('order_items').update({
         qty: item.qty,
         unit_price_cents: item.unit_price_cents,
@@ -470,7 +470,7 @@ export async function saveOrderChanges({
   }
 
   const hasTrackedChanges = logs.length > 0
-    || stagedItems.some(item => item.is_new || item.is_deleted)
+    || stagedItems.some(item => item.is_new || item.is_deleted || item.is_updated)
     || discounts.some(d => d.is_new)
     || customFees.some(f => f.is_new)
     || deletedDiscountCount > 0 || deletedFeeCount > 0
@@ -497,7 +497,7 @@ export async function saveOrderChanges({
   ]);
   const hasCustomerVisibleChanges =
     Object.keys(changes).some(k => CUSTOMER_VISIBLE_CHANGE_KEYS.has(k))
-    || stagedItems.some(item => item.is_new || item.is_deleted)
+    || stagedItems.some(item => item.is_new || item.is_deleted || item.is_updated)
     || discounts.some(d => d.is_new || d.is_deleted)
     || customFees.some(f => f.is_new || f.is_deleted)
     || deletedDiscountCount > 0 || deletedFeeCount > 0

@@ -96,6 +96,7 @@ interface CalculatedPricing {
   total_cents: number;
   deposit_due_cents: number;
   balance_due_cents: number;
+  event_essentials_subtotal_cents: number;
 }
 
 export function usePricing() {
@@ -374,6 +375,7 @@ export function usePricing() {
         total_cents: summary.total,
         deposit_due_cents: summary.depositDue,
         balance_due_cents: summary.balanceDue,
+        event_essentials_subtotal_cents: eeSubtotalCents,
       });
     } catch (error) {
       console.error('Error calculating pricing:', error);

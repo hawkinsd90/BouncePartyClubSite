@@ -1,143 +1,154 @@
-// useGeneratorCheckbox package-aware legacy conversion + state management tests.
+// Tests importing actual production helpers from generatorUnified.ts
 // jiti runner, no React/Supabase.
+
+import {
+  deriveAdminGeneratorMode,
+  detectMixedGeneratorConflict,
+  aggregateOrderEquipment,
+} from '../lib/generatorUnified';
 
 let passed = 0;
 let failed = 0;
 
 function ok(label: string, condition: boolean): void {
-  if (condition) {
-    passed++;
-  } else {
-    failed++;
-    console.error(`FAIL: ${label}`);
-  }
+  if (condition) { passed++; } else { failed++; console.error(`FAIL: ${label}`); }
 }
 
 function test(name: string, fn: () => void): void {
-  try {
-    fn();
-  } catch (err) {
-    failed++;
-    console.error(`FAIL: ${name}:`, err);
-  }
+  try { fn(); } catch (err) { failed++; console.error(`FAIL: ${name}:`, err); }
 }
 
-function calculateDirectQtyToAdd(legacyQty: number, packageQty: number): number {
-  return Math.max(0, legacyQty - packageQty);
-}
+// --- deriveAdminGeneratorMode ---
 
-// --- Package-aware conversion tests ---
-
-test('should add zero direct items when package fully satisfies legacy qty', () => {
-  ok('zero when equal', calculateDirectQtyToAdd(1, 1) === 0);
+test('1. deriveAdminGeneratorMode returns none', () => {
+  const mode = deriveAdminGeneratorMode({
+    generatorProductId: 'gen-123',
+    stagedItems: [],
+    legacyGeneratorQty: 0,
+    legacyGeneratorFeeCents: 0,
+  });
+  ok('none when no items and no legacy', mode === 'none');
 });
 
-test('should add zero direct items when package exceeds legacy qty', () => {
-  ok('zero when package exceeds', calculateDirectQtyToAdd(1, 2) === 0);
+test('2. deriveAdminGeneratorMode returns legacy', () => {
+  const mode = deriveAdminGeneratorMode({
+    generatorProductId: 'gen-123',
+    stagedItems: [],
+    legacyGeneratorQty: 2,
+    legacyGeneratorFeeCents: 5000,
+  });
+  ok('legacy when qty/fee positive', mode === 'legacy');
 });
 
-test('should add remaining qty when package partially satisfies legacy qty', () => {
-  ok('remaining qty', calculateDirectQtyToAdd(3, 1) === 2);
+test('3. deriveAdminGeneratorMode returns event_essential', () => {
+  const mode = deriveAdminGeneratorMode({
+    generatorProductId: 'gen-123',
+    stagedItems: [{ product_id: 'gen-123', unit_id: null, is_deleted: false }],
+    legacyGeneratorQty: 0,
+    legacyGeneratorFeeCents: 0,
+  });
+  ok('event_essential when matching staged item', mode === 'event_essential');
 });
 
-test('should add full legacy qty when package has no generator', () => {
-  ok('full qty when no package gen', calculateDirectQtyToAdd(2, 0) === 2);
+test('3b. deriveAdminGeneratorMode ignores deleted staged item', () => {
+  const mode = deriveAdminGeneratorMode({
+    generatorProductId: 'gen-123',
+    stagedItems: [{ product_id: 'gen-123', unit_id: null, is_deleted: true }],
+    legacyGeneratorQty: 0,
+    legacyGeneratorFeeCents: 0,
+  });
+  ok('none when staged item deleted', mode === 'none');
 });
 
-test('should default legacy qty to 1 when generator_qty is 0 but has_generator is true', () => {
-  const legacyQty = 0 > 0 ? 0 : 1;
-  ok('defaults to 1', legacyQty === 1);
+test('3c. deriveAdminGeneratorMode ignores inflatable with matching product_id', () => {
+  const mode = deriveAdminGeneratorMode({
+    generatorProductId: 'gen-123',
+    stagedItems: [{ product_id: 'gen-123', unit_id: 'unit-1', is_deleted: false }],
+    legacyGeneratorQty: 0,
+    legacyGeneratorFeeCents: 0,
+  });
+  ok('none when item has unit_id', mode === 'none');
 });
 
-test('should clear legacy fields after successful conversion', () => {
-  const updated = { has_generator: false, generator_qty: 0 };
-  ok('has_generator cleared', updated.has_generator === false);
-  ok('generator_qty cleared', updated.generator_qty === 0);
+// --- detectMixedGeneratorConflict ---
+
+test('15. Package mixed-state conflict blocks', () => {
+  const result = detectMixedGeneratorConflict(
+    'gen-123',
+    [{ bundle_id: 'pkg-1', product_id: 'pkg-1', unit_id: null, is_deleted: false, component_snapshot: { components: [{ product_id: 'gen-123', quantity_per_bundle: 1 }] } }],
+    1,
+    0,
+  );
+  ok('package conflict detected', result.conflict === true);
 });
 
-test('should not add direct item when availability check fails', () => {
-  const availResult = { is_allowed: false };
-  let itemAdded = false;
-  if (availResult.is_allowed === true) {
-    itemAdded = true;
-  }
-  ok('no item on failed availability', itemAdded === false);
+test('16. Chair product does not trigger Generator conflict', () => {
+  const result = detectMixedGeneratorConflict(
+    'gen-123',
+    [{ product_id: 'chairs-1', unit_id: null, is_deleted: false }],
+    1,
+    5000,
+  );
+  ok('no conflict for chairs', result.conflict === false);
 });
 
-test('should add direct item when availability check passes', () => {
-  const availResult = { is_allowed: true };
-  let itemAdded = false;
-  if (availResult.is_allowed === true) {
-    itemAdded = true;
-  }
-  ok('item added on passed availability', itemAdded === true);
+test('16b. Direct Generator + legacy blocks', () => {
+  const result = detectMixedGeneratorConflict(
+    'gen-123',
+    [{ product_id: 'gen-123', unit_id: null, is_deleted: false }],
+    1,
+    5000,
+  );
+  ok('direct conflict detected', result.conflict === true);
 });
 
-// --- Conversion state management tests ---
-
-test('should not mark conversion complete before it succeeds', () => {
-  let conversionInFlight = false;
-  let conversionCompleted = false;
-
-  ok('not in flight before start', conversionInFlight === false);
-  ok('not completed before start', conversionCompleted === false);
-
-  conversionInFlight = true;
-  ok('in flight during conversion', conversionInFlight === true);
-  ok('not completed during conversion', conversionCompleted === false);
-
-  conversionInFlight = false;
-  conversionCompleted = true;
-  ok('completed after success', conversionCompleted === true);
+test('16c. Null generatorProductId blocks when legacy present', () => {
+  const result = detectMixedGeneratorConflict(null, [], 1, 5000);
+  ok('null product blocks', result.conflict === true);
 });
 
-test('should remain retryable when conversion fails', () => {
-  let conversionInFlight = false;
-  let conversionCompleted = false;
-  let legacyConversionNeeded = true;
+// --- aggregateOrderEquipment ---
 
-  conversionInFlight = true;
-  conversionInFlight = false;
-
-  ok('not completed after failure', conversionCompleted === false);
-  ok('still needed after failure', legacyConversionNeeded === true);
-  ok('retry allowed', legacyConversionNeeded && !conversionCompleted && !conversionInFlight);
+test('20. Crew package and unrelated items remain represented', () => {
+  const items = [
+    { unit_id: 'unit-1', units: { name: 'Castle' }, qty: 1, wet_or_dry: 'dry' },
+    { item_name: 'Party Package', product_id: 'pkg-1', qty: 1, component_snapshot: { components: [{ product_id: 'gen-abc', quantity_per_bundle: 1 }] } },
+    { item_name: 'Tables (6)', product_id: 'tables-1', qty: 1 },
+  ];
+  const result = aggregateOrderEquipment(items as any, 'gen-abc', 0);
+  ok('package generator counted', result.packageGeneratorQty === 1);
+  ok('tables preserved', result.genericItems.includes('Tables (6)'));
+  ok('castle in generic items', result.genericItems.some((i: string) => i.includes('Castle')));
+  ok('generator in display items', result.displayItems.some((i: string) => i.includes('Generator')));
 });
 
-test('should prevent re-running after successful conversion', () => {
-  const conversionCompleted = true;
-  const conversionInFlight = false;
-  const legacyConversionNeeded = false;
-  const shouldRun = legacyConversionNeeded && !conversionCompleted && !conversionInFlight;
-  ok('no re-run after success', shouldRun === false);
+test('20b. Direct Generator not in generic items', () => {
+  const items = [
+    { item_name: 'Generator', product_id: 'gen-abc', qty: 2 },
+  ];
+  const result = aggregateOrderEquipment(items as any, 'gen-abc', 0);
+  ok('generator not in generic', !result.genericItems.includes('Generator'));
+  ok('ee generator qty = 2', result.eeGeneratorQty === 2);
 });
 
-// --- Configuration loading state tests ---
-
-test('should treat null packageConfigs as loading', () => {
-  const packageConfigs = null;
-  ok('null is loading', packageConfigs === null);
+test('20c. Legacy fallback when no new generator', () => {
+  const items = [
+    { unit_id: 'unit-1', units: { name: 'Castle' }, qty: 1, wet_or_dry: 'dry' },
+  ];
+  const result = aggregateOrderEquipment(items as any, 'gen-abc', 3);
+  ok('legacy generator qty = 3', result.totalGeneratorQty === 3);
 });
 
-test('should treat empty array as loaded', () => {
-  const packageConfigs: any[] = [];
-  ok('empty array is loaded', packageConfigs !== null);
-});
-
-test('should treat undefined generatorProductId as loading', () => {
-  const generatorProductId: string | null | undefined = undefined;
-  ok('undefined is loading', generatorProductId === undefined);
-});
-
-test('should treat null generatorProductId as not found (not loading)', () => {
-  const generatorProductId: string | null | undefined = null;
-  ok('null is not loading', generatorProductId !== undefined);
+test('20d. New generator takes precedence over legacy', () => {
+  const items = [
+    { item_name: 'Generator', product_id: 'gen-abc', qty: 1 },
+  ];
+  const result = aggregateOrderEquipment(items as any, 'gen-abc', 3);
+  ok('new generator wins', result.totalGeneratorQty === 1);
 });
 
 // --- Runner ---
 
-console.log('\nuseGeneratorCheckbox conversion tests:');
+console.log('\nGenerator workflow production helper tests:');
 console.log(`${passed} passed, ${failed} failed`);
-if (failed > 0) {
-  process.exit(1);
-}
+if (failed > 0) { process.exit(1); }

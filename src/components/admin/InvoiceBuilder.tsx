@@ -16,6 +16,7 @@ import { InvoiceSuccessMessage } from '../invoice/InvoiceSuccessMessage';
 import { AdminMessage } from '../order-detail/AdminMessage';
 import { useInvoiceData } from '../../hooks/useInvoiceData';
 import { usePricing } from '../../hooks/usePricing';
+import { lookupGeneratorProduct, deriveAdminGeneratorMode } from '../../lib/generatorUnified';
 import { useCartManagement } from '../../hooks/useCartManagement';
 import { useCustomerManagement } from '../../hooks/useCustomerManagement';
 import { useEventDetails } from '../../hooks/useEventDetails';
@@ -52,8 +53,40 @@ export function InvoiceBuilder() {
   const [requireCardOnFile, setRequireCardOnFile] = useState(true);
   const [availabilityIssues, setAvailabilityIssues] = useState<any[]>([]);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
+  const [generatorProductId, setGeneratorProductId] = useState<string | null | undefined>(undefined);
+  const [generatorProductName, setGeneratorProductName] = useState('Generator');
+  const [generatorQty, setGeneratorQty] = useState(0);
+  const [generatorConfigError, setGeneratorConfigError] = useState<string | null>(null);
 
   const { orderSummary, calculatedPricing, calculatePricing } = usePricing();
+
+  // Load generator product identity once
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const lookup = await lookupGeneratorProduct();
+        if (cancelled) return;
+        if (lookup.status === 'configured') {
+          setGeneratorProductId(lookup.product.product_id);
+          setGeneratorProductName(lookup.product.product_name || 'Generator');
+          setGeneratorConfigError(null);
+        } else if (lookup.status === 'not_found' || lookup.status === 'ambiguous') {
+          setGeneratorProductId(null);
+          setGeneratorConfigError(lookup.status === 'ambiguous' ? 'Multiple Generator products found.' : 'Generator product not configured.');
+        } else {
+          setGeneratorProductId(null);
+          setGeneratorConfigError('Generator configuration lookup failed.');
+        }
+      } catch {
+        if (!cancelled) {
+          setGeneratorProductId(null);
+          setGeneratorConfigError('Generator configuration lookup failed.');
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // Calculate pricing whenever dependencies change
   useEffect(() => {
@@ -72,8 +105,13 @@ export function InvoiceBuilder() {
         unit_price_cents: item.adjusted_price_cents,
       }));
 
+      const eeProductItems = generatorQty > 0 && generatorProductId
+        ? [{ product_id: generatorProductId, product_name: generatorProductName, qty: generatorQty, unit_price_cents: pricingRules?.generator_fee_single_cents || 0, is_new: false, is_deleted: false }]
+        : [];
+
       calculatePricing({
         items,
+        eeProductItems,
         eventDetails: {
           event_date: eventDetails.event_date,
           event_end_date: eventDetails.event_end_date,
@@ -127,6 +165,9 @@ export function InvoiceBuilder() {
     generatorFeeWaived,
     sameDayWeekdayDeliveryFeeWaived,
     calculatePricing,
+    generatorQty,
+    generatorProductId,
+    generatorProductName,
   ]);
 
   // Check availability whenever cart items or dates change
@@ -240,9 +281,13 @@ export function InvoiceBuilder() {
         {
           customerId: customerManagement.selectedCustomer || null,
           cartItems,
-          eventDetails,
+          eeProductItems: generatorQty > 0 && generatorProductId
+            ? [{ product_id: generatorProductId, product_name: generatorProductName, qty: generatorQty, unit_price_cents: pricingRules?.generator_fee_single_cents || 0, pricing_context: 'standalone' }]
+            : [],
+          eventDetails: { ...eventDetails, generator_qty: 0 },
           priceBreakdown: {
             ...calculatedPricing,
+            tax_applied: (calculatedPricing.tax_cents || 0) > 0,
             travel_base_radius_miles: calculatedPricing.travel_base_radius_miles ?? 0,
             travel_chargeable_miles: calculatedPricing.travel_chargeable_miles ?? 0,
             travel_per_mile_cents: calculatedPricing.travel_per_mile_cents ?? 0,
@@ -283,6 +328,7 @@ export function InvoiceBuilder() {
       }
 
       clearCart();
+      setGeneratorQty(0);
       setDiscounts([]);
       setCustomFees([]);
       setCustomDepositCents(null);
@@ -364,6 +410,25 @@ export function InvoiceBuilder() {
             }}
             compact={true}
             showUntilEndOfDay={true}
+            generatorMode={deriveAdminGeneratorMode({
+              generatorProductId,
+              stagedItems: generatorQty > 0 && generatorProductId
+                ? [{ product_id: generatorProductId, unit_id: null, is_deleted: false }]
+                : [],
+              legacyGeneratorQty: eventDetails.generator_qty || 0,
+              legacyGeneratorFeeCents: 0,
+            })}
+            generatorQty={generatorQty}
+            generatorUnitPriceCents={pricingRules?.generator_fee_single_cents || null}
+            onGeneratorQuantityChange={(qty) => {
+              if (generatorConfigError) {
+                showToast(generatorConfigError, 'error');
+                return;
+              }
+              if (!generatorProductId) return;
+              setGeneratorQty(qty);
+              if (qty > 0) updateEventDetails({ generator_qty: 0 });
+            }}
           />
 
           {checkingAvailability && (

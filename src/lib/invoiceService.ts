@@ -42,9 +42,18 @@ interface CustomFee {
   amount_cents: number;
 }
 
+interface EEProductItem {
+  product_id: string;
+  product_name: string;
+  qty: number;
+  unit_price_cents: number;
+  pricing_context?: string;
+}
+
 interface InvoiceData {
   customerId: string | null;
   cartItems: CartItem[];
+  eeProductItems?: EEProductItem[];
   eventDetails: EventDetails;
   priceBreakdown: PriceBreakdown | null;
   subtotal: number;
@@ -106,7 +115,8 @@ async function createOrder(
   generatorFeeWaiveReason: string | null = null,
   sameDayWeekdayDeliveryFeeWaived: boolean = false,
   sameDayWeekdayDeliveryFeeWaiveReason: string | null = null,
-  requireCardOnFile: boolean = true
+  requireCardOnFile: boolean = true,
+  eeProductItems: EEProductItem[] = []
 ) {
   const { data, error } = await supabase
     .from('orders')
@@ -120,7 +130,7 @@ async function createOrder(
       until_end_of_day: eventDetails.until_end_of_day,
       location_type: eventDetails.location_type,
       surface: eventDetails.surface,
-      generator_qty: eventDetails.generator_qty,
+      generator_qty: 0,
       pickup_preference: eventDetails.pickup_preference,
       same_day_responsibility_accepted: eventDetails.same_day_responsibility_accepted,
       overnight_responsibility_accepted: eventDetails.overnight_responsibility_accepted,
@@ -134,7 +144,9 @@ async function createOrder(
       surface_fee_cents: priceBreakdown?.surface_fee_cents || 0,
       same_day_pickup_fee_cents: priceBreakdown?.same_day_pickup_fee_cents || 0,
       same_day_weekday_delivery_fee_cents: priceBreakdown?.same_day_weekday_delivery_fee_cents || 0,
-      generator_fee_cents: priceBreakdown?.generator_fee_cents || 0,
+      generator_fee_cents: 0,
+      event_essentials_subtotal_cents: (eeProductItems || [])
+        .reduce((sum: number, item: EEProductItem) => sum + item.unit_price_cents * item.qty, 0),
       tax_cents: taxCents,
       tax_waived: taxWaived,
       tax_waive_reason: taxWaiveReason,
@@ -169,16 +181,28 @@ async function createOrder(
   return data;
 }
 
-async function createOrderItems(orderId: string, cartItems: CartItem[]) {
-  const orderItems = cartItems.map(item => ({
-    order_id: orderId,
-    unit_id: item.unit_id,
-    qty: item.qty,
-    wet_or_dry: item.mode,
-    unit_price_cents: item.adjusted_price_cents,
-  }));
+async function createOrderItems(orderId: string, cartItems: CartItem[], eeProductItems: EEProductItem[]) {
+  const orderItems = [
+    ...cartItems.map(item => ({
+      order_id: orderId,
+      unit_id: item.unit_id,
+      qty: item.qty,
+      wet_or_dry: item.mode,
+      unit_price_cents: item.adjusted_price_cents,
+    })),
+    ...eeProductItems.map(item => ({
+      order_id: orderId,
+      product_id: item.product_id,
+      item_name: item.product_name,
+      qty: item.qty,
+      unit_price_cents: item.unit_price_cents,
+      pricing_context: item.pricing_context || 'standalone',
+    })),
+  ];
 
-  const { error } = await supabase.from('order_items').insert(orderItems);
+  if (orderItems.length === 0) return;
+
+  const { error } = await supabase.from('order_items').insert(orderItems as any);
 
   if (error) throw error;
 }
@@ -286,10 +310,11 @@ export async function generateInvoice(invoiceData: InvoiceData, customer: Custom
     invoiceData.generatorFeeWaiveReason || null,
     invoiceData.sameDayWeekdayDeliveryFeeWaived || false,
     invoiceData.sameDayWeekdayDeliveryFeeWaiveReason || null,
-    invoiceData.requireCardOnFile !== false
+    invoiceData.requireCardOnFile !== false,
+    invoiceData.eeProductItems || []
   );
 
-  await createOrderItems(order.id, invoiceData.cartItems);
+  await createOrderItems(order.id, invoiceData.cartItems, invoiceData.eeProductItems || []);
   await createOrderDiscounts(order.id, invoiceData.discounts);
   await createOrderCustomFees(order.id, invoiceData.customFees);
 

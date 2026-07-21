@@ -82,6 +82,7 @@ export function useInvoicePricing(
     eventDetails.lng,
     discounts,
     customFees,
+    eeProductItems,
   ]);
 
   async function calculatePricing() {
@@ -164,8 +165,14 @@ export function useInvoicePricing(
   }, [priceBreakdown]);
 
   const actualSubtotal = useMemo(
-    () => priceBreakdown?.subtotal_cents || subtotal,
-    [priceBreakdown, subtotal]
+    () => {
+      const inflatableSubtotal = priceBreakdown?.subtotal_cents ?? 0;
+      const eeSubtotal = eeProductItems
+        .filter(i => !i.is_deleted)
+        .reduce((sum, item) => sum + item.unit_price_cents * item.qty, 0);
+      return inflatableSubtotal + eeSubtotal;
+    },
+    [priceBreakdown, eeProductItems]
   );
 
   const taxableAmount = useMemo(
