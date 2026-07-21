@@ -113,7 +113,7 @@ export function derivePickupBlockReason(
 export function useCalendarTasks(currentMonth: Date) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [generatorProductId, setGeneratorProductId] = useState<string | null>(null);
+  const [generatorProductId, setGeneratorProductId] = useState<string | null | undefined>(undefined); // undefined = loading, null = not found, string = resolved
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLoadingRef = useRef(false);
   const pendingRefreshRef = useRef(false);
@@ -133,8 +133,11 @@ export function useCalendarTasks(currentMonth: Date) {
   });
 
   useEffect(() => {
+    // Wait for generatorProductId to be resolved (or null) before loading tasks.
+    // This prevents the first task load from processing with unknown Generator identity.
+    if (generatorProductId === undefined) return; // still loading
     loadTasksForMonth(currentMonth);
-  }, [currentMonth]);
+  }, [currentMonth, generatorProductId]);
 
   // Load the authoritative Generator product ID once.
   useEffect(() => {
@@ -270,6 +273,7 @@ export function useCalendarTasks(currentMonth: Date) {
               eeGeneratorQty += item.qty || 0;
             } else {
               // Check package component_snapshot for contained Generators
+              let itemContainsGenerator = false;
               if (item.component_snapshot && generatorProductId) {
                 try {
                   const snapshot = typeof item.component_snapshot === 'string'
@@ -279,6 +283,7 @@ export function useCalendarTasks(currentMonth: Date) {
                     for (const comp of snapshot.components) {
                       if (comp.product_id === generatorProductId) {
                         packageGeneratorQty += (comp.quantity_per_bundle || 0) * (item.qty || 0);
+                        itemContainsGenerator = true;
                       }
                     }
                   }
@@ -286,7 +291,9 @@ export function useCalendarTasks(currentMonth: Date) {
                   // Ignore malformed snapshot
                 }
               }
-              if (!packageGeneratorQty) {
+              // Always preserve unrelated Event Essential items, regardless of
+              // whether a previous package contained a Generator.
+              if (!itemContainsGenerator) {
                 genericItems.push(item.item_name);
               }
             }

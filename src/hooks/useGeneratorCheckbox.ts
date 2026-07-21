@@ -49,6 +49,10 @@ export interface GeneratorCheckboxState {
   messageType: 'info' | 'error' | null;
   loading: boolean;
   legacyConversionNeeded: boolean;
+  configurationLoading: boolean;
+  configurationReady: boolean;
+  configurationFailed: boolean;
+  conversionInFlight: boolean;
 }
 
 export interface UseGeneratorCheckboxResult {
@@ -91,7 +95,8 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
   const [loading, setLoading] = useState(false);
   const [legacyConversionNeeded, setLegacyConversionNeeded] = useState(false);
   const togglingRef = useRef(false);
-  const conversionRanRef = useRef(false);
+  const [conversionInFlight, setConversionInFlight] = useState(false);
+  const [conversionCompleted, setConversionCompleted] = useState(false);
 
   // Load the authoritative Generator product + shared resolver config once.
   useEffect(() => {
@@ -177,30 +182,29 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
   // Detect legacy browser-storage state on init.
   useEffect(() => {
     if (!isInitialized || !generatorProduct || packageConfigs === null) return;
-    if (conversionRanRef.current) return;
+    if (conversionCompleted || conversionInFlight) return;
 
     const hasLegacyState = formData.has_generator || formData.generator_qty > 0;
     if (!hasLegacyState) return;
 
     const alreadyHasDirect = cartHasDirectGenerator(cart, generatorProduct.product_id);
     if (alreadyHasDirect) {
-      conversionRanRef.current = true;
+      setConversionCompleted(true);
       onFormDataChange({ has_generator: false, generator_qty: 0 });
       return;
     }
 
     setLegacyConversionNeeded(true);
-  }, [isInitialized, generatorProduct, packageConfigs]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isInitialized, generatorProduct, packageConfigs, conversionCompleted, conversionInFlight]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-run conversion once when conditions are met.
   useEffect(() => {
-    if (!legacyConversionNeeded || conversionRanRef.current) return;
+    if (!legacyConversionNeeded || conversionCompleted || conversionInFlight) return;
     if (!generatorProduct || !resolverConfig || packageConfigs === null || packageConfigFailed) return;
     if (!isValidEventDateRange(formData.event_date, formData.event_end_date)) return;
 
-    conversionRanRef.current = true;
-    performLegacyConversion();
-  }, [legacyConversionNeeded, generatorProduct, resolverConfig, packageConfigs, packageConfigFailed]); // eslint-disable-line react-hooks/exhaustive-deps
+    void performLegacyConversion();
+  }, [legacyConversionNeeded, conversionCompleted, conversionInFlight, generatorProduct, resolverConfig, packageConfigs, packageConfigFailed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const evaluateGenerator = useCallback(async (qty: number): Promise<{ price: number; context: PricingContext } | null> => {
     if (!generatorProduct || !resolverConfig) return null;
@@ -331,59 +335,75 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
 
     const legacyQty = formData.generator_qty > 0 ? formData.generator_qty : 1;
 
+    const packageQty = packageConfigs
+      ? cartPackageContainsGenerator(cart, packageConfigs, generatorProduct.product_id)
+      : 0;
+
+    const directQtyToAdd = Math.max(0, legacyQty - packageQty);
+
+    setConversionInFlight(true);
     togglingRef.current = true;
     setLoading(true);
     try {
-      const availResult = await checkProductAvailability(
-        [{ product_id: generatorProduct.product_id, quantity: legacyQty }],
-        formData.event_date,
-        formData.event_end_date,
-        null,
-      );
+      if (directQtyToAdd > 0) {
+        const availResult = await checkProductAvailability(
+          [{ product_id: generatorProduct.product_id, quantity: directQtyToAdd }],
+          formData.event_date,
+          formData.event_end_date,
+          null,
+        );
 
-      if (availResult.error || !availResult.data) {
-        setMessage('Your saved Generator selection needs to be reviewed before continuing.');
-        setMessageType('error');
-        return;
+        if (availResult.error || !availResult.data) {
+          setMessage('Your saved Generator selection needs to be reviewed before continuing.');
+          setMessageType('error');
+          return;
+        }
+
+        const avail = availResult.data.find((r) => r.product_id === generatorProduct.product_id);
+        if (!avail || avail.is_allowed !== true) {
+          setMessage('Your saved Generator selection needs to be reviewed before continuing.');
+          setMessageType('error');
+          return;
+        }
+
+        const evalResult = await evaluateGenerator(directQtyToAdd);
+        if (!evalResult) {
+          setMessage('Your saved Generator selection needs to be reviewed before continuing.');
+          setMessageType('error');
+          return;
+        }
+
+        const item: EventEssentialProductCartItem = {
+          item_type: 'event_essential_product',
+          product_id: generatorProduct.product_id,
+          product_name: generatorProduct.product_name,
+          qty: directQtyToAdd,
+          unit_price_cents: evalResult.price,
+          pricing_context: evalResult.context,
+          isAvailable: true,
+        };
+
+        addToCart(item);
       }
 
-      const avail = availResult.data.find((r) => r.product_id === generatorProduct.product_id);
-      if (!avail || avail.is_allowed !== true) {
-        setMessage('Your saved Generator selection needs to be reviewed before continuing.');
-        setMessageType('error');
-        return;
-      }
-
-      const evalResult = await evaluateGenerator(legacyQty);
-      if (!evalResult) {
-        setMessage('Your saved Generator selection needs to be reviewed before continuing.');
-        setMessageType('error');
-        return;
-      }
-
-      const item: EventEssentialProductCartItem = {
-        item_type: 'event_essential_product',
-        product_id: generatorProduct.product_id,
-        product_name: generatorProduct.product_name,
-        qty: legacyQty,
-        unit_price_cents: evalResult.price,
-        pricing_context: evalResult.context,
-        isAvailable: true,
-      };
-
-      addToCart(item);
       onFormDataChange({ has_generator: false, generator_qty: 0 });
       setLegacyConversionNeeded(false);
+      setConversionCompleted(true);
       setMessage(null);
       setMessageType(null);
     } catch {
       setMessage('Your saved Generator selection needs to be reviewed before continuing.');
       setMessageType('error');
     } finally {
+      setConversionInFlight(false);
       setLoading(false);
       togglingRef.current = false;
     }
-  }, [generatorProduct, resolverConfig, formData, packageConfigFailed, addToCart, onFormDataChange, evaluateGenerator]);
+  }, [generatorProduct, resolverConfig, formData, packageConfigFailed, packageConfigs, addToCart, onFormDataChange, evaluateGenerator]);
+
+  const configurationLoading = !generatorProduct || !resolverConfig || packageConfigs === null;
+  const configurationReady = !!generatorProduct && !!resolverConfig && packageConfigs !== null && !packageConfigFailed;
+  const configurationFailed = packageConfigFailed || (!!generatorProduct && !resolverConfig);
 
   return {
     state: {
@@ -392,8 +412,12 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
       directQty,
       message,
       messageType,
-      loading,
+      loading: loading || conversionInFlight,
       legacyConversionNeeded,
+      configurationLoading,
+      configurationReady,
+      configurationFailed,
+      conversionInFlight,
     },
     generatorProduct,
     toggle,

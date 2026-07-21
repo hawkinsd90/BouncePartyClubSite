@@ -593,6 +593,7 @@ export function Quote() {
                   onFormDataChange={updateFormData}
                   generatorState={generatorCheckbox.state}
                   onGeneratorToggle={generatorCheckbox.toggle}
+                  onRetryConversion={generatorCheckbox.performLegacyConversion}
                 />
               </div>
             </div>

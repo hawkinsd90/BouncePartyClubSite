@@ -8,9 +8,10 @@ interface SetupDetailsSectionProps {
   onFormDataChange: (updates: Partial<{ can_stake: boolean | null }>) => void;
   generatorState: GeneratorCheckboxState;
   onGeneratorToggle: (checked: boolean) => void;
+  onRetryConversion: () => void;
 }
 
-export function SetupDetailsSection({ formData, onFormDataChange, generatorState, onGeneratorToggle }: SetupDetailsSectionProps) {
+export function SetupDetailsSection({ formData, onFormDataChange, generatorState, onGeneratorToggle, onRetryConversion }: SetupDetailsSectionProps) {
   const generatorChecked = generatorState.checked;
   const packageHasGenerator = generatorState.packageContainedQty > 0;
   const directQty = generatorState.directQty;
@@ -103,12 +104,17 @@ export function SetupDetailsSection({ formData, onFormDataChange, generatorState
               </p>
             </div>
           </div>
+        ) : generatorState.configurationLoading ? (
+          <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-lg border-2 border-slate-200">
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-slate-600"></div>
+            <p className="text-sm text-slate-600">Loading Generator options…</p>
+          </div>
         ) : (
           <label className="flex items-start cursor-pointer p-4 bg-white rounded-lg border-2 border-amber-300 hover:border-amber-500 transition-colors">
             <input
               type="checkbox"
               checked={generatorChecked}
-              disabled={generatorState.loading}
+              disabled={generatorState.loading || generatorState.configurationFailed}
               onChange={(e) => onGeneratorToggle(e.target.checked)}
               className="mt-1 mr-4 w-5 h-5"
             />
@@ -129,6 +135,22 @@ export function SetupDetailsSection({ formData, onFormDataChange, generatorState
               )}
             </div>
           </label>
+        )}
+
+        {generatorState.legacyConversionNeeded && !generatorState.conversionInFlight && (
+          <div className="mt-3 p-3 rounded-lg bg-amber-50 border border-amber-200">
+            <p className="text-sm text-amber-800 mb-2">
+              Your saved Generator selection needs to be reviewed before continuing.
+            </p>
+            <button
+              type="button"
+              onClick={() => onRetryConversion()}
+              disabled={generatorState.configurationLoading}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-slate-400 text-white text-sm font-semibold rounded-lg transition-colors"
+            >
+              Retry Generator Selection
+            </button>
+          </div>
         )}
 
         {generatorState.message && generatorState.messageType && (

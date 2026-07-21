@@ -224,7 +224,6 @@ export function usePricing() {
         generator_qty: 0,
         rules: pricingRules,
         is_same_day_weekday_delivery: isSameDayWeekday,
-        generator_present_for_same_day_matrix: (eventDetails.generator_qty || 0) > 0,
       });
 
       // Prepare items for display
