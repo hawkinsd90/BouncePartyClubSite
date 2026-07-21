@@ -71,6 +71,13 @@ export interface OrderCustomFee {
 
 export interface OrderSummaryData {
   items: OrderItem[];
+  eeProductItems?: Array<{
+    product_id: string;
+    product_name: string;
+    qty: number;
+    unit_price_cents: number;
+    is_new?: boolean;
+  }>;
   discounts: OrderDiscount[];
   customFees: OrderCustomFee[];
   subtotal_cents: number;
@@ -387,8 +394,17 @@ export function formatOrderSummary(data: OrderSummaryData): OrderSummaryDisplay 
     };
   });
 
+  // Append staged EE product items (not yet persisted as order_items)
+  const eeItems = (data.eeProductItems || []).map(ee => ({
+    name: ee.product_name,
+    mode: 'Event Essential',
+    price: ee.unit_price_cents,
+    qty: ee.qty,
+    isNew: ee.is_new || false,
+  }));
+
   return buildOrderSummaryDisplay({
-    items,
+    items: [...items, ...eeItems],
     fees: {
       travel_fee_cents: data.travel_fee_cents,
       travel_total_miles: data.travel_total_miles,

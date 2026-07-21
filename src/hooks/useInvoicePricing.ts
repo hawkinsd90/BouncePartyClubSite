@@ -9,6 +9,15 @@ interface CartItem {
   qty: number;
 }
 
+interface EEProductItem {
+  product_id: string;
+  product_name: string;
+  qty: number;
+  unit_price_cents: number;
+  is_new?: boolean;
+  is_deleted?: boolean;
+}
+
 interface EventDetails {
   event_date: string;
   event_end_date: string;
@@ -40,7 +49,8 @@ export function useInvoicePricing(
   pricingRules: PricingRules | null,
   discounts: Discount[],
   customFees: CustomFee[],
-  taxWaived: boolean = false
+  taxWaived: boolean = false,
+  eeProductItems: EEProductItem[] = [],
 ) {
   const [priceBreakdown, setPriceBreakdown] = useState<PriceBreakdown | null>(null);
 
@@ -121,8 +131,9 @@ export function useInvoicePricing(
   }
 
   const subtotal = useMemo(
-    () => cartItems.reduce((sum, item) => sum + item.adjusted_price_cents * item.qty, 0),
-    [cartItems]
+    () => cartItems.reduce((sum, item) => sum + item.adjusted_price_cents * item.qty, 0)
+      + eeProductItems.filter(i => !i.is_deleted).reduce((sum, item) => sum + item.unit_price_cents * item.qty, 0),
+    [cartItems, eeProductItems]
   );
 
   const discountTotal = useMemo(

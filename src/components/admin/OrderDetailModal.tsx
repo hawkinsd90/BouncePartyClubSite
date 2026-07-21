@@ -29,13 +29,18 @@ interface OrderDetailModalProps {
 
 interface StagedItem {
   id?: string; // undefined for new items
-  unit_id: string;
-  unit_name: string;
+  unit_id?: string; // optional for EE products
+  unit_name?: string;
+  product_id?: string; // set for EE products
+  product_name?: string;
+  item_name?: string;
   qty: number;
-  wet_or_dry: 'dry' | 'water';
+  wet_or_dry?: 'dry' | 'water';
   unit_price_cents: number;
+  pricing_context?: string;
   is_new?: boolean;
   is_deleted?: boolean;
+  is_updated?: boolean;
 }
 
 export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalProps) {
@@ -62,6 +67,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     pickup_preference: order.pickup_preference || 'next_day',
   });
   const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
+  const [generatorProductId, setGeneratorProductId] = useState<string | null | undefined>(undefined);
   const [discounts, setDiscounts] = useState<any[]>([]);
   const [customFees, setCustomFees] = useState<any[]>([]);
   const [adminMessage, setAdminMessage] = useState(order.admin_message || '');
@@ -218,21 +224,51 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   useEffect(() => {
     loadOrderDetails();
     loadAdminSettings();
+    // Load generator product ID for EE Generator detection
+    (async () => {
+      try {
+        const result = await supabase
+          .from('event_essentials_settings' as any)
+          .select('value')
+          .eq('key', 'generator_product_id')
+          .single();
+        const data = result.data as unknown as { value?: string } | null;
+        setGeneratorProductId(data?.value || null);
+      } catch {
+        setGeneratorProductId(null);
+      }
+    })();
   }, [order.id]);
 
-  // Initialize staged items from order items
+  // Initialize staged items from order items (inflatables and EE products)
   useEffect(() => {
     if (orderItems.length > 0 && stagedItems.length === 0) {
-      const staged = orderItems.map(item => ({
-        id: item.id,
-        unit_id: item.unit_id,
-        unit_name: item.units?.name || 'Unknown',
-        qty: item.qty,
-        wet_or_dry: item.wet_or_dry,
-        unit_price_cents: item.unit_price_cents,
-        is_new: false,
-        is_deleted: false,
-      }));
+      const staged: StagedItem[] = orderItems.map(item => {
+        if (item.unit_id && item.units?.name) {
+          return {
+            id: item.id,
+            unit_id: item.unit_id,
+            unit_name: item.units.name,
+            qty: item.qty,
+            wet_or_dry: item.wet_or_dry,
+            unit_price_cents: item.unit_price_cents,
+            is_new: false,
+            is_deleted: false,
+          };
+        }
+        // EE product or package item
+        return {
+          id: item.id,
+          product_id: item.product_id,
+          product_name: item.item_name || item.product_name || 'Event Essential',
+          item_name: item.item_name,
+          qty: item.qty,
+          unit_price_cents: item.unit_price_cents,
+          pricing_context: item.pricing_context,
+          is_new: false,
+          is_deleted: false,
+        };
+      });
       setStagedItems(staged);
     }
   }, [orderItems]);
@@ -290,7 +326,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       editedOrder.address_zip !== (order.addresses?.zip || '') ||
       editedOrder.pickup_preference !== (order.pickup_preference || 'next_day');
 
-    const itemsChanged = stagedItems.some(item => item.is_new || item.is_deleted);
+    const itemsChanged = stagedItems.some(item => item.is_new || item.is_deleted || item.is_updated);
 
     setHasChanges(manualDirty || orderChanged || itemsChanged);
   }, [editedOrder, stagedItems, order, manualDirty]);
@@ -353,9 +389,9 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
     setCheckingAvailability(true);
     try {
-      const activeItems = stagedItems.filter(item => !item.is_deleted);
+      const activeItems = stagedItems.filter(item => !item.is_deleted && item.unit_id);
       const checks = activeItems.map(item => ({
-        unitId: item.unit_id,
+        unitId: item.unit_id!,
         eventStartDate: editedOrder.event_date,
         eventEndDate: editedOrder.event_end_date,
         excludeOrderId: order.id,
@@ -385,8 +421,30 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
   const handleRecalculatePricing = useCallback(async () => {
     if (!pricingRules || !adminSettings) return;
+    const inflatableItems = stagedItems
+      .filter(item => item.unit_id && !item.product_id)
+      .map(item => ({
+        unit_id: item.unit_id!,
+        unit_name: item.unit_name || 'Unknown',
+        qty: item.qty,
+        wet_or_dry: item.wet_or_dry || 'dry',
+        unit_price_cents: item.unit_price_cents,
+        is_new: item.is_new,
+        is_deleted: item.is_deleted,
+      }));
+    const eeProductItems = stagedItems
+      .filter(item => item.product_id && !item.is_deleted)
+      .map(item => ({
+        product_id: item.product_id!,
+        product_name: item.product_name || item.item_name || 'Event Essential',
+        qty: item.qty,
+        unit_price_cents: item.unit_price_cents,
+        is_new: item.is_new,
+        is_deleted: item.is_deleted,
+      }));
     await calculatePricing({
-      items: stagedItems,
+      items: inflatableItems,
+      eeProductItems,
       eventDetails: {
         event_date: editedOrder.event_date,
         event_end_date: editedOrder.event_end_date,
@@ -754,6 +812,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 setRequireCardOnFile(value);
                 setManualDirty(true);
               }}
+              generatorMode={generatorProductId ? 'event_essential' : 'legacy'}
+              generatorStagedItem={stagedItems.find(
+                (item) => item.product_id && item.product_id === generatorProductId && !item.is_deleted
+              )}
               onStatusChange={initiateStatusChange}
               onMarkChanges={() => setManualDirty(true)}
             />

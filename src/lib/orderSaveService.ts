@@ -76,14 +76,18 @@ export async function saveOrderChanges({
       if (genLookup.status === 'configured') {
         genProductId = genLookup.product.product_id;
       }
-    } catch {
-      // If lookup fails, fall back to checking any EE product item
+    } catch (err) {
+      showToast('Unable to verify Generator configuration. Please try again or contact support.', 'error');
+      throw new Error('Generator product lookup failed — cannot validate mixed state.');
+    }
+    if (!genProductId) {
+      showToast('Generator product is not configured. Remove the legacy Generator charge before saving.', 'error');
+      throw new Error('Generator product not configured — cannot validate mixed state.');
     }
     const hasEEGeneratorItem = stagedItems.some(
       (item: any) => {
         if (!item.product_id || item.unit_id || item.is_deleted) return false;
-        if (genProductId) return item.product_id === genProductId;
-        return false;
+        return item.product_id === genProductId;
       },
     );
     if (hasEEGeneratorItem) {
@@ -358,6 +362,18 @@ export async function saveOrderChanges({
         ? (item.item_name || item.product_name || 'Event Essential')
         : `${item.unit_name} (${item.wet_or_dry})`;
       await logChangeFn('order_items', itemLabel, '', 'remove');
+    } else if (item.id && !item.is_new && !item.is_deleted) {
+      // Update existing item (EE product qty/price change or inflatable change)
+      const { error: itemUpdateError } = await supabase.from('order_items').update({
+        qty: item.qty,
+        unit_price_cents: item.unit_price_cents,
+        pricing_context: item.pricing_context || null,
+      }).eq('id', item.id);
+      if (itemUpdateError) throw new Error(`Failed to update item: ${itemUpdateError.message}`);
+      const itemLabel = item.product_id && !item.unit_id
+        ? (item.item_name || item.product_name || 'Event Essential')
+        : `${item.unit_name} (${item.wet_or_dry})`;
+      await logChangeFn('order_items', itemLabel, `${item.qty} × ${item.unit_price_cents}`, 'update');
     }
   }
 

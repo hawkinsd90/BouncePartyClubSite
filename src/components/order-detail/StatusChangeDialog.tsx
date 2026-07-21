@@ -15,10 +15,11 @@ interface StatusChangeDialogProps {
   pendingStatus: string;
   stagedItems: Array<{
     id?: string;
-    unit_id: string;
-    unit_name: string;
+    unit_id?: string;
+    unit_name?: string;
+    product_id?: string;
     qty: number;
-    wet_or_dry: 'dry' | 'water';
+    wet_or_dry?: 'dry' | 'water';
     is_deleted?: boolean;
   }>;
   eventDate: string;
@@ -79,10 +80,10 @@ export function StatusChangeDialog({
       }
 
       if (pendingStatus === ORDER_STATUS.CONFIRMED) {
-        const activeItems = stagedItems.filter(item => !item.is_deleted);
+        const activeItems = stagedItems.filter(item => !item.is_deleted && item.unit_id);
         const checks = activeItems.map(item => ({
-          unitId: item.unit_id,
-          wetOrDry: item.wet_or_dry,
+          unitId: item.unit_id!,
+          wetOrDry: item.wet_or_dry || 'dry',
           quantity: item.qty,
           eventStartDate: eventDate,
           eventEndDate: eventEndDate,

@@ -13,6 +13,15 @@ interface PricingItem {
   is_deleted?: boolean;
 }
 
+interface EEProductItem {
+  product_id: string;
+  product_name: string;
+  qty: number;
+  unit_price_cents: number;
+  is_new?: boolean;
+  is_deleted?: boolean;
+}
+
 interface FeeWaivers {
   taxWaived?: boolean;
   travelFeeWaived?: boolean;
@@ -24,6 +33,7 @@ interface FeeWaivers {
 
 interface CalculatePricingParams {
   items: PricingItem[];
+  eeProductItems?: EEProductItem[];
   eventDetails: {
     event_date: string;
     event_end_date: string;
@@ -94,6 +104,7 @@ export function usePricing() {
 
   const calculatePricing = useCallback(async ({
     items,
+    eeProductItems = [],
     eventDetails,
     discounts,
     customFees,
@@ -195,6 +206,8 @@ export function usePricing() {
 
       // Filter out deleted items for existing orders
       const activeItems = items.filter(item => !item.is_deleted);
+      const activeEEItems = eeProductItems.filter(item => !item.is_deleted);
+      const eeSubtotalCents = activeEEItems.reduce((sum, item) => sum + item.unit_price_cents * item.qty, 0);
 
       const pricingItems = activeItems.map(item => ({
         unit_id: item.unit_id,
@@ -240,6 +253,16 @@ export function usePricing() {
         }
       }));
 
+      const eeDisplayItems = activeEEItems.map(item => ({
+        product_id: item.product_id,
+        product_name: item.product_name,
+        qty: item.qty,
+        unit_price_cents: item.unit_price_cents,
+        is_new: item.is_new || false,
+      }));
+
+      const subtotalWithEE = priceBreakdown.subtotal_cents + eeSubtotalCents;
+
       // Store original amounts before waivers (for display)
       const originalTravelFeeCents = useSavedTravelFee && existingOrder?.travel_fee_cents
         ? existingOrder.travel_fee_cents
@@ -271,10 +294,10 @@ export function usePricing() {
       const customFeesTotalCents = customFees.reduce((sum: number, f: any) => sum + (f.amount_cents || 0), 0);
       const discountTotalCents = discounts.reduce((sum: number, d: any) => {
         if (d.amount_cents > 0) return sum + d.amount_cents;
-        if (d.percentage > 0) return sum + Math.round(priceBreakdown.subtotal_cents * (d.percentage / 100));
+        if (d.percentage > 0) return sum + Math.round(subtotalWithEE * (d.percentage / 100));
         return sum;
       }, 0);
-      const taxableAmount = priceBreakdown.subtotal_cents + finalTravelFeeCents + finalSurfaceFeeCents + finalGeneratorFeeCents + customFeesTotalCents - discountTotalCents;
+      const taxableAmount = subtotalWithEE + finalTravelFeeCents + finalSurfaceFeeCents + finalGeneratorFeeCents + customFeesTotalCents - discountTotalCents;
 
       // Calculate the potential tax amount (always calculated for display purposes)
       const calculatedTaxCents = Math.round(taxableAmount * 0.06);
@@ -293,7 +316,7 @@ export function usePricing() {
       }
 
       // Calculate total with all waivers applied
-      const finalTotalCents = priceBreakdown.subtotal_cents + finalTravelFeeCents + finalSurfaceFeeCents + finalSameDayPickupFeeCents + finalGeneratorFeeCents + finalSameDayWeekdayDeliveryFeeCents + customFeesTotalCents - discountTotalCents + finalTaxCents;
+      const finalTotalCents = subtotalWithEE + finalTravelFeeCents + finalSurfaceFeeCents + finalSameDayPickupFeeCents + finalGeneratorFeeCents + finalSameDayWeekdayDeliveryFeeCents + customFeesTotalCents - discountTotalCents + finalTaxCents;
 
       // Calculate deposit — clamp so neither value can go negative or exceed total
       const rawDepositDueCents = customDepositCents !== null ? customDepositCents : priceBreakdown.deposit_due_cents;
@@ -303,6 +326,7 @@ export function usePricing() {
       // Build order summary data (with ORIGINAL amounts for display)
       const orderData: OrderSummaryData = {
         items: displayItems,
+        eeProductItems: eeDisplayItems,
         discounts,
         customFees,
         subtotal_cents: priceBreakdown.subtotal_cents,
@@ -331,7 +355,7 @@ export function usePricing() {
       setOrderSummary(summary);
 
       setCalculatedPricing({
-        subtotal_cents: priceBreakdown.subtotal_cents,
+        subtotal_cents: subtotalWithEE,
         generator_fee_cents: finalGeneratorFeeCents,
         travel_fee_cents: finalTravelFeeCents,
         travel_total_miles: finalTravelMiles,
