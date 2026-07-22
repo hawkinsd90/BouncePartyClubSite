@@ -74,32 +74,32 @@ export function calculateRequiredDepositCents(input: {
 }): RequiredDepositResult {
   const { inflatableQuantity, eventEssentialsSubtotalCents, orderTotalCents, inflatableDepositPerUnitCents } = input;
 
-  // Validate inflatable quantity
-  if (!Number.isFinite(inflatableQuantity) || inflatableQuantity < 0) {
+  // Validate inflatable quantity — must be a safe integer, not fractional
+  if (typeof inflatableQuantity !== 'number' || !Number.isFinite(inflatableQuantity) || inflatableQuantity < 0 || !Number.isSafeInteger(inflatableQuantity)) {
     return { status: 'invalid_input', error: 'Invalid inflatable quantity' };
   }
-  const infQty = Math.trunc(inflatableQuantity) || 0;
+  const infQty = inflatableQuantity;
 
-  // Validate EE subtotal
-  if (!Number.isFinite(eventEssentialsSubtotalCents) || eventEssentialsSubtotalCents < 0) {
+  // Validate EE subtotal — must be a safe integer, not fractional
+  if (typeof eventEssentialsSubtotalCents !== 'number' || !Number.isFinite(eventEssentialsSubtotalCents) || eventEssentialsSubtotalCents < 0 || !Number.isSafeInteger(eventEssentialsSubtotalCents)) {
     return { status: 'invalid_input', error: 'Invalid Event Essentials subtotal' };
   }
-  const eeSubtotal = Math.trunc(eventEssentialsSubtotalCents) || 0;
+  const eeSubtotal = eventEssentialsSubtotalCents;
 
-  // Validate order total
-  if (!Number.isFinite(orderTotalCents) || orderTotalCents < 0) {
+  // Validate order total — must be a safe integer, not fractional
+  if (typeof orderTotalCents !== 'number' || !Number.isFinite(orderTotalCents) || orderTotalCents < 0 || !Number.isSafeInteger(orderTotalCents)) {
     return { status: 'invalid_input', error: 'Invalid order total' };
   }
-  const total = Math.trunc(orderTotalCents) || 0;
+  const total = orderTotalCents;
 
   let deposit = 0;
 
   if (infQty > 0) {
     // Inflatable-based deposit: existing per-unit × quantity
-    if (!Number.isFinite(inflatableDepositPerUnitCents) || inflatableDepositPerUnitCents < 0) {
+    if (typeof inflatableDepositPerUnitCents !== 'number' || !Number.isFinite(inflatableDepositPerUnitCents) || inflatableDepositPerUnitCents <= 0 || !Number.isSafeInteger(inflatableDepositPerUnitCents)) {
       return { status: 'invalid_configuration', error: 'Invalid inflatable deposit per-unit setting' };
     }
-    const perUnit = Math.trunc(inflatableDepositPerUnitCents) || 0;
+    const perUnit = inflatableDepositPerUnitCents;
     deposit = perUnit * infQty;
   } else if (eeSubtotal > 0) {
     // EE-only tier deposit — must have valid settings

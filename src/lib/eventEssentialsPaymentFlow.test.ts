@@ -4,6 +4,7 @@
 
 import { composeUnifiedQuoteTotals } from './unifiedTotals';
 import { calculateEventEssentialsSubtotalCents } from './eventEssentialsMoney';
+import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS } from './depositCalculation';
 import type { PriceBreakdown } from './pricing';
 import type {
   UnifiedCartItem,
@@ -76,7 +77,7 @@ function run() {
   {
     const bd = makeNoTaxBreakdown();
     const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeProduct('p1', 'Gen', 9500)];
-    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false });
+    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
     // In Setup Mode, no charge — depositCents is metadata only
     ok('1 setup mode no charge', totals.totalCents === 35900 && totals.depositCents === 5000);
   }
@@ -85,7 +86,7 @@ function run() {
   {
     const bd = makeNoTaxBreakdown();
     const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeProduct('p1', 'Gen', 9500)];
-    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false });
+    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
     // The Stripe session in bookingMode uses mode: "setup" — no line_items
     // depositCents in metadata = inflatable-only deposit, not the full total
     ok('2 no total charge', totals.depositCents === 5000 && totals.depositCents !== totals.totalCents);
@@ -95,7 +96,7 @@ function run() {
   {
     const bd = makeNoTaxBreakdown();
     const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeProduct('p1', 'Gen', 9500)];
-    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false });
+    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
     // deposit_paid_cents must remain 0 — Setup Mode saves card only
     // balance_due_cents = total - deposit (projected, not yet paid)
     ok('3 no deposit charge', totals.balanceDueCents === 35900 - 5000);
@@ -105,7 +106,7 @@ function run() {
   {
     const bd = makeNoTaxBreakdown();
     const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeProduct('p1', 'Gen', 9500)];
-    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false });
+    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
     // subtotal_cents stored = equipmentSubtotal = 24500
     // total = 24500 + 11400 = 35900
     ok('4 stored total includes EE', totals.equipmentSubtotalCents === 24500 && totals.totalCents === 35900);
@@ -115,7 +116,7 @@ function run() {
   {
     const bd = makeNoTaxBreakdown({ deposit_due_cents: 5000 });
     const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeProduct('p1', 'Gen', 9500, 'addon')];
-    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false });
+    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
     ok('5 admin deposit = inflatable only', totals.depositCents === 5000);
   }
 
@@ -127,7 +128,7 @@ function run() {
       makeProduct('p1', 'Gen', 9500, 'addon'),
       makeProduct('p2', 'Tables', 10000, 'addon', 5),
     ];
-    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false });
+    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
     ok('6 EE qty no deposit change', totals.depositCents === 5000);
   }
 
@@ -135,7 +136,7 @@ function run() {
   {
     const bd = makeNoTaxBreakdown();
     const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeProduct('p1', 'Gen', 9500, 'addon')];
-    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false });
+    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
     // calculateTotalFromOrder uses subtotal_cents (which includes EE) + fees + tax
     // = 24500 + 11400 + 0 = 35900
     const invoiceTotal = totals.equipmentSubtotalCents + totals.travelFeeCents + totals.taxCents;
@@ -146,7 +147,7 @@ function run() {
   {
     const bd = makeNoTaxBreakdown();
     const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeProduct('p1', 'Gen', 9500, 'addon')];
-    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false });
+    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
     const eeSubtotal = calculateEventEssentialsSubtotalCents(cart);
     // Total should be 35900, NOT 35900 + 9500 = 45400
     ok('8 EE not double in invoice', totals.totalCents === 35900 && totals.totalCents !== 35900 + eeSubtotal);
@@ -156,7 +157,7 @@ function run() {
   {
     const bd = makeNoTaxBreakdown();
     const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000)];
-    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false });
+    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
     ok('9 inflatable-only unchanged', totals.totalCents === 26400);
   }
 
@@ -166,7 +167,7 @@ function run() {
   {
     const bd = makeNoTaxBreakdown();
     const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeProduct('p1', 'Gen', 9500, 'addon')];
-    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false });
+    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
     // The depositCents sent to stripe-checkout is the inflatable-only deposit
     // The total is stored on the order but not charged during booking
     ok('10 idempotency preserved', totals.depositCents === 5000 && totals.totalCents === 35900);
@@ -176,7 +177,7 @@ function run() {
   {
     const bd = makeNoTaxBreakdown({ deposit_due_cents: 5000 });
     const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeProduct('p1', 'Gen', 9500, 'addon')];
-    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false });
+    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
     // Even if customer selects "full" payment, deposit_due_cents on the order
     // must remain the inflatable deposit — customer_selected_payment_cents is separate
     ok('11 deposit ignores selected amount', totals.depositCents === 5000);
@@ -186,7 +187,7 @@ function run() {
   {
     const bd = makeNoTaxBreakdown({ deposit_due_cents: 5000 });
     const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeProduct('p1', 'Gen', 9500, 'addon')];
-    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false });
+    const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
     // The depositCents passed to stripe-checkout in bookingMode
     // must be the inflatable-only deposit, not the full mixed-cart total
     ok('12 setup mode metadata deposit', totals.depositCents === 5000 && totals.depositCents !== totals.totalCents);
