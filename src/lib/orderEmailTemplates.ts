@@ -66,10 +66,11 @@ interface OrderEmailData {
   items: any[];
   payment?: any;
   totalCents: number;
+  portalUrl: string;
 }
 
 export function generateConfirmationReceiptEmail(data: OrderEmailData): string {
-  const { order, customer, address, items, payment, totalCents } = data;
+  const { order, customer, address, items, payment, totalCents, portalUrl } = data;
   const eventDateStr = format(new Date(order.event_date + 'T12:00:00'), 'EEEE, MMMM d, yyyy');
 
   let content = createGreeting(customer.first_name);
@@ -213,8 +214,6 @@ export function generateConfirmationReceiptEmail(data: OrderEmailData): string {
       theme: EMAIL_THEMES.success,
     });
   }
-
-  const portalUrl = `${window.location.origin}/customer-portal/${order.id}`;
 
   content += `
     <div style="text-align: center; margin: 30px 0;">

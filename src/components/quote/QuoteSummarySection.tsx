@@ -1,9 +1,8 @@
 import type { UnifiedCartItem, InflatableCartItem, EventEssentialProductCartItem, EventEssentialBundleCartItem } from '../../types';
-import { composeUnifiedQuoteTotals } from '../../lib/unifiedTotals';
 import { calculateEventEssentialsSubtotalCents } from '../../lib/eventEssentialsMoney';
 import { formatCurrency } from '../../lib/pricing';
 import { buildPackageDisplay } from '../../lib/packageDisplay';
-import { type EEOnlyDepositSettings } from '../../lib/depositCalculation';
+import type { UnifiedQuoteTotals } from '../../lib/unifiedTotals';
 
 interface PriceBreakdown {
   travel_fee_cents: number;
@@ -22,15 +21,16 @@ interface PriceBreakdown {
 interface QuoteSummarySectionProps {
   cart: UnifiedCartItem[];
   priceBreakdown: PriceBreakdown | null;
-  inflatableDepositPerUnitCents?: number | null;
-  eeOnlyDepositSettings?: EEOnlyDepositSettings | null;
+  totals: UnifiedQuoteTotals | null;
+  pricingConfigError: string | null;
+  isCalculating: boolean;
 }
 
 function isInflatable(item: UnifiedCartItem): item is InflatableCartItem {
   return item.item_type === undefined || item.item_type === 'inflatable';
 }
 
-export function QuoteSummarySection({ cart, priceBreakdown, inflatableDepositPerUnitCents, eeOnlyDepositSettings }: QuoteSummarySectionProps) {
+export function QuoteSummarySection({ cart, priceBreakdown, totals, pricingConfigError, isCalculating }: QuoteSummarySectionProps) {
   if (cart.length === 0) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:sticky lg:top-24">
@@ -50,32 +50,12 @@ export function QuoteSummarySection({ cart, priceBreakdown, inflatableDepositPer
 
   const eventEssentialsSubtotalCents = calculateEventEssentialsSubtotalCents(cart);
 
-  const totals = priceBreakdown && inflatableDepositPerUnitCents != null && eeOnlyDepositSettings
-    ? composeUnifiedQuoteTotals({
-        inflatableBreakdown: priceBreakdown as any,
-        cart,
-        taxApplied: priceBreakdown.tax_applied ?? true,
-        eeOnlyDepositSettings,
-        inflatableDepositPerUnitCents,
-      })
-    : null;
-
   const inflatableSubtotalCents = inflatableItems.reduce(
     (sum, item) => sum + item.unit_price_cents * item.qty,
     0
   );
 
-  const feesTotalCents = priceBreakdown
-    ? priceBreakdown.travel_fee_cents +
-      priceBreakdown.surface_fee_cents +
-      priceBreakdown.same_day_pickup_fee_cents +
-      priceBreakdown.same_day_weekday_delivery_fee_cents +
-      priceBreakdown.generator_fee_cents
-    : 0;
-
-  const estimatedTotalCents = totals
-    ? totals.totalCents
-    : inflatableSubtotalCents + eventEssentialsSubtotalCents + feesTotalCents;
+  const estimatedTotalCents = totals ? totals.totalCents : 0;
 
   const hasUnavailableItems = cart.some((item) => item.isAvailable === false);
 
@@ -270,6 +250,22 @@ export function QuoteSummarySection({ cart, priceBreakdown, inflatableDepositPer
           </div>
         )}
 
+        {pricingConfigError && (
+          <div className="p-3 bg-red-50 border-2 border-red-300 rounded-lg">
+            <p className="text-xs sm:text-sm text-red-800 font-medium text-center leading-relaxed">
+              Pricing configuration error: {pricingConfigError}. Please contact us for assistance.
+            </p>
+          </div>
+        )}
+
+        {isCalculating && !pricingConfigError && (
+          <div className="p-3 bg-blue-50 border-2 border-blue-200 rounded-lg">
+            <p className="text-xs sm:text-sm text-blue-800 font-medium text-center leading-relaxed">
+              Calculating pricing...
+            </p>
+          </div>
+        )}
+
         {totals?.depositError && (
           <div className="p-3 bg-red-50 border-2 border-red-300 rounded-lg">
             <p className="text-xs sm:text-sm text-red-800 font-medium text-center leading-relaxed">
@@ -280,7 +276,8 @@ export function QuoteSummarySection({ cart, priceBreakdown, inflatableDepositPer
 
         <button
           type="submit"
-          className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 sm:py-3.5 px-6 rounded-lg sm:rounded-xl transition-all shadow-md hover:shadow-lg text-sm sm:text-base"
+          disabled={!totals || !!pricingConfigError || isCalculating || !!totals?.depositError}
+          className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 sm:py-3.5 px-6 rounded-lg sm:rounded-xl transition-all shadow-md hover:shadow-lg text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Continue to Checkout →
         </button>

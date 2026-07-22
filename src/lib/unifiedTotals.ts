@@ -37,8 +37,8 @@ export interface ComposeUnifiedQuoteTotalsInput {
   inflatableBreakdown: PriceBreakdown;
   cart: UnifiedCartItem[];
   taxApplied: boolean;
-  eeOnlyDepositSettings?: Partial<EEOnlyDepositSettings> | null;
-  inflatableDepositPerUnitCents?: number;
+  eeOnlyDepositSettings: EEOnlyDepositSettings;
+  inflatableDepositPerUnitCents: number;
 }
 
 const TAX_RATE = 0.06;
@@ -77,7 +77,7 @@ export function composeUnifiedQuoteTotals(
     inflatableQuantity: inflatableCount,
     eventEssentialsSubtotalCents,
     orderTotalCents: totalCents,
-    inflatableDepositPerUnitCents: input.inflatableDepositPerUnitCents ?? 0,
+    inflatableDepositPerUnitCents: input.inflatableDepositPerUnitCents,
     eeOnlyDepositSettings: input.eeOnlyDepositSettings,
   });
   if (depositResult.status !== 'calculated') {

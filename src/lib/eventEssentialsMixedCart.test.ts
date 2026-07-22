@@ -428,9 +428,9 @@ test('19. Quote and Checkout use the same total', () => {
   const bd = makeNoTaxBreakdown();
   const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeProduct(GEN_ID, 'Generator', 9500)];
   // Quote uses composeUnifiedQuoteTotals via QuoteSummarySection
-  const quoteTotals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: false });
+  const quoteTotals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
   // Checkout uses composeUnifiedQuoteTotals via Checkout.tsx
-  const checkoutTotals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: false });
+  const checkoutTotals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
   ok('quote = checkout total', quoteTotals.totalCents === checkoutTotals.totalCents);
   ok('quote = checkout subtotal', quoteTotals.equipmentSubtotalCents === checkoutTotals.equipmentSubtotalCents);
   ok('deep equal', JSON.stringify(quoteTotals) === JSON.stringify(checkoutTotals));
@@ -499,7 +499,7 @@ test('22. Cart type detection helpers', () => {
 test('23. Tax-enabled mixed cart total', () => {
   const bd = makeTaxBreakdown();
   const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeProduct(GEN_ID, 'Generator', 9500)];
-  const result = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: true });
+  const result = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: true, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
   // Inflatable total = 27984, EE = 9500, EE tax = round(9500 * 0.06) = 570
   // Unified = 27984 + 9500 + 570 = 38054
   ok('tax-enabled total = 38054', result.totalCents === 38054);

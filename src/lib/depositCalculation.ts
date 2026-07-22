@@ -45,24 +45,28 @@ export function validateEEOnlyDepositSettings(
   settings: Partial<EEOnlyDepositSettings> | null | undefined,
 ): EEOnlyDepositSettings | null {
   if (!settings) return null;
-  const s = { ...DEFAULT_EE_ONLY_DEPOSIT_SETTINGS, ...settings };
   if (
-    !isSafeCents(s.eeOnlyDepositBaseThresholdCents) ||
-    !isSafeCents(s.eeOnlyDepositBaseCents) ||
-    !isSafeCents(s.eeOnlyDepositSubtotalStepCents) ||
-    !isSafeCents(s.eeOnlyDepositStepCents)
+    !isSafeCents(settings.eeOnlyDepositBaseThresholdCents) ||
+    !isSafeCents(settings.eeOnlyDepositBaseCents) ||
+    !isSafeCents(settings.eeOnlyDepositSubtotalStepCents) ||
+    !isSafeCents(settings.eeOnlyDepositStepCents)
   ) {
     return null;
   }
   if (
-    s.eeOnlyDepositBaseThresholdCents <= 0 ||
-    s.eeOnlyDepositBaseCents <= 0 ||
-    s.eeOnlyDepositSubtotalStepCents <= 0 ||
-    s.eeOnlyDepositStepCents <= 0
+    settings.eeOnlyDepositBaseThresholdCents! <= 0 ||
+    settings.eeOnlyDepositBaseCents! <= 0 ||
+    settings.eeOnlyDepositSubtotalStepCents! <= 0 ||
+    settings.eeOnlyDepositStepCents! <= 0
   ) {
     return null;
   }
-  return s;
+  return {
+    eeOnlyDepositBaseThresholdCents: settings.eeOnlyDepositBaseThresholdCents!,
+    eeOnlyDepositBaseCents: settings.eeOnlyDepositBaseCents!,
+    eeOnlyDepositSubtotalStepCents: settings.eeOnlyDepositSubtotalStepCents!,
+    eeOnlyDepositStepCents: settings.eeOnlyDepositStepCents!,
+  };
 }
 
 export function calculateRequiredDepositCents(input: {
@@ -70,7 +74,7 @@ export function calculateRequiredDepositCents(input: {
   eventEssentialsSubtotalCents: number;
   orderTotalCents: number;
   inflatableDepositPerUnitCents: number;
-  eeOnlyDepositSettings?: Partial<EEOnlyDepositSettings> | null;
+  eeOnlyDepositSettings: EEOnlyDepositSettings;
 }): RequiredDepositResult {
   const { inflatableQuantity, eventEssentialsSubtotalCents, orderTotalCents, inflatableDepositPerUnitCents } = input;
 
@@ -103,7 +107,7 @@ export function calculateRequiredDepositCents(input: {
     deposit = perUnit * infQty;
   } else if (eeSubtotal > 0) {
     // EE-only tier deposit — must have valid settings
-    const settings = validateEEOnlyDepositSettings(input.eeOnlyDepositSettings ?? DEFAULT_EE_ONLY_DEPOSIT_SETTINGS);
+    const settings = validateEEOnlyDepositSettings(input.eeOnlyDepositSettings);
     if (!settings) {
       return { status: 'invalid_configuration', error: 'Invalid Event Essentials-only deposit configuration' };
     }
@@ -128,14 +132,14 @@ export function calculateRequiredDepositCents(input: {
 export function calculateEEOnlyDepositCents(
   eventEssentialsSubtotalCents: number,
   orderTotalCents: number,
-  settings?: Partial<EEOnlyDepositSettings> | null,
+  settings: EEOnlyDepositSettings,
 ): RequiredDepositResult {
   return calculateRequiredDepositCents({
     inflatableQuantity: 0,
     eventEssentialsSubtotalCents,
     orderTotalCents,
     inflatableDepositPerUnitCents: 0,
-    eeOnlyDepositSettings: settings ?? DEFAULT_EE_ONLY_DEPOSIT_SETTINGS,
+    eeOnlyDepositSettings: settings,
   });
 }
 

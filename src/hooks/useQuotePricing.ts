@@ -60,7 +60,7 @@ export function useQuotePricing(
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [cart, pricingRules, formData]);
+  }, [cart, pricingRules, formData, hasAnyCartItems, hasInflatables]);
 
   async function calculatePricing() {
     if (!pricingRules) return;

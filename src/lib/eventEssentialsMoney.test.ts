@@ -88,6 +88,7 @@ function makeNoTaxBreakdown(overrides: Partial<PriceBreakdown> = {}): PriceBreak
     total_cents: 26400,
     deposit_due_cents: 5000,
     balance_due_cents: 21400,
+    event_essentials_subtotal_cents: 0,
     ...overrides,
   };
 }
@@ -112,6 +113,7 @@ function makeTaxBreakdown(overrides: Partial<PriceBreakdown> = {}): PriceBreakdo
     total_cents: 27984,
     deposit_due_cents: 5000,
     balance_due_cents: 22984,
+    event_essentials_subtotal_cents: 0,
     ...overrides,
   };
 }

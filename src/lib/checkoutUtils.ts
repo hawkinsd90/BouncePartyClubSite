@@ -100,11 +100,8 @@ export function buildOrderSummary(
 ): OrderSummaryDisplay | null {
   if (!priceBreakdown || !cart) return null;
 
-  const totals = unifiedTotals ?? composeUnifiedQuoteTotals({
-    inflatableBreakdown: priceBreakdown,
-    cart,
-    taxApplied: priceBreakdown.tax_applied,
-  });
+  const totals = unifiedTotals ?? null;
+  if (!totals) return null;
 
   const items = cart.map((item) => {
     if (isInflatableCartItem(item)) {

@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState, useRef } from 'react';
+import { useEffect, useCallback, useState, useRef, useMemo } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Trash2, AlertCircle, X } from 'lucide-react';
@@ -126,13 +126,43 @@ export function Quote() {
     { showErrorNotification: false }
   );
 
-  const inflatableCart = cart.filter(
-    (item): item is InflatableCartItem => item.item_type === undefined || item.item_type === 'inflatable'
+  const inflatableCart = useMemo(
+    () => cart.filter(
+      (item): item is InflatableCartItem => item.item_type === undefined || item.item_type === 'inflatable'
+    ),
+    [cart]
   );
   const { priceBreakdown, savePriceBreakdown } = useQuotePricing(inflatableCart, formData, pricingRules, {
     hasAnyCartItems: cart.length > 0,
     hasInflatables: inflatableCart.length > 0,
   });
+
+  const quoteTotals = useMemo(() => {
+    if (!priceBreakdown || !pricingRules) return null;
+    const parsed = parseBookingDepositSettings(pricingRules);
+    if (parsed.status !== 'ready') return null;
+    return composeUnifiedQuoteTotals({
+      inflatableBreakdown: priceBreakdown,
+      cart,
+      taxApplied: priceBreakdown.tax_applied ?? true,
+      eeOnlyDepositSettings: parsed.eventEssentialsDepositSettings,
+      inflatableDepositPerUnitCents: parsed.inflatableDepositPerUnitCents,
+    });
+  }, [priceBreakdown, pricingRules, cart]);
+
+  const pricingConfigError = useMemo(() => {
+    if (!pricingRules || !priceBreakdown) return null;
+    const parsed = parseBookingDepositSettings(pricingRules);
+    if (parsed.status !== 'ready') return parsed.error;
+    const totals = composeUnifiedQuoteTotals({
+      inflatableBreakdown: priceBreakdown,
+      cart,
+      taxApplied: priceBreakdown.tax_applied ?? true,
+      eeOnlyDepositSettings: parsed.eventEssentialsDepositSettings,
+      inflatableDepositPerUnitCents: parsed.inflatableDepositPerUnitCents,
+    });
+    return totals.depositError ?? null;
+  }, [priceBreakdown, pricingRules, cart]);
 
   useQuotePrefill(user, formData, { setAddressInput, updateFormData }, sessionData);
 
@@ -673,13 +703,7 @@ export function Quote() {
             </div>
 
             <div className="lg:col-span-1">
-              <QuoteSummarySection cart={cart} priceBreakdown={priceBreakdown} inflatableDepositPerUnitCents={pricingRules ? (() => {
-                const parsed = parseBookingDepositSettings(pricingRules);
-                return parsed.status === 'ready' ? parsed.inflatableDepositPerUnitCents : null;
-              })() : null} eeOnlyDepositSettings={pricingRules ? (() => {
-                const parsed = parseBookingDepositSettings(pricingRules);
-                return parsed.status === 'ready' ? parsed.eventEssentialsDepositSettings : null;
-              })() : null} />
+              <QuoteSummarySection cart={cart} priceBreakdown={priceBreakdown} totals={quoteTotals} pricingConfigError={pricingConfigError} isCalculating={cart.length > 0 && !priceBreakdown} />
             </div>
           </div>
         </form>

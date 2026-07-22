@@ -96,6 +96,7 @@ test('4. Quote blocks on deposit configuration failure', () => {
     cart,
     taxApplied: false,
     eeOnlyDepositSettings: { eeOnlyDepositBaseThresholdCents: -1, eeOnlyDepositBaseCents: 5000, eeOnlyDepositSubtotalStepCents: 10000, eeOnlyDepositStepCents: 5000 },
+    inflatableDepositPerUnitCents: 5000,
   });
   ok('has depositError', !!totals.depositError);
   ok('depositCents is 0 (fail closed)', totals.depositCents === 0);
@@ -112,6 +113,7 @@ test('5. Checkout blocks on deposit configuration failure', () => {
     cart,
     taxApplied: false,
     eeOnlyDepositSettings: { eeOnlyDepositBaseThresholdCents: 0, eeOnlyDepositBaseCents: 5000, eeOnlyDepositSubtotalStepCents: 10000, eeOnlyDepositStepCents: 5000 },
+    inflatableDepositPerUnitCents: 5000,
   });
   ok('has depositError', !!totals.depositError);
   // Checkout would check totals.depositError and block
@@ -131,6 +133,7 @@ test('6. orderCreation blocks before first write on configuration failure', () =
     cart,
     taxApplied: false,
     eeOnlyDepositSettings: { eeOnlyDepositBaseThresholdCents: Infinity, eeOnlyDepositBaseCents: 5000, eeOnlyDepositSubtotalStepCents: 10000, eeOnlyDepositStepCents: 5000 },
+    inflatableDepositPerUnitCents: 5000,
   });
   ok('has depositError', !!totals.depositError);
   // orderCreation would throw before any DB write
@@ -154,6 +157,7 @@ test('7. Checkout summary uses nondefault configured deposit settings', () => {
     cart,
     taxApplied: false,
     eeOnlyDepositSettings: customSettings,
+    inflatableDepositPerUnitCents: 5000,
   });
   // $250 EE subtotal <= $300 threshold → base deposit $70
   ok('deposit = 7000 (custom base)', totals.depositCents === 7000);
@@ -177,6 +181,7 @@ test('8. Payment selector uses the same deposit', () => {
     cart,
     taxApplied: false,
     eeOnlyDepositSettings: customSettings,
+    inflatableDepositPerUnitCents: 5000,
   });
   const depositPayment = getPaymentAmountCentsFromTotals('deposit', '', totals);
   ok('payment selector deposit = totals deposit', depositPayment === totals.depositCents);
@@ -214,6 +219,7 @@ test('10. customer_selected_payment_cents does not replace required deposit', ()
     cart,
     taxApplied: false,
     inflatableDepositPerUnitCents: 5000,
+    eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS,
   });
   ok('deposit = 10000 (inflatable-based)', totals.depositCents === 10000);
   // customer_selected_payment_cents is stored separately
@@ -452,6 +458,7 @@ test('30. calculateRequiredDepositCents returns typed result for valid input', (
     eventEssentialsSubtotalCents: 0,
     orderTotalCents: 20000,
     inflatableDepositPerUnitCents: 5000,
+    eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS,
   });
   ok('status calculated', result.status === 'calculated');
   ok('depositCents = 5000', (result as any).depositCents === 5000);
@@ -463,6 +470,7 @@ test('31. calculateRequiredDepositCents returns invalid_input for bad quantity',
     eventEssentialsSubtotalCents: 0,
     orderTotalCents: 20000,
     inflatableDepositPerUnitCents: 5000,
+    eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS,
   });
   ok('status invalid_input', result.status === 'invalid_input');
 });
@@ -473,6 +481,7 @@ test('32. calculateRequiredDepositCents returns invalid_input for bad EE subtota
     eventEssentialsSubtotalCents: -100,
     orderTotalCents: 20000,
     inflatableDepositPerUnitCents: 5000,
+    eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS,
   });
   ok('status invalid_input', result.status === 'invalid_input');
 });
@@ -483,6 +492,7 @@ test('33. calculateRequiredDepositCents returns invalid_input for bad order tota
     eventEssentialsSubtotalCents: 0,
     orderTotalCents: NaN,
     inflatableDepositPerUnitCents: 5000,
+    eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS,
   });
   ok('status invalid_input', result.status === 'invalid_input');
 });
@@ -493,6 +503,7 @@ test('34. Empty cart returns calculated zero deposit', () => {
     eventEssentialsSubtotalCents: 0,
     orderTotalCents: 0,
     inflatableDepositPerUnitCents: 0,
+    eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS,
   });
   ok('status calculated', result.status === 'calculated');
   ok('deposit = 0', (result as any).depositCents === 0);

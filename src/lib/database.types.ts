@@ -280,7 +280,7 @@ export interface Database {
           end_window: string | null
           until_end_of_day: boolean
           location_type: string
-          surface: string
+          surface: string | null
           pickup_preference: string
           same_day_responsibility_accepted: boolean
           overnight_responsibility_accepted: boolean
