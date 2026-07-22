@@ -26,6 +26,8 @@ interface QuoteSummarySectionProps {
   isCalculating: boolean;
 }
 
+export { getQuotePricingDisplayState } from '../../lib/quotePricingDisplayState';
+
 function isInflatable(item: UnifiedCartItem): item is InflatableCartItem {
   return item.item_type === undefined || item.item_type === 'inflatable';
 }
@@ -55,9 +57,9 @@ export function QuoteSummarySection({ cart, priceBreakdown, totals, pricingConfi
     0
   );
 
-  const estimatedTotalCents = totals ? totals.totalCents : 0;
-
   const hasUnavailableItems = cart.some((item) => item.isAvailable === false);
+
+  const showPricingSection = totals !== null && !pricingConfigError;
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:sticky lg:top-24">
@@ -153,14 +155,10 @@ export function QuoteSummarySection({ cart, priceBreakdown, totals, pricingConfi
               <span className="text-xs sm:text-sm font-semibold text-slate-700">Event Essentials subtotal</span>
               <span className="text-sm sm:text-base font-bold text-slate-900">{formatCurrency(eventEssentialsSubtotalCents)}</span>
             </div>
-
-            <p className="text-xs text-slate-500 leading-relaxed">
-              Estimate based on your address and event details. Includes Event Essentials.
-            </p>
           </div>
         )}
 
-        {priceBreakdown ? (
+        {showPricingSection && priceBreakdown && totals && (
           <div className="space-y-2 pt-2 border-t border-slate-200">
             <p className="text-xs sm:text-sm font-semibold text-slate-700 mb-2 uppercase tracking-wide">Fees &amp; Extras:</p>
 
@@ -202,19 +200,19 @@ export function QuoteSummarySection({ cart, priceBreakdown, totals, pricingConfi
               </div>
             )}
 
-            {(totals ? totals.taxCents : priceBreakdown.tax_cents) > 0 && (
+            {totals.taxCents > 0 && (
               <div className="flex items-center justify-between text-xs sm:text-sm">
                 <span className="text-slate-600">Tax (6%)</span>
-                <span className="font-semibold text-slate-800">{formatCurrency(totals ? totals.taxCents : priceBreakdown.tax_cents)}</span>
+                <span className="font-semibold text-slate-800">{formatCurrency(totals.taxCents)}</span>
               </div>
             )}
 
             <div className="flex items-center justify-between pt-3 mt-2 border-t-2 border-slate-200">
               <span className="text-sm sm:text-base font-bold text-slate-900">Estimated Total</span>
-              <span className="text-lg sm:text-xl font-bold text-blue-700">{formatCurrency(estimatedTotalCents)}</span>
+              <span className="text-lg sm:text-xl font-bold text-blue-700">{formatCurrency(totals.totalCents)}</span>
             </div>
 
-            {totals && totals.depositCents > 0 && (
+            {totals.depositCents > 0 && (
               <div className="space-y-1 pt-2">
                 <div className="flex items-center justify-between text-xs sm:text-sm">
                   <span className="text-slate-600">Required Deposit</span>
@@ -231,11 +229,13 @@ export function QuoteSummarySection({ cart, priceBreakdown, totals, pricingConfi
               Estimate based on your address and event details. Final total confirmed at checkout.
             </p>
           </div>
-        ) : (
+        )}
+
+        {!showPricingSection && !pricingConfigError && (
           <div className="pt-3 border-t border-slate-200">
-            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-              <p className="text-xs sm:text-sm text-slate-600 text-center leading-relaxed">
-                Enter your address and event date to see delivery fees and full pricing estimate.
+            <div className="p-3 bg-blue-50 border-2 border-blue-200 rounded-lg">
+              <p className="text-xs sm:text-sm text-blue-800 font-medium text-center leading-relaxed">
+                Calculating pricing...
               </p>
             </div>
           </div>
@@ -254,14 +254,6 @@ export function QuoteSummarySection({ cart, priceBreakdown, totals, pricingConfi
           <div className="p-3 bg-red-50 border-2 border-red-300 rounded-lg">
             <p className="text-xs sm:text-sm text-red-800 font-medium text-center leading-relaxed">
               Pricing configuration error: {pricingConfigError}. Please contact us for assistance.
-            </p>
-          </div>
-        )}
-
-        {isCalculating && !pricingConfigError && (
-          <div className="p-3 bg-blue-50 border-2 border-blue-200 rounded-lg">
-            <p className="text-xs sm:text-sm text-blue-800 font-medium text-center leading-relaxed">
-              Calculating pricing...
             </p>
           </div>
         )}

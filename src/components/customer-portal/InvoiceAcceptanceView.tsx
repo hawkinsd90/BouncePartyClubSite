@@ -364,6 +364,7 @@ export function InvoiceAcceptanceView({
             items: orderItems,
             payment: null,
             totalCents: order.balance_due_cents,
+            portalUrl,
           });
 
           await sendNotificationToCustomer({

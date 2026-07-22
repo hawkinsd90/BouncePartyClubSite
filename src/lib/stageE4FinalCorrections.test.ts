@@ -73,7 +73,7 @@ test('3. Missing snapshot returns invalid', () => {
   const items = [{ bundle_id: 'b1', product_id: null, qty: 1, component_snapshot: null }];
   const result = buildEventEssentialAvailabilityRequestFromOrderItems(items);
   ok('invalid', result.status === 'invalid');
-  if (result.status === 'invalid') ok('mentions snapshot', result.error.includes('snapshot'));
+  if (result.status === 'invalid') ok('neutral error', result.error === 'Invalid stored order item.');
 });
 
 // 4. Package with empty components returns invalid.
@@ -81,7 +81,7 @@ test('4. Empty components returns invalid', () => {
   const items = [{ bundle_id: 'b1', product_id: null, qty: 1, component_snapshot: { components: [] } }];
   const result = buildEventEssentialAvailabilityRequestFromOrderItems(items);
   ok('invalid', result.status === 'invalid');
-  if (result.status === 'invalid') ok('mentions components', result.error.includes('components'));
+  if (result.status === 'invalid') ok('neutral error', result.error === 'Invalid stored order item.');
 });
 
 // 5. Malformed EE row returns invalid.
@@ -89,7 +89,7 @@ test('5. Malformed EE row returns invalid', () => {
   const items = [{ bundle_id: null, product_id: null, qty: 1, unit_id: null }];
   const result = buildEventEssentialAvailabilityRequestFromOrderItems(items);
   ok('invalid', result.status === 'invalid');
-  if (result.status === 'invalid') ok('mentions missing', result.error.includes('missing'));
+  if (result.status === 'invalid') ok('neutral error', result.error === 'Invalid stored order item.');
 });
 
 // 5b. Ambiguous row (both product_id and bundle_id) returns invalid.
@@ -97,7 +97,7 @@ test('5b. Ambiguous row returns invalid', () => {
   const items = [{ bundle_id: 'b1', product_id: 'p1', qty: 1, unit_id: null }];
   const result = buildEventEssentialAvailabilityRequestFromOrderItems(items);
   ok('invalid', result.status === 'invalid');
-  if (result.status === 'invalid') ok('mentions both', result.error.includes('both'));
+  if (result.status === 'invalid') ok('neutral error', result.error === 'Invalid stored order item.');
 });
 
 // 6. Direct and package quantities aggregate by product_id.

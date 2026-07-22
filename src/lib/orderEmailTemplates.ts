@@ -69,6 +69,18 @@ interface OrderEmailData {
   portalUrl: string;
 }
 
+export function buildReceiptEmailInput(args: {
+  order: any;
+  customer: any;
+  address: any;
+  items: any[];
+  payment?: any;
+  totalCents: number;
+  portalUrl: string;
+}): OrderEmailData {
+  return args;
+}
+
 export function generateConfirmationReceiptEmail(data: OrderEmailData): string {
   const { order, customer, address, items, payment, totalCents, portalUrl } = data;
   const eventDateStr = format(new Date(order.event_date + 'T12:00:00'), 'EEEE, MMMM d, yyyy');

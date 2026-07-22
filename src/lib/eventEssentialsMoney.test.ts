@@ -334,11 +334,16 @@ function run() {
     ok('27 stored matches checkout', result.equipmentSubtotalCents === 24500 && result.totalCents === 35900);
   }
 
-  // 28. Event Essentials-only cart is blocked at the current stage.
+  // 28. Event Essentials-only cart receives configured EE-only deposit (not blocked).
   {
     const cart: UnifiedCartItem[] = [makeProduct('p1', 'Gen', 9500)];
     const hasInflatable = cart.some((i) => i.item_type === 'inflatable' || i.item_type === undefined);
-    ok('28 EE-only blocked', !hasInflatable);
+    ok('28a EE-only has zero inflatables', !hasInflatable);
+    ok('28b EE-only has valid Event Essentials', cart.length > 0);
+    const bd = makeNoTaxBreakdown({ subtotal_cents: 9500, deposit_due_cents: 0, total_cents: 9500, travel_fee_cents: 0 });
+    const result = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
+    ok('28c EE-only receives configured deposit', result.depositCents > 0);
+    ok('28d EE-only not blocked by missing inflatable', !result.depositError);
   }
 
   // 29. Inflatable-only output deep-equals pre-E4 fixture (no tax).

@@ -21,106 +21,93 @@ function isPositiveSafeInteger(value: unknown): value is number {
   );
 }
 
+function isNonBlankString(value: unknown): boolean {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
+function isBlankOrNull(value: unknown): boolean {
+  if (value === null || value === undefined) return true;
+  if (typeof value === 'string') return value.trim() === '';
+  return false;
+}
+
 export function buildEventEssentialAvailabilityRequestFromOrderItems(
   orderItems: any[],
 ): AvailabilityExpansionResult {
   const aggregated = new Map<string, number>();
 
   for (const item of orderItems) {
-    const hasUnitId =
-      typeof item.unit_id === 'string' && item.unit_id.trim() !== '';
-    const productIdIsNonBlank =
-      typeof item.product_id === 'string' && item.product_id.trim() !== '';
-    const bundleIdIsNonBlank =
-      typeof item.bundle_id === 'string' && item.bundle_id.trim() !== '';
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      return { status: 'invalid', error: 'Invalid stored order item.' };
+    }
 
-    // Inflatable row — valid nonblank unit_id, ignored by this helper
+    const hasUnitId = isNonBlankString(item.unit_id);
+    const hasProductId = isNonBlankString(item.product_id);
+    const hasBundleId = isNonBlankString(item.bundle_id);
+
+    const identityCount =
+      (hasUnitId ? 1 : 0) + (hasProductId ? 1 : 0) + (hasBundleId ? 1 : 0);
+
+    if (identityCount === 0) {
+      return { status: 'invalid', error: 'Invalid stored order item.' };
+    }
+    if (identityCount > 1) {
+      return { status: 'invalid', error: 'Invalid stored order item.' };
+    }
+
+    // Inflatable row — valid nonblank unit_id, excluded from EE request
     if (hasUnitId) continue;
 
-    // Direct Event Essential row: product_id nonblank, bundle_id null/absent
-    if (productIdIsNonBlank && !bundleIdIsNonBlank) {
+    // Direct Event Essential row: product_id nonblank, unit_id and bundle_id blank/null
+    if (hasProductId) {
       if (!isPositiveSafeInteger(item.qty)) {
-        return {
-          status: 'invalid',
-          error: 'Cannot approve order: Invalid product quantity.',
-        };
+        return { status: 'invalid', error: 'Invalid stored order item.' };
       }
-      aggregated.set(
-        item.product_id,
-        (aggregated.get(item.product_id) || 0) + item.qty,
-      );
+      const existing = aggregated.get(item.product_id) || 0;
+      if (!Number.isSafeInteger(existing + item.qty)) {
+        return { status: 'invalid', error: 'Invalid stored order item.' };
+      }
+      aggregated.set(item.product_id, existing + item.qty);
       continue;
     }
 
-    // Package row: bundle_id nonblank, product_id null/absent
-    if (bundleIdIsNonBlank && !productIdIsNonBlank) {
+    // Package row: bundle_id nonblank, unit_id and product_id blank/null
+    if (hasBundleId) {
       if (!isPositiveSafeInteger(item.qty)) {
-        return {
-          status: 'invalid',
-          error: 'Cannot approve order: Invalid package quantity.',
-        };
+        return { status: 'invalid', error: 'Invalid stored order item.' };
       }
       if (
         !item.component_snapshot ||
         typeof item.component_snapshot !== 'object' ||
         Array.isArray(item.component_snapshot)
       ) {
-        return {
-          status: 'invalid',
-          error:
-            'Cannot approve order: Invalid stored package details — missing component snapshot.',
-        };
+        return { status: 'invalid', error: 'Invalid stored order item.' };
       }
       const components = item.component_snapshot.components;
       if (!Array.isArray(components) || components.length === 0) {
-        return {
-          status: 'invalid',
-          error:
-            'Cannot approve order: Invalid stored package details — empty components.',
-        };
+        return { status: 'invalid', error: 'Invalid stored order item.' };
       }
       for (const comp of components) {
-        if (
-          typeof comp.product_id !== 'string' ||
-          comp.product_id.trim() === ''
-        ) {
-          return {
-            status: 'invalid',
-            error:
-              'Cannot approve order: Invalid product ID in package snapshot.',
-          };
+        if (!isNonBlankString(comp.product_id)) {
+          return { status: 'invalid', error: 'Invalid stored order item.' };
         }
         if (!isPositiveSafeInteger(comp.quantity_per_bundle)) {
-          return {
-            status: 'invalid',
-            error:
-              'Cannot approve order: Invalid component quantity in package snapshot.',
-          };
-          }
-        const qty = comp.quantity_per_bundle * item.qty;
-        aggregated.set(
-          comp.product_id,
-          (aggregated.get(comp.product_id) || 0) + qty,
-        );
+          return { status: 'invalid', error: 'Invalid stored order item.' };
+        }
+        if (!Number.isSafeInteger(comp.quantity_per_bundle * item.qty)) {
+          return { status: 'invalid', error: 'Invalid stored order item.' };
+        }
+        const addedQty = comp.quantity_per_bundle * item.qty;
+        const existing = aggregated.get(comp.product_id) || 0;
+        if (!Number.isSafeInteger(existing + addedQty)) {
+          return { status: 'invalid', error: 'Invalid stored order item.' };
+        }
+        aggregated.set(comp.product_id, existing + addedQty);
       }
       continue;
     }
 
-    // Ambiguous: both product_id and bundle_id present
-    if (productIdIsNonBlank && bundleIdIsNonBlank) {
-      return {
-        status: 'invalid',
-        error:
-          'Cannot approve order: Malformed Event Essentials order item — contains both product and bundle references.',
-      };
-    }
-
-    // Malformed: neither valid product_id nor valid bundle_id
-    return {
-      status: 'invalid',
-      error:
-        'Cannot approve order: Malformed Event Essentials order item — missing product or bundle reference.',
-    };
+    return { status: 'invalid', error: 'Invalid stored order item.' };
   }
 
   return {
