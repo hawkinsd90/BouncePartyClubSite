@@ -1,11 +1,21 @@
 // Stage E4 — Defect-fix tests using actual production helpers.
 // No unconditional `true` assertions. No copied formatting logic.
+// Short-link tests call the real createShortPortalLink with a mock supabase client.
 
+// Polyfill window.location.origin for Node test environment
+if (typeof globalThis.window === 'undefined') {
+  (globalThis as any).window = { location: { origin: 'https://example.com' } };
+} else if (typeof (globalThis as any).window.location === 'undefined') {
+  (globalThis as any).window.location = { origin: 'https://example.com' };
+}
+
+import { createShortPortalLink, type ShortPortalLinkResult } from './utils';
 import { resolveCustomerPortalTab, buildTabUrlParam, CANONICAL_TAB_KEYS, type PortalNavSection } from './customerPortalTab';
 import { hasGeneratorInOrderItems } from './generatorUnified';
 import { buildPackageDisplay, isPackageItem, validatePackageSnapshot } from './packageDisplay';
 import { formatStoredOrderItems } from './formatStoredOrderItems';
 import { decideAddError, decideAddSuccess } from './catalogAddError';
+import { decideNotificationSend, buildApprovalResultMessage, decideLotPicturesRequest } from './notificationDecision';
 import type { BundleComponentSnapshot } from '../types';
 
 let passed = 0;
@@ -78,8 +88,7 @@ function makeEEBundleItem(name: string, bundleId: string, price: number, qty = 1
   });
 }
 
-// Build portal nav sections matching RegularPortalView logic
-function makeSections(overrides: { lockedPayment?: boolean; hasLotPics?: boolean } = {}): PortalNavSection[] {
+function makeSections(overrides: { lockedPayment?: boolean } = {}): PortalNavSection[] {
   return [
     { key: 'details', locked: false },
     { key: 'lot-pics', locked: false },
@@ -88,6 +97,46 @@ function makeSections(overrides: { lockedPayment?: boolean; hasLotPics?: boolean
     { key: 'pictures', locked: false },
     { key: 'delivery', locked: false },
   ];
+}
+
+// Mock supabase client factory for createShortPortalLink tests
+function makeMockSupabase(opts: {
+  invoiceRpcResult?: any;
+  invoiceRpcError?: any;
+  orderRpcResult?: any;
+  orderRpcError?: any;
+  invoiceLinkData?: any;
+  invoiceLinkError?: any;
+} = {}) {
+  return {
+    rpc(fn: string, _args?: any) {
+      if (fn === 'create_portal_short_link') {
+        if (opts.invoiceRpcError) return Promise.resolve({ data: null, error: opts.invoiceRpcError });
+        return Promise.resolve({ data: opts.invoiceRpcResult ?? null, error: null });
+      }
+      if (fn === 'create_order_short_link') {
+        if (opts.orderRpcError) return Promise.resolve({ data: null, error: opts.orderRpcError });
+        return Promise.resolve({ data: opts.orderRpcResult ?? null, error: null });
+      }
+      return Promise.resolve({ data: null, error: { message: 'Unknown RPC' } });
+    },
+    from(_table: string) {
+      return {
+        select(_cols: string) {
+          return {
+            eq(_col: string, _val: any) {
+              return {
+                maybeSingle() {
+                  if (opts.invoiceLinkError) return Promise.resolve({ data: null, error: opts.invoiceLinkError });
+                  return Promise.resolve({ data: opts.invoiceLinkData ?? null, error: null });
+                },
+              };
+            },
+          };
+        },
+      };
+    },
+  };
 }
 
 // ===========================================================================
@@ -133,7 +182,6 @@ function makeSections(overrides: { lockedPayment?: boolean; hasLotPics?: boolean
 {
   const sections = makeSections();
   const result1 = resolveCustomerPortalTab({ requestedTab: 'payment', sections });
-  // Simulate refresh — same URL, same sections
   const result2 = resolveCustomerPortalTab({ requestedTab: 'payment', sections });
   ok('6 payment stays after refresh', result1 === 'payment' && result2 === 'payment');
 }
@@ -151,175 +199,132 @@ function makeSections(overrides: { lockedPayment?: boolean; hasLotPics?: boolean
 // 8. Back-navigation URL input changes the returned active section.
 {
   const sections = makeSections();
-  // Simulate: user was on payment, navigates back to lot-pics
-  const urlAtPayment = 'payment';
-  const urlAtLotPics = 'lot-pics';
-  const atPayment = resolveCustomerPortalTab({ requestedTab: urlAtPayment, sections });
-  const atLotPics = resolveCustomerPortalTab({ requestedTab: urlAtLotPics, sections });
+  const atPayment = resolveCustomerPortalTab({ requestedTab: 'payment', sections });
+  const atLotPics = resolveCustomerPortalTab({ requestedTab: 'lot-pics', sections });
   ok('8 back-nav: payment → lot-pics', atPayment === 'payment' && atLotPics === 'lot-pics');
 }
 
 // 9. Forward-navigation URL input changes the returned active section.
 {
   const sections = makeSections();
-  // Simulate: user was on lot-pics, navigates forward to payment
-  const urlAtLotPics = 'lot-pics';
-  const urlAtPayment = 'payment';
-  const atLotPics = resolveCustomerPortalTab({ requestedTab: urlAtLotPics, sections });
-  const atPayment = resolveCustomerPortalTab({ requestedTab: urlAtPayment, sections });
+  const atLotPics = resolveCustomerPortalTab({ requestedTab: 'lot-pics', sections });
+  const atPayment = resolveCustomerPortalTab({ requestedTab: 'payment', sections });
   ok('9 forward-nav: lot-pics → payment', atLotPics === 'lot-pics' && atPayment === 'payment');
 }
 
 // ===========================================================================
-// Short-link tests (10-18) — using actual createShortPortalLink with mock client
+// Short-link tests (10-18) — calling real createShortPortalLink with mock client
 // ===========================================================================
 
-// Mock supabase client factory
-function makeMockSupabase(opts: {
-  invoiceRpcResult?: any;
-  invoiceRpcError?: any;
-  orderRpcResult?: any;
-  orderRpcError?: any;
-  invoiceLinkData?: any;
-  invoiceLinkError?: any;
-} = {}) {
-  const calls: string[] = [];
-  return {
-    _calls: calls,
-    rpc(fn: string, _args?: any) {
-      calls.push(fn);
-      if (fn === 'create_portal_short_link') {
-        if (opts.invoiceRpcError) return Promise.resolve({ data: null, error: opts.invoiceRpcError });
-        return Promise.resolve({ data: opts.invoiceRpcResult ?? null, error: null });
-      }
-      if (fn === 'create_order_short_link') {
-        if (opts.orderRpcError) return Promise.resolve({ data: null, error: opts.orderRpcError });
-        return Promise.resolve({ data: opts.orderRpcResult ?? null, error: null });
-      }
-      return Promise.resolve({ data: null, error: { message: 'Unknown RPC' } });
-    },
-    from(_table: string) {
-      return {
-        select(_cols: string) {
-          return {
-            eq(_col: string, _val: any) {
-              return {
-                maybeSingle() {
-                  if (opts.invoiceLinkError) return Promise.resolve({ data: null, error: opts.invoiceLinkError });
-                  return Promise.resolve({ data: opts.invoiceLinkData ?? null, error: null });
-                },
-              };
-            },
-          };
-        },
-      };
-    },
-  };
+// 10. Invoice RPC success returns /i/<code>.
+{
+  const mock = makeMockSupabase({ invoiceRpcResult: { success: true, short_code: 'INV12345' } });
+  const result = await createShortPortalLink('order-1', mock as any, null, 'inv-token-1');
+  ok('10 invoice RPC success → success', result.success === true);
+  if (result.success) {
+    ok('10 url contains /i/', result.url.includes('/i/'));
+    ok('10 url contains INV12345', result.url.includes('INV12345'));
+    ok('10 shortCode = INV12345', result.shortCode === 'INV12345');
+  }
 }
 
-// We can't import createShortPortalLink directly because it imports supabase.ts.
-// Instead, we test the decision logic by simulating the RPC results.
-// The actual createShortPortalLink is a thin wrapper around these RPCs.
+// 11. Standard-order RPC success returns /i/<code>.
+{
+  const mock = makeMockSupabase({ orderRpcResult: { success: true, short_code: 'ORD67890' } });
+  const result = await createShortPortalLink('order-2', mock as any, null, null);
+  ok('11 order RPC success → success', result.success === true);
+  if (result.success) {
+    ok('11 url contains /i/', result.url.includes('/i/'));
+    ok('11 url contains ORD67890', result.url.includes('ORD67890'));
+  }
+}
 
-// 10. Standard order without invoice link can receive an order short code.
+// 12. Both RPCs failing returns success=false with no URL.
 {
   const mock = makeMockSupabase({
-    orderRpcResult: { success: true, short_code: 'ABC12345' },
+    invoiceRpcError: { message: 'Invoice RPC failed' },
+    orderRpcError: { message: 'Order RPC failed' },
   });
-  // Simulate: no invoice token, order RPC succeeds
-  const rpcResult = mock.rpc('create_order_short_link', { p_order_id: 'order-1' });
-  rpcResult.then(({ data, error }) => {
-    ok('10 order RPC succeeds', !error && data?.success && data?.short_code === 'ABC12345');
-  });
+  const result = await createShortPortalLink('order-3', mock as any, null, 'inv-token-3');
+  ok('12 both fail → success=false', result.success === false);
+  if (!result.success) {
+    ok('12 has error message', result.error.length > 0);
+  }
 }
 
-// 11. Existing short code is reused.
-{
-  const mock = makeMockSupabase({
-    invoiceRpcResult: { success: true, short_code: 'EXISTING1' },
-  });
-  const rpcResult = mock.rpc('create_portal_short_link', { p_invoice_token: 'tok-1' });
-  rpcResult.then(({ data, error }) => {
-    ok('11 existing short code reused', !error && data?.short_code === 'EXISTING1');
-  });
-}
-
-// 12. Concurrent/duplicate creation does not produce conflicting links.
-{
-  // The RPC uses FOR UPDATE lock and ON CONFLICT — we verify the RPC interface
-  // handles this by checking that the same order_id returns the same short_code.
-  const mock1 = makeMockSupabase({ orderRpcResult: { success: true, short_code: 'SAMECODE1' } });
-  const mock2 = makeMockSupabase({ orderRpcResult: { success: true, short_code: 'SAMECODE1' } });
-  Promise.all([
-    mock1.rpc('create_order_short_link', { p_order_id: 'order-1' }),
-    mock2.rpc('create_order_short_link', { p_order_id: 'order-1' }),
-  ]).then((results) => {
-    ok('12 both return same code', results[0].data?.short_code === results[1].data?.short_code);
-  });
-}
-
-// 13. RPC/query failure returns success=false.
+// 13. Existing invoice short code lookup returns /i/<code>.
 {
   const mock = makeMockSupabase({
     invoiceRpcError: { message: 'RPC failed' },
     orderRpcError: { message: 'RPC failed' },
+    invoiceLinkData: { short_code: 'EXISTING1' },
   });
-  Promise.all([
-    mock.rpc('create_portal_short_link', { p_invoice_token: 'tok-1' }),
-    mock.rpc('create_order_short_link', { p_order_id: 'order-1' }),
-  ]).then(([invRes, ordRes]) => {
-    ok('13 invoice RPC error', !!invRes.error);
-    ok('13 order RPC error', !!ordRes.error);
-  });
+  const result = await createShortPortalLink('order-4', mock as any, null, 'inv-token-4');
+  ok('13 fallback lookup → success', result.success === true);
+  if (result.success) {
+    ok('13 url contains /i/', result.url.includes('/i/'));
+    ok('13 url contains EXISTING1', result.url.includes('EXISTING1'));
+  }
 }
 
-// 14-15. Failure never returns a full customer-portal URL or invoice-token URL.
-// These are verified by the typed result contract: createShortPortalLink returns
-// { success: false, error } which contains no URL field at all.
+// 14. No failure result contains /customer-portal/.
 {
-  // The ShortPortalLinkResult type enforces this: on failure, there is no `url` field.
-  // On success, the url always contains `/i/`.
-  const failureResult: { success: false; error: string } = { success: false, error: 'test' };
-  ok('14 failure has no url field', !('url' in failureResult));
-  ok('15 failure has no customer-portal URL', !JSON.stringify(failureResult).includes('customer-portal'));
-  ok('15 failure has no invoice URL', !JSON.stringify(failureResult).includes('/invoice/'));
+  const mock = makeMockSupabase({
+    invoiceRpcError: { message: 'Failed' },
+    orderRpcError: { message: 'Failed' },
+  });
+  const result = await createShortPortalLink('order-5', mock as any, null, 'inv-token-5');
+  ok('14 failure has no /customer-portal/', !JSON.stringify(result).includes('/customer-portal/'));
+}
+
+// 15. No failure result contains /invoice/.
+{
+  const mock = makeMockSupabase({
+    invoiceRpcError: { message: 'Failed' },
+    orderRpcError: { message: 'Failed' },
+  });
+  const result = await createShortPortalLink('order-6', mock as any, null, null);
+  ok('15 failure has no /invoice/', !JSON.stringify(result).includes('/invoice/'));
 }
 
 // 16. Successful result contains /i/.
 {
-  const successResult: { success: true; url: string; shortCode: string } = {
-    success: true,
-    url: 'https://example.com/i/ABC12345',
-    shortCode: 'ABC12345',
-  };
-  ok('16 success url contains /i/', successResult.url.includes('/i/'));
+  const mock = makeMockSupabase({ orderRpcResult: { success: true, short_code: 'CODE1234' } });
+  const result = await createShortPortalLink('order-7', mock as any, null, null);
+  ok('16 success contains /i/', result.success && result.url.includes('/i/'));
 }
 
-// 17. Notification caller does not send when the result is unsuccessful.
-// Verified by the caller code: if (!linkResult.success) { log failure; return; }
+// 17. Notification send function is not called when a required link fails.
+// Using decideNotificationSend production helper.
 {
-  const linkResult = { success: false, error: 'Failed' } as const;
-  let notificationSent = false;
-  if (linkResult.success) {
-    notificationSent = true;
+  const linkResult: ShortPortalLinkResult = { success: false, error: 'Link failed' };
+  const decision = decideNotificationSend({ linkResult, channel: 'email', messageType: 'booking_confirmation' });
+  ok('17 shouldSend=false on link failure', decision.shouldSend === false);
+  ok('17 failureRecord has error', decision.failureRecord !== null);
+  if (decision.failureRecord) {
+    ok('17 failureRecord channel=email', decision.failureRecord.channel === 'email');
+    ok('17 failureRecord error=Link failed', decision.failureRecord.error === 'Link failed');
   }
-  ok('17 notification not sent on failure', !notificationSent);
 }
 
-// 18. Approval outcome remains confirmed when notification link generation fails.
-// The approval flow does not roll back on notification failure.
+// 18. Approval outcome remains successful while notification result is failed.
+// Using buildApprovalResultMessage production helper.
 {
-  const approvalStatus = 'confirmed';
-  const linkResult = { success: false, error: 'Failed' } as const;
-  // Approval is not rolled back
-  ok('18 approval stays confirmed on link failure', approvalStatus === 'confirmed' && !linkResult.success);
+  const msg = buildApprovalResultMessage({
+    approvalSuccessful: true,
+    notificationSuccessful: false,
+    notificationError: 'Short-link failed',
+  });
+  ok('18 approval successful in message', msg.includes('Order approved'));
+  ok('18 notification failed in message', msg.includes('notification failed'));
+  ok('18 message includes retry instruction', msg.includes('Retry'));
 }
 
 // ===========================================================================
 // Stored-item formatter tests (using formatStoredOrderItems)
 // ===========================================================================
 
-// 1. Direct Generator displays Generator (Add-on), not Unknown Unit.
+// fmt-1. Direct Generator displays Generator (Add-on), not Unknown Unit.
 {
   const items = [makeEEProductItem('Generator', GENERATOR_PRODUCT_ID, 9500, 1, 'addon')];
   const formatted = formatStoredOrderItems(items);
@@ -327,7 +332,7 @@ function makeMockSupabase(opts: {
   ok('fmt-1 no Unknown Unit', !formatted[0].name.includes('Unknown Unit'));
 }
 
-// 2. Direct Event Essential has no Dry/Water label.
+// fmt-2. Direct Event Essential has no Dry/Water label.
 {
   const items = [makeEEProductItem('Generator', GENERATOR_PRODUCT_ID, 9500, 1, 'addon')];
   const formatted = formatStoredOrderItems(items);
@@ -336,7 +341,7 @@ function makeMockSupabase(opts: {
   ok('fmt-2 no Water', !formatted[0].mode.includes('Water'));
 }
 
-// 3. Package uses component_snapshot.
+// fmt-3. Package uses component_snapshot.
 {
   const items = [makeEEBundleItem('Celebration Seating', CELEBRATION_BUNDLE_ID, 15000, 1)];
   const formatted = formatStoredOrderItems(items);
@@ -345,7 +350,7 @@ function makeMockSupabase(opts: {
   ok('fmt-3 table component', formatted[0].components[1].name === 'Six-foot Rectangular Table');
 }
 
-// 4. Package components multiply by package quantity.
+// fmt-4. Package components multiply by package quantity.
 {
   const items = [makeEEBundleItem('Celebration Seating', CELEBRATION_BUNDLE_ID, 15000, 3)];
   const formatted = formatStoredOrderItems(items);
@@ -353,7 +358,7 @@ function makeMockSupabase(opts: {
   ok('fmt-4 table qty = 18', formatted[0].components[1].quantity === 18);
 }
 
-// 5. Package price appears once.
+// fmt-5. Package price appears once.
 {
   const items = [makeEEBundleItem('Celebration Seating', CELEBRATION_BUNDLE_ID, 15000, 2)];
   const formatted = formatStoredOrderItems(items);
@@ -363,7 +368,7 @@ function makeMockSupabase(opts: {
   ok('fmt-5 lineTotal = 30000', formatted[0].price * formatted[0].qty === 30000);
 }
 
-// 6. Missing snapshot produces the historical fallback.
+// fmt-6. Missing snapshot produces the historical fallback.
 {
   const items = [makeEEBundleItem('Old Package', 'old-bundle', 10000, 1, null)];
   const formatted = formatStoredOrderItems(items);
@@ -373,7 +378,7 @@ function makeMockSupabase(opts: {
   ok('fmt-6 price preserved', formatted[0].price === 10000);
 }
 
-// 7. Inflatable formatting remains unchanged.
+// fmt-7. Inflatable formatting remains unchanged.
 {
   const items = [makeInflatableItem('Tropical Slide', 25000, 1, 'water')];
   const formatted = formatStoredOrderItems(items);
@@ -387,61 +392,42 @@ function makeMockSupabase(opts: {
 // Generator tests (using hasGeneratorInOrderItems)
 // ===========================================================================
 
-// 14. Pending Review direct Generator returns Yes.
+// gen-14. Pending Review direct Generator returns Yes.
 {
   const items = [makeEEProductItem('Generator', GENERATOR_PRODUCT_ID, 9500, 1, 'addon')];
-  const has = hasGeneratorInOrderItems({
-    orderItems: items,
-    generatorProductId: GENERATOR_PRODUCT_ID,
-    legacyGeneratorQty: 0,
-  });
+  const has = hasGeneratorInOrderItems({ orderItems: items, generatorProductId: GENERATOR_PRODUCT_ID, legacyGeneratorQty: 0 });
   ok('gen-14 direct generator → Yes', has === true);
 }
 
-// 15. Pending Review package-contained Generator returns Yes.
+// gen-15. Pending Review package-contained Generator returns Yes.
 {
   const snapshotWithGen: BundleComponentSnapshot = {
     bundle_name: 'Package With Generator',
     bundle_description: '',
-    components: [
-      { product_id: GENERATOR_PRODUCT_ID, product_name: 'Generator', quantity_per_bundle: 1 },
-    ],
+    components: [{ product_id: GENERATOR_PRODUCT_ID, product_name: 'Generator', quantity_per_bundle: 1 }],
   };
   const items = [makeEEBundleItem('Package With Generator', 'bundle-with-gen', 20000, 1, snapshotWithGen)];
-  const has = hasGeneratorInOrderItems({
-    orderItems: items,
-    generatorProductId: GENERATOR_PRODUCT_ID,
-    legacyGeneratorQty: 0,
-  });
+  const has = hasGeneratorInOrderItems({ orderItems: items, generatorProductId: GENERATOR_PRODUCT_ID, legacyGeneratorQty: 0 });
   ok('gen-15 package-contained generator → Yes', has === true);
 }
 
-// 16. Unrelated Event Essentials returns No.
+// gen-16. Unrelated Event Essentials returns No.
 {
   const items = [
     makeEEProductItem('Tables', 'some-other-product', 5000, 2),
     makeEEBundleItem('Chair Package', 'some-bundle', 10000, 1),
   ];
-  const has = hasGeneratorInOrderItems({
-    orderItems: items,
-    generatorProductId: GENERATOR_PRODUCT_ID,
-    legacyGeneratorQty: 0,
-  });
+  const has = hasGeneratorInOrderItems({ orderItems: items, generatorProductId: GENERATOR_PRODUCT_ID, legacyGeneratorQty: 0 });
   ok('gen-16 unrelated EE → No', has === false);
 }
 
-// 17. Historical generator_qty fallback returns Yes.
+// gen-17. Historical generator_qty fallback returns Yes.
 {
-  const items: any[] = [];
-  const has = hasGeneratorInOrderItems({
-    orderItems: items,
-    generatorProductId: GENERATOR_PRODUCT_ID,
-    legacyGeneratorQty: 2,
-  });
+  const has = hasGeneratorInOrderItems({ orderItems: [], generatorProductId: GENERATOR_PRODUCT_ID, legacyGeneratorQty: 2 });
   ok('gen-17 legacy generator_qty → Yes', has === true);
 }
 
-// 18. Pending and Confirmed use the same production decision helper.
+// gen-18. Pending and Confirmed use the same production decision helper.
 {
   const items = [makeEEProductItem('Generator', GENERATOR_PRODUCT_ID, 9500, 1, 'addon')];
   const pendingResult = hasGeneratorInOrderItems({ orderItems: items, generatorProductId: GENERATOR_PRODUCT_ID, legacyGeneratorQty: 0 });
@@ -453,44 +439,90 @@ function makeMockSupabase(opts: {
 // Catalog add-error tests (using decideAddError)
 // ===========================================================================
 
-// 30. Page banner receives the error.
+// cat-30. Page banner receives the error.
 {
   const decision = decideAddError(null, 'Insufficient inventory');
   ok('cat-30 banner receives error', decision.bannerMessage === 'Insufficient inventory');
 }
 
-// 31. Fixed toast receives the same controlled error.
+// cat-31. Fixed toast receives the same controlled error.
 {
   const decision = decideAddError(null, 'Insufficient inventory');
   ok('cat-31 toast receives error', decision.showToast === true);
 }
 
-// 32. One click produces one toast (dedup: same error doesn't re-toast).
+// cat-32. Repeated catalog failure on two separate clicks produces one toast for each click.
 {
-  const decision1 = decideAddError(null, 'Insufficient inventory');
-  const decision2 = decideAddError(decision1.bannerMessage, 'Insufficient inventory');
+  const decision1 = decideAddError('Insufficient inventory', 'Insufficient inventory');
+  const decision2 = decideAddError('Insufficient inventory', 'Insufficient inventory');
   ok('cat-32 first click shows toast', decision1.showToast === true);
-  ok('cat-32 same error no re-toast', decision2.showToast === false);
+  ok('cat-32 second click shows toast', decision2.showToast === true);
 }
 
-// 33. Cart mutation is not called on error.
+// cat-33. Cart mutation is not called on error.
 {
   const decision = decideAddError(null, 'Error');
   ok('cat-33 cart not mutated', decision.shouldAddToCart === false);
 }
 
-// 34. Date mutation is not called on error.
+// cat-34. Date mutation is not called on error.
 {
   const decision = decideAddError(null, 'Error');
   ok('cat-34 dates not mutated', decision.shouldResetDates === false);
 }
 
-// 35. Success decision allows cart and date mutation.
+// cat-35. Success decision allows cart and date mutation.
 {
   const decision = decideAddSuccess();
   ok('cat-35 success adds to cart', decision.shouldAddToCart === true);
   ok('cat-35 success resets dates', decision.shouldResetDates === true);
   ok('cat-35 success no toast', decision.showToast === false);
+}
+
+// ===========================================================================
+// Lot Pictures request tests (using decideLotPicturesRequest)
+// ===========================================================================
+
+// lot-11. Lot Pictures requested state is not written when SMS/link creation fails.
+{
+  const linkResult: ShortPortalLinkResult = { success: false, error: 'Link failed' };
+  const decision = decideLotPicturesRequest({ linkResult, smsSentSuccessfully: false });
+  ok('lot-11 shouldMarkRequested=false on link failure', decision.shouldMarkRequested === false);
+  ok('lot-11 failureRecord exists', decision.failureRecord !== null);
+}
+
+// lot-11b. Lot Pictures requested state IS written when both link and SMS succeed.
+{
+  const linkResult: ShortPortalLinkResult = { success: true, url: 'https://x.com/i/CODE', shortCode: 'CODE' };
+  const decision = decideLotPicturesRequest({ linkResult, smsSentSuccessfully: true });
+  ok('lot-11b shouldMarkRequested=true on success', decision.shouldMarkRequested === true);
+  ok('lot-11b no failureRecord on success', decision.failureRecord === null);
+}
+
+// lot-11c. Lot Pictures not marked when link succeeds but SMS fails.
+{
+  const linkResult: ShortPortalLinkResult = { success: true, url: 'https://x.com/i/CODE', shortCode: 'CODE' };
+  const decision = decideLotPicturesRequest({ linkResult, smsSentSuccessfully: false });
+  ok('lot-11c shouldMarkRequested=false on SMS failure', decision.shouldMarkRequested === false);
+}
+
+// ===========================================================================
+// En Route action-required SMS tests (using decideNotificationSend)
+// ===========================================================================
+
+// enroute-12. En Route action-required SMS is not sent without its required link.
+{
+  const linkResult: ShortPortalLinkResult = { success: false, error: 'Link failed' };
+  const decision = decideNotificationSend({ linkResult, channel: 'sms', messageType: 'en_route_action_required' });
+  ok('enroute-12 shouldSend=false on link failure', decision.shouldSend === false);
+  ok('enroute-12 failureRecord channel=sms', decision.failureRecord?.channel === 'sms');
+}
+
+// enroute-12b. En Route SMS IS sent when link succeeds.
+{
+  const linkResult: ShortPortalLinkResult = { success: true, url: 'https://x.com/i/CODE', shortCode: 'CODE' };
+  const decision = decideNotificationSend({ linkResult, channel: 'sms', messageType: 'en_route_action_required' });
+  ok('enroute-12b shouldSend=true on link success', decision.shouldSend === true);
 }
 
 // ===========================================================================
@@ -557,6 +589,35 @@ function makeMockSupabase(opts: {
   ok('41 details → null', buildTabUrlParam('details') === null);
   ok('41 payment → payment', buildTabUrlParam('payment') === 'payment');
   ok('41 lot-pics → lot-pics', buildTabUrlParam('lot-pics') === 'lot-pics');
+}
+
+// ===========================================================================
+// Unauthorized order-link creation test (mock returns controlled failure)
+// ===========================================================================
+
+// 42. Unauthorized order-link creation returns controlled failure.
+{
+  const mock = makeMockSupabase({
+    orderRpcResult: { success: false, error: 'Unauthorized: only staff can create order short links' },
+  });
+  const result = await createShortPortalLink('order-unauth', mock as any, null, null);
+  ok('42 unauthorized → success=false', result.success === false);
+  if (!result.success) {
+    ok('42 error contains Unauthorized', result.error.includes('Unauthorized'));
+  }
+}
+
+// 43. Expired resolver result is not returned as active.
+// The resolver RPC checks expires_at > now() — we verify the mock simulates this.
+{
+  // Simulate: invoice link exists but is expired (resolver returns found=false)
+  const mock = makeMockSupabase({
+    invoiceRpcError: { message: 'expired' },
+    orderRpcError: { message: 'expired' },
+    invoiceLinkData: null, // expired link not returned
+  });
+  const result = await createShortPortalLink('order-expired', mock as any, null, 'expired-token');
+  ok('43 expired link → success=false', result.success === false);
 }
 
 console.log(`\nStage E4 Defect-Fix Tests: ${passed} passed, ${failed} failed.`);

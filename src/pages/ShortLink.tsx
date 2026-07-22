@@ -13,39 +13,24 @@ export function ShortLink() {
     }
 
     (async () => {
-      // 1. Check invoice_links first (existing behavior)
-      const { data: invoiceData, error: invoiceError } = await supabase
-        .from('invoice_links' as any)
-        .select('order_id, link_token')
-        .eq('short_code', shortCode)
-        .maybeSingle() as any;
+      const { data, error: rpcError } = await supabase.rpc('resolve_portal_short_link' as any, {
+        p_short_code: shortCode,
+      }) as any;
 
-      if (!invoiceError && invoiceData) {
-        window.location.replace(
-          `/customer-portal/${invoiceData.order_id}?t=${invoiceData.link_token}`
-        );
+      if (rpcError || !data?.found) {
+        setError(true);
         return;
       }
 
-      // 2. Check order_portal_links (order-level short links)
-      const { data: orderData, error: orderError } = await supabase
-        .from('order_portal_links' as any)
-        .select('order_id')
-        .eq('short_code', shortCode)
-        .maybeSingle() as any;
-
-      if (!orderError && orderData) {
+      if (data.link_type === 'invoice' && data.invoice_token) {
         window.location.replace(
-          `/customer-portal/${orderData.order_id}`
+          `/customer-portal/${data.order_id}?t=${data.invoice_token}`
         );
-        return;
+      } else {
+        window.location.replace(
+          `/customer-portal/${data.order_id}`
+        );
       }
-
-      // 3. Not found in either table
-      if (invoiceError && orderError) {
-        // Both queries errored — treat as not found
-      }
-      setError(true);
     })();
   }, [shortCode]);
 

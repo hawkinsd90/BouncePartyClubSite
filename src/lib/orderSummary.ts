@@ -2,7 +2,6 @@ import { supabase } from './supabase';
 import { calculateDrivingDistance } from './pricing';
 import { HOME_BASE } from './constants';
 import { buildOrderSummaryDisplay } from './orderSummaryHelpers';
-import { buildPackageDisplay } from './packageDisplay';
 import { formatStoredOrderItems } from './formatStoredOrderItems';
 
 export { formatStoredOrderItems } from './formatStoredOrderItems';

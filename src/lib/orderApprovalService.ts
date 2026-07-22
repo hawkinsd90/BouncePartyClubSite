@@ -21,6 +21,12 @@ const BUSINESS_PHONE_FALLBACK = '(313) 889-3860';
 interface ApprovalResult {
   success: boolean;
   error?: string;
+  notificationWarning?: string;
+}
+
+export interface NotificationResult {
+  success: boolean;
+  error?: string;
 }
 
 export async function approveOrder(
@@ -109,11 +115,16 @@ export async function approveOrder(
       const orderDiscountsNoDeposit = (orderData as any).order_discounts || [];
       const totalCentsNoDeposit = calculateTotalFromOrder(orderData, orderDiscountsNoDeposit, orderCustomFeesNoDeposit);
 
+      let notificationWarning: string | undefined;
       if (customerNoDeposit) {
         try {
-          await sendConfirmationEmail(orderWithRelationsNoDeposit, totalCentsNoDeposit);
-        } catch (emailErr) {
+          const notifResult = await sendConfirmationEmail(orderWithRelationsNoDeposit, totalCentsNoDeposit);
+          if (!notifResult.success) {
+            notificationWarning = notifResult.error || 'Confirmation notification failed. Retry the notification from the order.';
+          }
+        } catch (emailErr: any) {
           console.error('[orderApprovalService] confirmation email failed (non-fatal):', emailErr);
+          notificationWarning = (emailErr as any)?.message || 'Confirmation notification failed. Retry the notification from the order.';
         }
       }
 
@@ -123,7 +134,7 @@ export async function approveOrder(
         console.error('[orderApprovalService] enterConfirmed (zero-deposit) failed (non-fatal):', lifecycleErr);
       }
 
-      return { success: true };
+      return { success: true, notificationWarning };
     }
 
     // Proceed with charging deposit
@@ -185,16 +196,24 @@ export async function approveOrder(
         } else {
           console.error('[orderApprovalService] Short-link failed, skipping decline notification:', declineLinkResult.error);
           try {
-            const { error: notifError } = await supabase
+            await supabase
               .from('notification_failures' as any)
-              .insert({
-                order_id: orderId,
-                channel: 'email',
-                message_type: 'card_declined',
-                error_message: declineLinkResult.error,
-                created_at: new Date().toISOString(),
-              });
-            if (notifError) console.error('[orderApprovalService] Failed to log notification failure:', notifError.message);
+              .insert([
+                {
+                  order_id: orderId,
+                  channel: 'email',
+                  message_type: 'card_declined',
+                  error_message: declineLinkResult.error,
+                  created_at: new Date().toISOString(),
+                },
+                {
+                  order_id: orderId,
+                  channel: 'sms',
+                  message_type: 'card_declined',
+                  error_message: declineLinkResult.error,
+                  created_at: new Date().toISOString(),
+                },
+              ]);
           } catch (logErr) {
             console.error('[orderApprovalService] Failed to log notification failure:', logErr);
           }
@@ -314,11 +333,16 @@ export async function approveOrder(
 
     const customer = orderWithRelations?.customers as any;
 
+    let notificationWarning: string | undefined;
     if (customer) {
       try {
-        await sendConfirmationEmail(orderWithRelations, totalCents);
-      } catch (emailErr) {
+        const notifResult = await sendConfirmationEmail(orderWithRelations, totalCents);
+        if (!notifResult.success) {
+          notificationWarning = notifResult.error || 'Confirmation notification failed. Retry the notification from the order.';
+        }
+      } catch (emailErr: any) {
         console.error('[orderApprovalService] confirmation email failed (non-fatal):', emailErr);
+        notificationWarning = (emailErr as any)?.message || 'Confirmation notification failed. Retry the notification from the order.';
       }
     }
 
@@ -328,7 +352,7 @@ export async function approveOrder(
       console.error('[orderApprovalService] enterConfirmed (charge-deposit) failed (non-fatal):', lifecycleErr);
     }
 
-    return { success: true };
+    return { success: true, notificationWarning };
   } catch (error: any) {
     console.error('Error approving order:', error);
     return { success: false, error: error.message || 'Failed to approve order' };
@@ -511,7 +535,7 @@ function generateCardDeclinedEmail(order: any, portalUrl: string, businessPhone:
 </html>`;
 }
 
-async function sendConfirmationEmail(orderWithItems: any, totalCents: number) {
+async function sendConfirmationEmail(orderWithItems: any, totalCents: number): Promise<NotificationResult> {
   try {
     const { data: payment } = await supabase
       .from('payments')
@@ -544,7 +568,7 @@ async function sendConfirmationEmail(orderWithItems: any, totalCents: number) {
       } catch (logErr) {
         console.error('[orderApprovalService] Failed to log notification failure:', logErr);
       }
-      return;
+      return { success: false, error: linkResult.error };
     }
 
     const portalUrl = linkResult.url;
@@ -560,13 +584,34 @@ async function sendConfirmationEmail(orderWithItems: any, totalCents: number) {
         portalUrl,
       });
 
-      await sendEmail({
-        to: customer.email,
-        subject: `Booking Confirmed - Receipt for Order #${formatOrderId(orderWithItems.id)}`,
-        html: emailHtml,
-      });
+      try {
+        await sendEmail({
+          to: customer.email,
+          subject: `Booking Confirmed - Receipt for Order #${formatOrderId(orderWithItems.id)}`,
+          html: emailHtml,
+        });
+      } catch (emailErr: any) {
+        console.error('[orderApprovalService] Email send failed:', emailErr);
+        try {
+          await supabase
+            .from('notification_failures' as any)
+            .insert({
+              order_id: orderWithItems.id,
+              channel: 'email',
+              message_type: 'booking_confirmation',
+              error_message: emailErr?.message || 'Email send failed',
+              created_at: new Date().toISOString(),
+            });
+        } catch (logErr) {
+          console.error('[orderApprovalService] Failed to log email failure:', logErr);
+        }
+        return { success: false, error: emailErr?.message || 'Email send failed' };
+      }
     }
-  } catch (emailError) {
+
+    return { success: true };
+  } catch (emailError: any) {
     console.error('Error sending receipt email:', emailError);
+    return { success: false, error: emailError?.message || 'Unknown error' };
   }
 }

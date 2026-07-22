@@ -1,8 +1,9 @@
 // Narrow production helper for the customer-facing add-to-cart error decision.
 //
 // Used by EventEssentialsCatalog to ensure both the page banner and the fixed
-// toast receive the same controlled error message. A ref prevents duplicate
-// toasts from the same click.
+// toast receive the same controlled error message. Each separate failed click
+// produces exactly one toast, even when the message matches the previous click.
+// No dedup by comparing banner messages across separate customer attempts.
 
 export interface AddErrorDecision {
   bannerMessage: string;
@@ -11,10 +12,10 @@ export interface AddErrorDecision {
   shouldResetDates: boolean;
 }
 
-export function decideAddError(currentError: string | null, newError: string): AddErrorDecision {
+export function decideAddError(_currentError: string | null, newError: string): AddErrorDecision {
   return {
     bannerMessage: newError,
-    showToast: currentError !== newError,
+    showToast: true,
     shouldAddToCart: false,
     shouldResetDates: false,
   };

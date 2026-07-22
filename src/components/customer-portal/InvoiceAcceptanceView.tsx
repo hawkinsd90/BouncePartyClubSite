@@ -379,8 +379,21 @@ export function InvoiceAcceptanceView({
             emailHtml,
             orderId: order.id,
           });
-        } catch (notifError) {
+        } catch (notifError: any) {
           console.error('[InvoiceAcceptanceView] confirmation notification failed (non-fatal):', notifError);
+          try {
+            await supabase
+              .from('notification_failures' as any)
+              .insert({
+                order_id: order.id,
+                channel: 'email',
+                message_type: 'invoice_acceptance_confirmation',
+                error_message: notifError?.message || 'Notification failed',
+                created_at: new Date().toISOString(),
+              });
+          } catch (logErr) {
+            console.error('[InvoiceAcceptanceView] Failed to log notification failure:', logErr);
+          }
         }
 
         try {

@@ -178,6 +178,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const etaEnd = new Date(eta.getTime() + 10 * 60000);
       const tf = (d: Date) => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
+      let smsWarning: string | null = null;
       let msg = `Hello ${task.customerName.split(' ')[0]}! We're on our way to ${task.type === 'drop-off' ? 'deliver' : 'pick up'} your rental. ETA: ${tf(etaStart)} - ${tf(etaEnd)}`;
       if (etaDistance) msg += ` (${etaDistance} away)`;
       msg += '. ';
@@ -187,7 +188,21 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
           if (!task.waiverSigned) msg += '⚠️ IMPORTANT: Your waiver is not signed yet. ';
           if (task.balanceDue > 0) msg += `⚠️ IMPORTANT: Balance due: ${formatCurrency(task.balanceDue)}. `;
           const enRouteLinkResult = await createShortPortalLink(task.orderId, supabase, task.date?.toISOString());
-          if (enRouteLinkResult.success) {
+          if (!enRouteLinkResult.success) {
+            smsWarning = 'Customer notification failed: unable to create portal link';
+            console.error('[TaskDetailModal] En Route short-link failed:', enRouteLinkResult.error);
+            try {
+              await supabase.from('notification_failures' as any).insert({
+                order_id: task.orderId,
+                channel: 'sms',
+                message_type: 'en_route_action_required',
+                error_message: enRouteLinkResult.error,
+                created_at: new Date().toISOString(),
+              });
+            } catch (logErr) {
+              console.error('[TaskDetailModal] Failed to log notification failure:', logErr);
+            }
+          } else {
             msg += `\n\nPlease complete these before we arrive: ${enRouteLinkResult.url}`;
           }
         }
@@ -202,7 +217,6 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         }
       }
 
-      let smsWarning: string | null = null;
       try {
         const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`, {
           method: 'POST', headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
@@ -244,6 +258,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     setProcessing(true);
     try {
       const taskStatusId = await ensureTaskStatus();
+      let smsWarn: string | null = null;
       let msg = `We have arrived at your location! `;
       if (task.type === 'drop-off') {
         if (!task.waiverSigned || task.balanceDue > 0) {
@@ -251,7 +266,21 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
           if (!task.waiverSigned) msg += '• Please sign the waiver\n';
           if (task.balanceDue > 0) msg += `• Complete payment (${formatCurrency(task.balanceDue)})\n`;
           const arrivedLinkResult = await createShortPortalLink(task.orderId, supabase, task.date?.toISOString());
-          if (arrivedLinkResult.success) {
+          if (!arrivedLinkResult.success) {
+            smsWarn = 'Customer notification failed: unable to create portal link';
+            console.error('[TaskDetailModal] Arrived short-link failed:', arrivedLinkResult.error);
+            try {
+              await supabase.from('notification_failures' as any).insert({
+                order_id: task.orderId,
+                channel: 'sms',
+                message_type: 'arrived_action_required',
+                error_message: arrivedLinkResult.error,
+                created_at: new Date().toISOString(),
+              });
+            } catch (logErr) {
+              console.error('[TaskDetailModal] Failed to log notification failure:', logErr);
+            }
+          } else {
             msg += `\nComplete at: ${arrivedLinkResult.url}\n\n`;
           }
         }
@@ -267,7 +296,6 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         msg += ' Thank you for using Bounce Party Club!';
       }
 
-      let smsWarn: string | null = null;
       try {
         const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`, {
           method: 'POST', headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },

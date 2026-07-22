@@ -106,14 +106,10 @@ export function EventEssentialsCatalog() {
   const [checkingAvailability, setCheckingAvailability] = useState(false);
 
   const [addError, setAddError] = useState<string | null>(null);
-  const lastToastRef = useRef<string | null>(null);
 
   function setAddErrorWithToast(msg: string) {
     setAddError(msg);
-    if (lastToastRef.current !== msg) {
-      lastToastRef.current = msg;
-      notifyError(msg);
-    }
+    notifyError(msg);
   }
   const addingRef = useRef(false);
   const availabilityRequestId = useRef(0);
@@ -473,7 +469,6 @@ export function EventEssentialsCatalog() {
     if (qty <= 0) return;
 
     setAddError(null);
-    lastToastRef.current = null;
 
     // Use the latest candidate result from current cart + config state.
     const candidate = productCandidate(product, qty);
@@ -564,7 +559,6 @@ export function EventEssentialsCatalog() {
     if (qty <= 0) return;
 
     setAddError(null);
-    lastToastRef.current = null;
 
     const candidate = bundleCandidate(bundle, qty);
     const vm = deriveCandidateViewModel(candidate, true);

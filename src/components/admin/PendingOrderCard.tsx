@@ -276,6 +276,14 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
           lotPicturesRequested={lotPicturesRequestedLocal}
           onPromptCustomer={async () => {
             try {
+              const portalLinkResult = await createShortPortalLink(order.id, supabase, order.event_date);
+              if (!portalLinkResult.success) {
+                throw new Error(`Failed to create short link: ${portalLinkResult.error}`);
+              }
+              const message = `Bounce Party Club - Hi! We're reviewing your order #${formatOrderId(order.id)}. Could you please upload pictures of the event location through your customer portal? This helps us prepare better for your event. Link: ${portalLinkResult.url}`;
+              await sendSms(message);
+
+              // Only mark as requested after successful SMS send
               const { error } = await supabase
                 .from('orders')
                 .update({
@@ -285,13 +293,6 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
                 .eq('id', order.id);
 
               if (error) throw error;
-
-              const portalLinkResult = await createShortPortalLink(order.id, supabase, order.event_date);
-              if (!portalLinkResult.success) {
-                throw new Error(`Failed to create short link: ${portalLinkResult.error}`);
-              }
-              const message = `Bounce Party Club - Hi! We're reviewing your order #${formatOrderId(order.id)}. Could you please upload pictures of the event location through your customer portal? This helps us prepare better for your event. Link: ${portalLinkResult.url}`;
-              await sendSms(message);
 
               setLotPicturesRequestedLocal(true);
             } catch (error) {

@@ -27,13 +27,22 @@ export async function sendOrderEditNotifications({
       try {
         await supabase
           .from('notification_failures' as any)
-          .insert({
-            order_id: order.id,
-            channel: 'email',
-            message_type: 'order_edit',
-            error_message: linkResult.error,
-            created_at: new Date().toISOString(),
-          });
+          .insert([
+            {
+              order_id: order.id,
+              channel: 'email',
+              message_type: 'order_edit',
+              error_message: linkResult.error,
+              created_at: new Date().toISOString(),
+            },
+            {
+              order_id: order.id,
+              channel: 'sms',
+              message_type: 'order_edit',
+              error_message: linkResult.error,
+              created_at: new Date().toISOString(),
+            },
+          ]);
       } catch (logErr) {
         console.error('[orderNotificationService] Failed to log notification failure:', logErr);
       }
