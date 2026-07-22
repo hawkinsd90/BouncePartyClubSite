@@ -430,25 +430,35 @@ export async function rejectOrder(
   }
 }
 
-async function checkEEProductAvailability(orderItems: any[], orderData: any, _orderId: string) {
-  const productQuantities: Array<{ product_id: string; quantity: number }> = [];
+async function checkEEProductAvailability(orderItems: any[], orderData: any, orderId: string) {
+  const aggregated = new Map<string, number>();
   for (const item of orderItems) {
-    if (item.bundle_id && item.component_snapshot?.components) {
+    if (item.bundle_id && item.component_snapshot?.components && Array.isArray(item.component_snapshot.components)) {
       for (const comp of item.component_snapshot.components) {
         if (comp.product_id) {
-          productQuantities.push({ product_id: comp.product_id, quantity: (comp.quantity_per_bundle || 0) * (item.qty || 1) });
+          const qty = (comp.quantity_per_bundle || 0) * (item.qty || 1);
+          if (!Number.isSafeInteger(qty) || qty <= 0) {
+            throw new Error('Cannot approve order: Invalid product quantity in package snapshot.');
+          }
+          aggregated.set(comp.product_id, (aggregated.get(comp.product_id) || 0) + qty);
         }
       }
     } else if (item.product_id) {
-      productQuantities.push({ product_id: item.product_id, quantity: item.qty || 1 });
+      const qty = item.qty || 1;
+      if (!Number.isSafeInteger(qty) || qty <= 0) {
+        throw new Error('Cannot approve order: Invalid product quantity.');
+      }
+      aggregated.set(item.product_id, (aggregated.get(item.product_id) || 0) + qty);
     }
   }
-  if (productQuantities.length === 0) return;
+  if (aggregated.size === 0) return;
+  const productQuantities = Array.from(aggregated.entries()).map(([product_id, quantity]) => ({ product_id, quantity }));
   const { checkProductAvailability } = await import('./queries/products');
   const result = await checkProductAvailability(
     productQuantities,
     orderData.event_date,
     orderData.event_end_date || orderData.event_date,
+    orderId,
   );
   if (result.error || !result.data) {
     throw new Error('Cannot approve order: Unable to verify Event Essentials availability. Please try again or contact us for assistance.');

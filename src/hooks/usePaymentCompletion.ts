@@ -287,7 +287,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
       return;
     }
 
-    const result = await sendCustomerBookingConfirmationNotifications(order as any);
+    const result = await sendCustomerBookingConfirmationNotifications(order);
     setEmailSent(result.emailSent);
     setEmailError(result.emailError || null);
 

@@ -97,7 +97,7 @@ export function PaymentSuccessState({ orderDetails, sessionTipCents = 0, emailSe
                 </p>
               </div>
               <div>
-                <p className="text-sm text-slate-600 mb-1">Deposit Amount:</p>
+                <p className="text-sm text-slate-600 mb-1">Required Deposit After Approval:</p>
                 <p className="font-semibold text-green-600">
                   ${(orderDetails.deposit_due_cents / 100).toFixed(2)}
                 </p>
@@ -112,7 +112,7 @@ export function PaymentSuccessState({ orderDetails, sessionTipCents = 0, emailSe
               )}
               {displayTipCents > 0 && (
                 <div className="col-span-2">
-                  <p className="text-sm text-slate-600 mb-1">Total After Approval (including tip):</p>
+                  <p className="text-sm text-slate-600 mb-1">Amount Charged After Approval:</p>
                   <p className="font-semibold text-green-600 text-lg">
                     ${((orderDetails.deposit_due_cents + displayTipCents) / 100).toFixed(2)}
                   </p>

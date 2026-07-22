@@ -119,11 +119,15 @@ interface BookingOrderDetails {
   };
   order_items: Array<{
     qty: number;
-    wet_or_dry: string;
+    wet_or_dry: string | null;
     unit_price_cents: number;
-    units: {
-      name: string;
-    };
+    unit_id: string | null;
+    product_id: string | null;
+    bundle_id: string | null;
+    item_name: string | null;
+    pricing_context: string | null;
+    component_snapshot: any | null;
+    units: { name: string } | null;
   }>;
 }
 

@@ -24,6 +24,10 @@ export interface PricingRules {
   apply_taxes_by_default?: boolean;
   same_day_weekday_delivery_fee_cents?: number;
   same_day_matrix_json?: Array<{ units: number; generator: boolean; subtotal_ge_cents: number; fee_cents: number }> | null;
+  ee_only_deposit_base_threshold_cents?: number;
+  ee_only_deposit_base_cents?: number;
+  ee_only_deposit_subtotal_step_cents?: number;
+  ee_only_deposit_step_cents?: number;
 }
 
 export interface CartItem {
