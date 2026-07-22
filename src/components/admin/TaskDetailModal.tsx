@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { X, ChevronUp, ChevronDown, AlertTriangle, RefreshCw, ExternalLink, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { createShortPortalLink } from '../../lib/utils';
+import { decideActionRequiredSms } from '../../lib/notificationDecision';
 import { showAlert, showConfirm, showModal } from '../common/CustomModal';
 import { getCurrentLocation, calculateETA } from '../../lib/googleMaps';
 import { Task } from '../../hooks/useCalendarTasks';
@@ -182,30 +183,18 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       let msg = `Hello ${task.customerName.split(' ')[0]}! We're on our way to ${task.type === 'drop-off' ? 'deliver' : 'pick up'} your rental. ETA: ${tf(etaStart)} - ${tf(etaEnd)}`;
       if (etaDistance) msg += ` (${etaDistance} away)`;
       msg += '. ';
-      if (task.type === 'drop-off') {
-        if (!task.waiverSigned || task.balanceDue > 0) {
-          msg += '\n\n';
-          if (!task.waiverSigned) msg += '⚠️ IMPORTANT: Your waiver is not signed yet. ';
-          if (task.balanceDue > 0) msg += `⚠️ IMPORTANT: Balance due: ${formatCurrency(task.balanceDue)}. `;
-          const enRouteLinkResult = await createShortPortalLink(task.orderId, supabase, task.date?.toISOString());
-          if (!enRouteLinkResult.success) {
-            smsWarning = 'Customer notification failed: unable to create portal link';
-            console.error('[TaskDetailModal] En Route short-link failed:', enRouteLinkResult.error);
-            try {
-              await supabase.from('notification_failures' as any).insert({
-                order_id: task.orderId,
-                channel: 'sms',
-                message_type: 'en_route_action_required',
-                error_message: enRouteLinkResult.error,
-                created_at: new Date().toISOString(),
-              });
-            } catch (logErr) {
-              console.error('[TaskDetailModal] Failed to log notification failure:', logErr);
-            }
-          } else {
-            msg += `\n\nPlease complete these before we arrive: ${enRouteLinkResult.url}`;
-          }
+      const hasActionRequirement = task.type === 'drop-off' && (!task.waiverSigned || task.balanceDue > 0);
+      let enRouteLinkResult: any = { success: false, error: 'No action required' };
+      if (hasActionRequirement) {
+        msg += '\n\n';
+        if (!task.waiverSigned) msg += '⚠️ IMPORTANT: Your waiver is not signed yet. ';
+        if (task.balanceDue > 0) msg += `⚠️ IMPORTANT: Balance due: ${formatCurrency(task.balanceDue)}. `;
+        enRouteLinkResult = await createShortPortalLink(task.orderId, supabase, task.date?.toISOString());
+        if (enRouteLinkResult.success) {
+          msg += `\n\nPlease complete these before we arrive: ${enRouteLinkResult.url}`;
         }
+      }
+      if (task.type === 'drop-off') {
         msg += '\n\nPlease ensure there is a clear path for delivery and setup.';
         if (task.hasPets) {
           msg += ' Please also clear the backyard area of any pet waste before we arrive.';
@@ -217,13 +206,36 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         }
       }
 
-      try {
-        const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`, {
-          method: 'POST', headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ to: task.customerPhone, message: msg, orderId: task.orderId }),
-        });
-        if (!r.ok) { smsWarning = 'SMS failed to send'; console.warn('En Route SMS failed:', await r.text()); }
-      } catch (e: any) { smsWarning = 'SMS failed: ' + e.message; }
+      const enRouteDecision = decideActionRequiredSms({
+        hasActionRequirement,
+        linkResult: enRouteLinkResult,
+        messageType: 'en_route_action_required',
+      });
+
+      if (!enRouteDecision.shouldSendSms) {
+        smsWarning = 'Customer notification failed: unable to create portal link';
+        if (enRouteDecision.failureRecord) {
+          try {
+            await supabase.from('notification_failures' as any).insert({
+              order_id: task.orderId,
+              channel: enRouteDecision.failureRecord.channel,
+              message_type: enRouteDecision.failureRecord.message_type,
+              error_message: enRouteDecision.failureRecord.error,
+              created_at: new Date().toISOString(),
+            });
+          } catch (logErr) {
+            console.error('[TaskDetailModal] Failed to log notification failure:', logErr);
+          }
+        }
+      } else {
+        try {
+          const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`, {
+            method: 'POST', headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to: task.customerPhone, message: msg, orderId: task.orderId }),
+          });
+          if (!r.ok) { smsWarning = 'SMS failed to send'; console.warn('En Route SMS failed:', await r.text()); }
+        } catch (e: any) { smsWarning = 'SMS failed: ' + e.message; }
+      }
 
       const { error: taskErr } = await supabase.from('task_status').update({
         status: 'en_route', en_route_time: new Date().toISOString(),
@@ -237,8 +249,8 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const { error: wfErr } = await supabase.from('orders').update({ workflow_status: workflowValue }).eq('id', task.orderId);
       if (wfErr) console.warn('workflow_status update failed (en route):', wfErr.message);
 
-      let successMsg = smsWarning && etaCalcErr ? `En Route saved (fallback ETA). Warning: ${smsWarning}.`
-        : smsWarning ? `En Route saved. Warning: ${smsWarning}.`
+      let successMsg = smsWarning && etaCalcErr ? `En Route saved (fallback ETA), but the customer notification failed.`
+        : smsWarning ? `En Route saved, but the customer notification failed.`
         : etaCalcErr ? `En Route saved and customer notified (fallback ETA used).`
         : `En Route saved and customer notified. ETA: ${etaMinutes} min${etaDistance ? ` (${etaDistance})` : ''}.`;
       if (wfErr) successMsg += '\n\n⚠️ Portal status may not update — workflow state failed to save.';
@@ -260,30 +272,18 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const taskStatusId = await ensureTaskStatus();
       let smsWarn: string | null = null;
       let msg = `We have arrived at your location! `;
-      if (task.type === 'drop-off') {
-        if (!task.waiverSigned || task.balanceDue > 0) {
-          msg += '\n\n⚠️ Before we unload:\n';
-          if (!task.waiverSigned) msg += '• Please sign the waiver\n';
-          if (task.balanceDue > 0) msg += `• Complete payment (${formatCurrency(task.balanceDue)})\n`;
-          const arrivedLinkResult = await createShortPortalLink(task.orderId, supabase, task.date?.toISOString());
-          if (!arrivedLinkResult.success) {
-            smsWarn = 'Customer notification failed: unable to create portal link';
-            console.error('[TaskDetailModal] Arrived short-link failed:', arrivedLinkResult.error);
-            try {
-              await supabase.from('notification_failures' as any).insert({
-                order_id: task.orderId,
-                channel: 'sms',
-                message_type: 'arrived_action_required',
-                error_message: arrivedLinkResult.error,
-                created_at: new Date().toISOString(),
-              });
-            } catch (logErr) {
-              console.error('[TaskDetailModal] Failed to log notification failure:', logErr);
-            }
-          } else {
-            msg += `\nComplete at: ${arrivedLinkResult.url}\n\n`;
-          }
+      const hasArrivedActionRequirement = task.type === 'drop-off' && (!task.waiverSigned || task.balanceDue > 0);
+      let arrivedLinkResult: any = { success: false, error: 'No action required' };
+      if (hasArrivedActionRequirement) {
+        msg += '\n\n⚠️ Before we unload:\n';
+        if (!task.waiverSigned) msg += '• Please sign the waiver\n';
+        if (task.balanceDue > 0) msg += `• Complete payment (${formatCurrency(task.balanceDue)})\n`;
+        arrivedLinkResult = await createShortPortalLink(task.orderId, supabase, task.date?.toISOString());
+        if (arrivedLinkResult.success) {
+          msg += `\nComplete at: ${arrivedLinkResult.url}\n\n`;
         }
+      }
+      if (task.type === 'drop-off') {
         msg += 'Please:\n• Put up any animals\n• Be ready to inspect the equipment\n• Approve the setup location';
         if (task.hasPets) {
           msg += '\n• Make sure all pets are secured inside';
@@ -296,13 +296,36 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         msg += ' Thank you for using Bounce Party Club!';
       }
 
-      try {
-        const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`, {
-          method: 'POST', headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ to: task.customerPhone, message: msg, orderId: task.orderId }),
-        });
-        if (!r.ok) { smsWarn = 'SMS failed to send'; console.warn('Arrived SMS failed:', await r.text()); }
-      } catch (e: any) { smsWarn = 'SMS failed: ' + e.message; }
+      const arrivedDecision = decideActionRequiredSms({
+        hasActionRequirement: hasArrivedActionRequirement,
+        linkResult: arrivedLinkResult,
+        messageType: 'arrived_action_required',
+      });
+
+      if (!arrivedDecision.shouldSendSms) {
+        smsWarn = 'Customer notification failed: unable to create portal link';
+        if (arrivedDecision.failureRecord) {
+          try {
+            await supabase.from('notification_failures' as any).insert({
+              order_id: task.orderId,
+              channel: arrivedDecision.failureRecord.channel,
+              message_type: arrivedDecision.failureRecord.message_type,
+              error_message: arrivedDecision.failureRecord.error,
+              created_at: new Date().toISOString(),
+            });
+          } catch (logErr) {
+            console.error('[TaskDetailModal] Failed to log notification failure:', logErr);
+          }
+        }
+      } else {
+        try {
+          const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`, {
+            method: 'POST', headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to: task.customerPhone, message: msg, orderId: task.orderId }),
+          });
+          if (!r.ok) { smsWarn = 'SMS failed to send'; console.warn('Arrived SMS failed:', await r.text()); }
+        } catch (e: any) { smsWarn = 'SMS failed: ' + e.message; }
+      }
 
       const { error: taskErr } = await supabase.from('task_status').update({ status: 'arrived', arrived_time: new Date().toISOString() }).eq('id', taskStatusId);
       if (taskErr) throw new Error('Failed to update task status: ' + taskErr.message);
@@ -310,7 +333,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const { error: wfErr } = await supabase.from('orders').update({ workflow_status: 'arrived' }).eq('id', task.orderId);
       if (wfErr) console.warn('workflow_status update failed (arrived):', wfErr.message);
 
-      let arrivedMsg = smsWarn ? `Arrived saved. Warning: ${smsWarn}.` : 'Arrived and customer notified successfully!';
+      let arrivedMsg = smsWarn ? `Arrived saved, but the customer notification failed.` : 'Arrived and customer notified successfully!';
       if (wfErr) arrivedMsg += '\n\n⚠️ Portal status may not update — workflow state failed to save.';
       showAlert(arrivedMsg);
       refresh();

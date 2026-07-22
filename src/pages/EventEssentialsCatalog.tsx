@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { notifyError } from '../lib/notifications';
+import { decideAddError } from '../lib/catalogAddError';
 import {
   Package,
   Calendar,
@@ -108,8 +109,11 @@ export function EventEssentialsCatalog() {
   const [addError, setAddError] = useState<string | null>(null);
 
   function setAddErrorWithToast(msg: string) {
-    setAddError(msg);
-    notifyError(msg);
+    const decision = decideAddError(addError, msg);
+    setAddError(decision.bannerMessage);
+    if (decision.showToast) {
+      notifyError(decision.bannerMessage);
+    }
   }
   const addingRef = useRef(false);
   const availabilityRequestId = useRef(0);

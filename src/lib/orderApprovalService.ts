@@ -3,6 +3,7 @@ import { ORDER_STATUS } from './constants/statuses';
 import { sendEmail } from './notificationService';
 import {
   generateConfirmationReceiptEmail,
+  generateConfirmationSmsMessage,
   generateRejectionSmsMessage,
 } from './orderEmailTemplates';
 import { checkMultipleUnitsAvailability } from './availability';
@@ -24,9 +25,10 @@ interface ApprovalResult {
   notificationWarning?: string;
 }
 
-export interface NotificationResult {
-  success: boolean;
-  error?: string;
+export interface NotificationChannelResult {
+  emailSent: boolean | null;
+  smsSent: boolean | null;
+  errors: string[];
 }
 
 export async function approveOrder(
@@ -118,13 +120,17 @@ export async function approveOrder(
       let notificationWarning: string | undefined;
       if (customerNoDeposit) {
         try {
-          const notifResult = await sendConfirmationEmail(orderWithRelationsNoDeposit, totalCentsNoDeposit);
-          if (!notifResult.success) {
-            notificationWarning = notifResult.error || 'Confirmation notification failed. Retry the notification from the order.';
+          const notifResult = await sendApprovalConfirmationNotifications(
+            orderWithRelationsNoDeposit,
+            totalCentsNoDeposit,
+            sendSms,
+          );
+          if (notifResult.errors.length > 0) {
+            notificationWarning = notifResult.errors.join('; ');
           }
-        } catch (emailErr: any) {
-          console.error('[orderApprovalService] confirmation email failed (non-fatal):', emailErr);
-          notificationWarning = (emailErr as any)?.message || 'Confirmation notification failed. Retry the notification from the order.';
+        } catch (notifErr: any) {
+          console.error('[orderApprovalService] confirmation notifications failed (non-fatal):', notifErr);
+          notificationWarning = (notifErr as any)?.message || 'Confirmation notification failed. Retry the notification from the order.';
         }
       }
 
@@ -336,13 +342,17 @@ export async function approveOrder(
     let notificationWarning: string | undefined;
     if (customer) {
       try {
-        const notifResult = await sendConfirmationEmail(orderWithRelations, totalCents);
-        if (!notifResult.success) {
-          notificationWarning = notifResult.error || 'Confirmation notification failed. Retry the notification from the order.';
+        const notifResult = await sendApprovalConfirmationNotifications(
+          orderWithRelations,
+          totalCents,
+          sendSms,
+        );
+        if (notifResult.errors.length > 0) {
+          notificationWarning = notifResult.errors.join('; ');
         }
-      } catch (emailErr: any) {
-        console.error('[orderApprovalService] confirmation email failed (non-fatal):', emailErr);
-        notificationWarning = (emailErr as any)?.message || 'Confirmation notification failed. Retry the notification from the order.';
+      } catch (notifErr: any) {
+        console.error('[orderApprovalService] confirmation notifications failed (non-fatal):', notifErr);
+        notificationWarning = (notifErr as any)?.message || 'Confirmation notification failed. Retry the notification from the order.';
       }
     }
 
@@ -535,7 +545,13 @@ function generateCardDeclinedEmail(order: any, portalUrl: string, businessPhone:
 </html>`;
 }
 
-async function sendConfirmationEmail(orderWithItems: any, totalCents: number): Promise<NotificationResult> {
+async function sendApprovalConfirmationNotifications(
+  orderWithItems: any,
+  totalCents: number,
+  sendSmsFn: (message: string) => Promise<boolean>,
+): Promise<NotificationChannelResult> {
+  const result: NotificationChannelResult = { emailSent: null, smsSent: null, errors: [] };
+
   try {
     const { data: payment } = await supabase
       .from('payments')
@@ -551,28 +567,28 @@ async function sendConfirmationEmail(orderWithItems: any, totalCents: number): P
     const address = orderWithItems?.addresses as any;
     const items = (orderWithItems?.order_items as any) || [];
 
+    // 1. Create one short portal link shared by both channels
     const linkResult = await createShortPortalLink(orderWithItems.id, supabase, orderWithItems.event_date);
 
     if (!linkResult.success) {
-      console.error('[orderApprovalService] Short-link failed, skipping confirmation email:', linkResult.error);
+      console.error('[orderApprovalService] Short-link failed, skipping all confirmation notifications:', linkResult.error);
       try {
-        await supabase
-          .from('notification_failures' as any)
-          .insert({
-            order_id: orderWithItems.id,
-            channel: 'email',
-            message_type: 'booking_confirmation',
-            error_message: linkResult.error,
-            created_at: new Date().toISOString(),
-          });
+        await supabase.from('notification_failures' as any).insert([
+          { order_id: orderWithItems.id, channel: 'email', message_type: 'booking_confirmation', error_message: linkResult.error, created_at: new Date().toISOString() },
+          { order_id: orderWithItems.id, channel: 'sms', message_type: 'booking_confirmation', error_message: linkResult.error, created_at: new Date().toISOString() },
+        ]);
       } catch (logErr) {
         console.error('[orderApprovalService] Failed to log notification failure:', logErr);
       }
-      return { success: false, error: linkResult.error };
+      result.emailSent = false;
+      result.smsSent = false;
+      result.errors.push(linkResult.error);
+      return result;
     }
 
-    const portalUrl = linkResult.url;
+    const portalUrl = linkResult.url!;
 
+    // 2. Send email if address exists
     if (customer?.email) {
       const emailHtml = generateConfirmationReceiptEmail({
         order: orderWithItems,
@@ -590,28 +606,60 @@ async function sendConfirmationEmail(orderWithItems: any, totalCents: number): P
           subject: `Booking Confirmed - Receipt for Order #${formatOrderId(orderWithItems.id)}`,
           html: emailHtml,
         });
+        result.emailSent = true;
       } catch (emailErr: any) {
         console.error('[orderApprovalService] Email send failed:', emailErr);
+        result.emailSent = false;
+        const errMsg = (emailErr as any)?.message || 'Email send failed';
+        result.errors.push(`Email: ${errMsg}`);
         try {
-          await supabase
-            .from('notification_failures' as any)
-            .insert({
-              order_id: orderWithItems.id,
-              channel: 'email',
-              message_type: 'booking_confirmation',
-              error_message: emailErr?.message || 'Email send failed',
-              created_at: new Date().toISOString(),
-            });
+          await supabase.from('notification_failures' as any).insert({
+            order_id: orderWithItems.id, channel: 'email', message_type: 'booking_confirmation',
+            error_message: errMsg, created_at: new Date().toISOString(),
+          });
         } catch (logErr) {
           console.error('[orderApprovalService] Failed to log email failure:', logErr);
         }
-        return { success: false, error: emailErr?.message || 'Email send failed' };
       }
     }
 
-    return { success: true };
-  } catch (emailError: any) {
-    console.error('Error sending receipt email:', emailError);
-    return { success: false, error: emailError?.message || 'Unknown error' };
+    // 3. Send SMS if phone exists
+    if (customer?.phone) {
+      const smsMessage = generateConfirmationSmsMessage(orderWithItems, customer.first_name, portalUrl);
+      try {
+        const smsOk = await sendSmsFn(smsMessage);
+        result.smsSent = smsOk;
+        if (!smsOk) {
+          result.errors.push('SMS: send returned false');
+          try {
+            await supabase.from('notification_failures' as any).insert({
+              order_id: orderWithItems.id, channel: 'sms', message_type: 'booking_confirmation',
+              error_message: 'SMS send returned false', created_at: new Date().toISOString(),
+            });
+          } catch (logErr) {
+            console.error('[orderApprovalService] Failed to log SMS failure:', logErr);
+          }
+        }
+      } catch (smsErr: any) {
+        console.error('[orderApprovalService] SMS send failed:', smsErr);
+        result.smsSent = false;
+        const errMsg = (smsErr as any)?.message || 'SMS send failed';
+        result.errors.push(`SMS: ${errMsg}`);
+        try {
+          await supabase.from('notification_failures' as any).insert({
+            order_id: orderWithItems.id, channel: 'sms', message_type: 'booking_confirmation',
+            error_message: errMsg, created_at: new Date().toISOString(),
+          });
+        } catch (logErr) {
+          console.error('[orderApprovalService] Failed to log SMS failure:', logErr);
+        }
+      }
+    }
+
+    return result;
+  } catch (err: any) {
+    console.error('[orderApprovalService] Confirmation notifications error:', err);
+    result.errors.push((err as any)?.message || 'Unknown error');
+    return result;
   }
 }

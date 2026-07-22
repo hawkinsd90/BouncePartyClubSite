@@ -6,6 +6,7 @@ import { useSmsHandling } from '../../hooks/useSmsHandling';
 import { approveOrder, forceApproveOrder, rejectOrder } from '../../lib/orderApprovalService';
 import { generatePaymentLinkSmsMessage } from '../../lib/orderEmailTemplates';
 import { formatOrderId, createShortPortalLink } from '../../lib/utils';
+import { buildApprovalMessage, decideLotPicturesRequest } from '../../lib/notificationDecision';
 import { supabase } from '../../lib/supabase';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
 import { OrderInfoSection } from '../pending-order/OrderInfoSection';
@@ -166,11 +167,12 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
     const result = await approveOrder(order.id, sendSms);
     setProcessing(false);
 
+    alert(buildApprovalMessage({
+      approvalSuccessful: result.success,
+      notificationWarning: result.notificationWarning,
+    }));
     if (result.success) {
-      alert('Booking approved, card charged, and customer notified via SMS and email!');
       onUpdate();
-    } else {
-      alert(`Error approving order: ${result.error}`);
     }
   }
 
@@ -277,13 +279,30 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
           onPromptCustomer={async () => {
             try {
               const portalLinkResult = await createShortPortalLink(order.id, supabase, order.event_date);
-              if (!portalLinkResult.success) {
-                throw new Error(`Failed to create short link: ${portalLinkResult.error}`);
-              }
-              const message = `Bounce Party Club - Hi! We're reviewing your order #${formatOrderId(order.id)}. Could you please upload pictures of the event location through your customer portal? This helps us prepare better for your event. Link: ${portalLinkResult.url}`;
-              await sendSms(message);
+              const message = `Bounce Party Club - Hi! We're reviewing your order #${formatOrderId(order.id)}. Could you please upload pictures of the event location through your customer portal? This helps us prepare better for your event. Link: ${portalLinkResult.success ? portalLinkResult.url : ''}`;
+              const smsSent = portalLinkResult.success ? await sendSms(message) : false;
 
-              // Only mark as requested after successful SMS send
+              const decision = decideLotPicturesRequest({
+                linkResult: portalLinkResult,
+                smsSentSuccessfully: smsSent,
+              });
+
+              if (decision.failureRecord) {
+                try {
+                  await supabase.from('notification_failures' as any).insert({
+                    order_id: order.id,
+                    channel: decision.failureRecord.channel,
+                    message_type: decision.failureRecord.message_type,
+                    error_message: decision.failureRecord.error,
+                    created_at: new Date().toISOString(),
+                  });
+                } catch (logErr) {
+                  console.error('[PendingOrderCard] Failed to log notification failure:', logErr);
+                }
+                alert('Failed to send request. Please try again.');
+                return;
+              }
+
               const { error } = await supabase
                 .from('orders')
                 .update({

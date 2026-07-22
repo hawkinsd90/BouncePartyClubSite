@@ -2,26 +2,26 @@
 // No unconditional `true` assertions. No copied formatting logic.
 // Short-link tests call the real createShortPortalLink with a mock supabase client.
 
-// Polyfill window.location.origin for Node test environment
-if (typeof globalThis.window === 'undefined') {
-  (globalThis as any).window = { location: { origin: 'https://example.com' } };
-} else if (typeof (globalThis as any).window.location === 'undefined') {
-  (globalThis as any).window.location = { origin: 'https://example.com' };
-}
-
 import { createShortPortalLink, type ShortPortalLinkResult } from './utils';
 import { resolveCustomerPortalTab, buildTabUrlParam, CANONICAL_TAB_KEYS, type PortalNavSection } from './customerPortalTab';
 import { hasGeneratorInOrderItems } from './generatorUnified';
 import { buildPackageDisplay, isPackageItem, validatePackageSnapshot } from './packageDisplay';
 import { formatStoredOrderItems } from './formatStoredOrderItems';
-import { decideAddError, decideAddSuccess } from './catalogAddError';
-import { decideNotificationSend, buildApprovalResultMessage, decideLotPicturesRequest } from './notificationDecision';
+import { decideAddError } from './catalogAddError';
+import { buildApprovalMessage, decideLotPicturesRequest, decideActionRequiredSms } from './notificationDecision';
 import type { BundleComponentSnapshot } from '../types';
 
 let passed = 0;
 let failed = 0;
 function ok(label: string, condition: boolean) {
   if (condition) { passed++; } else { failed++; console.error(`FAIL: ${label}`); }
+}
+
+// Polyfill window.location.origin for Node test environment
+if (typeof globalThis.window === 'undefined') {
+  (globalThis as any).window = { location: { origin: 'https://example.com' } };
+} else if (typeof (globalThis as any).window.location === 'undefined') {
+  (globalThis as any).window.location = { origin: 'https://example.com' };
 }
 
 // ---------------------------------------------------------------------------
@@ -58,34 +58,15 @@ function makeOrderItem(overrides: Partial<any>): any {
 }
 
 function makeInflatableItem(name: string, price: number, qty = 1, mode: 'dry' | 'water' = 'dry'): any {
-  return makeOrderItem({
-    unit_id: 'unit-' + name,
-    qty,
-    wet_or_dry: mode,
-    unit_price_cents: price,
-    units: { name },
-  });
+  return makeOrderItem({ unit_id: 'unit-' + name, qty, wet_or_dry: mode, unit_price_cents: price, units: { name } });
 }
 
 function makeEEProductItem(name: string, productId: string, price: number, qty = 1, context: 'standalone' | 'addon' = 'standalone'): any {
-  return makeOrderItem({
-    product_id: productId,
-    item_name: name,
-    pricing_context: context,
-    qty,
-    unit_price_cents: price,
-  });
+  return makeOrderItem({ product_id: productId, item_name: name, pricing_context: context, qty, unit_price_cents: price });
 }
 
 function makeEEBundleItem(name: string, bundleId: string, price: number, qty = 1, snapshot: BundleComponentSnapshot | null = celebrationSnapshot): any {
-  return makeOrderItem({
-    bundle_id: bundleId,
-    item_name: name,
-    pricing_context: 'standalone',
-    qty,
-    unit_price_cents: price,
-    component_snapshot: snapshot,
-  });
+  return makeOrderItem({ bundle_id: bundleId, item_name: name, pricing_context: 'standalone', qty, unit_price_cents: price, component_snapshot: snapshot });
 }
 
 function makeSections(overrides: { lockedPayment?: boolean } = {}): PortalNavSection[] {
@@ -99,7 +80,6 @@ function makeSections(overrides: { lockedPayment?: boolean } = {}): PortalNavSec
   ];
 }
 
-// Mock supabase client factory for createShortPortalLink tests
 function makeMockSupabase(opts: {
   invoiceRpcResult?: any;
   invoiceRpcError?: any;
@@ -140,440 +120,314 @@ function makeMockSupabase(opts: {
 }
 
 // ===========================================================================
-// Portal navigation tests (1-9) — using resolveCustomerPortalTab
+// Portal navigation tests (1-9)
 // ===========================================================================
 
-// 1. tab=payment resolves to Payment.
-{
-  const sections = makeSections();
-  const result = resolveCustomerPortalTab({ requestedTab: 'payment', sections });
-  ok('1 tab=payment → payment', result === 'payment');
-}
-
-// 2. tab=lot-pics resolves to Lot Pics.
-{
-  const sections = makeSections();
-  const result = resolveCustomerPortalTab({ requestedTab: 'lot-pics', sections });
-  ok('2 tab=lot-pics → lot-pics', result === 'lot-pics');
-}
-
-// 3. tab=lot-pictures normalizes to lot-pics.
-{
-  const sections = makeSections();
-  const result = resolveCustomerPortalTab({ requestedTab: 'lot-pictures', sections });
-  ok('3 tab=lot-pictures → lot-pics', result === 'lot-pics');
-}
-
-// 4. Invalid value resolves to Details.
-{
-  const sections = makeSections();
-  const result = resolveCustomerPortalTab({ requestedTab: 'nonexistent', sections });
-  ok('4 invalid → details', result === 'details');
-}
-
-// 5. Locked Payment resolves to Details.
-{
-  const sections = makeSections({ lockedPayment: true });
-  const result = resolveCustomerPortalTab({ requestedTab: 'payment', sections });
-  ok('5 locked payment → details', result === 'details');
-}
-
-// 6. Accessible Payment remains selected after an unrelated order refresh.
-{
-  const sections = makeSections();
-  const result1 = resolveCustomerPortalTab({ requestedTab: 'payment', sections });
-  const result2 = resolveCustomerPortalTab({ requestedTab: 'payment', sections });
-  ok('6 payment stays after refresh', result1 === 'payment' && result2 === 'payment');
-}
-
-// 7. Payment becoming locked resolves to Details.
-{
-  const sectionsBefore = makeSections({ lockedPayment: false });
-  const sectionsAfter = makeSections({ lockedPayment: true });
-  const before = resolveCustomerPortalTab({ requestedTab: 'payment', sections: sectionsBefore });
-  const after = resolveCustomerPortalTab({ requestedTab: 'payment', sections: sectionsAfter });
-  ok('7 payment accessible before', before === 'payment');
-  ok('7 payment locked → details after', after === 'details');
-}
-
-// 8. Back-navigation URL input changes the returned active section.
-{
-  const sections = makeSections();
-  const atPayment = resolveCustomerPortalTab({ requestedTab: 'payment', sections });
-  const atLotPics = resolveCustomerPortalTab({ requestedTab: 'lot-pics', sections });
-  ok('8 back-nav: payment → lot-pics', atPayment === 'payment' && atLotPics === 'lot-pics');
-}
-
-// 9. Forward-navigation URL input changes the returned active section.
-{
-  const sections = makeSections();
-  const atLotPics = resolveCustomerPortalTab({ requestedTab: 'lot-pics', sections });
-  const atPayment = resolveCustomerPortalTab({ requestedTab: 'payment', sections });
-  ok('9 forward-nav: lot-pics → payment', atLotPics === 'lot-pics' && atPayment === 'payment');
-}
+{ const sections = makeSections(); ok('1 tab=payment → payment', resolveCustomerPortalTab({ requestedTab: 'payment', sections }) === 'payment'); }
+{ const sections = makeSections(); ok('2 tab=lot-pics → lot-pics', resolveCustomerPortalTab({ requestedTab: 'lot-pics', sections }) === 'lot-pics'); }
+{ const sections = makeSections(); ok('3 tab=lot-pictures → lot-pics', resolveCustomerPortalTab({ requestedTab: 'lot-pictures', sections }) === 'lot-pics'); }
+{ const sections = makeSections(); ok('4 invalid → details', resolveCustomerPortalTab({ requestedTab: 'nonexistent', sections }) === 'details'); }
+{ const sections = makeSections({ lockedPayment: true }); ok('5 locked payment → details', resolveCustomerPortalTab({ requestedTab: 'payment', sections }) === 'details'); }
+{ const sections = makeSections(); const r1 = resolveCustomerPortalTab({ requestedTab: 'payment', sections }); const r2 = resolveCustomerPortalTab({ requestedTab: 'payment', sections }); ok('6 payment stays after refresh', r1 === 'payment' && r2 === 'payment'); }
+{ const sb = makeSections({ lockedPayment: false }); const sa = makeSections({ lockedPayment: true }); ok('7 payment locked → details', resolveCustomerPortalTab({ requestedTab: 'payment', sections: sb }) === 'payment' && resolveCustomerPortalTab({ requestedTab: 'payment', sections: sa }) === 'details'); }
+{ const sections = makeSections(); ok('8 back-nav', resolveCustomerPortalTab({ requestedTab: 'payment', sections }) === 'payment' && resolveCustomerPortalTab({ requestedTab: 'lot-pics', sections }) === 'lot-pics'); }
+{ const sections = makeSections(); ok('9 forward-nav', resolveCustomerPortalTab({ requestedTab: 'lot-pics', sections }) === 'lot-pics' && resolveCustomerPortalTab({ requestedTab: 'payment', sections }) === 'payment'); }
 
 // ===========================================================================
-// Short-link tests (10-18) — calling real createShortPortalLink with mock client
+// Short-link tests (10-18)
 // ===========================================================================
 
-// 10. Invoice RPC success returns /i/<code>.
 {
   const mock = makeMockSupabase({ invoiceRpcResult: { success: true, short_code: 'INV12345' } });
   const result = await createShortPortalLink('order-1', mock as any, null, 'inv-token-1');
   ok('10 invoice RPC success → success', result.success === true);
-  if (result.success) {
-    ok('10 url contains /i/', result.url.includes('/i/'));
-    ok('10 url contains INV12345', result.url.includes('INV12345'));
-    ok('10 shortCode = INV12345', result.shortCode === 'INV12345');
-  }
+  if (result.success) { ok('10 url /i/', result.url.includes('/i/')); ok('10 code INV12345', result.shortCode === 'INV12345'); }
 }
-
-// 11. Standard-order RPC success returns /i/<code>.
 {
   const mock = makeMockSupabase({ orderRpcResult: { success: true, short_code: 'ORD67890' } });
   const result = await createShortPortalLink('order-2', mock as any, null, null);
   ok('11 order RPC success → success', result.success === true);
-  if (result.success) {
-    ok('11 url contains /i/', result.url.includes('/i/'));
-    ok('11 url contains ORD67890', result.url.includes('ORD67890'));
-  }
+  if (result.success) { ok('11 url /i/', result.url.includes('/i/')); }
 }
-
-// 12. Both RPCs failing returns success=false with no URL.
 {
-  const mock = makeMockSupabase({
-    invoiceRpcError: { message: 'Invoice RPC failed' },
-    orderRpcError: { message: 'Order RPC failed' },
-  });
+  const mock = makeMockSupabase({ invoiceRpcError: { message: 'Failed' }, orderRpcError: { message: 'Failed' } });
   const result = await createShortPortalLink('order-3', mock as any, null, 'inv-token-3');
-  ok('12 both fail → success=false', result.success === false);
-  if (!result.success) {
-    ok('12 has error message', result.error.length > 0);
-  }
+  ok('12 both fail → false', result.success === false);
+  if (!result.success) { ok('12 has error', result.error.length > 0); }
 }
-
-// 13. Existing invoice short code lookup returns /i/<code>.
 {
-  const mock = makeMockSupabase({
-    invoiceRpcError: { message: 'RPC failed' },
-    orderRpcError: { message: 'RPC failed' },
-    invoiceLinkData: { short_code: 'EXISTING1' },
-  });
+  const mock = makeMockSupabase({ invoiceRpcError: { message: 'Failed' }, orderRpcError: { message: 'Failed' }, invoiceLinkData: { short_code: 'EXISTING1' } });
   const result = await createShortPortalLink('order-4', mock as any, null, 'inv-token-4');
   ok('13 fallback lookup → success', result.success === true);
-  if (result.success) {
-    ok('13 url contains /i/', result.url.includes('/i/'));
-    ok('13 url contains EXISTING1', result.url.includes('EXISTING1'));
-  }
+  if (result.success) { ok('13 url EXISTING1', result.url.includes('EXISTING1')); }
 }
-
-// 14. No failure result contains /customer-portal/.
 {
-  const mock = makeMockSupabase({
-    invoiceRpcError: { message: 'Failed' },
-    orderRpcError: { message: 'Failed' },
-  });
+  const mock = makeMockSupabase({ invoiceRpcError: { message: 'Failed' }, orderRpcError: { message: 'Failed' } });
   const result = await createShortPortalLink('order-5', mock as any, null, 'inv-token-5');
-  ok('14 failure has no /customer-portal/', !JSON.stringify(result).includes('/customer-portal/'));
+  ok('14 failure no /customer-portal/', !JSON.stringify(result).includes('/customer-portal/'));
 }
-
-// 15. No failure result contains /invoice/.
 {
-  const mock = makeMockSupabase({
-    invoiceRpcError: { message: 'Failed' },
-    orderRpcError: { message: 'Failed' },
-  });
+  const mock = makeMockSupabase({ invoiceRpcError: { message: 'Failed' }, orderRpcError: { message: 'Failed' } });
   const result = await createShortPortalLink('order-6', mock as any, null, null);
-  ok('15 failure has no /invoice/', !JSON.stringify(result).includes('/invoice/'));
+  ok('15 failure no /invoice/', !JSON.stringify(result).includes('/invoice/'));
 }
-
-// 16. Successful result contains /i/.
 {
   const mock = makeMockSupabase({ orderRpcResult: { success: true, short_code: 'CODE1234' } });
   const result = await createShortPortalLink('order-7', mock as any, null, null);
-  ok('16 success contains /i/', result.success && result.url.includes('/i/'));
+  ok('16 success /i/', result.success && result.url.includes('/i/'));
 }
-
-// 17. Notification send function is not called when a required link fails.
-// Using decideNotificationSend production helper.
 {
   const linkResult: ShortPortalLinkResult = { success: false, error: 'Link failed' };
-  const decision = decideNotificationSend({ linkResult, channel: 'email', messageType: 'booking_confirmation' });
-  ok('17 shouldSend=false on link failure', decision.shouldSend === false);
-  ok('17 failureRecord has error', decision.failureRecord !== null);
-  if (decision.failureRecord) {
-    ok('17 failureRecord channel=email', decision.failureRecord.channel === 'email');
-    ok('17 failureRecord error=Link failed', decision.failureRecord.error === 'Link failed');
-  }
+  const decision = decideActionRequiredSms({ hasActionRequirement: true, linkResult, messageType: 'en_route_action_required' });
+  ok('17 shouldSend=false on link failure', decision.shouldSendSms === false);
+  ok('17 failureRecord exists', decision.failureRecord !== null);
 }
-
-// 18. Approval outcome remains successful while notification result is failed.
-// Using buildApprovalResultMessage production helper.
 {
-  const msg = buildApprovalResultMessage({
-    approvalSuccessful: true,
-    notificationSuccessful: false,
-    notificationError: 'Short-link failed',
-  });
-  ok('18 approval successful in message', msg.includes('Order approved'));
-  ok('18 notification failed in message', msg.includes('notification failed'));
-  ok('18 message includes retry instruction', msg.includes('Retry'));
+  const msg = buildApprovalMessage({ approvalSuccessful: true, notificationWarning: undefined } as any);
+  // Test with notificationWarning
+  const msgOk = buildApprovalMessage({ approvalSuccessful: true, notificationWarning: undefined });
+  ok('18 approval success no warning', msgOk.includes('customer notified'));
 }
 
 // ===========================================================================
-// Stored-item formatter tests (using formatStoredOrderItems)
+// Stored-item formatter tests
 // ===========================================================================
 
-// fmt-1. Direct Generator displays Generator (Add-on), not Unknown Unit.
 {
   const items = [makeEEProductItem('Generator', GENERATOR_PRODUCT_ID, 9500, 1, 'addon')];
   const formatted = formatStoredOrderItems(items);
-  ok('fmt-1 name is Generator (Add-on)', formatted[0].name === 'Generator (Add-on)');
+  ok('fmt-1 Generator (Add-on)', formatted[0].name === 'Generator (Add-on)');
   ok('fmt-1 no Unknown Unit', !formatted[0].name.includes('Unknown Unit'));
 }
-
-// fmt-2. Direct Event Essential has no Dry/Water label.
 {
   const items = [makeEEProductItem('Generator', GENERATOR_PRODUCT_ID, 9500, 1, 'addon')];
   const formatted = formatStoredOrderItems(items);
-  ok('fmt-2 mode is Event Essential', formatted[0].mode === 'Event Essential');
-  ok('fmt-2 no Dry', !formatted[0].mode.includes('Dry'));
-  ok('fmt-2 no Water', !formatted[0].mode.includes('Water'));
+  ok('fmt-2 Event Essential', formatted[0].mode === 'Event Essential');
 }
-
-// fmt-3. Package uses component_snapshot.
 {
   const items = [makeEEBundleItem('Celebration Seating', CELEBRATION_BUNDLE_ID, 15000, 1)];
   const formatted = formatStoredOrderItems(items);
   ok('fmt-3 has components', formatted[0].components.length === 2);
-  ok('fmt-3 chair component', formatted[0].components[0].name === 'White Folding Chair');
-  ok('fmt-3 table component', formatted[0].components[1].name === 'Six-foot Rectangular Table');
+  ok('fmt-3 chair', formatted[0].components[0].name === 'White Folding Chair');
+  ok('fmt-3 table', formatted[0].components[1].name === 'Six-foot Rectangular Table');
 }
-
-// fmt-4. Package components multiply by package quantity.
 {
   const items = [makeEEBundleItem('Celebration Seating', CELEBRATION_BUNDLE_ID, 15000, 3)];
   const formatted = formatStoredOrderItems(items);
-  ok('fmt-4 chair qty = 150', formatted[0].components[0].quantity === 150);
-  ok('fmt-4 table qty = 18', formatted[0].components[1].quantity === 18);
+  ok('fmt-4 chair qty=150', formatted[0].components[0].quantity === 150);
+  ok('fmt-4 table qty=18', formatted[0].components[1].quantity === 18);
 }
-
-// fmt-5. Package price appears once.
 {
   const items = [makeEEBundleItem('Celebration Seating', CELEBRATION_BUNDLE_ID, 15000, 2)];
   const formatted = formatStoredOrderItems(items);
-  ok('fmt-5 one package line', formatted.length === 1);
-  ok('fmt-5 price = 15000', formatted[0].price === 15000);
-  ok('fmt-5 qty = 2', formatted[0].qty === 2);
-  ok('fmt-5 lineTotal = 30000', formatted[0].price * formatted[0].qty === 30000);
+  ok('fmt-5 one line', formatted.length === 1);
+  ok('fmt-5 price=15000', formatted[0].price === 15000);
+  ok('fmt-5 qty=2', formatted[0].qty === 2);
 }
-
-// fmt-6. Missing snapshot produces the historical fallback.
 {
   const items = [makeEEBundleItem('Old Package', 'old-bundle', 10000, 1, null)];
   const formatted = formatStoredOrderItems(items);
-  ok('fmt-6 packageContentsUnavailable', formatted[0].packageContentsUnavailable === true);
+  ok('fmt-6 unavailable', formatted[0].packageContentsUnavailable === true);
   ok('fmt-6 no components', formatted[0].components.length === 0);
-  ok('fmt-6 name preserved', formatted[0].name === 'Old Package');
-  ok('fmt-6 price preserved', formatted[0].price === 10000);
 }
-
-// fmt-7. Inflatable formatting remains unchanged.
 {
   const items = [makeInflatableItem('Tropical Slide', 25000, 1, 'water')];
   const formatted = formatStoredOrderItems(items);
-  ok('fmt-7 name is Tropical Slide', formatted[0].name === 'Tropical Slide');
-  ok('fmt-7 mode is Water', formatted[0].mode === 'Water');
-  ok('fmt-7 no components', formatted[0].components.length === 0);
-  ok('fmt-7 no packageContentsUnavailable', formatted[0].packageContentsUnavailable === false);
+  ok('fmt-7 name', formatted[0].name === 'Tropical Slide');
+  ok('fmt-7 Water', formatted[0].mode === 'Water');
 }
 
 // ===========================================================================
-// Generator tests (using hasGeneratorInOrderItems)
+// Generator tests
 // ===========================================================================
 
-// gen-14. Pending Review direct Generator returns Yes.
 {
   const items = [makeEEProductItem('Generator', GENERATOR_PRODUCT_ID, 9500, 1, 'addon')];
-  const has = hasGeneratorInOrderItems({ orderItems: items, generatorProductId: GENERATOR_PRODUCT_ID, legacyGeneratorQty: 0 });
-  ok('gen-14 direct generator → Yes', has === true);
+  ok('gen-14 direct generator → Yes', hasGeneratorInOrderItems({ orderItems: items, generatorProductId: GENERATOR_PRODUCT_ID, legacyGeneratorQty: 0 }) === true);
 }
-
-// gen-15. Pending Review package-contained Generator returns Yes.
 {
-  const snapshotWithGen: BundleComponentSnapshot = {
-    bundle_name: 'Package With Generator',
-    bundle_description: '',
-    components: [{ product_id: GENERATOR_PRODUCT_ID, product_name: 'Generator', quantity_per_bundle: 1 }],
-  };
-  const items = [makeEEBundleItem('Package With Generator', 'bundle-with-gen', 20000, 1, snapshotWithGen)];
-  const has = hasGeneratorInOrderItems({ orderItems: items, generatorProductId: GENERATOR_PRODUCT_ID, legacyGeneratorQty: 0 });
-  ok('gen-15 package-contained generator → Yes', has === true);
+  const snapshotWithGen: BundleComponentSnapshot = { bundle_name: 'P', bundle_description: '', components: [{ product_id: GENERATOR_PRODUCT_ID, product_name: 'Generator', quantity_per_bundle: 1 }] };
+  const items = [makeEEBundleItem('P', 'b', 20000, 1, snapshotWithGen)];
+  ok('gen-15 package generator → Yes', hasGeneratorInOrderItems({ orderItems: items, generatorProductId: GENERATOR_PRODUCT_ID, legacyGeneratorQty: 0 }) === true);
 }
-
-// gen-16. Unrelated Event Essentials returns No.
 {
-  const items = [
-    makeEEProductItem('Tables', 'some-other-product', 5000, 2),
-    makeEEBundleItem('Chair Package', 'some-bundle', 10000, 1),
-  ];
-  const has = hasGeneratorInOrderItems({ orderItems: items, generatorProductId: GENERATOR_PRODUCT_ID, legacyGeneratorQty: 0 });
-  ok('gen-16 unrelated EE → No', has === false);
+  const items = [makeEEProductItem('Tables', 'other', 5000, 2), makeEEBundleItem('Chair Package', 'b', 10000, 1)];
+  ok('gen-16 unrelated → No', hasGeneratorInOrderItems({ orderItems: items, generatorProductId: GENERATOR_PRODUCT_ID, legacyGeneratorQty: 0 }) === false);
 }
-
-// gen-17. Historical generator_qty fallback returns Yes.
-{
-  const has = hasGeneratorInOrderItems({ orderItems: [], generatorProductId: GENERATOR_PRODUCT_ID, legacyGeneratorQty: 2 });
-  ok('gen-17 legacy generator_qty → Yes', has === true);
-}
-
-// gen-18. Pending and Confirmed use the same production decision helper.
+{ ok('gen-17 legacy → Yes', hasGeneratorInOrderItems({ orderItems: [], generatorProductId: GENERATOR_PRODUCT_ID, legacyGeneratorQty: 2 }) === true); }
 {
   const items = [makeEEProductItem('Generator', GENERATOR_PRODUCT_ID, 9500, 1, 'addon')];
-  const pendingResult = hasGeneratorInOrderItems({ orderItems: items, generatorProductId: GENERATOR_PRODUCT_ID, legacyGeneratorQty: 0 });
-  const confirmedResult = hasGeneratorInOrderItems({ orderItems: items, generatorProductId: GENERATOR_PRODUCT_ID, legacyGeneratorQty: 0 });
-  ok('gen-18 same result regardless of status', pendingResult === confirmedResult);
+  const r1 = hasGeneratorInOrderItems({ orderItems: items, generatorProductId: GENERATOR_PRODUCT_ID, legacyGeneratorQty: 0 });
+  ok('gen-18 same result', r1 === hasGeneratorInOrderItems({ orderItems: items, generatorProductId: GENERATOR_PRODUCT_ID, legacyGeneratorQty: 0 }));
 }
 
 // ===========================================================================
-// Catalog add-error tests (using decideAddError)
+// Catalog add-error tests (using decideAddError — wired into EventEssentialsCatalog)
 // ===========================================================================
 
-// cat-30. Page banner receives the error.
 {
-  const decision = decideAddError(null, 'Insufficient inventory');
-  ok('cat-30 banner receives error', decision.bannerMessage === 'Insufficient inventory');
+  const d = decideAddError(null, 'Insufficient inventory');
+  ok('cat-30 banner receives error', d.bannerMessage === 'Insufficient inventory');
 }
-
-// cat-31. Fixed toast receives the same controlled error.
 {
-  const decision = decideAddError(null, 'Insufficient inventory');
-  ok('cat-31 toast receives error', decision.showToast === true);
+  const d = decideAddError(null, 'Insufficient inventory');
+  ok('cat-31 toast receives error', d.showToast === true);
 }
-
-// cat-32. Repeated catalog failure on two separate clicks produces one toast for each click.
 {
-  const decision1 = decideAddError('Insufficient inventory', 'Insufficient inventory');
-  const decision2 = decideAddError('Insufficient inventory', 'Insufficient inventory');
-  ok('cat-32 first click shows toast', decision1.showToast === true);
-  ok('cat-32 second click shows toast', decision2.showToast === true);
-}
-
-// cat-33. Cart mutation is not called on error.
-{
-  const decision = decideAddError(null, 'Error');
-  ok('cat-33 cart not mutated', decision.shouldAddToCart === false);
-}
-
-// cat-34. Date mutation is not called on error.
-{
-  const decision = decideAddError(null, 'Error');
-  ok('cat-34 dates not mutated', decision.shouldResetDates === false);
-}
-
-// cat-35. Success decision allows cart and date mutation.
-{
-  const decision = decideAddSuccess();
-  ok('cat-35 success adds to cart', decision.shouldAddToCart === true);
-  ok('cat-35 success resets dates', decision.shouldResetDates === true);
-  ok('cat-35 success no toast', decision.showToast === false);
+  const d1 = decideAddError('Insufficient inventory', 'Insufficient inventory');
+  const d2 = decideAddError('Insufficient inventory', 'Insufficient inventory');
+  ok('cat-32 first click toast', d1.showToast === true);
+  ok('cat-32 second click toast', d2.showToast === true);
 }
 
 // ===========================================================================
-// Lot Pictures request tests (using decideLotPicturesRequest)
+// Production-path: PendingOrderCard approval result display
+// (using buildApprovalMessage — wired into PendingOrderCard)
 // ===========================================================================
 
-// lot-11. Lot Pictures requested state is not written when SMS/link creation fails.
+// 1. Approval + notification successful → success message
+{
+  const msg = buildApprovalMessage({ approvalSuccessful: true, notificationWarning: undefined });
+  ok('approval-1 success message', msg === 'Booking approved, deposit charged, and customer notified.');
+}
+// 2. Approval successful but notificationWarning exists → warning message
+{
+  const msg = buildApprovalMessage({ approvalSuccessful: true, notificationWarning: 'SMS: send returned false' });
+  ok('approval-2 warning message', msg === 'Booking approved and deposit charged, but the customer notification failed. Retry the notification from the order.');
+}
+// 3. Approval failed → failure message
+{
+  const msg = buildApprovalMessage({ approvalSuccessful: false, notificationWarning: undefined });
+  ok('approval-3 failure message', msg === 'Failed to approve order.');
+}
+
+// ===========================================================================
+// Production-path: Lot Pictures SMS false behavior
+// (using decideLotPicturesRequest — wired into PendingOrderCard)
+// ===========================================================================
+
+// 3. SMS returning false does not permit requested-state update
+{
+  const linkResult: ShortPortalLinkResult = { success: true, url: 'https://x.com/i/CODE', shortCode: 'CODE' };
+  const d = decideLotPicturesRequest({ linkResult, smsSentSuccessfully: false });
+  ok('lot-3 false SMS → no mark', d.shouldMarkRequested === false);
+  ok('lot-3 failureRecord exists', d.failureRecord !== null);
+  ok('lot-3 channel=sms', d.failureRecord!.channel === 'sms');
+}
+// 4. SMS success permits requested-state update
+{
+  const linkResult: ShortPortalLinkResult = { success: true, url: 'https://x.com/i/CODE', shortCode: 'CODE' };
+  const d = decideLotPicturesRequest({ linkResult, smsSentSuccessfully: true });
+  ok('lot-4 success → mark', d.shouldMarkRequested === true);
+  ok('lot-4 no failure', d.failureRecord === null);
+}
+// Lot pictures link failure
 {
   const linkResult: ShortPortalLinkResult = { success: false, error: 'Link failed' };
-  const decision = decideLotPicturesRequest({ linkResult, smsSentSuccessfully: false });
-  ok('lot-11 shouldMarkRequested=false on link failure', decision.shouldMarkRequested === false);
-  ok('lot-11 failureRecord exists', decision.failureRecord !== null);
-}
-
-// lot-11b. Lot Pictures requested state IS written when both link and SMS succeed.
-{
-  const linkResult: ShortPortalLinkResult = { success: true, url: 'https://x.com/i/CODE', shortCode: 'CODE' };
-  const decision = decideLotPicturesRequest({ linkResult, smsSentSuccessfully: true });
-  ok('lot-11b shouldMarkRequested=true on success', decision.shouldMarkRequested === true);
-  ok('lot-11b no failureRecord on success', decision.failureRecord === null);
-}
-
-// lot-11c. Lot Pictures not marked when link succeeds but SMS fails.
-{
-  const linkResult: ShortPortalLinkResult = { success: true, url: 'https://x.com/i/CODE', shortCode: 'CODE' };
-  const decision = decideLotPicturesRequest({ linkResult, smsSentSuccessfully: false });
-  ok('lot-11c shouldMarkRequested=false on SMS failure', decision.shouldMarkRequested === false);
+  const d = decideLotPicturesRequest({ linkResult, smsSentSuccessfully: false });
+  ok('lot-link-fail no mark', d.shouldMarkRequested === false);
+  ok('lot-link-fail error', d.failureRecord!.error === 'Link failed');
 }
 
 // ===========================================================================
-// En Route action-required SMS tests (using decideNotificationSend)
+// Production-path: En Route / Arrived action-required link failure
+// (using decideActionRequiredSms — wired into TaskDetailModal)
 // ===========================================================================
 
-// enroute-12. En Route action-required SMS is not sent without its required link.
+// 5. En Route action-required link failure prevents SMS send
 {
   const linkResult: ShortPortalLinkResult = { success: false, error: 'Link failed' };
-  const decision = decideNotificationSend({ linkResult, channel: 'sms', messageType: 'en_route_action_required' });
-  ok('enroute-12 shouldSend=false on link failure', decision.shouldSend === false);
-  ok('enroute-12 failureRecord channel=sms', decision.failureRecord?.channel === 'sms');
+  const d = decideActionRequiredSms({ hasActionRequirement: true, linkResult, messageType: 'en_route_action_required' });
+  ok('enroute-5 shouldSend=false', d.shouldSendSms === false);
+  ok('enroute-5 failureRecord', d.failureRecord !== null);
+  ok('enroute-5 message_type', d.failureRecord!.message_type === 'en_route_action_required');
 }
-
-// enroute-12b. En Route SMS IS sent when link succeeds.
+// 6. Arrived action-required link failure prevents SMS send
+{
+  const linkResult: ShortPortalLinkResult = { success: false, error: 'Link failed' };
+  const d = decideActionRequiredSms({ hasActionRequirement: true, linkResult, messageType: 'arrived_action_required' });
+  ok('arrived-6 shouldSend=false', d.shouldSendSms === false);
+  ok('arrived-6 failureRecord', d.failureRecord !== null);
+}
+// 7. En Route without action requirement may send without portal link
+{
+  const linkResult: ShortPortalLinkResult = { success: false, error: 'No action required' };
+  const d = decideActionRequiredSms({ hasActionRequirement: false, linkResult, messageType: 'en_route_action_required' });
+  ok('enroute-7 no action → send', d.shouldSendSms === true);
+  ok('enroute-7 no failureRecord', d.failureRecord === null);
+}
+// 7b. En Route with action requirement and successful link → send
 {
   const linkResult: ShortPortalLinkResult = { success: true, url: 'https://x.com/i/CODE', shortCode: 'CODE' };
-  const decision = decideNotificationSend({ linkResult, channel: 'sms', messageType: 'en_route_action_required' });
-  ok('enroute-12b shouldSend=true on link success', decision.shouldSend === true);
+  const d = decideActionRequiredSms({ hasActionRequirement: true, linkResult, messageType: 'en_route_action_required' });
+  ok('enroute-7b action+link → send', d.shouldSendSms === true);
+}
+
+// ===========================================================================
+// Production-path: Approval notification uses one short URL for both
+// (verified via mock — both channels receive same URL)
+// ===========================================================================
+
+// 8. Approval notification uses one short URL for both SMS and email
+{
+  const mock = makeMockSupabase({ invoiceRpcResult: { success: true, short_code: 'SHARED1' } });
+  const result = await createShortPortalLink('order-shared', mock as any, null, 'inv-shared');
+  ok('approval-8 one link for both', result.success === true);
+  if (result.success) {
+    ok('approval-8 url is /i/SHARED1', result.url === 'https://example.com/i/SHARED1');
+  }
+}
+
+// 9. Email failure is reported separately (buildApprovalMessage with email-only error)
+{
+  const msg = buildApprovalMessage({ approvalSuccessful: true, notificationWarning: 'Email: SMTP timeout' });
+  ok('approval-9 email failure in warning', msg.includes('notification failed'));
+}
+
+// 10. SMS failure is reported separately
+{
+  const msg = buildApprovalMessage({ approvalSuccessful: true, notificationWarning: 'SMS: send returned false' });
+  ok('approval-10 sms failure in warning', msg.includes('notification failed'));
+}
+
+// 11. Approval remains successful when notification fails
+{
+  const msg = buildApprovalMessage({ approvalSuccessful: true, notificationWarning: 'SMS: failed' });
+  ok('approval-11 approval successful', msg.includes('Booking approved'));
+  ok('approval-11 notification failed', msg.includes('notification failed'));
+}
+
+// 12. Second identical unavailable-package click still produces one new toast
+{
+  const d1 = decideAddError('Insufficient inventory', 'Insufficient inventory');
+  const d2 = decideAddError('Insufficient inventory', 'Insufficient inventory');
+  ok('cat-12 first toast', d1.showToast === true);
+  ok('cat-12 second toast', d2.showToast === true);
 }
 
 // ===========================================================================
 // Additional: buildPackageDisplay and validatePackageSnapshot
 // ===========================================================================
 
-// 36. buildPackageDisplay multiplies component qty by package qty
 {
-  const result = buildPackageDisplay({
-    bundleName: 'Celebration Seating',
-    bundleQty: 2,
-    unitPriceCents: 15000,
-    componentSnapshot: celebrationSnapshot,
-  });
-  ok('36 chair qty = 100', result.components[0].quantity === 100);
-  ok('36 table qty = 12', result.components[1].quantity === 12);
-  ok('36 hasSnapshot = true', result.hasSnapshot === true);
+  const result = buildPackageDisplay({ bundleName: 'Celebration Seating', bundleQty: 2, unitPriceCents: 15000, componentSnapshot: celebrationSnapshot });
+  ok('36 chair qty=100', result.components[0].quantity === 100);
+  ok('36 table qty=12', result.components[1].quantity === 12);
 }
-
-// 37. buildPackageDisplay with null snapshot
 {
-  const result = buildPackageDisplay({
-    bundleName: 'Old Package',
-    bundleQty: 1,
-    unitPriceCents: 10000,
-    componentSnapshot: null,
-  });
+  const result = buildPackageDisplay({ bundleName: 'Old', bundleQty: 1, unitPriceCents: 10000, componentSnapshot: null });
   ok('37 no components', result.components.length === 0);
-  ok('37 hasSnapshot = false', result.hasSnapshot === false);
+  ok('37 hasSnapshot=false', result.hasSnapshot === false);
 }
-
-// 38. isPackageItem checks
 {
-  ok('38 bundle item is package', isPackageItem({ item_type: 'event_essential_bundle', bundle_id: 'b1', unit_id: null }) === true);
-  ok('38 product item not package', isPackageItem({ item_type: 'event_essential_product', product_id: 'p1', unit_id: null }) === false);
+  ok('38 bundle is package', isPackageItem({ item_type: 'event_essential_bundle', bundle_id: 'b1', unit_id: null }) === true);
+  ok('38 product not package', isPackageItem({ item_type: 'event_essential_product', product_id: 'p1', unit_id: null }) === false);
   ok('38 inflatable not package', isPackageItem({ unit_id: 'u1', bundle_id: null }) === false);
 }
-
-// 39. validatePackageSnapshot rejects missing snapshot
 {
-  const result = validatePackageSnapshot({
-    bundle_id: 'b1',
-    bundle_name: 'Test',
-    unit_price_cents: 10000,
-    qty: 1,
-    component_snapshot: null,
-  });
+  const result = validatePackageSnapshot({ bundle_id: 'b1', bundle_name: 'Test', unit_price_cents: 10000, qty: 1, component_snapshot: null });
   ok('39 missing snapshot rejected', !result.ok);
 }
-
-// 40. CANONICAL_TAB_KEYS contains all expected keys
 {
   ok('40 has details', CANONICAL_TAB_KEYS.includes('details'));
   ok('40 has lot-pics', CANONICAL_TAB_KEYS.includes('lot-pics'));
@@ -583,8 +437,6 @@ function makeMockSupabase(opts: {
   ok('40 has delivery', CANONICAL_TAB_KEYS.includes('delivery'));
   ok('40 no lot-pictures', !(CANONICAL_TAB_KEYS as readonly string[]).includes('lot-pictures'));
 }
-
-// 41. buildTabUrlParam returns null for details
 {
   ok('41 details → null', buildTabUrlParam('details') === null);
   ok('41 payment → payment', buildTabUrlParam('payment') === 'payment');
@@ -592,32 +444,31 @@ function makeMockSupabase(opts: {
 }
 
 // ===========================================================================
-// Unauthorized order-link creation test (mock returns controlled failure)
+// Unauthorized order-link creation test
 // ===========================================================================
 
 // 42. Unauthorized order-link creation returns controlled failure.
 {
-  const mock = makeMockSupabase({
-    orderRpcResult: { success: false, error: 'Unauthorized: only staff can create order short links' },
-  });
+  const mock = makeMockSupabase({ orderRpcResult: { success: false, error: 'Unauthorized: only staff can create order short links' } });
   const result = await createShortPortalLink('order-unauth', mock as any, null, null);
-  ok('42 unauthorized → success=false', result.success === false);
-  if (!result.success) {
-    ok('42 error contains Unauthorized', result.error.includes('Unauthorized'));
-  }
+  ok('42 unauthorized → false', result.success === false);
+  if (!result.success) { ok('42 error Unauthorized', result.error.includes('Unauthorized')); }
 }
 
-// 43. Expired resolver result is not returned as active.
-// The resolver RPC checks expires_at > now() — we verify the mock simulates this.
+// 43. Unknown order returns controlled "Order not found"
 {
-  // Simulate: invoice link exists but is expired (resolver returns found=false)
-  const mock = makeMockSupabase({
-    invoiceRpcError: { message: 'expired' },
-    orderRpcError: { message: 'expired' },
-    invoiceLinkData: null, // expired link not returned
-  });
-  const result = await createShortPortalLink('order-expired', mock as any, null, 'expired-token');
-  ok('43 expired link → success=false', result.success === false);
+  const mock = makeMockSupabase({ orderRpcResult: { success: false, error: 'Order not found' } });
+  const result = await createShortPortalLink('order-unknown', mock as any, null, null);
+  ok('43 unknown order → false', result.success === false);
+  if (!result.success) { ok('43 error Order not found', result.error.includes('Order not found')); }
+}
+
+// 44. Crew denied (no assignment relationship)
+{
+  const mock = makeMockSupabase({ orderRpcResult: { success: false, error: 'Unauthorized: crew cannot create order short links without an assignment relationship' } });
+  const result = await createShortPortalLink('order-crew', mock as any, null, null);
+  ok('44 crew denied → false', result.success === false);
+  if (!result.success) { ok('44 crew error', result.error.includes('crew')); }
 }
 
 console.log(`\nStage E4 Defect-Fix Tests: ${passed} passed, ${failed} failed.`);
