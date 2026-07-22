@@ -14,7 +14,6 @@ import { checkDateBlackout } from '../lib/availability';
 import { validateQuote } from '../lib/quoteValidation';
 import { validateCartPackageSnapshots } from '../lib/packageDisplay';
 import { composeUnifiedQuoteTotals } from '../lib/unifiedTotals';
-import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS } from '../lib/depositCalculation';
 import type { PricingRules } from '../lib/pricing';
 import type { InflatableCartItem } from '../types';
 import { trackEvent, trackEventOnce } from '../lib/siteEvents';
@@ -103,16 +102,20 @@ export function Quote() {
       overnight_holiday_only: data.overnight_holiday_only ?? false,
       extra_day_pct: Number(data.extra_day_pct ?? 0),
       generator_price_cents: Number(data.generator_price_cents ?? 0),
-      deposit_per_unit_cents: Number((data as any).deposit_per_unit_cents ?? 5000),
+      deposit_per_unit_cents: Number(data.deposit_per_unit_cents ?? 5000),
       same_day_pickup_fee_cents: Number(data.same_day_pickup_fee_cents ?? 0),
-      same_day_weekday_delivery_fee_cents: Number((data as any).same_day_weekday_delivery_fee_cents ?? 0),
-      generator_fee_single_cents: Number((data as any).generator_fee_single_cents ?? data.generator_price_cents ?? 10000),
-      generator_fee_multiple_cents: Number((data as any).generator_fee_multiple_cents ?? data.generator_price_cents ?? 7500),
-      apply_taxes_by_default: (data as any).apply_taxes_by_default ?? true,
+      same_day_weekday_delivery_fee_cents: Number(data.same_day_weekday_delivery_fee_cents ?? 0),
+      generator_fee_single_cents: Number(data.generator_fee_single_cents ?? data.generator_price_cents ?? 10000),
+      generator_fee_multiple_cents: Number(data.generator_fee_multiple_cents ?? data.generator_price_cents ?? 7500),
+      apply_taxes_by_default: data.apply_taxes_by_default ?? true,
+      ee_only_deposit_base_threshold_cents: data.ee_only_deposit_base_threshold_cents ?? 20000,
+      ee_only_deposit_base_cents: data.ee_only_deposit_base_cents ?? 5000,
+      ee_only_deposit_subtotal_step_cents: data.ee_only_deposit_subtotal_step_cents ?? 10000,
+      ee_only_deposit_step_cents: data.ee_only_deposit_step_cents ?? 5000,
     };
   }, []);
 
-  const { data: pricingRules } = useDataFetch<PricingRules>(
+  const { data: pricingRules, loading: pricingRulesLoading, error: pricingRulesError } = useDataFetch<PricingRules>(
     fetchPricingRules,
     { showErrorNotification: false }
   );
@@ -347,7 +350,7 @@ export function Quote() {
     e.preventDefault();
     e.stopPropagation();
 
-    const validation = validateQuote(inflatableCart, formData);
+    const validation = validateQuote(cart, formData);
     if (!validation.isValid) {
       const errorMessage = validation.errorMessage || 'Please fix the errors below';
 
@@ -441,22 +444,38 @@ export function Quote() {
       return;
     }
 
+    // Stage E4 — Block checkout while pricing settings are loading or failed.
+    if (pricingRulesLoading) {
+      flushSync(() => {
+        setValidationError('Loading pricing configuration. Please wait a moment and try again.');
+        setValidationErrorFieldId(null);
+        setShowBottomToast(true);
+      });
+      return;
+    }
+
+    if (pricingRulesError || !pricingRules) {
+      flushSync(() => {
+        setValidationError('Unable to load pricing configuration. Please refresh the page or contact us for assistance.');
+        setValidationErrorFieldId(null);
+        setShowBottomToast(true);
+      });
+      return;
+    }
+
     // Stage E4 — Block checkout on deposit calculation failure.
-    if (pricingRules && priceBreakdown) {
-      const inflatableCount = inflatableCart.reduce((s, i) => s + i.qty, 0);
+    if (priceBreakdown) {
       const preTotals = composeUnifiedQuoteTotals({
         inflatableBreakdown: priceBreakdown,
         cart,
         taxApplied: priceBreakdown.tax_applied ?? true,
-        eeOnlyDepositSettings: (pricingRules as any) ? {
-          eeOnlyDepositBaseThresholdCents: (pricingRules as any).ee_only_deposit_base_threshold_cents ?? 20000,
-          eeOnlyDepositBaseCents: (pricingRules as any).ee_only_deposit_base_cents ?? 5000,
-          eeOnlyDepositSubtotalStepCents: (pricingRules as any).ee_only_deposit_subtotal_step_cents ?? 10000,
-          eeOnlyDepositStepCents: (pricingRules as any).ee_only_deposit_step_cents ?? 5000,
-        } : DEFAULT_EE_ONLY_DEPOSIT_SETTINGS,
-        inflatableDepositPerUnitCents: priceBreakdown.deposit_due_cents > 0
-          ? Math.round(priceBreakdown.deposit_due_cents / Math.max(1, inflatableCount))
-          : 5000,
+        eeOnlyDepositSettings: {
+          eeOnlyDepositBaseThresholdCents: pricingRules.ee_only_deposit_base_threshold_cents ?? 20000,
+          eeOnlyDepositBaseCents: pricingRules.ee_only_deposit_base_cents ?? 5000,
+          eeOnlyDepositSubtotalStepCents: pricingRules.ee_only_deposit_subtotal_step_cents ?? 10000,
+          eeOnlyDepositStepCents: pricingRules.ee_only_deposit_step_cents ?? 5000,
+        },
+        inflatableDepositPerUnitCents: pricingRules.deposit_per_unit_cents,
       });
       if (preTotals.depositError) {
         flushSync(() => {
@@ -642,10 +661,10 @@ export function Quote() {
 
             <div className="lg:col-span-1">
               <QuoteSummarySection cart={cart} priceBreakdown={priceBreakdown} eeOnlyDepositSettings={pricingRules ? {
-                eeOnlyDepositBaseThresholdCents: (pricingRules as any).ee_only_deposit_base_threshold_cents ?? 20000,
-                eeOnlyDepositBaseCents: (pricingRules as any).ee_only_deposit_base_cents ?? 5000,
-                eeOnlyDepositSubtotalStepCents: (pricingRules as any).ee_only_deposit_subtotal_step_cents ?? 10000,
-                eeOnlyDepositStepCents: (pricingRules as any).ee_only_deposit_step_cents ?? 5000,
+                eeOnlyDepositBaseThresholdCents: pricingRules.ee_only_deposit_base_threshold_cents ?? 20000,
+                eeOnlyDepositBaseCents: pricingRules.ee_only_deposit_base_cents ?? 5000,
+                eeOnlyDepositSubtotalStepCents: pricingRules.ee_only_deposit_subtotal_step_cents ?? 10000,
+                eeOnlyDepositStepCents: pricingRules.ee_only_deposit_step_cents ?? 5000,
               } : null} />
             </div>
           </div>

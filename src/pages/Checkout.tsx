@@ -11,7 +11,7 @@ import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { showToast } from '../lib/notifications';
 import { composeUnifiedQuoteTotals } from '../lib/unifiedTotals';
 import { validateCartPackageSnapshots } from '../lib/packageDisplay';
-import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS, type EEOnlyDepositSettings } from '../lib/depositCalculation';
+import type { EEOnlyDepositSettings } from '../lib/depositCalculation';
 import { supabase } from '../lib/supabase';
 import { ContactInformationForm } from '../components/checkout/ContactInformationForm';
 import { BillingAddressForm } from '../components/checkout/BillingAddressForm';
@@ -62,26 +62,38 @@ export function Checkout() {
   const [billingSameAsEvent, setBillingSameAsEvent] = useState(true);
   const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
   const [customAmount, setCustomAmount] = useState('');
-  const [eeOnlyDepositSettings, setEeOnlyDepositSettings] = useState<EEOnlyDepositSettings>(DEFAULT_EE_ONLY_DEPOSIT_SETTINGS);
+  const [eeOnlyDepositSettings, setEeOnlyDepositSettings] = useState<EEOnlyDepositSettings | null>(null);
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
+      setSettingsLoading(true);
+      setSettingsError(null);
       try {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('pricing_rules')
           .select('ee_only_deposit_base_threshold_cents, ee_only_deposit_base_cents, ee_only_deposit_subtotal_step_cents, ee_only_deposit_step_cents, deposit_per_unit_cents')
           .limit(1)
           .maybeSingle();
-        if (data) {
-          setEeOnlyDepositSettings({
-            eeOnlyDepositBaseThresholdCents: data.ee_only_deposit_base_threshold_cents ?? 20000,
-            eeOnlyDepositBaseCents: data.ee_only_deposit_base_cents ?? 5000,
-            eeOnlyDepositSubtotalStepCents: data.ee_only_deposit_subtotal_step_cents ?? 10000,
-            eeOnlyDepositStepCents: data.ee_only_deposit_step_cents ?? 5000,
-          });
+        if (error) {
+          setSettingsError(error.message);
+          return;
         }
-      } catch (err) {
-        console.error('Error loading EE-only deposit settings:', err);
+        if (!data) {
+          setSettingsError('No pricing configuration found.');
+          return;
+        }
+        setEeOnlyDepositSettings({
+          eeOnlyDepositBaseThresholdCents: data.ee_only_deposit_base_threshold_cents ?? 20000,
+          eeOnlyDepositBaseCents: data.ee_only_deposit_base_cents ?? 5000,
+          eeOnlyDepositSubtotalStepCents: data.ee_only_deposit_subtotal_step_cents ?? 10000,
+          eeOnlyDepositStepCents: data.ee_only_deposit_step_cents ?? 5000,
+        });
+      } catch (err: any) {
+        setSettingsError(err?.message || 'Failed to load pricing configuration.');
+      } finally {
+        setSettingsLoading(false);
       }
     })();
   }, []);
@@ -89,7 +101,7 @@ export function Checkout() {
   void cart; // cart used in unifiedTotals computation below
 
   // Compute unified totals using the inflatable breakdown's tax_applied setting
-  const unifiedTotals = priceBreakdown
+  const unifiedTotals = priceBreakdown && eeOnlyDepositSettings
     ? composeUnifiedQuoteTotals({
         inflatableBreakdown: priceBreakdown,
         cart,
@@ -136,6 +148,16 @@ export function Checkout() {
     const validPickup = quoteData.pickup_preference === 'next_day' || quoteData.pickup_preference === 'same_day';
     if (!validPickup) {
       showToast('Please select a pickup preference (Next Morning or Same Day) before submitting.', 'error');
+      return;
+    }
+
+    if (settingsLoading) {
+      showToast('Loading pricing configuration. Please wait a moment.', 'error');
+      return;
+    }
+
+    if (settingsError || !eeOnlyDepositSettings) {
+      showToast('Unable to load pricing configuration. Please refresh the page or contact us for assistance.', 'error');
       return;
     }
 
