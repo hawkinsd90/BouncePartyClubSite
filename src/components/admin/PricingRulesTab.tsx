@@ -3,7 +3,7 @@ import { CreditCard as Edit2, Save, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { notifyError, notifySuccess } from '../../lib/notifications';
 import { calculateEEOnlyDepositCents } from '../../lib/depositCalculation';
-import { validateEEDepositSettingsInput } from '../../lib/moneySettings';
+import { validateEEDepositSettingsInput, parseMoneyInput } from '../../lib/moneySettings';
 
 interface PricingRules {
   id: string;
@@ -228,11 +228,12 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
           </label>
           <input
             type="text"
-            value={isEditing ? displayValues.perMile : (editedRules.per_mile_after_base_cents / 100).toFixed(2)}
+            value={isEditing ? displayValues.perMile : `${(editedRules.per_mile_after_base_cents / 100).toFixed(2)}`}
             onChange={(e) => {
-              const value = e.target.value.replace(/[^0-9.]/g, '');
+              const value = e.target.value;
+              const parsed = parseMoneyInput(value);
               setDisplayValues({ ...displayValues, perMile: value });
-              setEditedRules({ ...editedRules, per_mile_after_base_cents: Math.round(Number(value || 0) * 100) });
+              setEditedRules({ ...editedRules, per_mile_after_base_cents: parsed.ok ? (parsed.cents ?? 0) : editedRules.per_mile_after_base_cents });
             }}
             readOnly={!isEditing}
             className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${
@@ -270,11 +271,12 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
           </label>
           <input
             type="text"
-            value={isEditing ? displayValues.sandbag : (editedRules.surface_sandbag_fee_cents / 100).toFixed(2)}
+            value={isEditing ? displayValues.sandbag : `${(editedRules.surface_sandbag_fee_cents / 100).toFixed(2)}`}
             onChange={(e) => {
-              const value = e.target.value.replace(/[^0-9.]/g, '');
+              const value = e.target.value;
+              const parsed = parseMoneyInput(value);
               setDisplayValues({ ...displayValues, sandbag: value });
-              setEditedRules({ ...editedRules, surface_sandbag_fee_cents: Math.round(Number(value || 0) * 100) });
+              setEditedRules({ ...editedRules, surface_sandbag_fee_cents: parsed.ok ? (parsed.cents ?? 0) : editedRules.surface_sandbag_fee_cents });
             }}
             readOnly={!isEditing}
             className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${
@@ -289,11 +291,12 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
           </label>
           <input
             type="text"
-            value={isEditing ? displayValues.deposit : ((editedRules.deposit_per_unit_cents || 5000) / 100).toFixed(2)}
+            value={isEditing ? displayValues.deposit : `${((editedRules.deposit_per_unit_cents || 5000) / 100).toFixed(2)}`}
             onChange={(e) => {
-              const value = e.target.value.replace(/[^0-9.]/g, '');
+              const value = e.target.value;
+              const parsed = parseMoneyInput(value);
               setDisplayValues({ ...displayValues, deposit: value });
-              setEditedRules({ ...editedRules, deposit_per_unit_cents: Math.round(Number(value || 0) * 100) });
+              setEditedRules({ ...editedRules, deposit_per_unit_cents: parsed.ok ? (parsed.cents ?? 0) : editedRules.deposit_per_unit_cents });
             }}
             readOnly={!isEditing}
             className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${
@@ -311,11 +314,12 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
           </label>
           <input
             type="text"
-            value={isEditing ? displayValues.generatorSingle : ((editedRules.generator_fee_single_cents || 10000) / 100).toFixed(2)}
+            value={isEditing ? displayValues.generatorSingle : `${((editedRules.generator_fee_single_cents || 10000) / 100).toFixed(2)}`}
             onChange={(e) => {
-              const value = e.target.value.replace(/[^0-9.]/g, '');
+              const value = e.target.value;
+              const parsed = parseMoneyInput(value);
               setDisplayValues({ ...displayValues, generatorSingle: value });
-              setEditedRules({ ...editedRules, generator_fee_single_cents: Math.round(Number(value || 0) * 100) });
+              setEditedRules({ ...editedRules, generator_fee_single_cents: parsed.ok ? (parsed.cents ?? 0) : editedRules.generator_fee_single_cents });
             }}
             readOnly={!isEditing}
             className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${
@@ -333,11 +337,12 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
           </label>
           <input
             type="text"
-            value={isEditing ? displayValues.generatorMultiple : ((editedRules.generator_fee_multiple_cents || 7500) / 100).toFixed(2)}
+            value={isEditing ? displayValues.generatorMultiple : `${((editedRules.generator_fee_multiple_cents || 7500) / 100).toFixed(2)}`}
             onChange={(e) => {
-              const value = e.target.value.replace(/[^0-9.]/g, '');
+              const value = e.target.value;
+              const parsed = parseMoneyInput(value);
               setDisplayValues({ ...displayValues, generatorMultiple: value });
-              setEditedRules({ ...editedRules, generator_fee_multiple_cents: Math.round(Number(value || 0) * 100) });
+              setEditedRules({ ...editedRules, generator_fee_multiple_cents: parsed.ok ? (parsed.cents ?? 0) : editedRules.generator_fee_multiple_cents });
             }}
             readOnly={!isEditing}
             className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${
@@ -355,11 +360,12 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
           </label>
           <input
             type="text"
-            value={isEditing ? displayValues.sameDayPickup : ((editedRules.same_day_pickup_fee_cents || 0) / 100).toFixed(2)}
+            value={isEditing ? displayValues.sameDayPickup : `${((editedRules.same_day_pickup_fee_cents || 0) / 100).toFixed(2)}`}
             onChange={(e) => {
-              const value = e.target.value.replace(/[^0-9.]/g, '');
+              const value = e.target.value;
+              const parsed = parseMoneyInput(value);
               setDisplayValues({ ...displayValues, sameDayPickup: value });
-              setEditedRules({ ...editedRules, same_day_pickup_fee_cents: Math.round(Number(value || 0) * 100) });
+              setEditedRules({ ...editedRules, same_day_pickup_fee_cents: parsed.ok ? (parsed.cents ?? 0) : editedRules.same_day_pickup_fee_cents });
             }}
             readOnly={!isEditing}
             className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${
@@ -377,11 +383,12 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
           </label>
           <input
             type="text"
-            value={isEditing ? displayValues.sameDayWeekdayDelivery : ((editedRules.same_day_weekday_delivery_fee_cents || 0) / 100).toFixed(2)}
+            value={isEditing ? displayValues.sameDayWeekdayDelivery : `${((editedRules.same_day_weekday_delivery_fee_cents || 0) / 100).toFixed(2)}`}
             onChange={(e) => {
-              const value = e.target.value.replace(/[^0-9.]/g, '');
+              const value = e.target.value;
+              const parsed = parseMoneyInput(value);
               setDisplayValues({ ...displayValues, sameDayWeekdayDelivery: value });
-              setEditedRules({ ...editedRules, same_day_weekday_delivery_fee_cents: Math.round(Number(value || 0) * 100) });
+              setEditedRules({ ...editedRules, same_day_weekday_delivery_fee_cents: parsed.ok ? (parsed.cents ?? 0) : editedRules.same_day_weekday_delivery_fee_cents });
             }}
             readOnly={!isEditing}
             className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${
@@ -408,11 +415,12 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
               </label>
               <input
                 type="text"
-                value={isEditing ? displayValues.eeBaseThreshold : ((editedRules.ee_only_deposit_base_threshold_cents || 20000) / 100).toFixed(2)}
+                value={isEditing ? displayValues.eeBaseThreshold : `${((editedRules.ee_only_deposit_base_threshold_cents || 20000) / 100).toFixed(2)}`}
                 onChange={(e) => {
-                  const value = e.target.value.replace(/[^0-9.]/g, '');
+                  const value = e.target.value;
+                  const parsed = parseMoneyInput(value);
                   setDisplayValues({ ...displayValues, eeBaseThreshold: value });
-                  setEditedRules({ ...editedRules, ee_only_deposit_base_threshold_cents: Math.round(Number(value || 0) * 100) });
+                  setEditedRules({ ...editedRules, ee_only_deposit_base_threshold_cents: parsed.ok ? (parsed.cents ?? 0) : editedRules.ee_only_deposit_base_threshold_cents });
                 }}
                 readOnly={!isEditing}
                 className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${isEditing ? 'bg-white' : 'bg-slate-50'}`}
@@ -427,11 +435,12 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
               </label>
               <input
                 type="text"
-                value={isEditing ? displayValues.eeBaseDeposit : ((editedRules.ee_only_deposit_base_cents || 5000) / 100).toFixed(2)}
+                value={isEditing ? displayValues.eeBaseDeposit : `${((editedRules.ee_only_deposit_base_cents || 5000) / 100).toFixed(2)}`}
                 onChange={(e) => {
-                  const value = e.target.value.replace(/[^0-9.]/g, '');
+                  const value = e.target.value;
+                  const parsed = parseMoneyInput(value);
                   setDisplayValues({ ...displayValues, eeBaseDeposit: value });
-                  setEditedRules({ ...editedRules, ee_only_deposit_base_cents: Math.round(Number(value || 0) * 100) });
+                  setEditedRules({ ...editedRules, ee_only_deposit_base_cents: parsed.ok ? (parsed.cents ?? 0) : editedRules.ee_only_deposit_base_cents });
                 }}
                 readOnly={!isEditing}
                 className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${isEditing ? 'bg-white' : 'bg-slate-50'}`}
@@ -446,11 +455,12 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
               </label>
               <input
                 type="text"
-                value={isEditing ? displayValues.eeStepSize : ((editedRules.ee_only_deposit_subtotal_step_cents || 10000) / 100).toFixed(2)}
+                value={isEditing ? displayValues.eeStepSize : `${((editedRules.ee_only_deposit_subtotal_step_cents || 10000) / 100).toFixed(2)}`}
                 onChange={(e) => {
-                  const value = e.target.value.replace(/[^0-9.]/g, '');
+                  const value = e.target.value;
+                  const parsed = parseMoneyInput(value);
                   setDisplayValues({ ...displayValues, eeStepSize: value });
-                  setEditedRules({ ...editedRules, ee_only_deposit_subtotal_step_cents: Math.round(Number(value || 0) * 100) });
+                  setEditedRules({ ...editedRules, ee_only_deposit_subtotal_step_cents: parsed.ok ? (parsed.cents ?? 0) : editedRules.ee_only_deposit_subtotal_step_cents });
                 }}
                 readOnly={!isEditing}
                 className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${isEditing ? 'bg-white' : 'bg-slate-50'}`}
@@ -465,11 +475,12 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
               </label>
               <input
                 type="text"
-                value={isEditing ? displayValues.eeStepDeposit : ((editedRules.ee_only_deposit_step_cents || 5000) / 100).toFixed(2)}
+                value={isEditing ? displayValues.eeStepDeposit : `${((editedRules.ee_only_deposit_step_cents || 5000) / 100).toFixed(2)}`}
                 onChange={(e) => {
-                  const value = e.target.value.replace(/[^0-9.]/g, '');
+                  const value = e.target.value;
+                  const parsed = parseMoneyInput(value);
                   setDisplayValues({ ...displayValues, eeStepDeposit: value });
-                  setEditedRules({ ...editedRules, ee_only_deposit_step_cents: Math.round(Number(value || 0) * 100) });
+                  setEditedRules({ ...editedRules, ee_only_deposit_step_cents: parsed.ok ? (parsed.cents ?? 0) : editedRules.ee_only_deposit_step_cents });
                 }}
                 readOnly={!isEditing}
                 className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${isEditing ? 'bg-white' : 'bg-slate-50'}`}

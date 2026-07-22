@@ -149,13 +149,19 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     );
   }
 
+  // Require priceBreakdown before any writes.
+  if (!priceBreakdown) {
+    throw new Error('Unable to calculate pricing for this order. Please return to your quote and try again.');
+  }
+
   // tax_applied comes from the inflatable breakdown — the authoritative tax setting.
   const taxApplied = priceBreakdown.tax_applied ?? true;
   const eventEssentialsSubtotalCents = calculateEventEssentialsSubtotalCents(cart);
 
-  // Load EE-only deposit settings from pricing_rules BEFORE any database write.
-  // A settings query error must block order creation.
-  let eeOnlyDepositSettings: EEOnlyDepositSettings | null = null;
+  // Load deposit settings from pricing_rules BEFORE any database write.
+  // Require exactly one row; block on query error or missing row.
+  let eeOnlyDepositSettings: EEOnlyDepositSettings;
+  let inflatableDepositPerUnitCents: number;
   {
     const { data: pricingRules, error: pricingRulesError } = await supabase
       .from('pricing_rules')
@@ -166,38 +172,60 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     if (pricingRulesError) {
       throw new Error(`Unable to load pricing configuration: ${pricingRulesError.message}. Please try again or contact us for assistance.`);
     }
-    if (pricingRules) {
-      eeOnlyDepositSettings = {
-        eeOnlyDepositBaseThresholdCents: pricingRules.ee_only_deposit_base_threshold_cents ?? 20000,
-        eeOnlyDepositBaseCents: pricingRules.ee_only_deposit_base_cents ?? 5000,
-        eeOnlyDepositSubtotalStepCents: pricingRules.ee_only_deposit_subtotal_step_cents ?? 10000,
-        eeOnlyDepositStepCents: pricingRules.ee_only_deposit_step_cents ?? 5000,
-      };
+    if (!pricingRules) {
+      throw new Error('Unable to load pricing configuration: no pricing rules found. Please contact us for assistance.');
     }
+
+    // Validate deposit_per_unit_cents as a positive safe integer.
+    const dpu = pricingRules.deposit_per_unit_cents;
+    if (typeof dpu !== 'number' || !Number.isSafeInteger(dpu) || dpu <= 0) {
+      throw new Error('Invalid deposit configuration: deposit per unit must be a positive integer. Please contact us for assistance.');
+    }
+    inflatableDepositPerUnitCents = dpu;
+
+    // Validate all four EE-only deposit settings.
+    const threshold = pricingRules.ee_only_deposit_base_threshold_cents;
+    const base = pricingRules.ee_only_deposit_base_cents;
+    const stepSize = pricingRules.ee_only_deposit_subtotal_step_cents;
+    const stepDeposit = pricingRules.ee_only_deposit_step_cents;
+    if (typeof threshold !== 'number' || !Number.isSafeInteger(threshold) || threshold < 0) {
+      throw new Error('Invalid deposit configuration: base threshold must be a non-negative integer. Please contact us for assistance.');
+    }
+    if (typeof base !== 'number' || !Number.isSafeInteger(base) || base < 0) {
+      throw new Error('Invalid deposit configuration: base deposit must be a non-negative integer. Please contact us for assistance.');
+    }
+    if (typeof stepSize !== 'number' || !Number.isSafeInteger(stepSize) || stepSize <= 0) {
+      throw new Error('Invalid deposit configuration: step size must be a positive integer. Please contact us for assistance.');
+    }
+    if (typeof stepDeposit !== 'number' || !Number.isSafeInteger(stepDeposit) || stepDeposit < 0) {
+      throw new Error('Invalid deposit configuration: step deposit must be a non-negative integer. Please contact us for assistance.');
+    }
+    eeOnlyDepositSettings = {
+      eeOnlyDepositBaseThresholdCents: threshold,
+      eeOnlyDepositBaseCents: base,
+      eeOnlyDepositSubtotalStepCents: stepSize,
+      eeOnlyDepositStepCents: stepDeposit,
+    };
   }
 
-  // Calculate unified totals with EE-only deposit settings.
-  const totalsWithEE = priceBreakdown
-    ? composeUnifiedQuoteTotals({
-        inflatableBreakdown: priceBreakdown,
-        cart,
-        taxApplied,
-        eeOnlyDepositSettings,
-        inflatableDepositPerUnitCents: priceBreakdown.deposit_due_cents > 0
-          ? Math.round(priceBreakdown.deposit_due_cents / Math.max(1, inflatableCart.reduce((s, i) => s + i.qty, 0)))
-          : 5000,
-      })
-    : null;
+  // Calculate unified totals with loaded deposit settings.
+  const totalsWithEE = composeUnifiedQuoteTotals({
+    inflatableBreakdown: priceBreakdown,
+    cart,
+    taxApplied,
+    eeOnlyDepositSettings,
+    inflatableDepositPerUnitCents,
+  });
 
   // Block before any database write if deposit configuration is invalid.
-  if (totalsWithEE?.depositError) {
+  if (totalsWithEE.depositError) {
     throw new Error(`Unable to calculate required deposit: ${totalsWithEE.depositError}. Please contact us for assistance.`);
   }
 
   // Deposit: authoritative calculation, NOT customerSelectedPaymentCents.
-  const inflatableDepositCents = totalsWithEE ? totalsWithEE.depositCents : (priceBreakdown?.deposit_due_cents ?? 0);
-  const totalCents = totalsWithEE ? totalsWithEE.totalCents : (priceBreakdown?.total_cents ?? 0);
-  const taxCents = totalsWithEE ? totalsWithEE.taxCents : (priceBreakdown?.tax_cents ?? 0);
+  const inflatableDepositCents = totalsWithEE.depositCents;
+  const totalCents = totalsWithEE.totalCents;
+  const taxCents = totalsWithEE.taxCents;
 
   // Map and validate all order-item rows before any persistence.
   const orderItems = mapCartToOrderItems(cart);
@@ -306,7 +334,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       billing_city: billingSameAsEvent ? null : (billingAddress.city || null),
       billing_state: billingSameAsEvent ? null : (billingAddress.state || null),
       billing_zip: billingSameAsEvent ? null : (billingAddress.zip || null),
-      subtotal_cents: totalsWithEE ? totalsWithEE.equipmentSubtotalCents : priceBreakdown.subtotal_cents,
+      subtotal_cents: totalsWithEE.equipmentSubtotalCents,
       event_essentials_subtotal_cents: eventEssentialsSubtotalCents,
       travel_fee_cents: priceBreakdown.travel_fee_cents,
       travel_total_miles: priceBreakdown.travel_total_miles,
