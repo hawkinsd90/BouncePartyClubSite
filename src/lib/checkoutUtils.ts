@@ -6,6 +6,44 @@ import type { UnifiedCartItem } from '../types';
 import { composeUnifiedQuoteTotals, type UnifiedQuoteTotals } from './unifiedTotals';
 import { isInflatableCartItem } from './unifiedCart';
 import { buildPackageDisplay } from './packageDisplay';
+import type { BookingDepositSettingsResult } from './depositCalculation';
+
+export type CheckoutRenderState =
+  | { state: 'loading_order' }
+  | { state: 'loading_settings' }
+  | { state: 'error'; message: string }
+  | { state: 'ready'; totals: UnifiedQuoteTotals };
+
+export function determineCheckoutRenderState(args: {
+  loading: boolean;
+  quoteData: any | null;
+  priceBreakdown: PriceBreakdown | null;
+  settingsLoading: boolean;
+  settingsError: string | null;
+  bookingDepositSettings: BookingDepositSettingsResult | null;
+  cart: UnifiedCartItem[];
+}): CheckoutRenderState {
+  if (args.loading || !args.quoteData || !args.priceBreakdown) {
+    return { state: 'loading_order' };
+  }
+  if (args.settingsLoading) {
+    return { state: 'loading_settings' };
+  }
+  if (args.settingsError || !args.bookingDepositSettings || args.bookingDepositSettings.status !== 'ready') {
+    return { state: 'error', message: args.settingsError || 'Unable to load pricing configuration.' };
+  }
+  const totals = composeUnifiedQuoteTotals({
+    inflatableBreakdown: args.priceBreakdown,
+    cart: args.cart,
+    taxApplied: args.priceBreakdown.tax_applied ?? true,
+    eeOnlyDepositSettings: args.bookingDepositSettings.eventEssentialsDepositSettings,
+    inflatableDepositPerUnitCents: args.bookingDepositSettings.inflatableDepositPerUnitCents,
+  });
+  if (totals.depositError) {
+    return { state: 'error', message: totals.depositError };
+  }
+  return { state: 'ready', totals };
+}
 
 interface QuoteData {
   pickup_preference?: 'same_day' | 'next_day';

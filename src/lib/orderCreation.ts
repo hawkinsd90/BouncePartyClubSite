@@ -5,7 +5,11 @@ import { ORDER_STATUS } from './constants/statuses';
 import { composeUnifiedQuoteTotals } from './unifiedTotals';
 import { calculateEventEssentialsSubtotalCents } from './eventEssentialsMoney';
 import { mapCartToOrderItems } from './eventEssentialsOrderItems';
-import { calculateRequiredDepositCents as _calculateRequiredDepositCents, type EEOnlyDepositSettings } from './depositCalculation';
+import {
+  parseBookingDepositSettings,
+  fetchSingletonPricingRulesRow,
+  type EEOnlyDepositSettings,
+} from './depositCalculation';
 import { validateCartPackageSnapshots } from './packageDisplay';
 import type { UnifiedCartItem, InflatableCartItem } from '../types';
 
@@ -159,53 +163,22 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
   const eventEssentialsSubtotalCents = calculateEventEssentialsSubtotalCents(cart);
 
   // Load deposit settings from pricing_rules BEFORE any database write.
-  // Require exactly one row; block on query error or missing row.
+  // Require exactly one row via singleton fetch; block on query error, missing
+  // row, duplicate rows, or invalid settings.
   let eeOnlyDepositSettings: EEOnlyDepositSettings;
   let inflatableDepositPerUnitCents: number;
   {
-    const { data: pricingRules, error: pricingRulesError } = await supabase
-      .from('pricing_rules')
-      .select('ee_only_deposit_base_threshold_cents, ee_only_deposit_base_cents, ee_only_deposit_subtotal_step_cents, ee_only_deposit_step_cents, deposit_per_unit_cents')
-      .limit(1)
-      .maybeSingle();
-
-    if (pricingRulesError) {
-      throw new Error(`Unable to load pricing configuration: ${pricingRulesError.message}. Please try again or contact us for assistance.`);
-    }
-    if (!pricingRules) {
-      throw new Error('Unable to load pricing configuration: no pricing rules found. Please contact us for assistance.');
+    const rowResult = await fetchSingletonPricingRulesRow();
+    if (rowResult.status !== 'ready') {
+      throw new Error(`Unable to load pricing configuration: ${rowResult.error} Please try again or contact us for assistance.`);
     }
 
-    // Validate deposit_per_unit_cents as a positive safe integer.
-    const dpu = pricingRules.deposit_per_unit_cents;
-    if (typeof dpu !== 'number' || !Number.isSafeInteger(dpu) || dpu <= 0) {
-      throw new Error('Invalid deposit configuration: deposit per unit must be a positive integer. Please contact us for assistance.');
+    const parsed = parseBookingDepositSettings(rowResult.row);
+    if (parsed.status !== 'ready') {
+      throw new Error(`${parsed.error} Please contact us for assistance.`);
     }
-    inflatableDepositPerUnitCents = dpu;
-
-    // Validate all four EE-only deposit settings.
-    const threshold = pricingRules.ee_only_deposit_base_threshold_cents;
-    const base = pricingRules.ee_only_deposit_base_cents;
-    const stepSize = pricingRules.ee_only_deposit_subtotal_step_cents;
-    const stepDeposit = pricingRules.ee_only_deposit_step_cents;
-    if (typeof threshold !== 'number' || !Number.isSafeInteger(threshold) || threshold < 0) {
-      throw new Error('Invalid deposit configuration: base threshold must be a non-negative integer. Please contact us for assistance.');
-    }
-    if (typeof base !== 'number' || !Number.isSafeInteger(base) || base < 0) {
-      throw new Error('Invalid deposit configuration: base deposit must be a non-negative integer. Please contact us for assistance.');
-    }
-    if (typeof stepSize !== 'number' || !Number.isSafeInteger(stepSize) || stepSize <= 0) {
-      throw new Error('Invalid deposit configuration: step size must be a positive integer. Please contact us for assistance.');
-    }
-    if (typeof stepDeposit !== 'number' || !Number.isSafeInteger(stepDeposit) || stepDeposit < 0) {
-      throw new Error('Invalid deposit configuration: step deposit must be a non-negative integer. Please contact us for assistance.');
-    }
-    eeOnlyDepositSettings = {
-      eeOnlyDepositBaseThresholdCents: threshold,
-      eeOnlyDepositBaseCents: base,
-      eeOnlyDepositSubtotalStepCents: stepSize,
-      eeOnlyDepositStepCents: stepDeposit,
-    };
+    inflatableDepositPerUnitCents = parsed.inflatableDepositPerUnitCents;
+    eeOnlyDepositSettings = parsed.eventEssentialsDepositSettings;
   }
 
   // Calculate unified totals with loaded deposit settings.

@@ -13,7 +13,7 @@ import {
 import { formatOrderId } from './utils';
 import { buildPackageDisplay } from './packageDisplay';
 
-function renderOrderEmailItems(items: any[]): Array<{ description: string; amount: string }> {
+export function renderOrderEmailItems(items: any[]): Array<{ description: string; amount: string }> {
   const result: Array<{ description: string; amount: string }> = [];
   for (const item of items) {
     if (item.unit_id && item.units?.name) {

@@ -84,6 +84,11 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
   };
 
   const handleSave = async () => {
+    // Block save if any EE deposit field has an active validation error
+    if (Object.keys(eeErrors).length > 0) {
+      notifyError('Please fix the Event Essentials deposit settings errors before saving.');
+      return;
+    }
     // Validate EE-only deposit settings before any save
     const eeValidation = validateEEDepositSettingsInput({
       eeBaseThreshold: displayValues.eeBaseThreshold,
@@ -420,7 +425,12 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
                   const value = e.target.value;
                   const parsed = parseMoneyInput(value);
                   setDisplayValues({ ...displayValues, eeBaseThreshold: value });
-                  setEditedRules({ ...editedRules, ee_only_deposit_base_threshold_cents: parsed.ok ? (parsed.cents ?? 0) : editedRules.ee_only_deposit_base_threshold_cents });
+                  if (parsed.ok && parsed.cents !== null) {
+                    setEditedRules({ ...editedRules, ee_only_deposit_base_threshold_cents: parsed.cents });
+                    setEeErrors(prev => { const n = { ...prev }; delete n.eeBaseThreshold; return n; });
+                  } else {
+                    setEeErrors(prev => ({ ...prev, eeBaseThreshold: parsed.error || 'Invalid value' }));
+                  }
                 }}
                 readOnly={!isEditing}
                 className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${isEditing ? 'bg-white' : 'bg-slate-50'}`}
@@ -440,7 +450,12 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
                   const value = e.target.value;
                   const parsed = parseMoneyInput(value);
                   setDisplayValues({ ...displayValues, eeBaseDeposit: value });
-                  setEditedRules({ ...editedRules, ee_only_deposit_base_cents: parsed.ok ? (parsed.cents ?? 0) : editedRules.ee_only_deposit_base_cents });
+                  if (parsed.ok && parsed.cents !== null) {
+                    setEditedRules({ ...editedRules, ee_only_deposit_base_cents: parsed.cents });
+                    setEeErrors(prev => { const n = { ...prev }; delete n.eeBaseDeposit; return n; });
+                  } else {
+                    setEeErrors(prev => ({ ...prev, eeBaseDeposit: parsed.error || 'Invalid value' }));
+                  }
                 }}
                 readOnly={!isEditing}
                 className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${isEditing ? 'bg-white' : 'bg-slate-50'}`}
@@ -460,7 +475,12 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
                   const value = e.target.value;
                   const parsed = parseMoneyInput(value);
                   setDisplayValues({ ...displayValues, eeStepSize: value });
-                  setEditedRules({ ...editedRules, ee_only_deposit_subtotal_step_cents: parsed.ok ? (parsed.cents ?? 0) : editedRules.ee_only_deposit_subtotal_step_cents });
+                  if (parsed.ok && parsed.cents !== null) {
+                    setEditedRules({ ...editedRules, ee_only_deposit_subtotal_step_cents: parsed.cents });
+                    setEeErrors(prev => { const n = { ...prev }; delete n.eeStepSize; return n; });
+                  } else {
+                    setEeErrors(prev => ({ ...prev, eeStepSize: parsed.error || 'Invalid value' }));
+                  }
                 }}
                 readOnly={!isEditing}
                 className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${isEditing ? 'bg-white' : 'bg-slate-50'}`}
@@ -480,7 +500,12 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
                   const value = e.target.value;
                   const parsed = parseMoneyInput(value);
                   setDisplayValues({ ...displayValues, eeStepDeposit: value });
-                  setEditedRules({ ...editedRules, ee_only_deposit_step_cents: parsed.ok ? (parsed.cents ?? 0) : editedRules.ee_only_deposit_step_cents });
+                  if (parsed.ok && parsed.cents !== null) {
+                    setEditedRules({ ...editedRules, ee_only_deposit_step_cents: parsed.cents });
+                    setEeErrors(prev => { const n = { ...prev }; delete n.eeStepDeposit; return n; });
+                  } else {
+                    setEeErrors(prev => ({ ...prev, eeStepDeposit: parsed.error || 'Invalid value' }));
+                  }
                 }}
                 readOnly={!isEditing}
                 className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${isEditing ? 'bg-white' : 'bg-slate-50'}`}

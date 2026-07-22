@@ -434,21 +434,32 @@ async function checkEEProductAvailability(orderItems: any[], orderData: any, ord
   const aggregated = new Map<string, number>();
   for (const item of orderItems) {
     if (item.bundle_id && item.component_snapshot?.components && Array.isArray(item.component_snapshot.components)) {
+      const pkgQty = item.qty;
+      if (typeof pkgQty !== 'number' || !Number.isSafeInteger(pkgQty) || pkgQty <= 0) {
+        throw new Error('Cannot approve order: Invalid package quantity.');
+      }
       for (const comp of item.component_snapshot.components) {
-        if (comp.product_id) {
-          const qty = (comp.quantity_per_bundle || 0) * (item.qty || 1);
-          if (!Number.isSafeInteger(qty) || qty <= 0) {
-            throw new Error('Cannot approve order: Invalid product quantity in package snapshot.');
-          }
-          aggregated.set(comp.product_id, (aggregated.get(comp.product_id) || 0) + qty);
+        const productId = comp.product_id;
+        if (typeof productId !== 'string' || productId.trim() === '') {
+          throw new Error('Cannot approve order: Invalid product ID in package snapshot.');
         }
+        const qpb = comp.quantity_per_bundle;
+        if (typeof qpb !== 'number' || !Number.isSafeInteger(qpb) || qpb <= 0) {
+          throw new Error('Cannot approve order: Invalid component quantity in package snapshot.');
+        }
+        const qty = qpb * pkgQty;
+        aggregated.set(productId, (aggregated.get(productId) || 0) + qty);
       }
     } else if (item.product_id) {
-      const qty = item.qty || 1;
-      if (!Number.isSafeInteger(qty) || qty <= 0) {
+      const productId = item.product_id;
+      if (typeof productId !== 'string' || productId.trim() === '') {
+        throw new Error('Cannot approve order: Invalid product ID.');
+      }
+      const qty = item.qty;
+      if (typeof qty !== 'number' || !Number.isSafeInteger(qty) || qty <= 0) {
         throw new Error('Cannot approve order: Invalid product quantity.');
       }
-      aggregated.set(item.product_id, (aggregated.get(item.product_id) || 0) + qty);
+      aggregated.set(productId, (aggregated.get(productId) || 0) + qty);
     }
   }
   if (aggregated.size === 0) return;
@@ -462,6 +473,13 @@ async function checkEEProductAvailability(orderItems: any[], orderData: any, ord
   );
   if (result.error || !result.data) {
     throw new Error('Cannot approve order: Unable to verify Event Essentials availability. Please try again or contact us for assistance.');
+  }
+  // Verify every requested product has a returned result.
+  const returnedProductIds = new Set(result.data.map((r: any) => r.product_id));
+  for (const [requestedProductId] of aggregated) {
+    if (!returnedProductIds.has(requestedProductId)) {
+      throw new Error('Cannot approve order: Availability check did not return a result for all requested items. Please try again or contact us for assistance.');
+    }
   }
   const allAvailable = result.data.every((r: any) => r.is_allowed === true);
   if (!allAvailable) {

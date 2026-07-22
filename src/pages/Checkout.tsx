@@ -11,8 +11,11 @@ import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { showToast } from '../lib/notifications';
 import { composeUnifiedQuoteTotals } from '../lib/unifiedTotals';
 import { validateCartPackageSnapshots } from '../lib/packageDisplay';
-import type { EEOnlyDepositSettings } from '../lib/depositCalculation';
-import { supabase } from '../lib/supabase';
+import {
+  parseBookingDepositSettings,
+  fetchSingletonPricingRulesRow,
+  type BookingDepositSettingsResult,
+} from '../lib/depositCalculation';
 import { ContactInformationForm } from '../components/checkout/ContactInformationForm';
 import { BillingAddressForm } from '../components/checkout/BillingAddressForm';
 import { PaymentAmountSelector } from '../components/checkout/PaymentAmountSelector';
@@ -62,7 +65,7 @@ export function Checkout() {
   const [billingSameAsEvent, setBillingSameAsEvent] = useState(true);
   const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
   const [customAmount, setCustomAmount] = useState('');
-  const [eeOnlyDepositSettings, setEeOnlyDepositSettings] = useState<EEOnlyDepositSettings | null>(null);
+  const [bookingDepositSettings, setBookingDepositSettings] = useState<BookingDepositSettingsResult | null>(null);
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [settingsError, setSettingsError] = useState<string | null>(null);
 
@@ -71,25 +74,17 @@ export function Checkout() {
       setSettingsLoading(true);
       setSettingsError(null);
       try {
-        const { data, error } = await supabase
-          .from('pricing_rules')
-          .select('ee_only_deposit_base_threshold_cents, ee_only_deposit_base_cents, ee_only_deposit_subtotal_step_cents, ee_only_deposit_step_cents, deposit_per_unit_cents')
-          .limit(1)
-          .maybeSingle();
-        if (error) {
-          setSettingsError(error.message);
+        const result = await fetchSingletonPricingRulesRow();
+        if (result.status !== 'ready') {
+          setSettingsError(result.error);
           return;
         }
-        if (!data) {
-          setSettingsError('No pricing configuration found.');
+        const parsed = parseBookingDepositSettings(result.row);
+        if (parsed.status !== 'ready') {
+          setSettingsError(parsed.error);
           return;
         }
-        setEeOnlyDepositSettings({
-          eeOnlyDepositBaseThresholdCents: data.ee_only_deposit_base_threshold_cents ?? 20000,
-          eeOnlyDepositBaseCents: data.ee_only_deposit_base_cents ?? 5000,
-          eeOnlyDepositSubtotalStepCents: data.ee_only_deposit_subtotal_step_cents ?? 10000,
-          eeOnlyDepositStepCents: data.ee_only_deposit_step_cents ?? 5000,
-        });
+        setBookingDepositSettings(parsed);
       } catch (err: any) {
         setSettingsError(err?.message || 'Failed to load pricing configuration.');
       } finally {
@@ -101,15 +96,13 @@ export function Checkout() {
   void cart; // cart used in unifiedTotals computation below
 
   // Compute unified totals using the inflatable breakdown's tax_applied setting
-  const unifiedTotals = priceBreakdown && eeOnlyDepositSettings
+  const unifiedTotals = priceBreakdown && bookingDepositSettings?.status === 'ready'
     ? composeUnifiedQuoteTotals({
         inflatableBreakdown: priceBreakdown,
         cart,
         taxApplied: priceBreakdown.tax_applied ?? true,
-        eeOnlyDepositSettings,
-        inflatableDepositPerUnitCents: priceBreakdown.deposit_due_cents > 0
-          ? Math.round(priceBreakdown.deposit_due_cents / Math.max(1, inflatableCart.reduce((s, i) => s + i.qty, 0)))
-          : 5000,
+        eeOnlyDepositSettings: bookingDepositSettings.eventEssentialsDepositSettings,
+        inflatableDepositPerUnitCents: bookingDepositSettings.inflatableDepositPerUnitCents,
       })
     : null;
 
@@ -156,7 +149,7 @@ export function Checkout() {
       return;
     }
 
-    if (settingsError || !eeOnlyDepositSettings) {
+    if (settingsError || !bookingDepositSettings || bookingDepositSettings.status !== 'ready') {
       showToast('Unable to load pricing configuration. Please refresh the page or contact us for assistance.', 'error');
       return;
     }
@@ -291,12 +284,55 @@ export function Checkout() {
       navigate('/quote');
       return null;
     }
-    return null;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin mb-4" />
+          <p className="text-slate-600 text-lg">Loading your order...</p>
+        </div>
+      </div>
+    );
   }
 
-  const tipCents = getTipAmountCents(tipAmount, customTip, unifiedTotals!.totalCents);
+  // Stage E4 — Explicit render states before unifiedTotals access.
+  // Settings loading: controlled loading state, no payment/summary rendering.
+  if (settingsLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin mb-4" />
+          <p className="text-slate-600 text-lg">Loading pricing configuration...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Settings failed, invalid, or unifiedTotals unavailable: controlled error.
+  if (settingsError || !bookingDepositSettings || bookingDepositSettings.status !== 'ready' || !unifiedTotals) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <p className="text-slate-800 text-lg font-semibold mb-2">Unable to load pricing configuration</p>
+          <p className="text-slate-600 text-sm mb-6">
+            {settingsError || 'Please try again or contact us for assistance.'}
+          </p>
+          <a
+            href="/quote"
+            className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+          >
+            Return to Quote
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  const tipCents = getTipAmountCents(tipAmount, customTip, unifiedTotals.totalCents);
   const orderSummary = buildOrderSummary(priceBreakdown, cart, quoteData, tipCents, unifiedTotals);
-  const paymentAmountCents = getPaymentAmountCentsFromTotals(paymentAmount, customAmount, unifiedTotals!);
+  const paymentAmountCents = getPaymentAmountCentsFromTotals(paymentAmount, customAmount, unifiedTotals);
+
+  // Determine item-neutral copy for the delivery address section.
+  const hasInflatables = inflatableCart.length > 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white">
@@ -322,7 +358,9 @@ export function Checkout() {
                 Event / Delivery Address
               </h2>
               <p className="text-sm text-slate-500 mb-4">
-                This is where we will deliver and set up your inflatable.
+                {hasInflatables
+                  ? 'This is where we will deliver and set up your inflatable.'
+                  : 'This is where we will deliver your rental equipment.'}
               </p>
               <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                 <p className="text-sm font-medium text-slate-800">
@@ -353,8 +391,8 @@ export function Checkout() {
             <PaymentAmountSelector
               paymentAmount={paymentAmount}
               customAmount={customAmount}
-              depositCents={unifiedTotals!.depositCents}
-              totalCents={unifiedTotals!.totalCents}
+              depositCents={unifiedTotals.depositCents}
+              totalCents={unifiedTotals.totalCents}
               onPaymentAmountChange={setPaymentAmount}
               onCustomAmountChange={setCustomAmount}
             />
@@ -362,7 +400,7 @@ export function Checkout() {
             <TipSection
               tipAmount={tipAmount}
               customTip={customTip}
-              totalCents={unifiedTotals!.totalCents}
+              totalCents={unifiedTotals.totalCents}
               tipCents={tipCents}
               onTipAmountChange={setTipAmount}
               onCustomTipChange={setCustomTip}

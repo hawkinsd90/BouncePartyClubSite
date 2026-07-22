@@ -138,3 +138,122 @@ export function calculateEEOnlyDepositCents(
     eeOnlyDepositSettings: settings ?? DEFAULT_EE_ONLY_DEPOSIT_SETTINGS,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Stage E4 — Authoritative pricing-settings adapter
+//
+// Single source of truth for parsing and validating a pricing_rules row into
+// the deposit settings used by Quote, Checkout, orderCreation, and Admin
+// preview. Runtime invalid data fails closed — no client defaults are
+// substituted for null, malformed, zero, or invalid database values.
+// ---------------------------------------------------------------------------
+
+export type BookingDepositSettingsResult =
+  | {
+      status: 'ready';
+      inflatableDepositPerUnitCents: number;
+      eventEssentialsDepositSettings: EEOnlyDepositSettings;
+    }
+  | {
+      status: 'invalid';
+      error: string;
+    };
+
+function isPositiveSafeInteger(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isFinite(value) &&
+    Number.isSafeInteger(value) &&
+    value > 0
+  );
+}
+
+export function parseBookingDepositSettings(
+  pricingRulesRow: any,
+): BookingDepositSettingsResult {
+  if (!pricingRulesRow || typeof pricingRulesRow !== 'object') {
+    return { status: 'invalid', error: 'No pricing configuration found.' };
+  }
+
+  const dpu = pricingRulesRow.deposit_per_unit_cents;
+  if (!isPositiveSafeInteger(dpu)) {
+    return {
+      status: 'invalid',
+      error: 'Invalid deposit configuration: deposit per unit must be a positive integer.',
+    };
+  }
+
+  const threshold = pricingRulesRow.ee_only_deposit_base_threshold_cents;
+  if (!isPositiveSafeInteger(threshold)) {
+    return {
+      status: 'invalid',
+      error: 'Invalid deposit configuration: base threshold must be a positive integer.',
+    };
+  }
+
+  const base = pricingRulesRow.ee_only_deposit_base_cents;
+  if (!isPositiveSafeInteger(base)) {
+    return {
+      status: 'invalid',
+      error: 'Invalid deposit configuration: base deposit must be a positive integer.',
+    };
+  }
+
+  const stepSize = pricingRulesRow.ee_only_deposit_subtotal_step_cents;
+  if (!isPositiveSafeInteger(stepSize)) {
+    return {
+      status: 'invalid',
+      error: 'Invalid deposit configuration: step size must be a positive integer.',
+    };
+  }
+
+  const stepDeposit = pricingRulesRow.ee_only_deposit_step_cents;
+  if (!isPositiveSafeInteger(stepDeposit)) {
+    return {
+      status: 'invalid',
+      error: 'Invalid deposit configuration: deposit step must be a positive integer.',
+    };
+  }
+
+  return {
+    status: 'ready',
+    inflatableDepositPerUnitCents: dpu,
+    eventEssentialsDepositSettings: {
+      eeOnlyDepositBaseThresholdCents: threshold,
+      eeOnlyDepositBaseCents: base,
+      eeOnlyDepositSubtotalStepCents: stepSize,
+      eeOnlyDepositStepCents: stepDeposit,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Singleton pricing-row fetch helper
+//
+// Fetches all rows from pricing_rules and requires exactly one. Using
+// .limit(1).maybeSingle() conceals duplicate rows; this helper surfaces them.
+// ---------------------------------------------------------------------------
+
+export async function fetchSingletonPricingRulesRow(): Promise<
+  | { status: 'ready'; row: any }
+  | { status: 'error'; error: string }
+  | { status: 'missing'; error: string }
+  | { status: 'duplicate'; error: string }
+> {
+  const { supabase } = await import('./supabase');
+  const { data, error } = await supabase.from('pricing_rules').select('*');
+
+  if (error) {
+    return { status: 'error', error: error.message };
+  }
+  if (!data || data.length === 0) {
+    return { status: 'missing', error: 'No pricing configuration found.' };
+  }
+  if (data.length > 1) {
+    return {
+      status: 'duplicate',
+      error: `Multiple pricing configuration rows found (${data.length}). Please contact an administrator.`,
+    };
+  }
+  return { status: 'ready', row: data[0] };
+}

@@ -9,11 +9,14 @@ import { useQuoteForm } from '../hooks/useQuoteForm';
 import { useQuotePricing } from '../hooks/useQuotePricing';
 import { useQuotePrefill } from '../hooks/useQuotePrefill';
 import { useDataFetch } from '../hooks/useDataFetch';
-import { supabase } from '../lib/supabase';
 import { checkDateBlackout } from '../lib/availability';
 import { validateQuote } from '../lib/quoteValidation';
 import { validateCartPackageSnapshots } from '../lib/packageDisplay';
 import { composeUnifiedQuoteTotals } from '../lib/unifiedTotals';
+import {
+  parseBookingDepositSettings,
+  fetchSingletonPricingRulesRow,
+} from '../lib/depositCalculation';
 import type { PricingRules } from '../lib/pricing';
 import type { InflatableCartItem } from '../types';
 import { trackEvent, trackEventOnce } from '../lib/siteEvents';
@@ -80,15 +83,10 @@ export function Quote() {
   });
 
   const fetchPricingRules = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('pricing_rules')
-      .select('*')
-      .limit(1)
-      .maybeSingle();
+    const result = await fetchSingletonPricingRulesRow();
+    if (result.status !== 'ready') throw new Error(result.error);
 
-    if (error) throw error;
-    if (!data) throw new Error('No pricing rules found');
-
+    const data = result.row;
     return {
       base_radius_miles: Number(data.base_radius_miles ?? 0),
       included_city_list_json: (data.included_city_list_json as string[]) ?? [],
@@ -112,7 +110,7 @@ export function Quote() {
       ee_only_deposit_base_cents: data.ee_only_deposit_base_cents ?? 5000,
       ee_only_deposit_subtotal_step_cents: data.ee_only_deposit_subtotal_step_cents ?? 10000,
       ee_only_deposit_step_cents: data.ee_only_deposit_step_cents ?? 5000,
-    };
+    } as PricingRules;
   }, []);
 
   const { data: pricingRules, loading: pricingRulesLoading, error: pricingRulesError } = useDataFetch<PricingRules>(
@@ -464,18 +462,22 @@ export function Quote() {
     }
 
     // Stage E4 — Block checkout on deposit calculation failure.
-    if (priceBreakdown) {
+    if (priceBreakdown && pricingRules) {
+      const parsedSettings = parseBookingDepositSettings(pricingRules);
+      if (parsedSettings.status !== 'ready') {
+        flushSync(() => {
+          setValidationError(`Unable to calculate deposit: ${parsedSettings.error} Please contact us for assistance.`);
+          setValidationErrorFieldId(null);
+          setShowBottomToast(true);
+        });
+        return;
+      }
       const preTotals = composeUnifiedQuoteTotals({
         inflatableBreakdown: priceBreakdown,
         cart,
         taxApplied: priceBreakdown.tax_applied ?? true,
-        eeOnlyDepositSettings: {
-          eeOnlyDepositBaseThresholdCents: pricingRules.ee_only_deposit_base_threshold_cents ?? 20000,
-          eeOnlyDepositBaseCents: pricingRules.ee_only_deposit_base_cents ?? 5000,
-          eeOnlyDepositSubtotalStepCents: pricingRules.ee_only_deposit_subtotal_step_cents ?? 10000,
-          eeOnlyDepositStepCents: pricingRules.ee_only_deposit_step_cents ?? 5000,
-        },
-        inflatableDepositPerUnitCents: pricingRules.deposit_per_unit_cents,
+        eeOnlyDepositSettings: parsedSettings.eventEssentialsDepositSettings,
+        inflatableDepositPerUnitCents: parsedSettings.inflatableDepositPerUnitCents,
       });
       if (preTotals.depositError) {
         flushSync(() => {
@@ -660,12 +662,10 @@ export function Quote() {
             </div>
 
             <div className="lg:col-span-1">
-              <QuoteSummarySection cart={cart} priceBreakdown={priceBreakdown} eeOnlyDepositSettings={pricingRules ? {
-                eeOnlyDepositBaseThresholdCents: pricingRules.ee_only_deposit_base_threshold_cents ?? 20000,
-                eeOnlyDepositBaseCents: pricingRules.ee_only_deposit_base_cents ?? 5000,
-                eeOnlyDepositSubtotalStepCents: pricingRules.ee_only_deposit_subtotal_step_cents ?? 10000,
-                eeOnlyDepositStepCents: pricingRules.ee_only_deposit_step_cents ?? 5000,
-              } : null} />
+              <QuoteSummarySection cart={cart} priceBreakdown={priceBreakdown} eeOnlyDepositSettings={pricingRules ? (() => {
+                const parsed = parseBookingDepositSettings(pricingRules);
+                return parsed.status === 'ready' ? parsed.eventEssentialsDepositSettings : null;
+              })() : null} />
             </div>
           </div>
         </form>
