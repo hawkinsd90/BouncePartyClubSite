@@ -271,6 +271,14 @@ export function QuoteSummarySection({ cart, priceBreakdown, eeOnlyDepositSetting
           </div>
         )}
 
+        {totals?.depositError && (
+          <div className="p-3 bg-red-50 border-2 border-red-300 rounded-lg">
+            <p className="text-xs sm:text-sm text-red-800 font-medium text-center leading-relaxed">
+              Unable to calculate deposit: {totals.depositError}. Please contact us for assistance.
+            </p>
+          </div>
+        )}
+
         <button
           type="submit"
           className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 sm:py-3.5 px-6 rounded-lg sm:rounded-xl transition-all shadow-md hover:shadow-lg text-sm sm:text-base"

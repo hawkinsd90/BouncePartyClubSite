@@ -199,10 +199,12 @@ export async function approveOrder(
     // This prevents drift between what was charged vs what we record in accounting
     const stripeGrossCents = data.paymentDetails?.amountCents ?? null;
     const tipAmountCents = orderData.tip_cents ?? 0;
+    // For booking approval, the charge amount is always deposit_due_cents.
+    // customer_selected_payment_cents is NOT used for the approval charge.
     const depositAmountCents =
       stripeGrossCents != null
         ? Math.max(0, stripeGrossCents - tipAmountCents)
-        : (orderData.customer_selected_payment_cents ?? orderData.deposit_due_cents);
+        : (orderData.deposit_due_cents ?? 0);
     const paidAmountCents =
       stripeGrossCents != null
         ? Math.max(0, stripeGrossCents - tipAmountCents)

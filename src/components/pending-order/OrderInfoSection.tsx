@@ -42,7 +42,12 @@ export function OrderInfoSection({ order, customerDisplayName, onEditClick }: Or
   }, []);
 
   const orderItems = (order as any).order_items ?? (order as any).orderItems ?? [];
-  const hasGenerator = hasGeneratorInOrderItems(orderItems, generatorProductId) || (order.generator_qty > 0);
+  const legacyGeneratorQty = (order as any).generator_qty ?? 0;
+  const hasGenerator = hasGeneratorInOrderItems({
+    orderItems,
+    generatorProductId,
+    legacyGeneratorQty,
+  });
 
   return (
     <>

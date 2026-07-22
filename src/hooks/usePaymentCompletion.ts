@@ -55,15 +55,11 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
   const [sessionTipCents, setSessionTipCents] = useState<number>(0);
   const [shouldRedirectToPortal, setShouldRedirectToPortal] = useState(false);
   const [isFirstVisit, setIsFirstVisit] = useState(false);
+  const [emailSent, setEmailSent] = useState<boolean | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   useEffect(() => {
-    // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
-    // Restore only after a true dev/staging environment and explicit safe gating are in place.
-    // Previously logged Stripe Checkout Session ID (cs_xxx) in browser console.
-    // console.log('[PAYMENT-COMPLETE] useEffect triggered with orderId:', orderId, 'sessionId:', sessionId);
-
     if (!orderId) {
-      // console.log('[PAYMENT-COMPLETE] No order ID - setting error state');
       setError('No order ID provided');
       setStatus('error');
       return;
@@ -75,9 +71,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
   async function processPayment() {
     try {
       setStatus('loading');
-      // console.log('[PAYMENT-COMPLETE] Processing payment for order:', orderId);
 
-      // Retrieve tip from Stripe session if available (for display purposes only - tip already saved to order)
       if (sessionId) {
         try {
           const sessionResponse = await fetch(
@@ -96,17 +90,12 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
             const sessionData = await sessionResponse.json();
             const tipCents = parseInt(sessionData.metadata?.tip_cents || '0', 10);
             setSessionTipCents(tipCents);
-            // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
-            // Restore only after a true dev/staging environment and explicit safe gating are in place.
-            // Previously logged tip amount (financial field) in browser console.
-            // console.log('[PAYMENT-COMPLETE] Retrieved tip from session:', tipCents);
           }
         } catch (err) {
           console.error('[PAYMENT-COMPLETE] Error retrieving session metadata:', err);
         }
       }
 
-      // Check if we've already processed this payment (prevent re-processing on refresh)
       const processedKey = `payment_processed_${orderId}`;
       const alreadyProcessed = SafeStorage.getItem(processedKey);
 
@@ -114,13 +103,11 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
         setIsFirstVisit(true);
       }
 
-      // Check immediately first, then retry with delays if needed
       let order = null;
       let retries = 0;
       const maxRetries = 3;
 
       while (retries < maxRetries) {
-        // Only wait on retries (not on first attempt)
         if (retries > 0) {
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
@@ -128,40 +115,16 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
         order = await fetchOrderDetails();
 
         if (order) {
-          // console.log(`[PAYMENT-COMPLETE] Attempt ${retries + 1} — order status: ${order.status}`);
-
-          // Check if webhook has processed (status changed from draft)
           if (order.status !== ORDER_STATUS.DRAFT) {
-            // console.log(`[PAYMENT-COMPLETE] Order already advanced by primary path — status: ${order.status}`);
             break;
           }
         }
 
         retries++;
-        if (retries < maxRetries) {
-          // console.log('[PAYMENT-COMPLETE] Webhook may not have processed yet, retrying...');
-        }
       }
 
-      // console.log('[PAYMENT-COMPLETE] Order fetch result:', order ? 'SUCCESS' : 'NULL');
-
       if (order) {
-        // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
-        // Restore only after a true dev/staging environment and explicit safe gating are in place.
-        // Previously logged order financial fields (deposit_due_cents, customer_selected_payment_cents, tip_cents) in browser console.
-        // console.log('[PAYMENT-COMPLETE] Final order details:', {
-        //   id: order.id,
-        //   status: order.status,
-        //   tip_cents: order.tip_cents,
-        //   deposit_due_cents: order.deposit_due_cents,
-        //   customer_selected_payment_cents: order.customer_selected_payment_cents,
-        // });
-
-        // If webhook still hasn't processed after retries, manually update the order
         if (order.status === ORDER_STATUS.DRAFT && sessionId) {
-          // console.log('[PAYMENT-COMPLETE] Webhook failed to process, manually updating order status...');
-
-          // First, save the payment method from the session
           try {
             const savePaymentMethodResponse = await fetch(
               `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/save-payment-method-from-session`,
@@ -177,19 +140,13 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
 
             if (savePaymentMethodResponse.ok) {
               await savePaymentMethodResponse.json();
-              // console.log('[PAYMENT-COMPLETE] Payment method saved successfully.');
             } else {
-              // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
-              // Restore only after a true dev/staging environment and explicit safe gating are in place.
-              // Previously logged raw HTTP response body — could expose Stripe/API error internals in browser console.
-              // console.error('[PAYMENT-COMPLETE] Failed to save payment method:', await savePaymentMethodResponse.text());
               console.error('[PAYMENT-COMPLETE] Failed to save payment method (non-OK response).');
             }
           } catch (err) {
             console.error('[PAYMENT-COMPLETE] Error saving payment method:', err);
           }
 
-          // Check if this is an admin invoice (portal_shortlinks must NOT count)
           const { data: invoiceLink } = await supabase
             .from('invoice_links' as any)
             .select('id')
@@ -199,7 +156,6 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
 
           const isAdminInvoice = !!invoiceLink;
 
-          // Route through lifecycle so status transition is owned by the authoritative handler
           let lifecycleOk = false;
           try {
             const { enterPendingReview, enterConfirmed } = await import('../lib/orderLifecycle');
@@ -210,27 +166,23 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
               lifecycleResult = await enterPendingReview(orderId!, 'webhook_fallback_standard');
             }
             lifecycleOk = lifecycleResult.success === true;
-            // console.log(`[PAYMENT-COMPLETE] Lifecycle result: success=${lifecycleOk} alreadySent=${lifecycleResult.alreadySent ?? false} error=${lifecycleResult.error ?? '(none)'} isAdminInvoice=${isAdminInvoice}`);
           } catch (lifecycleErr) {
             console.error('[PAYMENT-COMPLETE] Lifecycle call threw unexpectedly:', lifecycleErr);
           }
 
           if (!lifecycleOk) {
-            // console.error(`[PAYMENT-COMPLETE] Lifecycle advancement failed for order ${orderId} — not proceeding as success`);
             setError('Your card was saved but we could not complete the booking request. Please contact us to confirm your booking.');
             clearLocalStorage();
             setStatus('error');
             return;
           }
 
-          // Refetch order with updated data
           order = await fetchOrderDetails();
         }
 
         setOrderDetails(order);
         const adminInvoice = await checkIfAdminInvoice();
 
-        // Only send booking request notifications for standard (non-admin-invoice) orders
         if (!alreadyProcessed && order && !adminInvoice) {
           await sendNotificationsIfNeeded(order);
           SafeStorage.setItem(processedKey, 'true');
@@ -256,8 +208,6 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
   }
 
   async function fetchOrderDetails(): Promise<OrderDetails | null> {
-    // console.log('[PAYMENT-COMPLETE] Fetching order details for:', orderId);
-
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .select(
@@ -298,11 +248,6 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
       return null;
     }
 
-    // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
-    // Restore only after a true dev/staging environment and explicit safe gating are in place.
-    // Previously logged the full order object including customer PII (email, phone, address) and financial fields.
-    // console.log('[PAYMENT-COMPLETE] Order fetched successfully:', order);
-    // console.log('[PAYMENT-COMPLETE] Order fetched successfully.');
     return order as unknown as OrderDetails;
   }
 
@@ -327,11 +272,12 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
       .maybeSingle();
 
     if (orderCheck?.booking_confirmation_sent) {
-      // console.log('[PAYMENT-COMPLETE] Notifications already sent for this order. Skipping.');
       return;
     }
 
-    await sendCustomerBookingConfirmationNotifications(order);
+    const result = await sendCustomerBookingConfirmationNotifications(order);
+    setEmailSent(result.emailSent);
+    setEmailError(result.emailError || null);
 
     await supabase
       .from('orders')
@@ -340,7 +286,6 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
   }
 
   function clearLocalStorage() {
-    // console.log('[PAYMENT-COMPLETE] Clearing localStorage data...');
     SafeStorage.removeItem('bpc_cart');
     window.dispatchEvent(new CustomEvent('bpc-cart-updated'));
     SafeStorage.removeItem('bpc_quote_form');
@@ -357,5 +302,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
     sessionTipCents,
     shouldRedirectToPortal,
     isFirstVisit,
+    emailSent,
+    emailError,
   };
 }

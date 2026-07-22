@@ -58,10 +58,11 @@ export function buildOrderSummary(
   cart: UnifiedCartItem[],
   quoteData: QuoteData,
   tipCents: number,
+  unifiedTotals?: UnifiedQuoteTotals | null,
 ): OrderSummaryDisplay | null {
   if (!priceBreakdown || !cart) return null;
 
-  const totals = composeUnifiedQuoteTotals({
+  const totals = unifiedTotals ?? composeUnifiedQuoteTotals({
     inflatableBreakdown: priceBreakdown,
     cart,
     taxApplied: priceBreakdown.tax_applied,

@@ -172,22 +172,22 @@ test('12. Email failure does not show false queued-email copy', () => {
 
 test('13. Direct EE Generator produces Yes', () => {
   const orderItems = [{ product_id: GEN_ID, bundle_id: null, unit_id: null, component_snapshot: null }];
-  ok('generator detected', hasGeneratorInOrderItems(orderItems, GEN_ID) === true);
+  ok('generator detected', hasGeneratorInOrderItems({ orderItems, generatorProductId: GEN_ID, legacyGeneratorQty: 0 }) === true);
 });
 
 test('14. Package Generator produces Yes', () => {
   const orderItems = [{ product_id: null, bundle_id: BUNDLE_ID, unit_id: null, component_snapshot: { bundle_name: 'Pkg', bundle_description: null, components: [{ product_id: GEN_ID, product_name: 'Generator', quantity_per_bundle: 1 }] } }];
-  ok('generator in package detected', hasGeneratorInOrderItems(orderItems, GEN_ID) === true);
+  ok('generator in package detected', hasGeneratorInOrderItems({ orderItems, generatorProductId: GEN_ID, legacyGeneratorQty: 0 }) === true);
 });
 
 test('15. Legacy generator_qty produces Yes', () => {
-  const orderItems: any[] = [{ product_id: null, bundle_id: null, unit_id: null, component_snapshot: null, generator_qty: 2 }];
-  ok('legacy generator detected', hasGeneratorInOrderItems(orderItems, GEN_ID) === true);
+  const orderItems: any[] = [{ product_id: null, bundle_id: null, unit_id: null, component_snapshot: null }];
+  ok('legacy generator detected', hasGeneratorInOrderItems({ orderItems, generatorProductId: GEN_ID, legacyGeneratorQty: 2 }) === true);
 });
 
 test('16. Unrelated EE product produces No', () => {
   const orderItems = [{ product_id: 'tables-id', bundle_id: null, unit_id: null, component_snapshot: null }];
-  ok('no generator', hasGeneratorInOrderItems(orderItems, GEN_ID) === false);
+  ok('no generator', hasGeneratorInOrderItems({ orderItems, generatorProductId: GEN_ID, legacyGeneratorQty: 0 }) === false);
 });
 
 // =========================================================================
@@ -234,18 +234,21 @@ test('21. same_day persists', () => {
 // =========================================================================
 
 test('22. One inflatable and no EE uses existing $50 default', () => {
-  const deposit = calculateRequiredDepositCents({ inflatableQuantity: 1, eventEssentialsSubtotalCents: 0, orderTotalCents: 20000, inflatableDepositPerUnitCents: 5000 });
-  ok('deposit = 5000', deposit === 5000);
+  const result = calculateRequiredDepositCents({ inflatableQuantity: 1, eventEssentialsSubtotalCents: 0, orderTotalCents: 20000, inflatableDepositPerUnitCents: 5000 });
+  ok('status calculated', result.status === 'calculated');
+  ok('deposit = 5000', (result as any).depositCents === 5000);
 });
 
 test('23. One inflatable and $500 EE remains $50', () => {
-  const deposit = calculateRequiredDepositCents({ inflatableQuantity: 1, eventEssentialsSubtotalCents: 50000, orderTotalCents: 70000, inflatableDepositPerUnitCents: 5000 });
-  ok('deposit = 5000', deposit === 5000);
+  const result = calculateRequiredDepositCents({ inflatableQuantity: 1, eventEssentialsSubtotalCents: 50000, orderTotalCents: 70000, inflatableDepositPerUnitCents: 5000 });
+  ok('status calculated', result.status === 'calculated');
+  ok('deposit = 5000', (result as any).depositCents === 5000);
 });
 
 test('24. Two inflatables and $500 EE remains $100', () => {
-  const deposit = calculateRequiredDepositCents({ inflatableQuantity: 2, eventEssentialsSubtotalCents: 50000, orderTotalCents: 70000, inflatableDepositPerUnitCents: 5000 });
-  ok('deposit = 10000', deposit === 10000);
+  const result = calculateRequiredDepositCents({ inflatableQuantity: 2, eventEssentialsSubtotalCents: 50000, orderTotalCents: 70000, inflatableDepositPerUnitCents: 5000 });
+  ok('status calculated', result.status === 'calculated');
+  ok('deposit = 10000', (result as any).depositCents === 10000);
 });
 
 test('25. EE-only $150 → $50', () => {

@@ -30,6 +30,7 @@ export interface UnifiedQuoteTotals {
   totalCents: number;
   depositCents: number;
   balanceDueCents: number;
+  depositError?: string;
 }
 
 export interface ComposeUnifiedQuoteTotalsInput {
@@ -66,23 +67,41 @@ export function composeUnifiedQuoteTotals(
   // Preserve the inflatable breakdown total exactly, then add EE subtotal + EE tax.
   const totalCents = bd.total_cents + eventEssentialsSubtotalCents + eeTaxCents;
 
-  // Deposit: use authoritative helper.
-  // When inflatables are present, inflatable-based deposit (bd.deposit_due_cents).
-  // When no inflatables but EE present, EE-only tier deposit.
+  // For reporting: the taxable base that includes EE.
+  const existingTaxableBase =
+    bd.subtotal_cents + travelFeeCents + surfaceFeeCents + generatorFeeCents;
+  const taxableSubtotalCents = existingTaxableBase + eventEssentialsSubtotalCents;
+
   const inflatableCount = input.cart.filter(isInflatableCartItem).reduce((sum, item) => sum + item.qty, 0);
-  const depositCents = calculateRequiredDepositCents({
+  const depositResult = calculateRequiredDepositCents({
     inflatableQuantity: inflatableCount,
     eventEssentialsSubtotalCents,
     orderTotalCents: totalCents,
     inflatableDepositPerUnitCents: input.inflatableDepositPerUnitCents ?? (bd.deposit_due_cents > 0 && inflatableCount > 0 ? Math.round(bd.deposit_due_cents / inflatableCount) : 5000),
     eeOnlyDepositSettings: input.eeOnlyDepositSettings,
   });
+  if (depositResult.status !== 'calculated') {
+    // Fail closed — return zero deposit so callers can detect the failure
+    // via the depositError field and block before persisting.
+    return {
+      inflatableSubtotalCents: bd.subtotal_cents,
+      eventEssentialsSubtotalCents,
+      equipmentSubtotalCents,
+      travelFeeCents,
+      surfaceFeeCents,
+      sameDayPickupFeeCents,
+      sameDayWeekdayDeliveryFeeCents,
+      generatorFeeCents,
+      taxableSubtotalCents,
+      taxCents,
+      totalCents,
+      depositCents: 0,
+      balanceDueCents: totalCents,
+      depositError: depositResult.error,
+    };
+  }
+  const depositCents = depositResult.depositCents;
   const balanceDueCents = Math.max(0, totalCents - depositCents);
-
-  // For reporting: the taxable base that includes EE.
-  const existingTaxableBase =
-    bd.subtotal_cents + travelFeeCents + surfaceFeeCents + generatorFeeCents;
-  const taxableSubtotalCents = existingTaxableBase + eventEssentialsSubtotalCents;
 
   return {
     inflatableSubtotalCents: bd.subtotal_cents,

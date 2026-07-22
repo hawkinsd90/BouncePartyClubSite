@@ -3,6 +3,7 @@ import { CreditCard as Edit2, Save, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { notifyError, notifySuccess } from '../../lib/notifications';
 import { calculateEEOnlyDepositCents } from '../../lib/depositCalculation';
+import { validateEEDepositSettingsInput } from '../../lib/moneySettings';
 
 interface PricingRules {
   id: string;
@@ -45,6 +46,7 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
     eeStepSize: '',
     eeStepDeposit: '',
   });
+  const [eeErrors, setEeErrors] = useState<Record<string, string>>({});
 
   const eeSettings = {
     eeOnlyDepositBaseThresholdCents: editedRules.ee_only_deposit_base_threshold_cents ?? 20000,
@@ -79,6 +81,20 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
   };
 
   const handleSave = async () => {
+    // Validate EE-only deposit settings before any save
+    const eeValidation = validateEEDepositSettingsInput({
+      eeBaseThreshold: displayValues.eeBaseThreshold,
+      eeBaseDeposit: displayValues.eeBaseDeposit,
+      eeStepSize: displayValues.eeStepSize,
+      eeStepDeposit: displayValues.eeStepDeposit,
+    });
+    if (!eeValidation.ok) {
+      setEeErrors(eeValidation.errors);
+      notifyError('Please fix the Event Essentials deposit settings before saving.');
+      return;
+    }
+    setEeErrors({});
+
     setSaving(true);
     try {
       const { error: pricingError } = await supabase
@@ -94,10 +110,10 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
           same_day_pickup_fee_cents: editedRules.same_day_pickup_fee_cents || 0,
           same_day_weekday_delivery_fee_cents: editedRules.same_day_weekday_delivery_fee_cents || 0,
           apply_taxes_by_default: editedRules.apply_taxes_by_default ?? true,
-          ee_only_deposit_base_threshold_cents: editedRules.ee_only_deposit_base_threshold_cents ?? 20000,
-          ee_only_deposit_base_cents: editedRules.ee_only_deposit_base_cents ?? 5000,
-          ee_only_deposit_subtotal_step_cents: editedRules.ee_only_deposit_subtotal_step_cents ?? 10000,
-          ee_only_deposit_step_cents: editedRules.ee_only_deposit_step_cents ?? 5000,
+          ee_only_deposit_base_threshold_cents: eeValidation.settings!.ee_only_deposit_base_threshold_cents,
+          ee_only_deposit_base_cents: eeValidation.settings!.ee_only_deposit_base_cents,
+          ee_only_deposit_subtotal_step_cents: eeValidation.settings!.ee_only_deposit_subtotal_step_cents,
+          ee_only_deposit_step_cents: eeValidation.settings!.ee_only_deposit_step_cents,
         })
         .eq('id', editedRules.id);
 
@@ -127,6 +143,7 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
 
   const handleCancel = () => {
     setEditedRules(initialRules);
+    setEeErrors({});
     loadTravelFeeDefault();
     setIsEditing(false);
   };
@@ -398,6 +415,7 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
                 className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${isEditing ? 'bg-white' : 'bg-slate-50'}`}
               />
               <p className="text-xs text-slate-500 mt-1">EE subtotal at or below this amount uses the base deposit</p>
+              {eeErrors.eeBaseThreshold && <p className="text-xs text-red-600 mt-1">{eeErrors.eeBaseThreshold}</p>}
             </div>
 
             <div>
@@ -416,6 +434,7 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
                 className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${isEditing ? 'bg-white' : 'bg-slate-50'}`}
               />
               <p className="text-xs text-slate-500 mt-1">Required deposit when subtotal is at or below the threshold</p>
+              {eeErrors.eeBaseDeposit && <p className="text-xs text-red-600 mt-1">{eeErrors.eeBaseDeposit}</p>}
             </div>
 
             <div>
@@ -434,6 +453,7 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
                 className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${isEditing ? 'bg-white' : 'bg-slate-50'}`}
               />
               <p className="text-xs text-slate-500 mt-1">Each additional step of EE subtotal adds one more deposit tier</p>
+              {eeErrors.eeStepSize && <p className="text-xs text-red-600 mt-1">{eeErrors.eeStepSize}</p>}
             </div>
 
             <div>
@@ -452,6 +472,7 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
                 className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${isEditing ? 'bg-white' : 'bg-slate-50'}`}
               />
               <p className="text-xs text-slate-500 mt-1">Additional deposit amount per tier above the threshold</p>
+              {eeErrors.eeStepDeposit && <p className="text-xs text-red-600 mt-1">{eeErrors.eeStepDeposit}</p>}
             </div>
           </div>
 

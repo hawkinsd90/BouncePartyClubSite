@@ -6,6 +6,7 @@ import { composeUnifiedQuoteTotals } from './unifiedTotals';
 import { calculateEventEssentialsSubtotalCents } from './eventEssentialsMoney';
 import { mapCartToOrderItems } from './eventEssentialsOrderItems';
 import { calculateRequiredDepositCents as _calculateRequiredDepositCents, type EEOnlyDepositSettings } from './depositCalculation';
+import { validateCartPackageSnapshots } from './packageDisplay';
 import type { UnifiedCartItem, InflatableCartItem } from '../types';
 
 interface OrderData {
@@ -54,7 +55,13 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     throw new Error('Please select a pickup preference (Next Morning or Same Day) before submitting your booking.');
   }
 
-  // 0a. CLIENT-SIDE EARLY REJECTION: Check blackout dates before writing anything to the DB.
+  // 0a. Validate current package snapshots before any writes.
+  const packageValidation = validateCartPackageSnapshots(cart as any[]);
+  if (!packageValidation.ok) {
+    throw new Error(`Cannot create order: ${packageValidation.error}`);
+  }
+
+  // 0b. CLIENT-SIDE EARLY REJECTION: Check blackout dates before writing anything to the DB.
   const blackout = await checkDateBlackout(quoteData.event_date, quoteData.event_end_date || quoteData.event_date);
   if (blackout.is_full_blocked) {
     throw new Error('This date is not available for booking. Please contact us or choose a different date.');
@@ -65,7 +72,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     throw new Error('Same-day pickups are not available for this date. Please choose next-day pickup or select a different date.');
   }
 
-  // 0b. CRITICAL SAFETY CHECK: Verify inflatable availability before creating order
+  // 0c. CRITICAL SAFETY CHECK: Verify inflatable availability before creating order
   const inflatableCart = cart.filter(
     (item): item is InflatableCartItem => item.item_type === undefined || item.item_type === 'inflatable',
   );
@@ -91,7 +98,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     );
   }
 
-  // 0c. Event Essential availability check
+  // 0d. Event Essential availability check
   const eeCart = cart.filter((item) => !inflatableCart.includes(item as any));
   if (eeCart.length > 0) {
     const { expandCartToProductQuantities } = await import('./unifiedCart');
@@ -117,12 +124,10 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     }
   }
 
-  // 0d. Generator Workflow Unification: defensive invariant — a new order
+  // 0e. Generator Workflow Unification: defensive invariant — a new order
   // must not contain both a legacy Generator charge and an EE Generator item.
-  // Uses exact Generator product ID, not a blanket EE-product check.
   const hasLegacyGenerator = (quoteData.has_generator || false) || (quoteData.generator_qty || 0) > 0;
   if (hasLegacyGenerator) {
-    // Look up the authoritative Generator product ID.
     const { lookupGeneratorProduct } = await import('./generatorUnified');
     const genLookup = await lookupGeneratorProduct();
     if (genLookup.status === 'configured') {
@@ -138,7 +143,6 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     }
   }
 
-  // Reject unresolved legacy form state before any writes.
   if (hasLegacyGenerator) {
     throw new Error(
       'Cannot create order: Your saved Generator selection needs to be reviewed before continuing.',
@@ -264,6 +268,11 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       })
     : null;
 
+  // Block before any database write if deposit configuration is invalid.
+  if (totalsWithEE?.depositError) {
+    throw new Error(`Unable to calculate required deposit: ${totalsWithEE.depositError}. Please contact us for assistance.`);
+  }
+
   // Deposit: authoritative calculation, NOT customerSelectedPaymentCents.
   // customerSelectedPaymentCents is stored separately and used for payment flow only.
   const inflatableDepositCents = totalsWithEE ? totalsWithEE.depositCents : (priceBreakdown?.deposit_due_cents ?? 0);
@@ -293,7 +302,6 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       billing_city: billingSameAsEvent ? null : (billingAddress.city || null),
       billing_state: billingSameAsEvent ? null : (billingAddress.state || null),
       billing_zip: billingSameAsEvent ? null : (billingAddress.zip || null),
-      // subtotal_cents = combined equipment subtotal (inflatable + EE)
       subtotal_cents: totals ? totals.equipmentSubtotalCents : priceBreakdown.subtotal_cents,
       event_essentials_subtotal_cents: eventEssentialsSubtotalCents,
       travel_fee_cents: priceBreakdown.travel_fee_cents,
@@ -314,12 +322,10 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       same_day_pickup_fee_waived: false,
       same_day_pickup_fee_waive_reason: null,
       tip_cents: tipCents,
-      // deposit_due_cents = authoritative required deposit (inflatable-based or EE-only tier)
       deposit_due_cents: inflatableDepositCents,
       deposit_paid_cents: 0,
       balance_due_cents: Math.max(0, totalCents - inflatableDepositCents),
       custom_deposit_cents: null,
-      // customer_selected_payment_cents stored separately for payment flow
       customer_selected_payment_cents: customerSelectedPaymentCents || inflatableDepositCents,
       customer_selected_payment_type: customerSelectedPaymentType || 'deposit',
       card_on_file_consent: cardOnFileConsent,

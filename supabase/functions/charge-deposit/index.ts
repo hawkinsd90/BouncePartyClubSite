@@ -247,11 +247,14 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Use request values as source of truth; fall back to DB values
+    // Use request values if explicitly provided; otherwise use the stored
+    // deposit_due_cents as the authoritative charge amount for booking approval.
+    // customer_selected_payment_cents is NOT used for the approval charge —
+    // it remains stored separately for customer intent and future workflows.
     const paymentAmountCents =
       typeof requestPaymentAmountCents === "number" && requestPaymentAmountCents > 0
         ? requestPaymentAmountCents
-        : order.customer_selected_payment_cents || order.deposit_due_cents;
+        : order.deposit_due_cents;
 
     const tipCents =
       typeof requestTipCents === "number"

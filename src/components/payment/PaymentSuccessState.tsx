@@ -19,9 +19,11 @@ interface OrderDetails {
 interface PaymentSuccessStateProps {
   orderDetails: OrderDetails | null;
   sessionTipCents?: number;
+  emailSent?: boolean | null;
+  emailError?: string | null;
 }
 
-export function PaymentSuccessState({ orderDetails, sessionTipCents = 0 }: PaymentSuccessStateProps) {
+export function PaymentSuccessState({ orderDetails, sessionTipCents = 0, emailSent = null, emailError = null }: PaymentSuccessStateProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get('order_id') || orderDetails?.id;
@@ -123,13 +125,24 @@ export function PaymentSuccessState({ orderDetails, sessionTipCents = 0 }: Payme
               </div>
             </div>
 
-            <div className="p-6 bg-blue-50 rounded-lg border border-blue-100">
-              <p className="text-sm text-blue-900 leading-relaxed">
-                A confirmation email has been queued for{' '}
-                <span className="font-semibold">{orderDetails.customer?.email}</span>. Please allow a
-                few minutes for it to arrive.
-              </p>
-            </div>
+            {emailSent === true && (
+              <div className="p-6 bg-blue-50 rounded-lg border border-blue-100">
+                <p className="text-sm text-blue-900 leading-relaxed">
+                  A confirmation email has been sent to{' '}
+                  <span className="font-semibold">{orderDetails.customer?.email}</span>. Please allow a
+                  few minutes for it to arrive.
+                </p>
+              </div>
+            )}
+
+            {emailSent === false && (
+              <div className="p-6 bg-amber-50 rounded-lg border border-amber-200">
+                <p className="text-sm text-amber-900 leading-relaxed">
+                  Your booking request was received, but we could not send the confirmation email. You can still track your order through the customer portal.
+                  {emailError && <span className="block mt-1 text-xs text-amber-700">Error: {emailError}</span>}
+                </p>
+              </div>
+            )}
 
             <div className="p-6 bg-slate-50 rounded-lg">
               <p className="text-sm text-slate-700 leading-relaxed mb-3">

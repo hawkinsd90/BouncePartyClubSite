@@ -140,15 +140,27 @@ export async function sendBookingConfirmationNotifications(order: BookingOrderDe
   }
 }
 
-export async function sendCustomerBookingConfirmationNotifications(order: BookingOrderDetails): Promise<void> {
+export async function sendCustomerBookingConfirmationNotifications(order: BookingOrderDetails): Promise<{ emailSent: boolean; emailError?: string }> {
   const { generateCustomerBookingEmail, generateCustomerSMS } = await import('./bookingEmailTemplates');
+
+  let emailSent = false;
+  let emailError: string | undefined;
 
   try {
     await sendCustomerBookingEmail(order, generateCustomerBookingEmail);
-    await sendCustomerBookingSMS(order, generateCustomerSMS);
-  } catch (error) {
-    console.error('[NOTIFICATION] Error in sendCustomerBookingConfirmationNotifications:', error);
+    emailSent = true;
+  } catch (emailErr: any) {
+    emailError = emailErr?.message || 'Unknown email error';
+    console.error('[NOTIFICATION] Error sending customer booking email:', emailErr);
   }
+
+  try {
+    await sendCustomerBookingSMS(order, generateCustomerSMS);
+  } catch (smsErr) {
+    console.error('[NOTIFICATION] Error sending customer booking SMS:', smsErr);
+  }
+
+  return { emailSent, emailError };
 }
 
 async function sendCustomerBookingEmail(order: BookingOrderDetails, generateEmail: (order: any) => string): Promise<void> {

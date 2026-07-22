@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { calculateDrivingDistance } from './pricing';
 import { HOME_BASE } from './constants';
 import { buildOrderSummaryDisplay } from './orderSummaryHelpers';
+import { buildPackageDisplay } from './packageDisplay';
 
 async function estimateDistanceFromFee(travelFeeCents: number): Promise<number> {
   try {
@@ -380,9 +381,28 @@ export function formatOrderSummary(data: OrderSummaryData): OrderSummaryDisplay 
         price: item.unit_price_cents,
         qty: item.qty,
         isNew: item.is_new || false,
+        components: [],
       };
     }
-    // Event Essential product or package
+    // Event Essential package — render component snapshot before package line
+    if (item.bundle_id) {
+      const pkgDisplay = buildPackageDisplay({
+        bundleName: item.item_name ?? null,
+        bundleQty: item.qty,
+        unitPriceCents: item.unit_price_cents,
+        componentSnapshot: (item as any).component_snapshot ?? null,
+      });
+      const isAddOn = item.pricing_context === 'addon';
+      return {
+        name: isAddOn ? `${pkgDisplay.packageName} (Add-on)` : pkgDisplay.packageName,
+        mode: 'Event Essential',
+        price: item.unit_price_cents,
+        qty: item.qty,
+        isNew: item.is_new || false,
+        components: pkgDisplay.hasSnapshot ? pkgDisplay.components : [],
+      };
+    }
+    // Event Essential product
     const name = item.item_name || 'Event Essential';
     const isAddOn = item.pricing_context === 'addon';
     return {
@@ -391,6 +411,7 @@ export function formatOrderSummary(data: OrderSummaryData): OrderSummaryDisplay 
       price: item.unit_price_cents,
       qty: item.qty,
       isNew: item.is_new || false,
+      components: [],
     };
   });
 

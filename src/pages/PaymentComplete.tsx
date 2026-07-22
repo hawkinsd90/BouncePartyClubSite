@@ -12,7 +12,7 @@ export function PaymentComplete() {
   const orderId = searchParams.get('order_id');
   const sessionId = searchParams.get('session_id');
 
-  const { status, error, orderDetails, isAdminInvoice, sessionTipCents, shouldRedirectToPortal, isFirstVisit } = usePaymentCompletion(orderId, sessionId);
+  const { status, error, orderDetails, isAdminInvoice, sessionTipCents, shouldRedirectToPortal, isFirstVisit, emailSent, emailError } = usePaymentCompletion(orderId, sessionId);
 
   useEffect(() => {
     if (status === 'success' && orderId && isFirstVisit) {
@@ -34,5 +34,5 @@ export function PaymentComplete() {
     return <PaymentErrorState error={error} />;
   }
 
-  return <PaymentSuccessState orderDetails={orderDetails} sessionTipCents={sessionTipCents} />;
+  return <PaymentSuccessState orderDetails={orderDetails} sessionTipCents={sessionTipCents} emailSent={emailSent} emailError={emailError} />;
 }

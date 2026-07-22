@@ -42,8 +42,6 @@ export type PackageGeneratorConfigResult =
   | { status: 'failed'; error: string };
 
 // ---------------------------------------------------------------------------
-// Date-range helper (shared)
-// ---------------------------------------------------------------------------
 
 export function isValidEventDateRange(eventDate: string, eventEndDate: string): boolean {
   if (!eventDate || !eventEndDate) return false;
@@ -112,12 +110,16 @@ export function cartPackageContainsGenerator(
 
 // ---------------------------------------------------------------------------
 // Order-item Generator presence (pure, for display only)
+// Stage E4: Accepts order-level legacyGeneratorQty explicitly.
+// Does NOT search order_items for generator_qty.
 // ---------------------------------------------------------------------------
 
-export function hasGeneratorInOrderItems(
-  orderItems: any[],
-  generatorProductId: string | null | undefined,
-): boolean {
+export function hasGeneratorInOrderItems(input: {
+  orderItems: any[];
+  generatorProductId: string | null | undefined;
+  legacyGeneratorQty?: number;
+}): boolean {
+  const { orderItems, generatorProductId, legacyGeneratorQty } = input;
   if (!orderItems || !Array.isArray(orderItems)) return false;
 
   // 1. Direct EE Generator product order item
@@ -138,22 +140,16 @@ export function hasGeneratorInOrderItems(
     }
   }
 
-  // 3. Legacy generator_qty > 0 fallback
-  for (const item of orderItems) {
-    if ((item as any).generator_qty > 0) return true;
-  }
+  // 3. Order-level legacy generator_qty > 0 (NOT from order_items)
+  if (typeof legacyGeneratorQty === 'number' && legacyGeneratorQty > 0) return true;
 
   return false;
 }
 
 // ---------------------------------------------------------------------------
-// Configuration status (owned explicitly by the hook, not derived here)
-// ---------------------------------------------------------------------------
 
 export type GeneratorConfigurationStatus = 'loading' | 'ready' | 'failed';
 
-// ---------------------------------------------------------------------------
-// Duplicate-add decision (pure)
 // ---------------------------------------------------------------------------
 
 export interface DuplicateAddDecision {
@@ -180,8 +176,6 @@ export function decideDirectGeneratorAdd(
   return { shouldAdd: true };
 }
 
-// ---------------------------------------------------------------------------
-// Legacy-conversion readiness (pure)
 // ---------------------------------------------------------------------------
 
 export interface LegacyConversionReadinessInputs {
@@ -218,8 +212,6 @@ export function shouldRunLegacyConversion(
 }
 
 // ---------------------------------------------------------------------------
-// Legacy-state synchronization decision (pure)
-// ---------------------------------------------------------------------------
 
 export interface LegacySyncInputs {
   isInitialized: boolean;
@@ -244,8 +236,6 @@ export function decideLegacySync(inputs: LegacySyncInputs): { action: LegacySync
   return { action: 'set_needed' };
 }
 
-// ---------------------------------------------------------------------------
-// Conversion-allowed decision (pure, fail-closed)
 // ---------------------------------------------------------------------------
 
 export interface ConversionAllowedInputs {

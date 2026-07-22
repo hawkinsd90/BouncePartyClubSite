@@ -143,6 +143,11 @@ export function Checkout() {
       return;
     }
 
+    if (unifiedTotals.depositError) {
+      showToast(`Unable to calculate deposit: ${unifiedTotals.depositError}. Please contact us for assistance.`, 'error');
+      return;
+    }
+
     const paymentCents = getPaymentAmountCentsFromTotals(paymentAmount, customAmount, unifiedTotals);
     if (paymentAmount === 'custom' && paymentCents < unifiedTotals.depositCents) {
       showToast(`Minimum payment is ${formatCurrency(unifiedTotals.depositCents)}`, 'error');
@@ -260,7 +265,7 @@ export function Checkout() {
   }
 
   const tipCents = getTipAmountCents(tipAmount, customTip, unifiedTotals!.totalCents);
-  const orderSummary = buildOrderSummary(priceBreakdown, cart, quoteData, tipCents);
+  const orderSummary = buildOrderSummary(priceBreakdown, cart, quoteData, tipCents, unifiedTotals);
   const paymentAmountCents = getPaymentAmountCentsFromTotals(paymentAmount, customAmount, unifiedTotals!);
 
   return (

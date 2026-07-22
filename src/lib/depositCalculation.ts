@@ -11,7 +11,7 @@
 // - Otherwise: 0.
 //
 // Result is always capped at orderTotalCents.
-// Malformed settings fail closed (return 0).
+// Malformed settings fail closed (return invalid_configuration, not 0).
 
 export interface EEOnlyDepositSettings {
   eeOnlyDepositBaseThresholdCents: number;
@@ -27,6 +27,11 @@ export const DEFAULT_EE_ONLY_DEPOSIT_SETTINGS: EEOnlyDepositSettings = {
   eeOnlyDepositStepCents: 5000,
 };
 
+export type RequiredDepositResult =
+  | { status: 'calculated'; depositCents: number }
+  | { status: 'invalid_configuration'; error: string }
+  | { status: 'invalid_input'; error: string };
+
 function isSafeCents(value: unknown): value is number {
   return (
     typeof value === 'number' &&
@@ -36,7 +41,9 @@ function isSafeCents(value: unknown): value is number {
   );
 }
 
-function validateSettings(settings: Partial<EEOnlyDepositSettings> | null | undefined): EEOnlyDepositSettings | null {
+export function validateEEOnlyDepositSettings(
+  settings: Partial<EEOnlyDepositSettings> | null | undefined,
+): EEOnlyDepositSettings | null {
   if (!settings) return null;
   const s = { ...DEFAULT_EE_ONLY_DEPOSIT_SETTINGS, ...settings };
   if (
@@ -64,36 +71,42 @@ export function calculateRequiredDepositCents(input: {
   orderTotalCents: number;
   inflatableDepositPerUnitCents: number;
   eeOnlyDepositSettings?: Partial<EEOnlyDepositSettings> | null;
-}): number {
+}): RequiredDepositResult {
   const { inflatableQuantity, eventEssentialsSubtotalCents, orderTotalCents, inflatableDepositPerUnitCents } = input;
 
   // Validate inflatable quantity
-  const infQty = Number.isFinite(inflatableQuantity) && inflatableQuantity > 0
-    ? Math.trunc(inflatableQuantity)
-    : 0;
+  if (!Number.isFinite(inflatableQuantity) || inflatableQuantity < 0) {
+    return { status: 'invalid_input', error: 'Invalid inflatable quantity' };
+  }
+  const infQty = Math.trunc(inflatableQuantity) || 0;
 
   // Validate EE subtotal
-  const eeSubtotal = Number.isFinite(eventEssentialsSubtotalCents) && eventEssentialsSubtotalCents > 0
-    ? Math.trunc(eventEssentialsSubtotalCents)
-    : 0;
+  if (!Number.isFinite(eventEssentialsSubtotalCents) || eventEssentialsSubtotalCents < 0) {
+    return { status: 'invalid_input', error: 'Invalid Event Essentials subtotal' };
+  }
+  const eeSubtotal = Math.trunc(eventEssentialsSubtotalCents) || 0;
 
   // Validate order total
-  const total = Number.isFinite(orderTotalCents) && orderTotalCents > 0
-    ? Math.trunc(orderTotalCents)
-    : 0;
+  if (!Number.isFinite(orderTotalCents) || orderTotalCents < 0) {
+    return { status: 'invalid_input', error: 'Invalid order total' };
+  }
+  const total = Math.trunc(orderTotalCents) || 0;
 
   let deposit = 0;
 
   if (infQty > 0) {
     // Inflatable-based deposit: existing per-unit × quantity
-    const perUnit = Number.isFinite(inflatableDepositPerUnitCents) && inflatableDepositPerUnitCents > 0
-      ? Math.trunc(inflatableDepositPerUnitCents)
-      : 0;
+    if (!Number.isFinite(inflatableDepositPerUnitCents) || inflatableDepositPerUnitCents < 0) {
+      return { status: 'invalid_configuration', error: 'Invalid inflatable deposit per-unit setting' };
+    }
+    const perUnit = Math.trunc(inflatableDepositPerUnitCents) || 0;
     deposit = perUnit * infQty;
   } else if (eeSubtotal > 0) {
-    // EE-only tier deposit — use defaults if no settings provided
-    const settings = validateSettings(input.eeOnlyDepositSettings ?? DEFAULT_EE_ONLY_DEPOSIT_SETTINGS);
-    if (!settings) return 0; // fail closed
+    // EE-only tier deposit — must have valid settings
+    const settings = validateEEOnlyDepositSettings(input.eeOnlyDepositSettings ?? DEFAULT_EE_ONLY_DEPOSIT_SETTINGS);
+    if (!settings) {
+      return { status: 'invalid_configuration', error: 'Invalid Event Essentials-only deposit configuration' };
+    }
 
     if (eeSubtotal <= settings.eeOnlyDepositBaseThresholdCents) {
       deposit = settings.eeOnlyDepositBaseCents;
@@ -109,7 +122,7 @@ export function calculateRequiredDepositCents(input: {
   // Cap at order total
   deposit = Math.min(deposit, total);
 
-  return Math.max(0, Math.trunc(deposit));
+  return { status: 'calculated', depositCents: Math.max(0, Math.trunc(deposit)) };
 }
 
 export function calculateEEOnlyDepositCents(
@@ -117,11 +130,12 @@ export function calculateEEOnlyDepositCents(
   orderTotalCents: number,
   settings?: Partial<EEOnlyDepositSettings> | null,
 ): number {
-  return calculateRequiredDepositCents({
+  const result = calculateRequiredDepositCents({
     inflatableQuantity: 0,
     eventEssentialsSubtotalCents,
     orderTotalCents,
     inflatableDepositPerUnitCents: 0,
     eeOnlyDepositSettings: settings ?? DEFAULT_EE_ONLY_DEPOSIT_SETTINGS,
   });
+  return result.status === 'calculated' ? result.depositCents : 0;
 }
