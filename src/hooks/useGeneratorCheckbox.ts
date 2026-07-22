@@ -27,12 +27,10 @@ import {
 import { checkProductAvailability } from '../lib/queries/products';
 import {
   lookupGeneratorProduct,
-  cartHasDirectGenerator,
   getDirectGeneratorQuantity,
   loadPackageGeneratorConfigs,
   cartPackageContainsGenerator,
   isValidEventDateRange,
-  deriveGeneratorConfigurationStatus,
   decideDirectGeneratorAdd,
   shouldRunLegacyConversion,
   type GeneratorProductConfiguration,
@@ -90,10 +88,15 @@ interface ResolverConfig {
 
 export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGeneratorCheckboxResult {
   const { cart, formData, addToCart, removeEventEssentialProduct, isInitialized, onFormDataChange } = params;
+
+  // Explicit configuration status — owned by the hook, not derived from null.
+  // Initial state is 'loading'. A lookup failure transitions to 'failed' and
+  // never remains represented as 'loading'.
+  const [configurationStatus, setConfigurationStatus] = useState<GeneratorConfigurationStatus>('loading');
   const [generatorProduct, setGeneratorProduct] = useState<GeneratorProductConfiguration | null>(null);
   const [resolverConfig, setResolverConfig] = useState<ResolverConfig | null>(null);
   const [packageConfigs, setPackageConfigs] = useState<PackageGeneratorConfig[] | null>(null);
-  const [packageConfigFailed, setPackageConfigFailed] = useState(false);
+
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<'info' | 'error' | null>(null);
   const [loading, setLoading] = useState(false);
@@ -103,7 +106,14 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
   const [conversionCompleted, setConversionCompleted] = useState(false);
   const autoConversionAttempted = useRef(false);
 
+  const configurationLoading = configurationStatus === 'loading';
+  const configurationReady = configurationStatus === 'ready';
+  const configurationFailed = configurationStatus === 'failed';
+
   // Load the authoritative Generator product + shared resolver config once.
+  // Sets configurationStatus explicitly: 'ready' only after all queries
+  // succeed; 'failed' on any lookup failure (not_found, ambiguous,
+  // configuration_failed, or resolver query failure).
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -119,43 +129,48 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
 
       if (cancelled) return;
 
-      if (genResult.status === 'configured') {
-        setGeneratorProduct(genResult.product);
-
-        if (
-          productsResult.error || pricingResult.error || categoriesResult.error ||
-          bundlesResult.error || unitsResult.error
-        ) {
+      if (genResult.status !== 'configured') {
+        setConfigurationStatus('failed');
+        if (genResult.status === 'not_found') {
+          setMessage('Generator is not configured. Please contact us.');
+        } else if (genResult.status === 'ambiguous') {
+          setMessage('Generator configuration is ambiguous. Please contact us.');
+        } else {
           setMessage('Unable to verify Generator availability. Please try again.');
-          setMessageType('error');
-          return;
         }
+        setMessageType('error');
+        return;
+      }
 
-        setResolverConfig({
-          productConfigs: buildProductConfigMap(productsResult.data ?? [], pricingResult.data ?? []),
-          bundleConfigs: buildBundleConfigMap(bundlesResult.data ?? []),
-          categories: buildCategoryMap(categoriesResult.data ?? []),
-          units: buildUnitMap(unitsResult.data ?? []),
-        });
-      } else if (genResult.status === 'not_found') {
-        setMessage('Generator is not configured. Please contact us.');
-        setMessageType('error');
-      } else if (genResult.status === 'ambiguous') {
-        setMessage('Generator configuration is ambiguous. Please contact us.');
-        setMessageType('error');
-      } else if (genResult.status === 'configuration_failed') {
+      if (
+        productsResult.error || pricingResult.error || categoriesResult.error ||
+        bundlesResult.error || unitsResult.error
+      ) {
+        setConfigurationStatus('failed');
         setMessage('Unable to verify Generator availability. Please try again.');
         setMessageType('error');
+        return;
       }
+
+      setGeneratorProduct(genResult.product);
+      setResolverConfig({
+        productConfigs: buildProductConfigMap(productsResult.data ?? [], pricingResult.data ?? []),
+        bundleConfigs: buildBundleConfigMap(bundlesResult.data ?? []),
+        categories: buildCategoryMap(categoriesResult.data ?? []),
+        units: buildUnitMap(unitsResult.data ?? []),
+      });
+      // packageConfigs loaded separately; status becomes 'ready' only after
+      // package configs also resolve (see package-config effect below).
     })();
     return () => { cancelled = true; };
   }, []);
 
-  // Load package generator configs (fail-closed).
+  // Load package generator configs (fail-closed). Transitions configuration
+  // status to 'ready' on success or 'failed' on failure — but only after the
+  // generator product + resolver are already loaded.
   useEffect(() => {
-    if (!generatorProduct) {
+    if (!generatorProduct || !resolverConfig) {
       setPackageConfigs(null);
-      setPackageConfigFailed(false);
       return;
     }
     let cancelled = false;
@@ -164,14 +179,16 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
       if (cancelled) return;
       if (result.status === 'loaded') {
         setPackageConfigs(result.configs);
-        setPackageConfigFailed(false);
+        setConfigurationStatus('ready');
       } else {
         setPackageConfigs(null);
-        setPackageConfigFailed(true);
+        setConfigurationStatus('failed');
+        setMessage('Unable to verify Generator availability. Please try again.');
+        setMessageType('error');
       }
     })();
     return () => { cancelled = true; };
-  }, [generatorProduct]);
+  }, [generatorProduct, resolverConfig]);
 
   const directQty = generatorProduct ? getDirectGeneratorQuantity(cart, generatorProduct.product_id) : 0;
   const [packageContainedQty, setPackageContainedQty] = useState(0);
@@ -187,45 +204,59 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
 
   const checked = directQty > 0 || packageContainedQty > 0;
 
-  // Explicit configuration status — a failure never remains displayed as loading.
-  const configurationStatus: GeneratorConfigurationStatus = deriveGeneratorConfigurationStatus({
-    generatorProduct,
-    resolverConfig,
-    packageConfigs,
-    packageConfigFailed,
-  });
-  const configurationLoading = configurationStatus === 'loading';
-  const configurationReady = configurationStatus === 'ready';
-  const configurationFailed = configurationStatus === 'failed';
-
-  // Detect legacy browser-storage state on init.
+  // Legacy synchronization effect. Reacts to directQty, formData legacy
+  // fields, isInitialized, and configurationReady.
+  //
+  // Required behavior:
+  // - No legacy state → legacyConversionNeeded = false.
+  // - Legacy state + direct Generator already in cart → clear legacy fields,
+  //   legacyConversionNeeded = false, no second Generator added.
+  // - Legacy state + no direct Generator → legacyConversionNeeded = true
+  //   (triggers auto-conversion effect when dates are valid).
   useEffect(() => {
-    if (!isInitialized || !generatorProduct || packageConfigs === null) return;
-    if (conversionCompleted || conversionInFlight) return;
+    if (!isInitialized || !configurationReady) return;
 
     const hasLegacyState = formData.has_generator || formData.generator_qty > 0;
-    if (!hasLegacyState) return;
 
-    const alreadyHasDirect = cartHasDirectGenerator(cart, generatorProduct.product_id);
-    if (alreadyHasDirect) {
-      setConversionCompleted(true);
-      onFormDataChange({ has_generator: false, generator_qty: 0 });
+    if (!hasLegacyState) {
+      // Customer no longer has legacy browser Generator state.
+      if (legacyConversionNeeded) setLegacyConversionNeeded(false);
       return;
     }
 
-    setLegacyConversionNeeded(true);
-  }, [isInitialized, generatorProduct, packageConfigs, conversionCompleted, conversionInFlight]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Legacy state present. If a direct EE Generator already exists, clear
+    // the stale legacy fields and mark conversion completed — do NOT add
+    // another Generator.
+    if (directQty > 0) {
+      onFormDataChange({ has_generator: false, generator_qty: 0 });
+      setLegacyConversionNeeded(false);
+      setConversionCompleted(true);
+      return;
+    }
+
+    // Legacy state present, no direct Generator yet → conversion needed.
+    if (!conversionCompleted && !conversionInFlight) {
+      setLegacyConversionNeeded(true);
+    }
+  }, [
+    isInitialized,
+    configurationReady,
+    directQty,
+    formData.has_generator,
+    formData.generator_qty,
+    legacyConversionNeeded,
+    conversionCompleted,
+    conversionInFlight,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-run conversion once when all readiness conditions are met.
-  // Reacts to: legacy state, valid dates, and configuration readiness.
+  // Reacts to: legacy state, valid dates, configuration readiness.
   useEffect(() => {
     if (autoConversionAttempted.current) return;
 
     const decision = shouldRunLegacyConversion({
       legacyStatePresent: formData.has_generator || formData.generator_qty > 0,
-      alreadyHasDirect: generatorProduct
-        ? cartHasDirectGenerator(cart, generatorProduct.product_id)
-        : false,
+      alreadyHasDirect: directQty > 0,
       conversionCompleted,
       conversionInFlight,
       configurationReady,
@@ -241,6 +272,7 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
     conversionCompleted,
     conversionInFlight,
     configurationReady,
+    directQty,
     formData.event_date,
     formData.event_end_date,
     formData.has_generator,
@@ -273,14 +305,20 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
 
   const toggle = useCallback(async (wantChecked: boolean) => {
     if (togglingRef.current) return;
-    if (!generatorProduct || !resolverConfig) {
-      setMessage('Unable to verify Generator availability. Please try again.');
-      setMessageType('error');
+
+    // Fail-closed: require configuration ready before any add. Do not rely
+    // only on the checkbox disabled state.
+    if (wantChecked && !configurationReady) {
+      if (configurationFailed) {
+        setMessage('Unable to verify Generator availability. Please try again.');
+        setMessageType('error');
+      }
+      // Do not clear a valid existing selection while loading/failed.
       return;
     }
 
-    if (packageConfigFailed) {
-      setMessage('Unable to verify whether your selected package includes a Generator. Please try again.');
+    if (!generatorProduct || !resolverConfig) {
+      setMessage('Unable to verify Generator availability. Please try again.');
       setMessageType('error');
       return;
     }
@@ -299,6 +337,8 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
           setMessageType(null);
         }
         onFormDataChange({ has_generator: false, generator_qty: 0 });
+        setLegacyConversionNeeded(false);
+        setConversionCompleted(true);
         return;
       }
 
@@ -350,6 +390,8 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
 
         addToCart(item);
         onFormDataChange({ has_generator: false, generator_qty: 0 });
+        setLegacyConversionNeeded(false);
+        setConversionCompleted(true);
         setMessage(null);
         setMessageType(null);
       } catch {
@@ -360,26 +402,23 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
         togglingRef.current = false;
       }
     } else {
+      // Unchecking: remove the direct Generator, clear all legacy state,
+      // clear stale conversion messages. Do not leave Checkout blocked.
       if (directQty > 0) {
         removeEventEssentialProduct(generatorProduct.product_id);
       }
       onFormDataChange({ has_generator: false, generator_qty: 0 });
+      setLegacyConversionNeeded(false);
       setMessage(null);
       setMessageType(null);
     }
-  }, [generatorProduct, resolverConfig, packageConfigFailed, packageContainedQty, directQty, formData, addToCart, removeEventEssentialProduct, onFormDataChange, evaluateGenerator]);
+  }, [configurationReady, configurationFailed, generatorProduct, resolverConfig, packageContainedQty, directQty, formData, addToCart, removeEventEssentialProduct, onFormDataChange, evaluateGenerator]);
 
   const performLegacyConversion = useCallback(async () => {
     if (!generatorProduct || !resolverConfig) return;
 
     if (!isValidEventDateRange(formData.event_date, formData.event_end_date)) {
       setMessage('Your saved Generator selection needs to be reviewed before continuing.');
-      setMessageType('error');
-      return;
-    }
-
-    if (packageConfigFailed) {
-      setMessage('Unable to verify whether your selected package includes a Generator. Please try again.');
       setMessageType('error');
       return;
     }
@@ -452,7 +491,7 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
       setLoading(false);
       togglingRef.current = false;
     }
-  }, [generatorProduct, resolverConfig, formData, packageConfigFailed, packageConfigs, addToCart, onFormDataChange, evaluateGenerator]);
+  }, [generatorProduct, resolverConfig, formData, packageConfigs, addToCart, onFormDataChange, evaluateGenerator]);
 
   return {
     state: {

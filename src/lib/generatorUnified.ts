@@ -111,48 +111,10 @@ export function cartPackageContainsGenerator(
 }
 
 // ---------------------------------------------------------------------------
-// Configuration-state transition (pure)
+// Configuration status (owned explicitly by the hook, not derived here)
 // ---------------------------------------------------------------------------
 
 export type GeneratorConfigurationStatus = 'loading' | 'ready' | 'failed';
-
-export interface GeneratorConfigurationInputs {
-  generatorProduct: GeneratorProductConfiguration | null;
-  resolverConfig: unknown | null;
-  packageConfigs: PackageGeneratorConfig[] | null;
-  packageConfigFailed: boolean;
-}
-
-export function deriveGeneratorConfigurationStatus(
-  inputs: GeneratorConfigurationInputs,
-): GeneratorConfigurationStatus {
-  const { generatorProduct, resolverConfig, packageConfigs, packageConfigFailed } = inputs;
-
-  if (!generatorProduct) {
-    // lookup not yet resolved OR resolver/packaged queries failed alongside.
-    if (packageConfigFailed || (packageConfigs === null && !packageConfigFailed)) {
-      // packageConfigFailed implies generatorProduct was set then package load failed.
-      // But if generatorProduct is null we are still loading the generator lookup itself.
-      return 'loading';
-    }
-    return 'loading';
-  }
-
-  if (!resolverConfig) {
-    return 'failed';
-  }
-
-  if (packageConfigs === null) {
-    if (packageConfigFailed) return 'failed';
-    return 'loading';
-  }
-
-  if (packageConfigFailed) {
-    return 'failed';
-  }
-
-  return 'ready';
-}
 
 // ---------------------------------------------------------------------------
 // Duplicate-add decision (pure)
