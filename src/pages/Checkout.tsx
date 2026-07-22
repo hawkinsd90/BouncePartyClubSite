@@ -10,6 +10,7 @@ import { getPaymentAmountCentsFromTotals, getTipAmountCents, buildOrderSummary }
 import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { showToast } from '../lib/notifications';
 import { composeUnifiedQuoteTotals } from '../lib/unifiedTotals';
+import { validateCartPackageSnapshots } from '../lib/packageDisplay';
 import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS, type EEOnlyDepositSettings } from '../lib/depositCalculation';
 import { supabase } from '../lib/supabase';
 import { ContactInformationForm } from '../components/checkout/ContactInformationForm';
@@ -143,8 +144,15 @@ export function Checkout() {
       return;
     }
 
-    if (unifiedTotals.depositError) {
+    if (unifiedTotals?.depositError) {
       showToast(`Unable to calculate deposit: ${unifiedTotals.depositError}. Please contact us for assistance.`, 'error');
+      return;
+    }
+
+    // Stage E4 — Validate package snapshots before order creation.
+    const packageValidation = validateCartPackageSnapshots(cart as any[]);
+    if (!packageValidation.ok) {
+      showToast('Package details could not be verified. Please remove and re-add the package or contact us.', 'error');
       return;
     }
 

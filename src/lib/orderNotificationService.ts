@@ -140,18 +140,18 @@ export async function sendBookingConfirmationNotifications(order: BookingOrderDe
   }
 }
 
-export async function sendCustomerBookingConfirmationNotifications(order: BookingOrderDetails): Promise<{ emailSent: boolean; emailError?: string }> {
+export type CustomerBookingEmailResult =
+  | { success: true }
+  | { success: false; error: string };
+
+export async function sendCustomerBookingConfirmationNotifications(order: BookingOrderDetails): Promise<{ emailSent: boolean; emailError: string | null }> {
   const { generateCustomerBookingEmail, generateCustomerSMS } = await import('./bookingEmailTemplates');
 
-  let emailSent = false;
-  let emailError: string | undefined;
-
+  let emailResult: CustomerBookingEmailResult;
   try {
-    await sendCustomerBookingEmail(order, generateCustomerBookingEmail);
-    emailSent = true;
+    emailResult = await sendCustomerBookingEmail(order, generateCustomerBookingEmail);
   } catch (emailErr: any) {
-    emailError = emailErr?.message || 'Unknown email error';
-    console.error('[NOTIFICATION] Error sending customer booking email:', emailErr);
+    emailResult = { success: false, error: emailErr?.message || 'Unknown email error' };
   }
 
   try {
@@ -160,20 +160,21 @@ export async function sendCustomerBookingConfirmationNotifications(order: Bookin
     console.error('[NOTIFICATION] Error sending customer booking SMS:', smsErr);
   }
 
-  return { emailSent, emailError };
+  if (emailResult.success) {
+    return { emailSent: true, emailError: null };
+  }
+  console.error('[NOTIFICATION] Error sending customer booking email:', emailResult.error);
+  return { emailSent: false, emailError: emailResult.error };
 }
 
-async function sendCustomerBookingEmail(order: BookingOrderDetails, generateEmail: (order: any) => string): Promise<void> {
-  try {
-    const emailHtml = generateEmail(order);
-    await sendEmail({
-      to: order.customer.email,
-      subject: 'Booking Request Received - Bounce Party Club',
-      html: emailHtml,
-    });
-  } catch (emailErr) {
-    console.error('[NOTIFICATION] Error sending email notification:', emailErr);
-  }
+async function sendCustomerBookingEmail(order: BookingOrderDetails, generateEmail: (order: any) => string): Promise<CustomerBookingEmailResult> {
+  const emailHtml = generateEmail(order);
+  await sendEmail({
+    to: order.customer.email,
+    subject: 'Booking Request Received - Bounce Party Club',
+    html: emailHtml,
+  });
+  return { success: true };
 }
 
 async function sendCustomerBookingSMS(order: BookingOrderDetails, generateSMS: (order: any) => string): Promise<void> {

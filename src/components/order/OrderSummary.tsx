@@ -77,6 +77,11 @@ export function OrderSummary({
                 );
                 return (
                   <div key={index}>
+                    {(item as any).packageContentsUnavailable && (
+                      <div className="mb-1 pl-4">
+                        <p className="text-xs text-slate-400 italic">Package contents unavailable</p>
+                      </div>
+                    )}
                     {(item as any).components && (item as any).components.length > 0 && (
                       <div className="mb-1 pl-4">
                         <p className="text-xs text-slate-500 mb-0.5">Included:</p>

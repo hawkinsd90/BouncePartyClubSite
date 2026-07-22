@@ -10,6 +10,7 @@ interface OrderDetails {
   deposit_due_cents: number;
   balance_due_cents: number;
   customer_selected_payment_cents?: number;
+  customer_selected_payment_type?: 'deposit' | 'full' | 'custom' | null;
   tip_cents: number;
   customer?: {
     email: string;
@@ -98,7 +99,7 @@ export function PaymentSuccessState({ orderDetails, sessionTipCents = 0, emailSe
               <div>
                 <p className="text-sm text-slate-600 mb-1">Deposit Amount:</p>
                 <p className="font-semibold text-green-600">
-                  ${((orderDetails.customer_selected_payment_cents || orderDetails.deposit_due_cents) / 100).toFixed(2)}
+                  ${(orderDetails.deposit_due_cents / 100).toFixed(2)}
                 </p>
               </div>
               {displayTipCents > 0 && (
@@ -113,7 +114,7 @@ export function PaymentSuccessState({ orderDetails, sessionTipCents = 0, emailSe
                 <div className="col-span-2">
                   <p className="text-sm text-slate-600 mb-1">Total After Approval (including tip):</p>
                   <p className="font-semibold text-green-600 text-lg">
-                    ${(((orderDetails.customer_selected_payment_cents || orderDetails.deposit_due_cents) + displayTipCents) / 100).toFixed(2)}
+                    ${((orderDetails.deposit_due_cents + displayTipCents) / 100).toFixed(2)}
                   </p>
                 </div>
               )}

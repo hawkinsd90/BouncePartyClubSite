@@ -152,13 +152,61 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
   // tax_applied comes from the inflatable breakdown — the authoritative tax setting.
   const taxApplied = priceBreakdown.tax_applied ?? true;
   const eventEssentialsSubtotalCents = calculateEventEssentialsSubtotalCents(cart);
-  const totals = priceBreakdown
+
+  // Load EE-only deposit settings from pricing_rules BEFORE any database write.
+  // A settings query error must block order creation.
+  let eeOnlyDepositSettings: EEOnlyDepositSettings | null = null;
+  {
+    const { data: pricingRules, error: pricingRulesError } = await supabase
+      .from('pricing_rules')
+      .select('ee_only_deposit_base_threshold_cents, ee_only_deposit_base_cents, ee_only_deposit_subtotal_step_cents, ee_only_deposit_step_cents, deposit_per_unit_cents')
+      .limit(1)
+      .maybeSingle();
+
+    if (pricingRulesError) {
+      throw new Error(`Unable to load pricing configuration: ${pricingRulesError.message}. Please try again or contact us for assistance.`);
+    }
+    if (pricingRules) {
+      eeOnlyDepositSettings = {
+        eeOnlyDepositBaseThresholdCents: pricingRules.ee_only_deposit_base_threshold_cents ?? 20000,
+        eeOnlyDepositBaseCents: pricingRules.ee_only_deposit_base_cents ?? 5000,
+        eeOnlyDepositSubtotalStepCents: pricingRules.ee_only_deposit_subtotal_step_cents ?? 10000,
+        eeOnlyDepositStepCents: pricingRules.ee_only_deposit_step_cents ?? 5000,
+      };
+    }
+  }
+
+  // Calculate unified totals with EE-only deposit settings.
+  const totalsWithEE = priceBreakdown
     ? composeUnifiedQuoteTotals({
         inflatableBreakdown: priceBreakdown,
         cart,
         taxApplied,
+        eeOnlyDepositSettings,
+        inflatableDepositPerUnitCents: priceBreakdown.deposit_due_cents > 0
+          ? Math.round(priceBreakdown.deposit_due_cents / Math.max(1, inflatableCart.reduce((s, i) => s + i.qty, 0)))
+          : 5000,
       })
     : null;
+
+  // Block before any database write if deposit configuration is invalid.
+  if (totalsWithEE?.depositError) {
+    throw new Error(`Unable to calculate required deposit: ${totalsWithEE.depositError}. Please contact us for assistance.`);
+  }
+
+  // Deposit: authoritative calculation, NOT customerSelectedPaymentCents.
+  const inflatableDepositCents = totalsWithEE ? totalsWithEE.depositCents : (priceBreakdown?.deposit_due_cents ?? 0);
+  const totalCents = totalsWithEE ? totalsWithEE.totalCents : (priceBreakdown?.total_cents ?? 0);
+  const taxCents = totalsWithEE ? totalsWithEE.taxCents : (priceBreakdown?.tax_cents ?? 0);
+
+  // Map and validate all order-item rows before any persistence.
+  const orderItems = mapCartToOrderItems(cart);
+  if (orderItems.length === 0 && cart.length > 0) {
+    throw new Error('Cannot create order: cart contains invalid items with malformed prices or quantities.');
+  }
+
+  // === ALL PRE-WRITE VALIDATION COMPLETE ===
+  // Customer, address, order, and consent persistence begins below.
 
   // 1. Create or update customer
   let customer;
@@ -235,50 +283,6 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     lng: eventAddr.lng,
   });
 
-  // Load EE-only deposit settings from pricing_rules.
-  let eeOnlyDepositSettings: EEOnlyDepositSettings | null = null;
-  try {
-    const { data: pricingRules } = await supabase
-      .from('pricing_rules')
-      .select('ee_only_deposit_base_threshold_cents, ee_only_deposit_base_cents, ee_only_deposit_subtotal_step_cents, ee_only_deposit_step_cents, deposit_per_unit_cents')
-      .limit(1)
-      .maybeSingle();
-    if (pricingRules) {
-      eeOnlyDepositSettings = {
-        eeOnlyDepositBaseThresholdCents: pricingRules.ee_only_deposit_base_threshold_cents ?? 20000,
-        eeOnlyDepositBaseCents: pricingRules.ee_only_deposit_base_cents ?? 5000,
-        eeOnlyDepositSubtotalStepCents: pricingRules.ee_only_deposit_subtotal_step_cents ?? 10000,
-        eeOnlyDepositStepCents: pricingRules.ee_only_deposit_step_cents ?? 5000,
-      };
-    }
-  } catch (settingsErr) {
-    console.error('[orderCreation] Failed to load EE-only deposit settings:', settingsErr);
-  }
-
-  // Recalculate totals with EE-only deposit settings if available.
-  const totalsWithEE = priceBreakdown
-    ? composeUnifiedQuoteTotals({
-        inflatableBreakdown: priceBreakdown,
-        cart,
-        taxApplied,
-        eeOnlyDepositSettings,
-        inflatableDepositPerUnitCents: priceBreakdown.deposit_due_cents > 0
-          ? Math.round(priceBreakdown.deposit_due_cents / Math.max(1, inflatableCart.reduce((s, i) => s + i.qty, 0)))
-          : 5000,
-      })
-    : null;
-
-  // Block before any database write if deposit configuration is invalid.
-  if (totalsWithEE?.depositError) {
-    throw new Error(`Unable to calculate required deposit: ${totalsWithEE.depositError}. Please contact us for assistance.`);
-  }
-
-  // Deposit: authoritative calculation, NOT customerSelectedPaymentCents.
-  // customerSelectedPaymentCents is stored separately and used for payment flow only.
-  const inflatableDepositCents = totalsWithEE ? totalsWithEE.depositCents : (priceBreakdown?.deposit_due_cents ?? 0);
-  const totalCents = totalsWithEE ? totalsWithEE.totalCents : (priceBreakdown?.total_cents ?? 0);
-  const taxCents = totalsWithEE ? totalsWithEE.taxCents : (priceBreakdown?.tax_cents ?? 0);
-
   // 4. Create order with 'draft' status (unpaid invoice)
   const { data: order, error: orderError } = await supabase
     .from('orders')
@@ -302,7 +306,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       billing_city: billingSameAsEvent ? null : (billingAddress.city || null),
       billing_state: billingSameAsEvent ? null : (billingAddress.state || null),
       billing_zip: billingSameAsEvent ? null : (billingAddress.zip || null),
-      subtotal_cents: totals ? totals.equipmentSubtotalCents : priceBreakdown.subtotal_cents,
+      subtotal_cents: totalsWithEE ? totalsWithEE.equipmentSubtotalCents : priceBreakdown.subtotal_cents,
       event_essentials_subtotal_cents: eventEssentialsSubtotalCents,
       travel_fee_cents: priceBreakdown.travel_fee_cents,
       travel_total_miles: priceBreakdown.travel_total_miles,
@@ -346,11 +350,6 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
   if (orderError) throw orderError;
 
   // 5. Create order items (inflatables + Event Essentials)
-  const orderItems = mapCartToOrderItems(cart);
-  if (orderItems.length === 0 && cart.length > 0) {
-    throw new Error('Cannot create order: cart contains invalid items with malformed prices or quantities.');
-  }
-
   for (const item of orderItems) {
     const { error: itemError } = await supabase.from('order_items').insert({
       ...item,

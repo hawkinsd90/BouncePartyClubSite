@@ -39,11 +39,15 @@ interface OrderDetails {
   };
   order_items: Array<{
     qty: number;
-    wet_or_dry: string;
+    wet_or_dry: string | null;
     unit_price_cents: number;
-    units: {
-      name: string;
-    };
+    unit_id: string | null;
+    product_id: string | null;
+    bundle_id: string | null;
+    item_name: string | null;
+    pricing_context: string | null;
+    component_snapshot: any | null;
+    units: { name: string } | null;
   }>;
 }
 
@@ -229,6 +233,12 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
           qty,
           wet_or_dry,
           unit_price_cents,
+          unit_id,
+          product_id,
+          bundle_id,
+          item_name,
+          pricing_context,
+          component_snapshot,
           units (
             name
           )
@@ -272,17 +282,21 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
       .maybeSingle();
 
     if (orderCheck?.booking_confirmation_sent) {
+      setEmailSent(true);
+      setEmailError(null);
       return;
     }
 
-    const result = await sendCustomerBookingConfirmationNotifications(order);
+    const result = await sendCustomerBookingConfirmationNotifications(order as any);
     setEmailSent(result.emailSent);
     setEmailError(result.emailError || null);
 
-    await supabase
-      .from('orders')
-      .update({ booking_confirmation_sent: true })
-      .eq('id', orderId!);
+    if (result.emailSent) {
+      await supabase
+        .from('orders')
+        .update({ booking_confirmation_sent: true })
+        .eq('id', orderId!);
+    }
   }
 
   function clearLocalStorage() {

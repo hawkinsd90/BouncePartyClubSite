@@ -429,12 +429,13 @@ test('29. Settings changed after booking → approval charges stored deposit', (
   // Order was created with deposit_due_cents = 5000 (original settings)
   const storedDepositDueCents = 5000;
   // Admin later changes settings to base = 7000
-  const newSettingsDeposit = calculateEEOnlyDepositCents(15000, 15000, {
+  const newSettingsResult = calculateEEOnlyDepositCents(15000, 15000, {
     eeOnlyDepositBaseThresholdCents: 30000,
     eeOnlyDepositBaseCents: 7000,
     eeOnlyDepositSubtotalStepCents: 10000,
     eeOnlyDepositStepCents: 5000,
   });
+  const newSettingsDeposit = newSettingsResult.status === 'calculated' ? (newSettingsResult as any).depositCents : 0;
   ok('new settings deposit = 7000', newSettingsDeposit === 7000);
   ok('stored deposit unchanged', storedDepositDueCents === 5000);
   // Approval charges stored deposit, not recalculated

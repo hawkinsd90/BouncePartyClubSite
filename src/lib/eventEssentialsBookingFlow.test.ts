@@ -252,53 +252,63 @@ test('24. Two inflatables and $500 EE remains $100', () => {
 });
 
 test('25. EE-only $150 → $50', () => {
-  const deposit = calculateEEOnlyDepositCents(15000, 15000);
-  ok('deposit = 5000', deposit === 5000);
+  const result = calculateEEOnlyDepositCents(15000, 15000);
+  ok('status calculated', result.status === 'calculated');
+  ok('deposit = 5000', (result as any).depositCents === 5000);
 });
 
 test('26. EE-only $200.00 → $50', () => {
-  const deposit = calculateEEOnlyDepositCents(20000, 20000);
-  ok('deposit = 5000', deposit === 5000);
+  const result = calculateEEOnlyDepositCents(20000, 20000);
+  ok('status calculated', result.status === 'calculated');
+  ok('deposit = 5000', (result as any).depositCents === 5000);
 });
 
 test('27. EE-only $200.01 → $100', () => {
-  const deposit = calculateEEOnlyDepositCents(20001, 20001);
-  ok('deposit = 10000', deposit === 10000);
+  const result = calculateEEOnlyDepositCents(20001, 20001);
+  ok('status calculated', result.status === 'calculated');
+  ok('deposit = 10000', (result as any).depositCents === 10000);
 });
 
 test('28. EE-only $300.00 → $100', () => {
-  const deposit = calculateEEOnlyDepositCents(30000, 30000);
-  ok('deposit = 10000', deposit === 10000);
+  const result = calculateEEOnlyDepositCents(30000, 30000);
+  ok('status calculated', result.status === 'calculated');
+  ok('deposit = 10000', (result as any).depositCents === 10000);
 });
 
 test('29. EE-only $300.01 → $150', () => {
-  const deposit = calculateEEOnlyDepositCents(30001, 30001);
-  ok('deposit = 15000', deposit === 15000);
+  const result = calculateEEOnlyDepositCents(30001, 30001);
+  ok('status calculated', result.status === 'calculated');
+  ok('deposit = 15000', (result as any).depositCents === 15000);
 });
 
 test('30. EE-only $400.00 → $150', () => {
-  const deposit = calculateEEOnlyDepositCents(40000, 40000);
-  ok('deposit = 15000', deposit === 15000);
+  const result = calculateEEOnlyDepositCents(40000, 40000);
+  ok('status calculated', result.status === 'calculated');
+  ok('deposit = 15000', (result as any).depositCents === 15000);
 });
 
 test('31. EE-only $400.01 → $200', () => {
-  const deposit = calculateEEOnlyDepositCents(40001, 40001);
-  ok('deposit = 20000', deposit === 20000);
+  const result = calculateEEOnlyDepositCents(40001, 40001);
+  ok('status calculated', result.status === 'calculated');
+  ok('deposit = 20000', (result as any).depositCents === 20000);
 });
 
 test('32. EE-only $500.00 → $200', () => {
-  const deposit = calculateEEOnlyDepositCents(50000, 50000);
-  ok('deposit = 20000', deposit === 20000);
+  const result = calculateEEOnlyDepositCents(50000, 50000);
+  ok('status calculated', result.status === 'calculated');
+  ok('deposit = 20000', (result as any).depositCents === 20000);
 });
 
 test('33. EE-only $500.01 → $250', () => {
-  const deposit = calculateEEOnlyDepositCents(50001, 50001);
-  ok('deposit = 25000', deposit === 25000);
+  const result = calculateEEOnlyDepositCents(50001, 50001);
+  ok('status calculated', result.status === 'calculated');
+  ok('deposit = 25000', (result as any).depositCents === 25000);
 });
 
 test('34. Deposit is capped at order total', () => {
-  const deposit = calculateEEOnlyDepositCents(50000, 10000);
-  ok('capped at 10000', deposit === 10000);
+  const result = calculateEEOnlyDepositCents(50000, 10000);
+  ok('status calculated', result.status === 'calculated');
+  ok('capped at 10000', (result as any).depositCents === 10000);
 });
 
 test('35. Package subtotal affects EE-only tier', () => {
@@ -310,45 +320,53 @@ test('35. Package subtotal affects EE-only tier', () => {
 });
 
 test('36. Travel does not affect tier', () => {
-  const deposit = calculateEEOnlyDepositCents(15000, 50000);
-  ok('deposit = 5000 regardless of travel', deposit === 5000);
+  const result = calculateEEOnlyDepositCents(15000, 50000);
+  ok('status calculated', result.status === 'calculated');
+  ok('deposit = 5000 regardless of travel', (result as any).depositCents === 5000);
 });
 
 test('37. Tax does not affect tier', () => {
-  const deposit = calculateEEOnlyDepositCents(15000, 60000);
-  ok('deposit = 5000 regardless of tax', deposit === 5000);
+  const result = calculateEEOnlyDepositCents(15000, 60000);
+  ok('status calculated', result.status === 'calculated');
+ ok('deposit = 5000 regardless of tax', (result as any).depositCents === 5000);
 });
 
 test('38. Custom fees do not affect tier', () => {
-  const deposit = calculateEEOnlyDepositCents(15000, 55000);
-  ok('deposit = 5000 regardless of custom fees', deposit === 5000);
+  const result = calculateEEOnlyDepositCents(15000, 55000);
+  ok('status calculated', result.status === 'calculated');
+  ok('deposit = 5000 regardless of custom fees', (result as any).depositCents === 5000);
 });
 
 test('39. Discounts do not affect tier', () => {
-  const deposit = calculateEEOnlyDepositCents(15000, 45000);
-  ok('deposit = 5000 regardless of discounts', deposit === 5000);
+  const result = calculateEEOnlyDepositCents(15000, 45000);
+  ok('status calculated', result.status === 'calculated');
+  ok('deposit = 5000 regardless of discounts', (result as any).depositCents === 5000);
 });
 
 test('40. Invalid settings fail closed', () => {
-  const deposit = calculateEEOnlyDepositCents(15000, 15000, { eeOnlyDepositBaseThresholdCents: NaN, eeOnlyDepositBaseCents: 5000, eeOnlyDepositSubtotalStepCents: 10000, eeOnlyDepositStepCents: 5000 });
-  ok('NaN fails closed', deposit === 0);
-  const deposit2 = calculateEEOnlyDepositCents(15000, 15000, { eeOnlyDepositBaseThresholdCents: -1, eeOnlyDepositBaseCents: 5000, eeOnlyDepositSubtotalStepCents: 10000, eeOnlyDepositStepCents: 5000 });
-  ok('negative fails closed', deposit2 === 0);
-  const deposit3 = calculateEEOnlyDepositCents(15000, 15000, { eeOnlyDepositBaseThresholdCents: Infinity, eeOnlyDepositBaseCents: 5000, eeOnlyDepositSubtotalStepCents: 10000, eeOnlyDepositStepCents: 5000 });
-  ok('Infinity fails closed', deposit3 === 0);
+  const result = calculateEEOnlyDepositCents(15000, 15000, { eeOnlyDepositBaseThresholdCents: NaN, eeOnlyDepositBaseCents: 5000, eeOnlyDepositSubtotalStepCents: 10000, eeOnlyDepositStepCents: 5000 });
+  ok('NaN fails closed', result.status === 'invalid_configuration');
+  const result2 = calculateEEOnlyDepositCents(15000, 15000, { eeOnlyDepositBaseThresholdCents: -1, eeOnlyDepositBaseCents: 5000, eeOnlyDepositSubtotalStepCents: 10000, eeOnlyDepositStepCents: 5000 });
+  ok('negative fails closed', result2.status === 'invalid_configuration');
+  const result3 = calculateEEOnlyDepositCents(15000, 15000, { eeOnlyDepositBaseThresholdCents: Infinity, eeOnlyDepositBaseCents: 5000, eeOnlyDepositSubtotalStepCents: 10000, eeOnlyDepositStepCents: 5000 });
+  ok('Infinity fails closed', result3.status === 'invalid_configuration');
 });
 
 test('41. Zero tier size is rejected', () => {
-  const deposit = calculateEEOnlyDepositCents(15000, 15000, { eeOnlyDepositBaseThresholdCents: 20000, eeOnlyDepositBaseCents: 5000, eeOnlyDepositSubtotalStepCents: 0, eeOnlyDepositStepCents: 5000 });
-  ok('zero step rejected', deposit === 0);
+  const result = calculateEEOnlyDepositCents(15000, 15000, { eeOnlyDepositBaseThresholdCents: 20000, eeOnlyDepositBaseCents: 5000, eeOnlyDepositSubtotalStepCents: 0, eeOnlyDepositStepCents: 5000 });
+  ok('zero step rejected', result.status === 'invalid_configuration');
 });
 
 test('42. Admin preview uses production helper', () => {
   const settings: EEOnlyDepositSettings = { eeOnlyDepositBaseThresholdCents: 20000, eeOnlyDepositBaseCents: 5000, eeOnlyDepositSubtotalStepCents: 10000, eeOnlyDepositStepCents: 5000 };
-  ok('up to 200 → 50', calculateEEOnlyDepositCents(20000, 20000, settings) === 5000);
-  ok('up to 300 → 100', calculateEEOnlyDepositCents(30000, 30000, settings) === 10000);
-  ok('up to 400 → 150', calculateEEOnlyDepositCents(40000, 40000, settings) === 15000);
-  ok('up to 500 → 200', calculateEEOnlyDepositCents(50000, 50000, settings) === 20000);
+  const r1 = calculateEEOnlyDepositCents(20000, 20000, settings);
+  const r2 = calculateEEOnlyDepositCents(30000, 30000, settings);
+  const r3 = calculateEEOnlyDepositCents(40000, 40000, settings);
+  const r4 = calculateEEOnlyDepositCents(50000, 50000, settings);
+  ok('up to 200 → 50', r1.status === 'calculated' && (r1 as any).depositCents === 5000);
+  ok('up to 300 → 100', r2.status === 'calculated' && (r2 as any).depositCents === 10000);
+  ok('up to 400 → 150', r3.status === 'calculated' && (r3 as any).depositCents === 15000);
+  ok('up to 500 → 200', r4.status === 'calculated' && (r4 as any).depositCents === 20000);
 });
 
 test('43. Quote and Checkout calculate same deposit', () => {
@@ -388,7 +406,8 @@ test('46. Approval charges stored deposit_due_cents', () => {
 
 test('47. Settings changes do not mutate existing order', () => {
   const storedDeposit = 5000;
-  const newSettingsDeposit = calculateEEOnlyDepositCents(15000, 15000, { eeOnlyDepositBaseThresholdCents: 30000, eeOnlyDepositBaseCents: 7000, eeOnlyDepositSubtotalStepCents: 10000, eeOnlyDepositStepCents: 5000 });
+  const result = calculateEEOnlyDepositCents(15000, 15000, { eeOnlyDepositBaseThresholdCents: 30000, eeOnlyDepositBaseCents: 7000, eeOnlyDepositSubtotalStepCents: 10000, eeOnlyDepositStepCents: 5000 });
+  const newSettingsDeposit = result.status === 'calculated' ? (result as any).depositCents : 0;
   ok('stored unchanged', storedDeposit === 5000);
   ok('new calculation different', newSettingsDeposit === 7000);
   ok('stored != new', storedDeposit !== newSettingsDeposit);

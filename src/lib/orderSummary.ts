@@ -115,6 +115,7 @@ export interface OrderSummaryDisplay {
     lineTotal: number;
     isNew?: boolean;
     components?: Array<{ name: string; quantity: number }>;
+    packageContentsUnavailable?: boolean;
   }>;
   fees: Array<{
     name: string;
@@ -401,6 +402,7 @@ export function formatOrderSummary(data: OrderSummaryData): OrderSummaryDisplay 
         qty: item.qty,
         isNew: item.is_new || false,
         components: pkgDisplay.hasSnapshot ? pkgDisplay.components : [],
+        packageContentsUnavailable: !pkgDisplay.hasSnapshot,
       };
     }
     // Event Essential product

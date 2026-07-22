@@ -40,20 +40,22 @@ export async function approveOrder(
       throw new Error('This order has already been confirmed or cancelled. Refresh the page to see the current status.');
     }
 
-    // Check availability before approving
+    // Check inflatable availability before approving — only items with valid unit_id
     const orderItems = (Array.isArray(orderData.order_items) ? orderData.order_items : []) as any[];
-    const availabilityChecks = orderItems.map(item => ({
+    const inflatableItems = orderItems.filter(item => item.unit_id != null && typeof item.unit_id === 'string' && item.unit_id.trim() !== '');
+    const availabilityChecks = inflatableItems.map(item => ({
       unitId: item.unit_id,
       eventStartDate: orderData.event_date,
       eventEndDate: orderData.event_end_date || orderData.event_date,
-      excludeOrderId: orderId, // Exclude this order from conflict check
+      excludeOrderId: orderId,
     }));
 
-    const availabilityResults = await checkMultipleUnitsAvailability(availabilityChecks);
+    const availabilityResults = availabilityChecks.length > 0
+      ? await checkMultipleUnitsAvailability(availabilityChecks)
+      : [];
     const unavailableUnits = availabilityResults.filter(result => !result.isAvailable);
 
     if (unavailableUnits.length > 0) {
-      // Fetch unit names for error message
       const { data: units } = await supabase
         .from('units')
         .select('id, name')
@@ -68,6 +70,9 @@ export async function approveOrder(
         `Cannot approve order: The following units are no longer available for the selected dates: ${unitNames}. Please check the calendar for conflicts.`
       );
     }
+
+    // Check Event Essentials product availability from saved component snapshots
+    await checkEEProductAvailability(orderItems, orderData, orderId);
 
     // If deposit is $0 (admin set deposit override to 0), skip charging entirely.
     // Just confirm the order and keep card on file for the final payment.
@@ -326,20 +331,22 @@ export async function forceApproveOrder(orderId: string): Promise<ApprovalResult
       throw new Error('This order has already been confirmed or cancelled. Refresh the page to see the current status.');
     }
 
-    // Check availability before force approving
+    // Check availability before force approving — only items with valid unit_id
     const orderItems = (Array.isArray(orderData.order_items) ? orderData.order_items : []) as any[];
-    const availabilityChecks = orderItems.map(item => ({
+    const inflatableItems = orderItems.filter(item => item.unit_id != null && typeof item.unit_id === 'string' && item.unit_id.trim() !== '');
+    const availabilityChecks = inflatableItems.map(item => ({
       unitId: item.unit_id,
       eventStartDate: orderData.event_date,
       eventEndDate: orderData.event_end_date || orderData.event_date,
-      excludeOrderId: orderId, // Exclude this order from conflict check
+      excludeOrderId: orderId,
     }));
 
-    const availabilityResults = await checkMultipleUnitsAvailability(availabilityChecks);
+    const availabilityResults = availabilityChecks.length > 0
+      ? await checkMultipleUnitsAvailability(availabilityChecks)
+      : [];
     const unavailableUnits = availabilityResults.filter(result => !result.isAvailable);
 
     if (unavailableUnits.length > 0) {
-      // Fetch unit names for error message
       const { data: units } = await supabase
         .from('units')
         .select('id, name')
@@ -354,6 +361,9 @@ export async function forceApproveOrder(orderId: string): Promise<ApprovalResult
         `Cannot force approve order: The following units are not available: ${unitNames}. There are conflicting bookings for these dates.`
       );
     }
+
+    // Check Event Essentials product availability from saved component snapshots
+    await checkEEProductAvailability(orderItems, orderData, orderId);
 
     // Proceed with force approval — predicated on status to guard against races
     const { data: claimedRows, error } = await supabase
@@ -417,6 +427,35 @@ export async function rejectOrder(
   } catch (error: any) {
     console.error('Error rejecting order:', error);
     return { success: false, error: error.message || 'Failed to reject order' };
+  }
+}
+
+async function checkEEProductAvailability(orderItems: any[], orderData: any, _orderId: string) {
+  const productQuantities: Array<{ product_id: string; quantity: number }> = [];
+  for (const item of orderItems) {
+    if (item.bundle_id && item.component_snapshot?.components) {
+      for (const comp of item.component_snapshot.components) {
+        if (comp.product_id) {
+          productQuantities.push({ product_id: comp.product_id, quantity: (comp.quantity_per_bundle || 0) * (item.qty || 1) });
+        }
+      }
+    } else if (item.product_id) {
+      productQuantities.push({ product_id: item.product_id, quantity: item.qty || 1 });
+    }
+  }
+  if (productQuantities.length === 0) return;
+  const { checkProductAvailability } = await import('./queries/products');
+  const result = await checkProductAvailability(
+    productQuantities,
+    orderData.event_date,
+    orderData.event_end_date || orderData.event_date,
+  );
+  if (result.error || !result.data) {
+    throw new Error('Cannot approve order: Unable to verify Event Essentials availability. Please try again or contact us for assistance.');
+  }
+  const allAvailable = result.data.every((r: any) => r.is_allowed === true);
+  if (!allAvailable) {
+    throw new Error('Cannot approve order: One or more Event Essentials items are no longer available for the selected dates.');
   }
 }
 

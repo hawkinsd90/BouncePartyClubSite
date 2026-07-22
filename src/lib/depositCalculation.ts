@@ -129,13 +129,12 @@ export function calculateEEOnlyDepositCents(
   eventEssentialsSubtotalCents: number,
   orderTotalCents: number,
   settings?: Partial<EEOnlyDepositSettings> | null,
-): number {
-  const result = calculateRequiredDepositCents({
+): RequiredDepositResult {
+  return calculateRequiredDepositCents({
     inflatableQuantity: 0,
     eventEssentialsSubtotalCents,
     orderTotalCents,
     inflatableDepositPerUnitCents: 0,
     eeOnlyDepositSettings: settings ?? DEFAULT_EE_ONLY_DEPOSIT_SETTINGS,
   });
-  return result.status === 'calculated' ? result.depositCents : 0;
 }

@@ -12,6 +12,9 @@ import { useDataFetch } from '../hooks/useDataFetch';
 import { supabase } from '../lib/supabase';
 import { checkDateBlackout } from '../lib/availability';
 import { validateQuote } from '../lib/quoteValidation';
+import { validateCartPackageSnapshots } from '../lib/packageDisplay';
+import { composeUnifiedQuoteTotals } from '../lib/unifiedTotals';
+import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS } from '../lib/depositCalculation';
 import type { PricingRules } from '../lib/pricing';
 import type { InflatableCartItem } from '../types';
 import { trackEvent, trackEventOnce } from '../lib/siteEvents';
@@ -424,6 +427,45 @@ export function Quote() {
       });
       scrollToSection('setup');
       return;
+    }
+
+    // Stage E4 — Validate package snapshots before navigating to Checkout.
+    const packageValidation = validateCartPackageSnapshots(cart as any[]);
+    if (!packageValidation.ok) {
+      flushSync(() => {
+        setValidationError('Package details could not be verified. Please remove and re-add the package or contact us.');
+        setValidationErrorFieldId(null);
+        setShowBottomToast(true);
+      });
+      scrollToSection('cart');
+      return;
+    }
+
+    // Stage E4 — Block checkout on deposit calculation failure.
+    if (pricingRules && priceBreakdown) {
+      const inflatableCount = inflatableCart.reduce((s, i) => s + i.qty, 0);
+      const preTotals = composeUnifiedQuoteTotals({
+        inflatableBreakdown: priceBreakdown,
+        cart,
+        taxApplied: priceBreakdown.tax_applied ?? true,
+        eeOnlyDepositSettings: (pricingRules as any) ? {
+          eeOnlyDepositBaseThresholdCents: (pricingRules as any).ee_only_deposit_base_threshold_cents ?? 20000,
+          eeOnlyDepositBaseCents: (pricingRules as any).ee_only_deposit_base_cents ?? 5000,
+          eeOnlyDepositSubtotalStepCents: (pricingRules as any).ee_only_deposit_subtotal_step_cents ?? 10000,
+          eeOnlyDepositStepCents: (pricingRules as any).ee_only_deposit_step_cents ?? 5000,
+        } : DEFAULT_EE_ONLY_DEPOSIT_SETTINGS,
+        inflatableDepositPerUnitCents: priceBreakdown.deposit_due_cents > 0
+          ? Math.round(priceBreakdown.deposit_due_cents / Math.max(1, inflatableCount))
+          : 5000,
+      });
+      if (preTotals.depositError) {
+        flushSync(() => {
+          setValidationError(`Unable to calculate deposit: ${preTotals.depositError}. Please contact us for assistance.`);
+          setValidationErrorFieldId(null);
+          setShowBottomToast(true);
+        });
+        return;
+      }
     }
 
     const availabilityResult = await checkAllCartAvailability(formData.event_date, formData.event_end_date);

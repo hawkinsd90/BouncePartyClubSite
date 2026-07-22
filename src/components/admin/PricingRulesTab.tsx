@@ -58,6 +58,9 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
   const preview150 = calculateEEOnlyDepositCents(15000, 15000, eeSettings);
   const preview250 = calculateEEOnlyDepositCents(25000, 25000, eeSettings);
   const preview500 = calculateEEOnlyDepositCents(50000, 50000, eeSettings);
+  const preview150Cents = preview150.status === 'calculated' ? preview150.depositCents : null;
+  const preview250Cents = preview250.status === 'calculated' ? preview250.depositCents : null;
+  const preview500Cents = preview500.status === 'calculated' ? preview500.depositCents : null;
 
   useEffect(() => {
     loadTravelFeeDefault();
@@ -481,15 +484,21 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
             <div className="space-y-1 text-sm text-slate-600">
               <div className="flex justify-between">
                 <span>EE Subtotal $150.00:</span>
-                <span className="font-semibold text-slate-900">${(preview150 / 100).toFixed(2)}</span>
+                <span className="font-semibold text-slate-900">
+                  {preview150Cents !== null ? `${(preview150Cents / 100).toFixed(2)}` : <span className="text-red-600 text-xs">Invalid configuration</span>}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>EE Subtotal $250.00:</span>
-                <span className="font-semibold text-slate-900">${(preview250 / 100).toFixed(2)}</span>
+                <span className="font-semibold text-slate-900">
+                  {preview250Cents !== null ? `${(preview250Cents / 100).toFixed(2)}` : <span className="text-red-600 text-xs">Invalid configuration</span>}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>EE Subtotal $500.00:</span>
-                <span className="font-semibold text-slate-900">${(preview500 / 100).toFixed(2)}</span>
+                <span className="font-semibold text-slate-900">
+                  {preview500Cents !== null ? `${(preview500Cents / 100).toFixed(2)}` : <span className="text-red-600 text-xs">Invalid configuration</span>}
+                </span>
               </div>
             </div>
           </div>

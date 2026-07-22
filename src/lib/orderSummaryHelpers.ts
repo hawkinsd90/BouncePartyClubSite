@@ -34,6 +34,7 @@ interface ItemInput {
   qty: number;
   isNew?: boolean;
   components?: Array<{ name: string; quantity: number }>;
+  packageContentsUnavailable?: boolean;
 }
 
 interface BuildSummaryOptions {
@@ -114,6 +115,7 @@ export function buildOrderSummaryDisplay(options: BuildSummaryOptions): OrderSum
     lineTotal: item.price * item.qty,
     isNew: item.isNew || false,
     components: item.components || [],
+    packageContentsUnavailable: item.packageContentsUnavailable || false,
   }));
 
   const fees = buildFeesList(options.fees);
