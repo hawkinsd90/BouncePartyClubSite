@@ -3,7 +3,7 @@ import { composeUnifiedQuoteTotals } from '../../lib/unifiedTotals';
 import { calculateEventEssentialsSubtotalCents } from '../../lib/eventEssentialsMoney';
 import { formatCurrency } from '../../lib/pricing';
 import { buildPackageDisplay } from '../../lib/packageDisplay';
-import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS, type EEOnlyDepositSettings } from '../../lib/depositCalculation';
+import { type EEOnlyDepositSettings } from '../../lib/depositCalculation';
 
 interface PriceBreakdown {
   travel_fee_cents: number;
@@ -22,6 +22,7 @@ interface PriceBreakdown {
 interface QuoteSummarySectionProps {
   cart: UnifiedCartItem[];
   priceBreakdown: PriceBreakdown | null;
+  inflatableDepositPerUnitCents?: number | null;
   eeOnlyDepositSettings?: EEOnlyDepositSettings | null;
 }
 
@@ -29,7 +30,7 @@ function isInflatable(item: UnifiedCartItem): item is InflatableCartItem {
   return item.item_type === undefined || item.item_type === 'inflatable';
 }
 
-export function QuoteSummarySection({ cart, priceBreakdown, eeOnlyDepositSettings }: QuoteSummarySectionProps) {
+export function QuoteSummarySection({ cart, priceBreakdown, inflatableDepositPerUnitCents, eeOnlyDepositSettings }: QuoteSummarySectionProps) {
   if (cart.length === 0) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:sticky lg:top-24">
@@ -49,15 +50,13 @@ export function QuoteSummarySection({ cart, priceBreakdown, eeOnlyDepositSetting
 
   const eventEssentialsSubtotalCents = calculateEventEssentialsSubtotalCents(cart);
 
-  const totals = priceBreakdown
+  const totals = priceBreakdown && inflatableDepositPerUnitCents != null && eeOnlyDepositSettings
     ? composeUnifiedQuoteTotals({
         inflatableBreakdown: priceBreakdown as any,
         cart,
         taxApplied: priceBreakdown.tax_applied ?? true,
-        eeOnlyDepositSettings: eeOnlyDepositSettings ?? DEFAULT_EE_ONLY_DEPOSIT_SETTINGS,
-        inflatableDepositPerUnitCents: priceBreakdown.deposit_due_cents > 0
-          ? Math.round(priceBreakdown.deposit_due_cents / Math.max(1, inflatableItems.reduce((s, i) => s + i.qty, 0)))
-          : 5000,
+        eeOnlyDepositSettings,
+        inflatableDepositPerUnitCents,
       })
     : null;
 

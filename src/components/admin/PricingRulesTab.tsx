@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { notifyError, notifySuccess } from '../../lib/notifications';
 import { calculateEEOnlyDepositCents } from '../../lib/depositCalculation';
 import { validateEEDepositSettingsInput, parseMoneyInput } from '../../lib/moneySettings';
+import { formatCurrency } from '../../lib/pricing';
 
 interface PricingRules {
   id: string;
@@ -521,19 +522,19 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
               <div className="flex justify-between">
                 <span>EE Subtotal $150.00:</span>
                 <span className="font-semibold text-slate-900">
-                  {preview150Cents !== null ? `${(preview150Cents / 100).toFixed(2)}` : <span className="text-red-600 text-xs">Invalid configuration</span>}
+                  {preview150Cents !== null ? formatCurrency(preview150Cents) : <span className="text-red-600 text-xs">Invalid configuration</span>}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>EE Subtotal $250.00:</span>
                 <span className="font-semibold text-slate-900">
-                  {preview250Cents !== null ? `${(preview250Cents / 100).toFixed(2)}` : <span className="text-red-600 text-xs">Invalid configuration</span>}
+                  {preview250Cents !== null ? formatCurrency(preview250Cents) : <span className="text-red-600 text-xs">Invalid configuration</span>}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>EE Subtotal $500.00:</span>
                 <span className="font-semibold text-slate-900">
-                  {preview500Cents !== null ? `${(preview500Cents / 100).toFixed(2)}` : <span className="text-red-600 text-xs">Invalid configuration</span>}
+                  {preview500Cents !== null ? formatCurrency(preview500Cents) : <span className="text-red-600 text-xs">Invalid configuration</span>}
                 </span>
               </div>
             </div>
