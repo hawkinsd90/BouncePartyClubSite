@@ -87,6 +87,14 @@ export function Quote() {
     if (result.status !== 'ready') throw new Error(result.error);
 
     const data = result.row;
+
+    // Parse raw deposit settings BEFORE applying any defaults. If parsing fails,
+    // throw to put Quote into its controlled pricing-error state.
+    const parsedSettings = parseBookingDepositSettings(data);
+    if (parsedSettings.status !== 'ready') {
+      throw new Error(parsedSettings.error);
+    }
+
     return {
       base_radius_miles: Number(data.base_radius_miles ?? 0),
       included_city_list_json: (data.included_city_list_json as string[]) ?? [],
@@ -100,16 +108,16 @@ export function Quote() {
       overnight_holiday_only: data.overnight_holiday_only ?? false,
       extra_day_pct: Number(data.extra_day_pct ?? 0),
       generator_price_cents: Number(data.generator_price_cents ?? 0),
-      deposit_per_unit_cents: Number(data.deposit_per_unit_cents ?? 5000),
+      deposit_per_unit_cents: parsedSettings.inflatableDepositPerUnitCents,
       same_day_pickup_fee_cents: Number(data.same_day_pickup_fee_cents ?? 0),
       same_day_weekday_delivery_fee_cents: Number(data.same_day_weekday_delivery_fee_cents ?? 0),
       generator_fee_single_cents: Number(data.generator_fee_single_cents ?? data.generator_price_cents ?? 10000),
       generator_fee_multiple_cents: Number(data.generator_fee_multiple_cents ?? data.generator_price_cents ?? 7500),
       apply_taxes_by_default: data.apply_taxes_by_default ?? true,
-      ee_only_deposit_base_threshold_cents: data.ee_only_deposit_base_threshold_cents ?? 20000,
-      ee_only_deposit_base_cents: data.ee_only_deposit_base_cents ?? 5000,
-      ee_only_deposit_subtotal_step_cents: data.ee_only_deposit_subtotal_step_cents ?? 10000,
-      ee_only_deposit_step_cents: data.ee_only_deposit_step_cents ?? 5000,
+      ee_only_deposit_base_threshold_cents: parsedSettings.eventEssentialsDepositSettings.eeOnlyDepositBaseThresholdCents,
+      ee_only_deposit_base_cents: parsedSettings.eventEssentialsDepositSettings.eeOnlyDepositBaseCents,
+      ee_only_deposit_subtotal_step_cents: parsedSettings.eventEssentialsDepositSettings.eeOnlyDepositSubtotalStepCents,
+      ee_only_deposit_step_cents: parsedSettings.eventEssentialsDepositSettings.eeOnlyDepositStepCents,
     } as PricingRules;
   }, []);
 
@@ -121,7 +129,10 @@ export function Quote() {
   const inflatableCart = cart.filter(
     (item): item is InflatableCartItem => item.item_type === undefined || item.item_type === 'inflatable'
   );
-  const { priceBreakdown, savePriceBreakdown } = useQuotePricing(inflatableCart, formData, pricingRules);
+  const { priceBreakdown, savePriceBreakdown } = useQuotePricing(inflatableCart, formData, pricingRules, {
+    hasAnyCartItems: cart.length > 0,
+    hasInflatables: inflatableCart.length > 0,
+  });
 
   useQuotePrefill(user, formData, { setAddressInput, updateFormData }, sessionData);
 
@@ -662,7 +673,10 @@ export function Quote() {
             </div>
 
             <div className="lg:col-span-1">
-              <QuoteSummarySection cart={cart} priceBreakdown={priceBreakdown} eeOnlyDepositSettings={pricingRules ? (() => {
+              <QuoteSummarySection cart={cart} priceBreakdown={priceBreakdown} inflatableDepositPerUnitCents={pricingRules ? (() => {
+                const parsed = parseBookingDepositSettings(pricingRules);
+                return parsed.status === 'ready' ? parsed.inflatableDepositPerUnitCents : null;
+              })() : null} eeOnlyDepositSettings={pricingRules ? (() => {
                 const parsed = parseBookingDepositSettings(pricingRules);
                 return parsed.status === 'ready' ? parsed.eventEssentialsDepositSettings : null;
               })() : null} />

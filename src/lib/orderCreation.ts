@@ -11,7 +11,7 @@ import {
   type EEOnlyDepositSettings,
 } from './depositCalculation';
 import { validateCartPackageSnapshots } from './packageDisplay';
-import type { UnifiedCartItem, InflatableCartItem } from '../types';
+import type { UnifiedCartItem, InflatableCartItem, EventEssentialProductCartItem, EventEssentialBundleCartItem } from '../types';
 
 interface OrderData {
   contactData: {
@@ -207,6 +207,39 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
   }
 
   // === ALL PRE-WRITE VALIDATION COMPLETE ===
+
+  // Verify Event Essentials product availability before any database write.
+  const eeCartItems = cart.filter(
+    (item): item is EventEssentialProductCartItem | EventEssentialBundleCartItem =>
+      item.item_type === 'event_essential_product' || item.item_type === 'event_essential_bundle',
+  );
+  if (eeCartItems.length > 0) {
+    const { expandCartToProductQuantities } = await import('./unifiedCart');
+    const { checkProductAvailability } = await import('./queries/products');
+    const productQuantities = expandCartToProductQuantities(eeCartItems);
+    if (productQuantities.length > 0) {
+      const availabilityResult = await checkProductAvailability(
+        productQuantities,
+        quoteData.event_date,
+        quoteData.event_end_date || quoteData.event_date,
+        undefined,
+      );
+      if (availabilityResult.error || !availabilityResult.data) {
+        throw new Error('Unable to verify Event Essentials availability. Please try again or contact us for assistance.');
+      }
+      const returnedProductIds = new Set(availabilityResult.data.map((r: any) => r.product_id));
+      for (const req of productQuantities) {
+        if (!returnedProductIds.has(req.product_id)) {
+          throw new Error('Availability check did not return a result for all requested items. Please try again or contact us for assistance.');
+        }
+      }
+      const allAvailable = availabilityResult.data.every((r: any) => r.is_allowed === true);
+      if (!allAvailable) {
+        throw new Error('One or more Event Essentials items are no longer available for the selected dates.');
+      }
+    }
+  }
+
   // Customer, address, order, and consent persistence begins below.
 
   // 1. Create or update customer
@@ -291,7 +324,9 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       customer_id: customer.id,
       status: ORDER_STATUS.DRAFT,
       location_type: quoteData.location_type ?? 'residential',
-      surface: quoteData.can_stake === true ? 'grass' : 'cement',
+      surface: inflatableCart.length > 0
+        ? (quoteData.can_stake === true ? 'grass' : 'cement')
+        : 'cement', // EE-only: no inflatables, schema requires non-null; surface_fee_cents forced to 0
       event_date: quoteData.event_date,
       event_end_date: quoteData.event_end_date || quoteData.event_date,
       pickup_preference: quoteData.pickup_preference ?? (quoteData.location_type === 'commercial' ? 'same_day' : 'next_day'),
@@ -315,7 +350,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       travel_chargeable_miles: priceBreakdown.travel_chargeable_miles,
       travel_per_mile_cents: priceBreakdown.travel_per_mile_cents,
       travel_is_flat_fee: priceBreakdown.travel_is_flat_fee,
-      surface_fee_cents: priceBreakdown.surface_fee_cents,
+      surface_fee_cents: inflatableCart.length > 0 ? priceBreakdown.surface_fee_cents : 0,
       same_day_pickup_fee_cents: priceBreakdown.same_day_pickup_fee_cents || 0,
       same_day_weekday_delivery_fee_cents: priceBreakdown.same_day_weekday_delivery_fee_cents || 0,
       generator_fee_cents: 0,
