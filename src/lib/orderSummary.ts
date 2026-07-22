@@ -114,6 +114,7 @@ export interface OrderSummaryDisplay {
     qty: number;
     lineTotal: number;
     isNew?: boolean;
+    components?: Array<{ name: string; quantity: number }>;
   }>;
   fees: Array<{
     name: string;
