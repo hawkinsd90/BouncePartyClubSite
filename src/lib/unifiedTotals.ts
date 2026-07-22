@@ -77,7 +77,7 @@ export function composeUnifiedQuoteTotals(
     inflatableQuantity: inflatableCount,
     eventEssentialsSubtotalCents,
     orderTotalCents: totalCents,
-    inflatableDepositPerUnitCents: input.inflatableDepositPerUnitCents ?? (bd.deposit_due_cents > 0 && inflatableCount > 0 ? Math.round(bd.deposit_due_cents / inflatableCount) : 5000),
+    inflatableDepositPerUnitCents: input.inflatableDepositPerUnitCents ?? 0,
     eeOnlyDepositSettings: input.eeOnlyDepositSettings,
   });
   if (depositResult.status !== 'calculated') {
