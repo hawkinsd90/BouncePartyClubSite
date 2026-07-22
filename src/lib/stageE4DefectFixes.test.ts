@@ -183,7 +183,6 @@ function makeMockSupabase(opts: {
   ok('17 failureRecord exists', decision.failureRecord !== null);
 }
 {
-  const msg = buildApprovalMessage({ approvalSuccessful: true, notificationWarning: undefined } as any);
   // Test with notificationWarning
   const msgOk = buildApprovalMessage({ approvalSuccessful: true, notificationWarning: undefined });
   ok('18 approval success no warning', msgOk.includes('customer notified'));
