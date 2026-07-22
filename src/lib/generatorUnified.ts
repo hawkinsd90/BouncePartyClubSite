@@ -111,6 +111,42 @@ export function cartPackageContainsGenerator(
 }
 
 // ---------------------------------------------------------------------------
+// Order-item Generator presence (pure, for display only)
+// ---------------------------------------------------------------------------
+
+export function hasGeneratorInOrderItems(
+  orderItems: any[],
+  generatorProductId: string | null | undefined,
+): boolean {
+  if (!orderItems || !Array.isArray(orderItems)) return false;
+
+  // 1. Direct EE Generator product order item
+  if (generatorProductId) {
+    for (const item of orderItems) {
+      if (item.product_id && item.product_id === generatorProductId) return true;
+    }
+  }
+
+  // 2. Package component_snapshot containing the Generator
+  if (generatorProductId) {
+    for (const item of orderItems) {
+      if (item.component_snapshot && Array.isArray(item.component_snapshot.components)) {
+        for (const comp of item.component_snapshot.components) {
+          if (comp.product_id === generatorProductId) return true;
+        }
+      }
+    }
+  }
+
+  // 3. Legacy generator_qty > 0 fallback
+  for (const item of orderItems) {
+    if ((item as any).generator_qty > 0) return true;
+  }
+
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // Configuration status (owned explicitly by the hook, not derived here)
 // ---------------------------------------------------------------------------
 

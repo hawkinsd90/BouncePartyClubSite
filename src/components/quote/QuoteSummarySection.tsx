@@ -2,6 +2,8 @@ import type { UnifiedCartItem, InflatableCartItem, EventEssentialProductCartItem
 import { composeUnifiedQuoteTotals } from '../../lib/unifiedTotals';
 import { calculateEventEssentialsSubtotalCents } from '../../lib/eventEssentialsMoney';
 import { formatCurrency } from '../../lib/pricing';
+import { buildPackageDisplay } from '../../lib/packageDisplay';
+import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS, type EEOnlyDepositSettings } from '../../lib/depositCalculation';
 
 interface PriceBreakdown {
   travel_fee_cents: number;
@@ -20,13 +22,14 @@ interface PriceBreakdown {
 interface QuoteSummarySectionProps {
   cart: UnifiedCartItem[];
   priceBreakdown: PriceBreakdown | null;
+  eeOnlyDepositSettings?: EEOnlyDepositSettings | null;
 }
 
 function isInflatable(item: UnifiedCartItem): item is InflatableCartItem {
   return item.item_type === undefined || item.item_type === 'inflatable';
 }
 
-export function QuoteSummarySection({ cart, priceBreakdown }: QuoteSummarySectionProps) {
+export function QuoteSummarySection({ cart, priceBreakdown, eeOnlyDepositSettings }: QuoteSummarySectionProps) {
   if (cart.length === 0) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:sticky lg:top-24">
@@ -51,6 +54,10 @@ export function QuoteSummarySection({ cart, priceBreakdown }: QuoteSummarySectio
         inflatableBreakdown: priceBreakdown as any,
         cart,
         taxApplied: priceBreakdown.tax_applied ?? true,
+        eeOnlyDepositSettings: eeOnlyDepositSettings ?? DEFAULT_EE_ONLY_DEPOSIT_SETTINGS,
+        inflatableDepositPerUnitCents: priceBreakdown.deposit_due_cents > 0
+          ? Math.round(priceBreakdown.deposit_due_cents / Math.max(1, inflatableItems.reduce((s, i) => s + i.qty, 0)))
+          : 5000,
       })
     : null;
 
@@ -108,22 +115,60 @@ export function QuoteSummarySection({ cart, priceBreakdown }: QuoteSummarySectio
           <div className="space-y-2 pt-2 border-t border-slate-200">
             <p className="text-xs sm:text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wide">Event Essentials:</p>
 
-            {eventEssentialsItems.map((item, index) => (
-              <div key={`ee-${index}`} className="flex items-start justify-between gap-2 py-1 text-xs sm:text-sm">
-                <div className="flex items-start gap-2 flex-1 min-w-0">
-                  <span className="text-emerald-600 flex-shrink-0 mt-0.5">•</span>
-                  <span className="text-slate-700 break-words">
-                    {item.item_type === 'event_essential_bundle' ? item.bundle_name : item.product_name}
-                    {item.isAvailable === false && (
-                      <span className="ml-1 text-red-600 font-medium">(unavailable)</span>
+            {eventEssentialsItems.map((item, index) => {
+              if (item.item_type === 'event_essential_bundle') {
+                const pkgDisplay = buildPackageDisplay({
+                  bundleName: item.bundle_name,
+                  bundleQty: item.qty,
+                  unitPriceCents: item.unit_price_cents,
+                  componentSnapshot: item.component_snapshot,
+                });
+                return (
+                  <div key={`ee-${index}`} className="py-1">
+                    {pkgDisplay.hasSnapshot && pkgDisplay.components.length > 0 && (
+                      <div className="mb-2 pl-4">
+                        <p className="text-xs text-slate-500 mb-1">Included:</p>
+                        {pkgDisplay.components.map((c, ci) => (
+                          <div key={ci} className="text-xs text-slate-500">
+                            - {c.name} × {c.quantity}
+                          </div>
+                        ))}
+                      </div>
                     )}
+                    <div className="flex items-start justify-between gap-2 text-xs sm:text-sm">
+                      <div className="flex items-start gap-2 flex-1 min-w-0">
+                        <span className="text-emerald-600 flex-shrink-0 mt-0.5">•</span>
+                        <span className="text-slate-700 break-words">
+                          {pkgDisplay.packageName}
+                          {item.isAvailable === false && (
+                            <span className="ml-1 text-red-600 font-medium">(unavailable)</span>
+                          )}
+                        </span>
+                      </div>
+                      <span className="font-semibold text-slate-900 flex-shrink-0">
+                        {formatCurrency(item.unit_price_cents * item.qty)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              }
+              return (
+                <div key={`ee-${index}`} className="flex items-start justify-between gap-2 py-1 text-xs sm:text-sm">
+                  <div className="flex items-start gap-2 flex-1 min-w-0">
+                    <span className="text-emerald-600 flex-shrink-0 mt-0.5">•</span>
+                    <span className="text-slate-700 break-words">
+                      {item.product_name}
+                      {item.isAvailable === false && (
+                        <span className="ml-1 text-red-600 font-medium">(unavailable)</span>
+                      )}
+                    </span>
+                  </div>
+                  <span className="font-semibold text-slate-900 flex-shrink-0">
+                    {formatCurrency(item.unit_price_cents * item.qty)}
                   </span>
                 </div>
-                <span className="font-semibold text-slate-900 flex-shrink-0">
-                  {formatCurrency(item.unit_price_cents * item.qty)}
-                </span>
-              </div>
-            ))}
+              );
+            })}
 
             <div className="flex items-center justify-between pt-2 mt-2 border-t border-slate-100">
               <span className="text-xs sm:text-sm font-semibold text-slate-700">Event Essentials subtotal</span>
@@ -189,6 +234,19 @@ export function QuoteSummarySection({ cart, priceBreakdown }: QuoteSummarySectio
               <span className="text-sm sm:text-base font-bold text-slate-900">Estimated Total</span>
               <span className="text-lg sm:text-xl font-bold text-blue-700">{formatCurrency(estimatedTotalCents)}</span>
             </div>
+
+            {totals && totals.depositCents > 0 && (
+              <div className="space-y-1 pt-2">
+                <div className="flex items-center justify-between text-xs sm:text-sm">
+                  <span className="text-slate-600">Required Deposit</span>
+                  <span className="font-semibold text-slate-800">{formatCurrency(totals.depositCents)}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs sm:text-sm">
+                  <span className="text-slate-600">Remaining Balance</span>
+                  <span className="font-semibold text-slate-800">{formatCurrency(totals.balanceDueCents)}</span>
+                </div>
+              </div>
+            )}
 
             <p className="text-xs text-slate-500 leading-relaxed">
               Estimate based on your address and event details. Final total confirmed at checkout.

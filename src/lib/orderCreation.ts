@@ -5,6 +5,7 @@ import { ORDER_STATUS } from './constants/statuses';
 import { composeUnifiedQuoteTotals } from './unifiedTotals';
 import { calculateEventEssentialsSubtotalCents } from './eventEssentialsMoney';
 import { mapCartToOrderItems } from './eventEssentialsOrderItems';
+import { calculateRequiredDepositCents as _calculateRequiredDepositCents, type EEOnlyDepositSettings } from './depositCalculation';
 import type { UnifiedCartItem, InflatableCartItem } from '../types';
 
 interface OrderData {
@@ -45,6 +46,13 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     referralSource,
     referralSourceDetail,
   } = data;
+
+  // 0. Validate pickup_preference before any database writes.
+  const validPickupPreferences = ['next_day', 'same_day'];
+  const pickupPref = quoteData.pickup_preference;
+  if (!validPickupPreferences.includes(pickupPref)) {
+    throw new Error('Please select a pickup preference (Next Morning or Same Day) before submitting your booking.');
+  }
 
   // 0a. CLIENT-SIDE EARLY REJECTION: Check blackout dates before writing anything to the DB.
   const blackout = await checkDateBlackout(quoteData.event_date, quoteData.event_end_date || quoteData.event_date);
@@ -223,11 +231,44 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     lng: eventAddr.lng,
   });
 
-  // Deposit: inflatable-only deposit from the breakdown, NOT customerSelectedPaymentCents.
+  // Load EE-only deposit settings from pricing_rules.
+  let eeOnlyDepositSettings: EEOnlyDepositSettings | null = null;
+  try {
+    const { data: pricingRules } = await supabase
+      .from('pricing_rules')
+      .select('ee_only_deposit_base_threshold_cents, ee_only_deposit_base_cents, ee_only_deposit_subtotal_step_cents, ee_only_deposit_step_cents, deposit_per_unit_cents')
+      .limit(1)
+      .maybeSingle();
+    if (pricingRules) {
+      eeOnlyDepositSettings = {
+        eeOnlyDepositBaseThresholdCents: pricingRules.ee_only_deposit_base_threshold_cents ?? 20000,
+        eeOnlyDepositBaseCents: pricingRules.ee_only_deposit_base_cents ?? 5000,
+        eeOnlyDepositSubtotalStepCents: pricingRules.ee_only_deposit_subtotal_step_cents ?? 10000,
+        eeOnlyDepositStepCents: pricingRules.ee_only_deposit_step_cents ?? 5000,
+      };
+    }
+  } catch (settingsErr) {
+    console.error('[orderCreation] Failed to load EE-only deposit settings:', settingsErr);
+  }
+
+  // Recalculate totals with EE-only deposit settings if available.
+  const totalsWithEE = priceBreakdown
+    ? composeUnifiedQuoteTotals({
+        inflatableBreakdown: priceBreakdown,
+        cart,
+        taxApplied,
+        eeOnlyDepositSettings,
+        inflatableDepositPerUnitCents: priceBreakdown.deposit_due_cents > 0
+          ? Math.round(priceBreakdown.deposit_due_cents / Math.max(1, inflatableCart.reduce((s, i) => s + i.qty, 0)))
+          : 5000,
+      })
+    : null;
+
+  // Deposit: authoritative calculation, NOT customerSelectedPaymentCents.
   // customerSelectedPaymentCents is stored separately and used for payment flow only.
-  const inflatableDepositCents = totals ? totals.depositCents : priceBreakdown.deposit_due_cents;
-  const totalCents = totals ? totals.totalCents : priceBreakdown.total_cents;
-  const taxCents = totals ? totals.taxCents : priceBreakdown.tax_cents;
+  const inflatableDepositCents = totalsWithEE ? totalsWithEE.depositCents : (priceBreakdown?.deposit_due_cents ?? 0);
+  const totalCents = totalsWithEE ? totalsWithEE.totalCents : (priceBreakdown?.total_cents ?? 0);
+  const taxCents = totalsWithEE ? totalsWithEE.taxCents : (priceBreakdown?.tax_cents ?? 0);
 
   // 4. Create order with 'draft' status (unpaid invoice)
   const { data: order, error: orderError } = await supabase
@@ -273,7 +314,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       same_day_pickup_fee_waived: false,
       same_day_pickup_fee_waive_reason: null,
       tip_cents: tipCents,
-      // deposit_due_cents = inflatable-only deposit, NOT customerSelectedPaymentCents
+      // deposit_due_cents = authoritative required deposit (inflatable-based or EE-only tier)
       deposit_due_cents: inflatableDepositCents,
       deposit_paid_cents: 0,
       balance_due_cents: Math.max(0, totalCents - inflatableDepositCents),

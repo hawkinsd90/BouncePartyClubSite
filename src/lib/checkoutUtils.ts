@@ -5,6 +5,7 @@ import type { PriceBreakdown } from './pricing';
 import type { UnifiedCartItem } from '../types';
 import { composeUnifiedQuoteTotals, type UnifiedQuoteTotals } from './unifiedTotals';
 import { isInflatableCartItem } from './unifiedCart';
+import { buildPackageDisplay } from './packageDisplay';
 
 interface QuoteData {
   pickup_preference?: 'same_day' | 'next_day';
@@ -75,10 +76,25 @@ export function buildOrderSummary(
         qty: item.qty,
       };
     }
-    const name = item.item_type === 'event_essential_bundle' ? item.bundle_name : item.product_name;
+    if (item.item_type === 'event_essential_bundle') {
+      const pkgDisplay = buildPackageDisplay({
+        bundleName: item.bundle_name,
+        bundleQty: item.qty,
+        unitPriceCents: item.unit_price_cents,
+        componentSnapshot: item.component_snapshot,
+      });
+      const isAddOn = item.pricing_context === 'addon';
+      return {
+        name: isAddOn ? `${pkgDisplay.packageName} (Add-on)` : pkgDisplay.packageName,
+        mode: 'Event Essential',
+        price: item.unit_price_cents,
+        qty: item.qty,
+        components: pkgDisplay.hasSnapshot ? pkgDisplay.components : [],
+      };
+    }
     const isAddOn = item.pricing_context === 'addon';
     return {
-      name: isAddOn ? `${name} (Add-on)` : name,
+      name: isAddOn ? `${item.product_name} (Add-on)` : item.product_name,
       mode: 'Event Essential',
       price: item.unit_price_cents,
       qty: item.qty,

@@ -1,7 +1,10 @@
 import { format } from 'date-fns';
+import { useState, useEffect } from 'react';
 import { CreditCard as Edit2 } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
 import { ORDER_STATUS_LABELS } from '../../lib/constants/statuses';
+import { hasGeneratorInOrderItems } from '../../lib/generatorUnified';
+import { supabase } from '../../lib/supabase';
 
 interface OrderInfoSectionProps {
   order: any;
@@ -23,6 +26,23 @@ const STATUS_BADGE_COLORS: Record<string, string> = {
 export function OrderInfoSection({ order, customerDisplayName, onEditClick }: OrderInfoSectionProps) {
   const badgeColor = STATUS_BADGE_COLORS[order.status] ?? 'bg-slate-600';
   const badgeLabel = ORDER_STATUS_LABELS[order.status as keyof typeof ORDER_STATUS_LABELS] ?? order.status ?? 'Unknown';
+  const [generatorProductId, setGeneratorProductId] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('inventory_products')
+          .select('id')
+          .eq('slug', 'generator')
+          .maybeSingle();
+        if (data) setGeneratorProductId(data.id);
+      } catch { /* non-fatal */ }
+    })();
+  }, []);
+
+  const orderItems = (order as any).order_items ?? (order as any).orderItems ?? [];
+  const hasGenerator = hasGeneratorInOrderItems(orderItems, generatorProductId) || (order.generator_qty > 0);
 
   return (
     <>
@@ -97,7 +117,7 @@ export function OrderInfoSection({ order, customerDisplayName, onEditClick }: Or
           <div className="text-center">
             <div className="text-xs text-slate-500 mb-1">Generator</div>
             <div className="font-medium text-slate-900">
-              {order.generator_qty > 0 ? `Yes (${order.generator_qty})` : 'No'}
+              {hasGenerator ? 'Yes' : 'No'}
             </div>
           </div>
           <div className="text-center">
@@ -109,7 +129,7 @@ export function OrderInfoSection({ order, customerDisplayName, onEditClick }: Or
           <div className="text-center">
             <div className="text-xs text-slate-500 mb-1">Pickup</div>
             <div className="font-medium text-slate-900">
-              {order.same_day_pickup_fee_cents > 0 ? 'Same Day' : 'Not Specified'}
+              {order.pickup_preference === 'next_day' ? 'Next Morning' : order.pickup_preference === 'same_day' ? 'Same Day' : 'Not Specified'}
             </div>
           </div>
           <div className="text-center">

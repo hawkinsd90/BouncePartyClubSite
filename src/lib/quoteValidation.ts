@@ -81,12 +81,16 @@ export function validateQuote(
     };
   }
 
-  if (formData.location_type === 'residential' && formData.pickup_preference == null) {
-    return {
-      isValid: false,
-      errorMessage: 'Please select when you need pickup (Next Morning or Same Day).',
-      errorSection: 'event',
-    };
+  if (formData.location_type === 'residential') {
+    const validPickup = formData.pickup_preference === 'next_day' || formData.pickup_preference === 'same_day';
+    if (!validPickup) {
+      return {
+        isValid: false,
+        errorMessage: 'Please select when you need pickup (Next Morning or Same Day).',
+        errorSection: 'event',
+        errorFieldId: 'pickup-preference',
+      };
+    }
   }
 
   if (formData.can_stake == null) {

@@ -11,6 +11,20 @@ import {
   EMAIL_THEMES,
 } from './emailTemplateBase';
 import { formatOrderId } from './utils';
+import { buildPackageDisplay } from './packageDisplay';
+
+interface OrderEmailItem {
+  qty: number;
+  wet_or_dry: string | null;
+  unit_price_cents: number;
+  unit_id: string | null;
+  product_id: string | null;
+  bundle_id: string | null;
+  item_name: string | null;
+  pricing_context: string | null;
+  component_snapshot: any | null;
+  units: { name: string } | null;
+}
 
 interface OrderEmailData {
   id: string;
@@ -43,14 +57,62 @@ interface OrderEmailData {
     state: string;
     zip: string;
   };
-  order_items: Array<{
-    qty: number;
-    wet_or_dry: string;
-    unit_price_cents: number;
-    units: {
-      name: string;
-    };
-  }>;
+  order_items: OrderEmailItem[];
+}
+
+function renderEmailItems(items: OrderEmailItem[]): Array<{ description: string; amount: string }> {
+  const result: Array<{ description: string; amount: string }> = [];
+  for (const item of items) {
+    // Inflatable item
+    if (item.unit_id && item.units?.name) {
+      const modeLabel = item.wet_or_dry === 'water' ? 'Wet' : 'Dry';
+      result.push({
+        description: `${item.qty}x ${item.units.name} <span style="color: #64748b; font-size: 13px;">(${modeLabel})</span>`,
+        amount: `${((item.unit_price_cents * item.qty) / 100).toFixed(2)}`,
+      });
+      continue;
+    }
+
+    // EE package item — render component snapshot first
+    if (item.bundle_id) {
+      const pkgDisplay = buildPackageDisplay({
+        bundleName: item.item_name,
+        bundleQty: item.qty,
+        unitPriceCents: item.unit_price_cents,
+        componentSnapshot: item.component_snapshot,
+      });
+
+      if (pkgDisplay.hasSnapshot && pkgDisplay.components.length > 0) {
+        const componentLines = pkgDisplay.components.map(
+          (c) => `${c.name} × ${c.quantity}`
+        );
+        result.push({
+          description: `Included:<br/>${componentLines.map((l) => `- ${l}`).join('<br/>')}<br/><br/><strong>${pkgDisplay.packageName} × ${pkgDisplay.packageQty}</strong>`,
+          amount: `${((item.unit_price_cents * item.qty) / 100).toFixed(2)}`,
+        });
+      } else if (pkgDisplay.hasSnapshot) {
+        result.push({
+          description: `<strong>${pkgDisplay.packageName} × ${pkgDisplay.packageQty}</strong>`,
+          amount: `${((item.unit_price_cents * item.qty) / 100).toFixed(2)}`,
+        });
+      } else {
+        result.push({
+          description: `<strong>${pkgDisplay.packageName} × ${pkgDisplay.packageQty}</strong><br/><span style="color: #94a3b8; font-size: 13px;">Package contents unavailable</span>`,
+          amount: `${((item.unit_price_cents * item.qty) / 100).toFixed(2)}`,
+        });
+      }
+      continue;
+    }
+
+    // EE product item
+    const name = item.item_name || 'Event Essential';
+    const isAddOn = item.pricing_context === 'addon';
+    result.push({
+      description: `${item.qty}x ${isAddOn ? `${name} (Add-on)` : name}`,
+      amount: `${((item.unit_price_cents * item.qty) / 100).toFixed(2)}`,
+    });
+  }
+  return result;
 }
 
 export function generateCustomerBookingEmail(order: OrderEmailData): string {
@@ -96,14 +158,9 @@ export function generateCustomerBookingEmail(order: OrderEmailData): string {
     theme: EMAIL_THEMES.primary,
   });
 
-  const orderItems = order.order_items.map((item) => ({
-    description: `${item.qty}x ${item.units.name} <span style="color: #64748b; font-size: 13px;">(${item.wet_or_dry === 'water' ? 'Wet' : 'Dry'})</span>`,
-    amount: `$${((item.unit_price_cents * item.qty) / 100).toFixed(2)}`,
-  }));
-
   content += createItemsTable({
     title: 'Requested Items',
-    items: orderItems,
+    items: renderEmailItems(order.order_items),
   });
 
   const pricingRows: Array<{ label: string; value: string; bold?: boolean; highlight?: boolean }> =
@@ -239,14 +296,9 @@ export function generateAdminBookingEmail(order: OrderEmailData): string {
     theme: EMAIL_THEMES.primary,
   });
 
-  const orderItems = order.order_items.map((item) => ({
-    description: `${item.qty}x ${item.units.name} (${item.wet_or_dry === 'water' ? 'Wet' : 'Dry'})`,
-    amount: `$${((item.unit_price_cents * item.qty) / 100).toFixed(2)}`,
-  }));
-
   content += createItemsTable({
     title: 'Items Requested',
-    items: orderItems,
+    items: renderEmailItems(order.order_items),
   });
 
   const pricingRows: Array<{ label: string; value: string; bold?: boolean; highlight?: boolean }> =

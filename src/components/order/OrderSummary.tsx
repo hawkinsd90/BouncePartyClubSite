@@ -76,16 +76,28 @@ export function OrderSummary({
                   change.new_value?.includes(item.name)
                 );
                 return (
-                  <div key={index} className="flex justify-between text-slate-700">
-                    <span className="flex items-center gap-2">
-                      {item.name} ({item.mode}) × {item.qty}
-                      {isNew && (
-                        <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-semibold print-badge">NEW</span>
-                      )}
-                    </span>
-                    <span className={`font-medium ${isNew ? 'text-blue-700' : ''}`}>
-                      {formatCurrency(item.lineTotal)}
-                    </span>
+                  <div key={index}>
+                    {(item as any).components && (item as any).components.length > 0 && (
+                      <div className="mb-1 pl-4">
+                        <p className="text-xs text-slate-500 mb-0.5">Included:</p>
+                        {(item as any).components.map((c: { name: string; quantity: number }, ci: number) => (
+                          <div key={ci} className="text-xs text-slate-500">
+                            - {c.name} × {c.quantity}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex justify-between text-slate-700">
+                      <span className="flex items-center gap-2">
+                        {item.name} ({item.mode}) × {item.qty}
+                        {isNew && (
+                          <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-semibold print-badge">NEW</span>
+                        )}
+                      </span>
+                      <span className={`font-medium ${isNew ? 'text-blue-700' : ''}`}>
+                        {formatCurrency(item.lineTotal)}
+                      </span>
+                    </div>
                   </div>
                 );
               })}

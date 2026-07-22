@@ -599,7 +599,12 @@ export function Quote() {
             </div>
 
             <div className="lg:col-span-1">
-              <QuoteSummarySection cart={cart} priceBreakdown={priceBreakdown} />
+              <QuoteSummarySection cart={cart} priceBreakdown={priceBreakdown} eeOnlyDepositSettings={pricingRules ? {
+                eeOnlyDepositBaseThresholdCents: (pricingRules as any).ee_only_deposit_base_threshold_cents ?? 20000,
+                eeOnlyDepositBaseCents: (pricingRules as any).ee_only_deposit_base_cents ?? 5000,
+                eeOnlyDepositSubtotalStepCents: (pricingRules as any).ee_only_deposit_subtotal_step_cents ?? 10000,
+                eeOnlyDepositStepCents: (pricingRules as any).ee_only_deposit_step_cents ?? 5000,
+              } : null} />
             </div>
           </div>
         </form>

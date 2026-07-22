@@ -10,7 +10,8 @@ import { getPaymentAmountCentsFromTotals, getTipAmountCents, buildOrderSummary }
 import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { showToast } from '../lib/notifications';
 import { composeUnifiedQuoteTotals } from '../lib/unifiedTotals';
-import { hasInflatablesInCart, hasEventEssentialsInCart } from '../lib/eventEssentialsOrderItems';
+import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS, type EEOnlyDepositSettings } from '../lib/depositCalculation';
+import { supabase } from '../lib/supabase';
 import { ContactInformationForm } from '../components/checkout/ContactInformationForm';
 import { BillingAddressForm } from '../components/checkout/BillingAddressForm';
 import { PaymentAmountSelector } from '../components/checkout/PaymentAmountSelector';
@@ -60,9 +61,31 @@ export function Checkout() {
   const [billingSameAsEvent, setBillingSameAsEvent] = useState(true);
   const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
   const [customAmount, setCustomAmount] = useState('');
+  const [eeOnlyDepositSettings, setEeOnlyDepositSettings] = useState<EEOnlyDepositSettings>(DEFAULT_EE_ONLY_DEPOSIT_SETTINGS);
 
-  // Block EE-only carts at the current stage (E4 supports mixed carts only)
-  const isEEOnlyCart = cart.length > 0 && !hasInflatablesInCart(cart) && hasEventEssentialsInCart(cart);
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('pricing_rules')
+          .select('ee_only_deposit_base_threshold_cents, ee_only_deposit_base_cents, ee_only_deposit_subtotal_step_cents, ee_only_deposit_step_cents, deposit_per_unit_cents')
+          .limit(1)
+          .maybeSingle();
+        if (data) {
+          setEeOnlyDepositSettings({
+            eeOnlyDepositBaseThresholdCents: data.ee_only_deposit_base_threshold_cents ?? 20000,
+            eeOnlyDepositBaseCents: data.ee_only_deposit_base_cents ?? 5000,
+            eeOnlyDepositSubtotalStepCents: data.ee_only_deposit_subtotal_step_cents ?? 10000,
+            eeOnlyDepositStepCents: data.ee_only_deposit_step_cents ?? 5000,
+          });
+        }
+      } catch (err) {
+        console.error('Error loading EE-only deposit settings:', err);
+      }
+    })();
+  }, []);
+
+  void cart; // cart used in unifiedTotals computation below
 
   // Compute unified totals using the inflatable breakdown's tax_applied setting
   const unifiedTotals = priceBreakdown
@@ -70,6 +93,10 @@ export function Checkout() {
         inflatableBreakdown: priceBreakdown,
         cart,
         taxApplied: priceBreakdown.tax_applied ?? true,
+        eeOnlyDepositSettings,
+        inflatableDepositPerUnitCents: priceBreakdown.deposit_due_cents > 0
+          ? Math.round(priceBreakdown.deposit_due_cents / Math.max(1, inflatableCart.reduce((s, i) => s + i.qty, 0)))
+          : 5000,
       })
     : null;
 
@@ -104,9 +131,10 @@ export function Checkout() {
     }
     setReferralError('');
 
-    // Block EE-only carts
-    if (isEEOnlyCart) {
-      showToast('Standalone Event Essentials checkout is not available yet. Add an inflatable or contact us for assistance.', 'error');
+    // Revalidate pickup_preference
+    const validPickup = quoteData.pickup_preference === 'next_day' || quoteData.pickup_preference === 'same_day';
+    if (!validPickup) {
+      showToast('Please select a pickup preference (Next Morning or Same Day) before submitting.', 'error');
       return;
     }
 
@@ -229,28 +257,6 @@ export function Checkout() {
       return null;
     }
     return null;
-  }
-
-  if (isEEOnlyCart) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 lg:py-16">
-          <div className="bg-white rounded-xl shadow-md p-6 sm:p-8 text-center">
-            <h2 className="text-2xl font-bold text-slate-900 mb-4">Event Essentials Only</h2>
-            <p className="text-slate-600 mb-6">
-              Standalone Event Essentials checkout is not available yet. Add an inflatable or contact us for assistance.
-            </p>
-            <button
-              type="button"
-              onClick={() => navigate('/catalog')}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
-            >
-              Browse Inflatables
-            </button>
-          </div>
-        </div>
-      </div>
-    );
   }
 
   const tipCents = getTipAmountCents(tipAmount, customTip, unifiedTotals!.totalCents);

@@ -12,6 +12,8 @@
 
 import type { PriceBreakdown } from './pricing';
 import { calculateEventEssentialsSubtotalCents } from './eventEssentialsMoney';
+import { calculateRequiredDepositCents, type EEOnlyDepositSettings } from './depositCalculation';
+import { isInflatableCartItem } from './unifiedCart';
 import type { UnifiedCartItem } from '../types';
 
 export interface UnifiedQuoteTotals {
@@ -34,6 +36,8 @@ export interface ComposeUnifiedQuoteTotalsInput {
   inflatableBreakdown: PriceBreakdown;
   cart: UnifiedCartItem[];
   taxApplied: boolean;
+  eeOnlyDepositSettings?: Partial<EEOnlyDepositSettings> | null;
+  inflatableDepositPerUnitCents?: number;
 }
 
 const TAX_RATE = 0.06;
@@ -62,8 +66,17 @@ export function composeUnifiedQuoteTotals(
   // Preserve the inflatable breakdown total exactly, then add EE subtotal + EE tax.
   const totalCents = bd.total_cents + eventEssentialsSubtotalCents + eeTaxCents;
 
-  // Deposit unchanged: inflatable-only breakdown deposit.
-  const depositCents = bd.deposit_due_cents;
+  // Deposit: use authoritative helper.
+  // When inflatables are present, inflatable-based deposit (bd.deposit_due_cents).
+  // When no inflatables but EE present, EE-only tier deposit.
+  const inflatableCount = input.cart.filter(isInflatableCartItem).reduce((sum, item) => sum + item.qty, 0);
+  const depositCents = calculateRequiredDepositCents({
+    inflatableQuantity: inflatableCount,
+    eventEssentialsSubtotalCents,
+    orderTotalCents: totalCents,
+    inflatableDepositPerUnitCents: input.inflatableDepositPerUnitCents ?? (bd.deposit_due_cents > 0 && inflatableCount > 0 ? Math.round(bd.deposit_due_cents / inflatableCount) : 5000),
+    eeOnlyDepositSettings: input.eeOnlyDepositSettings,
+  });
   const balanceDueCents = Math.max(0, totalCents - depositCents);
 
   // For reporting: the taxable base that includes EE.

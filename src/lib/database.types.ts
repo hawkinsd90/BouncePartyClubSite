@@ -653,6 +653,10 @@ export interface Database {
           generator_fee_multiple_cents: number | null
           apply_taxes_by_default: boolean | null
           included_cities: string[] | null
+          ee_only_deposit_base_threshold_cents: number | null
+          ee_only_deposit_base_cents: number | null
+          ee_only_deposit_subtotal_step_cents: number | null
+          ee_only_deposit_step_cents: number | null
           created_at: string
           updated_at: string
         }

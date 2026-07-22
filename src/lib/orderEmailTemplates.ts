@@ -11,6 +11,53 @@ import {
   COMPANY_PHONE,
 } from './emailTemplateBase';
 import { formatOrderId } from './utils';
+import { buildPackageDisplay } from './packageDisplay';
+
+function renderOrderEmailItems(items: any[]): Array<{ description: string; amount: string }> {
+  const result: Array<{ description: string; amount: string }> = [];
+  for (const item of items) {
+    if (item.unit_id && item.units?.name) {
+      result.push({
+        description: `${item.qty}x ${item.units.name} (${item.wet_or_dry === 'water' ? 'Wet' : 'Dry'})`,
+        amount: `${((item.unit_price_cents * item.qty) / 100).toFixed(2)}`,
+      });
+      continue;
+    }
+    if (item.bundle_id) {
+      const pkgDisplay = buildPackageDisplay({
+        bundleName: item.item_name,
+        bundleQty: item.qty,
+        unitPriceCents: item.unit_price_cents,
+        componentSnapshot: item.component_snapshot,
+      });
+      if (pkgDisplay.hasSnapshot && pkgDisplay.components.length > 0) {
+        const componentLines = pkgDisplay.components.map((c) => `${c.name} × ${c.quantity}`);
+        result.push({
+          description: `Included:<br/>${componentLines.map((l) => `- ${l}`).join('<br/>')}<br/><br/><strong>${pkgDisplay.packageName} × ${pkgDisplay.packageQty}</strong>`,
+          amount: `${((item.unit_price_cents * item.qty) / 100).toFixed(2)}`,
+        });
+      } else if (pkgDisplay.hasSnapshot) {
+        result.push({
+          description: `<strong>${pkgDisplay.packageName} × ${pkgDisplay.packageQty}</strong>`,
+          amount: `${((item.unit_price_cents * item.qty) / 100).toFixed(2)}`,
+        });
+      } else {
+        result.push({
+          description: `<strong>${pkgDisplay.packageName} × ${pkgDisplay.packageQty}</strong><br/><span style="color: #94a3b8; font-size: 13px;">Package contents unavailable</span>`,
+          amount: `${((item.unit_price_cents * item.qty) / 100).toFixed(2)}`,
+        });
+      }
+      continue;
+    }
+    const name = item.item_name || 'Event Essential';
+    const isAddOn = item.pricing_context === 'addon';
+    result.push({
+      description: `${item.qty}x ${isAddOn ? `${name} (Add-on)` : name}`,
+      amount: `${((item.unit_price_cents * item.qty) / 100).toFixed(2)}`,
+    });
+  }
+  return result;
+}
 
 interface OrderEmailData {
   order: any;
@@ -59,10 +106,7 @@ export function generateConfirmationReceiptEmail(data: OrderEmailData): string {
     theme: EMAIL_THEMES.success,
   });
 
-  const orderItems = items.map((item: any) => ({
-    description: `${item.qty}x ${item.units.name} (${item.wet_or_dry === 'water' ? 'Wet' : 'Dry'})`,
-    amount: `$${((item.unit_price_cents * item.qty) / 100).toFixed(2)}`,
-  }));
+  const orderItems = renderOrderEmailItems(items);
 
   content += createItemsTable({
     title: 'Order Items',

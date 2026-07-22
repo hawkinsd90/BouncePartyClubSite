@@ -33,6 +33,7 @@ interface ItemInput {
   price: number;
   qty: number;
   isNew?: boolean;
+  components?: Array<{ name: string; quantity: number }>;
 }
 
 interface BuildSummaryOptions {
@@ -112,6 +113,7 @@ export function buildOrderSummaryDisplay(options: BuildSummaryOptions): OrderSum
     qty: item.qty,
     lineTotal: item.price * item.qty,
     isNew: item.isNew || false,
+    components: item.components || [],
   }));
 
   const fees = buildFeesList(options.fees);
