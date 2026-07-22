@@ -8,7 +8,7 @@ import { hasGeneratorInOrderItems } from './generatorUnified';
 import { buildPackageDisplay, isPackageItem, validatePackageSnapshot } from './packageDisplay';
 import { formatStoredOrderItems } from './formatStoredOrderItems';
 import { decideAddError } from './catalogAddError';
-import { buildApprovalMessage, decideLotPicturesRequest, decideActionRequiredSms } from './notificationDecision';
+import { buildApprovalMessage, decideLotPicturesRequest, decideActionRequiredSms, decideEnRouteReminders } from './notificationDecision';
 import type { BundleComponentSnapshot } from '../types';
 
 let passed = 0;
@@ -185,7 +185,7 @@ function makeMockSupabase(opts: {
 {
   // Test with notificationWarning
   const msgOk = buildApprovalMessage({ approvalSuccessful: true, notificationWarning: undefined });
-  ok('18 approval success no warning', msgOk.includes('customer notified'));
+  ok('18 approval success no warning', msgOk === 'Booking approved and customer notified.');
 }
 
 // ===========================================================================
@@ -284,20 +284,33 @@ function makeMockSupabase(opts: {
 // (using buildApprovalMessage — wired into PendingOrderCard)
 // ===========================================================================
 
-// 1. Approval + notification successful → success message
+// 1. Normal success does not claim a deposit was charged
 {
   const msg = buildApprovalMessage({ approvalSuccessful: true, notificationWarning: undefined });
-  ok('approval-1 success message', msg === 'Booking approved, deposit charged, and customer notified.');
+  ok('approval-1 success message', msg === 'Booking approved and customer notified.');
+  ok('approval-1 no deposit claim', !msg.includes('deposit'));
 }
-// 2. Approval successful but notificationWarning exists → warning message
+// 2. Zero-deposit success does not claim a deposit was charged
+{
+  const msg = buildApprovalMessage({ approvalSuccessful: true, notificationWarning: undefined, approvalError: undefined });
+  ok('approval-2 zero-deposit success', msg === 'Booking approved and customer notified.');
+  ok('approval-2 no deposit claim', !msg.includes('deposit'));
+}
+// 3. Notification failure reports approval success plus notification warning
 {
   const msg = buildApprovalMessage({ approvalSuccessful: true, notificationWarning: 'SMS: send returned false' });
-  ok('approval-2 warning message', msg === 'Booking approved and deposit charged, but the customer notification failed. Retry the notification from the order.');
+  ok('approval-3 warning message', msg === 'Booking approved, but the customer notification failed. Retry the notification from the order.');
+  ok('approval-3 no deposit claim', !msg.includes('deposit'));
 }
-// 3. Approval failed → failure message
+// 4. Approval failure includes the controlled result.error
+{
+  const msg = buildApprovalMessage({ approvalSuccessful: false, notificationWarning: undefined, approvalError: 'Card declined' });
+  ok('approval-4 failure message', msg === 'Error approving order: Card declined');
+}
+// 4b. Approval failure with no error string
 {
   const msg = buildApprovalMessage({ approvalSuccessful: false, notificationWarning: undefined });
-  ok('approval-3 failure message', msg === 'Failed to approve order.');
+  ok('approval-4b failure fallback', msg === 'Error approving order: Unknown error');
 }
 
 // ===========================================================================
@@ -468,6 +481,100 @@ function makeMockSupabase(opts: {
   const result = await createShortPortalLink('order-crew', mock as any, null, null);
   ok('44 crew denied → false', result.success === false);
   if (!result.success) { ok('44 crew error', result.error.includes('crew')); }
+}
+
+// ===========================================================================
+// decideEnRouteReminders — En Route/Arrived reminder-field persistence
+// ===========================================================================
+
+// 45. Short-link failure: no SMS, all reminders false, failure recorded
+{
+  const d = decideEnRouteReminders({
+    smsSentSuccessfully: false,
+    waiverSigned: false,
+    balanceDue: 100,
+    messageType: 'en_route_action_required',
+    failureError: 'Unauthorized: crew cannot create order short links',
+  });
+  ok('45 eta false', d.etaSent === false);
+  ok('45 waiver false', d.waiverReminderSent === false);
+  ok('45 payment false', d.paymentReminderSent === false);
+  ok('45 failure recorded', d.failureRecord !== null);
+  if (d.failureRecord) {
+    ok('45 channel sms', d.failureRecord.channel === 'sms');
+    ok('45 message_type', d.failureRecord.message_type === 'en_route_action_required');
+  }
+}
+
+// 46. SMS endpoint non-OK: reminders false, failure recorded
+{
+  const d = decideEnRouteReminders({
+    smsSentSuccessfully: false,
+    waiverSigned: true,
+    balanceDue: 0,
+    messageType: 'en_route',
+    failureError: 'SMS endpoint returned 500',
+  });
+  ok('46 eta false', d.etaSent === false);
+  ok('46 waiver false', d.waiverReminderSent === false);
+  ok('46 payment false', d.paymentReminderSent === false);
+  ok('46 failure recorded', d.failureRecord !== null);
+}
+
+// 47. SMS network exception: reminders false, failure recorded
+{
+  const d = decideEnRouteReminders({
+    smsSentSuccessfully: false,
+    waiverSigned: false,
+    balanceDue: 50,
+    messageType: 'arrived_action_required',
+    failureError: 'Network error',
+  });
+  ok('47 eta false', d.etaSent === false);
+  ok('47 waiver false', d.waiverReminderSent === false);
+  ok('47 payment false', d.paymentReminderSent === false);
+  ok('47 failure recorded', d.failureRecord !== null);
+}
+
+// 48. Successful action-required SMS: relevant reminders true
+{
+  const d = decideEnRouteReminders({
+    smsSentSuccessfully: true,
+    waiverSigned: false,
+    balanceDue: 100,
+    messageType: 'en_route_action_required',
+  });
+  ok('48 eta true', d.etaSent === true);
+  ok('48 waiver true', d.waiverReminderSent === true);
+  ok('48 payment true', d.paymentReminderSent === true);
+  ok('48 no failure', d.failureRecord === null);
+}
+
+// 49. Successful normal SMS, no action requirement: eta true, reminders false
+{
+  const d = decideEnRouteReminders({
+    smsSentSuccessfully: true,
+    waiverSigned: true,
+    balanceDue: 0,
+    messageType: 'en_route',
+  });
+  ok('49 eta true', d.etaSent === true);
+  ok('49 waiver false', d.waiverReminderSent === false);
+  ok('49 payment false', d.paymentReminderSent === false);
+  ok('49 no failure', d.failureRecord === null);
+}
+
+// 50. Successful SMS, waiver signed but balance due: payment reminder true only
+{
+  const d = decideEnRouteReminders({
+    smsSentSuccessfully: true,
+    waiverSigned: true,
+    balanceDue: 200,
+    messageType: 'arrived_action_required',
+  });
+  ok('50 eta true', d.etaSent === true);
+  ok('50 waiver false', d.waiverReminderSent === false);
+  ok('50 payment true', d.paymentReminderSent === true);
 }
 
 console.log(`\nStage E4 Defect-Fix Tests: ${passed} passed, ${failed} failed.`);

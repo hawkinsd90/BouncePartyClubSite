@@ -10,16 +10,17 @@ import type { ShortPortalLinkResult } from './utils';
 export interface ApprovalMessageInput {
   approvalSuccessful: boolean;
   notificationWarning: string | undefined;
+  approvalError?: string;
 }
 
 export function buildApprovalMessage(input: ApprovalMessageInput): string {
-  if (input.approvalSuccessful && !input.notificationWarning) {
-    return 'Booking approved, deposit charged, and customer notified.';
+  if (!input.approvalSuccessful) {
+    return `Error approving order: ${input.approvalError || 'Unknown error'}`;
   }
-  if (input.approvalSuccessful && input.notificationWarning) {
-    return 'Booking approved and deposit charged, but the customer notification failed. Retry the notification from the order.';
+  if (input.notificationWarning) {
+    return 'Booking approved, but the customer notification failed. Retry the notification from the order.';
   }
-  return 'Failed to approve order.';
+  return 'Booking approved and customer notified.';
 }
 
 export interface LotPicturesDecision {
@@ -73,6 +74,41 @@ export function decideActionRequiredSms(input: {
       channel: 'sms',
       message_type: input.messageType,
       error: input.linkResult.error,
+    },
+  };
+}
+
+export interface EnRouteReminderDecision {
+  etaSent: boolean;
+  waiverReminderSent: boolean;
+  paymentReminderSent: boolean;
+  failureRecord: { channel: string; message_type: string; error: string } | null;
+}
+
+export function decideEnRouteReminders(input: {
+  smsSentSuccessfully: boolean;
+  waiverSigned: boolean;
+  balanceDue: number;
+  messageType: string;
+  failureError?: string;
+}): EnRouteReminderDecision {
+  if (input.smsSentSuccessfully) {
+    return {
+      etaSent: true,
+      waiverReminderSent: !input.waiverSigned,
+      paymentReminderSent: input.balanceDue > 0,
+      failureRecord: null,
+    };
+  }
+
+  return {
+    etaSent: false,
+    waiverReminderSent: false,
+    paymentReminderSent: false,
+    failureRecord: {
+      channel: 'sms',
+      message_type: input.messageType,
+      error: input.failureError || 'SMS send failed',
     },
   };
 }

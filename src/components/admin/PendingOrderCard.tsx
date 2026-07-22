@@ -170,6 +170,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
     alert(buildApprovalMessage({
       approvalSuccessful: result.success,
       notificationWarning: result.notificationWarning,
+      approvalError: result.error,
     }));
     if (result.success) {
       onUpdate();

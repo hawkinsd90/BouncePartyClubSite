@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { X, ChevronUp, ChevronDown, AlertTriangle, RefreshCw, ExternalLink, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { createShortPortalLink } from '../../lib/utils';
-import { decideActionRequiredSms } from '../../lib/notificationDecision';
+import { decideActionRequiredSms, decideEnRouteReminders } from '../../lib/notificationDecision';
 import { showAlert, showConfirm, showModal } from '../common/CustomModal';
 import { getCurrentLocation, calculateETA } from '../../lib/googleMaps';
 import { Task } from '../../hooks/useCalendarTasks';
@@ -212,8 +212,11 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         messageType: 'en_route_action_required',
       });
 
+      let smsFailureError: string | undefined;
+
       if (!enRouteDecision.shouldSendSms) {
         smsWarning = 'Customer notification failed: unable to create portal link';
+        smsFailureError = enRouteDecision.failureRecord?.error;
         if (enRouteDecision.failureRecord) {
           try {
             await supabase.from('notification_failures' as any).insert({
@@ -233,14 +236,39 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
             method: 'POST', headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ to: task.customerPhone, message: msg, orderId: task.orderId }),
           });
-          if (!r.ok) { smsWarning = 'SMS failed to send'; console.warn('En Route SMS failed:', await r.text()); }
-        } catch (e: any) { smsWarning = 'SMS failed: ' + e.message; }
+          if (!r.ok) { smsWarning = 'SMS failed to send'; smsFailureError = `SMS endpoint returned ${r.status}`; console.warn('En Route SMS failed:', await r.text()); }
+        } catch (e: any) { smsWarning = 'SMS failed: ' + e.message; smsFailureError = e.message; }
+      }
+
+      const smsSentSuccessfully = enRouteDecision.shouldSendSms && smsWarning === null;
+
+      const enRouteMessageType = hasActionRequirement ? 'en_route_action_required' : 'en_route';
+      const reminderDecision = decideEnRouteReminders({
+        smsSentSuccessfully,
+        waiverSigned: task.waiverSigned,
+        balanceDue: task.balanceDue,
+        messageType: enRouteMessageType,
+        failureError: smsFailureError,
+      });
+
+      if (!smsSentSuccessfully && enRouteDecision.shouldSendSms && reminderDecision.failureRecord) {
+        try {
+          await supabase.from('notification_failures' as any).insert({
+            order_id: task.orderId,
+            channel: reminderDecision.failureRecord.channel,
+            message_type: reminderDecision.failureRecord.message_type,
+            error_message: reminderDecision.failureRecord.error,
+            created_at: new Date().toISOString(),
+          });
+        } catch (logErr) {
+          console.error('[TaskDetailModal] Failed to log notification failure:', logErr);
+        }
       }
 
       const { error: taskErr } = await supabase.from('task_status').update({
         status: 'en_route', en_route_time: new Date().toISOString(),
-        eta_sent: smsWarning === null, waiver_reminder_sent: !task.waiverSigned,
-        payment_reminder_sent: task.balanceDue > 0, calculated_eta_minutes: etaMinutes,
+        eta_sent: reminderDecision.etaSent, waiver_reminder_sent: reminderDecision.waiverReminderSent,
+        payment_reminder_sent: reminderDecision.paymentReminderSent, calculated_eta_minutes: etaMinutes,
         gps_lat: gpsLat, gps_lng: gpsLng, eta_calculation_error: etaCalcErr,
       }).eq('id', taskStatusId);
       if (taskErr) throw new Error('Failed to update task status: ' + taskErr.message);
@@ -302,8 +330,11 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         messageType: 'arrived_action_required',
       });
 
+      let arrivedSmsFailureError: string | undefined;
+
       if (!arrivedDecision.shouldSendSms) {
         smsWarn = 'Customer notification failed: unable to create portal link';
+        arrivedSmsFailureError = arrivedDecision.failureRecord?.error;
         if (arrivedDecision.failureRecord) {
           try {
             await supabase.from('notification_failures' as any).insert({
@@ -323,8 +354,25 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
             method: 'POST', headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ to: task.customerPhone, message: msg, orderId: task.orderId }),
           });
-          if (!r.ok) { smsWarn = 'SMS failed to send'; console.warn('Arrived SMS failed:', await r.text()); }
-        } catch (e: any) { smsWarn = 'SMS failed: ' + e.message; }
+          if (!r.ok) { smsWarn = 'SMS failed to send'; arrivedSmsFailureError = `SMS endpoint returned ${r.status}`; console.warn('Arrived SMS failed:', await r.text()); }
+        } catch (e: any) { smsWarn = 'SMS failed: ' + e.message; arrivedSmsFailureError = e.message; }
+      }
+
+      const arrivedSmsSentSuccessfully = arrivedDecision.shouldSendSms && smsWarn === null;
+
+      if (!arrivedSmsSentSuccessfully && arrivedDecision.shouldSendSms) {
+        const arrivedMessageType = hasArrivedActionRequirement ? 'arrived_action_required' : 'arrived';
+        try {
+          await supabase.from('notification_failures' as any).insert({
+            order_id: task.orderId,
+            channel: 'sms',
+            message_type: arrivedMessageType,
+            error_message: arrivedSmsFailureError || 'SMS send failed',
+            created_at: new Date().toISOString(),
+          });
+        } catch (logErr) {
+          console.error('[TaskDetailModal] Failed to log notification failure:', logErr);
+        }
       }
 
       const { error: taskErr } = await supabase.from('task_status').update({ status: 'arrived', arrived_time: new Date().toISOString() }).eq('id', taskStatusId);
