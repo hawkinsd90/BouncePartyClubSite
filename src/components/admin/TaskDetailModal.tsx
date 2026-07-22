@@ -245,6 +245,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const enRouteMessageType = hasActionRequirement ? 'en_route_action_required' : 'en_route';
       const reminderDecision = decideEnRouteReminders({
         smsSentSuccessfully,
+        hasActionRequirement,
         waiverSigned: task.waiverSigned,
         balanceDue: task.balanceDue,
         messageType: enRouteMessageType,

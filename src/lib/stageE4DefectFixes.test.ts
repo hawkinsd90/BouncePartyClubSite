@@ -491,6 +491,7 @@ function makeMockSupabase(opts: {
 {
   const d = decideEnRouteReminders({
     smsSentSuccessfully: false,
+    hasActionRequirement: true,
     waiverSigned: false,
     balanceDue: 100,
     messageType: 'en_route_action_required',
@@ -510,6 +511,7 @@ function makeMockSupabase(opts: {
 {
   const d = decideEnRouteReminders({
     smsSentSuccessfully: false,
+    hasActionRequirement: true,
     waiverSigned: true,
     balanceDue: 0,
     messageType: 'en_route',
@@ -525,6 +527,7 @@ function makeMockSupabase(opts: {
 {
   const d = decideEnRouteReminders({
     smsSentSuccessfully: false,
+    hasActionRequirement: true,
     waiverSigned: false,
     balanceDue: 50,
     messageType: 'arrived_action_required',
@@ -540,6 +543,7 @@ function makeMockSupabase(opts: {
 {
   const d = decideEnRouteReminders({
     smsSentSuccessfully: true,
+    hasActionRequirement: true,
     waiverSigned: false,
     balanceDue: 100,
     messageType: 'en_route_action_required',
@@ -554,6 +558,7 @@ function makeMockSupabase(opts: {
 {
   const d = decideEnRouteReminders({
     smsSentSuccessfully: true,
+    hasActionRequirement: false,
     waiverSigned: true,
     balanceDue: 0,
     messageType: 'en_route',
@@ -568,6 +573,7 @@ function makeMockSupabase(opts: {
 {
   const d = decideEnRouteReminders({
     smsSentSuccessfully: true,
+    hasActionRequirement: true,
     waiverSigned: true,
     balanceDue: 200,
     messageType: 'arrived_action_required',
@@ -575,6 +581,21 @@ function makeMockSupabase(opts: {
   ok('50 eta true', d.etaSent === true);
   ok('50 waiver false', d.waiverReminderSent === false);
   ok('50 payment true', d.paymentReminderSent === true);
+}
+
+// 51. Pickup ETA SMS (no action requirement): eta true, waiver/payment false even with unsigned waiver and balance due
+{
+  const d = decideEnRouteReminders({
+    smsSentSuccessfully: true,
+    hasActionRequirement: false,
+    waiverSigned: false,
+    balanceDue: 10000,
+    messageType: 'en_route',
+  });
+  ok('51 eta true', d.etaSent === true);
+  ok('51 waiver false', d.waiverReminderSent === false);
+  ok('51 payment false', d.paymentReminderSent === false);
+  ok('51 no failure', d.failureRecord === null);
 }
 
 console.log(`\nStage E4 Defect-Fix Tests: ${passed} passed, ${failed} failed.`);

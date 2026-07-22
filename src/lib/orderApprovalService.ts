@@ -545,15 +545,24 @@ function generateCardDeclinedEmail(order: any, portalUrl: string, businessPhone:
 </html>`;
 }
 
-async function sendApprovalConfirmationNotifications(
+export async function sendApprovalConfirmationNotifications(
   orderWithItems: any,
   totalCents: number,
   sendSmsFn: (message: string) => Promise<boolean>,
+  deps?: {
+    createLink?: typeof createShortPortalLink;
+    sendEmailFn?: typeof sendEmail;
+    supabaseClient?: typeof supabase;
+  },
 ): Promise<NotificationChannelResult> {
   const result: NotificationChannelResult = { emailSent: null, smsSent: null, errors: [] };
 
+  const createLink = deps?.createLink ?? createShortPortalLink;
+  const sendEmailImpl = deps?.sendEmailFn ?? sendEmail;
+  const sb = deps?.supabaseClient ?? supabase;
+
   try {
-    const { data: payment } = await supabase
+    const { data: payment } = await sb
       .from('payments')
       .select('*')
       .eq('order_id', orderWithItems.id)
@@ -568,12 +577,12 @@ async function sendApprovalConfirmationNotifications(
     const items = (orderWithItems?.order_items as any) || [];
 
     // 1. Create one short portal link shared by both channels
-    const linkResult = await createShortPortalLink(orderWithItems.id, supabase, orderWithItems.event_date);
+    const linkResult = await createLink(orderWithItems.id, sb, orderWithItems.event_date);
 
     if (!linkResult.success) {
       console.error('[orderApprovalService] Short-link failed, skipping all confirmation notifications:', linkResult.error);
       try {
-        await supabase.from('notification_failures' as any).insert([
+        await sb.from('notification_failures' as any).insert([
           { order_id: orderWithItems.id, channel: 'email', message_type: 'booking_confirmation', error_message: linkResult.error, created_at: new Date().toISOString() },
           { order_id: orderWithItems.id, channel: 'sms', message_type: 'booking_confirmation', error_message: linkResult.error, created_at: new Date().toISOString() },
         ]);
@@ -601,7 +610,7 @@ async function sendApprovalConfirmationNotifications(
       });
 
       try {
-        await sendEmail({
+        await sendEmailImpl({
           to: customer.email,
           subject: `Booking Confirmed - Receipt for Order #${formatOrderId(orderWithItems.id)}`,
           html: emailHtml,
@@ -613,7 +622,7 @@ async function sendApprovalConfirmationNotifications(
         const errMsg = (emailErr as any)?.message || 'Email send failed';
         result.errors.push(`Email: ${errMsg}`);
         try {
-          await supabase.from('notification_failures' as any).insert({
+          await sb.from('notification_failures' as any).insert({
             order_id: orderWithItems.id, channel: 'email', message_type: 'booking_confirmation',
             error_message: errMsg, created_at: new Date().toISOString(),
           });
@@ -632,7 +641,7 @@ async function sendApprovalConfirmationNotifications(
         if (!smsOk) {
           result.errors.push('SMS: send returned false');
           try {
-            await supabase.from('notification_failures' as any).insert({
+            await sb.from('notification_failures' as any).insert({
               order_id: orderWithItems.id, channel: 'sms', message_type: 'booking_confirmation',
               error_message: 'SMS send returned false', created_at: new Date().toISOString(),
             });
@@ -646,7 +655,7 @@ async function sendApprovalConfirmationNotifications(
         const errMsg = (smsErr as any)?.message || 'SMS send failed';
         result.errors.push(`SMS: ${errMsg}`);
         try {
-          await supabase.from('notification_failures' as any).insert({
+          await sb.from('notification_failures' as any).insert({
             order_id: orderWithItems.id, channel: 'sms', message_type: 'booking_confirmation',
             error_message: errMsg, created_at: new Date().toISOString(),
           });
@@ -654,6 +663,11 @@ async function sendApprovalConfirmationNotifications(
           console.error('[orderApprovalService] Failed to log SMS failure:', logErr);
         }
       }
+    }
+
+    // 4. No contact channels at all
+    if (!customer?.email && !customer?.phone) {
+      result.errors.push('No customer email address or phone number was available.');
     }
 
     return result;

@@ -87,6 +87,7 @@ export interface EnRouteReminderDecision {
 
 export function decideEnRouteReminders(input: {
   smsSentSuccessfully: boolean;
+  hasActionRequirement: boolean;
   waiverSigned: boolean;
   balanceDue: number;
   messageType: string;
@@ -95,8 +96,8 @@ export function decideEnRouteReminders(input: {
   if (input.smsSentSuccessfully) {
     return {
       etaSent: true,
-      waiverReminderSent: !input.waiverSigned,
-      paymentReminderSent: input.balanceDue > 0,
+      waiverReminderSent: input.hasActionRequirement && !input.waiverSigned,
+      paymentReminderSent: input.hasActionRequirement && input.balanceDue > 0,
       failureRecord: null,
     };
   }
