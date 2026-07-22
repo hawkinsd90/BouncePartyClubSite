@@ -182,6 +182,53 @@ export function shouldRunLegacyConversion(
 }
 
 // ---------------------------------------------------------------------------
+// Legacy-state synchronization decision (pure)
+// ---------------------------------------------------------------------------
+
+export interface LegacySyncInputs {
+  isInitialized: boolean;
+  hasLegacyState: boolean;
+  directQty: number;
+  configurationReady: boolean;
+}
+
+export type LegacySyncAction = 'set_needed' | 'clear_needed' | 'clear_stale_and_complete' | 'none';
+
+export function decideLegacySync(inputs: LegacySyncInputs): { action: LegacySyncAction } {
+  if (!inputs.isInitialized) return { action: 'none' };
+
+  if (!inputs.hasLegacyState) {
+    return { action: 'clear_needed' };
+  }
+
+  if (inputs.directQty > 0 && inputs.configurationReady) {
+    return { action: 'clear_stale_and_complete' };
+  }
+
+  return { action: 'set_needed' };
+}
+
+// ---------------------------------------------------------------------------
+// Conversion-allowed decision (pure, fail-closed)
+// ---------------------------------------------------------------------------
+
+export interface ConversionAllowedInputs {
+  configurationReady: boolean;
+  hasGeneratorProduct: boolean;
+  hasResolverConfig: boolean;
+  packageConfigsLoaded: boolean;
+}
+
+export function isConversionAllowed(inputs: ConversionAllowedInputs): boolean {
+  return (
+    inputs.configurationReady &&
+    inputs.hasGeneratorProduct &&
+    inputs.hasResolverConfig &&
+    inputs.packageConfigsLoaded
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Authoritative lookup (supabase-dependent — lazy import for testability)
 // ---------------------------------------------------------------------------
 

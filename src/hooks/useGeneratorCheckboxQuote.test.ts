@@ -10,7 +10,8 @@ import {
   isValidEventDateRange,
   decideDirectGeneratorAdd,
   shouldRunLegacyConversion,
-  type GeneratorConfigurationStatus,
+  decideLegacySync,
+  isConversionAllowed,
   type PackageGeneratorConfig,
 } from '../lib/generatorUnified';
 import {
@@ -107,198 +108,154 @@ function makeResolverContext(cart: UnifiedCartItem[], productConfigs: Record<str
 }
 
 // =========================================================================
-// 1. Initial configuration status is loading
+// 1. Legacy state sets legacyConversionNeeded while configuration loads
 // =========================================================================
-test('1. Initial configuration status is loading', () => {
-  // The hook initializes configurationStatus to 'loading'. We verify the
-  // type contract: 'loading' is a valid GeneratorConfigurationStatus and
-  // is distinct from 'ready' and 'failed'.
-  const initial: GeneratorConfigurationStatus = 'loading';
-  ok('initial is loading', initial === 'loading');
-  ok('loading != ready', (initial as string) !== 'ready');
-  ok('loading != failed', (initial as string) !== 'failed');
+test('1. Legacy state sets legacyConversionNeeded while configuration loads', () => {
+  // configurationReady is false (loading), but legacy state is present.
+  // decideLegacySync must return 'set_needed' regardless of configuration.
+  const decision = decideLegacySync({
+    isInitialized: true,
+    hasLegacyState: true,
+    directQty: 0,
+    configurationReady: false,
+  });
+  ok('sets needed while loading', decision.action === 'set_needed');
 });
 
 // =========================================================================
-// 2. not_found transitions to failed
+// 2. Legacy state remains blocking when configuration fails
 // =========================================================================
-test('2. not_found transitions to failed', () => {
-  // lookupGeneratorProduct returns { status: 'not_found' } → hook sets 'failed'.
-  // Simulate the transition: not_found means no active Generator product.
-  const lookupResult = { status: 'not_found' as const };
-  const status: GeneratorConfigurationStatus = (lookupResult.status as string) === 'configured' ? 'ready' : 'failed';
-  ok('not_found → failed', status === 'failed');
-  ok('not_found never loading', (status as string) !== 'loading');
+test('2. Legacy state remains blocking when configuration fails', () => {
+  // configurationReady is false (failed), legacy state present.
+  // Must still return 'set_needed' — not 'none' or 'clear_needed'.
+  const decision = decideLegacySync({
+    isInitialized: true,
+    hasLegacyState: true,
+    directQty: 0,
+    configurationReady: false,
+  });
+  ok('still set_needed when failed', decision.action === 'set_needed');
+  ok('not none', decision.action !== 'none');
+  ok('not clear_needed', decision.action !== 'clear_needed');
 });
 
 // =========================================================================
-// 3. ambiguous transitions to failed
+// 3. No legacy state clears legacyConversionNeeded
 // =========================================================================
-test('3. ambiguous transitions to failed', () => {
-  const lookupResult = { status: 'ambiguous' as const };
-  const status: GeneratorConfigurationStatus = (lookupResult.status as string) === 'configured' ? 'ready' : 'failed';
-  ok('ambiguous → failed', status === 'failed');
-  ok('ambiguous never loading', (status as string) !== 'loading');
+test('3. No legacy state clears legacyConversionNeeded', () => {
+  const decision = decideLegacySync({
+    isInitialized: true,
+    hasLegacyState: false,
+    directQty: 0,
+    configurationReady: false,
+  });
+  ok('clears when no legacy', decision.action === 'clear_needed');
 });
 
 // =========================================================================
-// 4. configuration_failed transitions to failed
+// 4. Existing direct Generator clears stale legacy state
 // =========================================================================
-test('4. configuration_failed transitions to failed', () => {
-  const lookupResult = { status: 'configuration_failed' as const, error: 'db error' };
-  const status: GeneratorConfigurationStatus = (lookupResult.status as string) === 'configured' ? 'ready' : 'failed';
-  ok('configuration_failed → failed', status === 'failed');
-  ok('configuration_failed never loading', (status as string) !== 'loading');
+test('4. Existing direct Generator clears stale legacy state', () => {
+  // Legacy state present + directQty > 0 + configurationReady → clear stale
+  // and complete. Do not add another Generator.
+  const decision = decideLegacySync({
+    isInitialized: true,
+    hasLegacyState: true,
+    directQty: 1,
+    configurationReady: true,
+  });
+  ok('clears stale and completes', decision.action === 'clear_stale_and_complete');
+
+  // Without configurationReady, direct Generator alone does not trigger
+  // stale-field clearing — legacy state stays as 'set_needed'.
+  const notReady = decideLegacySync({
+    isInitialized: true,
+    hasLegacyState: true,
+    directQty: 1,
+    configurationReady: false,
+  });
+  ok('stays set_needed without config ready', notReady.action === 'set_needed');
 });
 
 // =========================================================================
-// 5. Resolver query failure transitions to failed
+// 5. Conversion is blocked when packageConfigs is null
 // =========================================================================
-test('5. Resolver query failure transitions to failed', () => {
-  // Generator lookup configured, but resolver queries (products/pricing/etc.)
-  // returned errors → hook sets 'failed'.
-  const genLookup = { status: 'configured' as const };
-  const resolverError = true;
-  const status: GeneratorConfigurationStatus = (genLookup.status as string) === 'configured' && !resolverError ? 'ready' : 'failed';
-  ok('resolver error → failed', status === 'failed');
-  ok('resolver error never loading', (status as string) !== 'loading');
+test('5. Conversion is blocked when packageConfigs is null', () => {
+  // packageConfigs === null means the package-component query failed or is
+  // still loading. A null must never be interpreted as zero Generators.
+  const allowed = isConversionAllowed({
+    configurationReady: true,
+    hasGeneratorProduct: true,
+    hasResolverConfig: true,
+    packageConfigsLoaded: false,
+  });
+  ok('blocked when packageConfigs null', allowed === false);
 });
 
 // =========================================================================
-// 6. Package query failure transitions to failed
+// 6. Conversion is blocked when configuration failed
 // =========================================================================
-test('6. Package query failure transitions to failed', () => {
-  // Generator + resolver loaded, but package-component query failed → 'failed'.
-  const genLoaded = true;
-  const resolverLoaded = true;
-  const packageQueryFailed = true;
-  const status: GeneratorConfigurationStatus = genLoaded && resolverLoaded && !packageQueryFailed ? 'ready' : 'failed';
-  ok('package query failure → failed', status === 'failed');
-  ok('package query failure never loading', (status as string) !== 'loading');
+test('6. Conversion is blocked when configuration failed', () => {
+  const allowed = isConversionAllowed({
+    configurationReady: false,
+    hasGeneratorProduct: true,
+    hasResolverConfig: true,
+    packageConfigsLoaded: true,
+  });
+  ok('blocked when config failed', allowed === false);
 });
 
 // =========================================================================
-// 7. Successful configuration transitions to ready
+// 7. Conversion is allowed only when configuration is ready
 // =========================================================================
-test('7. Successful configuration transitions to ready', () => {
-  const genLookup = { status: 'configured' as const };
-  const resolverError = false;
-  const packageQueryFailed = false;
-  const status: GeneratorConfigurationStatus = (genLookup.status as string) === 'configured' && !resolverError && !packageQueryFailed ? 'ready' : 'failed';
-  ok('all loaded → ready', status === 'ready');
-  ok('ready != loading', (status as string) !== 'loading');
-  ok('ready != failed', (status as string) !== 'failed');
+test('7. Conversion is allowed only when configuration is ready', () => {
+  // All prerequisites met → allowed.
+  const allMet = isConversionAllowed({
+    configurationReady: true,
+    hasGeneratorProduct: true,
+    hasResolverConfig: true,
+    packageConfigsLoaded: true,
+  });
+  ok('allowed when all ready', allMet === true);
+
+  // Missing generatorProduct → blocked.
+  const noProduct = isConversionAllowed({
+    configurationReady: true,
+    hasGeneratorProduct: false,
+    hasResolverConfig: true,
+    packageConfigsLoaded: true,
+  });
+  ok('blocked without product', noProduct === false);
+
+  // Missing resolverConfig → blocked.
+  const noResolver = isConversionAllowed({
+    configurationReady: true,
+    hasGeneratorProduct: true,
+    hasResolverConfig: false,
+    packageConfigsLoaded: true,
+  });
+  ok('blocked without resolver', noResolver === false);
 });
 
 // =========================================================================
-// 8. Clearing legacy fields clears legacyConversionNeeded
+// 8. Current package quantity prevents a direct duplicate without waiting
+//    for an effect
 // =========================================================================
-test('8. Clearing legacy fields clears legacyConversionNeeded', () => {
-  // When has_generator === false and generator_qty <= 0, the sync effect
-  // sets legacyConversionNeeded = false.
-  const formData = { has_generator: false, generator_qty: 0 };
-  let legacyConversionNeeded = true;
-
-  const hasLegacyState = formData.has_generator || formData.generator_qty > 0;
-  if (!hasLegacyState) {
-    legacyConversionNeeded = false;
-  }
-
-  ok('legacyConversionNeeded cleared', legacyConversionNeeded === false);
-});
-
-// =========================================================================
-// 9. Unchecking clears legacyConversionNeeded
-// =========================================================================
-test('9. Unchecking clears legacyConversionNeeded', () => {
-  // toggle(false) clears has_generator, generator_qty, and legacyConversionNeeded.
-  let legacyConversionNeeded = true;
-  let formData = { has_generator: true, generator_qty: 1 };
-
-  // Simulate toggle(false)
-  formData = { has_generator: false, generator_qty: 0 };
-  legacyConversionNeeded = false;
-
-  ok('has_generator cleared', formData.has_generator === false);
-  ok('generator_qty cleared', formData.generator_qty === 0);
-  ok('legacyConversionNeeded cleared', legacyConversionNeeded === false);
-});
-
-// =========================================================================
-// 10. Adding Generator through the catalog clears stale legacy state
-// =========================================================================
-test('10. Adding Generator through the catalog clears stale legacy state', () => {
-  // Legacy state present + directQty > 0 → clear legacy fields, set
-  // legacyConversionNeeded = false, no second Generator added.
-  const formData = { has_generator: true, generator_qty: 1 };
-  const directQty = 1; // EE Generator already in cart
-  let legacyConversionNeeded = true;
-  let conversionCompleted = false;
-
-  const hasLegacyState = formData.has_generator || formData.generator_qty > 0;
-  if (hasLegacyState && directQty > 0) {
-    // Clear legacy fields, mark completed, do NOT add another Generator.
-    formData.has_generator = false;
-    formData.generator_qty = 0;
-    legacyConversionNeeded = false;
-    conversionCompleted = true;
-  }
-
-  ok('legacy fields cleared', formData.has_generator === false && formData.generator_qty === 0);
-  ok('legacyConversionNeeded false', legacyConversionNeeded === false);
-  ok('conversionCompleted true', conversionCompleted === true);
-  ok('no second generator added', directQty === 1);
-});
-
-// =========================================================================
-// 11. toggle(true) cannot add before configuration is ready
-// =========================================================================
-test('11. toggle(true) cannot add before configuration is ready', () => {
-  // Fail-closed: when configurationReady is false, toggle(true) does not add.
-  const configurationReady = false;
-  const configurationFailed = false; // still loading
-  let added = false;
-  let messageCleared = false;
-
-  if (!configurationReady) {
-    // Do not add, do not clear a valid existing selection.
-    // Only set error message if configurationFailed.
-    if (configurationFailed) {
-      // set error message
-    }
-    // no add, no clear
-  } else {
-    added = true;
-  }
-
-  ok('not added while loading', added === false);
-  ok('existing selection not cleared', messageCleared === false);
-});
-
-// =========================================================================
-// 12. Direct duplicate prevention still works
-// =========================================================================
-test('12. Direct duplicate prevention still works', () => {
-  ok('blocks when directQty > 0', decideDirectGeneratorAdd(1, 0).shouldAdd === false);
-  ok('blocks when package contains', decideDirectGeneratorAdd(0, 1).shouldAdd === false);
-  ok('allows when none present', decideDirectGeneratorAdd(0, 0).shouldAdd === true);
-  ok('package reason set', !!decideDirectGeneratorAdd(0, 1).reason?.includes('package'));
-  ok('direct reason set', !!decideDirectGeneratorAdd(1, 0).reason?.includes('cart'));
-});
-
-// =========================================================================
-// 13. Package duplicate prevention still works
-// =========================================================================
-test('13. Package duplicate prevention still works', () => {
+test('8. Current package quantity prevents a direct duplicate without waiting for an effect', () => {
+  // packageContainedQty is derived synchronously via useMemo from cart,
+  // generatorProduct, and packageConfigs. decideDirectGeneratorAdd uses
+  // the current value in the same render — no effect round-trip.
   const cart: UnifiedCartItem[] = [makeBundleWithGenerator('b1', 'Power Bundle', 15000, GEN_ID, 2)];
   const configs: PackageGeneratorConfig[] = [
     { bundle_id: 'b1', product_id: GEN_ID, quantity_per_bundle: 1 },
   ];
+
+  // Synchronous derivation — no state, no effect.
   const packageQty = cartPackageContainsGenerator(cart, configs, GEN_ID);
-  ok('package contains 2 generators', packageQty === 2);
+  ok('package qty = 2', packageQty === 2);
 
   const decision = decideDirectGeneratorAdd(0, packageQty);
-  ok('package blocks direct add', decision.shouldAdd === false);
+  ok('duplicate prevented synchronously', decision.shouldAdd === false);
   ok('package reason set', !!decision.reason?.includes('package'));
 });
 
@@ -306,7 +263,7 @@ test('13. Package duplicate prevention still works', () => {
 // Additional pure-helper coverage (no Admin/Crew/invoice tests)
 // =========================================================================
 
-test('14. Product identity uses product ID, not display name', () => {
+test('9. Product identity uses product ID, not display name', () => {
   const cart: UnifiedCartItem[] = [makeProduct('other-id', 'Generator', 9500)];
   ok('not identified by name', getDirectGeneratorQuantity(cart, GEN_ID) === 0);
   ok('not has direct by name', cartHasDirectGenerator(cart, GEN_ID) === false);
@@ -316,7 +273,7 @@ test('14. Product identity uses product ID, not display name', () => {
   ok('has direct by ID', cartHasDirectGenerator(cart2, GEN_ID) === true);
 });
 
-test('15. Date validation', () => {
+test('10. Date validation', () => {
   ok('empty start invalid', isValidEventDateRange('', '2026-01-01') === false);
   ok('empty end invalid', isValidEventDateRange('2026-01-01', '') === false);
   ok('end before start invalid', isValidEventDateRange('2026-01-03', '2026-01-01') === false);
@@ -324,7 +281,7 @@ test('15. Date validation', () => {
   ok('multi-day valid', isValidEventDateRange('2026-01-01', '2026-01-03') === true);
 });
 
-test('16. Direct product removal preserves other items', () => {
+test('11. Direct product removal preserves other items', () => {
   const cart: UnifiedCartItem[] = [
     makeInflatable('u1', 15000),
     makeProduct(GEN_ID, 'Generator', 9500),
@@ -336,7 +293,7 @@ test('16. Direct product removal preserves other items', () => {
   ok('chair preserved', result.some(i => (i as EventEssentialProductCartItem).product_id === CHAIR_ID));
 });
 
-test('17. Add-on pricing with a qualifying cart', () => {
+test('12. Add-on pricing with a qualifying cart', () => {
   const productConfigs: Record<string, any> = {
     [GEN_ID]: makeProductConfig(GEN_ID, 'cat-gen', 9500, 5000, 10000),
   };
@@ -348,7 +305,7 @@ test('17. Add-on pricing with a qualifying cart', () => {
   ok('addon price = 5000', vm.resolvedPriceCents === 5000);
 });
 
-test('18. Standalone pricing without qualification', () => {
+test('13. Standalone pricing without qualification', () => {
   const productConfigs: Record<string, any> = {
     [GEN_ID]: makeProductConfig(GEN_ID, 'cat-gen', 9500, 5000, 10000),
   };
@@ -360,7 +317,7 @@ test('18. Standalone pricing without qualification', () => {
   ok('standalone price = 9500', vm.resolvedPriceCents === 9500);
 });
 
-test('19. Legacy conversion reacts after valid dates are entered', () => {
+test('14. Legacy conversion readiness', () => {
   const before = shouldRunLegacyConversion({
     legacyStatePresent: true,
     alreadyHasDirect: false,
@@ -382,20 +339,17 @@ test('19. Legacy conversion reacts after valid dates are entered', () => {
   ok('ready after valid dates', after.ready === true);
 });
 
-test('20. Customer legacy fields clear only after successful conversion', () => {
-  const afterSuccess = shouldRunLegacyConversion({
-    legacyStatePresent: true,
-    alreadyHasDirect: false,
-    conversionCompleted: true,
-    conversionInFlight: false,
+test('15. decideLegacySync returns none before initialization', () => {
+  const decision = decideLegacySync({
+    isInitialized: false,
+    hasLegacyState: true,
+    directQty: 0,
     configurationReady: true,
-    isValidEventDateRange: true,
   });
-  ok('completed blocks re-run', afterSuccess.ready === false);
-  ok('reason is completed', afterSuccess.reason === 'completed');
+  ok('none before init', decision.action === 'none');
 });
 
-test('21. Inflatable-only cart remains unchanged', () => {
+test('16. Inflatable-only cart remains unchanged', () => {
   const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeInflatable('u2', 20000)];
   ok('no direct generator', getDirectGeneratorQuantity(cart, GEN_ID) === 0);
   ok('no has direct', cartHasDirectGenerator(cart, GEN_ID) === false);

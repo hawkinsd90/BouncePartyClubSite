@@ -7,7 +7,7 @@
 // Uses the SAME shared configuration loader as the Event Essentials catalog
 // and E3 repricing — no duplicated incomplete Supabase queries.
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   fetchInventoryProducts,
   fetchProductPricing,
@@ -33,6 +33,8 @@ import {
   isValidEventDateRange,
   decideDirectGeneratorAdd,
   shouldRunLegacyConversion,
+  decideLegacySync,
+  isConversionAllowed,
   type GeneratorProductConfiguration,
   type PackageGeneratorConfig,
   type GeneratorConfigurationStatus,
@@ -191,52 +193,46 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
   }, [generatorProduct, resolverConfig]);
 
   const directQty = generatorProduct ? getDirectGeneratorQuantity(cart, generatorProduct.product_id) : 0;
-  const [packageContainedQty, setPackageContainedQty] = useState(0);
 
-  useEffect(() => {
-    if (!generatorProduct || packageConfigs === null) {
-      setPackageContainedQty(0);
-      return;
-    }
-    const qty = cartPackageContainsGenerator(cart, packageConfigs, generatorProduct.product_id);
-    setPackageContainedQty(qty);
+  const packageContainedQty = useMemo(() => {
+    if (!generatorProduct || packageConfigs === null) return 0;
+    return cartPackageContainsGenerator(cart, packageConfigs, generatorProduct.product_id);
   }, [generatorProduct, packageConfigs, cart]);
 
   const checked = directQty > 0 || packageContainedQty > 0;
 
-  // Legacy synchronization effect. Reacts to directQty, formData legacy
-  // fields, isInitialized, and configurationReady.
-  //
-  // Required behavior:
-  // - No legacy state → legacyConversionNeeded = false.
-  // - Legacy state + direct Generator already in cart → clear legacy fields,
-  //   legacyConversionNeeded = false, no second Generator added.
-  // - Legacy state + no direct Generator → legacyConversionNeeded = true
-  //   (triggers auto-conversion effect when dates are valid).
+  // Legacy synchronization effect. Detects legacy browser state as soon
+  // as isInitialized — does NOT require configurationReady. Configuration
+  // readiness controls whether conversion may run, not whether unresolved
+  // legacy state is recognized. This ensures Quote blocks Checkout while
+  // legacy Generator state remains unresolved, including when configuration
+  // is loading or failed.
   useEffect(() => {
-    if (!isInitialized || !configurationReady) return;
-
     const hasLegacyState = formData.has_generator || formData.generator_qty > 0;
 
-    if (!hasLegacyState) {
-      // Customer no longer has legacy browser Generator state.
-      if (legacyConversionNeeded) setLegacyConversionNeeded(false);
-      return;
-    }
+    const decision = decideLegacySync({
+      isInitialized,
+      hasLegacyState,
+      directQty,
+      configurationReady,
+    });
 
-    // Legacy state present. If a direct EE Generator already exists, clear
-    // the stale legacy fields and mark conversion completed — do NOT add
-    // another Generator.
-    if (directQty > 0) {
-      onFormDataChange({ has_generator: false, generator_qty: 0 });
-      setLegacyConversionNeeded(false);
-      setConversionCompleted(true);
-      return;
-    }
-
-    // Legacy state present, no direct Generator yet → conversion needed.
-    if (!conversionCompleted && !conversionInFlight) {
-      setLegacyConversionNeeded(true);
+    switch (decision.action) {
+      case 'none':
+        return;
+      case 'clear_needed':
+        if (legacyConversionNeeded) setLegacyConversionNeeded(false);
+        return;
+      case 'clear_stale_and_complete':
+        onFormDataChange({ has_generator: false, generator_qty: 0 });
+        setLegacyConversionNeeded(false);
+        setConversionCompleted(true);
+        return;
+      case 'set_needed':
+        if (!conversionCompleted && !conversionInFlight) {
+          setLegacyConversionNeeded(true);
+        }
+        return;
     }
   }, [
     isInitialized,
@@ -415,7 +411,27 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
   }, [configurationReady, configurationFailed, generatorProduct, resolverConfig, packageContainedQty, directQty, formData, addToCart, removeEventEssentialProduct, onFormDataChange, evaluateGenerator]);
 
   const performLegacyConversion = useCallback(async () => {
-    if (!generatorProduct || !resolverConfig) return;
+    // Fail-closed: require all configuration prerequisites before any work.
+    // A failed package-component query (packageConfigs === null) must never
+    // be interpreted as a package containing zero Generators.
+    if (!isConversionAllowed({
+      configurationReady,
+      hasGeneratorProduct: generatorProduct !== null,
+      hasResolverConfig: resolverConfig !== null,
+      packageConfigsLoaded: packageConfigs !== null,
+    })) {
+      setMessage('Unable to verify Generator availability. Please try again.');
+      setMessageType('error');
+      return;
+    }
+
+    // isConversionAllowed guarantees these are non-null, but TypeScript
+    // cannot narrow through the function call.
+    if (!generatorProduct || !resolverConfig || packageConfigs === null) {
+      setMessage('Unable to verify Generator availability. Please try again.');
+      setMessageType('error');
+      return;
+    }
 
     if (!isValidEventDateRange(formData.event_date, formData.event_end_date)) {
       setMessage('Your saved Generator selection needs to be reviewed before continuing.');
