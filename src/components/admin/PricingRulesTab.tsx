@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { CreditCard as Edit2, Save, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { notifyError, notifySuccess } from '../../lib/notifications';
+import { calculateEEOnlyDepositCents } from '../../lib/depositCalculation';
 
 interface PricingRules {
   id: string;
@@ -15,6 +16,10 @@ interface PricingRules {
   same_day_pickup_fee_cents?: number;
   same_day_weekday_delivery_fee_cents?: number;
   apply_taxes_by_default?: boolean;
+  ee_only_deposit_base_threshold_cents?: number;
+  ee_only_deposit_base_cents?: number;
+  ee_only_deposit_subtotal_step_cents?: number;
+  ee_only_deposit_step_cents?: number;
 }
 
 interface PricingRulesTabProps {
@@ -35,7 +40,22 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
     generatorMultiple: '',
     sameDayPickup: '',
     sameDayWeekdayDelivery: '',
+    eeBaseThreshold: '',
+    eeBaseDeposit: '',
+    eeStepSize: '',
+    eeStepDeposit: '',
   });
+
+  const eeSettings = {
+    eeOnlyDepositBaseThresholdCents: editedRules.ee_only_deposit_base_threshold_cents ?? 20000,
+    eeOnlyDepositBaseCents: editedRules.ee_only_deposit_base_cents ?? 5000,
+    eeOnlyDepositSubtotalStepCents: editedRules.ee_only_deposit_subtotal_step_cents ?? 10000,
+    eeOnlyDepositStepCents: editedRules.ee_only_deposit_step_cents ?? 5000,
+  };
+
+  const preview150 = calculateEEOnlyDepositCents(15000, 15000, eeSettings);
+  const preview250 = calculateEEOnlyDepositCents(25000, 25000, eeSettings);
+  const preview500 = calculateEEOnlyDepositCents(50000, 50000, eeSettings);
 
   useEffect(() => {
     loadTravelFeeDefault();
@@ -74,6 +94,10 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
           same_day_pickup_fee_cents: editedRules.same_day_pickup_fee_cents || 0,
           same_day_weekday_delivery_fee_cents: editedRules.same_day_weekday_delivery_fee_cents || 0,
           apply_taxes_by_default: editedRules.apply_taxes_by_default ?? true,
+          ee_only_deposit_base_threshold_cents: editedRules.ee_only_deposit_base_threshold_cents ?? 20000,
+          ee_only_deposit_base_cents: editedRules.ee_only_deposit_base_cents ?? 5000,
+          ee_only_deposit_subtotal_step_cents: editedRules.ee_only_deposit_subtotal_step_cents ?? 10000,
+          ee_only_deposit_step_cents: editedRules.ee_only_deposit_step_cents ?? 5000,
         })
         .eq('id', editedRules.id);
 
@@ -116,6 +140,10 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
       generatorMultiple: ((editedRules.generator_fee_multiple_cents || 7500) / 100).toFixed(2),
       sameDayPickup: ((editedRules.same_day_pickup_fee_cents || 0) / 100).toFixed(2),
       sameDayWeekdayDelivery: ((editedRules.same_day_weekday_delivery_fee_cents || 0) / 100).toFixed(2),
+      eeBaseThreshold: ((editedRules.ee_only_deposit_base_threshold_cents || 20000) / 100).toFixed(2),
+      eeBaseDeposit: ((editedRules.ee_only_deposit_base_cents || 5000) / 100).toFixed(2),
+      eeStepSize: ((editedRules.ee_only_deposit_subtotal_step_cents || 10000) / 100).toFixed(2),
+      eeStepDeposit: ((editedRules.ee_only_deposit_step_cents || 5000) / 100).toFixed(2),
     });
     setIsEditing(true);
   };
@@ -343,6 +371,107 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
           <p className="text-xs text-slate-500 mt-1">
             Additional fee applied when the event date is today and falls on a weekday
           </p>
+        </div>
+
+        <div className="border-t-2 border-slate-200 pt-6 mt-6">
+          <label className="block text-lg font-bold text-slate-900 mb-2">
+            Event Essentials-Only Deposit
+          </label>
+          <p className="text-xs text-slate-500 mb-4">
+            Required deposit for orders with zero inflatables. The deposit is based on the Event Essentials subtotal only (travel, tax, fees, and discounts do not affect the tier).
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Base Threshold (in dollars)
+              </label>
+              <input
+                type="text"
+                value={isEditing ? displayValues.eeBaseThreshold : ((editedRules.ee_only_deposit_base_threshold_cents || 20000) / 100).toFixed(2)}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/[^0-9.]/g, '');
+                  setDisplayValues({ ...displayValues, eeBaseThreshold: value });
+                  setEditedRules({ ...editedRules, ee_only_deposit_base_threshold_cents: Math.round(Number(value || 0) * 100) });
+                }}
+                readOnly={!isEditing}
+                className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${isEditing ? 'bg-white' : 'bg-slate-50'}`}
+              />
+              <p className="text-xs text-slate-500 mt-1">EE subtotal at or below this amount uses the base deposit</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Base Deposit (in dollars)
+              </label>
+              <input
+                type="text"
+                value={isEditing ? displayValues.eeBaseDeposit : ((editedRules.ee_only_deposit_base_cents || 5000) / 100).toFixed(2)}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/[^0-9.]/g, '');
+                  setDisplayValues({ ...displayValues, eeBaseDeposit: value });
+                  setEditedRules({ ...editedRules, ee_only_deposit_base_cents: Math.round(Number(value || 0) * 100) });
+                }}
+                readOnly={!isEditing}
+                className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${isEditing ? 'bg-white' : 'bg-slate-50'}`}
+              />
+              <p className="text-xs text-slate-500 mt-1">Required deposit when subtotal is at or below the threshold</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Step Size (in dollars)
+              </label>
+              <input
+                type="text"
+                value={isEditing ? displayValues.eeStepSize : ((editedRules.ee_only_deposit_subtotal_step_cents || 10000) / 100).toFixed(2)}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/[^0-9.]/g, '');
+                  setDisplayValues({ ...displayValues, eeStepSize: value });
+                  setEditedRules({ ...editedRules, ee_only_deposit_subtotal_step_cents: Math.round(Number(value || 0) * 100) });
+                }}
+                readOnly={!isEditing}
+                className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${isEditing ? 'bg-white' : 'bg-slate-50'}`}
+              />
+              <p className="text-xs text-slate-500 mt-1">Each additional step of EE subtotal adds one more deposit tier</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Step Deposit (in dollars)
+              </label>
+              <input
+                type="text"
+                value={isEditing ? displayValues.eeStepDeposit : ((editedRules.ee_only_deposit_step_cents || 5000) / 100).toFixed(2)}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/[^0-9.]/g, '');
+                  setDisplayValues({ ...displayValues, eeStepDeposit: value });
+                  setEditedRules({ ...editedRules, ee_only_deposit_step_cents: Math.round(Number(value || 0) * 100) });
+                }}
+                readOnly={!isEditing}
+                className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${isEditing ? 'bg-white' : 'bg-slate-50'}`}
+              />
+              <p className="text-xs text-slate-500 mt-1">Additional deposit amount per tier above the threshold</p>
+            </div>
+          </div>
+
+          <div className="mt-4 bg-slate-50 border border-slate-200 rounded-lg p-4">
+            <p className="text-sm font-semibold text-slate-700 mb-2">Live Preview</p>
+            <div className="space-y-1 text-sm text-slate-600">
+              <div className="flex justify-between">
+                <span>EE Subtotal $150.00:</span>
+                <span className="font-semibold text-slate-900">${(preview150 / 100).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>EE Subtotal $250.00:</span>
+                <span className="font-semibold text-slate-900">${(preview250 / 100).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>EE Subtotal $500.00:</span>
+                <span className="font-semibold text-slate-900">${(preview500 / 100).toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div>
