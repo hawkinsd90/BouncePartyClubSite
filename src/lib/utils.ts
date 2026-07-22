@@ -109,34 +109,68 @@ export function formatOrderId(orderId: string): string {
 export async function createShortPortalLink(
   orderId: string,
   supabaseClient: any,
-  eventDate?: string | null,
+  _eventDate?: string | null,
   invoiceToken?: string | null
 ): Promise<string> {
-  if (invoiceToken) {
+  // If no invoice token provided, try to look up an active link for this order.
+  let resolvedToken = invoiceToken;
+  if (!resolvedToken) {
+    const { data: linkRow } = await supabaseClient
+      .from('invoice_links')
+      .select('link_token')
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (linkRow?.link_token) {
+      resolvedToken = linkRow.link_token;
+    }
+  }
+
+  // If an invoice token is available, try the secure RPC first.
+  if (resolvedToken) {
     const { data: rpcResult, error: rpcError } = await supabaseClient.rpc(
       'create_portal_short_link',
-      { p_invoice_token: invoiceToken }
+      { p_invoice_token: resolvedToken }
     );
 
     if (!rpcError && rpcResult?.success && rpcResult?.short_code) {
       return `${window.location.origin}/i/${rpcResult.short_code}`;
     }
 
-    console.error('[createShortPortalLink] secure RPC failed:', rpcError?.message || rpcResult?.error || 'unknown');
+    console.error(
+      '[createShortPortalLink] RPC create_portal_short_link failed:',
+      rpcError?.message || rpcResult?.error || 'unknown'
+    );
   }
 
-  if (invoiceToken) {
-    const { data: linkData } = await supabaseClient
+  // Fallback: look up the invoice_links row directly and use /invoice/<token>.
+  if (resolvedToken) {
+    const { data: linkData, error: linkError } = await supabaseClient
       .from('invoice_links')
-      .select('link_token')
-      .eq('link_token', invoiceToken)
+      .select('link_token, short_code')
+      .eq('link_token', resolvedToken)
       .maybeSingle();
 
+    if (linkError) {
+      console.error(
+        '[createShortPortalLink] invoice_links lookup error:',
+        linkError.message
+      );
+    }
+
     if (linkData) {
-      return `${window.location.origin}/invoice/${invoiceToken}`;
+      if (linkData.short_code) {
+        return `${window.location.origin}/i/${linkData.short_code}`;
+      }
+      return `${window.location.origin}/invoice/${resolvedToken}`;
     }
   }
 
-  console.error('[createShortPortalLink] falling back to full portal URL for order:', orderId);
+  // Last resort: full portal URL. Log clearly so the failure is visible.
+  console.error(
+    '[createShortPortalLink] No invoice token or link row found; using full portal URL for order:',
+    orderId
+  );
   return `${window.location.origin}/customer-portal/${orderId}`;
 }

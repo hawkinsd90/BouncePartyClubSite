@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { notifyError } from '../lib/notifications';
 import {
   Package,
   Calendar,
@@ -105,6 +106,15 @@ export function EventEssentialsCatalog() {
   const [checkingAvailability, setCheckingAvailability] = useState(false);
 
   const [addError, setAddError] = useState<string | null>(null);
+  const lastToastRef = useRef<string | null>(null);
+
+  function setAddErrorWithToast(msg: string) {
+    setAddError(msg);
+    if (lastToastRef.current !== msg) {
+      lastToastRef.current = msg;
+      notifyError(msg);
+    }
+  }
   const addingRef = useRef(false);
   const availabilityRequestId = useRef(0);
 
@@ -463,17 +473,18 @@ export function EventEssentialsCatalog() {
     if (qty <= 0) return;
 
     setAddError(null);
+    lastToastRef.current = null;
 
     // Use the latest candidate result from current cart + config state.
     const candidate = productCandidate(product, qty);
     const vm = deriveCandidateViewModel(candidate, false);
     if (!candidate || !vm.selectable || vm.resolvedPriceCents === null) {
-      setAddError(qualificationMessage(vm) ?? 'This item is currently unavailable.');
+      setAddErrorWithToast(qualificationMessage(vm) ?? 'This item is currently unavailable.');
       return;
     }
 
     if (!datesValid) {
-      setAddError('Please select valid event dates before adding items to your cart.');
+      setAddErrorWithToast('Please select valid event dates before adding items to your cart.');
       return;
     }
 
@@ -508,7 +519,7 @@ export function EventEssentialsCatalog() {
       const result = await checkProductAvailability(requestItems, eventDate, eventEndDate, null);
 
       if (result.error) {
-        setAddError('Unable to check availability right now. Please try again.');
+        setAddErrorWithToast('Unable to check availability right now. Please try again.');
         return;
       }
 
@@ -522,7 +533,7 @@ export function EventEssentialsCatalog() {
       for (const alloc of proposedAllocation) {
         const found = resultMap.get(alloc.product_id);
         if (!found) {
-          setAddError('Unable to check availability right now. Please try again.');
+          setAddErrorWithToast('Unable to check availability right now. Please try again.');
           return;
         }
         if (found.is_allowed !== true) {
@@ -532,7 +543,7 @@ export function EventEssentialsCatalog() {
       }
 
       if (unavailable.length > 0) {
-        setAddError(
+        setAddErrorWithToast(
           `Insufficient inventory for: ${unavailable.join(', ')}. Please choose different dates or reduce quantities.`
         );
         return;
@@ -541,7 +552,7 @@ export function EventEssentialsCatalog() {
       addToCart(proposedItem);
       setQuantities((prev) => ({ ...prev, [key]: 0 }));
     } catch {
-      setAddError('Unable to check availability right now. Please try again.');
+      setAddErrorWithToast('Unable to check availability right now. Please try again.');
     } finally {
       addingRef.current = false;
     }
@@ -553,16 +564,17 @@ export function EventEssentialsCatalog() {
     if (qty <= 0) return;
 
     setAddError(null);
+    lastToastRef.current = null;
 
     const candidate = bundleCandidate(bundle, qty);
     const vm = deriveCandidateViewModel(candidate, true);
     if (!candidate || !vm.selectable || vm.resolvedPriceCents === null) {
-      setAddError(qualificationMessage(vm) ?? 'This package is currently unavailable.');
+      setAddErrorWithToast(qualificationMessage(vm) ?? 'This package is currently unavailable.');
       return;
     }
 
     if (!datesValid) {
-      setAddError('Please select valid event dates before adding items to your cart.');
+      setAddErrorWithToast('Please select valid event dates before adding items to your cart.');
       return;
     }
 
@@ -597,7 +609,7 @@ export function EventEssentialsCatalog() {
       const result = await checkProductAvailability(requestItems, eventDate, eventEndDate, null);
 
       if (result.error) {
-        setAddError('Unable to check availability right now. Please try again.');
+        setAddErrorWithToast('Unable to check availability right now. Please try again.');
         return;
       }
 
@@ -611,7 +623,7 @@ export function EventEssentialsCatalog() {
       for (const alloc of proposedAllocation) {
         const found = resultMap.get(alloc.product_id);
         if (!found) {
-          setAddError('Unable to check availability right now. Please try again.');
+          setAddErrorWithToast('Unable to check availability right now. Please try again.');
           return;
         }
         if (found.is_allowed !== true) {
@@ -620,7 +632,7 @@ export function EventEssentialsCatalog() {
       }
 
       if (unavailableNames.length > 0) {
-        setAddError(
+        setAddErrorWithToast(
           `Cannot add "${bundle.name}" — insufficient inventory for: ${unavailableNames.join(', ')}. Please choose different dates or reduce quantities.`
         );
         return;
@@ -629,7 +641,7 @@ export function EventEssentialsCatalog() {
       addToCart(proposedItem);
       setQuantities((prev) => ({ ...prev, [key]: 0 }));
     } catch {
-      setAddError('Unable to check availability right now. Please try again.');
+      setAddErrorWithToast('Unable to check availability right now. Please try again.');
     } finally {
       addingRef.current = false;
     }

@@ -7,7 +7,7 @@ import { formatCurrency } from '../lib/pricing';
 import { formatOrderId } from '../lib/utils';
 import { OrderSummary } from '../components/order/OrderSummary';
 import type { OrderSummaryDisplay } from '../lib/orderSummary';
-import { buildOrderSummaryDisplay } from '../lib/orderSummaryHelpers';
+import { loadOrderSummary, formatOrderSummary } from '../lib/orderSummary';
 import { formatTime } from '../lib/orderUtils';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 
@@ -47,75 +47,16 @@ export function Receipt() {
       if (paymentError) throw paymentError;
       if (!paymentData) throw new Error('Payment not found');
 
-      const { data: orderItems } = await supabase
-        .from('order_items')
-        .select('*, units(*)')
-        .eq('order_id', orderId!);
+      // Use the shared loadOrderSummary which queries order_items with
+      // all EE fields (product_id, bundle_id, item_name, component_snapshot,
+      // pricing_context) and formats them via formatOrderSummary.
+      const summaryData = await loadOrderSummary(orderId!);
 
-      const { data: discounts } = await supabase
-        .from('order_discounts')
-        .select('*')
-        .eq('order_id', orderId!);
-
-      const { data: customFees } = await supabase
-        .from('order_custom_fees')
-        .select('*')
-        .eq('order_id', orderId!);
-
-      const summaryData = buildOrderSummaryDisplay({
-        items: (orderItems || []).map((item: any) => ({
-          name: item.units?.name || 'Unknown Unit',
-          mode: item.wet_or_dry === 'water' ? 'Water' : 'Dry',
-          price: item.unit_price_cents || 0,
-          qty: item.qty || 1,
-        })),
-        fees: {
-          travel_fee_cents: orderData.travel_fee_cents,
-          travel_total_miles: orderData.travel_total_miles,
-          travel_fee_display_name: (orderData as any).travel_fee_display_name,
-          surface_fee_cents: orderData.surface_fee_cents,
-          same_day_pickup_fee_cents: orderData.same_day_pickup_fee_cents,
-          generator_fee_cents: orderData.generator_fee_cents,
-          generator_qty: orderData.generator_qty,
-          travel_fee_waived: orderData.travel_fee_waived,
-          surface_fee_waived: orderData.surface_fee_waived ?? undefined,
-          same_day_pickup_fee_waived: orderData.same_day_pickup_fee_waived,
-          generator_fee_waived: orderData.generator_fee_waived ?? undefined,
-        },
-        discounts: (discounts || []).map((d: any) => ({
-          name: d.name,
-          amount_cents: d.amount_cents,
-          percentage: d.percentage,
-        })),
-        customFees: (customFees || []).map((f: any) => ({
-          name: f.name,
-          amount_cents: f.amount_cents,
-        })),
-        subtotal_cents: orderData.subtotal_cents || 0,
-        tax_cents: orderData.tax_cents || 0,
-        tip_cents: orderData.tip_cents || 0,
-        total_cents: (orderData.subtotal_cents || 0)
-          + (orderData.travel_fee_waived ? 0 : (orderData.travel_fee_cents || 0))
-          + (orderData.surface_fee_waived ? 0 : (orderData.surface_fee_cents || 0))
-          + (orderData.same_day_pickup_fee_waived ? 0 : (orderData.same_day_pickup_fee_cents || 0))
-          + (orderData.generator_fee_waived ? 0 : (orderData.generator_fee_cents || 0))
-          + (orderData.tax_waived ? 0 : (orderData.tax_cents || 0))
-          + ((customFees || []).reduce((s: number, f: any) => s + (f.amount_cents || 0), 0))
-          - ((discounts || []).reduce((s: number, d: any) => {
-              if (d.percentage && d.percentage > 0) return s + Math.round((orderData.subtotal_cents || 0) * (d.percentage / 100));
-              return s + (d.amount_cents || 0);
-            }, 0)),
-        deposit_due_cents: orderData.deposit_due_cents || 0,
-        deposit_paid_cents: orderData.deposit_paid_cents || 0,
-        balance_due_cents: orderData.balance_due_cents || 0,
-        event_date: orderData.event_date,
-        event_end_date: orderData.event_end_date ?? undefined,
-        pickup_preference: orderData.pickup_preference,
-      });
+      if (!summaryData) throw new Error('Failed to load order summary');
 
       setOrder(orderData);
       setPayment(paymentData);
-      setSummary(summaryData);
+      setSummary(formatOrderSummary(summaryData));
     } catch (err: any) {
       console.error('Error loading receipt:', err);
       setError(err.message || 'Failed to load receipt');

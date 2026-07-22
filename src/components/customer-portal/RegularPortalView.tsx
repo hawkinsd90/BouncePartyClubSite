@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { format } from 'date-fns';
 import { FileText, CreditCard, CheckCircle, Image as ImageIcon, MapPin, Printer, Calendar, MapPin as MapPinIcon, Truck, Navigation, Clock, Package, Lock } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
 import { supabase } from '../../lib/supabase';
@@ -45,10 +45,13 @@ interface NavSection {
   lockedReason?: string;
 }
 
+const VALID_TABS: TabKey[] = ['details', 'lot-pictures', 'waiver', 'payment', 'pictures', 'delivery'];
+
 export function RegularPortalView({ order, orderId, orderItems: _orderItems, orderSummary, invoiceLinkToken, onReload, refreshVersion }: RegularPortalViewProps) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const lotPicturesRequested = order.lot_pictures_requested || false;
-  const [activeTab, setActiveTab] = useState<TabKey>('details');
+  const isInitializedRef = useRef(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [payments, setPayments] = useState<any[]>([]);
   const [lotPicturesUploaded, setLotPicturesUploaded] = useState(false);
@@ -56,6 +59,20 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
   const [isDelivered, setIsDelivered] = useState(false);
   const [existingPictures, setExistingPictures] = useState<any[]>([]);
   const [restoredTipCents, setRestoredTipCents] = useState<number | null>(null);
+
+  // Resolve the initial active tab from the URL query string.
+  function resolveInitialTab(): TabKey {
+    const tabParam = searchParams.get('tab') as TabKey | null;
+    if (tabParam && VALID_TABS.includes(tabParam)) {
+      // Check if the tab is locked — fall back to 'details' if so.
+      // We'll do a proper lock check after sections are built, but for
+      // well-known locked tabs we can check the basic conditions here.
+      return tabParam;
+    }
+    return 'details';
+  }
+
+  const [activeTab, setActiveTab] = useState<TabKey>(resolveInitialTab);
 
   const loadPayments = useCallback(async () => {
     try {
@@ -144,6 +161,22 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
     void results;
   }, [orderId, refreshVersion, loadPayments, loadLotPictures, loadDeliveryStatus, loadExistingPictures]);
 
+  // Sync activeTab to URL query string.
+  useEffect(() => {
+    if (!isInitializedRef.current) return;
+    const currentTabParam = searchParams.get('tab');
+    if (currentTabParam !== activeTab) {
+      const next = new URLSearchParams(searchParams);
+      if (activeTab === 'details') {
+        next.delete('tab');
+      } else {
+        next.set('tab', activeTab);
+      }
+      setSearchParams(next, { replace: true });
+    }
+  }, [activeTab, searchParams, setSearchParams]);
+
+  // On mount, read payment-status params and tip restoration.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const paymentStatus = params.get('payment');
@@ -157,22 +190,58 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
         const parsed = parseInt(tipParam, 10);
         if (!isNaN(parsed) && parsed > 0) setRestoredTipCents(parsed);
       }
-      window.history.replaceState({}, '', window.location.pathname);
+      // Clean payment/card params but preserve tab
+      const next = new URLSearchParams(window.location.search);
+      next.delete('payment');
+      next.delete('card_updated');
+      next.delete('tip');
+      setSearchParams(next, { replace: true });
     } else if (cardUpdated) {
       setActiveTab('payment');
       if (tipParam) {
         const parsed = parseInt(tipParam, 10);
         if (!isNaN(parsed) && parsed > 0) setRestoredTipCents(parsed);
       }
-      window.history.replaceState({}, '', window.location.pathname);
+      const next = new URLSearchParams(window.location.search);
+      next.delete('card_updated');
+      next.delete('tip');
+      setSearchParams(next, { replace: true });
     } else if (paymentStatus === 'success') {
       showToast('Payment successful! Thank you.', 'success');
-      window.history.replaceState({}, '', window.location.pathname);
+      const next = new URLSearchParams(window.location.search);
+      next.delete('payment');
+      setSearchParams(next, { replace: true });
     } else if (paymentStatus === 'canceled') {
       showToast('Payment was canceled. You can try again anytime.', 'info');
-      window.history.replaceState({}, '', window.location.pathname);
+      const next = new URLSearchParams(window.location.search);
+      next.delete('payment');
+      setSearchParams(next, { replace: true });
     }
-  }, [onReload]);
+    isInitializedRef.current = true;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Validate that a tab is currently accessible given the sections array.
+  function isTabAccessible(tab: TabKey, sectionsArr: NavSection[]): boolean {
+    const section = sectionsArr.find(s => s.key === tab);
+    if (!section) return false;
+    return !section.locked;
+  }
+
+  // Handle tab selection with locked-tab fallback.
+  function handleTabSelect(tab: TabKey, _locked: boolean) {
+    setActiveTab(tab);
+  }
+
+  // After sections are built, validate the current activeTab.
+  // If it's locked or invalid, fall back to 'details'.
+  // sections is built later in render; we use a ref to avoid TDZ.
+  const sectionsRef = useRef<NavSection[]>([]);
+  useEffect(() => {
+    if (!isInitializedRef.current) return;
+    if (activeTab !== 'details' && !isTabAccessible(activeTab, sectionsRef.current)) {
+      setActiveTab('details');
+    }
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSubmitPictures(files: File[], notes: string) {
     try {
@@ -244,15 +313,15 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
     },
   ];
 
-  if (lotPicturesRequested) {
-    sections.push({
-      key: 'lot-pictures',
-      label: 'Lot Pictures',
-      icon: MapPin,
-      status: lotPicturesUploaded ? 'Complete' : 'Required',
-      locked: false,
-    });
-  }
+  // Lot Pics is always available as a distinct section (pre-event location photos).
+  // It is separate from the Pictures tab (delivery/proof photos).
+  sections.push({
+    key: 'lot-pictures',
+    label: 'Lot Pics',
+    icon: MapPin,
+    status: lotPicturesUploaded ? 'Complete' : lotPicturesRequested ? 'Required' : 'Optional',
+    locked: false,
+  });
 
   sections.push({
     key: 'waiver',
@@ -290,6 +359,8 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
     locked: !deliveryPhotosAvailable,
     lockedReason: !deliveryPhotosAvailable ? 'Delivery photos appear here after crew completes setup' : undefined,
   });
+
+  sectionsRef.current = sections;
 
   function getSectionStyles(section: NavSection, isActive: boolean): string {
     const base = 'flex flex-col items-center justify-center gap-1.5 rounded-xl p-3 min-h-[56px] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2';
@@ -370,7 +441,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                   return (
                     <button
                       key={section.key}
-                      onClick={() => !section.locked && setActiveTab(section.key)}
+                      onClick={() => !section.locked && handleTabSelect(section.key, section.locked)}
                       disabled={section.locked}
                       aria-current={isActive ? 'page' : undefined}
                       aria-disabled={section.locked}
@@ -497,9 +568,26 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                     <div className="mb-4 pb-4 border-b border-slate-300">
                       <p className="text-sm font-semibold text-slate-700 mb-2">Items:</p>
                       {orderSummary.items.map((item: any, index: number) => (
-                        <div key={index} className="flex justify-between text-sm mb-1">
-                          <span className="text-slate-600">{item.name} ({item.mode}) × {item.qty}</span>
-                          <span className="font-medium text-slate-900">{formatCurrency(item.lineTotal)}</span>
+                        <div key={index}>
+                          {(item as any).packageContentsUnavailable && (
+                            <div className="mb-1 pl-3">
+                              <p className="text-xs text-slate-400 italic">Package contents unavailable</p>
+                            </div>
+                          )}
+                          {(item as any).components && (item as any).components.length > 0 && (
+                            <div className="mb-1 pl-3">
+                              <p className="text-xs text-slate-500 mb-0.5">Included in {item.name}:</p>
+                              {(item as any).components.map((c: { name: string; quantity: number }, ci: number) => (
+                                <div key={ci} className="text-xs text-slate-500">
+                                  - {c.name} × {c.quantity}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className="text-slate-600">{item.name} ({item.mode}) × {item.qty}</span>
+                            <span className="font-medium text-slate-900">{formatCurrency(item.lineTotal)}</span>
+                          </div>
                         </div>
                       ))}
                     </div>
