@@ -1,7 +1,7 @@
 // Stage E4 — Production-helper focused tests
 import { buildEventEssentialAvailabilityRequestFromOrderItems } from './eeOrderItemAvailability';
 import { getQuotePricingDisplayState } from './quotePricingDisplayState';
-import { buildReceiptEmailInput } from './orderEmailTemplates';
+import { buildReceiptEmailInput, generateConfirmationSmsMessage } from './orderEmailTemplates';
 import { composeUnifiedQuoteTotals } from './unifiedTotals';
 import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS } from './depositCalculation';
 import type { PriceBreakdown } from './pricing';
@@ -34,8 +34,6 @@ function makeProduct(id: string, name: string, price: number, qty = 1): UnifiedC
     unit_price_cents: price, qty,
   } as any;
 }
-
-// (makeBundle removed — unused in this test file)
 
 // 1. unit_id-only row is accepted as inflatable and excluded from EE request
 {
@@ -152,20 +150,65 @@ function makeProduct(id: string, name: string, price: number, qty = 1): UnifiedC
   ok('11 portalUrl is not window.location', !input.portalUrl.includes('customer-portal/order-123'));
 }
 
-// 12. Event Essentials-only cart reflects supported behavior
+// 12. Numeric unit_id with a valid product_id is invalid
+{
+  const result = buildEventEssentialAvailabilityRequestFromOrderItems([
+    { unit_id: 123, product_id: 'p1', bundle_id: null, qty: 1 },
+  ] as any);
+  ok('12 numeric unit_id invalid', result.status === 'invalid');
+}
+
+// 13. Object product_id with a valid bundle_id is invalid
+{
+  const result = buildEventEssentialAvailabilityRequestFromOrderItems([
+    { unit_id: null, product_id: {}, bundle_id: 'b1', qty: 1 },
+  ] as any);
+  ok('13 object product_id invalid', result.status === 'invalid');
+}
+
+// 14. Array identity value is invalid
+{
+  const result = buildEventEssentialAvailabilityRequestFromOrderItems([
+    { unit_id: [], product_id: null, bundle_id: null, qty: 1 },
+  ] as any);
+  ok('14 array identity invalid', result.status === 'invalid');
+}
+
+// 15. Blank unused identity fields remain accepted
+{
+  const result = buildEventEssentialAvailabilityRequestFromOrderItems([
+    { unit_id: '   ', product_id: 'p1', bundle_id: '', qty: 1 },
+  ]);
+  ok('15 blank unused identities accepted', result.status === 'ready');
+  if (result.status === 'ready') {
+    ok('15 correct product', result.productQuantities[0].product_id === 'p1');
+  }
+}
+
+// 16. generateConfirmationSmsMessage requires a provided portal URL
+{
+  const order = { id: 'order-abc', event_date: '2026-08-15' };
+  const msg = generateConfirmationSmsMessage(order, 'Jane', 'https://example.com/i/XYZ');
+  ok('16 sms contains short URL', msg.includes('https://example.com/i/XYZ'));
+  ok('16 sms no customer-portal URL', !msg.includes('customer-portal/'));
+  ok('16 sms no window.location', !msg.includes('window.location'));
+}
+
+// 17. Event Essentials-only $95 fixture — exact values
 {
   const cart: UnifiedCartItem[] = [makeProduct('p1', 'Generator', 9500)];
-  const hasInflatable = cart.some(i => i.item_type === 'inflatable' || i.item_type === undefined);
-  ok('12 zero inflatables', !hasInflatable);
-  ok('12 has valid EE', cart.length > 0);
-  const bd = makeBd({ subtotal_cents: 9500, total_cents: 9500 });
+  const bd = makeBd({ subtotal_cents: 0, event_essentials_subtotal_cents: 0, deposit_due_cents: 0, total_cents: 0, travel_fee_cents: 0, balance_due_cents: 0 });
   const totals = composeUnifiedQuoteTotals({
     inflatableBreakdown: bd, cart, taxApplied: false,
     inflatableDepositPerUnitCents: 5000,
     eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS,
   });
-  ok('12 receives configured deposit', totals.depositCents > 0);
-  ok('12 not blocked by missing inflatable', !totals.depositError);
+  ok('17 inflatableSubtotalCents = 0', totals.inflatableSubtotalCents === 0);
+  ok('17 eventEssentialsSubtotalCents = 9500', totals.eventEssentialsSubtotalCents === 9500);
+  ok('17 equipmentSubtotalCents = 9500', totals.equipmentSubtotalCents === 9500);
+  ok('17 depositCents = 5000', totals.depositCents === 5000);
+  ok('17 no depositError', !totals.depositError);
+  ok('17 totalCents = 9500', totals.totalCents === 9500);
 }
 
 console.log(`\nStage E4 Production-Helper Tests: ${passed} passed, ${failed} failed.`);

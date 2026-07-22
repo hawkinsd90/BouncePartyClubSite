@@ -25,9 +25,9 @@ function isNonBlankString(value: unknown): boolean {
   return typeof value === 'string' && value.trim() !== '';
 }
 
-function isBlankOrNull(value: unknown): boolean {
+function isValidIdentityValue(value: unknown): boolean {
   if (value === null || value === undefined) return true;
-  if (typeof value === 'string') return value.trim() === '';
+  if (typeof value === 'string') return true;
   return false;
 }
 
@@ -38,6 +38,10 @@ export function buildEventEssentialAvailabilityRequestFromOrderItems(
 
   for (const item of orderItems) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      return { status: 'invalid', error: 'Invalid stored order item.' };
+    }
+
+    if (!isValidIdentityValue(item.unit_id) || !isValidIdentityValue(item.product_id) || !isValidIdentityValue(item.bundle_id)) {
       return { status: 'invalid', error: 'Invalid stored order item.' };
     }
 

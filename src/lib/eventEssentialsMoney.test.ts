@@ -334,16 +334,20 @@ function run() {
     ok('27 stored matches checkout', result.equipmentSubtotalCents === 24500 && result.totalCents === 35900);
   }
 
-  // 28. Event Essentials-only cart receives configured EE-only deposit (not blocked).
+  // 28. Event Essentials-only cart with zero inflatable breakdown.
   {
     const cart: UnifiedCartItem[] = [makeProduct('p1', 'Gen', 9500)];
     const hasInflatable = cart.some((i) => i.item_type === 'inflatable' || i.item_type === undefined);
     ok('28a EE-only has zero inflatables', !hasInflatable);
     ok('28b EE-only has valid Event Essentials', cart.length > 0);
-    const bd = makeNoTaxBreakdown({ subtotal_cents: 9500, deposit_due_cents: 0, total_cents: 9500, travel_fee_cents: 0 });
+    const bd = makeNoTaxBreakdown({ subtotal_cents: 0, event_essentials_subtotal_cents: 0, deposit_due_cents: 0, total_cents: 0, travel_fee_cents: 0, balance_due_cents: 0 });
     const result = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
-    ok('28c EE-only receives configured deposit', result.depositCents > 0);
-    ok('28d EE-only not blocked by missing inflatable', !result.depositError);
+    ok('28c inflatableSubtotalCents = 0', result.inflatableSubtotalCents === 0);
+    ok('28d eventEssentialsSubtotalCents = 9500', result.eventEssentialsSubtotalCents === 9500);
+    ok('28e equipmentSubtotalCents = 9500', result.equipmentSubtotalCents === 9500);
+    ok('28f depositCents = 5000', result.depositCents === 5000);
+    ok('28g no depositError', !result.depositError);
+    ok('28h totalCents = 9500', result.totalCents === 9500);
   }
 
   // 29. Inflatable-only output deep-equals pre-E4 fixture (no tax).
