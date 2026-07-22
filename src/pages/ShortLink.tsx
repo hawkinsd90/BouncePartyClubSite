@@ -13,20 +13,39 @@ export function ShortLink() {
     }
 
     (async () => {
-      const { data, error: dbError } = await supabase
+      // 1. Check invoice_links first (existing behavior)
+      const { data: invoiceData, error: invoiceError } = await supabase
         .from('invoice_links' as any)
         .select('order_id, link_token')
         .eq('short_code', shortCode)
-        .maybeSingle();
+        .maybeSingle() as any;
 
-      if (dbError || !data) {
-        setError(true);
+      if (!invoiceError && invoiceData) {
+        window.location.replace(
+          `/customer-portal/${invoiceData.order_id}?t=${invoiceData.link_token}`
+        );
         return;
       }
 
-      window.location.replace(
-        `/customer-portal/${data.order_id}?t=${data.link_token}`
-      );
+      // 2. Check order_portal_links (order-level short links)
+      const { data: orderData, error: orderError } = await supabase
+        .from('order_portal_links' as any)
+        .select('order_id')
+        .eq('short_code', shortCode)
+        .maybeSingle() as any;
+
+      if (!orderError && orderData) {
+        window.location.replace(
+          `/customer-portal/${orderData.order_id}`
+        );
+        return;
+      }
+
+      // 3. Not found in either table
+      if (invoiceError && orderError) {
+        // Both queries errored — treat as not found
+      }
+      setError(true);
     })();
   }, [shortCode]);
 

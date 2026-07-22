@@ -355,7 +355,11 @@ export function InvoiceAcceptanceView({
         };
 
         try {
-          const portalUrl = await createShortPortalLink(order.id, supabase, order.event_date, invoiceLink?.link_token ?? null);
+          const linkResult = await createShortPortalLink(order.id, supabase, order.event_date, invoiceLink?.link_token ?? null);
+          if (!linkResult.success) {
+            throw new Error(`Failed to create short link: ${linkResult.error}`);
+          }
+          const portalUrl = linkResult.url;
           const smsMessage = generateConfirmationSmsMessage(order, firstName, portalUrl);
           const emailHtml = generateConfirmationReceiptEmail({
             order,

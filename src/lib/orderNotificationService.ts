@@ -21,7 +21,25 @@ export async function sendOrderEditNotifications({
   adminMessage,
 }: SendOrderEditNotificationsParams): Promise<void> {
   try {
-    const customerPortalUrl = await createShortPortalLink(order.id, supabase, order.event_date);
+    const linkResult = await createShortPortalLink(order.id, supabase, order.event_date);
+    if (!linkResult.success) {
+      console.error('[orderNotificationService] Short-link failed, skipping edit notifications:', linkResult.error);
+      try {
+        await supabase
+          .from('notification_failures' as any)
+          .insert({
+            order_id: order.id,
+            channel: 'email',
+            message_type: 'order_edit',
+            error_message: linkResult.error,
+            created_at: new Date().toISOString(),
+          });
+      } catch (logErr) {
+        console.error('[orderNotificationService] Failed to log notification failure:', logErr);
+      }
+      return;
+    }
+    const customerPortalUrl = linkResult.url;
 
     let content = createGreeting(order.customers?.first_name);
     content += createParagraph(

@@ -106,71 +106,77 @@ export function formatOrderId(orderId: string): string {
   return orderId.slice(0, 8).toUpperCase();
 }
 
+export type ShortPortalLinkResult =
+  | { success: true; url: string; shortCode: string }
+  | { success: false; error: string };
+
 export async function createShortPortalLink(
   orderId: string,
   supabaseClient: any,
   _eventDate?: string | null,
   invoiceToken?: string | null
-): Promise<string> {
-  // If no invoice token provided, try to look up an active link for this order.
-  let resolvedToken = invoiceToken;
-  if (!resolvedToken) {
-    const { data: linkRow } = await supabaseClient
-      .from('invoice_links')
-      .select('link_token')
-      .eq('order_id', orderId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (linkRow?.link_token) {
-      resolvedToken = linkRow.link_token;
-    }
-  }
-
-  // If an invoice token is available, try the secure RPC first.
-  if (resolvedToken) {
+): Promise<ShortPortalLinkResult> {
+  // 1. If an invoice token is available, try the invoice-link RPC first.
+  if (invoiceToken) {
     const { data: rpcResult, error: rpcError } = await supabaseClient.rpc(
       'create_portal_short_link',
-      { p_invoice_token: resolvedToken }
+      { p_invoice_token: invoiceToken }
     );
 
     if (!rpcError && rpcResult?.success && rpcResult?.short_code) {
-      return `${window.location.origin}/i/${rpcResult.short_code}`;
+      return {
+        success: true,
+        url: `${window.location.origin}/i/${rpcResult.short_code}`,
+        shortCode: rpcResult.short_code,
+      };
     }
 
     console.error(
-      '[createShortPortalLink] RPC create_portal_short_link failed:',
+      '[createShortPortalLink] invoice RPC failed:',
       rpcError?.message || rpcResult?.error || 'unknown'
     );
   }
 
-  // Fallback: look up the invoice_links row directly and use /invoice/<token>.
-  if (resolvedToken) {
-    const { data: linkData, error: linkError } = await supabaseClient
+  // 2. Try order-level short link (works for standard booking requests without invoice links).
+  const { data: orderRpcResult, error: orderRpcError } = await supabaseClient.rpc(
+    'create_order_short_link',
+    { p_order_id: orderId }
+  );
+
+  if (!orderRpcError && orderRpcResult?.success && orderRpcResult?.short_code) {
+    return {
+      success: true,
+      url: `${window.location.origin}/i/${orderRpcResult.short_code}`,
+      shortCode: orderRpcResult.short_code,
+    };
+  }
+
+  // 3. If invoice token exists but RPC failed, try direct lookup for existing short_code.
+  if (invoiceToken) {
+    const { data: linkData } = await supabaseClient
       .from('invoice_links')
-      .select('link_token, short_code')
-      .eq('link_token', resolvedToken)
+      .select('short_code')
+      .eq('link_token', invoiceToken)
       .maybeSingle();
 
-    if (linkError) {
-      console.error(
-        '[createShortPortalLink] invoice_links lookup error:',
-        linkError.message
-      );
-    }
-
-    if (linkData) {
-      if (linkData.short_code) {
-        return `${window.location.origin}/i/${linkData.short_code}`;
-      }
-      return `${window.location.origin}/invoice/${resolvedToken}`;
+    if (linkData?.short_code) {
+      return {
+        success: true,
+        url: `${window.location.origin}/i/${linkData.short_code}`,
+        shortCode: linkData.short_code,
+      };
     }
   }
 
-  // Last resort: full portal URL. Log clearly so the failure is visible.
+  // 4. All attempts failed — return typed failure, never a long URL.
+  const underlyingError =
+    orderRpcError?.message ||
+    orderRpcResult?.error ||
+    'Short-link generation failed';
   console.error(
-    '[createShortPortalLink] No invoice token or link row found; using full portal URL for order:',
-    orderId
+    '[createShortPortalLink] All short-link methods failed for order:',
+    orderId,
+    underlyingError
   );
-  return `${window.location.origin}/customer-portal/${orderId}`;
+  return { success: false, error: underlyingError };
 }

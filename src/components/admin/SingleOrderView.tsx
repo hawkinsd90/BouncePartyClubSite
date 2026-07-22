@@ -165,7 +165,11 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
         if (existing?.short_code) {
           url = `${window.location.origin}/i/${existing.short_code}`;
         } else {
-          url = await createShortPortalLink(order.id, supabase, order.event_date);
+          const linkResult = await createShortPortalLink(order.id, supabase, order.event_date);
+          if (!linkResult.success) {
+            throw new Error(linkResult.error);
+          }
+          url = linkResult.url;
         }
         setShortUrl(url);
       }

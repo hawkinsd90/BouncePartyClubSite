@@ -286,8 +286,11 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
 
               if (error) throw error;
 
-              const portalUrl = await createShortPortalLink(order.id, supabase, order.event_date);
-              const message = `Bounce Party Club - Hi! We're reviewing your order #${formatOrderId(order.id)}. Could you please upload pictures of the event location through your customer portal? This helps us prepare better for your event. Link: ${portalUrl}`;
+              const portalLinkResult = await createShortPortalLink(order.id, supabase, order.event_date);
+              if (!portalLinkResult.success) {
+                throw new Error(`Failed to create short link: ${portalLinkResult.error}`);
+              }
+              const message = `Bounce Party Club - Hi! We're reviewing your order #${formatOrderId(order.id)}. Could you please upload pictures of the event location through your customer portal? This helps us prepare better for your event. Link: ${portalLinkResult.url}`;
               await sendSms(message);
 
               setLotPicturesRequestedLocal(true);

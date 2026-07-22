@@ -186,8 +186,10 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
           msg += '\n\n';
           if (!task.waiverSigned) msg += '⚠️ IMPORTANT: Your waiver is not signed yet. ';
           if (task.balanceDue > 0) msg += `⚠️ IMPORTANT: Balance due: ${formatCurrency(task.balanceDue)}. `;
-          const enRoutePortalUrl = await createShortPortalLink(task.orderId, supabase, task.date?.toISOString());
-          msg += `\n\nPlease complete these before we arrive: ${enRoutePortalUrl}`;
+          const enRouteLinkResult = await createShortPortalLink(task.orderId, supabase, task.date?.toISOString());
+          if (enRouteLinkResult.success) {
+            msg += `\n\nPlease complete these before we arrive: ${enRouteLinkResult.url}`;
+          }
         }
         msg += '\n\nPlease ensure there is a clear path for delivery and setup.';
         if (task.hasPets) {
@@ -248,8 +250,10 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
           msg += '\n\n⚠️ Before we unload:\n';
           if (!task.waiverSigned) msg += '• Please sign the waiver\n';
           if (task.balanceDue > 0) msg += `• Complete payment (${formatCurrency(task.balanceDue)})\n`;
-          const arrivedPortalUrl = await createShortPortalLink(task.orderId, supabase, task.date?.toISOString());
-          msg += `\nComplete at: ${arrivedPortalUrl}\n\n`;
+          const arrivedLinkResult = await createShortPortalLink(task.orderId, supabase, task.date?.toISOString());
+          if (arrivedLinkResult.success) {
+            msg += `\nComplete at: ${arrivedLinkResult.url}\n\n`;
+          }
         }
         msg += 'Please:\n• Put up any animals\n• Be ready to inspect the equipment\n• Approve the setup location';
         if (task.hasPets) {

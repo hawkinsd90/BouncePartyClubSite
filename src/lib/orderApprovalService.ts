@@ -161,24 +161,42 @@ export async function approveOrder(
           .maybeSingle();
         const fullOrder = fullOrderRaw as any;
 
-        const declineUrl = await createShortPortalLink(orderId, supabase, fullOrder?.event_date);
+        const declineLinkResult = await createShortPortalLink(orderId, supabase, fullOrder?.event_date);
 
-        if (fullOrder?.customers?.email) {
-          const businessPhone = (await getAdminSetting(ADMIN_SETTING_KEYS.BUSINESS_PHONE)) ?? BUSINESS_PHONE_FALLBACK;
-          const declineEmailHtml = generateCardDeclinedEmail(fullOrder, declineUrl, businessPhone);
-          await sendEmail({
-            to: fullOrder.customers.email,
-            subject: `Action Required: Payment Declined for Order #${formatOrderId(orderId)}`,
-            html: declineEmailHtml,
-          });
-        }
+        if (declineLinkResult.success) {
+          if (fullOrder?.customers?.email) {
+            const businessPhone = (await getAdminSetting(ADMIN_SETTING_KEYS.BUSINESS_PHONE)) ?? BUSINESS_PHONE_FALLBACK;
+            const declineEmailHtml = generateCardDeclinedEmail(fullOrder, declineLinkResult.url, businessPhone);
+            await sendEmail({
+              to: fullOrder.customers.email,
+              subject: `Action Required: Payment Declined for Order #${formatOrderId(orderId)}`,
+              html: declineEmailHtml,
+            });
+          }
 
-        if (fullOrder?.customers?.first_name) {
-          const declineSms = `Bounce Party Club: Hi ${fullOrder.customers.first_name}, your card was declined for Order #${formatOrderId(orderId)}. Your booking could not be confirmed. Please update your payment method at: ${declineUrl}`;
+          if (fullOrder?.customers?.first_name) {
+            const declineSms = `Bounce Party Club: Hi ${fullOrder.customers.first_name}, your card was declined for Order #${formatOrderId(orderId)}. Your booking could not be confirmed. Please update your payment method at: ${declineLinkResult.url}`;
+            try {
+              await sendSms(declineSms);
+            } catch (_smsErr) {
+              console.error('Failed to send decline SMS');
+            }
+          }
+        } else {
+          console.error('[orderApprovalService] Short-link failed, skipping decline notification:', declineLinkResult.error);
           try {
-            await sendSms(declineSms);
-          } catch (_smsErr) {
-            console.error('Failed to send decline SMS');
+            const { error: notifError } = await supabase
+              .from('notification_failures' as any)
+              .insert({
+                order_id: orderId,
+                channel: 'email',
+                message_type: 'card_declined',
+                error_message: declineLinkResult.error,
+                created_at: new Date().toISOString(),
+              });
+            if (notifError) console.error('[orderApprovalService] Failed to log notification failure:', notifError.message);
+          } catch (logErr) {
+            console.error('[orderApprovalService] Failed to log notification failure:', logErr);
           }
         }
       } catch (notifyErr) {
@@ -509,7 +527,27 @@ async function sendConfirmationEmail(orderWithItems: any, totalCents: number) {
     const address = orderWithItems?.addresses as any;
     const items = (orderWithItems?.order_items as any) || [];
 
-    const portalUrl = await createShortPortalLink(orderWithItems.id, supabase, orderWithItems.event_date);
+    const linkResult = await createShortPortalLink(orderWithItems.id, supabase, orderWithItems.event_date);
+
+    if (!linkResult.success) {
+      console.error('[orderApprovalService] Short-link failed, skipping confirmation email:', linkResult.error);
+      try {
+        await supabase
+          .from('notification_failures' as any)
+          .insert({
+            order_id: orderWithItems.id,
+            channel: 'email',
+            message_type: 'booking_confirmation',
+            error_message: linkResult.error,
+            created_at: new Date().toISOString(),
+          });
+      } catch (logErr) {
+        console.error('[orderApprovalService] Failed to log notification failure:', logErr);
+      }
+      return;
+    }
+
+    const portalUrl = linkResult.url;
 
     if (customer?.email) {
       const emailHtml = generateConfirmationReceiptEmail({

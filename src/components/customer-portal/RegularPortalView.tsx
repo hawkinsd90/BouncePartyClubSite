@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
 import { FileText, CreditCard, CheckCircle, Image as ImageIcon, MapPin, Printer, Calendar, MapPin as MapPinIcon, Truck, Navigation, Clock, Package, Lock } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
 import { supabase } from '../../lib/supabase';
+import { resolveCustomerPortalTab, buildTabUrlParam, type PortalTabKey, type PortalNavSection } from '../../lib/customerPortalTab';
 import WaiverTab from '../waiver/WaiverTab';
 import { PaymentTab } from './PaymentTab';
 import { PicturesTab } from './PicturesTab';
@@ -34,7 +35,7 @@ interface RegularPortalViewProps {
   refreshVersion: number;
 }
 
-type TabKey = 'details' | 'lot-pictures' | 'waiver' | 'payment' | 'pictures' | 'delivery';
+type TabKey = PortalTabKey;
 
 interface NavSection {
   key: TabKey;
@@ -45,13 +46,10 @@ interface NavSection {
   lockedReason?: string;
 }
 
-const VALID_TABS: TabKey[] = ['details', 'lot-pictures', 'waiver', 'payment', 'pictures', 'delivery'];
-
 export function RegularPortalView({ order, orderId, orderItems: _orderItems, orderSummary, invoiceLinkToken, onReload, refreshVersion }: RegularPortalViewProps) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const lotPicturesRequested = order.lot_pictures_requested || false;
-  const isInitializedRef = useRef(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [payments, setPayments] = useState<any[]>([]);
   const [lotPicturesUploaded, setLotPicturesUploaded] = useState(false);
@@ -59,20 +57,6 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
   const [isDelivered, setIsDelivered] = useState(false);
   const [existingPictures, setExistingPictures] = useState<any[]>([]);
   const [restoredTipCents, setRestoredTipCents] = useState<number | null>(null);
-
-  // Resolve the initial active tab from the URL query string.
-  function resolveInitialTab(): TabKey {
-    const tabParam = searchParams.get('tab') as TabKey | null;
-    if (tabParam && VALID_TABS.includes(tabParam)) {
-      // Check if the tab is locked — fall back to 'details' if so.
-      // We'll do a proper lock check after sections are built, but for
-      // well-known locked tabs we can check the basic conditions here.
-      return tabParam;
-    }
-    return 'details';
-  }
-
-  const [activeTab, setActiveTab] = useState<TabKey>(resolveInitialTab);
 
   const loadPayments = useCallback(async () => {
     try {
@@ -161,21 +145,6 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
     void results;
   }, [orderId, refreshVersion, loadPayments, loadLotPictures, loadDeliveryStatus, loadExistingPictures]);
 
-  // Sync activeTab to URL query string.
-  useEffect(() => {
-    if (!isInitializedRef.current) return;
-    const currentTabParam = searchParams.get('tab');
-    if (currentTabParam !== activeTab) {
-      const next = new URLSearchParams(searchParams);
-      if (activeTab === 'details') {
-        next.delete('tab');
-      } else {
-        next.set('tab', activeTab);
-      }
-      setSearchParams(next, { replace: true });
-    }
-  }, [activeTab, searchParams, setSearchParams]);
-
   // On mount, read payment-status params and tip restoration.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -185,24 +154,24 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
     const cardUpdated = params.get('card_updated') === 'true';
 
     if (tabParam === 'payment') {
-      setActiveTab('payment');
       if (tipParam) {
         const parsed = parseInt(tipParam, 10);
         if (!isNaN(parsed) && parsed > 0) setRestoredTipCents(parsed);
       }
-      // Clean payment/card params but preserve tab
+      // Clean payment/card params but preserve tab=payment (replace)
       const next = new URLSearchParams(window.location.search);
       next.delete('payment');
       next.delete('card_updated');
       next.delete('tip');
       setSearchParams(next, { replace: true });
     } else if (cardUpdated) {
-      setActiveTab('payment');
       if (tipParam) {
         const parsed = parseInt(tipParam, 10);
         if (!isNaN(parsed) && parsed > 0) setRestoredTipCents(parsed);
       }
+      // Set tab=payment and clean card params (replace)
       const next = new URLSearchParams(window.location.search);
+      next.set('tab', 'payment');
       next.delete('card_updated');
       next.delete('tip');
       setSearchParams(next, { replace: true });
@@ -217,31 +186,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
       next.delete('payment');
       setSearchParams(next, { replace: true });
     }
-    isInitializedRef.current = true;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Validate that a tab is currently accessible given the sections array.
-  function isTabAccessible(tab: TabKey, sectionsArr: NavSection[]): boolean {
-    const section = sectionsArr.find(s => s.key === tab);
-    if (!section) return false;
-    return !section.locked;
-  }
-
-  // Handle tab selection with locked-tab fallback.
-  function handleTabSelect(tab: TabKey, _locked: boolean) {
-    setActiveTab(tab);
-  }
-
-  // After sections are built, validate the current activeTab.
-  // If it's locked or invalid, fall back to 'details'.
-  // sections is built later in render; we use a ref to avoid TDZ.
-  const sectionsRef = useRef<NavSection[]>([]);
-  useEffect(() => {
-    if (!isInitializedRef.current) return;
-    if (activeTab !== 'details' && !isTabAccessible(activeTab, sectionsRef.current)) {
-      setActiveTab('details');
-    }
-  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSubmitPictures(files: File[], notes: string) {
     try {
@@ -316,7 +261,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
   // Lot Pics is always available as a distinct section (pre-event location photos).
   // It is separate from the Pictures tab (delivery/proof photos).
   sections.push({
-    key: 'lot-pictures',
+    key: 'lot-pics',
     label: 'Lot Pics',
     icon: MapPin,
     status: lotPicturesUploaded ? 'Complete' : lotPicturesRequested ? 'Required' : 'Optional',
@@ -360,7 +305,39 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
     lockedReason: !deliveryPhotosAvailable ? 'Delivery photos appear here after crew completes setup' : undefined,
   });
 
-  sectionsRef.current = sections;
+  // URL is the single source of truth for the active tab.
+  const activeTab = resolveCustomerPortalTab({
+    requestedTab: searchParams.get('tab'),
+    sections: sections as PortalNavSection[],
+  });
+
+  // If the URL tab is locked/invalid, resolveCustomerPortalTab returns 'details'.
+  // If the URL says something else but the resolved tab is 'details', update the URL.
+  useEffect(() => {
+    const urlTab = searchParams.get('tab');
+    const expectedParam = buildTabUrlParam(activeTab);
+    if (urlTab !== expectedParam) {
+      const next = new URLSearchParams(searchParams);
+      if (expectedParam === null) {
+        next.delete('tab');
+      } else {
+        next.set('tab', expectedParam);
+      }
+      setSearchParams(next, { replace: true });
+    }
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle tab click — push to URL history (not replace).
+  function handleTabSelect(tab: TabKey) {
+    const next = new URLSearchParams(searchParams);
+    const paramValue = buildTabUrlParam(tab);
+    if (paramValue === null) {
+      next.delete('tab');
+    } else {
+      next.set('tab', paramValue);
+    }
+    setSearchParams(next);
+  }
 
   function getSectionStyles(section: NavSection, isActive: boolean): string {
     const base = 'flex flex-col items-center justify-center gap-1.5 rounded-xl p-3 min-h-[56px] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2';
@@ -441,7 +418,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                   return (
                     <button
                       key={section.key}
-                      onClick={() => !section.locked && handleTabSelect(section.key, section.locked)}
+                      onClick={() => !section.locked && handleTabSelect(section.key)}
                       disabled={section.locked}
                       aria-current={isActive ? 'page' : undefined}
                       aria-disabled={section.locked}
@@ -697,7 +674,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
               </div>
             )}
 
-            {activeTab === 'lot-pictures' && (
+            {activeTab === 'lot-pics' && (
               <LotPicturesTab
                 orderId={orderId}
                 orderNumber={order.order_number}
