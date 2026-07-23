@@ -215,18 +215,10 @@ export function useQuoteForm() {
         location_type: _lt,
         pickup_preference: _pp,
         can_stake: _cs,
-        _version,
-        ...safeFormData
+        ...restFormData
       } = parsedFormData;
 
-      // Legacy stored forms (version < 2) may contain auto-generated
-      // 09:00/17:00 times that were never explicitly selected by the
-      // customer. Clear them so a new Quote starts with blank times.
-      // Explicitly selected times are only saved under version >= 2.
-      if (!_version || _version < FORM_STORAGE_VERSION) {
-        safeFormData.start_window = '';
-        safeFormData.end_window = '';
-      }
+      const safeFormData = normalizeStoredQuoteForm(restFormData);
 
       setFormData(prev => ({
         ...prev,

@@ -210,15 +210,24 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete, suppres
 
       await Promise.all(uploadPromises);
       notifySuccess(`Successfully uploaded ${files.length} picture${files.length > 1 ? 's' : ''}`);
+
+      // Release the upload guard so loadPictures can proceed, then reload
+      // the local list and update the parent completion indicator before
+      // releasing the realtime-suppression ref.
+      uploadingRef.current = false;
       await loadPictures();
 
       // Notify admin about the upload
       await notifyAdminOfPictureUpload(orderId, files.length);
 
-      // Notify parent to refresh status
+      // Notify parent to refresh status indicator
       if (onUploadComplete) {
         onUploadComplete();
       }
+
+      // Release suppression last so the realtime event (if any arrives)
+      // does not trigger a full Portal reload before the local list is updated.
+      if (suppressRefreshRef) suppressRefreshRef.current = false;
     } catch (error: any) {
       const msg = error.message || 'Failed to upload pictures';
       console.error('[LotPicturesTab] Upload failed:', msg, error);

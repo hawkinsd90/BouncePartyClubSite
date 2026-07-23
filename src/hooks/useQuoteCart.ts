@@ -289,6 +289,21 @@ export function useQuoteCart() {
         return item;
       });
 
+      // Only update state when at least one item's availability actually
+      // changed. When the newly calculated availability is identical to the
+      // current cart, return the existing reference and skip setCart so the
+      // date-change effect settles instead of re-triggering the RPC.
+      const availabilityChanged = mergedCart.some((item, i) => {
+        const prev = baseCart[i];
+        const prevAvail = (prev as any).isAvailable;
+        const newAvail = (item as any).isAvailable;
+        return prevAvail !== newAvail;
+      });
+
+      if (!availabilityChanged) {
+        return { cart: baseCart, eventEssentialsCheckFailed };
+      }
+
       cartRef.current = mergedCart;
       setCart(mergedCart);
       persistCart(mergedCart);
