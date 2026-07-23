@@ -69,14 +69,12 @@ export function ApprovalModal({
 
     if (!orderItems || orderItems.length === 0) return true;
 
-    const checks = orderItems
-      .filter((item: any) => item.unit_id != null)
-      .map((item: any) => ({
-        unitId: item.unit_id,
-        eventStartDate: order.event_date,
-        eventEndDate: order.event_end_date || order.event_date,
-        excludeOrderId: order.id,
-      }));
+    const checks = orderItems.map((item: any) => ({
+      unitId: item.unit_id,
+      eventStartDate: order.event_date,
+      eventEndDate: order.event_end_date || order.event_date,
+      excludeOrderId: order.id,
+    }));
 
     const results = await checkMultipleUnitsAvailability(checks);
     const unavailable = results.filter((r) => !r.isAvailable);
