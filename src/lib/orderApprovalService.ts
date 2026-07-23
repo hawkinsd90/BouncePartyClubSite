@@ -105,20 +105,21 @@ export async function approveOrder(
         throw new Error('This order has already been confirmed or cancelled. Refresh the page to see the current status.');
       }
 
-      const { data: orderWithRelationsNoDeposit } = await supabase
+      const { data: orderWithRelationsNoDeposit, error: reloadErrorNoDeposit } = await supabase
         .from('orders')
         .select('*, customers (*), addresses (*), order_items (*, units (*))')
         .eq('id', orderId)
         .maybeSingle();
 
-      const customerNoDeposit = orderWithRelationsNoDeposit?.customers as any;
       // Use effective total including relational custom fees and discounts.
       const orderCustomFeesNoDeposit = (orderData as any).order_custom_fees || [];
       const orderDiscountsNoDeposit = (orderData as any).order_discounts || [];
       const totalCentsNoDeposit = calculateTotalFromOrder(orderData, orderDiscountsNoDeposit, orderCustomFeesNoDeposit);
 
       let notificationWarning: string | undefined;
-      if (customerNoDeposit) {
+      if (reloadErrorNoDeposit || !orderWithRelationsNoDeposit) {
+        notificationWarning = 'The order was approved, but confirmation details could not be loaded. Retry the notification from the order.';
+      } else {
         try {
           const notifResult = await sendApprovalConfirmationNotifications(
             orderWithRelationsNoDeposit,
@@ -169,66 +170,34 @@ export async function approveOrder(
     if (!response.ok || !data.success) {
       // BPC-SECURITY-HARDENING: raw response object removed — could expose Stripe error internals in browser console.
       console.error('Charge deposit failed:', data?.error || '(no error message)');
-      // Send decline notification to customer
+      const safePaymentReason = typeof data?.error === 'string' && data.error.trim() !== ''
+        ? data.error.trim()
+        : 'Failed to charge card.';
+
+      let declineNotificationResult: NotificationChannelResult;
       try {
-        const { data: fullOrderRaw } = await supabase
+        const { data: fullOrderRaw, error: fullOrderError } = await supabase
           .from('orders')
           .select('*, customers(*), addresses(*)')
           .eq('id', orderId)
           .maybeSingle();
-        const fullOrder = fullOrderRaw as any;
 
-        const declineLinkResult = await createShortPortalLink(orderId, supabase, fullOrder?.event_date);
-
-        if (declineLinkResult.success) {
-          if (fullOrder?.customers?.email) {
-            const businessPhone = (await getAdminSetting(ADMIN_SETTING_KEYS.BUSINESS_PHONE)) ?? BUSINESS_PHONE_FALLBACK;
-            const declineEmailHtml = generateCardDeclinedEmail(fullOrder, declineLinkResult.url, businessPhone);
-            await sendEmail({
-              to: fullOrder.customers.email,
-              subject: `Action Required: Payment Declined for Order #${formatOrderId(orderId)}`,
-              html: declineEmailHtml,
-            });
-          }
-
-          if (fullOrder?.customers?.first_name) {
-            const declineSms = `Bounce Party Club: Hi ${fullOrder.customers.first_name}, your card was declined for Order #${formatOrderId(orderId)}. Your booking could not be confirmed. Please update your payment method at: ${declineLinkResult.url}`;
-            try {
-              await sendSms(declineSms);
-            } catch (_smsErr) {
-              console.error('Failed to send decline SMS');
-            }
-          }
+        if (fullOrderError || !fullOrderRaw) {
+          declineNotificationResult = { emailSent: null, smsSent: null, errors: ['The order was not confirmed, and customer notification details could not be loaded.'] };
         } else {
-          console.error('[orderApprovalService] Short-link failed, skipping decline notification:', declineLinkResult.error);
-          try {
-            await supabase
-              .from('notification_failures' as any)
-              .insert([
-                {
-                  order_id: orderId,
-                  channel: 'email',
-                  message_type: 'card_declined',
-                  error_message: declineLinkResult.error,
-                  created_at: new Date().toISOString(),
-                },
-                {
-                  order_id: orderId,
-                  channel: 'sms',
-                  message_type: 'card_declined',
-                  error_message: declineLinkResult.error,
-                  created_at: new Date().toISOString(),
-                },
-              ]);
-          } catch (logErr) {
-            console.error('[orderApprovalService] Failed to log notification failure:', logErr);
-          }
+          declineNotificationResult = await sendCardDeclinedNotifications(
+            fullOrderRaw as any,
+            orderId,
+            sendSms,
+          );
         }
-      } catch (notifyErr) {
+      } catch (notifyErr: any) {
         console.error('Failed to send decline notifications:', notifyErr);
+        declineNotificationResult = { emailSent: null, smsSent: null, errors: ['Decline notification failed unexpectedly.'] };
       }
 
-      throw new Error(data.error || 'Failed to charge card. Customer has been notified via email and SMS.');
+      const declineMessage = buildDeclineAdminMessage(safePaymentReason, declineNotificationResult);
+      throw new Error(declineMessage);
     }
 
     // BPC-SECURITY-HARDENING: deposit response logging removed — Stripe IDs must not appear in browser console in production.
@@ -331,16 +300,16 @@ export async function approveOrder(
       console.error('[orderApprovalService] Invoice insert failed (non-fatal, order already confirmed):', invoiceError);
     }
 
-    const { data: orderWithRelations } = await supabase
+    const { data: orderWithRelations, error: reloadError } = await supabase
       .from('orders')
       .select(`*, customers (*), addresses (*), order_items (*, units (*))`)
       .eq('id', orderId)
       .maybeSingle();
 
-    const customer = orderWithRelations?.customers as any;
-
     let notificationWarning: string | undefined;
-    if (customer) {
+    if (reloadError || !orderWithRelations) {
+      notificationWarning = 'The order was approved, but confirmation details could not be loaded. Retry the notification from the order.';
+    } else {
       try {
         const notifResult = await sendApprovalConfirmationNotifications(
           orderWithRelations,
@@ -545,6 +514,14 @@ function generateCardDeclinedEmail(order: any, portalUrl: string, businessPhone:
 </html>`;
 }
 
+function hasEmailChannel(customer: any): boolean {
+  return typeof customer?.email === 'string' && customer.email.trim() !== '';
+}
+
+function hasPhoneChannel(customer: any): boolean {
+  return typeof customer?.phone === 'string' && customer.phone.trim() !== '';
+}
+
 export async function sendApprovalConfirmationNotifications(
   orderWithItems: any,
   totalCents: number,
@@ -562,6 +539,16 @@ export async function sendApprovalConfirmationNotifications(
   const sb = deps?.supabaseClient ?? supabase;
 
   try {
+    const customer = orderWithItems?.customers as any;
+    const hasEmail = hasEmailChannel(customer);
+    const hasPhone = hasPhoneChannel(customer);
+
+    // 1. No contact channels — skip short link, payment query, and failure rows
+    if (!hasEmail && !hasPhone) {
+      result.errors.push('No customer email address or phone number was available.');
+      return result;
+    }
+
     const { data: payment } = await sb
       .from('payments')
       .select('*')
@@ -572,33 +559,38 @@ export async function sendApprovalConfirmationNotifications(
       .limit(1)
       .maybeSingle();
 
-    const customer = orderWithItems?.customers as any;
     const address = orderWithItems?.addresses as any;
     const items = (orderWithItems?.order_items as any) || [];
 
-    // 1. Create one short portal link shared by both channels
+    // 2. Create one short portal link shared by all available channels
     const linkResult = await createLink(orderWithItems.id, sb, orderWithItems.event_date);
 
     if (!linkResult.success) {
       console.error('[orderApprovalService] Short-link failed, skipping all confirmation notifications:', linkResult.error);
-      try {
-        await sb.from('notification_failures' as any).insert([
-          { order_id: orderWithItems.id, channel: 'email', message_type: 'booking_confirmation', error_message: linkResult.error, created_at: new Date().toISOString() },
-          { order_id: orderWithItems.id, channel: 'sms', message_type: 'booking_confirmation', error_message: linkResult.error, created_at: new Date().toISOString() },
-        ]);
-      } catch (logErr) {
-        console.error('[orderApprovalService] Failed to log notification failure:', logErr);
+      const failureRows: any[] = [];
+      if (hasEmail) {
+        result.emailSent = false;
+        failureRows.push({ order_id: orderWithItems.id, channel: 'email', message_type: 'booking_confirmation', error_message: linkResult.error, created_at: new Date().toISOString() });
       }
-      result.emailSent = false;
-      result.smsSent = false;
+      if (hasPhone) {
+        result.smsSent = false;
+        failureRows.push({ order_id: orderWithItems.id, channel: 'sms', message_type: 'booking_confirmation', error_message: linkResult.error, created_at: new Date().toISOString() });
+      }
+      if (failureRows.length > 0) {
+        try {
+          await sb.from('notification_failures' as any).insert(failureRows);
+        } catch (logErr) {
+          console.error('[orderApprovalService] Failed to log notification failure:', logErr);
+        }
+      }
       result.errors.push(linkResult.error);
       return result;
     }
 
     const portalUrl = linkResult.url!;
 
-    // 2. Send email if address exists
-    if (customer?.email) {
+    // 3. Send email only when email exists
+    if (hasEmail) {
       const emailHtml = generateConfirmationReceiptEmail({
         order: orderWithItems,
         customer,
@@ -632,8 +624,8 @@ export async function sendApprovalConfirmationNotifications(
       }
     }
 
-    // 3. Send SMS if phone exists
-    if (customer?.phone) {
+    // 4. Send SMS only when phone exists
+    if (hasPhone) {
       const smsMessage = generateConfirmationSmsMessage(orderWithItems, customer.first_name, portalUrl);
       try {
         const smsOk = await sendSmsFn(smsMessage);
@@ -665,15 +657,156 @@ export async function sendApprovalConfirmationNotifications(
       }
     }
 
-    // 4. No contact channels at all
-    if (!customer?.email && !customer?.phone) {
-      result.errors.push('No customer email address or phone number was available.');
-    }
-
     return result;
   } catch (err: any) {
     console.error('[orderApprovalService] Confirmation notifications error:', err);
     result.errors.push((err as any)?.message || 'Unknown error');
     return result;
   }
+}
+
+export async function sendCardDeclinedNotifications(
+  order: any,
+  orderId: string,
+  sendSmsFn: (message: string) => Promise<boolean>,
+  deps?: {
+    createLink?: typeof createShortPortalLink;
+    sendEmailFn?: typeof sendEmail;
+    supabaseClient?: typeof supabase;
+  },
+): Promise<NotificationChannelResult> {
+  const result: NotificationChannelResult = { emailSent: null, smsSent: null, errors: [] };
+
+  const createLink = deps?.createLink ?? createShortPortalLink;
+  const sendEmailImpl = deps?.sendEmailFn ?? sendEmail;
+  const sb = deps?.supabaseClient ?? supabase;
+
+  try {
+    const customer = order?.customers as any;
+    const hasEmail = hasEmailChannel(customer);
+    const hasPhone = hasPhoneChannel(customer);
+
+    // 1. No contact channels — do not create short link or failure rows
+    if (!hasEmail && !hasPhone) {
+      result.errors.push('No customer email address or phone number was available.');
+      return result;
+    }
+
+    // 2. Create one short portal link shared by all available channels
+    const linkResult = await createLink(orderId, sb, order?.event_date);
+
+    if (!linkResult.success) {
+      console.error('[orderApprovalService] Short-link failed, skipping decline notifications:', linkResult.error);
+      const failureRows: any[] = [];
+      if (hasEmail) {
+        result.emailSent = false;
+        failureRows.push({ order_id: orderId, channel: 'email', message_type: 'card_declined', error_message: linkResult.error, created_at: new Date().toISOString() });
+      }
+      if (hasPhone) {
+        result.smsSent = false;
+        failureRows.push({ order_id: orderId, channel: 'sms', message_type: 'card_declined', error_message: linkResult.error, created_at: new Date().toISOString() });
+      }
+      if (failureRows.length > 0) {
+        try {
+          await sb.from('notification_failures' as any).insert(failureRows);
+        } catch (logErr) {
+          console.error('[orderApprovalService] Failed to log notification failure:', logErr);
+        }
+      }
+      result.errors.push(linkResult.error);
+      return result;
+    }
+
+    const portalUrl = linkResult.url!;
+
+    // 3. Send email only when email exists
+    if (hasEmail) {
+      const businessPhone = (await getAdminSetting(ADMIN_SETTING_KEYS.BUSINESS_PHONE)) ?? BUSINESS_PHONE_FALLBACK;
+      const declineEmailHtml = generateCardDeclinedEmail(order, portalUrl, businessPhone);
+      try {
+        await sendEmailImpl({
+          to: customer.email,
+          subject: `Action Required: Payment Declined for Order #${formatOrderId(orderId)}`,
+          html: declineEmailHtml,
+        });
+        result.emailSent = true;
+      } catch (emailErr: any) {
+        console.error('[orderApprovalService] Decline email send failed:', emailErr);
+        result.emailSent = false;
+        const errMsg = (emailErr as any)?.message || 'Email send failed';
+        result.errors.push(`Email: ${errMsg}`);
+        try {
+          await sb.from('notification_failures' as any).insert({
+            order_id: orderId, channel: 'email', message_type: 'card_declined',
+            error_message: errMsg, created_at: new Date().toISOString(),
+          });
+        } catch (logErr) {
+          console.error('[orderApprovalService] Failed to log email failure:', logErr);
+        }
+      }
+    }
+
+    // 4. Send SMS only when phone exists
+    if (hasPhone) {
+      const firstName = customer?.first_name || 'Customer';
+      const declineSms = `Bounce Party Club: Hi ${firstName}, your card was declined for Order #${formatOrderId(orderId)}. Your booking could not be confirmed. Please update your payment method at: ${portalUrl}`;
+      try {
+        const smsOk = await sendSmsFn(declineSms);
+        result.smsSent = smsOk;
+        if (!smsOk) {
+          result.errors.push('SMS: send returned false');
+          try {
+            await sb.from('notification_failures' as any).insert({
+              order_id: orderId, channel: 'sms', message_type: 'card_declined',
+              error_message: 'SMS send returned false', created_at: new Date().toISOString(),
+            });
+          } catch (logErr) {
+            console.error('[orderApprovalService] Failed to log SMS failure:', logErr);
+          }
+        }
+      } catch (smsErr: any) {
+        console.error('[orderApprovalService] Decline SMS send failed:', smsErr);
+        result.smsSent = false;
+        const errMsg = (smsErr as any)?.message || 'SMS send failed';
+        result.errors.push(`SMS: ${errMsg}`);
+        try {
+          await sb.from('notification_failures' as any).insert({
+            order_id: orderId, channel: 'sms', message_type: 'card_declined',
+            error_message: errMsg, created_at: new Date().toISOString(),
+          });
+        } catch (logErr) {
+          console.error('[orderApprovalService] Failed to log SMS failure:', logErr);
+        }
+      }
+    }
+
+    return result;
+  } catch (err: any) {
+    console.error('[orderApprovalService] Decline notifications error:', err);
+    result.errors.push((err as any)?.message || 'Unknown error');
+    return result;
+  }
+}
+
+export function buildDeclineAdminMessage(
+  paymentReason: string,
+  notifResult: NotificationChannelResult,
+): string {
+  const hasEmail = notifResult.emailSent === true;
+  const hasSms = notifResult.smsSent === true;
+  const noContact = notifResult.errors.some(e => e.includes('No customer email address or phone number'));
+
+  if (noContact) {
+    return `${paymentReason} The order was not confirmed. No customer email address or phone number was available.`;
+  }
+
+  if (hasEmail && hasSms) {
+    return `${paymentReason} The order was not confirmed. The customer was notified.`;
+  }
+
+  if (notifResult.errors.length > 0 || notifResult.emailSent === false || notifResult.smsSent === false) {
+    return `${paymentReason} The order was not confirmed. The customer notification also failed; contact the customer manually.`;
+  }
+
+  return `${paymentReason} The order was not confirmed. The customer was notified.`;
 }
