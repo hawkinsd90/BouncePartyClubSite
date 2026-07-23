@@ -361,7 +361,7 @@ export function OrderDetailsTab({
         onClear={onDepositClear}
       />
 
-      {newDepositDueCents === 0 && (
+      {newDepositDueCents === 0 && !order.stripe_payment_method_id && (
         <CardOnFileRequirement
           requireCardOnFile={requireCardOnFile}
           onChange={onRequireCardOnFileChange}
