@@ -239,7 +239,7 @@ export function Quote() {
     } else {
       setDateChangeAvailabilityError(null);
     }
-  }, [formData.event_date, formData.event_end_date, cart.length]);
+  }, [formData.event_date, formData.event_end_date, cart, checkAllCartAvailability]);
 
   useEffect(() => {
     if (!formData.event_date) {

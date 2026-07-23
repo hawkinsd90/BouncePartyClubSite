@@ -3,9 +3,21 @@
 //
 // Expands Event Essentials packages into their physical component products
 // using the saved order_items.component_snapshot, multiplying each component
-// quantity by the package order-item qty. Direct EE products use their saved
-// item_name and qty. Inflatable items keep their existing "Name (Dry|Water)"
-// label. Package marketing names are never shown as physical equipment.
+// quantity_per_bundle by the package order-item qty. Direct EE products use
+// their saved item_name and qty. Inflatable items keep their existing
+// "Name (Dry|Water)" label. Package marketing names are never shown as
+// physical equipment.
+//
+// Primary snapshot contract:
+//   component_snapshot: {
+//     bundle_name: string,
+//     bundle_description?: string | null,
+//     components: [
+//       { product_id, product_name, quantity_per_bundle }
+//     ]
+//   }
+//
+// Legacy array shape is supported defensively but is not the primary contract.
 
 export interface OperationalEquipmentItem {
   name: string;
@@ -15,6 +27,37 @@ export interface OperationalEquipmentItem {
 }
 
 export const PACKAGE_CONTENTS_UNAVAILABLE = 'Package contents unavailable';
+
+interface NormalizedComponent {
+  name: string;
+  quantity: number;
+}
+
+function normalizeSnapshotComponents(snapshot: any): NormalizedComponent[] {
+  if (!snapshot) return [];
+
+  // Primary contract: { components: [...] }
+  if (!Array.isArray(snapshot) && snapshot && typeof snapshot === 'object') {
+    const components = snapshot.components;
+    if (Array.isArray(components)) {
+      return components.map((c: any) => ({
+        name: c.product_name || c.name || 'Unknown component',
+        quantity: c.quantity_per_bundle ?? c.quantity ?? 1,
+      }));
+    }
+    return [];
+  }
+
+  // Legacy defensive: bare array of component objects
+  if (Array.isArray(snapshot)) {
+    return snapshot.map((c: any) => ({
+      name: c.product_name || c.name || 'Unknown component',
+      quantity: c.quantity_per_bundle ?? c.quantity ?? 1,
+    }));
+  }
+
+  return [];
+}
 
 export function formatOperationalEquipment(orderItems: any[]): OperationalEquipmentItem[] {
   const result: OperationalEquipmentItem[] = [];
@@ -35,14 +78,12 @@ export function formatOperationalEquipment(orderItems: any[]): OperationalEquipm
 
     // Event Essentials package — expand from saved component_snapshot
     if (item.bundle_id) {
-      const snapshot = item.component_snapshot;
-      if (Array.isArray(snapshot) && snapshot.length > 0) {
-        for (const comp of snapshot) {
-          const compName = comp.name || comp.product_name || 'Unknown component';
-          const compQty = (comp.quantity || 1) * qty;
+      const components = normalizeSnapshotComponents(item.component_snapshot);
+      if (components.length > 0) {
+        for (const comp of components) {
           result.push({
-            name: compName,
-            qty: compQty,
+            name: comp.name,
+            qty: comp.quantity * qty,
             kind: 'event_essential',
           });
         }

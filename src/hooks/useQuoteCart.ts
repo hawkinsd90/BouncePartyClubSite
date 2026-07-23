@@ -198,14 +198,19 @@ export function useQuoteCart() {
         return { cart: cartRef.current, eventEssentialsCheckFailed: false };
       }
 
+      // Snapshot the cart at the start so async RPC results are merged into
+      // the same cart we inspected, not a cart that may have been replaced
+      // by the repricing hook while we were awaiting the RPC.
+      const snapshotCart = cartRef.current;
+
       const inflatableEntries: { item: InflatableCartItem; cartIndex: number }[] = [];
-      cartRef.current.forEach((item, cartIndex) => {
+      snapshotCart.forEach((item, cartIndex) => {
         if (isInflatableCartItem(item)) {
           inflatableEntries.push({ item, cartIndex });
         }
       });
 
-      const eventEssentialsItems = cartRef.current.filter(
+      const eventEssentialsItems = snapshotCart.filter(
         (item) =>
           isEventEssentialProductCartItem(item) ||
           isEventEssentialBundleCartItem(item)
@@ -215,7 +220,7 @@ export function useQuoteCart() {
       const hasEventEssentials = eventEssentialsItems.length > 0;
 
       if (!hasInflatables && !hasEventEssentials) {
-        return { cart: cartRef.current, eventEssentialsCheckFailed: false };
+        return { cart: snapshotCart, eventEssentialsCheckFailed: false };
       }
 
       const inflatableRequests = inflatableEntries.map(({ item }) => ({
@@ -248,37 +253,48 @@ export function useQuoteCart() {
           : Promise.resolve([]),
       ]);
 
-      const mergedCart = [...cartRef.current];
-
-      inflatableEntries.forEach((entry, resultIndex) => {
-        mergedCart[entry.cartIndex] = {
-          ...entry.item,
-          isAvailable: inflatableResults[resultIndex]?.isAvailable ?? true,
-        };
-      });
-
-      if (!eventEssentialsCheckFailed) {
-        mergedCart.forEach((item, index) => {
+      // Merge results into the snapshot. If cartRef.current was replaced
+      // while we were awaiting, prefer the newer cart but still apply
+      // availability flags by matching item identity (unit_id / product_id /
+      // bundle_id).
+      const baseCart = cartRef.current;
+      const mergedCart = baseCart.map((item) => {
+        if (isInflatableCartItem(item)) {
+          const entry = inflatableEntries.find(
+            (e) => e.item.unit_id === item.unit_id,
+          );
+          if (entry) {
+            const resultIndex = inflatableEntries.indexOf(entry);
+            return {
+              ...item,
+              isAvailable: inflatableResults[resultIndex]?.isAvailable ?? true,
+            };
+          }
+          return item;
+        }
+        if (!eventEssentialsCheckFailed) {
           if (isEventEssentialProductCartItem(item)) {
-            mergedCart[index] = {
+            return {
               ...item,
               isAvailable: mapProductAvailabilityToItem(item, productResults),
             };
-          } else if (isEventEssentialBundleCartItem(item)) {
-            mergedCart[index] = {
+          }
+          if (isEventEssentialBundleCartItem(item)) {
+            return {
               ...item,
               isAvailable: mapBundleAvailabilityToItem(item, productResults),
             };
           }
-        });
-      }
+        }
+        return item;
+      });
 
       cartRef.current = mergedCart;
       setCart(mergedCart);
       persistCart(mergedCart);
       return { cart: mergedCart, eventEssentialsCheckFailed };
     },
-    []
+    [],
   );
 
   return {

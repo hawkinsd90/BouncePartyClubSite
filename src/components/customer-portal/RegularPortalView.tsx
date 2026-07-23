@@ -33,6 +33,7 @@ interface RegularPortalViewProps {
   invoiceLinkToken?: string | null;
   onReload: () => void;
   refreshVersion: number;
+  suppressRefreshRef?: React.MutableRefObject<boolean>;
 }
 
 type TabKey = PortalTabKey;
@@ -46,7 +47,7 @@ interface NavSection {
   lockedReason?: string;
 }
 
-export function RegularPortalView({ order, orderId, orderItems: _orderItems, orderSummary, invoiceLinkToken, onReload, refreshVersion }: RegularPortalViewProps) {
+export function RegularPortalView({ order, orderId, orderItems: _orderItems, orderSummary, invoiceLinkToken, onReload, refreshVersion, suppressRefreshRef }: RegularPortalViewProps) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const lotPicturesRequested = order.lot_pictures_requested || false;
@@ -679,7 +680,8 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                 orderId={orderId}
                 orderNumber={order.order_number}
                 orderStatus={order.status}
-                onUploadComplete={() => { loadLotPictures(); onReload(); }}
+                onUploadComplete={() => { loadLotPictures(); }}
+                suppressRefreshRef={suppressRefreshRef}
               />
             )}
 

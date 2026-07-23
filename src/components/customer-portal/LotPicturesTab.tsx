@@ -11,6 +11,7 @@ interface LotPicturesTabProps {
   orderNumber: string;
   orderStatus?: string;
   onUploadComplete?: () => void;
+  suppressRefreshRef?: React.MutableRefObject<boolean>;
 }
 
 async function notifyAdminOfPictureUpload(orderId: string, pictureCount: number) {
@@ -108,7 +109,7 @@ interface LotPicture {
   uploaded_at: string;
 }
 
-export function LotPicturesTab({ orderId, orderStatus, onUploadComplete }: LotPicturesTabProps) {
+export function LotPicturesTab({ orderId, orderStatus, onUploadComplete, suppressRefreshRef }: LotPicturesTabProps) {
   const [pictures, setPictures] = useState<LotPicture[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -126,6 +127,7 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete }: LotPi
   }, [orderId]);
 
   const loadPictures = async () => {
+    if (uploadingRef.current) return;
     try {
       const { data, error } = await supabase
         .from('order_lot_pictures' as any)
@@ -157,6 +159,7 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete }: LotPi
 
     setUploading(true);
     uploadingRef.current = true;
+    if (suppressRefreshRef) suppressRefreshRef.current = true;
     setUploadError(null);
 
     try {
@@ -224,6 +227,7 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete }: LotPi
     } finally {
       setUploading(false);
       uploadingRef.current = false;
+      if (suppressRefreshRef) suppressRefreshRef.current = false;
       // Reset input so the same file can be selected again
       event.target.value = '';
     }

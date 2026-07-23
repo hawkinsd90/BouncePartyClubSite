@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useLocation, useSearchParams } from 'react-router-dom';
 import { AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -45,6 +45,7 @@ export function CustomerPortal() {
   const [approvalProcessing, setApprovalProcessing] = useState(false);
   const [invoiceProcessing, setInvoiceProcessing] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const suppressRefreshRef = useRef(false);
 
   const { data, loading, loadOrder } = useOrderData();
 
@@ -62,6 +63,7 @@ export function CustomerPortal() {
     orderId: resolvedOrderId,
     reload: async () => { await reloadPortalData(); },
     isApprovalSuccess: approvalSuccess || approvalProcessing || invoiceProcessing,
+    suppressRefreshRef,
   });
 
   useEffect(() => {
@@ -250,6 +252,7 @@ export function CustomerPortal() {
       invoiceLinkToken={invoiceToken}
       onReload={handleReload}
       refreshVersion={refreshVersion}
+      suppressRefreshRef={suppressRefreshRef}
     />
   );
 }

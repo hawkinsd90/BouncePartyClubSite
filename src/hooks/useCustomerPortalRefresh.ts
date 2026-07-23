@@ -5,6 +5,7 @@ interface UseCustomerPortalRefreshOptions {
   orderId: string | undefined;
   reload: () => Promise<void>;
   isApprovalSuccess: boolean;
+  suppressRefreshRef?: React.MutableRefObject<boolean>;
 }
 
 const DEBOUNCE_MS = 800;
@@ -14,6 +15,7 @@ export function useCustomerPortalRefresh({
   orderId,
   reload,
   isApprovalSuccess,
+  suppressRefreshRef,
 }: UseCustomerPortalRefreshOptions) {
   const reloadRef = useRef(reload);
   reloadRef.current = reload;
@@ -26,6 +28,7 @@ export function useCustomerPortalRefresh({
 
   const doReload = useCallback(async () => {
     if (approvalSuccessRef.current) return;
+    if (suppressRefreshRef?.current) return;
 
     const now = Date.now();
     if (now - lastReloadAtRef.current < DEDUP_WINDOW_MS) return;
@@ -48,7 +51,7 @@ export function useCustomerPortalRefresh({
         doReload();
       }
     }
-  }, []);
+  }, [suppressRefreshRef]);
 
   useEffect(() => {
     if (!orderId) return;
@@ -56,6 +59,7 @@ export function useCustomerPortalRefresh({
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
     const debouncedReload = () => {
+      if (suppressRefreshRef?.current) return;
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => doReload(), DEBOUNCE_MS);
     };
@@ -93,7 +97,7 @@ export function useCustomerPortalRefresh({
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       supabase.removeChannel(channel);
     };
-  }, [orderId, doReload]);
+  }, [orderId, doReload, suppressRefreshRef]);
 
   return { doReload };
 }

@@ -50,6 +50,7 @@ const initialFormData: QuoteFormData = {
 };
 
 const FORM_STORAGE_KEY = 'bpc_quote_form';
+const FORM_STORAGE_VERSION = 2;
 
 export function useQuoteForm() {
   const [formData, setFormData] = useState<QuoteFormData>(initialFormData);
@@ -78,7 +79,7 @@ export function useQuoteForm() {
     const timeoutId = setTimeout(() => {
       // Only save if there's meaningful data
       if (formData.event_date || formData.address_line1) {
-        SafeStorage.setItem(FORM_STORAGE_KEY, formData, { expirationDays: 7 });
+        SafeStorage.setItem(FORM_STORAGE_KEY, { ...formData, _version: FORM_STORAGE_VERSION }, { expirationDays: 7 });
       }
     }, 500);
 
@@ -203,7 +204,7 @@ export function useQuoteForm() {
   }
 
   function loadSavedForm() {
-    const parsedFormData = SafeStorage.getItem<QuoteFormData>(FORM_STORAGE_KEY, {
+    const parsedFormData = SafeStorage.getItem<QuoteFormData & { _version?: number }>(FORM_STORAGE_KEY, {
       expirationDays: 7
     });
 
@@ -214,8 +215,19 @@ export function useQuoteForm() {
         location_type: _lt,
         pickup_preference: _pp,
         can_stake: _cs,
+        _version,
         ...safeFormData
       } = parsedFormData;
+
+      // Legacy stored forms (version < 2) may contain auto-generated
+      // 09:00/17:00 times that were never explicitly selected by the
+      // customer. Clear them so a new Quote starts with blank times.
+      // Explicitly selected times are only saved under version >= 2.
+      if (!_version || _version < FORM_STORAGE_VERSION) {
+        safeFormData.start_window = '';
+        safeFormData.end_window = '';
+      }
+
       setFormData(prev => ({
         ...prev,
         ...safeFormData,
@@ -241,7 +253,7 @@ export function useQuoteForm() {
   }
 
   function saveFormData() {
-    SafeStorage.setItem(FORM_STORAGE_KEY, formData, { expirationDays: 7 });
+    SafeStorage.setItem(FORM_STORAGE_KEY, { ...formData, _version: FORM_STORAGE_VERSION }, { expirationDays: 7 });
   }
 
   function clearForm() {
@@ -263,4 +275,20 @@ export function useQuoteForm() {
     isInitialized,
     wasDuplicate,
   };
+}
+
+/**
+ * Pure helper: normalizes a stored Quote form by clearing legacy
+ * auto-generated time defaults (09:00/17:00) from unversioned or
+ * pre-version-2 stored forms. Explicitly selected times from version >= 2
+ * are preserved. Returns a new object; does not mutate the input.
+ */
+export function normalizeStoredQuoteForm(
+  stored: Partial<QuoteFormData> & { _version?: number },
+): Partial<QuoteFormData> {
+  const { _version, ...rest } = stored;
+  if (!_version || _version < FORM_STORAGE_VERSION) {
+    return { ...rest, start_window: '', end_window: '' };
+  }
+  return rest;
 }
