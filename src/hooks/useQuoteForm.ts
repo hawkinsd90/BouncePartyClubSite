@@ -28,8 +28,8 @@ export interface QuoteFormData {
 const initialFormData: QuoteFormData = {
   event_date: '',
   event_end_date: '',
-  start_window: '09:00',
-  end_window: '17:00',
+  start_window: '',
+  end_window: '',
   until_end_of_day: false,
   address_line1: '',
   address_line2: '',
@@ -194,8 +194,8 @@ export function useQuoteForm() {
         has_generator: prefillData.has_generator !== undefined ? prefillData.has_generator : false,
         has_pets: prefillData.has_pets !== undefined ? prefillData.has_pets : false,
         special_details: prefillData.special_details || '',
-        start_window: prefillData.start_window || '09:00',
-        end_window: prefillData.end_window || '17:00',
+        start_window: prefillData.start_window || '',
+        end_window: prefillData.end_window || '',
       }));
       SafeStorage.removeItem('bpc_duplicate_order');
       setWasDuplicate(true);

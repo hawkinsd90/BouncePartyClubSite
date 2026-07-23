@@ -562,7 +562,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                             </div>
                           )}
                           <div className="flex justify-between text-sm mb-1">
-                            <span className="text-slate-600">{item.name} ({item.mode}) × {item.qty}</span>
+                            <span className="text-slate-600">{item.name}{item.mode !== 'Event Essential' ? ` (${item.mode})` : ''} × {item.qty}</span>
                             <span className="font-medium text-slate-900">{formatCurrency(item.lineTotal)}</span>
                           </div>
                         </div>

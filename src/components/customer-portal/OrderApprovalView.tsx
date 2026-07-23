@@ -224,7 +224,7 @@ export function OrderApprovalView({
                     return (
                       <div key={i} className="flex justify-between text-sm">
                         <span className="text-slate-700 flex items-center gap-2">
-                          {item.name} ({item.mode}) &times; {item.qty}
+                          {item.name}{item.mode !== 'Event Essential' ? ` (${item.mode})` : ''} &times; {item.qty}
                           {isNew && (
                             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700 border border-green-300">
                               New

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Upload, Image as ImageIcon, CheckCircle, X, Maximize, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { notifyError, notifySuccess } from '../../lib/notifications';
@@ -112,9 +112,11 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete }: LotPi
   const [pictures, setPictures] = useState<LotPicture[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [selectedPicture, setSelectedPicture] = useState<LotPicture | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [pictureToDelete, setPictureToDelete] = useState<LotPicture | null>(null);
+  const uploadingRef = useRef(false);
 
   // Can only delete if order is in pending_review or awaiting_customer_approval
   const canDelete = [ORDER_STATUS.PENDING, ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL].includes(orderStatus as any || '');
@@ -154,6 +156,8 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete }: LotPi
     }
 
     setUploading(true);
+    uploadingRef.current = true;
+    setUploadError(null);
 
     try {
       const uploadPromises = Array.from(files).map(async (file) => {
@@ -172,14 +176,17 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete }: LotPi
         const fileName = `${orderId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
 
         // Upload to storage
-        const { error: uploadError } = await supabase.storage
+        const { error: storageUploadError } = await supabase.storage
           .from('lot-pictures')
           .upload(fileName, file, {
             cacheControl: '3600',
             upsert: false,
           });
 
-        if (uploadError) throw uploadError;
+        if (storageUploadError) {
+          console.error('[LotPicturesTab] Storage upload error:', storageUploadError);
+          throw new Error(`Storage upload failed: ${storageUploadError.message}`);
+        }
 
         // Save record to database
         const { error: dbError } = await supabase
@@ -191,9 +198,10 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete }: LotPi
           });
 
         if (dbError) {
+          console.error('[LotPicturesTab] Database insert error:', dbError);
           // Clean up uploaded file if database insert fails
           await supabase.storage.from('lot-pictures').remove([fileName]);
-          throw dbError;
+          throw new Error(`Database save failed: ${dbError.message}`);
         }
       });
 
@@ -209,10 +217,14 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete }: LotPi
         onUploadComplete();
       }
     } catch (error: any) {
-      notifyError(error.message || 'Failed to upload pictures');
+      const msg = error.message || 'Failed to upload pictures';
+      console.error('[LotPicturesTab] Upload failed:', msg, error);
+      setUploadError(msg);
+      notifyError(msg);
     } finally {
       setUploading(false);
-      // Reset input
+      uploadingRef.current = false;
+      // Reset input so the same file can be selected again
       event.target.value = '';
     }
   };
@@ -300,6 +312,12 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete }: LotPi
           </div>
         </div>
       </div>
+
+      {uploadError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-sm text-red-800 font-medium">{uploadError}</p>
+        </div>
+      )}
 
       {/* Upload Section */}
       <div className="bg-white border-2 border-dashed border-slate-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors">

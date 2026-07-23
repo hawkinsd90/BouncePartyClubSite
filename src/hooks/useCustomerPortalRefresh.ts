@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { supabase } from '../lib/supabase';
 
 interface UseCustomerPortalRefreshOptions {
   orderId: string | undefined;
@@ -6,8 +7,8 @@ interface UseCustomerPortalRefreshOptions {
   isApprovalSuccess: boolean;
 }
 
-const POLL_INTERVAL_MS = 15_000;
-const DEBOUNCE_MS = 600;
+const DEBOUNCE_MS = 800;
+const DEDUP_WINDOW_MS = 3_000;
 
 export function useCustomerPortalRefresh({
   orderId,
@@ -21,15 +22,21 @@ export function useCustomerPortalRefresh({
   const pendingRefreshRef = useRef(false);
   const approvalSuccessRef = useRef(isApprovalSuccess);
   approvalSuccessRef.current = isApprovalSuccess;
+  const lastReloadAtRef = useRef(0);
 
   const doReload = useCallback(async () => {
     if (approvalSuccessRef.current) return;
+
+    const now = Date.now();
+    if (now - lastReloadAtRef.current < DEDUP_WINDOW_MS) return;
+
     if (isReloadingRef.current) {
       pendingRefreshRef.current = true;
       return;
     }
     isReloadingRef.current = true;
     pendingRefreshRef.current = false;
+    lastReloadAtRef.current = Date.now();
     try {
       await reloadRef.current();
     } catch (err) {
@@ -47,82 +54,46 @@ export function useCustomerPortalRefresh({
     if (!orderId) return;
 
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    let pollTimer: ReturnType<typeof setTimeout> | null = null;
 
     const debouncedReload = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => doReload(), DEBOUNCE_MS);
     };
 
-    // Best-effort broadcast listener
+    // Subscribe to realtime postgres changes for this order only.
+    // Deduplicate bursts into one debounced background refresh.
     const channel = supabase
       .channel(`portal-order-${orderId}`)
-      .on('broadcast', { event: 'order_updated' }, debouncedReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` }, debouncedReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items', filter: `order_id=eq.${orderId}` }, debouncedReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments', filter: `order_id=eq.${orderId}` }, debouncedReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_lot_pictures', filter: `order_id=eq.${orderId}` }, debouncedReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_pictures', filter: `order_id=eq.${orderId}` }, debouncedReload)
       .subscribe();
 
-    // Visibility change — refresh when page becomes visible
+    // Conservative fallback: only refresh when the tab becomes visible after
+    // being hidden for at least 30 seconds. This avoids rapid refresh loops.
+    let hiddenAt: number | null = null;
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && !approvalSuccessRef.current) {
-        doReload();
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now();
+      } else if (document.visibilityState === 'visible' && hiddenAt !== null) {
+        const hiddenDuration = Date.now() - hiddenAt;
+        hiddenAt = null;
+        if (hiddenDuration >= 30_000 && !approvalSuccessRef.current) {
+          doReload();
+        }
       }
-    };
-
-    // Window focus — refresh on refocus
-    const handleFocus = () => {
-      if (!approvalSuccessRef.current) doReload();
-    };
-
-    // Online event — refresh when network restores
-    const handleOnline = () => {
-      if (!approvalSuccessRef.current) doReload();
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('online', handleOnline);
-
-    // Light polling — only while visible, not loading, not in approval-success
-    const startPolling = () => {
-      if (pollTimer) clearTimeout(pollTimer);
-      pollTimer = setTimeout(async () => {
-        if (
-          document.visibilityState === 'visible' &&
-          !approvalSuccessRef.current &&
-          !isReloadingRef.current
-        ) {
-          await doReload();
-        }
-        if (document.visibilityState === 'visible' && !approvalSuccessRef.current) {
-          startPolling();
-        }
-      }, POLL_INTERVAL_MS);
-    };
-
-    const handlePollVisibility = () => {
-      if (document.visibilityState === 'visible' && !approvalSuccessRef.current) {
-        startPolling();
-      } else if (pollTimer) {
-        clearTimeout(pollTimer);
-        pollTimer = null;
-      }
-    };
-
-    document.addEventListener('visibilitychange', handlePollVisibility);
-    startPolling();
 
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
-      if (pollTimer) clearTimeout(pollTimer);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      document.removeEventListener('visibilitychange', handlePollVisibility);
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('online', handleOnline);
       supabase.removeChannel(channel);
     };
   }, [orderId, doReload]);
 
   return { doReload };
 }
-
-// Import supabase at the bottom to avoid circular deps in some setups
-import { supabase } from '../lib/supabase';

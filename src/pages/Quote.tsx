@@ -213,12 +213,31 @@ export function Quote() {
     return () => clearTimeout(timer);
   }, [isInitialized, wasDuplicate]);
 
+  const [dateChangeAvailabilityError, setDateChangeAvailabilityError] = useState<string | null>(null);
+
   useEffect(() => {
     if (cart.length > 0 && formData.event_date && formData.event_end_date) {
-      const timer = setTimeout(() => {
-        checkAllCartAvailability(formData.event_date, formData.event_end_date);
+      const timer = setTimeout(async () => {
+        const result = await checkAllCartAvailability(formData.event_date, formData.event_end_date);
+        if (result.eventEssentialsCheckFailed) {
+          setDateChangeAvailabilityError('Unable to check Event Essentials availability for the selected dates. Please try again.');
+          return;
+        }
+        const unavailable = result.cart.filter(item => item.isAvailable === false);
+        if (unavailable.length > 0) {
+          const names = unavailable.map(item => {
+            if (item.item_type === 'event_essential_bundle') return (item as any).bundle_name;
+            if (item.item_type === 'event_essential_product') return (item as any).product_name;
+            return (item as any).unit_name;
+          }).join(', ');
+          setDateChangeAvailabilityError(`The following items are not available for the selected dates: ${names}. Please choose different dates or remove these items.`);
+        } else {
+          setDateChangeAvailabilityError(null);
+        }
       }, 300);
       return () => clearTimeout(timer);
+    } else {
+      setDateChangeAvailabilityError(null);
     }
   }, [formData.event_date, formData.event_end_date, cart.length]);
 
@@ -425,6 +444,17 @@ export function Quote() {
       return;
     }
 
+    // Block checkout when date-change availability check found unavailable items
+    if (dateChangeAvailabilityError) {
+      flushSync(() => {
+        setValidationError(dateChangeAvailabilityError);
+        setValidationErrorFieldId(null);
+        setShowBottomToast(true);
+      });
+      scrollToSection('cart');
+      return;
+    }
+
     // Stage E3 — Block checkout while Event Essential validation is pending.
     if (eventEssentialsRepricing.validationPending) {
       flushSync(() => {
@@ -593,6 +623,13 @@ export function Quote() {
               setValidationErrorFieldId(null);
               setShowBottomToast(false);
             }}
+          />
+        )}
+
+        {dateChangeAvailabilityError && !validationError && (
+          <ValidationErrorBanner
+            message={dateChangeAvailabilityError}
+            onDismiss={() => setDateChangeAvailabilityError(null)}
           />
         )}
 

@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { formatOrderId } from '../lib/utils';
 import { format, startOfMonth, endOfMonth, parseISO, addDays } from 'date-fns';
 import { ORDER_STATUS } from '../lib/constants/statuses';
+import { formatOperationalEquipmentLabels } from '../lib/operationalEquipment';
 
 export type PickupReadiness = 'projected' | 'blocked' | 'ready' | 'completed';
 
@@ -34,6 +35,7 @@ export interface Task {
   customerEmail: string;
   address: string;
   items: string[];
+  rawOrderItems: any[];
   equipmentIds: string[];
   numInflatables: number;
   eventStartTime: string;
@@ -239,12 +241,7 @@ export function useCalendarTasks(currentMonth: Date) {
 
         const orderItemsForOrder = orderItems?.filter(item => item.order_id === order.id) || [];
 
-        const items = orderItemsForOrder.map((item: any) => {
-          if (item.units?.name) {
-            return `${item.units.name} (${item.wet_or_dry === 'water' ? 'Water' : 'Dry'})`;
-          }
-          return item.item_name || 'Unknown item';
-        });
+        const items = formatOperationalEquipmentLabels(orderItemsForOrder);
         const equipmentIds = orderItemsForOrder.filter((i: any) => i.unit_id).map((i: any) => i.unit_id);
         const numInflatables = orderItemsForOrder.filter((i: any) => i.unit_id).reduce((s: number, i: any) => s + (i.qty || 1), 0);
         const totalGeneratorQty = order.generator_qty || 0;
@@ -269,6 +266,7 @@ export function useCalendarTasks(currentMonth: Date) {
           customerEmail: customer?.email || '',
           address,
           items,
+          rawOrderItems: orderItemsForOrder,
           equipmentIds,
           numInflatables,
           eventStartTime: order.start_window || 'TBD',
@@ -335,6 +333,7 @@ export function useCalendarTasks(currentMonth: Date) {
           customerEmail: customer?.email || '',
           address,
           items,
+          rawOrderItems: orderItemsForOrder,
           equipmentIds,
           numInflatables,
           eventStartTime: order.start_window || 'TBD',

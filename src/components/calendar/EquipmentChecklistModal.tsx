@@ -1,5 +1,6 @@
-import { X, ClipboardList, Package as PackageIcon, Anchor } from 'lucide-react';
+import { X, ClipboardList, Package as PackageIcon, Anchor, Boxes } from 'lucide-react';
 import { Task } from '../../hooks/useCalendarTasks';
+import { formatOperationalEquipment, aggregateEquipmentAcrossOrders, type OperationalEquipmentItem } from '../../lib/operationalEquipment';
 
 interface EquipmentChecklistModalProps {
   isOpen: boolean;
@@ -11,25 +12,24 @@ interface EquipmentSummary {
   bounceHouses: { name: string; wetOrDry: string }[];
   needsStakes: boolean;
   needsSandbags: boolean;
-  hasGenerators: boolean;
-  generatorCount: number;
+  eventEssentials: { name: string; qty: number }[];
 }
 
 export function EquipmentChecklistModal({ isOpen, tasks, onClose }: EquipmentChecklistModalProps) {
   if (!isOpen) return null;
 
-  // Calculate equipment needed from all tasks
   const equipment: EquipmentSummary = {
     bounceHouses: [],
     needsStakes: false,
     needsSandbags: false,
-    hasGenerators: false,
-    generatorCount: 0,
+    eventEssentials: [],
   };
+
+  // Build per-order equipment lists from task order items
+  const orderEquipmentLists: { items: OperationalEquipmentItem[] }[] = [];
 
   tasks.forEach(task => {
     task.items.forEach(item => {
-      // Extract bounce house name and type
       const match = item.match(/^(.+?)\s*\((Water|Dry)\)$/);
       if (match) {
         equipment.bounceHouses.push({
@@ -39,13 +39,26 @@ export function EquipmentChecklistModal({ isOpen, tasks, onClose }: EquipmentChe
       }
     });
 
-    // Check surface type to determine if stakes or sandbags are needed
     if (task.surface === 'grass') {
       equipment.needsStakes = true;
     } else if (task.surface === 'cement') {
       equipment.needsSandbags = true;
     }
+
+    // Expand order items into operational equipment for Event Essentials
+    const rawItems = (task as any).rawOrderItems;
+    if (rawItems && Array.isArray(rawItems)) {
+      const expanded = formatOperationalEquipment(rawItems);
+      orderEquipmentLists.push({ items: expanded });
+    }
   });
+
+  // Aggregate Event Essentials across all orders
+  const aggregatedEE = aggregateEquipmentAcrossOrders(orderEquipmentLists)
+    .filter(e => e.kind === 'event_essential')
+    .map(e => ({ name: e.name, qty: e.totalQty }));
+
+  equipment.eventEssentials = aggregatedEE;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
@@ -97,6 +110,29 @@ export function EquipmentChecklistModal({ isOpen, tasks, onClose }: EquipmentChe
               )}
             </div>
           </div>
+
+          {/* Event Essentials */}
+          {equipment.eventEssentials.length > 0 && (
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-3">
+                <Boxes className="w-5 h-5 text-teal-600" />
+                Event Essentials ({equipment.eventEssentials.length})
+              </h3>
+              <div className="space-y-2">
+                {equipment.eventEssentials.map((item, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between bg-teal-50 border border-teal-200 rounded-lg p-3"
+                  >
+                    <span className="font-medium text-slate-900">{item.name}</span>
+                    <span className="px-2 py-1 rounded text-xs font-semibold bg-teal-600 text-white">
+                      ×{item.qty}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Stakes - Show only if needed */}
           {equipment.needsStakes && (

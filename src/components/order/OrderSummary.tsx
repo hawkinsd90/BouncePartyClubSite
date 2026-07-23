@@ -94,7 +94,7 @@ export function OrderSummary({
                     )}
                     <div className="flex justify-between text-slate-700">
                       <span className="flex items-center gap-2">
-                        {item.name} ({item.mode}) × {item.qty}
+                        {item.name}{item.mode !== 'Event Essential' ? ` (${item.mode})` : ''} × {item.qty}
                         {isNew && (
                           <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-semibold print-badge">NEW</span>
                         )}
