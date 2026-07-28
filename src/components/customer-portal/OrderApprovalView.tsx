@@ -343,6 +343,32 @@ export function OrderApprovalView({
               <div>
                 <h3 className="font-semibold text-slate-900 mb-3">Payment Amount</h3>
 
+                {hadOriginalPaymentSelection && originalPaymentCents > currentDepositCents && (
+                  <div className="mb-3 rounded-lg border-2 border-emerald-400 bg-emerald-50 p-4 flex items-start gap-3">
+                    <div className="mt-0.5 flex-shrink-0 w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentWidth" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="font-bold text-emerald-900 text-sm">
+                        {currentDepositCents === 0
+                          ? 'Your deposit has been waived — no payment is required today!'
+                          : `Your required deposit has been reduced to ${formatCurrency(currentDepositCents)}.`}
+                      </p>
+                      <p className="text-sm text-emerald-800 mt-0.5">
+                        {currentDepositCents === 0
+                          ? 'You originally selected to pay '
+                          : 'You originally selected '}
+                        <span className="font-semibold">{formatCurrency(originalPaymentCents)}</span>
+                        {currentDepositCents === 0
+                          ? ', but that amount is no longer required. Uncheck the box below to pay $0.00 today.'
+                          : '. Uncheck the box below to choose a lower payment amount if you prefer.'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {hadOriginalPaymentSelection && (
                   <label className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer mb-3 ${
                     keepOriginalPayment ? 'border-blue-400 bg-blue-50' : 'border-slate-200 bg-white'
