@@ -7,7 +7,7 @@
 // jiti runner.
 
 import { composeUnifiedQuoteTotals } from './unifiedTotals';
-import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS, calculateRequiredDepositCents } from './depositCalculation';
+import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS, calculateRequiredDepositCents, initDepositOverrideState } from './depositCalculation';
 import { mapCartToOrderItems, hasEventEssentialsInCart, hasInflatablesInCart } from './eventEssentialsOrderItems';
 import { getPaymentAmountCentsFromTotals } from './checkoutUtils';
 import { expandCartToProductQuantities, isInflatableCartItem } from './unifiedCart';
@@ -769,6 +769,61 @@ test('27. Mixed-order pricing, deposit, and package-content display', () => {
   // 13. Saved snapshot is used (not current catalog) — verify snapshot data flows through.
   ok('snapshot bundle_name preserved', pkgItem.component_snapshot?.bundle_name === 'Celebration Seating');
   ok('snapshot has 2 components', pkgItem.component_snapshot?.components.length === 2);
+});
+
+// =========================================================================
+// 28. Deposit override state initialization and save-value decision
+// =========================================================================
+test('28. Deposit override state initialization and save-value decision', () => {
+  // 1. null custom_deposit_cents initializes to null
+  const nullState = initDepositOverrideState(null);
+  ok('null → null cents', nullState.customDepositCents === null);
+  ok('null → blank input', nullState.customDepositInput === '');
+
+  // 2. 0 custom_deposit_cents initializes to 0 and input "0.00"
+  const zeroState = initDepositOverrideState(0);
+  ok('0 → 0 cents', zeroState.customDepositCents === 0);
+  ok('0 → "0.00" input', zeroState.customDepositInput === '0.00');
+
+  // 3. 7500 custom_deposit_cents initializes to 7500 and input "75.00"
+  const nonzeroState = initDepositOverrideState(7500);
+  ok('7500 → 7500 cents', nonzeroState.customDepositCents === 7500);
+  ok('7500 → "75.00" input', nonzeroState.customDepositInput === '75.00');
+
+  // 4. null override uses the calculated $50 mixed-order deposit
+  const INFLATABLE_SUBTOTAL = 15000;
+  const PACKAGE_PRICE = 15000;
+  const GENERATOR_PRICE = 9500;
+  const TRAVEL_FEE = 11354;
+  const TAX_RATE = 0.06;
+  const DEPOSIT_PER_UNIT = 5000;
+  const eeSubtotal = PACKAGE_PRICE + GENERATOR_PRICE;
+  const subtotalCents = INFLATABLE_SUBTOTAL + eeSubtotal;
+  const taxableAmount = subtotalCents + TRAVEL_FEE;
+  const taxCents = Math.round(taxableAmount * TAX_RATE);
+  const totalCents = subtotalCents + TRAVEL_FEE + taxCents;
+  const depositResult = calculateRequiredDepositCents({
+    inflatableQuantity: 1,
+    eventEssentialsSubtotalCents: eeSubtotal,
+    orderTotalCents: totalCents,
+    inflatableDepositPerUnitCents: DEPOSIT_PER_UNIT,
+    eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS,
+  });
+  ok('calculated deposit = 5000', depositResult.status === 'calculated' && depositResult.depositCents === 5000);
+
+  const nullOverrideCents: number | null = nullState.customDepositCents;
+  const depositWithNullOverride = nullOverrideCents !== null ? nullOverrideCents : (depositResult.status === 'calculated' ? depositResult.depositCents : 0);
+  ok('null override → calculated $50', depositWithNullOverride === 5000);
+
+  // 5. explicit $0 remains $0 through the save-value decision
+  const zeroOverrideCents: number | null = zeroState.customDepositCents;
+  const depositWithZeroOverride = zeroOverrideCents !== null ? zeroOverrideCents : (depositResult.status === 'calculated' ? depositResult.depositCents : 0);
+  ok('explicit $0 override → $0', depositWithZeroOverride === 0);
+
+  // 6. explicit $75 remains $75 through the save-value decision
+  const nonzeroOverrideCents: number | null = nonzeroState.customDepositCents;
+  const depositWithNonzeroOverride = nonzeroOverrideCents !== null ? nonzeroOverrideCents : (depositResult.status === 'calculated' ? depositResult.depositCents : 0);
+  ok('explicit $75 override → $75', depositWithNonzeroOverride === 7500);
 });
 
 // --- Runner ---

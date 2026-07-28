@@ -16,6 +16,7 @@ import { PaymentsTab } from '../order-detail/PaymentsTab';
 import { usePricing } from '../../hooks/usePricing';
 import { useOrderDetails } from '../../hooks/useOrderDetails';
 import { saveOrderChanges } from '../../lib/orderSaveService';
+import { initDepositOverrideState } from '../../lib/depositCalculation';
 import { sendOrderEditNotifications } from '../../lib/orderNotificationService';
 import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
@@ -32,6 +33,7 @@ interface StagedItem {
   unit_id?: string; // optional for EE products
   unit_name?: string;
   product_id?: string; // set for EE products
+  bundle_id?: string; // set for EE packages
   product_name?: string;
   item_name?: string;
   qty: number;
@@ -80,8 +82,17 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [depositCatchupMode, setDepositCatchupMode] = useState<'require' | 'waive'>('require');
   const [availabilityIssues, setAvailabilityIssues] = useState<any[]>([]);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
-  const [customDepositCents, setCustomDepositCents] = useState<number | null>(null);
-  const [customDepositInput, setCustomDepositInput] = useState('');
+  const [depositOverrideState, setDepositOverrideState] = useState(() =>
+    initDepositOverrideState(order.custom_deposit_cents),
+  );
+  const customDepositCents = depositOverrideState.customDepositCents;
+  const customDepositInput = depositOverrideState.customDepositInput;
+  const setCustomDepositCents = useCallback((cents: number | null) => {
+    setDepositOverrideState((prev) => ({ ...prev, customDepositCents: cents }));
+  }, []);
+  const setCustomDepositInput = useCallback((input: string) => {
+    setDepositOverrideState((prev) => ({ ...prev, customDepositInput: input }));
+  }, []);
   const [currentOrderSummary, setCurrentOrderSummary] = useState<any>(null);
   const [requireCardOnFile, setRequireCardOnFile] = useState(order.require_card_on_file ?? true);
   const [manualDirty, setManualDirty] = useState(false);
@@ -223,6 +234,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   useEffect(() => {
     loadOrderDetails();
     loadAdminSettings();
+    setDepositOverrideState(initDepositOverrideState(order.custom_deposit_cents));
   }, [order.id]);
 
   // Initialize staged items from order items (inflatables and EE products)
@@ -245,7 +257,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         return {
           id: item.id,
           product_id: item.product_id,
-          bundle_id: (item as any).bundle_id,
+          bundle_id: item.bundle_id,
           product_name: item.item_name || item.product_name || 'Event Essential',
           item_name: item.item_name,
           qty: item.qty,
@@ -419,9 +431,9 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         is_deleted: item.is_deleted,
       }));
     const eeProductItems = stagedItems
-      .filter(item => !item.unit_id && !item.is_deleted && (item.product_id || (item as any).bundle_id))
+      .filter(item => !item.unit_id && !item.is_deleted && (item.product_id || item.bundle_id))
       .map(item => ({
-        product_id: item.product_id || (item as any).bundle_id!,
+        product_id: item.product_id || item.bundle_id!,
         product_name: item.product_name || item.item_name || 'Event Essential',
         qty: item.qty,
         unit_price_cents: item.unit_price_cents,

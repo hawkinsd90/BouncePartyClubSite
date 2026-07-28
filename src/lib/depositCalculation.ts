@@ -232,6 +232,27 @@ export function parseBookingDepositSettings(
 }
 
 // ---------------------------------------------------------------------------
+// Deposit override state initialization (pure, testable)
+// ---------------------------------------------------------------------------
+
+export interface DepositOverrideState {
+  customDepositCents: number | null;
+  customDepositInput: string;
+}
+
+export function initDepositOverrideState(
+  savedCustomDepositCents: number | null | undefined,
+): DepositOverrideState {
+  if (savedCustomDepositCents == null) {
+    return { customDepositCents: null, customDepositInput: '' };
+  }
+  return {
+    customDepositCents: savedCustomDepositCents,
+    customDepositInput: (savedCustomDepositCents / 100).toFixed(2),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Singleton pricing-row fetch helper
 //
 // Fetches all rows from pricing_rules and requires exactly one. Using
