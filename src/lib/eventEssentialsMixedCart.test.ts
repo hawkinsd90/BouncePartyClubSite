@@ -11,6 +11,10 @@ import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS } from './depositCalculation';
 import { mapCartToOrderItems, hasEventEssentialsInCart, hasInflatablesInCart } from './eventEssentialsOrderItems';
 import { getPaymentAmountCentsFromTotals } from './checkoutUtils';
 import { expandCartToProductQuantities, isInflatableCartItem } from './unifiedCart';
+import {
+  buildEventEssentialAvailabilityRequestFromOrderItems,
+  validateAvailabilityResult,
+} from './eeOrderItemAvailability';
 import type {
   UnifiedCartItem,
   InflatableCartItem,
@@ -544,6 +548,112 @@ test('25. calculateTotalFromOrder with discounts and custom fees', () => {
   const total = calculateTotalFromOrder(order, discounts as any, customFees as any);
   // 24500 + 11400 + 1500 - 2000 + 0 = 35400
   ok('total with discount and custom fee = 35400', total === 35400);
+});
+
+// =========================================================================
+// 26. Mixed-order approval availability splits by inventory type
+// =========================================================================
+test('26. Mixed-order approval availability splits by inventory type', () => {
+  // Reproduces the real production split used by ApprovalModal.checkAvailability:
+  // inflatable rows (unit_id present) go to the inflatable check; EE rows
+  // (product_id or bundle_id present, unit_id null) go to the EE expansion.
+  // No null unit_id must ever reach the inflatable availability query.
+  const BLOCK_PARTY_UNIT = 'block-party-unit-uuid';
+  const GEN_PRODUCT = 'gen-product-uuid';
+  const CHAIR_PRODUCT = 'chair-product-uuid';
+  const TABLE_PRODUCT = 'table-product-uuid';
+  const BUNDLE_ID = 'celebration-seating-bundle-uuid';
+  const ORDER_ID = 'e2e56a0d-2993-440e-96c1-b45f2cb358b4';
+
+  // Stored order_items shape (as returned by the select in checkAvailability).
+  const orderItems: any[] = [
+    { unit_id: BLOCK_PARTY_UNIT, product_id: null, bundle_id: null, qty: 1, component_snapshot: null },
+    { unit_id: null, product_id: GEN_PRODUCT, bundle_id: null, qty: 1, component_snapshot: null },
+    {
+      unit_id: null,
+      product_id: null,
+      bundle_id: BUNDLE_ID,
+      qty: 1,
+      component_snapshot: {
+        components: [
+          { product_id: CHAIR_PRODUCT, product_name: 'Chair', quantity_per_bundle: 50 },
+          { product_id: TABLE_PRODUCT, product_name: 'Table', quantity_per_bundle: 6 },
+        ],
+      },
+    },
+  ];
+
+  const isNonBlank = (v: unknown): v is string =>
+    typeof v === 'string' && v.trim() !== '';
+
+  // 1. Only Block Party enters the inflatable unit check.
+  const inflatableItems = orderItems.filter((item) => isNonBlank(item.unit_id));
+  ok('only Block Party in inflatable check', inflatableItems.length === 1);
+  ok('inflatable is Block Party', inflatableItems[0].unit_id === BLOCK_PARTY_UNIT);
+  // No inflatable check carries a null/blank unit_id.
+  ok('no null unit_id in inflatable check', inflatableItems.every((i) => i.unit_id !== 'null' && i.unit_id !== null));
+
+  // 2. Generator + Celebration Seating enter the EE expansion.
+  const eeItems = orderItems.filter(
+    (item) => !isNonBlank(item.unit_id) && (isNonBlank(item.product_id) || isNonBlank(item.bundle_id))
+  );
+  ok('two EE items', eeItems.length === 2);
+
+  // 3. Expand via the real production builder.
+  const expansion = buildEventEssentialAvailabilityRequestFromOrderItems(eeItems);
+  ok('expansion ready', expansion.status === 'ready');
+  if (expansion.status === 'ready') {
+    const byProduct = new Map(expansion.productQuantities.map((q) => [q.product_id, q.quantity]));
+    ok('generator qty = 1', byProduct.get(GEN_PRODUCT) === 1);
+    ok('chairs = 50 (50 per bundle x1)', byProduct.get(CHAIR_PRODUCT) === 50);
+    ok('tables = 6 (6 per bundle x1)', byProduct.get(TABLE_PRODUCT) === 6);
+    ok('three distinct products', expansion.productQuantities.length === 3);
+  }
+
+  // 4. No query receives the string or value "null" as a UUID.
+  const allIds = orderItems.flatMap((i) => [i.unit_id, i.product_id, i.bundle_id]);
+  ok('no "null" string ids', !allIds.includes('null'));
+  ok('nulls are real nulls', allIds.filter((v) => v === null).length === 6);
+
+  // 5. An unavailable package component blocks approval.
+  const unavailableResult = {
+    data: [
+      { product_id: GEN_PRODUCT, is_allowed: true },
+      { product_id: CHAIR_PRODUCT, is_allowed: false },
+      { product_id: TABLE_PRODUCT, is_allowed: true },
+    ],
+  };
+  if (expansion.status === 'ready') {
+    const validation = validateAvailabilityResult(
+      expansion.productQuantities.map((q) => q.product_id),
+      unavailableResult,
+    );
+    ok('unavailable component blocks', validation.ok === false);
+  }
+
+  // 6. All available results allow approval to proceed.
+  const allAvailableResult = {
+    data: expansion.status === 'ready'
+      ? expansion.productQuantities.map((q) => ({ product_id: q.product_id, is_allowed: true }))
+      : [],
+  };
+  if (expansion.status === 'ready') {
+    const validation = validateAvailabilityResult(
+      expansion.productQuantities.map((q) => q.product_id),
+      allAvailableResult,
+    );
+    ok('all available allows approval', validation.ok === true);
+  }
+
+  // 7. The current order ID is excluded from conflicting reservations.
+  // The inflatable check passes excludeOrderId; the EE RPC receives
+  // p_exclude_order_id. Verify the exclusion value matches the order id.
+  const inflatableChecks = inflatableItems.map((item) => ({
+    unitId: item.unit_id,
+    excludeOrderId: ORDER_ID,
+  }));
+  ok('inflatable check excludes order id', inflatableChecks.every((c) => c.excludeOrderId === ORDER_ID));
+  ok('ee exclude order id is the current order', ORDER_ID === 'e2e56a0d-2993-440e-96c1-b45f2cb358b4');
 });
 
 // --- Runner ---

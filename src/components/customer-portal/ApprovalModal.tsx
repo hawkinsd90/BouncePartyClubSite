@@ -12,6 +12,11 @@ import { formatOrderId } from '../../lib/utils';
 import { format } from 'date-fns';
 import { formatCurrency } from '../../lib/pricing';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
+import { checkProductAvailability } from '../../lib/queries/products';
+import {
+  buildEventEssentialAvailabilityRequestFromOrderItems,
+  validateAvailabilityResult,
+} from '../../lib/eeOrderItemAvailability';
 import { enterConfirmed } from '../../lib/orderLifecycle';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
 import { COMPANY_PHONE } from '../../lib/emailTemplateBase';
@@ -62,29 +67,80 @@ export function ApprovalModal({
   }, []);
 
   async function checkAvailability(): Promise<boolean> {
-    const { data: orderItems } = await supabase
+    const { data: orderItems, error: itemsError } = await supabase
       .from('order_items')
-      .select('unit_id')
+      .select('unit_id, product_id, bundle_id, qty, component_snapshot')
       .eq('order_id', order.id);
 
-    if (!orderItems || orderItems.length === 0) return true;
-
-    const checks = orderItems.map((item: any) => ({
-      unitId: item.unit_id,
-      eventStartDate: order.event_date,
-      eventEndDate: order.event_end_date || order.event_date,
-      excludeOrderId: order.id,
-    }));
-
-    const results = await checkMultipleUnitsAvailability(checks);
-    const unavailable = results.filter((r) => !r.isAvailable);
-    if (unavailable.length > 0) {
+    if (itemsError) {
       showToast(
-        'Sorry, one or more items in your order are no longer available for your event date. Please contact us to reschedule.',
+        'Unable to verify item availability. Please try again or contact us for assistance.',
         'error'
       );
       return false;
     }
+
+    if (!orderItems || orderItems.length === 0) return true;
+
+    const isNonBlank = (v: unknown): v is string =>
+      typeof v === 'string' && v.trim() !== '';
+
+    // Split by inventory type so null unit_id rows never enter the
+    // inflatable availability query (which would send "null" as a UUID).
+    const inflatableItems = (orderItems as any[]).filter((item) =>
+      isNonBlank(item.unit_id)
+    );
+    const eeItems = (orderItems as any[]).filter(
+      (item) => !isNonBlank(item.unit_id) && (isNonBlank(item.product_id) || isNonBlank(item.bundle_id))
+    );
+
+    // 1. Inflatable availability — only rows with a real unit_id.
+    if (inflatableItems.length > 0) {
+      const checks = inflatableItems.map((item: any) => ({
+        unitId: item.unit_id,
+        eventStartDate: order.event_date,
+        eventEndDate: order.event_end_date || order.event_date,
+        excludeOrderId: order.id,
+      }));
+      const results = await checkMultipleUnitsAvailability(checks);
+      const unavailable = results.filter((r) => !r.isAvailable);
+      if (unavailable.length > 0) {
+        showToast(
+          'Sorry, one or more items in your order are no longer available for your event date. Please contact us to reschedule.',
+          'error'
+        );
+        return false;
+      }
+    }
+
+    // 2. Event Essentials availability — direct products + package components.
+    if (eeItems.length > 0) {
+      const expansion = buildEventEssentialAvailabilityRequestFromOrderItems(eeItems);
+      if (expansion.status === 'invalid') {
+        showToast(
+          'Unable to verify Event Essentials availability. Please try again or contact us for assistance.',
+          'error'
+        );
+        return false;
+      }
+      if (expansion.productQuantities.length > 0) {
+        const availabilityResult = await checkProductAvailability(
+          expansion.productQuantities,
+          order.event_date,
+          order.event_end_date || order.event_date,
+          order.id,
+        );
+        const validation = validateAvailabilityResult(
+          expansion.productQuantities.map((q) => q.product_id),
+          availabilityResult,
+        );
+        if (!validation.ok) {
+          showToast(validation.error || 'One or more Event Essentials items are no longer available for your event date.', 'error');
+          return false;
+        }
+      }
+    }
+
     return true;
   }
 
