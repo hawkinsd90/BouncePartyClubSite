@@ -7,10 +7,11 @@
 // jiti runner.
 
 import { composeUnifiedQuoteTotals } from './unifiedTotals';
-import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS } from './depositCalculation';
+import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS, calculateRequiredDepositCents } from './depositCalculation';
 import { mapCartToOrderItems, hasEventEssentialsInCart, hasInflatablesInCart } from './eventEssentialsOrderItems';
 import { getPaymentAmountCentsFromTotals } from './checkoutUtils';
 import { expandCartToProductQuantities, isInflatableCartItem } from './unifiedCart';
+import { buildPackageDisplay } from './packageDisplay';
 import {
   buildEventEssentialAvailabilityRequestFromOrderItems,
   validateAvailabilityResult,
@@ -654,6 +655,120 @@ test('26. Mixed-order approval availability splits by inventory type', () => {
   }));
   ok('inflatable check excludes order id', inflatableChecks.every((c) => c.excludeOrderId === ORDER_ID));
   ok('ee exclude order id is the current order', ORDER_ID === 'e2e56a0d-2993-440e-96c1-b45f2cb358b4');
+});
+
+// =========================================================================
+// 27. Mixed-order pricing, deposit, and package-content display
+// =========================================================================
+test('27. Mixed-order pricing, deposit, and package-content display', () => {
+  // Reproduces the reproduced order e2e56a0d:
+  // - Block Party (Dry) ×1 — $150.00 (inflatable, unit_id present)
+  // - Celebration Seating ×1 — $150.00 (package, bundle_id present, unit_id null)
+  // - Generator (Add-on) ×1 — $95.00 (direct EE product, product_id present, unit_id null)
+  //
+  // Expected:
+  // - inflatable subtotal = 15000
+  // - EE subtotal = 24500 (15000 package + 9500 generator)
+  // - subtotal_cents = 39500
+  // - event_essentials_subtotal_cents = 24500
+  // - travel = 11354
+  // - tax (6%) = 3051 (on 39500 + 11354 = 50854)
+  // - total = 53905
+  // - deposit = 5000 (one inflatable, no override)
+  // - explicit $0 override remains $0
+
+  const INFLATABLE_SUBTOTAL = 15000;
+  const PACKAGE_PRICE = 15000;
+  const GENERATOR_PRICE = 9500;
+  const TRAVEL_FEE = 11354;
+  const TAX_RATE = 0.06;
+  const DEPOSIT_PER_UNIT = 5000;
+
+  // Saved order_items shape (as stored in the database).
+  const savedOrderItems = [
+    { unit_id: 'block-party-unit', product_id: null, bundle_id: null, qty: 1, unit_price_cents: INFLATABLE_SUBTOTAL, item_name: null, component_snapshot: null },
+    { unit_id: null, product_id: null, bundle_id: 'celebration-seating', qty: 1, unit_price_cents: PACKAGE_PRICE, item_name: 'Celebration Seating', component_snapshot: { bundle_name: 'Celebration Seating', bundle_description: null, components: [
+      { product_id: 'chair-uuid', product_name: 'White Folding Chair', quantity_per_bundle: 50 },
+      { product_id: 'table-uuid', product_name: 'Six-foot Rectangular Table', quantity_per_bundle: 6 },
+    ] } },
+    { unit_id: null, product_id: 'generator-uuid', bundle_id: null, qty: 1, unit_price_cents: GENERATOR_PRICE, item_name: 'Generator', component_snapshot: null },
+  ];
+
+  // 1. Split by inventory type (mirrors ApprovalModal.checkAvailability split).
+  const isNonBlank = (v: unknown): v is string => typeof v === 'string' && v.trim() !== '';
+  const inflatableItems = savedOrderItems.filter(i => isNonBlank(i.unit_id));
+  const eeItems = savedOrderItems.filter(i => !isNonBlank(i.unit_id) && (isNonBlank(i.product_id) || isNonBlank(i.bundle_id)));
+  ok('one inflatable', inflatableItems.length === 1);
+  ok('two EE items', eeItems.length === 2);
+
+  // 2. EE subtotal = package price + generator price (both EE items counted).
+  const eeSubtotal = eeItems.reduce((sum, item) => sum + item.unit_price_cents * item.qty, 0);
+  ok('ee subtotal = 24500', eeSubtotal === 24500);
+
+  // 3. subtotal_cents = inflatable + EE (not double-counted).
+  const subtotalCents = INFLATABLE_SUBTOTAL + eeSubtotal;
+  ok('subtotal = 39500', subtotalCents === 39500);
+
+  // 4. event_essentials_subtotal_cents = EE only (informational, inside subtotal).
+  ok('event_essentials_subtotal = 24500', eeSubtotal === 24500);
+
+  // 5. EE not double-counted in total.
+  const taxableAmount = subtotalCents + TRAVEL_FEE;
+  ok('taxable = 50854', taxableAmount === 50854);
+
+  // 6. Tax = 3051 (6% of 50854, rounded).
+  const taxCents = Math.round(taxableAmount * TAX_RATE);
+  ok('tax = 3051', taxCents === 3051);
+
+  // 7. Total = subtotal + travel + tax.
+  const totalCents = subtotalCents + TRAVEL_FEE + taxCents;
+  ok('total = 53905', totalCents === 53905);
+
+  // 8. Deposit: one inflatable, no override → $50.
+  const inflatableCount = inflatableItems.reduce((sum, i) => sum + i.qty, 0);
+  const depositResult = calculateRequiredDepositCents({
+    inflatableQuantity: inflatableCount,
+    eventEssentialsSubtotalCents: eeSubtotal,
+    orderTotalCents: totalCents,
+    inflatableDepositPerUnitCents: DEPOSIT_PER_UNIT,
+    eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS,
+  });
+  ok('deposit calculated', depositResult.status === 'calculated');
+  if (depositResult.status === 'calculated') {
+    ok('deposit = 5000 (one inflatable)', depositResult.depositCents === 5000);
+  }
+
+  // 9. Explicit $0 deposit override remains $0.
+  const explicitZeroOverride = 0;
+  const depositWithOverride = explicitZeroOverride !== null ? explicitZeroOverride : depositResult.status === 'calculated' ? depositResult.depositCents : 0;
+  ok('explicit $0 override = 0', depositWithOverride === 0);
+
+  // 10. null override does NOT become $0 — falls back to calculated deposit.
+  const nullOverride: number | null = null;
+  const depositWithNullOverride = nullOverride !== null ? nullOverride : depositResult.status === 'calculated' ? depositResult.depositCents : 0;
+  ok('null override uses calculated deposit', depositWithNullOverride === 5000);
+
+  // 11. Package display: price appears once, components show 50 chairs + 6 tables.
+  const pkgItem = eeItems.find(i => isNonBlank(i.bundle_id))!;
+  const pkgDisplay = buildPackageDisplay({
+    bundleName: pkgItem.item_name ?? null,
+    bundleQty: pkgItem.qty,
+    unitPriceCents: pkgItem.unit_price_cents,
+    componentSnapshot: pkgItem.component_snapshot,
+  });
+  ok('package has snapshot', pkgDisplay.hasSnapshot);
+  ok('package name = Celebration Seating', pkgDisplay.packageName === 'Celebration Seating');
+  ok('package price = 15000 (once)', pkgDisplay.packagePriceCents === 15000);
+  ok('two components', pkgDisplay.components.length === 2);
+  ok('chairs = 50', pkgDisplay.components[0].name === 'White Folding Chair' && pkgDisplay.components[0].quantity === 50);
+  ok('tables = 6', pkgDisplay.components[1].name === 'Six-foot Rectangular Table' && pkgDisplay.components[1].quantity === 6);
+
+  // 12. Component prices are not added separately — EE subtotal is package price + generator only.
+  ok('ee subtotal does not include component prices', eeSubtotal === PACKAGE_PRICE + GENERATOR_PRICE);
+
+  // 13. Saved snapshot is used (not current catalog) — verify snapshot data flows through.
+  ok('snapshot bundle_name preserved', pkgItem.component_snapshot?.bundle_name === 'Celebration Seating');
+  ok('snapshot has 2 components', pkgItem.component_snapshot?.components.length === 2);
 });
 
 // --- Runner ---

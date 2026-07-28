@@ -245,6 +245,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         return {
           id: item.id,
           product_id: item.product_id,
+          bundle_id: (item as any).bundle_id,
           product_name: item.item_name || item.product_name || 'Event Essential',
           item_name: item.item_name,
           qty: item.qty,
@@ -418,9 +419,9 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         is_deleted: item.is_deleted,
       }));
     const eeProductItems = stagedItems
-      .filter(item => item.product_id && !item.is_deleted)
+      .filter(item => !item.unit_id && !item.is_deleted && (item.product_id || (item as any).bundle_id))
       .map(item => ({
-        product_id: item.product_id!,
+        product_id: item.product_id || (item as any).bundle_id!,
         product_name: item.product_name || item.item_name || 'Event Essential',
         qty: item.qty,
         unit_price_cents: item.unit_price_cents,
