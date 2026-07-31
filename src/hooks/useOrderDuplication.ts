@@ -109,7 +109,7 @@ export function useOrderDuplication() {
           wet_or_dry: item.wet_or_dry as 'dry' | 'water',
           unit_price_cents: item.unit_price_cents,
           price_dry_cents: item.units?.price_dry_cents ?? item.unit_price_cents,
-          price_water_cents: item.units?.price_water_cents ?? item.units?.price_dry_cents ?? item.unit_price_cents,
+          price_water_cents: item.units?.price_water_cents || item.units?.price_dry_cents || item.unit_price_cents,
           qty: item.qty,
           is_combo: isCombo,
         };

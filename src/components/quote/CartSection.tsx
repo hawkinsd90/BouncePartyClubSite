@@ -175,7 +175,7 @@ export function CartSection({ cart, eventDate, onUpdateItem, onRemoveItem, event
             );
           }
 
-          const pricesReady = item.price_dry_cents != null && item.price_water_cents != null;
+          const pricesReady = item.price_dry_cents != null;
 
           return (
             <div
@@ -240,7 +240,7 @@ export function CartSection({ cart, eventDate, onUpdateItem, onRemoveItem, event
                       type="button"
                       onClick={() => onUpdateItem(index, {
                         wet_or_dry: 'water',
-                        unit_price_cents: item.price_water_cents!,
+                        unit_price_cents: item.price_water_cents || item.price_dry_cents!,
                       })}
                       className={`flex items-center justify-center p-2.5 sm:p-3 rounded-lg border-2 transition-all text-xs sm:text-sm font-medium ${
                         item.wet_or_dry === 'water'

@@ -100,7 +100,7 @@ export function useQuoteCart() {
         return {
           ...item,
           price_dry_cents: unit.price_dry_cents,
-          price_water_cents: unit.price_water_cents ?? unit.price_dry_cents,
+          price_water_cents: unit.price_water_cents || unit.price_dry_cents,
         };
       });
 

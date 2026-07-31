@@ -58,7 +58,7 @@ export function UnitForm() {
         types: unit.types ?? (unit.type ? [unit.type] : ['Bounce House']),
         is_combo: unit.is_combo ?? false,
         price_dry_cents: unit.price_dry_cents,
-        price_water_cents: unit.price_water_cents ?? 0,
+        price_water_cents: unit.price_water_cents,
         dimensions: unit.dimensions ?? '',
         dimensions_water: unit.dimensions_water ?? unit.dimensions_wet ?? '',
         footprint_sqft: unit.footprint_sqft ?? 0,
@@ -377,7 +377,7 @@ export function UnitForm() {
         className="flex items-center text-blue-600 hover:text-blue-700 font-semibold mb-4 sm:mb-6 transition-colors min-h-[44px]"
       >
         <ArrowLeft className="w-5 h-5 mr-2" />
-        Back to Admin
+        Back to Inventory
       </button>
 
       <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 md:p-10 border-2 border-slate-100">
@@ -496,7 +496,7 @@ export function UnitForm() {
                     const value = e.target.value;
                     if (/^\d*\.?\d{0,2}$/.test(value) || value === '') {
                       setPriceWaterInput(value);
-                      setFormData({ ...formData, price_water_cents: value ? Math.round(parseFloat(value) * 100) : 0 });
+                      setFormData({ ...formData, price_water_cents: value ? Math.round(parseFloat(value) * 100) : null as any });
                     }
                   }}
                   placeholder="Leave empty if same as regular price"
