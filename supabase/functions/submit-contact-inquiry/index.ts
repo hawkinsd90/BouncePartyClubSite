@@ -81,12 +81,14 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const name = (body.name ?? '').toString().trim();
-    const email = (body.email ?? '').toString().trim();
-    const phone = (body.phone ?? '').toString().trim();
-    const message = (body.message ?? '').toString().trim();
-    const eventDate = body.eventDate ? (body.eventDate ?? '').toString().trim() : '';
-    const guestCount = body.guestCount ? (body.guestCount ?? '').toString().trim() : '';
+    const payload = body as Record<string, unknown>;
+
+    const name = (payload.name ?? '').toString().trim();
+    const email = (payload.email ?? '').toString().trim();
+    const phone = (payload.phone ?? '').toString().trim();
+    const message = (payload.message ?? '').toString().trim();
+    const eventDate = payload.eventDate ? (payload.eventDate ?? '').toString().trim() : '';
+    const guestCount = payload.guestCount ? (payload.guestCount ?? '').toString().trim() : '';
 
     // --- Validation ---
     if (!name) {
