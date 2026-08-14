@@ -64,7 +64,22 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const body = await req.json();
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ error: 'Invalid request body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid request body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const name = (body.name ?? '').toString().trim();
     const email = (body.email ?? '').toString().trim();
@@ -336,9 +351,8 @@ Deno.serve(async (req: Request) => {
     );
   } catch (error: unknown) {
     console.error('[submit-contact-inquiry] Unexpected error:', error);
-    const message = error instanceof Error ? error.message : 'Internal server error';
     return new Response(
-      JSON.stringify({ error: message }),
+      JSON.stringify({ error: 'Failed to submit inquiry' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
