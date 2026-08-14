@@ -14,10 +14,20 @@ const corsHeaders = {
 
 const LIMITS = {
   name: 200,
+  firstName: 100,
+  lastName: 100,
   email: 320,
   phone: 30,
   guestCount: 100,
   message: 5000,
+  eventAddress: 500,
+  eventCity: 100,
+  eventState: 50,
+  eventZip: 20,
+  eventStartTime: 10,
+  eventEndTime: 10,
+  surfaceType: 50,
+  referralSource: 200,
 };
 
 const RATE_LIMIT_CONFIG = { maxRequests: 3, windowSeconds: 300 };
@@ -47,8 +57,25 @@ function isValidDate(dateStr: string): boolean {
   );
 }
 
+function isValidTime(timeStr: string): boolean {
+  if (!timeStr) return false;
+  return /^\d{2}:\d{2}$/.test(timeStr);
+}
+
 function truncate(value: string, max: number): string {
   return value.length > max ? value.substring(0, max) : value;
+}
+
+function formatTime(time24: string): string {
+  if (!time24) return '';
+  try {
+    const [hours, minutes] = time24.split(':').map(Number);
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const hours12 = hours % 12 || 12;
+    return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
+  } catch {
+    return time24;
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -83,15 +110,25 @@ Deno.serve(async (req: Request) => {
 
     const payload = body as Record<string, unknown>;
 
+    const firstName = (payload.firstName ?? '').toString().trim();
+    const lastName = (payload.lastName ?? '').toString().trim();
     const name = (payload.name ?? '').toString().trim();
     const email = (payload.email ?? '').toString().trim();
     const phone = (payload.phone ?? '').toString().trim();
     const message = (payload.message ?? '').toString().trim();
     const eventDate = payload.eventDate ? (payload.eventDate ?? '').toString().trim() : '';
     const guestCount = payload.guestCount ? (payload.guestCount ?? '').toString().trim() : '';
+    const eventAddress = payload.eventAddress ? (payload.eventAddress ?? '').toString().trim() : '';
+    const eventCity = payload.eventCity ? (payload.eventCity ?? '').toString().trim() : '';
+    const eventState = payload.eventState ? (payload.eventState ?? '').toString().trim() : '';
+    const eventZip = payload.eventZip ? (payload.eventZip ?? '').toString().trim() : '';
+    const eventStartTime = payload.eventStartTime ? (payload.eventStartTime ?? '').toString().trim() : '';
+    const eventEndTime = payload.eventEndTime ? (payload.eventEndTime ?? '').toString().trim() : '';
+    const surfaceType = payload.surfaceType ? (payload.surfaceType ?? '').toString().trim() : '';
+    const referralSource = payload.referralSource ? (payload.referralSource ?? '').toString().trim() : '';
 
     // --- Validation ---
-    if (!name) {
+    if (!name && !firstName) {
       return new Response(
         JSON.stringify({ error: 'Name is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -116,7 +153,10 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    if (name.length > LIMITS.name) {
+    // Use firstName + lastName as the display name if name field is empty
+    const displayName = name || [firstName, lastName].filter(Boolean).join(' ');
+
+    if (displayName.length > LIMITS.name) {
       return new Response(
         JSON.stringify({ error: 'Name is too long' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -146,6 +186,12 @@ Deno.serve(async (req: Request) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    if (eventAddress.length > LIMITS.eventAddress) {
+      return new Response(
+        JSON.stringify({ error: 'Event address is too long' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     if (!isValidEmail(email)) {
       return new Response(
@@ -163,6 +209,19 @@ Deno.serve(async (req: Request) => {
         );
       }
       parsedEventDate = eventDate;
+    }
+
+    if (eventStartTime && !isValidTime(eventStartTime)) {
+      return new Response(
+        JSON.stringify({ error: 'Event start time is not a valid time' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    if (eventEndTime && !isValidTime(eventEndTime)) {
+      return new Response(
+        JSON.stringify({ error: 'Event end time is not a valid time' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // --- Rate limiting ---
@@ -189,12 +248,22 @@ Deno.serve(async (req: Request) => {
     const { data: inquiry, error: insertError } = await supabase
       .from('contact_inquiries')
       .insert({
-        name: truncate(name, LIMITS.name),
+        name: truncate(displayName, LIMITS.name),
+        first_name: truncate(firstName, LIMITS.firstName) || null,
+        last_name: truncate(lastName, LIMITS.lastName) || null,
         email: truncate(email, LIMITS.email),
         phone: truncate(phone, LIMITS.phone),
         event_date: parsedEventDate,
-        guest_count: truncate(guestCount, LIMITS.guestCount),
+        guest_count: truncate(guestCount, LIMITS.guestCount) || null,
         message: truncate(message, LIMITS.message),
+        event_address: truncate(eventAddress, LIMITS.eventAddress) || null,
+        event_city: truncate(eventCity, LIMITS.eventCity) || null,
+        event_state: truncate(eventState, LIMITS.eventState) || null,
+        event_zip: truncate(eventZip, LIMITS.eventZip) || null,
+        event_start_time: truncate(eventStartTime, LIMITS.eventStartTime) || null,
+        event_end_time: truncate(eventEndTime, LIMITS.eventEndTime) || null,
+        surface_type: truncate(surfaceType, LIMITS.surfaceType) || null,
+        referral_source: truncate(referralSource, LIMITS.referralSource) || null,
         email_sent: false,
       })
       .select('id')
@@ -222,16 +291,17 @@ Deno.serve(async (req: Request) => {
         if (s.value) settingsMap[s.key] = s.value;
       });
 
-      const adminEmail = settingsMap['admin_email'] || settingsMap['business_email'];
+      // Prefer business_email so inquiries go to the business inbox, not the developer account
+      const adminEmail = settingsMap['business_email'] || settingsMap['admin_email'];
 
       if (!adminEmail) {
-        console.warn('[submit-contact-inquiry] No admin_email or business_email configured; inquiry saved but no notification sent');
+        console.warn('[submit-contact-inquiry] No business_email or admin_email configured; inquiry saved but no notification sent');
         await supabase.rpc('record_notification_failure', {
           p_type: 'email',
           p_recipient: 'unknown',
           p_subject: 'New Website Inquiry (no destination configured)',
-          p_message_preview: `Inquiry from ${name} (${email}) saved but no admin email destination is configured.`,
-          p_error: 'No admin_email or business_email configured in admin_settings',
+          p_message_preview: `Inquiry from ${displayName} (${email}) saved but no admin email destination is configured.`,
+          p_error: 'No business_email or admin_email configured in admin_settings',
           p_context: { inquiryId },
         });
         return new Response(
@@ -240,13 +310,25 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      const safeName = escapeHtml(name);
+      const safeName = escapeHtml(displayName);
+      const safeFirstName = escapeHtml(firstName);
+      const safeLastName = escapeHtml(lastName);
       const safeEmail = escapeHtml(email);
       const safePhone = escapeHtml(phone);
       const safeEventDate = escapeHtml(eventDate || 'Not specified');
       const safeGuestCount = escapeHtml(guestCount || 'Not specified');
       const safeMessage = escapeHtml(message);
+      const safeEventAddress = escapeHtml(eventAddress || 'Not specified');
+      const safeEventCity = escapeHtml(eventCity || '');
+      const safeEventState = escapeHtml(eventState || '');
+      const safeEventZip = escapeHtml(eventZip || '');
+      const safeStartTime = escapeHtml(eventStartTime ? formatTime(eventStartTime) : 'Not specified');
+      const safeEndTime = escapeHtml(eventEndTime ? formatTime(eventEndTime) : 'Not specified');
+      const safeSurfaceType = escapeHtml(surfaceType || 'Not specified');
+      const safeReferralSource = escapeHtml(referralSource || 'Not specified');
       const safeTimestamp = escapeHtml(new Date().toLocaleString('en-US', { timeZone: 'America/Detroit' }));
+
+      const fullAddress = [safeEventAddress, safeEventCity, safeEventState, safeEventZip].filter(Boolean).join(', ');
 
       const emailHtml = `
 <!DOCTYPE html>
@@ -273,6 +355,8 @@ Deno.serve(async (req: Request) => {
                   <td style="color: #64748b; font-size: 14px; width: 160px;">Name:</td>
                   <td style="font-weight: 600;">${safeName}</td>
                 </tr>
+                ${safeFirstName ? `<tr><td style="color: #64748b; font-size: 14px;">First Name:</td><td style="font-weight: 600;">${safeFirstName}</td></tr>` : ''}
+                ${safeLastName ? `<tr><td style="color: #64748b; font-size: 14px;">Last Name:</td><td style="font-weight: 600;">${safeLastName}</td></tr>` : ''}
                 <tr>
                   <td style="color: #64748b; font-size: 14px;">Email:</td>
                   <td style="font-weight: 600;">${safeEmail}</td>
@@ -286,8 +370,28 @@ Deno.serve(async (req: Request) => {
                   <td style="font-weight: 600;">${safeEventDate}</td>
                 </tr>
                 <tr>
+                  <td style="color: #64748b; font-size: 14px;">Start Time:</td>
+                  <td style="font-weight: 600;">${safeStartTime}</td>
+                </tr>
+                <tr>
+                  <td style="color: #64748b; font-size: 14px;">End Time:</td>
+                  <td style="font-weight: 600;">${safeEndTime}</td>
+                </tr>
+                <tr>
                   <td style="color: #64748b; font-size: 14px;">Guest Count:</td>
                   <td style="font-weight: 600;">${safeGuestCount}</td>
+                </tr>
+                <tr>
+                  <td style="color: #64748b; font-size: 14px;">Event Address:</td>
+                  <td style="font-weight: 600;">${fullAddress || 'Not specified'}</td>
+                </tr>
+                <tr>
+                  <td style="color: #64748b; font-size: 14px;">Surface Type:</td>
+                  <td style="font-weight: 600;">${safeSurfaceType}</td>
+                </tr>
+                <tr>
+                  <td style="color: #64748b; font-size: 14px;">Referral Source:</td>
+                  <td style="font-weight: 600;">${safeReferralSource}</td>
                 </tr>
                 <tr>
                   <td style="color: #64748b; font-size: 14px;">Submitted:</td>
@@ -323,7 +427,7 @@ Deno.serve(async (req: Request) => {
           },
           body: JSON.stringify({
             to: adminEmail,
-            subject: `New Website Inquiry from ${name}`,
+            subject: `New Website Inquiry from ${displayName}`,
             html: emailHtml,
             replyTo: email,
             skipFallback: true,
