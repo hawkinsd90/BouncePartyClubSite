@@ -37,8 +37,14 @@ function isValidEmail(email: string): boolean {
 
 function isValidDate(dateStr: string): boolean {
   if (!dateStr) return false;
-  const parsed = new Date(dateStr);
-  return !isNaN(parsed.getTime());
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
 }
 
 function truncate(value: string, max: number): string {
@@ -139,7 +145,7 @@ Deno.serve(async (req: Request) => {
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      parsedEventDate = new Date(eventDate).toISOString().split('T')[0];
+      parsedEventDate = eventDate;
     }
 
     // --- Rate limiting ---
@@ -203,6 +209,14 @@ Deno.serve(async (req: Request) => {
 
       if (!adminEmail) {
         console.warn('[submit-contact-inquiry] No admin_email or business_email configured; inquiry saved but no notification sent');
+        await supabase.rpc('record_notification_failure', {
+          p_type: 'email',
+          p_recipient: 'unknown',
+          p_subject: 'New Website Inquiry (no destination configured)',
+          p_message_preview: `Inquiry from ${name} (${email}) saved but no admin email destination is configured.`,
+          p_error: 'No admin_email or business_email configured in admin_settings',
+          p_context: { inquiryId },
+        });
         return new Response(
           JSON.stringify({ success: true, inquiryId }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

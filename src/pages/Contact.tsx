@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MessageSquare, Send, Phone, Mail, MapPin, Clock } from 'lucide-react';
+import { MessageSquare, Send, Phone, Mail, MapPin, Clock, Loader2 } from 'lucide-react';
 import { DatePickerInput } from '../components/ui/DatePickerInput';
 import { useBusinessSettings } from '../contexts/BusinessContext';
 
@@ -14,24 +14,60 @@ export function Contact() {
     message: '',
   });
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // console.log('Inquiry submitted:', formData);
-    setSubmitted(true);
+    if (isSubmitting) return;
 
-    setTimeout(() => {
-      setSubmitted(false);
-      setFormData({
-        name: '',
-        email: '',
-        phone: '',
-        eventDate: '',
-        guestCount: '',
-        message: '',
-      });
-    }, 5000);
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/submit-contact-inquiry`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(formData),
+        }
+      );
+
+      if (response.status === 429) {
+        setSubmitError(
+          "You've submitted several inquiries recently. Please wait a few minutes and try again, or call us for assistance."
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (!response.ok) {
+        let errorMessage = 'Something went wrong submitting your inquiry. Please try again or call us for assistance.';
+        try {
+          const errorData = await response.json();
+          if (errorData?.error) {
+            errorMessage = errorData.error;
+          }
+        } catch {
+          // use default error message
+        }
+        setSubmitError(errorMessage);
+        setIsSubmitting(false);
+        return;
+      }
+
+      setSubmitted(true);
+    } catch {
+      setSubmitError(
+        'Something went wrong submitting your inquiry. Please try again or call us for assistance.'
+      );
+      setIsSubmitting(false);
+    }
   };
 
   if (submitted) {
@@ -172,12 +208,39 @@ export function Contact() {
                   </p>
                 </div>
 
+                {submitError && (
+                  <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
+                    <p className="text-red-700 text-sm font-medium">{submitError}</p>
+                    {business.business_phone && (
+                      <p className="text-red-600 text-sm mt-1">
+                        Call us at{' '}
+                        <a
+                          href={`tel:${business.business_phone.replace(/\D/g, '')}`}
+                          className="font-semibold underline"
+                        >
+                          {business.business_phone}
+                        </a>
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-8 py-4 rounded-xl font-bold transition-all shadow-xl hover:shadow-2xl transform hover:scale-[1.02] flex items-center justify-center space-x-2"
+                  disabled={isSubmitting}
+                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-8 py-4 rounded-xl font-bold transition-all shadow-xl hover:shadow-2xl transform hover:scale-[1.02] flex items-center justify-center space-x-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
                 >
-                  <Send className="w-5 h-5" />
-                  <span>Send Inquiry</span>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Sending...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-5 h-5" />
+                      <span>Send Inquiry</span>
+                    </>
+                  )}
                 </button>
               </form>
             </div>

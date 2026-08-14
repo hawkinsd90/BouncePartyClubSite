@@ -22,6 +22,7 @@ interface EmailRequest {
   skipFallback?: boolean;
   templateName?: string;
   orderId?: string;
+  replyTo?: string;
 }
 
 async function sendAdminSMSFallback(
@@ -86,7 +87,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const { to, from, subject, html, text, attachments, context, skipFallback, templateName, orderId } = body;
+    const { to, from, subject, html, text, attachments, context, skipFallback, templateName, orderId, replyTo } = body;
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -263,7 +264,7 @@ Deno.serve(async (req: Request) => {
       from: `${businessName} <${VERIFIED_SENDER}>`,
       to: [emailTo],
       subject: emailSubject,
-      ...(businessEmail ? { reply_to: businessEmail } : {}),
+      ...((replyTo && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyTo)) ? { reply_to: replyTo } : (businessEmail ? { reply_to: businessEmail } : {})),
     };
 
     if (emailHtml) emailPayload.html = emailHtml;
