@@ -309,6 +309,7 @@ export interface Database {
           total_cents: number
           deposit_due_cents: number
           deposit_paid_cents: number
+          payment_lock: boolean
           balance_due_cents: number
           custom_deposit_cents: number | null
           card_on_file_consent: boolean

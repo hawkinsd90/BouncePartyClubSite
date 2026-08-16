@@ -402,15 +402,15 @@ Deno.serve(async (req: Request) => {
     }
 
     // Atomic race guard: claim this order for charging by doing a conditional UPDATE.
-    // We set deposit_paid_cents = -1 (sentinel) only if it is currently 0 or NULL.
-    // Using lte(0) covers both NULL (column default is 0) and explicit 0.
+    // We set payment_lock = true only if it is currently false.
     // If two concurrent calls race here, exactly one will update 1 row; the other
     // gets 0 rows and must abort — preventing a double Stripe charge.
+    // This is independent of deposit_paid_cents so balance charges work after a deposit is paid.
     const { data: claimedRows, error: claimError } = await supabaseClient
       .from("orders")
-      .update({ deposit_paid_cents: -1 })
+      .update({ payment_lock: true })
       .eq("id", orderId)
-      .lte("deposit_paid_cents", 0)
+      .eq("payment_lock", false)
       .select("id");
 
     if (claimError) {
@@ -429,18 +429,18 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Helper: roll back the sentinel on any pre-charge failure so the order
+    // Helper: roll back the lock on any pre-charge failure so the order
     // can be retried. Only called BEFORE stripe.paymentIntents.create fires.
     // Also assigned to the outer-scope variable so the catch block can use it.
     releaseClaim = async () => {
       try {
         await supabaseClient
           .from("orders")
-          .update({ deposit_paid_cents: 0 })
+          .update({ payment_lock: false })
           .eq("id", orderId)
-          .eq("deposit_paid_cents", -1);
+          .eq("payment_lock", true);
       } catch (e) {
-        console.error("[charge-deposit] Failed to release claim sentinel:", e);
+        console.error("[charge-deposit] Failed to release payment lock:", e);
       }
     };
 
@@ -539,6 +539,7 @@ Deno.serve(async (req: Request) => {
         tip_cents: tipCents,
         customer_selected_payment_cents: paymentAmountCents,
         customer_selected_payment_type: persistedPaymentType,
+        payment_lock: false,
       })
       .eq("id", orderId);
 
@@ -552,7 +553,7 @@ Deno.serve(async (req: Request) => {
           user_id: null,
           change_type: "payment_error",
           field_changed: "deposit_paid_cents",
-          old_value: "-1",
+          old_value: String(order.deposit_paid_cents ?? 0),
           new_value: String(paymentAmountCents),
           notes: `PARTIAL_CHARGE_FAILURE: Stripe charged ${chargeAmountCents} cents (PI: ${paymentIntent.id}) but order DB update failed: ${updateError.message}`,
         });
