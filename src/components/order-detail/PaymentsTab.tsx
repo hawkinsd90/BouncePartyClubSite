@@ -113,7 +113,7 @@ export function PaymentsTab({ orderId, customerName, payments, order, customFees
 
   return (
     <div className="space-y-4">
-      {order?.deposit_paid_cents === -1 && (
+      {order?.payment_lock && (
         <div className="bg-red-50 border border-red-300 rounded-lg p-3 flex items-start gap-2">
           <span className="text-red-600 font-bold text-sm mt-0.5">!</span>
           <div>

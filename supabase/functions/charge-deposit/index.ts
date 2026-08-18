@@ -28,8 +28,8 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // Hoisted so the outer catch can release the claim sentinel on unexpected errors.
   let releaseClaim: (() => Promise<void>) | null = null;
+  let stripeChargeSucceeded = false;
 
   try {
     const body = await req.json();
@@ -119,7 +119,7 @@ Deno.serve(async (req: Request) => {
     const { data: order, error: orderError } = await supabaseClient
       .from("orders")
       .select(
-        "id, stripe_customer_id, stripe_payment_method_id, deposit_due_cents, tip_cents, deposit_paid_cents, status, customer_selected_payment_cents, customer_selected_payment_type, subtotal_cents, travel_fee_cents, surface_fee_cents, same_day_pickup_fee_cents, generator_fee_cents, tax_cents, event_date, event_end_date"
+        "id, stripe_customer_id, stripe_payment_method_id, deposit_due_cents, tip_cents, deposit_paid_cents, balance_paid_cents, balance_due_cents, status, customer_selected_payment_cents, customer_selected_payment_type, subtotal_cents, travel_fee_cents, surface_fee_cents, same_day_pickup_fee_cents, generator_fee_cents, tax_cents, event_date, event_end_date"
       )
       .eq("id", orderId)
       .maybeSingle();
@@ -222,12 +222,6 @@ Deno.serve(async (req: Request) => {
             .from("orders")
             .update({ stripe_payment_method_id: resolvedPaymentMethodId })
             .eq("id", orderId);
-
-          // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
-          // Restore only after a true dev/staging environment and explicit safe gating are in place.
-          // Previously logged a Stripe payment method ID (pm_xxx) which is a sensitive payment token.
-          // console.log(`[charge-deposit] Resolved missing payment method from Stripe customer: ${resolvedPaymentMethodId}`);
-          // console.log("[charge-deposit] Resolved missing payment method from Stripe customer.");
         }
       } catch (pmLookupError) {
         console.error("[charge-deposit] Failed to look up payment methods:", pmLookupError);
@@ -266,6 +260,8 @@ Deno.serve(async (req: Request) => {
         ? requestSelectedPaymentType
         : order.customer_selected_payment_type || "deposit";
 
+    const isBalanceCharge = persistedPaymentType === "balance";
+
     if (!paymentAmountCents || paymentAmountCents <= 0) {
       return new Response(
         JSON.stringify({
@@ -280,7 +276,13 @@ Deno.serve(async (req: Request) => {
     }
 
     // If already paid (positive value), persist the latest payment selection and confirm (avoid double charge)
-    if (order.deposit_paid_cents && order.deposit_paid_cents > 0 && order.deposit_paid_cents >= paymentAmountCents) {
+    // Skipped for balance charges — a balance charge must never be blocked by a previously-paid deposit.
+    if (
+      !isBalanceCharge &&
+      order.deposit_paid_cents &&
+      order.deposit_paid_cents > 0 &&
+      order.deposit_paid_cents >= paymentAmountCents
+    ) {
       const alreadyPaidUpdate: Record<string, unknown> = {
         status: "confirmed",
         customer_selected_payment_cents: paymentAmountCents,
@@ -405,15 +407,11 @@ Deno.serve(async (req: Request) => {
     }
 
     // Atomic race guard: claim this order for charging by doing a conditional UPDATE.
-    // We set deposit_paid_cents = -1 (sentinel) only if it is currently 0 or NULL.
-    // Using lte(0) covers both NULL (column default is 0) and explicit 0.
-    // If two concurrent calls race here, exactly one will update 1 row; the other
-    // gets 0 rows and must abort — preventing a double Stripe charge.
     const { data: claimedRows, error: claimError } = await supabaseClient
       .from("orders")
-      .update({ deposit_paid_cents: -1 })
+      .update({ payment_lock: true })
       .eq("id", orderId)
-      .lte("deposit_paid_cents", 0)
+      .eq("payment_lock", false)
       .select("id");
 
     if (claimError) {
@@ -425,27 +423,65 @@ Deno.serve(async (req: Request) => {
     }
 
     if (!claimedRows || claimedRows.length === 0) {
-      // Another process already claimed or charged this order
       return new Response(
         JSON.stringify({ success: false, error: "This order is already being processed. Please refresh and try again." }),
         { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Helper: roll back the sentinel on any pre-charge failure so the order
-    // can be retried. Only called BEFORE stripe.paymentIntents.create fires.
-    // Also assigned to the outer-scope variable so the catch block can use it.
     releaseClaim = async () => {
       try {
         await supabaseClient
           .from("orders")
-          .update({ deposit_paid_cents: 0 })
+          .update({ payment_lock: false })
           .eq("id", orderId)
-          .eq("deposit_paid_cents", -1);
+          .eq("payment_lock", true);
       } catch (e) {
-        console.error("[charge-deposit] Failed to release claim sentinel:", e);
+        console.error("[charge-deposit] Failed to release payment lock:", e);
       }
     };
+
+    // Fresh balance guard: for balance charges, re-read balance after acquiring the lock
+    // to prevent a stale request from charging an already-paid balance.
+    let currentBalancePaid = order.balance_paid_cents ?? 0;
+    let currentBalanceDue = order.balance_due_cents ?? 0;
+    let currentStatus = order.status;
+
+    if (isBalanceCharge) {
+      const { data: freshOrder, error: freshError } = await supabaseClient
+        .from("orders")
+        .select("balance_paid_cents, balance_due_cents, status")
+        .eq("id", orderId)
+        .maybeSingle();
+
+      if (freshError || !freshOrder) {
+        await releaseClaim();
+        return new Response(
+          JSON.stringify({ success: false, error: "Failed to re-read order balance. Please refresh and try again." }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      currentBalancePaid = freshOrder.balance_paid_cents ?? 0;
+      currentBalanceDue = freshOrder.balance_due_cents ?? 0;
+      currentStatus = freshOrder.status;
+
+      if (currentBalanceDue <= 0) {
+        await releaseClaim();
+        return new Response(
+          JSON.stringify({ success: true, alreadyCharged: true }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (paymentAmountCents > currentBalanceDue) {
+        await releaseClaim();
+        return new Response(
+          JSON.stringify({ success: false, error: "The balance due has changed. Please refresh and try again." }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
 
     const validation = await validatePaymentMethod(resolvedPaymentMethodId, stripe);
 
@@ -477,7 +513,6 @@ Deno.serve(async (req: Request) => {
     }
 
     // Charge the payment amount + tip
-    // IMPORTANT: Tip is ONLY added to the charge amount, NOT to deposit_paid_cents
     const chargeAmountCents = paymentAmountCents + tipCents;
 
     const paymentIntent = await stripe.paymentIntents.create({
@@ -489,14 +524,11 @@ Deno.serve(async (req: Request) => {
       confirm: true,
       metadata: {
         order_id: orderId,
-        payment_type: "deposit",
+        payment_type: persistedPaymentType,
       },
     });
 
     if (paymentIntent.status !== "succeeded") {
-      // For non-succeeded statuses (requires_action, processing, etc.),
-      // the charge has NOT completed — release the sentinel so the order
-      // can be retried. Include PI id so support can look up the attempt.
       await releaseClaim();
       return new Response(
         JSON.stringify({
@@ -512,29 +544,39 @@ Deno.serve(async (req: Request) => {
     }
 
     // ---- Stripe charge succeeded — all failures below must NOT return decline UI ----
+    stripeChargeSucceeded = true;
 
-    // Recalculate balance_due_cents
-    const orderTotal =
-      (order.subtotal_cents || 0) +
-      (order.travel_fee_cents || 0) +
-      (order.surface_fee_cents || 0) +
-      (order.same_day_pickup_fee_cents || 0) +
-      (order.generator_fee_cents || 0) +
-      (order.tax_cents || 0) +
-      customFeesCents -
-      discountCents;
+    // Conditional order update: deposit vs balance
+    let orderUpdate: Record<string, unknown>;
 
-    const newBalanceDue = Math.max(0, orderTotal - paymentAmountCents);
+    if (isBalanceCharge) {
+      const newBalancePaid = currentBalancePaid + paymentAmountCents;
+      const newBalanceDue = Math.max(0, currentBalanceDue - paymentAmountCents);
 
-    // Update order status + payment fields atomically.
-    // Status write is intentionally co-located with the payment fields write so that
-    // a subsequent non-fatal lifecycle failure cannot leave a charged order stuck in
-    // a pre-confirmed state. Lifecycle is called after to handle admin alerting and
-    // changelog only — it is NOT the sole owner of the status transition here.
-    // IMPORTANT: deposit_paid_cents should NOT include tip
-    const { error: updateError } = await supabaseClient
-      .from("orders")
-      .update({
+      orderUpdate = {
+        status: currentStatus,
+        balance_paid_cents: newBalancePaid,
+        balance_due_cents: newBalanceDue,
+        tip_cents: tipCents,
+        customer_selected_payment_cents: paymentAmountCents,
+        customer_selected_payment_type: persistedPaymentType,
+        payment_lock: false,
+      };
+    } else {
+      // Recalculate balance_due_cents (deposit path)
+      const orderTotal =
+        (order.subtotal_cents || 0) +
+        (order.travel_fee_cents || 0) +
+        (order.surface_fee_cents || 0) +
+        (order.same_day_pickup_fee_cents || 0) +
+        (order.generator_fee_cents || 0) +
+        (order.tax_cents || 0) +
+        customFeesCents -
+        discountCents;
+
+      const newBalanceDue = Math.max(0, orderTotal - paymentAmountCents);
+
+      orderUpdate = {
         status: "confirmed",
         deposit_paid_cents: paymentAmountCents,
         stripe_payment_status: "paid",
@@ -542,20 +584,24 @@ Deno.serve(async (req: Request) => {
         tip_cents: tipCents,
         customer_selected_payment_cents: paymentAmountCents,
         customer_selected_payment_type: persistedPaymentType,
-      })
+        payment_lock: false,
+      };
+    }
+
+    const { error: updateError } = await supabaseClient
+      .from("orders")
+      .update(orderUpdate)
       .eq("id", orderId);
 
     if (updateError) {
-      // Stripe already charged — signal partial success so frontend does NOT show decline UI.
-      // Write a changelog entry so admins can query for stuck orders.
       console.error("[charge-deposit] Post-charge order update failed:", updateError);
       try {
         await supabaseClient.from("order_changelog").insert({
           order_id: orderId,
           user_id: null,
           change_type: "payment_error",
-          field_changed: "deposit_paid_cents",
-          old_value: "-1",
+          field_changed: isBalanceCharge ? "balance_paid_cents" : "deposit_paid_cents",
+          old_value: String(isBalanceCharge ? currentBalancePaid : (order.deposit_paid_cents ?? 0)),
           new_value: String(paymentAmountCents),
           notes: `PARTIAL_CHARGE_FAILURE: Stripe charged ${chargeAmountCents} cents (PI: ${paymentIntent.id}) but order DB update failed: ${updateError.message}`,
         });
@@ -576,24 +622,26 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Invoke lifecycle for admin alerting and changelog (non-fatal — charge already succeeded)
-    try {
-      const { data: lcData, error: lcError } = await supabaseClient.functions.invoke("order-lifecycle", {
-        body: {
-          action: "enter_confirmed",
-          orderId,
-          source: "charge_deposit",
-          paymentOutcome: "charged_now",
-          oldStatusHint: order.status,
-        },
-      });
-      if (lcError) {
-        console.error("[charge-deposit] order-lifecycle transport error (charged_now):", lcError);
-      } else if (lcData && !lcData.success && !lcData.alreadySent) {
-        console.error("[charge-deposit] order-lifecycle returned success=false (charged_now):", lcData.error);
+    // Invoke lifecycle for admin alerting and changelog — deposit path only
+    if (!isBalanceCharge) {
+      try {
+        const { data: lcData, error: lcError } = await supabaseClient.functions.invoke("order-lifecycle", {
+          body: {
+            action: "enter_confirmed",
+            orderId,
+            source: "charge_deposit",
+            paymentOutcome: "charged_now",
+            oldStatusHint: order.status,
+          },
+        });
+        if (lcError) {
+          console.error("[charge-deposit] order-lifecycle transport error (charged_now):", lcError);
+        } else if (lcData && !lcData.success && !lcData.alreadySent) {
+          console.error("[charge-deposit] order-lifecycle returned success=false (charged_now):", lcData.error);
+        }
+      } catch (lifecycleErr) {
+        console.error("[charge-deposit] order-lifecycle invoke threw (non-fatal):", lifecycleErr);
       }
-    } catch (lifecycleErr) {
-      console.error("[charge-deposit] order-lifecycle invoke threw (non-fatal):", lifecycleErr);
     }
 
     // Get payment method details and Stripe fees
@@ -657,7 +705,7 @@ Deno.serve(async (req: Request) => {
         order_id: orderId,
         stripe_payment_intent_id: paymentIntent.id,
         amount_cents: chargeAmountCents,
-        type: "deposit",
+        type: isBalanceCharge ? "balance" : "deposit",
         status: "succeeded",
         paid_at: new Date().toISOString(),
         payment_method: paymentMethod,
@@ -669,6 +717,276 @@ Deno.serve(async (req: Request) => {
       });
     } catch (paymentError) {
       console.error("Failed to record payment (non-fatal):", paymentError);
+    }
+
+    // Build and send rich booking confirmation + receipt email — deposit path only
+    if (!isBalanceCharge) {
+      try {
+        const { data: fullOrder } = await supabaseClient
+          .from("orders")
+          .select(`
+            *,
+            customers(first_name, last_name, email),
+            order_items(qty, wet_or_dry, unit_price_cents, units(name)),
+            addresses(line1, city, state, zip),
+            order_custom_fees(id, name, amount_cents)
+          `)
+          .eq("id", orderId)
+          .maybeSingle();
+
+        if (fullOrder && fullOrder.customers?.email) {
+          const { data: businessSettings } = await supabaseClient
+            .from("admin_settings")
+            .select("key, value")
+            .in("key", ["business_name", "business_phone", "business_email", "logo_url"]);
+
+          const biz: Record<string, string> = {};
+          businessSettings?.forEach((s: { key: string; value: string | null }) => {
+            if (s.value) biz[s.key] = s.value;
+          });
+
+          const fmt = formatCurrency;
+          const firstName = fullOrder.customers.first_name || "";
+          const addr = fullOrder.addresses;
+          const addressStr = addr
+            ? `${addr.line1}, ${addr.city}, ${addr.state}`
+            : (fullOrder.event_address_line1 || "");
+
+          const eventDate = fullOrder.event_date
+            ? new Date(fullOrder.event_date + "T12:00:00").toLocaleDateString("en-US", {
+                weekday: "long",
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              })
+            : "";
+
+          const timeWindow = `${fullOrder.start_window || ""} - ${fullOrder.end_window || ""}`;
+          const shortId = orderId.replace(/-/g, "").toUpperCase().slice(0, 8);
+          const portalUrl = `https://bouncepartyclub.com/customer-portal/${orderId}`;
+
+          const itemsHtml = (fullOrder.order_items || [])
+            .map(
+              (item: {
+                qty: number;
+                units: { name: string };
+                wet_or_dry: string;
+                unit_price_cents: number;
+              }) => `
+          <tr>
+            <td style="padding:8px 0;border-bottom:1px solid #e5e7eb;color:#374151;">
+              ${item.qty}x ${item.units?.name || ""} (${item.wet_or_dry === "water" ? "Wet" : "Dry"})
+            </td>
+            <td style="padding:8px 0;border-bottom:1px solid #e5e7eb;text-align:right;color:#374151;">
+              ${fmt(item.unit_price_cents * item.qty)}
+            </td>
+          </tr>`
+            )
+            .join("");
+
+          const subtotal = fullOrder.subtotal_cents || 0;
+          const travelFee = fullOrder.travel_fee_cents || 0;
+          const surfaceFee = fullOrder.surface_fee_cents || 0;
+          const sameDayFee = fullOrder.same_day_pickup_fee_cents || 0;
+          const generatorFee = fullOrder.generator_fee_cents || 0;
+          const discount = discountCents;
+          const tax = fullOrder.tax_cents || 0;
+          const tip = fullOrder.tip_cents || 0;
+
+          const emailCustomFees: Array<{
+            id: string;
+            name: string;
+            amount_cents: number;
+          }> = fullOrder.order_custom_fees || [];
+
+          const customFeesCentsEmail = emailCustomFees.reduce(
+            (sum: number, f: { amount_cents: number }) => sum + (f.amount_cents || 0),
+            0
+          );
+
+          const total =
+            subtotal +
+            travelFee +
+            surfaceFee +
+            sameDayFee +
+            generatorFee +
+            customFeesCentsEmail +
+            tax -
+            discount;
+
+          const depositPaid = paymentAmountCents;
+          const balanceRemaining = Math.max(0, total - depositPaid);
+
+          const customFeeRowsHtml = emailCustomFees
+            .map((f: { name: string; amount_cents: number }) =>
+              f.amount_cents > 0
+                ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">${
+                    f.name || "Custom Fee"
+                  }</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(
+                    f.amount_cents
+                  )}</td></tr>`
+                : ""
+            )
+            .join("");
+
+          const feeRowsHtml = [
+            travelFee > 0
+              ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Travel Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(travelFee)}</td></tr>`
+              : "",
+            surfaceFee > 0
+              ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Surface Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(surfaceFee)}</td></tr>`
+              : "",
+            sameDayFee > 0
+              ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Same Day Pickup</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(sameDayFee)}</td></tr>`
+              : "",
+            generatorFee > 0
+              ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Generator Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(generatorFee)}</td></tr>`
+              : "",
+            customFeeRowsHtml,
+            discount > 0
+              ? `<tr><td style="padding:4px 0;color:#059669;font-size:14px;">Discount</td><td style="padding:4px 0;text-align:right;color:#059669;font-size:14px;">-${fmt(discount)}</td></tr>`
+              : "",
+            tax > 0
+              ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Tax</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(tax)}</td></tr>`
+              : "",
+            tip > 0
+              ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Tip</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(tip)}</td></tr>`
+              : "",
+          ].join("");
+
+          const paymentMethodStr =
+            paymentBrand && paymentLast4
+              ? `${paymentBrand} •••• ${paymentLast4}`
+              : paymentMethod || "Card";
+
+          const paymentDate = new Date().toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+          });
+
+          const emailHtml = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Arial,sans-serif;background-color:#f5f5f5;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5;padding:20px;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;border:1px solid #d1fae5;">
+  <tr>
+    <td align="center" style="padding:24px 40px 16px;border-bottom:2px solid #d1fae5;">
+      ${
+        biz.logo_url
+          ? `<img src="${biz.logo_url}" alt="${biz.business_name || "Bounce Party Club"}" style="height:60px;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto;">`
+          : ""
+      }
+      <h1 style="margin:0;color:#059669;font-size:26px;font-weight:bold;">Booking Confirmed!</h1>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:28px 40px 8px;">
+      <p style="margin:0 0 6px;color:#374151;font-size:15px;">Hi ${firstName},</p>
+      <p style="margin:0 0 20px;color:#374151;font-size:15px;">Great news! Your booking is confirmed and your deposit has been processed.</p>
+
+      <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;margin-bottom:24px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 10px;font-weight:bold;color:#065f46;font-size:15px;">Event Details</p>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr><td style="padding:3px 0;color:#6b7280;font-size:14px;width:40%;">Order #:</td><td style="padding:3px 0;color:#111827;font-size:14px;font-weight:600;text-align:right;">${shortId}</td></tr>
+            <tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Date:</td><td style="padding:3px 0;color:#111827;font-size:14px;text-align:right;">${eventDate}</td></tr>
+            <tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Time:</td><td style="padding:3px 0;color:#111827;font-size:14px;text-align:right;">${timeWindow}</td></tr>
+            <tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Location:</td><td style="padding:3px 0;color:#111827;font-size:14px;text-align:right;">${addressStr}</td></tr>
+            ${
+              fullOrder.location_type
+                ? `<tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Location Type:</td><td style="padding:3px 0;color:#111827;font-size:14px;text-align:right;">${fullOrder.location_type}</td></tr>`
+                : ""
+            }
+            ${
+              fullOrder.surface
+                ? `<tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Surface:</td><td style="padding:3px 0;color:#111827;font-size:14px;text-align:right;">${fullOrder.surface}</td></tr>`
+                : ""
+            }
+            ${
+              fullOrder.special_details
+                ? `<tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Special Details:</td><td style="padding:3px 0;color:#111827;font-size:14px;font-weight:600;text-align:right;">${fullOrder.special_details}</td></tr>`
+                : ""
+            }
+          </table>
+        </td></tr>
+      </table>
+
+      <p style="margin:0 0 10px;font-weight:bold;color:#111827;font-size:15px;">Order Items</p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+        ${itemsHtml}
+      </table>
+
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+        <tr><td colspan="2" style="padding:0 0 8px;font-weight:bold;color:#111827;font-size:15px;">Payment Summary</td></tr>
+        <tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Subtotal:</td><td style="padding:4px 0;text-align:right;color:#374151;font-size:14px;">${fmt(subtotal)}</td></tr>
+        ${feeRowsHtml}
+        <tr style="border-top:2px solid #e5e7eb;"><td style="padding:10px 0 4px;font-weight:bold;color:#111827;">Total:</td><td style="padding:10px 0 4px;text-align:right;font-weight:bold;color:#111827;">${fmt(total)}</td></tr>
+        ${
+          tip > 0
+            ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Tip:</td><td style="padding:4px 0;text-align:right;color:#059669;font-size:14px;">${fmt(tip)}</td></tr>`
+            : ""
+        }
+        <tr><td style="padding:4px 0;color:#059669;font-size:14px;font-weight:600;">Deposit Paid:</td><td style="padding:4px 0;text-align:right;color:#059669;font-size:14px;font-weight:600;">${fmt(depositPaid)}</td></tr>
+        <tr><td style="padding:4px 0;color:#374151;font-weight:600;">Balance Due:</td><td style="padding:4px 0;text-align:right;color:#374151;font-weight:600;">${fmt(balanceRemaining)}</td></tr>
+      </table>
+
+      <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;margin-bottom:24px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 10px;font-weight:bold;color:#065f46;font-size:15px;">Payment Receipt</p>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Payment Method:</td><td style="padding:3px 0;color:#111827;font-size:14px;text-align:right;">${paymentMethodStr}</td></tr>
+            <tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Amount Paid:</td><td style="padding:3px 0;color:#111827;font-size:14px;font-weight:600;text-align:right;">${fmt(chargeAmountCents)}</td></tr>
+            <tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Payment Date:</td><td style="padding:3px 0;color:#111827;font-size:14px;text-align:right;">${paymentDate}</td></tr>
+            <tr><td style="padding:3px 0;color:#6b7280;font-size:14px;">Transaction ID:</td><td style="padding:3px 0;color:#111827;font-size:14px;text-align:right;">${shortId}</td></tr>
+          </table>
+        </td></tr>
+      </table>
+
+      <div style="text-align:center;margin-bottom:24px;">
+        <a href="${portalUrl}" style="display:inline-block;background-color:#2563eb;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:12px 32px;border-radius:6px;">Track Your Order</a>
+      </div>
+
+      <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;margin-bottom:24px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 8px;font-weight:bold;color:#1e40af;font-size:14px;">What's Next?</p>
+          <ul style="margin:0;padding-left:18px;color:#374151;font-size:14px;line-height:1.7;">
+            <li>We will contact you closer to your event date to confirm details</li>
+            <li>The remaining balance is due on or before your event date</li>
+            <li>Reply to this email or call us at ${biz.business_phone || "(313) 889-3860"} with questions</li>
+          </ul>
+        </td></tr>
+      </table>
+
+      <p style="margin:0 0 28px;color:#6b7280;font-size:14px;text-align:center;">Thank you for choosing ${biz.business_name || "Bounce Party Club"}!</p>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:16px 40px;background-color:#f9fafb;border-top:1px solid #e5e7eb;border-radius:0 0 8px 8px;text-align:center;">
+      <p style="margin:0;color:#6b7280;font-size:13px;">${biz.business_name || "Bounce Party Club"} | ${biz.business_phone || "(313) 889-3860"}</p>
+    </td>
+  </tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+
+          await supabaseClient.functions.invoke("send-email", {
+            body: {
+              to: fullOrder.customers.email,
+              subject: `Booking Confirmed - Receipt for Order #${shortId}`,
+              html: emailHtml,
+            },
+          });
+        }
+      } catch (emailError) {
+        console.error("Failed to send booking confirmation email:", emailError);
+      }
     }
 
     return new Response(
@@ -692,11 +1010,7 @@ Deno.serve(async (req: Request) => {
     console.error("charge-deposit error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
 
-    // Best-effort: release the claim sentinel so the order is not stuck.
-    // releaseClaim is only non-null if the claim was successfully taken.
-    // It is safe to call here because the Stripe charge has not succeeded
-    // if we are in this catch block (succeeded path never throws).
-    if (releaseClaim) {
+    if (releaseClaim && !stripeChargeSucceeded) {
       await releaseClaim();
     }
 

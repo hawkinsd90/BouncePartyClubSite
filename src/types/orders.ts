@@ -42,6 +42,7 @@ export interface Order {
   tip_cents?: number;
   deposit_due_cents: number;
   deposit_paid_cents: number;
+  payment_lock: boolean;
   balance_due_cents: number;
   balance_paid_cents: number;
   created_at: string;
