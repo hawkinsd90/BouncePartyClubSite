@@ -119,7 +119,7 @@ Deno.serve(async (req: Request) => {
     const { data: order, error: orderError } = await supabaseClient
       .from("orders")
       .select(
-        "id, stripe_customer_id, stripe_payment_method_id, deposit_due_cents, tip_cents, deposit_paid_cents, balance_paid_cents, balance_due_cents, status, customer_selected_payment_cents, customer_selected_payment_type, subtotal_cents, travel_fee_cents, surface_fee_cents, same_day_pickup_fee_cents, generator_fee_cents, tax_cents, event_date, event_end_date"
+        "id, stripe_customer_id, stripe_payment_method_id, deposit_due_cents, tip_cents, deposit_paid_cents, balance_paid_cents, balance_due_cents, status, customer_selected_payment_cents, customer_selected_payment_type, subtotal_cents, travel_fee_cents, surface_fee_cents, same_day_pickup_fee_cents, same_day_weekday_delivery_fee_cents, generator_fee_cents, tax_cents, event_date, event_end_date"
       )
       .eq("id", orderId)
       .maybeSingle();
@@ -566,6 +566,7 @@ Deno.serve(async (req: Request) => {
         (order.travel_fee_cents || 0) +
         (order.surface_fee_cents || 0) +
         (order.same_day_pickup_fee_cents || 0) +
+        (order.same_day_weekday_delivery_fee_cents || 0) +
         (order.generator_fee_cents || 0) +
         (order.tax_cents || 0) +
         customFeesCents -
