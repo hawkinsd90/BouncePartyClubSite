@@ -127,13 +127,16 @@ export interface AvailabilityResultValidatorInput {
   data?: any[] | null;
 }
 
+export type AvailabilityValidationStatus = 'ok' | 'unavailable' | 'invalid';
+
 export function validateAvailabilityResult(
   requestedProductIds: string[],
   result: AvailabilityResultValidatorInput,
-): { ok: boolean; error?: string } {
+): { ok: boolean; error?: string; status: AvailabilityValidationStatus } {
   if (result.error || !result.data) {
     return {
       ok: false,
+      status: 'invalid',
       error:
         'Unable to verify Event Essentials availability. Please try again or contact us for assistance.',
     };
@@ -143,6 +146,7 @@ export function validateAvailabilityResult(
     if (!returnedProductIds.has(reqId)) {
       return {
         ok: false,
+        status: 'invalid',
         error:
           'Availability check did not return a result for all requested items. Please try again or contact us for assistance.',
       };
@@ -152,9 +156,10 @@ export function validateAvailabilityResult(
   if (!allAvailable) {
     return {
       ok: false,
+      status: 'unavailable',
       error:
         'One or more Event Essentials items are no longer available for the selected dates.',
     };
   }
-  return { ok: true };
+  return { ok: true, status: 'ok' };
 }

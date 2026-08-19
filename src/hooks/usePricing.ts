@@ -102,6 +102,7 @@ interface CalculatedPricing {
   deposit_due_cents: number;
   balance_due_cents: number;
   event_essentials_subtotal_cents: number;
+  generator_fee_before_waiver_cents: number;
 }
 
 export function usePricing() {
@@ -350,9 +351,15 @@ export function usePricing() {
             inflatableDepositPerUnitCents: depositSettings.inflatableDepositPerUnitCents,
             eeOnlyDepositSettings: depositSettings.eventEssentialsDepositSettings,
           });
-          calculatedDepositDueCents = eeDeposit.status === 'calculated' ? eeDeposit.depositCents : priceBreakdown.deposit_due_cents;
+          if (eeDeposit.status === 'calculated') {
+            calculatedDepositDueCents = eeDeposit.depositCents;
+          } else {
+            console.error('EE-only deposit calculation failed:', eeDeposit.error);
+            calculatedDepositDueCents = finalTotalCents;
+          }
         } else {
-          calculatedDepositDueCents = priceBreakdown.deposit_due_cents;
+          console.error('EE-only deposit configuration invalid:', depositSettings.error);
+          calculatedDepositDueCents = finalTotalCents;
         }
       } else {
         calculatedDepositDueCents = priceBreakdown.deposit_due_cents;
@@ -367,7 +374,7 @@ export function usePricing() {
         eeProductItems: eeDisplayItems,
         discounts,
         customFees,
-        subtotal_cents: priceBreakdown.subtotal_cents,
+        subtotal_cents: subtotalWithEE,
         travel_fee_cents: originalTravelFeeCents,
         travel_total_miles: finalTravelMiles,
         surface_fee_cents: originalSurfaceFeeCents,
@@ -413,6 +420,7 @@ export function usePricing() {
         deposit_due_cents: summary.depositDue,
         balance_due_cents: summary.balanceDue,
         event_essentials_subtotal_cents: eeSubtotalCents,
+        generator_fee_before_waiver_cents: originalGeneratorFeeCents,
       });
     } catch (error) {
       console.error('Error calculating pricing:', error);

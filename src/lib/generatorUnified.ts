@@ -515,3 +515,37 @@ export async function loadPackageGeneratorConfigs(
     return { status: 'failed', error: err?.message || 'Unknown error' };
   }
 }
+
+let _generatorCategoryProductIdsCache: Set<string> | null = null;
+let _generatorCategoryProductIdsPromise: Promise<Set<string>> | null = null;
+
+export async function loadGeneratorCategoryProductIds(): Promise<Set<string>> {
+  if (_generatorCategoryProductIdsCache) return _generatorCategoryProductIdsCache;
+  if (_generatorCategoryProductIdsPromise) return _generatorCategoryProductIdsPromise;
+  _generatorCategoryProductIdsPromise = (async () => {
+    try {
+      const { supabase } = await import('./supabase');
+      const { data: categories } = await supabase
+        .from('product_categories')
+        .select('id')
+        .eq('slug', GENERATOR_CATEGORY_SLUG);
+      if (!categories || categories.length === 0) {
+        _generatorCategoryProductIdsCache = new Set();
+        return _generatorCategoryProductIdsCache;
+      }
+      const categoryIds = categories.map((c: any) => c.id);
+      const { data: products } = await supabase
+        .from('inventory_products')
+        .select('id')
+        .in('category_id', categoryIds);
+      _generatorCategoryProductIdsCache = new Set((products || []).map((p: any) => p.id));
+      return _generatorCategoryProductIdsCache;
+    } catch {
+      _generatorCategoryProductIdsCache = new Set();
+      return _generatorCategoryProductIdsCache;
+    } finally {
+      _generatorCategoryProductIdsPromise = null;
+    }
+  })();
+  return _generatorCategoryProductIdsPromise;
+}

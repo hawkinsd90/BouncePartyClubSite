@@ -196,6 +196,9 @@ export function OrderDetailsTab({
             {availabilityIssues.map((issue, idx) => (
               <li key={idx}>
                 <span className="font-medium">{issue.unitName}</span>
+                {issue.error && (
+                  <span className="text-xs"> — {issue.error}</span>
+                )}
                 {issue.conflicts && issue.conflicts.length > 0 && (
                   <span className="text-xs">
                     {' '}(conflicts with {issue.conflicts.length} other order{issue.conflicts.length > 1 ? 's' : ''})
@@ -333,10 +336,10 @@ export function OrderDetailsTab({
         onLegacyFallback={onLegacyGeneratorFallback}
       />
 
-      {((editedOrder.generator_qty || 0) > 0 || (order.generator_qty || 0) > 0) && (
+      {((editedOrder.generator_qty ?? order.generator_qty ?? 0) > 0) && (
         <LegacyGeneratorEditor
-          generatorQty={editedOrder.generator_qty || order.generator_qty || 0}
-          generatorFeeCents={calculatedPricing?.generator_fee_cents || order.generator_fee_cents || 0}
+          generatorQty={editedOrder.generator_qty ?? order.generator_qty ?? 0}
+          generatorFeeCents={generatorFeeWaived ? (calculatedPricing?.generator_fee_before_waiver_cents ?? order.generator_fee_cents ?? 0) : (calculatedPricing?.generator_fee_cents ?? order.generator_fee_cents ?? 0)}
           generatorFeeWaived={generatorFeeWaived}
           generatorFeeWaiveReason={generatorFeeWaiveReason}
           onQtyChange={onLegacyGeneratorQtyChange}

@@ -3,8 +3,7 @@ import { useState, useEffect } from 'react';
 import { CreditCard as Edit2 } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
 import { ORDER_STATUS_LABELS } from '../../lib/constants/statuses';
-import { hasGeneratorInOrderItemsByCategory } from '../../lib/generatorUnified';
-import { supabase } from '../../lib/supabase';
+import { hasGeneratorInOrderItemsByCategory, loadGeneratorCategoryProductIds } from '../../lib/generatorUnified';
 
 interface OrderInfoSectionProps {
   order: any;
@@ -29,14 +28,11 @@ export function OrderInfoSection({ order, customerDisplayName, onEditClick }: Or
   const [generatorCategoryProductIds, setGeneratorCategoryProductIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    (async () => {
-      try {
-        const { data: categories } = await supabase.from('product_categories').select('id').eq('slug', 'generators').maybeSingle();
-        if (!categories) return;
-        const { data: products } = await supabase.from('inventory_products').select('id').eq('category_id', categories.id);
-        setGeneratorCategoryProductIds(new Set((products || []).map(product => product.id)));
-      } catch { /* non-fatal */ }
-    })();
+    let mounted = true;
+    void loadGeneratorCategoryProductIds().then(ids => {
+      if (mounted) setGeneratorCategoryProductIds(ids);
+    });
+    return () => { mounted = false; };
   }, []);
 
   const orderItems = (order as any).order_items ?? (order as any).orderItems ?? [];

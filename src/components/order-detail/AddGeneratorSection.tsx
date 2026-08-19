@@ -237,7 +237,36 @@ export function AddGeneratorSection({
         };
         const result = resolveEventEssentialsPricing(input);
         const candidateResult = result.lines.find(l => l.resolverKey === candidateLine.resolverKey);
-        if (!candidateResult || !candidateResult.selectable || candidateResult.resolvedUnitPriceCents === null) {
+        if (!candidateResult) {
+          setError('Generator pricing resolver returned an incomplete result. No changes were staged.');
+          return;
+        }
+        if (!candidateResult.selectable || candidateResult.resolvedUnitPriceCents === null) {
+          const reason = candidateResult.selectableReason || candidateResult.invalidReason;
+          const technicalReasons = new Set([
+            'INVALID',
+            'PRODUCT_CONFIG_MISSING',
+            'PRODUCT_CONFIG_ID_MISMATCH',
+            'CATEGORY_MISSING',
+            'CATEGORY_ID_MISMATCH',
+            'STANDALONE_PRICE_INVALID',
+            'ADDON_THRESHOLD_INVALID_NO_STANDALONE',
+            'ADDON_PRICE_INVALID_NO_STANDALONE',
+            'QUALIFYING_SUBTOTAL_OVERFLOW',
+            'INVALID_QUANTITY',
+            'UNKNOWN_ITEM_TYPE',
+            'BUNDLE_CONFIG_MISSING',
+            'BUNDLE_CONFIG_ID_MISMATCH',
+            'INFLATABLE_UNIT_MISSING',
+            'INFLATABLE_UNIT_UNKNOWN',
+            'INFLATABLE_UNIT_INACTIVE',
+            'INFLATABLE_PRICE_INVALID',
+            'INFLATABLE_MODE_MISSING',
+          ]);
+          if (reason && technicalReasons.has(reason)) {
+            setError(`Generator pricing configuration error (${reason}). No changes were staged.`);
+            return;
+          }
           continue;
         }
 
@@ -280,7 +309,10 @@ export function AddGeneratorSection({
             { data: availResult.data, error: availResult.error },
           );
           if (!validation.ok) {
-            // This candidate is not available — try next, this is legitimate fallback
+            if (validation.status === 'invalid') {
+              setError(`Availability check error: ${validation.error}`);
+              return;
+            }
             continue;
           }
         }
@@ -322,11 +354,9 @@ export function AddGeneratorSection({
       if (existing) {
         if (existing.unit_price_cents === selected.resolved_price_cents &&
             (existing.pricing_context || 'standalone') === selected.resolved_pricing_context) {
-          // Same price and context — increase qty on existing row (including unsaved new rows)
           onAddGeneratorProduct({
             ...existing,
             qty: existing.qty + additionalQty,
-            is_updated: existing.is_new ? false : true,
           });
         } else {
           // Different price — create second row

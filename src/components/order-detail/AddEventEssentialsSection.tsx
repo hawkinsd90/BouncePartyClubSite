@@ -54,7 +54,7 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
     try {
       const [catsRes, prodsRes, bundlesRes, pricingRes, bundlePricingRes, componentsRes] = await Promise.all([
         supabase.from('product_categories').select('id, slug, name, active').eq('active', true),
-        supabase.from('inventory_products').select('id, slug, name, active, category_id, total_quantity, temp_unavailable_qty').eq('active', true),
+        supabase.from('inventory_products').select('id, slug, name, active, category_id, total_quantity, temp_unavailable_qty'),
         supabase.from('product_bundles').select('id, slug, name, description, active, category_id').eq('active', true),
         (supabase.from('product_pricing') as any).select('product_id, standalone_price_cents, addon_price_cents, standalone_enabled, addon_enabled, addon_qualifying_threshold_cents'),
         (supabase.from as any)('product_bundle_pricing').select('bundle_id, standalone_price_cents, addon_price_cents, standalone_enabled, addon_enabled, addon_qualifying_threshold_cents, excluded_category_ids, inflatable_eligibility_mode, eligible_unit_ids'),
@@ -72,13 +72,13 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
       (catsRes.data || []).forEach((c: any) => { catMap[c.id] = c; });
       setCategories(catMap);
 
-      // Keep ALL products for resolver config (including generators for package component categories)
+      // Keep ALL products for resolver config (including inactive for historical staged rows)
       setAllProducts(prodsRes.data || []);
 
       // Exclude products in the generators category from the generic picker
       const generatorsCat = (catsRes.data || []).find((c: any) => c.slug === GENERATORS_CATEGORY_SLUG);
       const generatorsCatId = generatorsCat?.id;
-      const filteredProducts = (prodsRes.data || []).filter((p: any) => p.category_id !== generatorsCatId);
+      const filteredProducts = (prodsRes.data || []).filter((p: any) => p.category_id !== generatorsCatId && p.active);
       setProducts(filteredProducts);
 
       setBundles(bundlesRes.data || []);

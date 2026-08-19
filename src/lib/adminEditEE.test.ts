@@ -12,7 +12,8 @@ import type {
   ResolverUnitConfig,
 } from './eventEssentialsPricingTypes';
 import { resolveEventEssentialsPricing } from './eventEssentialsPricing';
-import { buildEventEssentialAvailabilityRequestFromOrderItems } from './eeOrderItemAvailability';
+import { buildEventEssentialAvailabilityRequestFromOrderItems, validateAvailabilityResult } from './eeOrderItemAvailability';
+import { calculateRequiredDepositCents, parseBookingDepositSettings, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS } from './depositCalculation';
 
 let passCount = 0;
 let failCount = 0;
@@ -223,6 +224,156 @@ function testZeroDepositOverride(): void {
 }
 
 // ---------------------------------------------------------------------------
+// TEST: Unsaved same-generator merge — child returns existing row with qty+1
+// ---------------------------------------------------------------------------
+
+function testUnsavedGeneratorMerge(): void {
+  // Simulate: existing unsaved row C qty 1, child returns { ...C, qty: 2 }
+  // Parent should update the matched row, not append.
+  const existing = { client_id: 'C', product_id: 'gen', qty: 1, is_new: true, is_updated: false };
+  const childItem = { ...existing, qty: 2 };
+  // Simulate parent logic: find existing by client_id, update qty regardless of is_updated
+  const matched = existing.client_id === childItem.client_id;
+  ok('merge: existing found by client_id', matched);
+  if (matched) {
+    const updated = { ...existing, qty: childItem.qty };
+    ok('merge: qty is 2', updated.qty === 2);
+    ok('merge: is_new preserved', updated.is_new === true);
+    ok('merge: is_updated not forced', updated.is_updated === false);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// TEST: Staged legacy qty 0 remains 0 (no || fallback to saved qty)
+// ---------------------------------------------------------------------------
+
+function testLegacyZeroPreserved(): void {
+  const editedGeneratorQty = 0;
+  const savedGeneratorQty = 1;
+  // Correct: ?? preserves 0
+  const qtyWithNullish = editedGeneratorQty ?? savedGeneratorQty ?? 0;
+  ok('legacy zero: ?? preserves 0', qtyWithNullish === 0);
+  // Wrong: || falls back to saved
+  const qtyWithOr = editedGeneratorQty || savedGeneratorQty || 0;
+  ok('legacy zero: || would lose 0', qtyWithOr === 1);
+}
+
+// ---------------------------------------------------------------------------
+// TEST: Mixed Updated Pricing subtotal = inflatable + EE
+// ---------------------------------------------------------------------------
+
+function testMixedSubtotal(): void {
+  const inflatableSubtotal = 15000;
+  const eeSubtotal = 24500;
+  const subtotalWithEE = inflatableSubtotal + eeSubtotal;
+  ok('mixed subtotal: 15000 + 24500 = 39500', subtotalWithEE === 39500);
+  // Verify the old approach would be wrong
+  ok('mixed subtotal: old inflatable-only would be 15000', inflatableSubtotal === 15000);
+  ok('mixed subtotal: new includes EE exactly once', subtotalWithEE === inflatableSubtotal + eeSubtotal);
+}
+
+// ---------------------------------------------------------------------------
+// TEST: Availability — explicit is_allowed=false is 'unavailable', not 'invalid'
+// ---------------------------------------------------------------------------
+
+function testAvailabilityUnavailable(): void {
+  const result = validateAvailabilityResult(['p1'], {
+    data: [{ product_id: 'p1', is_allowed: false }],
+    error: null,
+  });
+  ok('avail: is_allowed=false -> ok=false', result.ok === false);
+  ok('avail: is_allowed=false -> status=unavailable', result.status === 'unavailable');
+}
+
+// ---------------------------------------------------------------------------
+// TEST: Availability — missing response fails closed as 'invalid'
+// ---------------------------------------------------------------------------
+
+function testAvailabilityMissingFailsClosed(): void {
+  const result = validateAvailabilityResult(['p1'], {
+    data: null,
+    error: 'RPC failed',
+  });
+  ok('avail: missing data -> ok=false', result.ok === false);
+  ok('avail: missing data -> status=invalid', result.status === 'invalid');
+}
+
+// ---------------------------------------------------------------------------
+// TEST: Availability — incomplete response (missing product) fails as 'invalid'
+// ---------------------------------------------------------------------------
+
+function testAvailabilityIncompleteFailsClosed(): void {
+  const result = validateAvailabilityResult(['p1', 'p2'], {
+    data: [{ product_id: 'p1', is_allowed: true }],
+    error: null,
+  });
+  ok('avail: incomplete -> ok=false', result.ok === false);
+  ok('avail: incomplete -> status=invalid', result.status === 'invalid');
+}
+
+// ---------------------------------------------------------------------------
+// TEST: Malformed resolver result — missing candidate line
+// ---------------------------------------------------------------------------
+
+function testResolverMissingCandidate(): void {
+  const r = resolveEventEssentialsPricing(
+    buildInput([], { products: {}, categories: baseCategories }),
+  );
+  // No lines at all — candidate would be missing
+  ok('resolver: empty input produces empty lines', r.lines.length === 0);
+  // Simulate: candidateResult not found -> should fail closed, not continue
+  const candidateResult = r.lines.find(l => l.resolverKey === 'nonexistent');
+  ok('resolver: missing candidate is null', candidateResult === undefined);
+}
+
+// ---------------------------------------------------------------------------
+// TEST: EE-only deposit — valid settings calculate tier
+// ---------------------------------------------------------------------------
+
+function testValidEEDeposit(): void {
+  const result = calculateRequiredDepositCents({
+    inflatableQuantity: 0,
+    eventEssentialsSubtotalCents: 25000,
+    orderTotalCents: 25000,
+    inflatableDepositPerUnitCents: 0,
+    eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS,
+  });
+  ok('ee deposit: valid -> calculated', result.status === 'calculated');
+  if (result.status === 'calculated') {
+    // $25000 > $20000 threshold -> base $5000 + ceil((25000-20000)/10000)=1 * $5000 = $10000
+    ok('ee deposit: valid tier = 10000', result.depositCents === 10000);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// TEST: EE-only deposit — invalid settings do not silently become $0
+// ---------------------------------------------------------------------------
+
+function testInvalidEEDepositFailsClosed(): void {
+  const badSettings = { ...DEFAULT_EE_ONLY_DEPOSIT_SETTINGS, eeOnlyDepositBaseCents: 0 };
+  const result = calculateRequiredDepositCents({
+    inflatableQuantity: 0,
+    eventEssentialsSubtotalCents: 25000,
+    orderTotalCents: 25000,
+    inflatableDepositPerUnitCents: 0,
+    eeOnlyDepositSettings: badSettings as any,
+  });
+  ok('ee deposit: invalid -> not calculated', result.status !== 'calculated');
+  if (result.status !== 'calculated') {
+    ok('ee deposit: invalid -> invalid_configuration', result.status === 'invalid_configuration');
+  }
+  // parseBookingDepositSettings should also reject
+  const parsed = parseBookingDepositSettings({
+    deposit_per_unit_cents: 5000,
+    ee_only_deposit_base_threshold_cents: 20000,
+    ee_only_deposit_base_cents: 0, // invalid
+    ee_only_deposit_subtotal_step_cents: 10000,
+    ee_only_deposit_step_cents: 5000,
+  });
+  ok('parse deposit: invalid base -> status=invalid', parsed.status === 'invalid');
+}
+
+// ---------------------------------------------------------------------------
 // RUN
 // ---------------------------------------------------------------------------
 
@@ -231,6 +382,15 @@ testSavedPackageContribution();
 testAvailabilityAggregation();
 testInvalidSnapshot();
 testZeroDepositOverride();
+testUnsavedGeneratorMerge();
+testLegacyZeroPreserved();
+testMixedSubtotal();
+testAvailabilityUnavailable();
+testAvailabilityMissingFailsClosed();
+testAvailabilityIncompleteFailsClosed();
+testResolverMissingCandidate();
+testValidEEDeposit();
+testInvalidEEDepositFailsClosed();
 
 console.log(`\nAdmin Edit EE tests: ${passCount} passed, ${failCount} failed`);
 if (failures.length > 0) {

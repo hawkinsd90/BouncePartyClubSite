@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { format } from 'date-fns';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
 import { buildEventEssentialAvailabilityRequestFromOrderItems, validateAvailabilityResult } from '../../lib/eeOrderItemAvailability';
+import { checkProductAvailability } from '../../lib/queries/products';
 import { formatOrderSummary, type OrderSummaryData } from '../../lib/orderSummary';
 import { calculateDrivingDistance } from '../../lib/pricing';
 import { HOME_BASE } from '../../lib/constants';
@@ -425,29 +426,40 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
       // Event Essentials availability check
       const eeItems = stagedItems.filter(item => !item.is_deleted && !item.unit_id && (item.product_id || item.bundle_id));
+      let eeCheckFailed = false;
       if (eeItems.length > 0) {
         const expansion = buildEventEssentialAvailabilityRequestFromOrderItems(eeItems);
         if (expansion.status === 'invalid') {
-          throw new Error(`Event Essentials availability error: ${expansion.error}`);
-        }
-        if (expansion.productQuantities.length > 0) {
-          const { data: eeResult, error: eeError } = await supabase.rpc('check_product_availability', {
-            p_requested_items: expansion.productQuantities,
-            p_start_date: editedOrder.event_date,
-            p_end_date: editedOrder.event_end_date,
-            p_exclude_order_id: order.id,
-          });
-          if (eeError) {
-            throw new Error(`Event Essentials availability check failed: ${eeError.message}`);
-          }
-          const validation = validateAvailabilityResult(
-            expansion.productQuantities.map(pq => pq.product_id),
-            { data: eeResult, error: null },
+          eeCheckFailed = true;
+          setAvailabilityIssues(prev => [...prev, { unitName: 'Event Essentials', error: expansion.error }]);
+        } else if (expansion.productQuantities.length > 0) {
+          const eeResult = await checkProductAvailability(
+            expansion.productQuantities,
+            editedOrder.event_date,
+            editedOrder.event_end_date,
+            order.id,
           );
-          if (!validation.ok) {
-            throw new Error(validation.error || 'Event Essentials availability check failed');
+          if (eeResult.error) {
+            eeCheckFailed = true;
+            setAvailabilityIssues(prev => [...prev, { unitName: 'Event Essentials', error: eeResult.error }]);
+          } else {
+            const validation = validateAvailabilityResult(
+              expansion.productQuantities.map(pq => pq.product_id),
+              { data: eeResult.data, error: null },
+            );
+            if (!validation.ok) {
+              if (validation.status === 'invalid') {
+                eeCheckFailed = true;
+                setAvailabilityIssues(prev => [...prev, { unitName: 'Event Essentials', error: validation.error || 'Availability check failed' }]);
+              } else {
+                setAvailabilityIssues(prev => [...prev, { unitName: 'Event Essentials', error: validation.error || 'One or more Event Essentials items are no longer available.' }]);
+              }
+            }
           }
         }
+      }
+      if (eeCheckFailed) {
+        return [...issues, { unitName: 'Event Essentials', error: 'Event Essentials availability check failed' }];
       }
 
       return issues;
@@ -698,8 +710,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const handleAddGeneratorProduct = useCallback((item: StagedItem) => {
     setStagedItems(prev => {
       const existing = prev.find(p => !p.is_deleted && p.product_id === item.product_id && !p.bundle_id && ((item.id && p.id === item.id) || (item.client_id && p.client_id === item.client_id)));
-      if (existing && item.is_updated) {
-        return prev.map(p => p === existing ? { ...p, qty: item.qty, is_updated: true } : p);
+      if (existing) {
+        return prev.map(p => p === existing ? { ...p, qty: item.qty } : p);
       }
       return [...prev, { ...item, client_id: item.client_id || `new-generator-${Date.now()}-${Math.random().toString(36).slice(2)}` }];
     });
@@ -715,7 +727,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   }, []);
 
   const handleLegacyGeneratorFallback = useCallback((additionalQty: number, keepWaiver: boolean) => {
-    const currentQty = editedOrder.generator_qty || order.generator_qty || 0;
+    const currentQty = editedOrder.generator_qty ?? order.generator_qty ?? 0;
     const newQty = currentQty + additionalQty;
     setEditedOrder((prev: any) => ({
       ...prev,
