@@ -3,6 +3,7 @@ import { X, Truck, MessageSquare, FileText, History, Save, CreditCard } from 'lu
 import { supabase } from '../../lib/supabase';
 import { format } from 'date-fns';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
+import { buildEventEssentialAvailabilityRequestFromOrderItems, validateAvailabilityResult } from '../../lib/eeOrderItemAvailability';
 import { formatOrderSummary, type OrderSummaryData } from '../../lib/orderSummary';
 import { calculateDrivingDistance } from '../../lib/pricing';
 import { HOME_BASE } from '../../lib/constants';
@@ -28,7 +29,17 @@ interface OrderDetailModalProps {
   onUpdate: () => void;
 }
 
-interface StagedItem {
+export interface BundleComponentSnapshot {
+  bundle_name: string;
+  bundle_description?: string | null;
+  components: Array<{
+    product_id: string;
+    product_name: string;
+    quantity_per_bundle: number;
+  }>;
+}
+
+export interface StagedItem {
   id?: string; // undefined for new items
   unit_id?: string; // optional for EE products
   unit_name?: string;
@@ -40,6 +51,7 @@ interface StagedItem {
   wet_or_dry?: 'dry' | 'water';
   unit_price_cents: number;
   pricing_context?: string;
+  component_snapshot?: BundleComponentSnapshot | null;
   is_new?: boolean;
   is_deleted?: boolean;
   is_updated?: boolean;
@@ -263,6 +275,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           qty: item.qty,
           unit_price_cents: item.unit_price_cents,
           pricing_context: item.pricing_context,
+          component_snapshot: item.component_snapshot ?? null,
           is_new: false,
           is_deleted: false,
         };
@@ -408,6 +421,34 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         });
 
       setAvailabilityIssues(issues);
+
+      // Event Essentials availability check
+      const eeItems = stagedItems.filter(item => !item.is_deleted && !item.unit_id && (item.product_id || item.bundle_id));
+      if (eeItems.length > 0) {
+        const expansion = buildEventEssentialAvailabilityRequestFromOrderItems(eeItems);
+        if (expansion.status === 'invalid') {
+          throw new Error(`Event Essentials availability error: ${expansion.error}`);
+        }
+        if (expansion.productQuantities.length > 0) {
+          const { data: eeResult, error: eeError } = await supabase.rpc('check_product_availability', {
+            p_requested_items: expansion.productQuantities,
+            p_start_date: editedOrder.event_date,
+            p_end_date: editedOrder.event_end_date,
+            p_exclude_order_id: order.id,
+          });
+          if (eeError) {
+            throw new Error(`Event Essentials availability check failed: ${eeError.message}`);
+          }
+          const validation = validateAvailabilityResult(
+            expansion.productQuantities.map(pq => pq.product_id),
+            { data: eeResult, error: null },
+          );
+          if (!validation.ok) {
+            throw new Error(validation.error || 'Event Essentials availability check failed');
+          }
+        }
+      }
+
       return issues;
     } catch (error) {
       console.error('Error checking availability:', error);
@@ -433,10 +474,13 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     const eeProductItems = stagedItems
       .filter(item => !item.unit_id && !item.is_deleted && (item.product_id || item.bundle_id))
       .map(item => ({
-        product_id: item.product_id || item.bundle_id!,
+        product_id: item.product_id!,
+        bundle_id: item.bundle_id!,
         product_name: item.product_name || item.item_name || 'Event Essential',
         qty: item.qty,
         unit_price_cents: item.unit_price_cents,
+        pricing_context: item.pricing_context,
+        component_snapshot: item.component_snapshot ?? null,
         is_new: item.is_new,
         is_deleted: item.is_deleted,
       }));
@@ -636,6 +680,53 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
   }, [hasChanges, onClose]);
 
+  const handleAddEEProduct = useCallback((item: any) => {
+    setStagedItems(prev => [...prev, item]);
+    setManualDirty(true);
+  }, []);
+
+  const handleAddEEBundle = useCallback((item: any) => {
+    setStagedItems(prev => [...prev, item]);
+    setManualDirty(true);
+  }, []);
+
+  const handleAddGeneratorProduct = useCallback((item: any) => {
+    setStagedItems(prev => {
+      const existing = prev.find(p => !p.is_deleted && p.product_id === item.product_id && !p.bundle_id && !p.is_new);
+      if (existing && item.is_updated) {
+        return prev.map(p => p === existing ? { ...p, qty: item.qty, is_updated: true } : p);
+      }
+      return [...prev, item];
+    });
+    setManualDirty(true);
+  }, []);
+
+  const handleLegacyGeneratorFallback = useCallback((additionalQty: number, keepWaiver: boolean) => {
+    const currentQty = editedOrder.generator_qty || order.generator_qty || 0;
+    const newQty = currentQty + additionalQty;
+    setEditedOrder((prev: any) => ({
+      ...prev,
+      generator_qty: newQty,
+      generator_fee_waived: keepWaiver,
+    }));
+    if (!keepWaiver) {
+      setGeneratorFeeWaived(false);
+    }
+    setManualDirty(true);
+  }, [editedOrder.generator_qty, order.generator_qty]);
+
+  const handleLegacyGeneratorQtyChange = useCallback((newQty: number) => {
+    setEditedOrder((prev: any) => ({
+      ...prev,
+      generator_qty: newQty,
+      ...(newQty === 0 ? { generator_fee_waived: false } : {}),
+    }));
+    if (newQty === 0) {
+      setGeneratorFeeWaived(false);
+    }
+    setManualDirty(true);
+  }, []);
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-0 md:p-4 overflow-y-auto">
       <div className="bg-white md:rounded-lg max-w-6xl w-full min-h-screen md:min-h-0 md:my-8">
@@ -812,6 +903,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               }}
               onStatusChange={initiateStatusChange}
               onMarkChanges={() => setManualDirty(true)}
+              onAddEEProduct={handleAddEEProduct}
+              onAddEEBundle={handleAddEEBundle}
+              onAddGeneratorProduct={handleAddGeneratorProduct}
+              onLegacyGeneratorFallback={handleLegacyGeneratorFallback}
+              onLegacyGeneratorQtyChange={handleLegacyGeneratorQtyChange}
             />
           )}
 

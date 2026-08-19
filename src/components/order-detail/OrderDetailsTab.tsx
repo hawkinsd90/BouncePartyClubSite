@@ -14,6 +14,9 @@ import { TravelFeeManager } from './TravelFeeManager';
 import { FeeWaiver } from '../shared/FeeWaiver';
 import { CardOnFileRequirement } from '../shared/CardOnFileRequirement';
 import { VALID_ADMIN_TRANSITIONS } from '../../lib/orderStateMachine';
+import { AddEventEssentialsSection } from './AddEventEssentialsSection';
+import { AddGeneratorSection } from './AddGeneratorSection';
+import { LegacyGeneratorEditor } from './LegacyGeneratorEditor';
 
 interface OrderDetailsTabProps {
   order: any;
@@ -66,6 +69,11 @@ interface OrderDetailsTabProps {
   onMarkChanges: () => void;
   requireCardOnFile: boolean;
   onRequireCardOnFileChange: (value: boolean) => void;
+  onAddEEProduct: (item: any) => void;
+  onAddEEBundle: (item: any) => void;
+  onAddGeneratorProduct: (item: any) => void;
+  onLegacyGeneratorFallback: (additionalQty: number, keepWaiver: boolean) => void;
+  onLegacyGeneratorQtyChange: (newQty: number) => void;
 }
 
 export function OrderDetailsTab({
@@ -119,6 +127,11 @@ export function OrderDetailsTab({
   onMarkChanges,
   requireCardOnFile,
   onRequireCardOnFileChange,
+  onAddEEProduct,
+  onAddEEBundle,
+  onAddGeneratorProduct,
+  onLegacyGeneratorFallback,
+  onLegacyGeneratorQtyChange,
 }: OrderDetailsTabProps) {
   const depositAlreadyCapturedCents = order.deposit_paid_cents || 0;
   const isConfirmedWithPayment = (order.status === ORDER_STATUS.CONFIRMED || order.status === ORDER_STATUS.IN_PROGRESS) && depositAlreadyCapturedCents > 0;
@@ -296,6 +309,33 @@ export function OrderDetailsTab({
         title="Order Items"
         removeByIndex={false}
       />
+
+      <AddEventEssentialsSection
+        orderId={order.id}
+        stagedItems={stagedItems}
+        onAddProduct={onAddEEProduct}
+        onAddBundle={onAddEEBundle}
+      />
+
+      <AddGeneratorSection
+        orderId={order.id}
+        editedOrder={editedOrder}
+        stagedItems={stagedItems}
+        existingGeneratorFeeWaived={generatorFeeWaived}
+        onAddGeneratorProduct={onAddGeneratorProduct}
+        onLegacyFallback={onLegacyGeneratorFallback}
+      />
+
+      {((editedOrder.generator_qty || 0) > 0 || (order.generator_qty || 0) > 0) && (
+        <LegacyGeneratorEditor
+          generatorQty={editedOrder.generator_qty || order.generator_qty || 0}
+          generatorFeeCents={calculatedPricing?.generator_fee_cents || order.generator_fee_cents || 0}
+          generatorFeeWaived={generatorFeeWaived}
+          generatorFeeWaiveReason={generatorFeeWaiveReason}
+          onQtyChange={onLegacyGeneratorQtyChange}
+          onFeeWaivedToggle={onGeneratorFeeWaivedToggle}
+        />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {currentOrderSummary && (

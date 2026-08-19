@@ -3,8 +3,8 @@ import { formatCurrency } from '../../lib/pricing';
 
 interface Item {
   id?: string;
-  unit_id: string;
-  unit_name: string;
+  unit_id?: string;
+  unit_name?: string;
   qty: number;
   wet_or_dry?: 'dry' | 'water';
   mode?: 'dry' | 'water';
@@ -14,6 +14,13 @@ interface Item {
   inventory_qty?: number;
   is_new?: boolean;
   is_deleted?: boolean;
+  is_updated?: boolean;
+  product_id?: string;
+  bundle_id?: string;
+  product_name?: string;
+  item_name?: string;
+  pricing_context?: string;
+  component_snapshot?: any;
 }
 
 interface ItemsEditorProps {
@@ -43,6 +50,9 @@ export function ItemsEditor({
 }: ItemsEditorProps) {
   const activeItems = items.filter(item => !item.is_deleted);
 
+  const isEEItem = (item: Item) => !item.unit_id && (item.product_id || item.bundle_id);
+  const isPackage = (item: Item) => !item.unit_id && !!item.bundle_id;
+
   const unitsAvailableToAdd = units.filter(unit => {
     const existingItem = activeItems.find(item => item.unit_id === unit.id);
     if (!existingItem) return true;
@@ -64,9 +74,13 @@ export function ItemsEditor({
 
       {activeItems.length > 0 && (
         <div className="space-y-3 mb-6">
-          {activeItems.map((item, index) => (
+          {activeItems.map((item, index) => {
+            const ee = isEEItem(item);
+            const pkg = isPackage(item);
+            const displayName = ee ? (item.item_name || item.product_name || 'Event Essential') : item.unit_name || 'Unknown';
+            return (
             <div
-              key={item.id || `${item.unit_id}-${item.wet_or_dry || item.mode}-${index}`}
+              key={item.id || `${item.unit_id || item.product_id || item.bundle_id}-${item.wet_or_dry || item.mode || 'ee'}-${index}`}
               className={`rounded-lg p-3 ${
                 item.is_new ? 'bg-green-50 border border-green-200' : 'bg-slate-50'
               }`}
@@ -74,16 +88,23 @@ export function ItemsEditor({
               <div className="flex items-start justify-between mb-2">
                 <div className="flex-1">
                   <p className="font-medium text-slate-900">
-                    {item.unit_name}
+                    {displayName}
                     {item.is_new && (
                       <span className="ml-2 text-xs bg-green-600 text-white px-2 py-0.5 rounded">
                         NEW
                       </span>
                     )}
                   </p>
-                  <p className="text-xs sm:text-sm text-slate-600">
-                    {getModeLabel(item)}
-                  </p>
+                  {!ee && (
+                    <p className="text-xs sm:text-sm text-slate-600">
+                      {getModeLabel(item)}
+                    </p>
+                  )}
+                  {ee && item.pricing_context && (
+                    <p className="text-xs text-slate-500">
+                      {item.pricing_context === 'addon' ? 'Add-on price' : 'Standalone price'}
+                    </p>
+                  )}
                 </div>
                 <button
                   onClick={() => onRemoveItem(removeByIndex ? index : item)}
@@ -93,6 +114,22 @@ export function ItemsEditor({
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
+
+              {pkg && item.component_snapshot && Array.isArray(item.component_snapshot.components) && (
+                <div className="mb-2 text-xs text-slate-600">
+                  <p className="font-medium mb-1">Includes:</p>
+                  <ul className="list-disc list-inside space-y-0.5">
+                    {item.component_snapshot.components.map((comp: any, ci: number) => (
+                      <li key={ci}>
+                        {comp.product_name} x{(comp.quantity_per_bundle || 1) * item.qty}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {pkg && (!item.component_snapshot || !Array.isArray((item.component_snapshot as any)?.components)) && (
+                <p className="mb-2 text-xs text-slate-500 italic">Package contents unavailable</p>
+              )}
 
               {!allowQuantityEdit && !allowPriceEdit && (
                 <div className="flex items-center text-xs text-slate-600 mb-2">
@@ -155,7 +192,8 @@ export function ItemsEditor({
                 </p>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

@@ -303,8 +303,24 @@ export async function saveOrderChanges({
 
   for (const item of stagedItems) {
     if (item.is_new && !item.is_deleted) {
-      // Event Essential product item (not an inflatable)
-      if (item.product_id && !item.unit_id) {
+      if (item.bundle_id && !item.unit_id) {
+        // New EE package insert
+        const { error: itemInsertError } = await supabase.from('order_items').insert({
+          order_id: order.id,
+          bundle_id: item.bundle_id,
+          product_id: null,
+          item_name: item.item_name || item.product_name || null,
+          qty: item.qty,
+          unit_price_cents: item.unit_price_cents,
+          pricing_context: item.pricing_context || null,
+          wet_or_dry: null,
+          unit_id: null,
+          component_snapshot: item.component_snapshot ?? null,
+        } as any);
+        if (itemInsertError) throw new Error(`Failed to add package: ${itemInsertError.message}`);
+        await logChangeFn('order_items', '', item.item_name || item.product_name || 'Package', 'add');
+      } else if (item.product_id && !item.unit_id) {
+        // New direct EE product insert
         const { error: itemInsertError } = await supabase.from('order_items').insert({
           order_id: order.id,
           product_id: item.product_id,
@@ -333,20 +349,35 @@ export async function saveOrderChanges({
       if (itemDeleteError) throw new Error(`Failed to remove item: ${itemDeleteError.message}`);
       const itemLabel = item.product_id && !item.unit_id
         ? (item.item_name || item.product_name || 'Event Essential')
+        : item.bundle_id && !item.unit_id
+        ? (item.item_name || item.product_name || 'Package')
         : `${item.unit_name} (${item.wet_or_dry})`;
       await logChangeFn('order_items', itemLabel, '', 'remove');
     } else if (item.id && !item.is_new && !item.is_deleted && item.is_updated) {
-      // Update existing item only when explicitly marked as updated
-      const { error: itemUpdateError } = await supabase.from('order_items').update({
-        qty: item.qty,
-        unit_price_cents: item.unit_price_cents,
-        pricing_context: item.pricing_context || null,
-      }).eq('id', item.id);
-      if (itemUpdateError) throw new Error(`Failed to update item: ${itemUpdateError.message}`);
-      const itemLabel = item.product_id && !item.unit_id
-        ? (item.item_name || item.product_name || 'Event Essential')
-        : `${item.unit_name} (${item.wet_or_dry})`;
-      await logChangeFn('order_items', itemLabel, `${item.qty} × ${item.unit_price_cents}`, 'update');
+      if (item.product_id && !item.unit_id) {
+        // Existing direct EE product update — qty only, preserve price/context
+        const { error: itemUpdateError } = await supabase.from('order_items').update({
+          qty: item.qty,
+        }).eq('id', item.id);
+        if (itemUpdateError) throw new Error(`Failed to update item: ${itemUpdateError.message}`);
+        await logChangeFn('order_items', item.item_name || item.product_name || 'Event Essential', `${item.qty}`, 'update');
+      } else if (item.bundle_id && !item.unit_id) {
+        // Existing package update — qty only, preserve price/context/snapshot
+        const { error: itemUpdateError } = await supabase.from('order_items').update({
+          qty: item.qty,
+        }).eq('id', item.id);
+        if (itemUpdateError) throw new Error(`Failed to update package: ${itemUpdateError.message}`);
+        await logChangeFn('order_items', item.item_name || item.product_name || 'Package', `${item.qty}`, 'update');
+      } else {
+        // Existing inflatable update behavior (unchanged)
+        const { error: itemUpdateError } = await supabase.from('order_items').update({
+          qty: item.qty,
+          unit_price_cents: item.unit_price_cents,
+          pricing_context: item.pricing_context || null,
+        }).eq('id', item.id);
+        if (itemUpdateError) throw new Error(`Failed to update item: ${itemUpdateError.message}`);
+        await logChangeFn('order_items', `${item.unit_name} (${item.wet_or_dry})`, `${item.qty} × ${item.unit_price_cents}`, 'update');
+      }
     }
   }
 

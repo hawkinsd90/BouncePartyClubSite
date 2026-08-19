@@ -210,8 +210,9 @@ function productContribution(
   // Contributor's own category must resolve.
   const category = lookupCategory(cfg.categoryId, input);
   if (!category) return { status: 'skip' };
-  if (classifyNumeric(cfg.standalonePriceCents) !== 'valid') return { status: 'skip' };
-  const v = safeMul(cfg.standalonePriceCents as number, line.qty);
+  const contributionPrice = line.savedUnitPriceCents ?? cfg.standalonePriceCents;
+  if (classifyNumeric(contributionPrice) !== 'valid') return { status: 'skip' };
+  const v = safeMul(contributionPrice as number, line.qty);
   if (v === null) return { status: 'overflow' };
   return { status: 'ok', value: v };
 }
@@ -272,8 +273,9 @@ function productQualifyingSubtotal(
       if (!Array.isArray(bundleCfg.containedProductCategoryIds)) continue;
       if (bundleCfg.containedProductCategoryIds.length === 0) continue; // missing/malformed
       if (bundleCfg.containedProductCategoryIds.includes(ownCategoryId)) continue;
-      if (classifyNumeric(bundleCfg.standalonePriceCents) !== 'valid') continue;
-      const v = safeMul(bundleCfg.standalonePriceCents as number, line.qty);
+      const bundleContributionPrice = line.savedUnitPriceCents ?? bundleCfg.standalonePriceCents;
+      if (classifyNumeric(bundleContributionPrice) !== 'valid') continue;
+      const v = safeMul(bundleContributionPrice as number, line.qty);
       if (v === null) return null; // overflow -> fatal sentinel
       outcome = { status: 'ok', value: v };
     } else {

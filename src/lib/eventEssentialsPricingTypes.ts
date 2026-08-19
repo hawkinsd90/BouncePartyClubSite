@@ -132,6 +132,15 @@ export interface ResolverInputLine {
   selectedUnitPriceCents?: number;
   /** For direct inflatable lines: which mode the customer selected. */
   wetOrDry?: 'dry' | 'water';
+  /**
+   * Saved/staged unit price for Admin Edit qualifying-subtotal context.
+   * When present for an existing product or bundle line, the resolver uses
+   * this instead of the current catalog standalone price when computing
+   * qualifying subtotals for OTHER candidates. The line's OWN resolved
+   * price is never affected by this field. Customer-facing behavior is
+   * unchanged when this field is absent.
+   */
+  savedUnitPriceCents?: number;
 }
 
 export interface ResolverInput {

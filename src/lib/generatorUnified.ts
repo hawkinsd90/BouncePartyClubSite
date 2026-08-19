@@ -146,6 +146,35 @@ export function hasGeneratorInOrderItems(input: {
   return false;
 }
 
+/**
+ * Historical Generator detection that does NOT depend on today's active catalog.
+ * Checks for any saved representation: legacy qty, direct EE product whose
+ * product_id is in the generators category, or package component_snapshot
+ * containing a product in the generators category. The caller supplies the set
+ * of generator-category product_ids (which may include inactive products).
+ */
+export function hasGeneratorInOrderItemsByCategory(input: {
+  orderItems: any[];
+  generatorCategoryProductIds: Set<string>;
+  legacyGeneratorQty?: number;
+}): boolean {
+  const { orderItems, generatorCategoryProductIds, legacyGeneratorQty } = input;
+  if (!orderItems || !Array.isArray(orderItems)) return false;
+
+  if (typeof legacyGeneratorQty === 'number' && legacyGeneratorQty > 0) return true;
+
+  for (const item of orderItems) {
+    if (item.product_id && generatorCategoryProductIds.has(item.product_id)) return true;
+    if (item.component_snapshot && Array.isArray(item.component_snapshot.components)) {
+      for (const comp of item.component_snapshot.components) {
+        if (comp.product_id && generatorCategoryProductIds.has(comp.product_id)) return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 
 export type GeneratorConfigurationStatus = 'loading' | 'ready' | 'failed';
@@ -351,6 +380,98 @@ export async function lookupGeneratorProduct(): Promise<GeneratorProductLookupRe
   }
 }
 
+export type AllGeneratorProductsResult =
+  | { status: 'configured'; products: GeneratorProductConfiguration[] }
+  | { status: 'not_found' }
+  | { status: 'configuration_failed'; error: string };
+
+export async function lookupAllGeneratorProducts(): Promise<AllGeneratorProductsResult> {
+  try {
+    const { supabase } = await import('./supabase');
+
+    const { data: categories, error: catError } = await supabase
+      .from('product_categories')
+      .select('id, slug, name, active')
+      .eq('slug', GENERATOR_CATEGORY_SLUG);
+
+    if (catError) {
+      return { status: 'configuration_failed', error: catError.message };
+    }
+
+    const activeCategories = (categories || []).filter((c: any) => c.active);
+    if (activeCategories.length === 0) {
+      return { status: 'not_found' };
+    }
+
+    const categoryIds = activeCategories.map((c: any) => c.id);
+
+    const { data: products, error: prodError } = await supabase
+      .from('inventory_products')
+      .select('id, slug, name, active, category_id, total_quantity, temp_unavailable_qty')
+      .in('category_id', categoryIds)
+      .eq('active', true);
+
+    if (prodError) {
+      return { status: 'configuration_failed', error: prodError.message };
+    }
+
+    const activeProducts = (products || []).filter((p: any) => p.active);
+    if (activeProducts.length === 0) {
+      return { status: 'not_found' };
+    }
+
+    const results: GeneratorProductConfiguration[] = [];
+    for (const product of activeProducts) {
+      if (!product.category_id || typeof product.category_id !== 'string' || product.category_id === '') {
+        return { status: 'configuration_failed', error: `Generator product "${product.name}" has no valid category_id` };
+      }
+
+      const matchingCategory = activeCategories.find((c: any) => c.id === product.category_id);
+      if (!matchingCategory) {
+        return { status: 'configuration_failed', error: `Generator product "${product.name}" category not found among active categories` };
+      }
+
+      const { data: pricingRows, error: pricingError } = await supabase
+        .from('product_pricing')
+        .select('standalone_price_cents, addon_price_cents, standalone_enabled, addon_enabled')
+        .eq('product_id', product.id)
+        .maybeSingle();
+
+      if (pricingError) {
+        return { status: 'configuration_failed', error: pricingError.message };
+      }
+
+      if (!pricingRows) {
+        return { status: 'configuration_failed', error: `Generator product "${product.name}" has no pricing configuration` };
+      }
+
+      const standaloneEnabled = pricingRows.standalone_enabled === true;
+      const addonEnabled = pricingRows.addon_enabled === true;
+      if (!standaloneEnabled && !addonEnabled) {
+        return { status: 'configuration_failed', error: `Generator product "${product.name}" has no enabled pricing mode` };
+      }
+
+      results.push({
+        product_id: product.id,
+        product_slug: product.slug,
+        product_name: product.name,
+        category_id: product.category_id,
+        category_slug: matchingCategory.slug,
+        total_quantity: product.total_quantity,
+        temp_unavailable_qty: product.temp_unavailable_qty,
+        standalone_price_cents: pricingRows.standalone_price_cents ?? null,
+        addon_price_cents: pricingRows.addon_price_cents ?? null,
+        standalone_enabled: standaloneEnabled,
+        addon_enabled: addonEnabled,
+      });
+    }
+
+    return { status: 'configured', products: results };
+  } catch (err: any) {
+    return { status: 'configuration_failed', error: err?.message || 'Unknown error' };
+  }
+}
+
 export async function loadPackageGeneratorConfigs(
   generatorProductId: string,
 ): Promise<PackageGeneratorConfigResult> {
@@ -380,3 +501,6 @@ export async function loadPackageGeneratorConfigs(
     return { status: 'failed', error: err?.message || 'Unknown error' };
   }
 }
+
+
+export { hasGeneratorInOrderItems }
