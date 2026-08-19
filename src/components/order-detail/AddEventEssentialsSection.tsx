@@ -38,6 +38,7 @@ const GENERATORS_CATEGORY_SLUG = 'generators';
 export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddProduct, onAddBundle }: AddEventEssentialsSectionProps) {
   const [products, setProducts] = useState<any[]>([]);
   const [bundles, setBundles] = useState<any[]>([]);
+  const [allBundles, setAllBundles] = useState<any[]>([]);
   const [categories, setCategories] = useState<Record<string, any>>({});
   const [pricingConfigs, setPricingConfigs] = useState<Record<string, any>>({});
   const [bundlePricingConfigs, setBundlePricingConfigs] = useState<Record<string, any>>({});
@@ -53,9 +54,9 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
     setError(null);
     try {
       const [catsRes, prodsRes, bundlesRes, pricingRes, bundlePricingRes, componentsRes] = await Promise.all([
-        supabase.from('product_categories').select('id, slug, name, active').eq('active', true),
+        supabase.from('product_categories').select('id, slug, name, active'),
         supabase.from('inventory_products').select('id, slug, name, active, category_id, total_quantity, temp_unavailable_qty'),
-        supabase.from('product_bundles').select('id, slug, name, description, active, category_id').eq('active', true),
+        supabase.from('product_bundles').select('id, slug, name, description, active, category_id'),
         (supabase.from('product_pricing') as any).select('product_id, standalone_price_cents, addon_price_cents, standalone_enabled, addon_enabled, addon_qualifying_threshold_cents'),
         (supabase.from as any)('product_bundle_pricing').select('bundle_id, standalone_price_cents, addon_price_cents, standalone_enabled, addon_enabled, addon_qualifying_threshold_cents, excluded_category_ids, inflatable_eligibility_mode, eligible_unit_ids'),
         supabase.from('product_bundle_components').select('bundle_id, product_id, quantity_per_bundle, inventory_products!inner(id, name, category_id)') as any,
@@ -81,7 +82,10 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
       const filteredProducts = (prodsRes.data || []).filter((p: any) => p.category_id !== generatorsCatId && p.active);
       setProducts(filteredProducts);
 
-      setBundles(bundlesRes.data || []);
+      // Keep ALL bundles for resolver config (including inactive for historical staged rows)
+      setAllBundles(bundlesRes.data || []);
+      // Picker shows active bundles only
+      setBundles((bundlesRes.data || []).filter((b: any) => b.active));
 
       const pMap: Record<string, any> = {};
       (pricingRes.data || []).forEach((p: any) => { pMap[p.product_id] = p; });
@@ -127,9 +131,9 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
       };
     }
 
-    // Build bundle configs with correct containedProductCategoryIds from component products
+    // Build bundle configs from ALL bundles (including inactive for historical staged rows)
     const bundleConfigs: Record<string, ResolverBundleConfig> = {};
-    for (const b of bundles) {
+    for (const b of allBundles) {
       const bp = bundlePricingConfigs[b.id];
       if (!bp) continue;
       const comps = bundleComponents[b.id] || [];
@@ -208,7 +212,7 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
       categories: catMap,
       units: unitsMap,
     };
-  }, [allProducts, bundles, pricingConfigs, bundlePricingConfigs, bundleComponents, categories, availableUnits, stagedItems]);
+  }, [allProducts, allBundles, pricingConfigs, bundlePricingConfigs, bundleComponents, categories, availableUnits, stagedItems]);
 
   const handleAddProduct = useCallback((product: any) => {
     try {

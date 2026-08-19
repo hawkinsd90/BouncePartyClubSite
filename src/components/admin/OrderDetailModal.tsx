@@ -138,7 +138,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [sameDayWeekdayDeliveryFeeWaived, setSameDayWeekdayDeliveryFeeWaived] = useState(order.same_day_weekday_delivery_fee_waived || false);
   const [sameDayWeekdayDeliveryFeeWaiveReason, setSameDayWeekdayDeliveryFeeWaiveReason] = useState(order.same_day_weekday_delivery_fee_waive_reason || '');
 
-  const { orderSummary: updatedOrderSummary, calculatedPricing, calculatePricing } = usePricing();
+  const { orderSummary: updatedOrderSummary, calculatedPricing, pricingError, calculatePricing } = usePricing();
   const { payments, pricingRules, reload: reloadOrderData } = useOrderDetails(order.id);
   const pricingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -411,7 +411,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       }));
 
       const results = await checkMultipleUnitsAvailability(checks);
-      const issues = results
+      const finalIssues: any[] = results
         .filter(result => !result.isAvailable)
         .map(result => {
           const item = activeItems.find(i => i.unit_id === result.unitId);
@@ -422,16 +422,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           };
         });
 
-      setAvailabilityIssues(issues);
-
-      // Event Essentials availability check
+      // Event Essentials availability check — append to same finalIssues array
       const eeItems = stagedItems.filter(item => !item.is_deleted && !item.unit_id && (item.product_id || item.bundle_id));
-      let eeCheckFailed = false;
       if (eeItems.length > 0) {
         const expansion = buildEventEssentialAvailabilityRequestFromOrderItems(eeItems);
         if (expansion.status === 'invalid') {
-          eeCheckFailed = true;
-          setAvailabilityIssues(prev => [...prev, { unitName: 'Event Essentials', error: expansion.error }]);
+          finalIssues.push({ unitName: 'Event Essentials', error: expansion.error });
         } else if (expansion.productQuantities.length > 0) {
           const eeResult = await checkProductAvailability(
             expansion.productQuantities,
@@ -440,31 +436,24 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
             order.id,
           );
           if (eeResult.error) {
-            eeCheckFailed = true;
-            setAvailabilityIssues(prev => [...prev, { unitName: 'Event Essentials', error: eeResult.error }]);
+            finalIssues.push({ unitName: 'Event Essentials', error: eeResult.error });
           } else {
             const validation = validateAvailabilityResult(
               expansion.productQuantities.map(pq => pq.product_id),
               { data: eeResult.data, error: null },
             );
             if (!validation.ok) {
-              if (validation.status === 'invalid') {
-                eeCheckFailed = true;
-                setAvailabilityIssues(prev => [...prev, { unitName: 'Event Essentials', error: validation.error || 'Availability check failed' }]);
-              } else {
-                setAvailabilityIssues(prev => [...prev, { unitName: 'Event Essentials', error: validation.error || 'One or more Event Essentials items are no longer available.' }]);
-              }
+              finalIssues.push({ unitName: 'Event Essentials', error: validation.error || 'Event Essentials availability check failed' });
             }
           }
         }
       }
-      if (eeCheckFailed) {
-        return [...issues, { unitName: 'Event Essentials', error: 'Event Essentials availability check failed' }];
-      }
 
-      return issues;
+      setAvailabilityIssues(finalIssues);
+      return finalIssues;
     } catch (error) {
-      console.error('Error checking availability:', error);
+      // Clear stale green state and expose controlled failure
+      setAvailabilityIssues([{ unitName: 'Availability Check', error: 'Availability check failed. Please try again or contact us for assistance.' }]);
       throw error;
     } finally {
       setCheckingAvailability(false);
@@ -612,6 +601,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   }, []);
 
   async function handleSaveChanges() {
+    if (pricingError) {
+      showToast(`Cannot save: ${pricingError}`, 'error');
+      return;
+    }
     setSaving(true);
     try {
       const latestAvailabilityIssues = await checkAvailability();
@@ -781,7 +774,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 )}
                 <button
                   onClick={handleSaveChanges}
-                  disabled={saving}
+                  disabled={saving || !!pricingError}
                   className="flex items-center gap-1 md:gap-2 bg-green-600 hover:bg-green-700 text-white px-2 md:px-4 py-1.5 md:py-2 rounded-lg text-sm md:text-base font-medium disabled:opacity-50"
                 >
                   <Save className="w-3.5 h-3.5 md:w-4 md:h-4" />
@@ -844,6 +837,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               order={order}
               checkingAvailability={checkingAvailability}
               availabilityIssues={availabilityIssues}
+              pricingError={pricingError}
               stagedItems={stagedItems}
               editedOrder={editedOrder}
               pricingRules={pricingRules}

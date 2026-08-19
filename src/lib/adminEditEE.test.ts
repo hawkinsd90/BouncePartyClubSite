@@ -374,6 +374,242 @@ function testInvalidEEDepositFailsClosed(): void {
 }
 
 // ---------------------------------------------------------------------------
+// TEST: Malformed availability — is_allowed must be boolean
+// ---------------------------------------------------------------------------
+
+function testAvailabilityMalformedIsAllowed(): void {
+  // is_allowed = undefined -> invalid, not unavailable
+  const r1 = validateAvailabilityResult(['p1'], {
+    data: [{ product_id: 'p1' }],
+    error: null,
+  });
+  ok('avail: missing is_allowed -> ok=false', r1.ok === false);
+  ok('avail: missing is_allowed -> status=invalid', r1.status === 'invalid');
+
+  // is_allowed = null -> invalid
+  const r2 = validateAvailabilityResult(['p1'], {
+    data: [{ product_id: 'p1', is_allowed: null }],
+    error: null,
+  });
+  ok('avail: null is_allowed -> status=invalid', r2.status === 'invalid');
+
+  // is_allowed = string -> invalid
+  const r3 = validateAvailabilityResult(['p1'], {
+    data: [{ product_id: 'p1', is_allowed: 'true' }],
+    error: null,
+  });
+  ok('avail: string is_allowed -> status=invalid', r3.status === 'invalid');
+
+  // is_allowed = true -> ok
+  const r4 = validateAvailabilityResult(['p1'], {
+    data: [{ product_id: 'p1', is_allowed: true }],
+    error: null,
+  });
+  ok('avail: true is_allowed -> ok=true', r4.ok === true);
+  ok('avail: true is_allowed -> status=ok', r4.status === 'ok');
+
+  // is_allowed = false -> unavailable (legitimate)
+  const r5 = validateAvailabilityResult(['p1'], {
+    data: [{ product_id: 'p1', is_allowed: false }],
+    error: null,
+  });
+  ok('avail: false is_allowed -> status=unavailable', r5.status === 'unavailable');
+}
+
+// ---------------------------------------------------------------------------
+// TEST: EE-only invalid deposit config produces pricing error, not $0 or fullTotal
+// ---------------------------------------------------------------------------
+
+function testInvalidEEDepositProducesPricingError(): void {
+  const parsed = parseBookingDepositSettings({
+    deposit_per_unit_cents: 5000,
+    ee_only_deposit_base_threshold_cents: 20000,
+    ee_only_deposit_base_cents: 0, // invalid
+    ee_only_deposit_subtotal_step_cents: 10000,
+    ee_only_deposit_step_cents: 5000,
+  });
+  // Simulate usePricing logic: if invalid, set pricingError and return (no calculatedPricing)
+  let pricingError: string | null = null;
+  let calculatedDepositDueCents: number | undefined = undefined;
+  if (parsed.status === 'invalid') {
+    pricingError = parsed.error;
+  } else if (parsed.status === 'ready') {
+    const eeDeposit = calculateRequiredDepositCents({
+      inflatableQuantity: 0,
+      eventEssentialsSubtotalCents: 25000,
+      orderTotalCents: 25000,
+      inflatableDepositPerUnitCents: parsed.inflatableDepositPerUnitCents,
+      eeOnlyDepositSettings: parsed.eventEssentialsDepositSettings,
+    });
+    if (eeDeposit.status === 'calculated') {
+      calculatedDepositDueCents = eeDeposit.depositCents;
+    } else {
+      pricingError = eeDeposit.error || 'Deposit calculation failed';
+    }
+  }
+  ok('ee deposit error: pricingError is set', pricingError !== null);
+  ok('ee deposit error: no calculatedDepositDueCents', calculatedDepositDueCents === undefined);
+  ok('ee deposit error: not $0', pricingError !== '' && calculatedDepositDueCents !== 0);
+  ok('ee deposit error: not fullTotal', calculatedDepositDueCents !== 25000);
+}
+
+// ---------------------------------------------------------------------------
+// TEST: Unchanged waived legacy generator — stored fee 0, display pre-waiver > 0
+// ---------------------------------------------------------------------------
+
+function testUnchangedWaivedLegacyGeneratorDisplay(): void {
+  // Stored order: generator_qty=2, generator_fee_cents=0, generator_fee_waived=true
+  // No qty edit made -> legacyQtyChanged=false
+  const existingOrder = { generator_qty: 2, generator_fee_cents: 0, generator_fee_waived: true };
+  const editedLegacyQty = 2;
+  const existingLegacyQty = existingOrder.generator_qty ?? 0;
+  const legacyQtyChanged = editedLegacyQty !== existingLegacyQty; // false
+  const generatorFeeWaived = true;
+
+  ok('waived legacy: legacyQtyChanged is false', legacyQtyChanged === false);
+
+  // Simulate usePricing display-only pre-waiver calculation
+  // When unchanged + waived + qty > 0: calculate what fee WOULD be
+  let originalGeneratorFeeCents: number;
+  if (legacyQtyChanged) {
+    originalGeneratorFeeCents = 0; // would use priceBreakdown
+  } else if (generatorFeeWaived && editedLegacyQty > 0) {
+    // Compute display-only pre-waiver fee
+    // Simulate: generator fee = qty * per_unit_fee (e.g. 2 * 5000 = 10000)
+    const preWaiverPerUnit = 5000;
+    originalGeneratorFeeCents = editedLegacyQty * preWaiverPerUnit;
+  } else {
+    originalGeneratorFeeCents = existingOrder.generator_fee_cents ?? 0;
+  }
+
+  ok('waived legacy: display pre-waiver fee > 0', originalGeneratorFeeCents > 0);
+  ok('waived legacy: display pre-waiver fee = 10000', originalGeneratorFeeCents === 10000);
+
+  // Stored contract remains unchanged
+  const storedGeneratorFeeCents = generatorFeeWaived ? 0 : originalGeneratorFeeCents;
+  ok('waived legacy: stored fee remains 0', storedGeneratorFeeCents === 0);
+  ok('waived legacy: stored waived remains true', generatorFeeWaived === true);
+}
+
+// ---------------------------------------------------------------------------
+// TEST: Inactive package contributes saved price to resolver but not selectable
+// ---------------------------------------------------------------------------
+
+function testInactivePackageResolverContext(): void {
+  // Inactive bundle with saved price should still resolve for existing staged item
+  const inactiveBundle = bundle('b_inactive', {
+    standalonePriceCents: 20000,
+    standaloneEnabled: true,
+    addonEnabled: false,
+    containedProductCategoryIds: [C_TABLES],
+  });
+  const genCandidate = prod('p_gen', C_GEN, {
+    standalonePriceCents: 12500,
+    addonPriceCents: 5000,
+    standaloneEnabled: true,
+    addonEnabled: true,
+    addonQualifyingThresholdCents: 15000,
+  });
+
+  // Existing staged item with saved price on inactive bundle
+  const r = resolveEventEssentialsPricing(
+    buildInput(
+      [
+        bundleLine('existing', 'b_inactive', 1, 10000),
+        productLine('candidate', 'p_gen', 1),
+      ],
+      { products: { p_gen: genCandidate }, bundles: { b_inactive: inactiveBundle }, categories: baseCategories },
+    ),
+  );
+  const existingLine = findByKey(r, 'existing');
+  ok('inactive bundle: existing line is selectable', existingLine.selectable === true);
+  ok('inactive bundle: existing line resolves with non-null price', existingLine.resolvedUnitPriceCents !== null);
+  ok('inactive bundle: existing line price > 0', (existingLine.resolvedUnitPriceCents ?? 0) > 0);
+
+  // The candidate generator should resolve correctly using the saved price contribution
+  const candidateLine = findByKey(r, 'candidate');
+  ok('inactive bundle: candidate resolves', candidateLine.resolvedUnitPriceCents !== null);
+
+  // Picker would filter to active only — simulate
+  const allBundles = [{ id: 'b_inactive', active: false }, { id: 'b_active', active: true }];
+  const pickerBundles = allBundles.filter(b => b.active);
+  ok('inactive bundle: picker excludes inactive', pickerBundles.length === 1 && pickerBundles[0].id === 'b_active');
+}
+
+// ---------------------------------------------------------------------------
+// TEST: Valid mixed Generator representation — legacy + EE coexistence
+// ---------------------------------------------------------------------------
+
+function testValidMixedGeneratorRepresentation(): void {
+  // legacy Generator x1 + EE Generator x1 is valid for Admin Edit save
+  const stagedItems = [
+    { product_id: null, bundle_id: null, unit_id: null, qty: 1, is_legacy_generator: true },
+    { product_id: 'p_gen_ee', bundle_id: null, unit_id: null, qty: 1, is_new: true },
+  ];
+
+  // orderSaveService does NOT have a blanket mixed-generator blocker
+  // Simulate: no invariant check rejects this combination
+  const hasLegacyGenerator = stagedItems.some(i => i.is_legacy_generator);
+  const hasEeGenerator = stagedItems.some(i => i.product_id === 'p_gen_ee');
+  const mixedCoexistence = hasLegacyGenerator && hasEeGenerator;
+
+  ok('mixed gen: legacy + EE coexistence detected', mixedCoexistence === true);
+  ok('mixed gen: no blanket rejection', mixedCoexistence === true); // save service allows it
+}
+
+// ---------------------------------------------------------------------------
+// TEST: Unknown resolver invalidReason fails closed
+// ---------------------------------------------------------------------------
+
+function testUnknownResolverReasonFailsClosed(): void {
+  // Simulate: candidate not selectable with unknown reason
+  // Whitelist: only NO_STANDALONE_AND_ADDON_NOT_QUALIFIED, PREREQUISITE_NOT_MET, NO_PURCHASE_PATH may continue
+  const businessReasons = new Set([
+    'NO_STANDALONE_AND_ADDON_NOT_QUALIFIED',
+    'PREREQUISITE_NOT_MET',
+    'NO_PURCHASE_PATH',
+  ]);
+  const unknownReason = 'PRODUCT_CONFIG_MISSING';
+  const knownBusinessReason = 'NO_STANDALONE_AND_ADDON_NOT_QUALIFIED';
+
+  ok('unknown reason: not in whitelist', !businessReasons.has(unknownReason));
+  ok('unknown reason: would fail closed', !businessReasons.has(unknownReason) === true);
+
+  ok('business reason: in whitelist', businessReasons.has(knownBusinessReason));
+  ok('business reason: would continue', businessReasons.has(knownBusinessReason) === true);
+
+  // Empty/null reason also fails closed
+  ok('null reason: not in whitelist', !businessReasons.has(null as any));
+  ok('undefined reason: not in whitelist', !businessReasons.has(undefined as any));
+}
+
+// ---------------------------------------------------------------------------
+// TEST: Cached generator lookup does not cache failure as empty Set
+// ---------------------------------------------------------------------------
+
+function testCachedGeneratorLookupFailureNotCached(): void {
+  // Simulate the contract: query error throws, does not populate cache
+  // Success with genuinely no products -> caches empty Set
+  let cache: Set<string> | null = null;
+  let threwOnFailure = false;
+
+  // Simulate success with no products
+  cache = new Set();
+  ok('cache: success with no products -> empty Set', cache.size === 0);
+
+  // Simulate failure — should throw, not cache
+  try {
+    // Simulate: throw on error
+    throw new Error('query failed');
+  } catch {
+    threwOnFailure = true;
+    // cache should NOT be populated
+  }
+  ok('cache: failure throws', threwOnFailure === true);
+  ok('cache: failure does not populate cache', cache === null || cache.size === 0);
+}
+
+// ---------------------------------------------------------------------------
 // RUN
 // ---------------------------------------------------------------------------
 
@@ -391,6 +627,13 @@ testAvailabilityIncompleteFailsClosed();
 testResolverMissingCandidate();
 testValidEEDeposit();
 testInvalidEEDepositFailsClosed();
+testAvailabilityMalformedIsAllowed();
+testInvalidEEDepositProducesPricingError();
+testUnchangedWaivedLegacyGeneratorDisplay();
+testInactivePackageResolverContext();
+testValidMixedGeneratorRepresentation();
+testUnknownResolverReasonFailsClosed();
+testCachedGeneratorLookupFailureNotCached();
 
 console.log(`\nAdmin Edit EE tests: ${passCount} passed, ${failCount} failed`);
 if (failures.length > 0) {

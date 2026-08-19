@@ -22,6 +22,7 @@ interface OrderDetailsTabProps {
   order: any;
   checkingAvailability: boolean;
   availabilityIssues: any[];
+  pricingError: string | null;
   stagedItems: any[];
   editedOrder: any;
   pricingRules: any;
@@ -82,6 +83,7 @@ export function OrderDetailsTab({
   order,
   checkingAvailability,
   availabilityIssues,
+  pricingError,
   stagedItems,
   editedOrder,
   pricingRules,
@@ -173,6 +175,21 @@ export function OrderDetailsTab({
           {editModeMessage}
         </p>
       </div>
+
+      {pricingError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="w-4 h-4 text-red-700" />
+            <h3 className="font-semibold text-red-900">Pricing Configuration Error</h3>
+          </div>
+          <p className="text-sm text-red-700">
+            {pricingError}
+          </p>
+          <p className="text-xs text-red-600 mt-2">
+            Save is disabled until this pricing error is resolved.
+          </p>
+        </div>
+      )}
 
       {checkingAvailability && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">

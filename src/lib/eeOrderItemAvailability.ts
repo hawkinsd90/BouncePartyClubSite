@@ -152,6 +152,17 @@ export function validateAvailabilityResult(
       };
     }
   }
+  // Validate each result row: is_allowed must be a boolean
+  for (const row of result.data) {
+    if (typeof row.is_allowed !== 'boolean') {
+      return {
+        ok: false,
+        status: 'invalid',
+        error:
+          'Availability check returned a malformed result. Please try again or contact us for assistance.',
+      };
+    }
+  }
   const allAvailable = result.data.every((r: any) => r.is_allowed === true);
   if (!allAvailable) {
     return {

@@ -525,24 +525,27 @@ export async function loadGeneratorCategoryProductIds(): Promise<Set<string>> {
   _generatorCategoryProductIdsPromise = (async () => {
     try {
       const { supabase } = await import('./supabase');
-      const { data: categories } = await supabase
+      const { data: categories, error: catError } = await supabase
         .from('product_categories')
         .select('id')
         .eq('slug', GENERATOR_CATEGORY_SLUG);
+      if (catError) throw catError;
       if (!categories || categories.length === 0) {
         _generatorCategoryProductIdsCache = new Set();
         return _generatorCategoryProductIdsCache;
       }
       const categoryIds = categories.map((c: any) => c.id);
-      const { data: products } = await supabase
+      const { data: products, error: prodError } = await supabase
         .from('inventory_products')
         .select('id')
         .in('category_id', categoryIds);
+      if (prodError) throw prodError;
       _generatorCategoryProductIdsCache = new Set((products || []).map((p: any) => p.id));
       return _generatorCategoryProductIdsCache;
-    } catch {
-      _generatorCategoryProductIdsCache = new Set();
-      return _generatorCategoryProductIdsCache;
+    } catch (err) {
+      // Do NOT cache failure as empty Set — caller can distinguish via thrown error
+      _generatorCategoryProductIdsPromise = null;
+      throw err;
     } finally {
       _generatorCategoryProductIdsPromise = null;
     }

@@ -243,28 +243,15 @@ export function AddGeneratorSection({
         }
         if (!candidateResult.selectable || candidateResult.resolvedUnitPriceCents === null) {
           const reason = candidateResult.selectableReason || candidateResult.invalidReason;
-          const technicalReasons = new Set([
-            'INVALID',
-            'PRODUCT_CONFIG_MISSING',
-            'PRODUCT_CONFIG_ID_MISMATCH',
-            'CATEGORY_MISSING',
-            'CATEGORY_ID_MISMATCH',
-            'STANDALONE_PRICE_INVALID',
-            'ADDON_THRESHOLD_INVALID_NO_STANDALONE',
-            'ADDON_PRICE_INVALID_NO_STANDALONE',
-            'QUALIFYING_SUBTOTAL_OVERFLOW',
-            'INVALID_QUANTITY',
-            'UNKNOWN_ITEM_TYPE',
-            'BUNDLE_CONFIG_MISSING',
-            'BUNDLE_CONFIG_ID_MISMATCH',
-            'INFLATABLE_UNIT_MISSING',
-            'INFLATABLE_UNIT_UNKNOWN',
-            'INFLATABLE_UNIT_INACTIVE',
-            'INFLATABLE_PRICE_INVALID',
-            'INFLATABLE_MODE_MISSING',
+          // Whitelist of legitimate business non-qualification reasons that may continue to next candidate.
+          // Any other reason is a technical/configuration failure and must fail closed.
+          const businessNonQualificationReasons = new Set([
+            'NO_STANDALONE_AND_ADDON_NOT_QUALIFIED',
+            'PREREQUISITE_NOT_MET',
+            'NO_PURCHASE_PATH',
           ]);
-          if (reason && technicalReasons.has(reason)) {
-            setError(`Generator pricing configuration error (${reason}). No changes were staged.`);
+          if (!reason || !businessNonQualificationReasons.has(reason)) {
+            setError(`Generator pricing configuration error (${reason || 'unknown'}). No changes were staged.`);
             return;
           }
           continue;

@@ -31,6 +31,8 @@ export function OrderInfoSection({ order, customerDisplayName, onEditClick }: Or
     let mounted = true;
     void loadGeneratorCategoryProductIds().then(ids => {
       if (mounted) setGeneratorCategoryProductIds(ids);
+    }).catch(() => {
+      // Preserve previous value (initially empty Set) — do not falsely show "No" on query failure
     });
     return () => { mounted = false; };
   }, []);

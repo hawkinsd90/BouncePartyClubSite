@@ -108,6 +108,7 @@ interface CalculatedPricing {
 export function usePricing() {
   const [orderSummary, setOrderSummary] = useState<any>(null);
   const [calculatedPricing, setCalculatedPricing] = useState<CalculatedPricing | null>(null);
+  const [pricingError, setPricingError] = useState<string | null>(null);
 
   const calculatePricing = useCallback(async ({
     items,
@@ -292,12 +293,34 @@ export function usePricing() {
       const originalSameDayPickupFeeCents = useSavedSameDayFee && existingOrder?.same_day_pickup_fee_cents
         ? existingOrder.same_day_pickup_fee_cents
         : priceBreakdown.same_day_pickup_fee_cents;
-      const originalGeneratorFeeCents =
-        legacyQtyChanged
-          ? priceBreakdown.generator_fee_cents
-          : (existingOrder && (existingOrder.generator_fee_cents ?? null) !== null && (existingOrder.generator_fee_cents ?? 0) > 0
-            ? existingOrder.generator_fee_cents!
-            : priceBreakdown.generator_fee_cents);
+      // Display-only pre-waiver fee: for unchanged waived legacy generator,
+      // calculate what the fee WOULD be for the current qty using current rules.
+      let originalGeneratorFeeCents: number;
+      if (legacyQtyChanged) {
+        originalGeneratorFeeCents = priceBreakdown.generator_fee_cents;
+      } else if (existingOrder && generatorFeeWaived && editedLegacyQty > 0) {
+        // Unchanged waived historical generator — compute display-only pre-waiver fee
+        const preWaiverBreakdown = calculatePrice({
+          items: [],
+          location_type: eventDetails.location_type,
+          surface: eventDetails.surface,
+          can_use_stakes: eventDetails.surface === 'grass',
+          overnight_allowed: eventDetails.pickup_preference === 'next_day',
+          num_days: numDays,
+          distance_miles: 0,
+          city: eventDetails.address_city,
+          zip: eventDetails.address_zip,
+          has_generator: true,
+          generator_qty: editedLegacyQty,
+          rules: pricingRules,
+          is_same_day_weekday_delivery: false,
+        });
+        originalGeneratorFeeCents = preWaiverBreakdown.generator_fee_cents;
+      } else if (existingOrder && (existingOrder.generator_fee_cents ?? null) !== null && (existingOrder.generator_fee_cents ?? 0) > 0) {
+        originalGeneratorFeeCents = existingOrder.generator_fee_cents!;
+      } else {
+        originalGeneratorFeeCents = priceBreakdown.generator_fee_cents;
+      }
       const originalSameDayWeekdayDeliveryFeeCents = useSavedWeekdayDeliveryFee && existingOrder?.same_day_weekday_delivery_fee_cents !== undefined
         ? (existingOrder.same_day_weekday_delivery_fee_cents ?? 0)
         : priceBreakdown.same_day_weekday_delivery_fee_cents;
@@ -340,7 +363,8 @@ export function usePricing() {
 
       // Calculate deposit — EE-only orders use EE deposit tier
       const inflatableQuantity = activeItems.reduce((sum, item) => sum + item.qty, 0);
-      let calculatedDepositDueCents: number;
+      let calculatedDepositDueCents: number = 0;
+      let depositConfigError: string | null = null;
       if (inflatableQuantity === 0 && eeSubtotalCents > 0) {
         const depositSettings = parseBookingDepositSettings(pricingRules);
         if (depositSettings.status === 'ready') {
@@ -354,16 +378,19 @@ export function usePricing() {
           if (eeDeposit.status === 'calculated') {
             calculatedDepositDueCents = eeDeposit.depositCents;
           } else {
-            console.error('EE-only deposit calculation failed:', eeDeposit.error);
-            calculatedDepositDueCents = finalTotalCents;
+            depositConfigError = eeDeposit.error || 'Deposit calculation failed for this Event Essentials-only order.';
           }
         } else {
-          console.error('EE-only deposit configuration invalid:', depositSettings.error);
-          calculatedDepositDueCents = finalTotalCents;
+          depositConfigError = depositSettings.error || 'Deposit configuration is invalid for this Event Essentials-only order.';
         }
       } else {
         calculatedDepositDueCents = priceBreakdown.deposit_due_cents;
       }
+      if (depositConfigError) {
+        setPricingError(depositConfigError);
+        return;
+      }
+      setPricingError(null);
       const rawDepositDueCents = customDepositCents !== null ? customDepositCents : calculatedDepositDueCents;
       const depositDueCents = Math.min(rawDepositDueCents, finalTotalCents);
       const balanceDueCents = Math.max(0, finalTotalCents - depositDueCents);
@@ -430,6 +457,7 @@ export function usePricing() {
   return {
     orderSummary,
     calculatedPricing,
+    pricingError,
     calculatePricing,
   };
 }
