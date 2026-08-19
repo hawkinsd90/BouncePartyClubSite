@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { CreditCard as Edit2 } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
 import { ORDER_STATUS_LABELS } from '../../lib/constants/statuses';
-import { hasGeneratorInOrderItems } from '../../lib/generatorUnified';
+import { hasGeneratorInOrderItemsByCategory } from '../../lib/generatorUnified';
 import { supabase } from '../../lib/supabase';
 
 interface OrderInfoSectionProps {
@@ -26,26 +26,24 @@ const STATUS_BADGE_COLORS: Record<string, string> = {
 export function OrderInfoSection({ order, customerDisplayName, onEditClick }: OrderInfoSectionProps) {
   const badgeColor = STATUS_BADGE_COLORS[order.status] ?? 'bg-slate-600';
   const badgeLabel = ORDER_STATUS_LABELS[order.status as keyof typeof ORDER_STATUS_LABELS] ?? order.status ?? 'Unknown';
-  const [generatorProductId, setGeneratorProductId] = useState<string | null>(null);
+  const [generatorCategoryProductIds, setGeneratorCategoryProductIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await supabase
-          .from('inventory_products')
-          .select('id')
-          .eq('slug', 'generator')
-          .maybeSingle();
-        if (data) setGeneratorProductId(data.id);
+        const { data: categories } = await supabase.from('product_categories').select('id').eq('slug', 'generators').maybeSingle();
+        if (!categories) return;
+        const { data: products } = await supabase.from('inventory_products').select('id').eq('category_id', categories.id);
+        setGeneratorCategoryProductIds(new Set((products || []).map(product => product.id)));
       } catch { /* non-fatal */ }
     })();
   }, []);
 
   const orderItems = (order as any).order_items ?? (order as any).orderItems ?? [];
   const legacyGeneratorQty = (order as any).generator_qty ?? 0;
-  const hasGenerator = hasGeneratorInOrderItems({
+  const hasGenerator = hasGeneratorInOrderItemsByCategory({
     orderItems,
-    generatorProductId,
+    generatorCategoryProductIds,
     legacyGeneratorQty,
   });
 

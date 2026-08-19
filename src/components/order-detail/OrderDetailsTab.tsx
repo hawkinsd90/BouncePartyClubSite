@@ -53,6 +53,7 @@ interface OrderDetailsTabProps {
   onAddressSelect: (result: any) => void;
   onRemoveItem: (item: any) => void;
   onAddItem: (unit: any, mode: 'dry' | 'water') => void;
+  onUpdateQuantity: (item: any, qty: number) => void;
   onDiscountsChange: (discounts: any[]) => void;
   onFeesChange: (fees: any[]) => void;
   onDepositInputChange: (value: string) => void;
@@ -63,7 +64,8 @@ interface OrderDetailsTabProps {
   onTravelFeeWaivedToggle: (reason: string) => void;
   onSameDayPickupFeeWaivedToggle: (reason: string) => void;
   onSurfaceFeeWaivedToggle: (reason: string) => void;
-  onGeneratorFeeWaivedToggle: (reason: string) => void;
+  onGeneratorFeeWaiverToggle: () => void;
+  onGeneratorFeeWaiverReasonChange: (reason: string) => void;
   onSameDayWeekdayDeliveryFeeWaivedToggle: (reason: string) => void;
   onStatusChange: (status: string) => void;
   onMarkChanges: () => void;
@@ -111,6 +113,7 @@ export function OrderDetailsTab({
   onAddressSelect,
   onRemoveItem,
   onAddItem,
+  onUpdateQuantity,
   onDiscountsChange,
   onFeesChange,
   onDepositInputChange,
@@ -121,7 +124,8 @@ export function OrderDetailsTab({
   onTravelFeeWaivedToggle,
   onSameDayPickupFeeWaivedToggle,
   onSurfaceFeeWaivedToggle,
-  onGeneratorFeeWaivedToggle,
+  onGeneratorFeeWaiverToggle,
+  onGeneratorFeeWaiverReasonChange,
   onSameDayWeekdayDeliveryFeeWaivedToggle,
   onStatusChange,
   onMarkChanges,
@@ -306,13 +310,15 @@ export function OrderDetailsTab({
         units={availableUnits}
         onRemoveItem={onRemoveItem}
         onAddItem={onAddItem}
+        onUpdateQuantity={onUpdateQuantity}
+        allowQuantityEdit={true}
         title="Order Items"
         removeByIndex={false}
       />
 
       <AddEventEssentialsSection
-        orderId={order.id}
         stagedItems={stagedItems}
+        availableUnits={availableUnits}
         onAddProduct={onAddEEProduct}
         onAddBundle={onAddEEBundle}
       />
@@ -321,6 +327,7 @@ export function OrderDetailsTab({
         orderId={order.id}
         editedOrder={editedOrder}
         stagedItems={stagedItems}
+        availableUnits={availableUnits}
         existingGeneratorFeeWaived={generatorFeeWaived}
         onAddGeneratorProduct={onAddGeneratorProduct}
         onLegacyFallback={onLegacyGeneratorFallback}
@@ -333,7 +340,8 @@ export function OrderDetailsTab({
           generatorFeeWaived={generatorFeeWaived}
           generatorFeeWaiveReason={generatorFeeWaiveReason}
           onQtyChange={onLegacyGeneratorQtyChange}
-          onFeeWaivedToggle={onGeneratorFeeWaivedToggle}
+          onWaiverToggle={onGeneratorFeeWaiverToggle}
+          onWaiverReasonChange={onGeneratorFeeWaiverReasonChange}
         />
       )}
 
@@ -444,17 +452,6 @@ export function OrderDetailsTab({
           waiveReason={surfaceFeeWaiveReason}
           onToggle={onSurfaceFeeWaivedToggle}
           color="orange"
-        />
-      )}
-
-      {((editedOrder.generator_qty || 0) > 0 || (order.generator_qty || 0) > 0 || generatorFeeWaived) && (
-        <FeeWaiver
-          feeName="Generator Fee"
-          feeAmount={calculatedPricing?.generator_fee_cents || order.generator_fee_cents || 0}
-          isWaived={generatorFeeWaived}
-          waiveReason={generatorFeeWaiveReason}
-          onToggle={onGeneratorFeeWaivedToggle}
-          color="blue"
         />
       )}
 

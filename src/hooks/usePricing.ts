@@ -16,9 +16,13 @@ interface PricingItem {
 
 interface EEProductItem {
   product_id: string;
+  bundle_id?: string;
+  item_name?: string;
   product_name: string;
   qty: number;
   unit_price_cents: number;
+  pricing_context?: string;
+  component_snapshot?: any;
   is_new?: boolean;
   is_deleted?: boolean;
 }
@@ -263,10 +267,14 @@ export function usePricing() {
       }));
 
       const eeDisplayItems = activeEEItems.map(item => ({
-        product_id: item.product_id,
+        product_id: item.product_id || '',
+        bundle_id: item.bundle_id,
+        item_name: item.item_name,
         product_name: item.product_name,
         qty: item.qty,
         unit_price_cents: item.unit_price_cents,
+        pricing_context: item.pricing_context,
+        component_snapshot: item.component_snapshot,
         is_new: item.is_new || false,
       }));
 

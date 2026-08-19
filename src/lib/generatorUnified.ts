@@ -29,6 +29,7 @@ export interface GeneratorProductConfiguration {
   addon_price_cents: number | null;
   standalone_enabled: boolean;
   addon_enabled: boolean;
+  addon_qualifying_threshold_cents: number | null;
 }
 
 export type GeneratorProductLookupResult =
@@ -341,7 +342,7 @@ export async function lookupGeneratorProduct(): Promise<GeneratorProductLookupRe
 
     const { data: pricingRows, error: pricingError } = await supabase
       .from('product_pricing')
-      .select('standalone_price_cents, addon_price_cents, standalone_enabled, addon_enabled')
+      .select('standalone_price_cents, addon_price_cents, standalone_enabled, addon_enabled, addon_qualifying_threshold_cents')
       .eq('product_id', product.id)
       .maybeSingle();
 
@@ -373,6 +374,7 @@ export async function lookupGeneratorProduct(): Promise<GeneratorProductLookupRe
         addon_price_cents: pricingRows.addon_price_cents ?? null,
         standalone_enabled: pricingRows.standalone_enabled === true,
         addon_enabled: pricingRows.addon_enabled === true,
+        addon_qualifying_threshold_cents: pricingRows.addon_qualifying_threshold_cents ?? null,
       },
     };
   } catch (err: any) {
@@ -433,7 +435,7 @@ export async function lookupAllGeneratorProducts(): Promise<AllGeneratorProducts
 
       const { data: pricingRows, error: pricingError } = await supabase
         .from('product_pricing')
-        .select('standalone_price_cents, addon_price_cents, standalone_enabled, addon_enabled')
+        .select('standalone_price_cents, addon_price_cents, standalone_enabled, addon_enabled, addon_qualifying_threshold_cents')
         .eq('product_id', product.id)
         .maybeSingle();
 
@@ -451,6 +453,17 @@ export async function lookupAllGeneratorProducts(): Promise<AllGeneratorProducts
         return { status: 'configuration_failed', error: `Generator product "${product.name}" has no enabled pricing mode` };
       }
 
+      // Fail-closed: validate enabled paths have valid required prices
+      if (standaloneEnabled && (typeof pricingRows.standalone_price_cents !== 'number' || pricingRows.standalone_price_cents < 0)) {
+        return { status: 'configuration_failed', error: `Generator product "${product.name}" has standalone enabled but invalid standalone_price_cents` };
+      }
+      if (addonEnabled && (typeof pricingRows.addon_price_cents !== 'number' || pricingRows.addon_price_cents < 0)) {
+        return { status: 'configuration_failed', error: `Generator product "${product.name}" has addon enabled but invalid addon_price_cents` };
+      }
+      if (addonEnabled && (typeof pricingRows.addon_qualifying_threshold_cents !== 'number' || pricingRows.addon_qualifying_threshold_cents < 0)) {
+        return { status: 'configuration_failed', error: `Generator product "${product.name}" has addon enabled but invalid addon_qualifying_threshold_cents` };
+      }
+
       results.push({
         product_id: product.id,
         product_slug: product.slug,
@@ -463,6 +476,7 @@ export async function lookupAllGeneratorProducts(): Promise<AllGeneratorProducts
         addon_price_cents: pricingRows.addon_price_cents ?? null,
         standalone_enabled: standaloneEnabled,
         addon_enabled: addonEnabled,
+        addon_qualifying_threshold_cents: pricingRows.addon_qualifying_threshold_cents ?? null,
       });
     }
 
@@ -501,6 +515,3 @@ export async function loadPackageGeneratorConfigs(
     return { status: 'failed', error: err?.message || 'Unknown error' };
   }
 }
-
-
-export { hasGeneratorInOrderItems }

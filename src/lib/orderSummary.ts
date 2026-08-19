@@ -76,9 +76,13 @@ export interface OrderSummaryData {
   items: OrderItem[];
   eeProductItems?: Array<{
     product_id: string;
+    bundle_id?: string;
+    item_name?: string;
     product_name: string;
     qty: number;
     unit_price_cents: number;
+    pricing_context?: string;
+    component_snapshot?: { components?: Array<{ product_name: string; quantity_per_bundle: number }> } | null;
     is_new?: boolean;
   }>;
   discounts: OrderDiscount[];
@@ -380,11 +384,15 @@ export function formatOrderSummary(data: OrderSummaryData): OrderSummaryDisplay 
 
   // Append staged EE product items (not yet persisted as order_items)
   const eeItems = (data.eeProductItems || []).map(ee => ({
-    name: ee.product_name,
-    mode: 'Event Essential',
+    name: ee.item_name || ee.product_name,
+    mode: ee.bundle_id ? 'Package' : 'Event Essential',
     price: ee.unit_price_cents,
     qty: ee.qty,
     isNew: ee.is_new || false,
+    components: ee.bundle_id && ee.component_snapshot?.components
+      ? ee.component_snapshot.components.map(component => ({ name: component.product_name, quantity: component.quantity_per_bundle * ee.qty }))
+      : undefined,
+    packageContentsUnavailable: ee.bundle_id ? !ee.component_snapshot?.components : undefined,
   }));
 
   return buildOrderSummaryDisplay({

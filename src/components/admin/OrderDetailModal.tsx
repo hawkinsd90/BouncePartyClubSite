@@ -40,6 +40,7 @@ export interface BundleComponentSnapshot {
 }
 
 export interface StagedItem {
+  client_id?: string;
   id?: string; // undefined for new items
   unit_id?: string; // optional for EE products
   unit_name?: string;
@@ -562,6 +563,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     const price = mode === 'water' && unit.price_water_cents ? unit.price_water_cents : unit.price_dry_cents;
 
     const newItem: StagedItem = {
+      client_id: `new-inflatable-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       unit_id: unit.id,
       unit_name: unit.name,
       qty: 1,
@@ -576,10 +578,13 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
   const stageRemoveItem = useCallback((itemToRemove: StagedItem) => {
     setStagedItems(prev => prev.map(item => {
-      // Match by id if it exists, otherwise match by unit_id and wet_or_dry
       const isMatch = item.id
         ? item.id === itemToRemove.id
-        : item.unit_id === itemToRemove.unit_id && item.wet_or_dry === itemToRemove.wet_or_dry;
+        : item.client_id
+          ? item.client_id === itemToRemove.client_id
+          : item.unit_id
+            ? item.unit_id === itemToRemove.unit_id && item.wet_or_dry === itemToRemove.wet_or_dry
+            : item === itemToRemove;
 
       if (isMatch) {
         if (item.is_new) {
@@ -680,24 +685,32 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
   }, [hasChanges, onClose]);
 
-  const handleAddEEProduct = useCallback((item: any) => {
-    setStagedItems(prev => [...prev, item]);
+  const handleAddEEProduct = useCallback((item: StagedItem) => {
+    setStagedItems(prev => [...prev, { ...item, client_id: item.client_id || `new-ee-${Date.now()}-${Math.random().toString(36).slice(2)}` }]);
     setManualDirty(true);
   }, []);
 
-  const handleAddEEBundle = useCallback((item: any) => {
-    setStagedItems(prev => [...prev, item]);
+  const handleAddEEBundle = useCallback((item: StagedItem) => {
+    setStagedItems(prev => [...prev, { ...item, client_id: item.client_id || `new-ee-${Date.now()}-${Math.random().toString(36).slice(2)}` }]);
     setManualDirty(true);
   }, []);
 
-  const handleAddGeneratorProduct = useCallback((item: any) => {
+  const handleAddGeneratorProduct = useCallback((item: StagedItem) => {
     setStagedItems(prev => {
-      const existing = prev.find(p => !p.is_deleted && p.product_id === item.product_id && !p.bundle_id && !p.is_new);
+      const existing = prev.find(p => !p.is_deleted && p.product_id === item.product_id && !p.bundle_id && ((item.id && p.id === item.id) || (item.client_id && p.client_id === item.client_id)));
       if (existing && item.is_updated) {
         return prev.map(p => p === existing ? { ...p, qty: item.qty, is_updated: true } : p);
       }
-      return [...prev, item];
+      return [...prev, { ...item, client_id: item.client_id || `new-generator-${Date.now()}-${Math.random().toString(36).slice(2)}` }];
     });
+    setManualDirty(true);
+  }, []);
+
+  const handleUpdateQuantity = useCallback((itemToUpdate: StagedItem, qty: number) => {
+    setStagedItems(prev => prev.map(item => {
+      const matches = item.id ? item.id === itemToUpdate.id : item.client_id === itemToUpdate.client_id;
+      return matches ? { ...item, qty: Math.max(1, qty), is_updated: true } : item;
+    }));
     setManualDirty(true);
   }, []);
 
@@ -842,6 +855,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               onAddressSelect={handleAddressSelect}
               onRemoveItem={stageRemoveItem}
               onAddItem={stageAddItem}
+              onUpdateQuantity={handleUpdateQuantity}
               onDiscountsChange={setDiscounts}
               onFeesChange={setCustomFees}
               onDepositInputChange={setCustomDepositInput}
@@ -882,8 +896,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               }}
               generatorFeeWaived={generatorFeeWaived}
               generatorFeeWaiveReason={generatorFeeWaiveReason}
-              onGeneratorFeeWaivedToggle={(reason) => {
-                setGeneratorFeeWaived(!generatorFeeWaived);
+              onGeneratorFeeWaiverToggle={() => {
+                setGeneratorFeeWaived((value: boolean) => !value);
+                setManualDirty(true);
+              }}
+              onGeneratorFeeWaiverReasonChange={(reason) => {
                 setGeneratorFeeWaiveReason(reason);
                 setManualDirty(true);
               }}

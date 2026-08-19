@@ -28,7 +28,7 @@ interface ItemsEditorProps {
   units: any[];
   onRemoveItem: (itemOrIndex: any) => void;
   onAddItem: (unit: any, mode: 'dry' | 'water') => void;
-  onUpdateQuantity?: (index: number, qty: number) => void;
+  onUpdateQuantity?: (item: any, qty: number) => void;
   onUpdatePrice?: (index: number, priceCents: number) => void;
   allowQuantityEdit?: boolean;
   allowPriceEdit?: boolean;
@@ -131,41 +131,34 @@ export function ItemsEditor({
                 <p className="mb-2 text-xs text-slate-500 italic">Package contents unavailable</p>
               )}
 
-              {!allowQuantityEdit && !allowPriceEdit && (
+              {(!allowQuantityEdit || !isEEItem(item)) && !allowPriceEdit && (
                 <div className="flex items-center text-xs text-slate-600 mb-2">
                   <span>Qty: {item.qty}</span>
                 </div>
               )}
 
-              {(allowQuantityEdit || allowPriceEdit) && (
+              {((allowQuantityEdit && isEEItem(item)) || allowPriceEdit) && (
                 <div className="flex items-center justify-between gap-3 mt-2">
-                  {allowQuantityEdit && (
+                  {allowQuantityEdit && isEEItem(item) && (
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-slate-600 font-medium">Qty:</span>
-                      {item.inventory_qty && item.inventory_qty > 1 ? (
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => onUpdateQuantity?.(index, Math.max(1, item.qty - 1))}
-                            className="w-6 h-6 flex items-center justify-center bg-slate-200 hover:bg-slate-300 rounded transition-colors"
-                            title="Decrease quantity"
-                          >
-                            <Minus className="w-3 h-3" />
-                          </button>
-                          <span className="w-8 text-center text-sm font-semibold text-slate-900">
-                            {item.qty}
-                          </span>
-                          <button
-                            onClick={() => onUpdateQuantity?.(index, item.qty + 1)}
-                            disabled={item.qty >= item.inventory_qty}
-                            className="w-6 h-6 flex items-center justify-center bg-slate-200 hover:bg-slate-300 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Increase quantity"
-                          >
-                            <Plus className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-sm font-semibold text-slate-900">{item.qty}</span>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => onUpdateQuantity?.(removeByIndex ? index : item, Math.max(1, item.qty - 1))}
+                          className="w-6 h-6 flex items-center justify-center bg-slate-200 hover:bg-slate-300 rounded transition-colors"
+                          title="Decrease quantity"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <span className="w-8 text-center text-sm font-semibold text-slate-900">{item.qty}</span>
+                        <button
+                          onClick={() => onUpdateQuantity?.(removeByIndex ? index : item, item.qty + 1)}
+                          className="w-6 h-6 flex items-center justify-center bg-slate-200 hover:bg-slate-300 rounded transition-colors"
+                          title="Increase quantity"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
                   )}
 
