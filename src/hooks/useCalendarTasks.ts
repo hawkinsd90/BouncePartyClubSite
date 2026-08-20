@@ -115,7 +115,6 @@ export function derivePickupBlockReason(
 export function useCalendarTasks(currentMonth: Date) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [generatorCategoryProductIds, setGeneratorCategoryProductIds] = useState<Set<string> | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLoadingRef = useRef(false);
   const pendingRefreshRef = useRef(false);
@@ -137,17 +136,6 @@ export function useCalendarTasks(currentMonth: Date) {
   useEffect(() => {
     loadTasksForMonth(currentMonth);
   }, [currentMonth]);
-
-  useEffect(() => {
-    let mounted = true;
-    void loadGeneratorCategoryProductIds().then(ids => {
-      if (mounted) setGeneratorCategoryProductIds(ids);
-    }).catch(() => {
-      // Leave null — operational qty falls back to legacy-only
-      if (mounted) setGeneratorCategoryProductIds(null);
-    });
-    return () => { mounted = false; };
-  }, []);
 
   useEffect(() => {
     const channel = supabase
@@ -236,6 +224,19 @@ export function useCalendarTasks(currentMonth: Date) {
         .gte('task_date', format(queryStart, 'yyyy-MM-dd'))
         .lte('task_date', format(monthEnd, 'yyyy-MM-dd'));
 
+      // Load generator category product IDs inside the task load so every
+      // refresh (initial, month change, manual, realtime) uses the same
+      // authoritative IDs. The helper caches its result, so this does not
+      // create a per-order query.
+      let generatorCategoryProductIds: Set<string>;
+      try {
+        generatorCategoryProductIds = await loadGeneratorCategoryProductIds();
+      } catch {
+        // Fail the task refresh — do NOT publish legacy-only quantities.
+        // Previously loaded tasks remain intact.
+        throw new Error('Generator category lookup failed; task refresh aborted.');
+      }
+
       const generatedTasks: Task[] = [];
 
       for (const order of orders) {
@@ -258,9 +259,11 @@ export function useCalendarTasks(currentMonth: Date) {
         const equipmentIds = orderItemsForOrder.filter((i: any) => i.unit_id).map((i: any) => i.unit_id);
         const numInflatables = orderItemsForOrder.filter((i: any) => i.unit_id).reduce((s: number, i: any) => s + (i.qty || 1), 0);
         const legacyGeneratorQty = order.generator_qty || 0;
-        const { totalGeneratorQty } = generatorCategoryProductIds
-          ? aggregateOrderEquipment({ orderItems: orderItemsForOrder, legacyGeneratorQty, generatorCategoryProductIds })
-          : { totalGeneratorQty: legacyGeneratorQty };
+        const { totalGeneratorQty } = aggregateOrderEquipment({
+          orderItems: orderItemsForOrder,
+          legacyGeneratorQty,
+          generatorCategoryProductIds,
+        });
 
         const total = order.total_cents || 0;
 

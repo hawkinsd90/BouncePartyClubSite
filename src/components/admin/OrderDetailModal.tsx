@@ -110,6 +110,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [currentOrderSummary, setCurrentOrderSummary] = useState<any>(null);
   const [requireCardOnFile, setRequireCardOnFile] = useState(order.require_card_on_file ?? true);
   const [manualDirty, setManualDirty] = useState(false);
+  const [pricingPending, setPricingPending] = useState(false);
 
   // Initialize taxWaived based on actual tax state and current settings
   // For old orders created before apply_taxes_by_default setting:
@@ -289,6 +290,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   // Recalculate pricing whenever discounts, custom fees, staged items, or fee waivers change
   useEffect(() => {
     if (pricingRules && editedOrder && stagedItems.length > 0) {
+      setPricingPending(true);
       if (pricingDebounceRef.current) clearTimeout(pricingDebounceRef.current);
       pricingDebounceRef.current = setTimeout(() => {
         pricingDebounceRef.current = null;
@@ -461,7 +463,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   }
 
   const handleRecalculatePricing = useCallback(async () => {
-    if (!pricingRules || !adminSettings) return;
+    if (!pricingRules || !adminSettings) {
+      setPricingPending(false);
+      return;
+    }
     const inflatableItems = stagedItems
       .filter(item => item.unit_id && !item.product_id)
       .map(item => ({
@@ -486,39 +491,43 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         is_new: item.is_new,
         is_deleted: item.is_deleted,
       }));
-    await calculatePricing({
-      items: inflatableItems,
-      eeProductItems,
-      eventDetails: {
-        event_date: editedOrder.event_date,
-        event_end_date: editedOrder.event_end_date,
-        location_type: editedOrder.location_type,
-        surface: editedOrder.surface,
-        pickup_preference: editedOrder.pickup_preference,
-        generator_qty: editedOrder.generator_qty,
-        address_line1: editedOrder.address_line1,
-        address_city: editedOrder.address_city,
-        address_state: editedOrder.address_state,
-        address_zip: editedOrder.address_zip,
-      },
-      discounts,
-      customFees,
-      customDepositCents,
-      pricingRules: pricingRules as any,
-      feeWaivers: {
-        taxWaived,
-        travelFeeWaived,
-        sameDayPickupFeeWaived,
-        surfaceFeeWaived,
-        generatorFeeWaived,
-        sameDayWeekdayDeliveryFeeWaived,
-      },
-      existingOrder: {
-        ...order,
-        event_date: order.event_date,
-        same_day_weekday_delivery_fee_cents: order.same_day_weekday_delivery_fee_cents ?? 0,
-      },
-    });
+    try {
+      await calculatePricing({
+        items: inflatableItems,
+        eeProductItems,
+        eventDetails: {
+          event_date: editedOrder.event_date,
+          event_end_date: editedOrder.event_end_date,
+          location_type: editedOrder.location_type,
+          surface: editedOrder.surface,
+          pickup_preference: editedOrder.pickup_preference,
+          generator_qty: editedOrder.generator_qty,
+          address_line1: editedOrder.address_line1,
+          address_city: editedOrder.address_city,
+          address_state: editedOrder.address_state,
+          address_zip: editedOrder.address_zip,
+        },
+        discounts,
+        customFees,
+        customDepositCents,
+        pricingRules: pricingRules as any,
+        feeWaivers: {
+          taxWaived,
+          travelFeeWaived,
+          sameDayPickupFeeWaived,
+          surfaceFeeWaived,
+          generatorFeeWaived,
+          sameDayWeekdayDeliveryFeeWaived,
+        },
+        existingOrder: {
+          ...order,
+          event_date: order.event_date,
+          same_day_weekday_delivery_fee_cents: order.same_day_weekday_delivery_fee_cents ?? 0,
+        },
+      });
+    } finally {
+      setPricingPending(false);
+    }
   }, [order, editedOrder, stagedItems, discounts, customFees, customDepositCents, pricingRules, adminSettings, taxWaived, travelFeeWaived, sameDayPickupFeeWaived, surfaceFeeWaived, generatorFeeWaived, sameDayWeekdayDeliveryFeeWaived, calculatePricing]);
 
   async function loadOrderDetails() {
@@ -601,8 +610,16 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   }, []);
 
   async function handleSaveChanges() {
+    if (pricingPending) {
+      showToast('Pricing is still recalculating. Please wait for the new totals before saving.', 'error');
+      return;
+    }
     if (pricingError) {
       showToast(`Cannot save: ${pricingError}`, 'error');
+      return;
+    }
+    if (!calculatedPricing) {
+      showToast('Cannot save: pricing has not been calculated yet.', 'error');
       return;
     }
     setSaving(true);
@@ -778,12 +795,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 )}
                 <button
                   onClick={handleSaveChanges}
-                  disabled={saving || !!pricingError}
+                  disabled={saving || pricingPending || !!pricingError || !calculatedPricing}
                   className="flex items-center gap-1 md:gap-2 bg-green-600 hover:bg-green-700 text-white px-2 md:px-4 py-1.5 md:py-2 rounded-lg text-sm md:text-base font-medium disabled:opacity-50"
                 >
                   <Save className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                  <span className="hidden sm:inline">{saving ? 'Saving...' : 'Save Changes'}</span>
-                  <span className="sm:hidden">{saving ? '...' : 'Save'}</span>
+                  <span className="hidden sm:inline">{saving ? 'Saving...' : pricingPending ? 'Calculating...' : 'Save Changes'}</span>
+                  <span className="sm:hidden">{saving ? '...' : pricingPending ? '...' : 'Save'}</span>
                 </button>
               </>
             )}

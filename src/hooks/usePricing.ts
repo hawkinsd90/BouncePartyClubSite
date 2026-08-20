@@ -121,6 +121,9 @@ export function usePricing() {
     feeWaivers = {},
     existingOrder,
   }: CalculatePricingParams) => {
+    // Clear stale pricing immediately so an old result is never treated as
+    // current while a new calculation is in progress.
+    setCalculatedPricing(null);
     setPricingError(null);
     const {
       taxWaived = false,
@@ -388,6 +391,7 @@ export function usePricing() {
         calculatedDepositDueCents = priceBreakdown.deposit_due_cents;
       }
       if (depositConfigError) {
+        setCalculatedPricing(null);
         setPricingError(depositConfigError);
         return;
       }
