@@ -49,6 +49,7 @@ interface OrderDetailsTabProps {
   depositCatchupMode: 'require' | 'waive';
   onDepositCatchupModeChange: (mode: 'require' | 'waive') => void;
   onOrderChange: (updates: any) => void;
+  onGeneratorQtyChange?: (quantity: number) => void | Promise<void>;
   onAddressSelect: (result: any) => void;
   onRemoveItem: (item: any) => void;
   onAddItem: (unit: any, mode: 'dry' | 'water') => void;
@@ -106,6 +107,7 @@ export function OrderDetailsTab({
   depositCatchupMode,
   onDepositCatchupModeChange,
   onOrderChange,
+  onGeneratorQtyChange,
   onAddressSelect,
   onRemoveItem,
   onAddItem,
@@ -312,6 +314,7 @@ export function OrderDetailsTab({
         editedOrder={editedOrder}
         pricingRules={pricingRules}
         onOrderChange={onOrderChange}
+        onGeneratorQtyChange={onGeneratorQtyChange}
         onAddressSelect={onAddressSelect}
       />
 

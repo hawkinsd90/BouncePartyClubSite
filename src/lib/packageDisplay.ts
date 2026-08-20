@@ -16,6 +16,10 @@ export interface PackageComponentLine {
   quantity: number;
 }
 
+export function formatQuantityLabel(name: string, quantity: number): string {
+  return `${name} × ${quantity}`;
+}
+
 export interface PackageDisplayResult {
   components: PackageComponentLine[];
   packageName: string;

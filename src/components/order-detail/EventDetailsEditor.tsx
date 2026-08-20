@@ -5,6 +5,7 @@ interface EventDetailsEditorProps {
   editedOrder: any;
   pricingRules: any;
   onOrderChange: (updates: Partial<any>) => void;
+  onGeneratorQtyChange?: (quantity: number) => void | Promise<void>;
   onAddressSelect: (addressData: any) => void;
   compact?: boolean;
   showUntilEndOfDay?: boolean;
@@ -14,6 +15,7 @@ export function EventDetailsEditor({
   editedOrder,
   pricingRules,
   onOrderChange,
+  onGeneratorQtyChange,
   onAddressSelect,
   compact = false,
   showUntilEndOfDay = false,
@@ -227,16 +229,20 @@ export function EventDetailsEditor({
                     <input
                       type="number"
                       min="0"
-                      value={editedOrder.generator_qty ?? 0}
+                      value={editedOrder.generator_display_qty ?? editedOrder.generator_qty ?? 0}
                       onChange={(e) => {
                         const qty = parseInt(e.target.value) || 0;
-                        onOrderChange({ generator_qty: qty });
+                        if (onGeneratorQtyChange) {
+                          void onGeneratorQtyChange(qty);
+                        } else {
+                          onOrderChange({ generator_qty: qty });
+                        }
                       }}
                       className="w-full px-3 py-2 border border-slate-300 rounded"
                     />
-                    {(editedOrder.generator_qty ?? 0) > 0 && (
+                    {(editedOrder.generator_display_qty ?? editedOrder.generator_qty ?? 0) > 0 && (
                       <p className="text-xs text-blue-600 mt-1">
-                        {(editedOrder.generator_qty ?? 0)} × {formatCurrency(pricingRules?.generator_fee_single_cents || 0)} = {formatCurrency((pricingRules?.generator_fee_single_cents || 0) * (editedOrder.generator_qty ?? 0))}
+                        {(editedOrder.generator_display_qty ?? editedOrder.generator_qty ?? 0)} × {formatCurrency(pricingRules?.generator_fee_single_cents || 0)} = {formatCurrency((pricingRules?.generator_fee_single_cents || 0) * (editedOrder.generator_display_qty ?? editedOrder.generator_qty ?? 0))}
                       </p>
                     )}
                   </div>
@@ -315,7 +321,7 @@ export function EventDetailsEditor({
                 />
                 {(editedOrder.generator_qty ?? 0) > 0 && (
                   <p className="text-xs text-blue-600 mt-1 break-words">
-                    {(editedOrder.generator_qty ?? 0)} × {formatCurrency(pricingRules?.generator_fee_single_cents || 0)} = {formatCurrency((pricingRules?.generator_fee_single_cents || 0) * (editedOrder.generator_qty ?? 0))}
+                    {(editedOrder.generator_qty ?? 0)} × {formatCurrency(pricingRules?.generator_fee_single_cents || 0)} = {formatCurrency((pricingRules?.generator_fee_single_cents || 0) * (editedOrder.generator_display_qty ?? editedOrder.generator_qty ?? 0))}
                   </p>
                 )}
               </div>

@@ -23,6 +23,8 @@ import { sendOrderEditNotifications } from '../../lib/orderNotificationService';
 import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
 import { showToast } from '../../lib/notifications';
+import { loadGeneratorCategoryProductIds, lookupAllGeneratorProducts } from '../../lib/generatorUnified';
+import type { GeneratorProductConfiguration } from '../../lib/generatorUnified';
 
 interface OrderDetailModalProps {
   order: any;
@@ -83,6 +85,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     pickup_preference: order.pickup_preference || 'next_day',
   });
   const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
+  const [generatorProductIds, setGeneratorProductIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    loadGeneratorCategoryProductIds().then(setGeneratorProductIds).catch(() => setGeneratorProductIds(new Set()));
+  }, []);
   const [discounts, setDiscounts] = useState<any[]>([]);
   const [customFees, setCustomFees] = useState<any[]>([]);
   const [adminMessage, setAdminMessage] = useState(order.admin_message || '');
@@ -751,6 +758,101 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     setManualDirty(true);
   }, []);
 
+  const visibleGeneratorQty = useMemo(() => {
+    const directEeQty = stagedItems
+      .filter((item) => !item.is_deleted && !!item.product_id && generatorProductIds.has(item.product_id))
+      .reduce((sum, item) => sum + item.qty, 0);
+    return (editedOrder.generator_qty ?? 0) + directEeQty;
+  }, [editedOrder.generator_qty, generatorProductIds, stagedItems]);
+
+  const handleGeneratorQtyChange = useCallback(async (requestedTotal: number): Promise<void> => {
+    const requestedQty = Math.max(0, Number.isFinite(requestedTotal) ? Math.trunc(requestedTotal) : 0);
+    const directItems = stagedItems.filter((item) => !item.is_deleted && !!item.product_id && generatorProductIds.has(item.product_id));
+    const directQty = directItems.reduce((sum, item) => sum + item.qty, 0);
+    const currentTotal = (editedOrder.generator_qty ?? 0) + directQty;
+
+    if (requestedQty === currentTotal) return;
+
+    if (requestedQty < currentTotal) {
+      let remaining = currentTotal - requestedQty;
+      let nextLegacyQty = editedOrder.generator_qty ?? 0;
+      const directByNewest = [...directItems].reverse();
+      const directReduction = Math.min(remaining, directQty);
+      remaining -= directReduction;
+      const legacyReduction = Math.min(nextLegacyQty, remaining);
+      nextLegacyQty -= legacyReduction;
+      let remainingDirectReduction = directReduction;
+      setStagedItems((previous) => {
+        const directIds = new Set(directByNewest.map((item) => item.id || item.client_id));
+        return previous.map((item) => {
+          const key = item.id || item.client_id;
+          if (!key || !directIds.has(key) || remainingDirectReduction <= 0) return item;
+          const reduction = Math.min(item.qty, remainingDirectReduction);
+          remainingDirectReduction -= reduction;
+          const nextQty = item.qty - reduction;
+          return nextQty > 0 ? { ...item, qty: nextQty, is_updated: true } : { ...item, qty: 0, is_deleted: true, is_updated: true };
+        });
+      });
+      setEditedOrder((previous: any) => ({ ...previous, generator_qty: nextLegacyQty }));
+      setManualDirty(true);
+      return;
+    }
+
+    const additionalQty = requestedQty - currentTotal;
+    const generatorResult = await lookupAllGeneratorProducts();
+    if (generatorResult.status === 'configuration_failed') {
+      showToast('Unable to verify Generator availability. Please try again.', 'error');
+      return;
+    }
+
+    let qualifyingProduct: GeneratorProductConfiguration | null = null;
+    if (generatorResult.status === 'configured') {
+      const candidates = generatorResult.products
+        .filter((product) => product.standalone_enabled && product.standalone_price_cents !== null)
+        .sort((a, b) => (b.standalone_price_cents ?? 0) - (a.standalone_price_cents ?? 0));
+      for (const candidate of candidates) {
+        const availability = await checkProductAvailability(
+          [{ product_id: candidate.product_id, quantity: additionalQty }],
+          editedOrder.event_date,
+          editedOrder.event_end_date,
+          null,
+        );
+        if (availability.error) {
+          showToast('Unable to verify Generator availability. Please try again.', 'error');
+          return;
+        }
+        const available = availability.data?.some((entry) => entry.product_id === candidate.product_id && entry.is_allowed === true);
+        if (available) {
+          qualifyingProduct = candidate;
+          break;
+        }
+      }
+    }
+
+    if (qualifyingProduct) {
+      setStagedItems((previous) => {
+        const existing = previous.find((item) => !item.is_deleted && item.product_id === qualifyingProduct?.product_id && !item.bundle_id);
+        if (existing) {
+          return previous.map((item) => item === existing ? { ...item, qty: item.qty + additionalQty, is_updated: !item.is_new } : item);
+        }
+        return [...previous, {
+          client_id: `new-generator-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          product_id: qualifyingProduct.product_id,
+          product_name: qualifyingProduct.product_name,
+          item_name: qualifyingProduct.product_name,
+          qty: additionalQty,
+          unit_price_cents: qualifyingProduct.standalone_price_cents ?? 0,
+          pricing_context: 'standalone',
+          is_new: true,
+          is_deleted: false,
+        }];
+      });
+    } else {
+      setEditedOrder((previous: any) => ({ ...previous, generator_qty: (previous.generator_qty ?? 0) + additionalQty }));
+    }
+    setManualDirty(true);
+  }, [editedOrder.event_date, editedOrder.event_end_date, editedOrder.generator_qty, generatorProductIds, stagedItems]);
+
   const handleAddressSelect = useCallback((result: any) => {
     setEditedOrder((prev: any) => ({
       ...prev,
@@ -884,7 +986,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               availabilityIssues={availabilityIssues}
               pricingError={pricingError}
               stagedItems={stagedItems}
-              editedOrder={editedOrder}
+              editedOrder={{ ...editedOrder, generator_display_qty: visibleGeneratorQty }}
               pricingRules={pricingRules}
               availableUnits={availableUnits}
               currentOrderSummary={currentOrderSummary}
@@ -903,6 +1005,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               sameDayPickupFeeWaived={sameDayPickupFeeWaived}
               sameDayPickupFeeWaiveReason={sameDayPickupFeeWaiveReason}
               onOrderChange={handleOrderChange}
+              onGeneratorQtyChange={handleGeneratorQtyChange}
               onAddressSelect={handleAddressSelect}
               onRemoveItem={stageRemoveItem}
               onAddItem={stageAddItem}
