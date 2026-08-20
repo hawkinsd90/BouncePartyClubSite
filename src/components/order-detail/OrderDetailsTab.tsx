@@ -52,6 +52,7 @@ interface OrderDetailsTabProps {
   onGeneratorQtyChange?: (quantity: number) => void | Promise<void>;
   onAddressSelect: (result: any) => void;
   generatorLoadState?: { status: 'loading' | 'ready' | 'failed' };
+  generatorResolutionPending?: boolean;
   onRemoveItem: (item: any) => void;
   onAddItem: (unit: any, mode: 'dry' | 'water') => void;
   onUpdateQuantity: (item: any, qty: number) => void;
@@ -111,6 +112,7 @@ export function OrderDetailsTab({
   onGeneratorQtyChange,
   onAddressSelect,
   generatorLoadState,
+  generatorResolutionPending = false,
   onRemoveItem,
   onAddItem,
   onUpdateQuantity,
@@ -319,6 +321,7 @@ export function OrderDetailsTab({
         onGeneratorQtyChange={onGeneratorQtyChange}
         onAddressSelect={onAddressSelect}
         generatorLoadState={generatorLoadState}
+        generatorResolutionPending={generatorResolutionPending}
       />
 
       <ItemsEditor

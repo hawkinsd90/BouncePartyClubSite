@@ -166,6 +166,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [surfaceFeeWaiveReason, setSurfaceFeeWaiveReason] = useState(order.surface_fee_waive_reason || '');
   const [generatorFeeWaived, setGeneratorFeeWaived] = useState(order.generator_fee_waived || false);
   const [generatorFeeWaiveReason, setGeneratorFeeWaiveReason] = useState(order.generator_fee_waive_reason || '');
+  const [generatorResolutionPending, setGeneratorResolutionPending] = useState(false);
+  const generatorResolutionIdRef = useRef(0);
+  const [generatorLegacyConfirm, setGeneratorLegacyConfirm] = useState<null | {
+    additionalQty: number;
+    isWaived: boolean;
+  }>(null);
   const [sameDayWeekdayDeliveryFeeWaived, setSameDayWeekdayDeliveryFeeWaived] = useState(order.same_day_weekday_delivery_fee_waived || false);
   const [sameDayWeekdayDeliveryFeeWaiveReason, setSameDayWeekdayDeliveryFeeWaiveReason] = useState(order.same_day_weekday_delivery_fee_waive_reason || '');
 
@@ -800,13 +806,17 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       return;
     }
 
+    // Version guard: each call gets a new resolution ID. Only the latest may mutate state.
+    const resolutionId = ++generatorResolutionIdRef.current;
+    const isStale = () => resolutionId !== generatorResolutionIdRef.current;
+
     const directItems = stagedItems.filter((item) => !item.is_deleted && !!item.product_id && generatorProductIds.has(item.product_id));
     const directQty = directItems.reduce((sum, item) => sum + item.qty, 0);
     const currentTotal = (editedOrder.generator_qty ?? 0) + directQty;
 
     if (requestedQty === currentTotal) return;
 
-    // DECREASE
+    // DECREASE — synchronous, but still check staleness for consistency.
     if (requestedQty < currentTotal) {
       const decision = decideAdminGeneratorDecrease({
         current: { legacyQty: editedOrder.generator_qty ?? 0, directEeQty: directQty },
@@ -815,15 +825,25 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
       if (decision.removeQty <= 0) return;
 
-      // Deterministic newest-first ordering: unsaved (is_new) rows first (they have no created_at,
-      // so they are newest), then persisted rows by created_at descending.
+      // Newest-first ordering:
+      // 1. Unsaved rows by descending stagedItems index (highest index = newest)
+      // 2. Persisted rows by created_at descending, tie-broken by id descending
       const directByNewest = [...directItems].sort((a, b) => {
         const aNew = a.is_new ? 1 : 0;
         const bNew = b.is_new ? 1 : 0;
         if (aNew !== bNew) return bNew - aNew;
+        if (aNew && bNew) {
+          // Both unsaved: higher stagedItems index is newer.
+          // directItems is filtered from stagedItems so preserves relative order.
+          const aIdx = stagedItems.indexOf(a);
+          const bIdx = stagedItems.indexOf(b);
+          return bIdx - aIdx;
+        }
+        // Both persisted: created_at descending, then id descending.
         const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
         const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
-        return bTime - aTime;
+        if (aTime !== bTime) return bTime - aTime;
+        return (b.id || '').localeCompare(a.id || '');
       });
       let remainingDirectReduction = Math.min(decision.removeQty, directQty);
 
@@ -859,8 +879,9 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       return;
     }
 
-    // INCREASE
+    // INCREASE — async path with version guard.
     const additionalQty = requestedQty - currentTotal;
+    setGeneratorResolutionPending(true);
 
     // Load full catalog config for the pricing resolver.
     let productConfigs: Record<string, ResolverProductConfig> = {};
@@ -876,8 +897,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         fetchAdminProductBundlesWithConfiguration(),
       ]);
 
+      if (isStale()) return;
+
       if (catsRes.error || prodsRes.error || pricingRes.error || bundlesRes.error) {
-        showToast('Unable to load product catalog for Generator pricing. Please try again.', 'error');
+        if (!isStale()) showToast('Unable to load product catalog for Generator pricing. Please try again.', 'error');
         return;
       }
 
@@ -931,9 +954,14 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       for (const c of allCats) categoryMap[c.id] = { id: c.id };
       for (const u of availableUnits) unitMap[u.id] = { id: u.id, active: true };
     } catch {
-      showToast('Unable to load product catalog for Generator pricing. Please try again.', 'error');
+      if (!isStale()) showToast('Unable to load product catalog for Generator pricing. Please try again.', 'error');
       return;
+    } finally {
+      if (isStale()) return;
+      setGeneratorResolutionPending(false);
     }
+
+    if (isStale()) return;
 
     const resolution = await resolveAdminGeneratorIncrease({
       current: { legacyQty: editedOrder.generator_qty ?? 0, directEeQty: directQty },
@@ -947,6 +975,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       categories: categoryMap,
       units: unitMap,
     });
+
+    if (isStale()) return;
 
     if (resolution.status === 'fail_closed') {
       showToast(resolution.reason || 'Unable to verify Generator availability. Please try again.', 'error');
@@ -993,10 +1023,61 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       return;
     }
 
-    // Legacy fallback (no_candidate) or explicit legacy.
-    setEditedOrder((previous: any) => ({ ...previous, generator_qty: (previous.generator_qty ?? 0) + additionalQty }));
+    // Legacy fallback (no_candidate).
+    // Determine whether confirmation is needed before applying the legacy increase.
+    const existingLegacyQty = editedOrder.generator_qty ?? 0;
+    const isCurrentlyWaived = generatorFeeWaived;
+
+    if (existingLegacyQty === 0) {
+      // No existing legacy Generator — normal legacy creation.
+      // If waiver is stale (waived but no generators), clear it before creating.
+      if (isCurrentlyWaived) {
+        setGeneratorFeeWaived(false);
+        setGeneratorFeeWaiveReason('');
+      }
+      setEditedOrder((previous: any) => ({ ...previous, generator_qty: (previous.generator_qty ?? 0) + additionalQty }));
+      setManualDirty(true);
+      return;
+    }
+
+    // Existing legacy Generator present — require confirmation.
+    // Store pending request and show dialog. The dialog callbacks will apply or cancel.
+    setGeneratorLegacyConfirm({ additionalQty, isWaived: isCurrentlyWaived });
+  }, [editedOrder.event_date, editedOrder.event_end_date, editedOrder.generator_qty, generatorProductIdsState, generatorProductIds, stagedItems, order.id, availableUnits, generatorFeeWaived]);
+
+  const handleGeneratorLegacyConfirm = useCallback(() => {
+    const pending = generatorLegacyConfirm;
+    if (!pending) return;
+
+    // KEEP WAIVED: increase legacy qty, preserve waiver.
+    // REMOVE WAIVER: increase legacy qty, clear waiver (pricing recalculates).
+    // This callback handles "keep waived" — the only confirm option for non-waived.
+    // For waived, the three-way choice is handled by separate callbacks below.
+    if (!pending.isWaived) {
+      // Not waived — simple confirmation. Increase legacy qty, fee recalculates.
+      setEditedOrder((previous: any) => ({ ...previous, generator_qty: (previous.generator_qty ?? 0) + pending.additionalQty }));
+      setManualDirty(true);
+    } else {
+      // Waived + keep waived: increase qty, preserve waiver.
+      setEditedOrder((previous: any) => ({ ...previous, generator_qty: (previous.generator_qty ?? 0) + pending.additionalQty }));
+      setManualDirty(true);
+    }
+    setGeneratorLegacyConfirm(null);
+  }, [generatorLegacyConfirm]);
+
+  const handleGeneratorLegacyRemoveWaiver = useCallback(() => {
+    const pending = generatorLegacyConfirm;
+    if (!pending) return;
+    setGeneratorFeeWaived(false);
+    setGeneratorFeeWaiveReason('');
+    setEditedOrder((previous: any) => ({ ...previous, generator_qty: (previous.generator_qty ?? 0) + pending.additionalQty }));
     setManualDirty(true);
-  }, [editedOrder.event_date, editedOrder.event_end_date, editedOrder.generator_qty, generatorProductIdsState, generatorProductIds, stagedItems, order.id, availableUnits]);
+    setGeneratorLegacyConfirm(null);
+  }, [generatorLegacyConfirm]);
+
+  const handleGeneratorLegacyCancel = useCallback(() => {
+    setGeneratorLegacyConfirm(null);
+  }, []);
 
   const handleAddressSelect = useCallback((result: any) => {
     setEditedOrder((prev: any) => ({
@@ -1153,6 +1234,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               onGeneratorQtyChange={handleGeneratorQtyChange}
               onAddressSelect={handleAddressSelect}
               generatorLoadState={generatorProductIdsState}
+              generatorResolutionPending={generatorResolutionPending}
               onRemoveItem={stageRemoveItem}
               onAddItem={stageAddItem}
               onUpdateQuantity={handleUpdateQuantity}
@@ -1279,6 +1361,57 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         cancelText="Cancel"
         variant="warning"
       />
+
+      {generatorLegacyConfirm && !generatorLegacyConfirm.isWaived && (
+        <SimpleConfirmModal
+          isOpen={true}
+          onClose={handleGeneratorLegacyCancel}
+          onConfirm={handleGeneratorLegacyConfirm}
+          title="Add Legacy Generator"
+          message="No Event Essentials Generator is available for this order. One additional legacy Generator will be added, and the aggregate legacy Generator fee will be recalculated using the current pricing rules."
+          confirmText="Add Generator"
+          cancelText="Cancel"
+          variant="info"
+        />
+      )}
+
+      {generatorLegacyConfirm && generatorLegacyConfirm.isWaived && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full border-2 border-orange-600">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+              <h2 className="text-xl font-bold text-slate-900">Generator Fee Waiver</h2>
+            </div>
+            <div className="p-6">
+              <p className="text-slate-700 mb-6">
+                No Event Essentials Generator is available. The existing Generator fee is currently waived. Adding a legacy Generator requires an explicit choice about the waiver.
+              </p>
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={handleGeneratorLegacyConfirm}
+                  className="w-full px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition-colors"
+                >
+                  Keep Generator Fee Waived
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGeneratorLegacyRemoveWaiver}
+                  className="w-full px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-medium transition-colors"
+                >
+                  Remove Generator Fee Waiver
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGeneratorLegacyCancel}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg text-slate-700 font-medium hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

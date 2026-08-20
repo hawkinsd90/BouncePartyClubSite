@@ -8,6 +8,7 @@ interface EventDetailsEditorProps {
   onGeneratorQtyChange?: (quantity: number) => void | Promise<void>;
   onAddressSelect: (addressData: any) => void;
   generatorLoadState?: { status: 'loading' | 'ready' | 'failed' };
+  generatorResolutionPending?: boolean;
   compact?: boolean;
   showUntilEndOfDay?: boolean;
 }
@@ -19,6 +20,7 @@ export function EventDetailsEditor({
   onGeneratorQtyChange,
   onAddressSelect,
   generatorLoadState,
+  generatorResolutionPending = false,
   compact = false,
   showUntilEndOfDay = false,
 }: EventDetailsEditorProps) {
@@ -232,6 +234,8 @@ export function EventDetailsEditor({
                       <p className="text-sm text-slate-500 py-2">Loading generator information…</p>
                     ) : generatorLoadState?.status === 'failed' ? (
                       <p className="text-sm text-red-600 py-2">Unable to load Generator information. Please try again.</p>
+                    ) : generatorResolutionPending ? (
+                      <p className="text-sm text-slate-500 py-2">Resolving Generator availability…</p>
                     ) : (
                       <input
                         type="number"
@@ -317,6 +321,8 @@ export function EventDetailsEditor({
                   <p className="text-sm text-slate-500 py-2 break-words">Loading generator information…</p>
                 ) : generatorLoadState?.status === 'failed' ? (
                   <p className="text-sm text-red-600 py-2 break-words">Unable to load Generator information. Please try again.</p>
+                ) : generatorResolutionPending ? (
+                  <p className="text-sm text-slate-500 py-2 break-words">Resolving Generator availability…</p>
                 ) : (
                   <input
                     type="number"
