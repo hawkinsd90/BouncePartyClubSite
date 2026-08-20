@@ -7,6 +7,7 @@ interface EventDetailsEditorProps {
   onOrderChange: (updates: Partial<any>) => void;
   onGeneratorQtyChange?: (quantity: number) => void | Promise<void>;
   onAddressSelect: (addressData: any) => void;
+  generatorLoadState?: { status: 'loading' | 'ready' | 'failed' };
   compact?: boolean;
   showUntilEndOfDay?: boolean;
 }
@@ -17,6 +18,7 @@ export function EventDetailsEditor({
   onOrderChange,
   onGeneratorQtyChange,
   onAddressSelect,
+  generatorLoadState,
   compact = false,
   showUntilEndOfDay = false,
 }: EventDetailsEditorProps) {
@@ -226,20 +228,26 @@ export function EventDetailsEditor({
 
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Generators</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={editedOrder.generator_display_qty ?? editedOrder.generator_qty ?? 0}
-                      onChange={(e) => {
-                        const qty = parseInt(e.target.value) || 0;
-                        if (onGeneratorQtyChange) {
-                          void onGeneratorQtyChange(qty);
-                        } else {
-                          onOrderChange({ generator_qty: qty });
-                        }
-                      }}
-                      className="w-full px-3 py-2 border border-slate-300 rounded"
-                    />
+                    {generatorLoadState?.status === 'loading' ? (
+                      <p className="text-sm text-slate-500 py-2">Loading generator information…</p>
+                    ) : generatorLoadState?.status === 'failed' ? (
+                      <p className="text-sm text-red-600 py-2">Unable to load Generator information. Please try again.</p>
+                    ) : (
+                      <input
+                        type="number"
+                        min="0"
+                        value={editedOrder.generator_display_qty ?? editedOrder.generator_qty ?? 0}
+                        onChange={(e) => {
+                          const qty = parseInt(e.target.value) || 0;
+                          if (onGeneratorQtyChange) {
+                            void onGeneratorQtyChange(qty);
+                          } else {
+                            onOrderChange({ generator_qty: qty });
+                          }
+                        }}
+                        className="w-full px-3 py-2 border border-slate-300 rounded"
+                      />
+                    )}
 
                   </div>
                 </div>
@@ -305,16 +313,22 @@ export function EventDetailsEditor({
 
               <div className="min-w-0 overflow-hidden">
                 <label className={labelClass}>Generators</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={editedOrder.generator_qty ?? 0}
-                  onChange={(e) => {
-                    const qty = parseInt(e.target.value) || 0;
-                    onOrderChange({ generator_qty: qty });
-                  }}
-                  className={inputClass}
-                />
+                {generatorLoadState?.status === 'loading' ? (
+                  <p className="text-sm text-slate-500 py-2 break-words">Loading generator information…</p>
+                ) : generatorLoadState?.status === 'failed' ? (
+                  <p className="text-sm text-red-600 py-2 break-words">Unable to load Generator information. Please try again.</p>
+                ) : (
+                  <input
+                    type="number"
+                    min="0"
+                    value={editedOrder.generator_qty ?? 0}
+                    onChange={(e) => {
+                      const qty = parseInt(e.target.value) || 0;
+                      onOrderChange({ generator_qty: qty });
+                    }}
+                    className={inputClass}
+                  />
+                )}
 
               </div>
             </>

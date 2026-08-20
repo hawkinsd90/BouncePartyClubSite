@@ -188,6 +188,7 @@ export interface AdminGeneratorStagedItem {
   qty: number;
   unit_price_cents: number;
   pricing_context?: string;
+  wet_or_dry?: 'dry' | 'water';
   component_snapshot?: { components: Array<{ product_id: string; quantity_per_bundle: number }> } | null;
   is_deleted?: boolean;
 }
@@ -251,6 +252,7 @@ export async function resolveAdminGeneratorIncrease(input: {
           qty: item.qty,
           unitId: item.unit_id,
           selectedUnitPriceCents: item.unit_price_cents,
+          wetOrDry: item.wet_or_dry,
         };
       }
       if (item.bundle_id) {
@@ -275,9 +277,11 @@ export async function resolveAdminGeneratorIncrease(input: {
   const resolvedCandidates: GeneratorCandidateResolution[] = [];
 
   for (const product of generatorProducts) {
-    // Skip products without a valid product config (no pricing).
+    // Missing config for an active Generator product is a technical failure — fail closed.
     const cfg = productConfigs[product.product_id];
-    if (!cfg) continue;
+    if (!cfg) {
+      return { status: 'fail_closed', reason: `Generator product "${product.product_name}" has no pricing configuration available to the resolver.` };
+    }
 
     const candidateKey = `generator-candidate-${product.product_id}`;
     const candidateLine: ResolverInputLine = {
@@ -300,13 +304,30 @@ export async function resolveAdminGeneratorIncrease(input: {
       (l) => l.resolverKey === candidateKey,
     );
 
-    if (!candidateResult || !candidateResult.selectable || candidateResult.resolvedUnitPriceCents === null) {
-      // This candidate is not selectable for pricing reasons — skip, not a failure.
-      continue;
+    // Missing resolver result is a technical failure — fail closed.
+    if (!candidateResult) {
+      return { status: 'fail_closed', reason: `Pricing resolver returned no result for Generator product "${product.product_name}".` };
     }
 
+    // Non-selectable: only the legitimate direct-product non-qualification reason may continue.
+    // Everything else (including unknown future reasons) fails closed.
+    if (!candidateResult.selectable) {
+      if (candidateResult.invalidReason === 'NO_STANDALONE_AND_ADDON_NOT_QUALIFIED') {
+        continue;
+      }
+      return { status: 'fail_closed', reason: `Generator product "${product.product_name}" could not be priced: ${candidateResult.invalidReason || 'unknown pricing error'}.` };
+    }
+
+    // Selectable candidate must have a valid non-negative integer price and a valid context.
     const resolvedPrice = candidateResult.resolvedUnitPriceCents;
-    const resolvedContext = candidateResult.resolvedPricingContext || 'standalone';
+    if (typeof resolvedPrice !== 'number' || !Number.isInteger(resolvedPrice) || resolvedPrice < 0) {
+      return { status: 'fail_closed', reason: `Generator product "${product.product_name}" resolved to an invalid price.` };
+    }
+
+    const resolvedContext = candidateResult.resolvedPricingContext;
+    if (resolvedContext !== 'standalone' && resolvedContext !== 'addon') {
+      return { status: 'fail_closed', reason: `Generator product "${product.product_name}" resolved to an unrecognized pricing context.` };
+    }
 
     // 4. Build the COMPLETE resulting inventory requirement and check availability.
     const resultingItems: AdminGeneratorStagedItem[] = [

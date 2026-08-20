@@ -73,6 +73,7 @@ export interface StagedItem {
   unit_price_cents: number;
   pricing_context?: string;
   component_snapshot?: BundleComponentSnapshot | null;
+  created_at?: string;
   is_new?: boolean;
   is_deleted?: boolean;
   is_updated?: boolean;
@@ -344,6 +345,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
             qty: item.qty,
             wet_or_dry: item.wet_or_dry,
             unit_price_cents: item.unit_price_cents,
+            created_at: item.created_at,
             is_new: false,
             is_deleted: false,
           };
@@ -359,6 +361,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           unit_price_cents: item.unit_price_cents,
           pricing_context: item.pricing_context,
           component_snapshot: item.component_snapshot ?? null,
+          created_at: item.created_at,
           is_new: false,
           is_deleted: false,
         };
@@ -626,7 +629,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   async function loadOrderDetails() {
     try {
       const [itemsRes, changelogRes, unitsRes, discountsRes, customFeesRes] = await Promise.all([
-        supabase.from('order_items').select('*, units(name, price_dry_cents, price_water_cents)').eq('order_id', order.id),
+        supabase.from('order_items').select('*, units(name, price_dry_cents, price_water_cents)').eq('order_id', order.id).order('created_at', { ascending: true }),
         supabase.from('order_changelog').select('*').eq('order_id', order.id).order('created_at', { ascending: false }),
         supabase.from('units').select('*').eq('active', true).order('name'),
         supabase.from('order_discounts').select('*').eq('order_id', order.id).order('created_at', { ascending: false }),
@@ -782,11 +785,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const generatorProductIds = generatorProductIdsState.ids;
 
   const visibleGeneratorQty = useMemo(() => {
+    if (generatorProductIdsState.status !== 'ready') return null;
     const directEeQty = stagedItems
       .filter((item) => !item.is_deleted && !!item.product_id && generatorProductIds.has(item.product_id))
       .reduce((sum, item) => sum + item.qty, 0);
     return (editedOrder.generator_qty ?? 0) + directEeQty;
-  }, [editedOrder.generator_qty, generatorProductIds, stagedItems]);
+  }, [editedOrder.generator_qty, generatorProductIds, generatorProductIdsState.status, stagedItems]);
 
   const handleGeneratorQtyChange = useCallback(async (requestedTotal: number): Promise<void> => {
     const requestedQty = Math.max(0, Number.isFinite(requestedTotal) ? Math.trunc(requestedTotal) : 0);
@@ -811,19 +815,43 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
       if (decision.removeQty <= 0) return;
 
-      const directByNewest = [...directItems].reverse();
+      // Deterministic newest-first ordering: unsaved (is_new) rows first (they have no created_at,
+      // so they are newest), then persisted rows by created_at descending.
+      const directByNewest = [...directItems].sort((a, b) => {
+        const aNew = a.is_new ? 1 : 0;
+        const bNew = b.is_new ? 1 : 0;
+        if (aNew !== bNew) return bNew - aNew;
+        const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return bTime - aTime;
+      });
       let remainingDirectReduction = Math.min(decision.removeQty, directQty);
 
       setStagedItems((previous) => {
-        const directIds = new Set(directByNewest.map((item) => item.id || item.client_id));
-        return previous.map((item) => {
-          const key = item.id || item.client_id;
-          if (!key || !directIds.has(key) || remainingDirectReduction <= 0) return item;
+        const orderedKeys = directByNewest.map((item) => item.id || item.client_id).filter((k): k is string => !!k);
+        const keySet = new Set(orderedKeys);
+        const reductionByKey = new Map<string, number>();
+        for (const key of orderedKeys) {
+          if (remainingDirectReduction <= 0) break;
+          const item = previous.find((i) => (i.id || i.client_id) === key && keySet.has(key));
+          if (!item) continue;
           const reduction = Math.min(item.qty, remainingDirectReduction);
           remainingDirectReduction -= reduction;
+          reductionByKey.set(key, reduction);
+        }
+
+        return previous.map((item) => {
+          const key = item.id || item.client_id;
+          if (!key || !reductionByKey.has(key)) return item;
+          const reduction = reductionByKey.get(key)!;
           const nextQty = item.qty - reduction;
-          return nextQty > 0 ? { ...item, qty: nextQty, is_updated: true } : { ...item, qty: 0, is_deleted: true, is_updated: true };
-        });
+          if (nextQty > 0) {
+            return { ...item, qty: nextQty, is_updated: true };
+          }
+          // Persisted row → mark deleted; new unsaved row → remove from staged state.
+          if (item.is_new) return null;
+          return { ...item, qty: 0, is_deleted: true, is_updated: true };
+        }).filter((item): item is StagedItem => item !== null);
       });
 
       setEditedOrder((previous: any) => ({ ...previous, generator_qty: decision.newLegacyQty }));
@@ -1124,6 +1152,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               onOrderChange={handleOrderChange}
               onGeneratorQtyChange={handleGeneratorQtyChange}
               onAddressSelect={handleAddressSelect}
+              generatorLoadState={generatorProductIdsState}
               onRemoveItem={stageRemoveItem}
               onAddItem={stageAddItem}
               onUpdateQuantity={handleUpdateQuantity}
